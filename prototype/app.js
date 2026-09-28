@@ -25,6 +25,8 @@
     starOn: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4Z"/></svg>',
   };
+  // Small library mark for quiet rows: Fabrica's logo on a dark tile, otherwise the owner's avatar.
+  const libMark = lib => (isFabrica(lib) ? `<span class="fabmark" title="Published by Fabrica">${icon.fab}</span>` : avatar(lib.owner, 'xs'));
   const fabBadge = () => `<span class="fab" title="Published by Fabrica">${icon.fab}Fabrica</span>`;
   // GitHub-style identicon: a mirrored 5x5 grid whose color and pattern come from a hash of the login.
   function identicon(login) {
@@ -124,11 +126,11 @@
 
   // ---------- Shared bits ----------
   const impact = i => `<span class="impact ${i}">${i}</span>`;
-  function ruleResult(r, q) {
+  function ruleResult(r, q, { showGroup = true } = {}) {
     const hl = s => (q ? esc(s).replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>') : esc(s));
     return `<a class="result" href="${ruleUrl(r)}">
-      <div class="t"><span>${hl(r.title)}</span> ${isFabrica(r.lib) ? fabBadge() : ''} ${impact(r.impact)}</div>
-      <div class="meta"><span class="row" style="gap:6px">${techIcon(r.group, 'xs')}${esc(libName(r.lib))} · ${groupName(r.group)}</span><span>${usedBy(r.usedBy)}</span><span>★ ${fmt(starCount(r))}</span></div></a>`;
+      <div class="t"><span>${hl(r.title)}</span> ${impact(r.impact)}</div>
+      <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span><span>${usedBy(r.usedBy)}</span><span>★ ${fmt(starCount(r))}</span></div></a>`;
   }
   function originCards(lib) {
     const o = D.owners[lib.owner] || { type: 'user', verified: null };
@@ -192,7 +194,7 @@
     const libs = [...new Set(base.map(x => x.r.lib.id))].map(libById).sort((a, b) => (isFabrica(b) ? 1 : 0) - (isFabrica(a) ? 1 : 0) || b.usedBy - a.usedBy);
     const active = f.kind || f.imp || f.onlyFab || f.mine || f.libs.size || f.stars || f.used;
     return `<aside class="filters">
-      <div class="fg"><h5>Libraries</h5>${state.signedIn ? cb('mine', '1', 'My libraries', f.mine) : ''}${libs.map(l => `<label class="${isFabrica(l) ? 'fab-row' : ''}"><input type="checkbox" data-multi="libs" data-val="${esc(l.id)}" ${f.libs.has(l.id) ? 'checked' : ''}> ${avatar(l.owner, 'xs')}<span style="flex:1">${esc(libName(l))}</span><span class="faint">${base.filter(x => x.r.lib.id === l.id).length}</span></label>`).join('')}</div>
+      <div class="fg"><h5>Libraries</h5>${state.signedIn ? cb('mine', '1', 'My libraries', f.mine) : ''}${libs.map(l => `<label class="${isFabrica(l) ? 'fab-row' : ''}"><input type="checkbox" data-multi="libs" data-val="${esc(l.id)}" ${f.libs.has(l.id) ? 'checked' : ''}> ${avatar(l.owner, 'xs')}<span class="trunc" title="${esc(libName(l))}">${esc(libName(l))}</span><span class="faint">${base.filter(x => x.r.lib.id === l.id).length}</span></label>`).join('')}</div>
       ${kind ? `<div class="fg"><h5>Kind</h5>${cb('kind', 'techs/', 'Technologies', f.kind === 'techs/')}${cb('kind', 'practices/', 'Practices', f.kind === 'practices/')}</div>` : ''}
       <div class="fg"><h5>Impact</h5>${cb('impact', 'high', 'Critical and high', f.imp === 'high')}${cb('impact', 'medium', 'Medium and lower', f.imp === 'medium')}</div>
       <div class="fg"><h5>Stars</h5>${radios('stars', f.stars, [[0, 'Any'], [10, '10+'], [50, '50+'], [100, '100+']])}</div>
@@ -204,12 +206,20 @@
     best: (a, b) => b.score - a.score || b.r.usedBy - a.r.usedBy, used: (a, b) => b.r.usedBy - a.r.usedBy,
     stars: (a, b) => starCount(b.r) - starCount(a.r), new: (a, b) => (b.r.lib.fresh ? 1 : 0) - (a.r.lib.fresh ? 1 : 0) || b.r.net30 - a.r.net30,
   };
-  function resultsList(rows, sort, sortOptions, term, emptyHtml) {
+  function resultsList(rows, sort, sortOptions, term, emptyHtml, { grouped = false } = {}) {
     const libsN = new Set(rows.map(x => x.r.lib.id)).size;
+    let body;
+    if (!rows.length) body = emptyHtml;
+    else if (grouped) {
+      // Groups appear in the order of their best-ranked rule; rules keep their sort order inside each group.
+      const order = []; const byGroup = {};
+      rows.forEach(x => { if (!byGroup[x.r.group]) { byGroup[x.r.group] = []; order.push(x.r.group); } byGroup[x.r.group].push(x); });
+      body = order.map(g => `<a class="grp-h" href="#/g/${g}">${techIcon(g, 'xs')}<span>${groupName(g)}</span><span class="mono faint">${g}</span><span class="n">${byGroup[g].length}</span></a>${byGroup[g].map(x => ruleResult(x.r, term, { showGroup: false })).join('')}`).join('');
+    } else body = rows.map(x => ruleResult(x.r, term, { showGroup: false })).join('');
     return `<div>
       <div class="row between" style="margin-bottom:12px"><span class="muted sm">${rows.length} ${rows.length === 1 ? 'rule' : 'rules'} in ${libsN} ${libsN === 1 ? 'library' : 'libraries'}</span>
         <div class="seg">${sortOptions.map(([k, l]) => `<button data-sort="${k}" data-default="${sortOptions[0][0]}" class="${sort === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-      ${rows.length ? rows.map(x => ruleResult(x.r, term)).join('') : emptyHtml}</div>`;
+      ${body}</div>`;
   }
 
   function search() {
@@ -235,7 +245,7 @@
     return `<div class="page wrap">
       <p class="index">Search</p><h1 class="title-xl" style="margin:8px 0 22px">${term ? `Rules matching “${esc(term)}”` : 'All rules'}</h1>
       <div class="search-layout">${filterSidebar(base, f, { kind: true })}
-        ${resultsList(rows, sort, [['best', 'Best match'], ['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#" data-act="feedback">tell us what you were looking for</a>.</div>`)}
+        ${resultsList(rows, sort, [['best', 'Best match'], ['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#" data-act="feedback">tell us what you were looking for</a>.</div>`, { grouped: true })}
       </div></div>`;
   }
 
@@ -338,7 +348,7 @@
           ${sel.length ? `<details class="prompt"><summary>What the prompt says</summary><pre>${esc(libPrompt(lib, sel))}</pre></details>` : ''}
         </div></aside></div>`;
     } else if (tab === 'rules') {
-      body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` })).join('')}`).join('');
+      body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
     } else if (tab === 'versions') {
       body = `<div class="versions">${[...lib.tags].reverse().map(t => `<div><b>${t.v}</b> · ${t.date}<br><span class="muted">${esc(t.summary)}</span></div>`).join('')}</div><p class="faint sm" style="margin-top:18px">Versions come from Git tags. Untagged commits never appear.</p>`;
     } else if (tab === 'discussion') {
