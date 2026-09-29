@@ -67,7 +67,6 @@
   const libById = id => libraries().find(l => l.id === id);
   const libName = lib => lib.name || lib.id;
   const isFabrica = lib => lib.owner === 'fabricahq';
-  const latest = lib => lib.tags[lib.tags.length - 1].v;
   const allRules = () => libraries().flatMap(lib => lib.rules.map(r => ({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` })));
   const ruleUrl = r => `#/${r.lib.id}/${r.group}/${r.slug}`;
   const libUrl = (lib, tab) => `#/${lib.id}${tab ? `?tab=${tab}` : ''}`;
@@ -107,8 +106,10 @@
   const ruleAssets = r => [...ownAssets(r), ...(usesShared(r) ? (r.lib.sharedAssets || []).map(a => ({ ...a, shared: true })) : [])];
   const assetAt = (r, repoPath) => ruleAssets(r).find(a => assetRepoPath(r, a) === repoPath);
   const assetUrl = (r, a) => (a.shared ? `#/${r.lib.id}/assets/${a.path}?rule=${encodeURIComponent(`${r.group}/${r.slug}`)}` : `${ruleUrl(r)}/assets/${a.path}`);
-  // Files are pinned to the rule's release tag, so an asset always matches the rule text beside it (see the versioning NOTE below).
-  const ghFileUrl = (r, repoPath, view = 'blob') => `https://github.com/${r.lib.id}/${view}/${r.group}/${r.slug}@${ruleVersion(r)}/${repoPath}`;
+  // A rule version covers its Markdown file and its own asset directory, so those link to the library release that published
+  // the version. Library-wide files, such as shared assets, aren't versioned with the rule and link to the newest library release.
+  const ownsPath = (r, repoPath) => repoPath === `${r.group}/${r.slug}.md` || repoPath.startsWith(`${ruleAssetDir(r)}/`);
+  const ghFileUrl = (r, repoPath, view = 'blob') => `https://github.com/${r.lib.id}/${view}/${releaseTag(ownsPath(r, repoPath) ? ruleRelease(r) : latestRelease(r.lib).n)}/${repoPath}`;
   // The mock serves images from files/. The real site would serve the tagged file from a separate, cookieless domain.
   const assetSrc = (r, repoPath) => `files/${r.lib.id}/${repoPath}`;
   const assetIcon = a => (a.type === 'image' ? icon.image : a.type === 'markdown' ? icon.doc : icon.braces);
@@ -120,22 +121,29 @@
     return a ? `href="${assetUrl(r, a)}"` : `href="${ghFileUrl(r, repoPath)}" data-act="ghlink"`;
   });
 
-  // NOTE: Code Rules is changing how rule versions work. The versions, tags, and change history in this mock are
-  // placeholders for the UI, not a spec. Check the latest Code Rules implementation before building on them.
-  // Each rule has its own semver history. Release events (lib.tags) only supply dates and ordering.
-  const releaseOf = (lib, v) => { const i = lib.tags.findIndex(t => t.v === v); return { i, date: i >= 0 ? lib.tags[i].date : '' }; };
+  // ---------- Library releases and rule versions ----------
+  // A library release is one release/<n> tag. Its message ends with a YAML release record: every rule's version, and each
+  // change's level and summary. Rulemart builds rule histories from those records; GitHub Release pages are only announcements.
+  const releaseTag = n => `release/${n}`;
+  const latestRelease = lib => lib.releases[lib.releases.length - 1];
+  const releaseDate = (lib, n) => (lib.releases.find(x => x.n === n) || {}).date || '';
+  const bumpVersion = (v, change) => {
+    const [a, b, c] = v.split('.').map(Number);
+    return change === 'major' ? `${a + 1}.0.0` : change === 'minor' ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`;
+  };
+  // Newest first. A new rule starts at 1.0.0, and each change's level sets the next version.
   function ruleVersions(r) {
-    const first = releaseOf(r.lib, r.added);
-    let [maj, min, pat] = [1, 0, 0];
-    const out = [{ version: '1.0.0', bump: 'new', summary: 'First published.', date: first.date, i: first.i }];
-    [...r.changes].sort((a, b) => releaseOf(r.lib, a.v).i - releaseOf(r.lib, b.v).i).forEach(c => {
-      if (c.bump === 'major') { maj += 1; min = 0; pat = 0; } else if (c.bump === 'minor') { min += 1; pat = 0; } else { pat += 1; }
-      const rel = releaseOf(r.lib, c.v);
-      out.push({ version: `${maj}.${min}.${pat}`, bump: c.bump, summary: c.summary, diff: c.diff, date: rel.date, i: rel.i });
+    let version = '1.0.0';
+    const out = [{ version, change: 'new', from: null, summary: r.addedSummary || (r.added === 1 ? 'Published in the first library release.' : ''), release: r.added, date: releaseDate(r.lib, r.added) }];
+    [...r.changes].sort((a, b) => a.release - b.release).forEach(c => {
+      const from = version; version = bumpVersion(version, c.change);
+      out.push({ version, change: c.change, from, summary: c.summary, release: c.release, date: releaseDate(r.lib, c.release) });
     });
     return out.reverse();
   }
   const ruleVersion = r => ruleVersions(r)[0].version;
+  // The library release that published the rule's current version. The rule's file and its own assets are at that tag's commit.
+  const ruleRelease = r => ruleVersions(r)[0].release;
   // Version rows only call out the latest version; the version numbers say the rest.
   const versionChips = (v, isLatest) => (isLatest ? '<span class="chip">Latest</span>' : '');
   const issuesFor = ruleKey => state.issues.filter(i => i.ruleKey === ruleKey);
@@ -209,7 +217,8 @@
       <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink" title="github.com/${esc(lib.id)}">${esc(lib.id.split('/')[1])}</a></span></div>
       <div><span>License</span><span>${esc(lib.license)}</span></div>
       ${usageShown(lib.usedBy) ? `<div><span>Used by</span><span>${fmt(lib.usedBy)} projects</span></div>` : ''}
-      <div><span>Updated</span><span>${esc(lib.tags[lib.tags.length - 1].date)}</span></div>
+      <div><span>Latest library release</span><span><a class="mono" href="${libUrl(lib, 'releases')}">${releaseTag(latestRelease(lib).n)}</a></span></div>
+      <div><span>Updated</span><span>${esc(latestRelease(lib).date)}</span></div>
       <div><span>On Rulemart since</span><span>${esc(lib.addedOn)}</span></div>
       <div><span>Added by</span><span><a href="#/${lib.addedBy}">@${esc(lib.addedBy)}</a></span></div>
     </div>`;
@@ -427,7 +436,7 @@
     const groupIds = [...new Set(lib.rules.map(r => r.group))];
     const disc = lib.rules.flatMap(r => discussionFor({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }).map(d => ({ ...d, rule: r })));
     const openDisc = disc.filter(d => d.state === 'open').length;
-    const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['releases', 'Releases', null], ['discussion', 'Discussion', openDisc]];
+    const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['releases', 'Library releases', lib.releases.length], ['discussion', 'Discussion', openDisc]];
     if (isMaintainer(lib) && lib.insights) tabs.push(['insights', 'Insights', null]);
     let body = ''; let sideTop = '';
     if (tab === 'groups') {
@@ -447,10 +456,8 @@
     } else if (tab === 'rules') {
       body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
     } else if (tab === 'releases') {
-      const entries = lib.rules.flatMap(x => { const rr = { ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }; return ruleVersions(rr).map(v => ({ ...v, r: rr })); });
-      const byRelease = [...new Set(entries.map(e => e.i))].sort((a, b) => b - a);
-      body = byRelease.map(i => `<p class="index list-label">${esc(lib.tags[i].date)}</p>${rowList(entries.filter(e => e.i === i).map(e => `<a class="rowlink" href="${ruleUrl(e.r)}?tab=versions"><div><div class="t">${esc(e.r.title)}</div><div class="s">${esc(e.summary)}</div></div><span class="mono sm">${e.version}</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}`).join('')
-        + '<p class="faint sm" style="margin-top:16px">Every rule is versioned on its own. Each entry is a tag like <span class="mono">practices/testing/verify-retry-limits@1.3.0</span>.</p>';
+      body = `<p class="muted sm" style="margin:0 0 16px">A library release publishes new versions of one or more rules at once. Each rule keeps its own version.</p>`
+        + [...lib.releases].reverse().map(rel => libraryReleaseCard(lib, rel)).join('');
     } else if (tab === 'discussion') {
       body = discussionList(disc, lib, true);
     } else if (tab === 'insights') {
@@ -464,6 +471,32 @@
         <div class="row actions"><a class="btn small" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${icon.gh}View on GitHub</a></div></div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${libUrl(lib, k)}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
       ${tab === 'insights' ? body : `<div class="lib-cols"><div>${body}</div><aside class="side">${sideTop}${libAbout(lib)}</aside></div>`}</div>`;
+  }
+
+  // What one library release published, read from its release record, in the order of the generated GitHub Release page.
+  function releaseRecord(lib, n) {
+    const rules = lib.rules.map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }));
+    const changes = rules.flatMap(r => ruleVersions(r).filter(v => v.release === n).map(v => ({ ...v, r })));
+    const versions = rules.filter(r => r.added <= n).map(r => ({ r, version: ruleVersions(r).find(v => v.release <= n).version }));
+    return { changes, versions };
+  }
+  const countPhrase = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')}${parts.length > 2 ? ',' : ''} and ${parts[parts.length - 1]}`);
+  function libraryReleaseCard(lib, rel) {
+    const { changes, versions } = releaseRecord(lib, rel.n);
+    const kinds = [['major', 'Major changes', 'major'], ['minor', 'Minor changes', 'minor'], ['patch', 'Patch changes', 'patch'], ['new', 'New rules', 'new']];
+    const counts = kinds.map(([k, , word]) => [changes.filter(c => c.change === k).length, word]).filter(([n]) => n).map(([n, word]) => `${n} ${word}`);
+    // The first library release needs no change notes, so its new rules carry no summaries.
+    const item = c => `<li><a href="${ruleUrl(c.r)}?tab=versions"><b>${esc(c.r.title)}</b></a> <span class="mono faint">${c.r.group}/${c.r.slug}</span> <span class="mono">${c.from ? `${c.from} → ${c.version}` : c.version}</span>${c.summary && rel.n > 1 ? `<div class="muted">${esc(c.summary)}</div>` : ''}</li>`;
+    const isLatest = rel.n === latestRelease(lib).n;
+    return `<section class="relcard">
+      <div class="rel-h"><b class="mono">${releaseTag(rel.n)}</b>${isLatest ? '<span class="chip">Latest</span>' : ''}<span class="faint sm">${esc(rel.date)}</span>
+        <a class="sm rel-gh" href="https://github.com/${esc(lib.id)}/releases/tag/${releaseTag(rel.n)}" data-act="ghlink">${icon.gh}GitHub Release page</a></div>
+      <p class="rel-count">Library release ${rel.n} changes ${changes.length} ${changes.length === 1 ? 'rule' : 'rules'}: ${countPhrase(counts)}.</p>
+      ${kinds.map(([k, title]) => { const cs = changes.filter(c => c.change === k); return cs.length ? `<h4>${title}</h4>${k === 'major' ? '<p class="sm muted rel-warn">Code that complied with the previous rule version could fail the new one, so review these before updating.</p>' : ''}<ul class="rel-list">${cs.map(item).join('')}</ul>` : ''; }).join('')}
+      ${rel.libraryFiles ? `<p class="faint xs" style="margin:12px 0 0">Library-wide files changed: ${rel.libraryFiles.map(f => `<span class="mono">${esc(f)}</span>`).join(', ')}</p>` : ''}
+      <details class="rel-all"><summary>All rule versions in this library release</summary>
+        <table class="data"><thead><tr><th>Rule</th><th>Version</th></tr></thead><tbody>${versions.sort((a, b) => `${a.r.group}/${a.r.slug}`.localeCompare(`${b.r.group}/${b.r.slug}`)).map(v => `<tr><td class="mono">${v.r.group}/${v.r.slug}</td><td class="mono">${v.version}</td></tr>`).join('')}</tbody></table></details>
+    </section>`;
   }
 
   function insightsView(lib) {
@@ -565,7 +598,7 @@
             <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
             <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${esc(lib.id.split('/')[1])}</a></span></div>
             <div><span>License</span><span>${esc(lib.license)}</span></div>
-            <div><span>File</span><span><a class="mono" href="https://github.com/${esc(lib.id)}/blob/${r.group}/${r.slug}@${ruleVersion(r)}/${r.group}/${r.slug}.md" data-act="ghlink" title="${r.group}/${r.slug}.md">${r.slug}.md</a></span></div>
+            <div><span>File</span><span><a class="mono" href="${ghFileUrl(r, `${r.group}/${r.slug}.md`)}" data-act="ghlink" title="${r.group}/${r.slug}.md">${r.slug}.md</a></span></div>
           </div></aside></div>`;
     } else if (tab === 'discussion') {
       body = `<div class="row between" style="margin-bottom:10px"><span class="muted sm">Issues and pull requests on <span class="mono">${esc(lib.id)}</span> that are about this rule.</span><button class="btn small" data-act="discuss">${icon.chat}Discuss</button></div>${discussionList(disc, lib, false)}`;
@@ -578,8 +611,8 @@
         ${rowList(pool.slice(0, n).map((p, i) => `<a class="rowlink" href="https://github.com/${esc(p)}" data-act="ghlink"><div class="row" style="flex-wrap:nowrap;gap:12px">${avatar(p.split('/')[0], 'md')}<div><div class="t">${esc(p)}</div><div class="s">on ${versions[Math.min(versions.length - 1, i % 3)].version}</div></div></div><span class="faint sm">synced ${i + 2} days ago</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}
         <p class="faint sm" style="margin-top:14px">and ${fmt(Math.max(0, r.usedBy - n))} more public projects</p>`;
     } else if (tab === 'versions') {
-      body = `<p class="faint sm" style="margin:0 0 14px">Versions follow semver for rules: <b>major</b> changes what the rule requires, <b>minor</b> widens its guidance, <b>patch</b> clarifies wording or examples.</p>`
-        + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.diff ? `<a class="sm" href="#" data-act="noop">View diff</a>` : '<span></span>'}</div>`).join(''));
+      body = `<p class="faint sm" style="margin:0 0 14px">A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" target="_blank" rel="noopener">How versions work</a></p>`
+        + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.from ? `<a class="sm" href="https://github.com/${esc(lib.id)}/compare/${releaseTag(versions[k + 1].release)}...${releaseTag(v.release)}" data-act="ghlink">Compare</a>` : '<span></span>'}</div>`).join(''));
     }
     const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['usedby', 'Used by', showUsage ? fmt(r.usedBy) : null], ['versions', 'Versions', versions.length]];
     return `<div class="page wrap">

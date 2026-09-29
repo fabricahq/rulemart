@@ -525,3 +525,24 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
   .co-bar { padding: 14px 16px; }
   .co-body { padding: 16px; }
 }
+
+/* Library releases: one card per release/<n> tag, laid out like the generated GitHub Release page. */
+.relcard { border: 1px solid var(--border); border-radius: var(--r-card); padding: 18px 20px; background: var(--paper); }
+.relcard + .relcard { margin-top: 16px; }
+.rel-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rel-h b { font-size: 15px; }
+.rel-gh { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.rel-gh svg { width: 14px; height: 14px; }
+.rel-count { margin: 10px 0 0; font-size: 14px; }
+.relcard h4 { margin: 18px 0 6px; font-size: 13px; font-weight: 600; }
+.rel-warn { margin: 0 0 6px; }
+.rel-list { margin: 0; padding-left: 18px; font-size: 13.5px; }
+.rel-list li { margin: 6px 0; }
+.rel-list li > a { text-decoration: none; }
+.rel-list li > a:hover { text-decoration: underline; }
+.rel-list .mono { font-size: 12px; margin-left: 4px; }
+.rel-list .muted { font-size: 13px; }
+.rel-all { margin-top: 14px; font-size: 13px; }
+.rel-all summary { cursor: pointer; color: var(--muted); }
+.rel-all table { margin-top: 8px; }
+.rel-all td { padding: 6px 10px; font-size: 12.5px; }
