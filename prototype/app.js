@@ -5,11 +5,13 @@
   const STORE = 'rulemart-mock-v1';
 
   // ---------- State ----------
-  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null, cart: [], cartFork: {}, cartFull: {}, cartProject: null, cartNewRepo: '', checkoutTab: 'prompt' });
+  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null, cart: [], cartFork: {}, cartFull: {}, cartProject: null, cartNewRepo: '' });
   let state = fresh();
   try { state = { ...fresh(), ...JSON.parse(localStorage.getItem(STORE) || '{}') }; } catch { /* storage unavailable: run in memory */ }
   state.cart = state.cart || []; state.cartFork = state.cartFork || {}; state.cartFull = state.cartFull || {};
   const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { /* ignore */ } };
+  // Checkout opens on the Prompt tab each visit, so the tab choice is not saved.
+  let checkoutTab = 'prompt';
 
   // ---------- Helpers ----------
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -621,7 +623,7 @@
         <div class="row" style="justify-content:center;margin-top:20px"><a class="btn primary" href="#/browse/techs">Browse techs</a><a class="btn" href="#/browse/practices">Browse practices</a></div></div>`;
     }
     const plan = cartPlan();
-    const tab = state.checkoutTab === 'commands' ? 'commands' : 'prompt';
+    const tab = checkoutTab === 'commands' ? 'commands' : 'prompt';
     const rulesN = items.filter(i => i.kind === 'rule').length; const groupsN = items.length - rulesN;
     const seg = it => `<div class="seg"><label><input type="radio" name="m-${esc(it.k)}" value="sync" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? '' : 'checked'}>Stay in sync</label><label><input type="radio" name="m-${esc(it.k)}" value="fork" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? 'checked' : ''}>Fork</label></div>`;
     // Rules get a document icon; whole groups get their group icon, a label, and the rules they bring along.
@@ -1003,7 +1005,7 @@
     if (!t) { if (!e.target.closest('.menu')) $('#menu')?.classList.add('hidden'); return; }
     const act = t.dataset.act;
     const r = currentRule();
-    if (t.dataset.checkouttab) { state.checkoutTab = t.dataset.checkouttab; save(); return render(false); }
+    if (t.dataset.checkouttab) { checkoutTab = t.dataset.checkouttab; return render(false); }
     if (t.dataset.sort) return setQuery({ sort: t.dataset.sort === t.dataset.default ? null : t.dataset.sort });
     if (t.hasAttribute('data-clearfilters')) return setQuery({ kind: null, impact: null, fabrica: null, mine: null, libs: null, stars: null, used: null });
     if (t.dataset.libfilter !== undefined) return setQuery({ lib: t.dataset.libfilter || null });
@@ -1111,7 +1113,7 @@
     if (e.key === '/' && document.activeElement === document.body) { e.preventDefault(); $('#topq')?.focus(); }
   });
 
-  window.addEventListener('hashchange', () => { closeModal(); render(); });
+  window.addEventListener('hashchange', () => { closeModal(); checkoutTab = 'prompt'; render(); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render(false));
   render();
 })();
