@@ -468,3 +468,21 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
   .band-h { flex-wrap: wrap; }
   .band-h h2 { font-size: 1.35rem; }
 }
+
+/* Rule assets */
+.md img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; margin: 6px 0; }
+.md a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.md a:hover { text-decoration-color: var(--ink); }
+.assets { display: grid; gap: 2px; padding: 10px 10px 12px; }
+.asset-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink); text-decoration: none; }
+.asset-row svg { width: 16px; height: 16px; color: var(--muted); }
+.asset-row .an { font-family: var(--mono); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asset-row .as { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.asset-row:hover { background: var(--paper); }
+.asset-row.on { background: var(--paper); box-shadow: inset 0 0 0 1px var(--border); font-weight: 500; }
+.asset-sub { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 500; padding: 10px 8px 4px; }
+.asset-note { margin: 8px 8px 0; }
+.asset-title { font-family: var(--mono); font-size: clamp(1.3rem, 2.4vw, 1.6rem); letter-spacing: -.03em; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere; }
+.asset-img { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
+.asset-img img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 8px; }
+.asset-md h2:first-child { margin-top: 0; }

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 230" font-family="Inter, -apple-system, Segoe UI, sans-serif">
+  <rect width="680" height="230" rx="12" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8a8f98"/></marker>
+  </defs>
+  <g font-size="13" fill="#1f2328">
+    <rect x="28" y="40" width="180" height="84" rx="10" fill="#fdf0f0" stroke="#e5a3a3"/>
+    <circle cx="50" cy="64" r="6" fill="#d24545"/>
+    <text x="64" y="68" font-weight="600">1. Write the test</text>
+    <text x="44" y="94" fill="#5b616b">Run it on the old code.</text>
+    <text x="44" y="112" fill="#5b616b">It fails.</text>
+
+    <rect x="250" y="40" width="180" height="84" rx="10" fill="#f6f7f9" stroke="#cfd4da"/>
+    <text x="266" y="68" font-weight="600">2. Change the code</text>
+    <text x="266" y="94" fill="#5b616b">Fix the bug or add</text>
+    <text x="266" y="112" fill="#5b616b">the behavior.</text>
+
+    <rect x="472" y="40" width="180" height="84" rx="10" fill="#eef8f1" stroke="#9fd0ae"/>
+    <circle cx="494" cy="64" r="6" fill="#2f9e56"/>
+    <text x="508" y="68" font-weight="600">3. The test passes</text>
+    <text x="488" y="94" fill="#5b616b">Keep the test with</text>
+    <text x="488" y="112" fill="#5b616b">the change.</text>
+  </g>
+  <g stroke="#8a8f98" stroke-width="1.6" fill="none">
+    <path d="M208 82H246" marker-end="url(#a)"/>
+    <path d="M430 82H468" marker-end="url(#a)"/>
+    <path d="M562 124V170H118V128" stroke-dasharray="5 5" marker-end="url(#a)"/>
+  </g>
+  <rect x="222" y="158" width="236" height="24" rx="12" fill="#ffffff"/>
+  <text x="340" y="175" font-size="12.5" fill="#5b616b" text-anchor="middle" font-family="Inter, -apple-system, Segoe UI, sans-serif">Revert the change: the test fails again</text>
+</svg>

@@ -75,6 +75,55 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 <p><b>Correct:</b></p><pre><code>${good}</code></pre>
 <h3>Validation</h3><p>${check}</p>`);
 
+  // A rule with supporting assets. Links are relative Markdown links, as a library author writes them:
+  // the rule's own files are in assets/<rule>/ beside it, and ../../assets/ reaches the library's shared files.
+  const changedBehaviorBody = c(`
+<p>Every behavior change comes with a test that would fail without it. This includes bug fixes, even when the diff touches no test files.</p>
+<p><img src="assets/test-changed-behavior/red-green-loop.svg" alt="Write a test that fails, change the code until it passes, then revert the change to confirm the test fails again."></p>
+<p><b>Incorrect:</b></p><pre><code>// Fixed the rounding bug. No test.</code></pre>
+<p><b>Correct:</b></p><pre><code>it("rounds half up to the nearest cent", () => {
+  expect(round(1.005)).toBe(1.01);
+});</code></pre>
+<h3>Validation</h3><p>Reverting the change makes at least one test fail. See <a href="assets/test-changed-behavior/why-revert-check.md">why the revert check works</a> and the <a href="assets/test-changed-behavior/rounding-cases.json">rounding cases</a> behind this example. Terms such as <i>regression test</i> are defined in the <a href="../../assets/testing-glossary.md">testing glossary</a>.</p>`);
+  // Paths are relative to the rule's asset directory, practices/testing/assets/test-changed-behavior/.
+  // flaky-test-checklist.md is not linked from the rule, but Code Rules still copies it with the rule.
+  const changedBehaviorAssets = [
+    { path: 'red-green-loop.svg', type: 'image', size: '2.4 KB', alt: 'Write a test that fails, change the code until it passes, then revert the change to confirm the test fails again.' },
+    { path: 'why-revert-check.md', type: 'markdown', size: '1.1 KB', html: c(`
+<h2>Why the revert check works</h2>
+<p>A test written after a fix often passes both with and without the fix. It runs the code but does not pin the behavior that changed, so a later refactor can quietly undo the fix.</p>
+<p>Reverting the change is the cheapest way to prove the test does its job:</p>
+<ol><li>Revert the behavior change, but keep the new test.</li><li>Run the test. It should fail, and the failure should describe the bug.</li><li>Restore the change. The test passes.</li></ol>
+<p>If the test still passes in step 2, it is testing something else. Tighten the assertion until it fails for the right reason.</p>
+<h3>When a full revert is impractical</h3>
+<p>Revert only the line that decides the behavior, or temporarily hard-code the old result. The goal is the same: watch the test fail once.</p>
+<p>See <i>regression test</i> in the <a href="../../../../assets/testing-glossary.md">testing glossary</a>.</p>`) },
+    { path: 'rounding-cases.json', type: 'json', size: '312 B', text: `{
+  "description": "Inputs that the old rounding code got wrong.",
+  "cases": [
+    { "input": 1.005, "expected": 1.01 },
+    { "input": 2.675, "expected": 2.68 },
+    { "input": -1.005, "expected": -1.01 },
+    { "input": 0.125, "expected": 0.13 }
+  ]
+}` },
+    { path: 'flaky-test-checklist.md', type: 'markdown', size: '640 B', html: c(`
+<h2>When the new test is flaky</h2>
+<p>A regression test that fails only sometimes is worse than none. Before merging, check:</p>
+<ul><li>The test does not depend on the current time, time zone, or locale.</li><li>It does not share state with other tests or rely on test order.</li><li>Every wait has an explicit condition, not a fixed sleep.</li></ul>`) },
+  ];
+  // Files in the library's root assets/ directory. Code Rules copies the whole directory into a project when a selected rule links into it.
+  const fabSharedAssets = [
+    { path: 'testing-glossary.md', type: 'markdown', size: '1.6 KB', html: c(`
+<h2>Testing glossary</h2>
+<h3>Regression test</h3><p>A test added with a bug fix that fails on the old code and passes on the new code, so the bug cannot return unnoticed.</p>
+<h3>Characterization test</h3><p>A test that records what existing code does today, written before changing code that has no tests.</p>
+<h3>Test double</h3><p>A stand-in for a real dependency in a test, such as a fake, stub, or mock.</p>`) },
+    { path: 'test-naming.md', type: 'markdown', size: '720 B', html: c(`
+<h2>Naming tests</h2>
+<p>Name a test after the behavior it proves, not the function it calls: <code>rounds half up to the nearest cent</code>, not <code>test_round</code>.</p>`) },
+  ];
+
   // NOTE: Code Rules is changing how rule versions work. The versions, release tags, and change history
   // below are placeholders for the UI. Check the latest Code Rules implementation before relying on them.
   // Release events: each is the commit where some rules were tagged. They carry dates, not a library version.
@@ -89,7 +138,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
   const libraries = [
     {
       id: 'fabricahq/public-rules', owner: 'fabricahq', name: 'Fabrica Public Rules', description: 'Rules for teams building software with AI agents.',
-      license: 'MIT', tags: fabTags, addedBy: 'josh-padnick', addedOn: '2 Mar 2026', fabrica: true, usedBy: 1516,
+      license: 'MIT', tags: fabTags, addedBy: 'josh-padnick', addedOn: '2 Mar 2026', fabrica: true, usedBy: 1516, sharedAssets: fabSharedAssets,
       rules: [
         { slug: 'wrap-errors-with-operation', group: 'techs/go', title: 'Wrap errors with the operation that failed', impact: 'HIGH', tags: ['errors'], usedBy: 1102, net30: 74, stars: 340,
           whenToRead: 'When returning an error from a Go function that called something that can fail.',
@@ -149,7 +198,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
           added: 'v1.0.0', changes: [{ v: 'v1.1.0', bump: 'minor', summary: 'Added timeouts as a failure path.', diff: '+3 −1' }] },
         { slug: 'test-changed-behavior', group: 'practices/testing', title: 'Test the behavior you changed', impact: 'MEDIUM-HIGH', tags: [], usedBy: 1320, net30: 95, stars: 244,
           whenToRead: 'When changing behavior or fixing a bug, even when no test files are in the diff.',
-          body: simple('Every behavior change comes with a test that would fail without it.', '// Fixed the rounding bug. No test.', 'it("rounds half up to the nearest cent", () => {\n  expect(round(1.005)).toBe(1.01);\n});', 'Reverting the change makes at least one test fail.'),
+          body: changedBehaviorBody, assets: changedBehaviorAssets,
           added: 'v1.0.0', changes: [] },
         { slug: 'comment-role-result-and-constraints', group: 'practices/comments', title: 'Comment the role, the result, and the hidden constraint', impact: 'MEDIUM', tags: ['typescript', 'comments', 'documentation'], usedBy: 947, net30: 86, stars: 214,
           whenToRead: 'Before writing or reviewing comments, file headers, or doc comments on exported code.',

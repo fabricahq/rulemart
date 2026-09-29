@@ -27,6 +27,8 @@
     star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
     starOn: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
     doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-9 9"/></svg>',
+    braces: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"/></svg>',
     cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.2"/><circle cx="17" cy="19.5" r="1.2"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4Z"/></svg>',
   };
@@ -83,6 +85,38 @@
   const iconUrl = g => (g.iconUrl || (g.icon ? `https://cdn.jsdelivr.net/gh/devicons/devicon@v2.17.0/icons/${g.icon}.svg` : g.lucide ? `https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/${g.lucide}.svg` : null));
   const techIcon = (id, cls = '') => { const g = D.groups[id]; const url = g && g.canonical && iconUrl(g); return url ? `<span class="ticon ${cls} ${g.lucide ? 'line' : ''} ${g.iconUrl ? 'wide' : ''}"><img src="${url}" alt=""></span>` : ''; };
   const alias = lib => lib.owner.replace(/hq$/, '').replace(/[^a-z0-9-]/gi, '');
+  // ---------- Assets ----------
+  // A rule's own files live in <group>/assets/<rule>/ beside it; files shared across the library live in the root assets/.
+  // Rulemart resolves each relative link against the file that contains it, then opens assets on Rulemart instead of GitHub.
+  const dirOf = path => path.split('/').slice(0, -1).join('/');
+  const resolvePath = (dir, rel) => {
+    const out = dir ? dir.split('/') : [];
+    rel.split('/').forEach(seg => { if (seg === '..') out.pop(); else if (seg && seg !== '.') out.push(seg); });
+    return out.join('/');
+  };
+  const ruleAssetDir = r => `${r.group}/assets/${r.slug}`;
+  const assetRepoPath = (r, a) => (a.shared ? `assets/${a.path}` : `${ruleAssetDir(r)}/${a.path}`);
+  const ownAssets = r => (r.assets || []).map(a => ({ ...a, shared: false }));
+  const relLinks = html => [...html.matchAll(/(?:href|src)="([^"#:]+)(?:#[^"]*)?"/g)].map(m => m[1]);
+  // Code Rules copies the whole root assets/ directory when the rule or one of its Markdown assets links into it.
+  const usesShared = r => [{ html: r.body, dir: r.group }, ...ownAssets(r).filter(a => a.html).map(a => ({ html: a.html, dir: dirOf(assetRepoPath(r, a)) }))]
+    .some(d => relLinks(d.html).some(rel => resolvePath(d.dir, rel).startsWith('assets/')));
+  const ruleAssets = r => [...ownAssets(r), ...(usesShared(r) ? (r.lib.sharedAssets || []).map(a => ({ ...a, shared: true })) : [])];
+  const assetAt = (r, repoPath) => ruleAssets(r).find(a => assetRepoPath(r, a) === repoPath);
+  const assetUrl = (r, a) => (a.shared ? `#/${r.lib.id}/assets/${a.path}?rule=${encodeURIComponent(`${r.group}/${r.slug}`)}` : `${ruleUrl(r)}/assets/${a.path}`);
+  // Files are pinned to the rule's release tag, so an asset always matches the rule text beside it (see the versioning NOTE below).
+  const ghFileUrl = (r, repoPath, view = 'blob') => `https://github.com/${r.lib.id}/${view}/${r.group}/${r.slug}@${ruleVersion(r)}/${repoPath}`;
+  // The mock serves images from files/. The real site would serve the tagged file from a separate, cookieless domain.
+  const assetSrc = (r, repoPath) => `files/${r.lib.id}/${repoPath}`;
+  const assetIcon = a => (a.type === 'image' ? icon.image : a.type === 'markdown' ? icon.doc : icon.braces);
+  // Rewrites an author's relative links: images load inline, assets open on Rulemart, and anything else falls back to GitHub.
+  const linkAssets = (r, html, dir) => html.replace(/(href|src)="([^"#:]+)(?:#[^"]*)?"/g, (m, attr, rel) => {
+    const repoPath = resolvePath(dir, rel);
+    if (attr === 'src') return `src="${assetSrc(r, repoPath)}"`;
+    const a = assetAt(r, repoPath);
+    return a ? `href="${assetUrl(r, a)}"` : `href="${ghFileUrl(r, repoPath)}" data-act="ghlink"`;
+  });
+
   // NOTE: Code Rules is changing how rule versions work. The versions, tags, and change history in this mock are
   // placeholders for the UI, not a spec. Check the latest Code Rules implementation before building on them.
   // Each rule has its own semver history. Release events (lib.tags) only supply dates and ordering.
@@ -446,6 +480,50 @@
       <p class="faint xs" style="margin-top:14px">Mirrored from GitHub. Everything opens on GitHub; Rulemart stores no comments.</p>`;
   }
 
+  function assetsPanel(r, current) {
+    const all = ruleAssets(r);
+    if (!all.length) return '';
+    const isCur = a => current && current.path === a.path && current.shared === a.shared;
+    const row = a => `<a class="asset-row ${isCur(a) ? 'on' : ''}" href="${assetUrl(r, a)}" ${isCur(a) ? 'aria-current="page"' : ''}>${assetIcon(a)}<span class="an" title="${esc(assetRepoPath(r, a))}">${esc(a.path)}</span><span class="as">${esc(a.size)}</span></a>`;
+    const own = all.filter(a => !a.shared); const shared = all.filter(a => a.shared);
+    return `<div class="panel"><div class="panel-h"><span class="index">Assets</span><span class="faint xs">${all.length} files</span></div><div class="panel-b assets">
+      ${own.map(row).join('')}
+      ${shared.length ? `<div class="asset-sub">Shared across the library</div>${shared.map(row).join('')}` : ''}
+      <p class="faint xs asset-note">All of these come with the rule when you add it.</p></div></div>`;
+  }
+
+  function assetPage(r, a) {
+    if (!r || !a) return notFound();
+    const lib = r.lib; const repoPath = assetRepoPath(r, a);
+    const content = a.type === 'image'
+      ? `<div class="asset-img"><img src="${assetSrc(r, repoPath)}" alt="${esc(a.alt || a.path)}"></div>`
+      : a.type === 'markdown'
+        ? `<div class="md asset-md">${linkAssets(r, a.html, dirOf(repoPath))}</div>`
+        : `<div class="md"><pre><code class="language-${a.type}">${esc(a.text)}</code></pre></div>`;
+    return `<div class="page wrap">
+      <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> › <a href="${ruleUrl(r)}">${esc(r.title)}</a></div>
+      <div class="rulehead"><div>
+        <h1 class="asset-title">${esc(a.path.split('/').pop())}</h1>
+        <p class="muted sm" style="margin-top:8px">${a.shared ? `Shared file in ${esc(libName(lib))}, linked from this rule` : 'Supporting file for this rule'} · ${esc(a.size)}</p></div>
+        <div class="row"><a class="btn small" href="${ghFileUrl(r, repoPath)}" data-act="ghlink">${icon.gh}View on GitHub</a><a class="btn small" href="${ghFileUrl(r, repoPath, 'raw')}" data-act="ghlink">Raw</a></div></div>
+      <div class="rule-cols" style="margin-top:26px"><div>${content}
+        <a class="linkbtn sm" style="display:inline-block;margin-top:18px" href="${ruleUrl(r)}">← Back to ${esc(r.title)}</a></div>
+        <aside class="side">${assetsPanel(r, a)}</aside></div></div>`;
+  }
+  const ruleFrom = (libId, rulePath) => allRules().find(x => x.lib.id === libId && `${x.group}/${x.slug}` === rulePath);
+  // Own asset: #/owner/repo/kind/group/rule/assets/<file>. Shared asset: #/owner/repo/assets/<file>?rule=kind/group/rule.
+  function ruleAssetPage(parts) {
+    const r = ruleFrom(`${parts[0]}/${parts[1]}`, parts.slice(2, 5).join('/'));
+    return assetPage(r, r && ownAssets(r).find(a => a.path === parts.slice(6).join('/')));
+  }
+  function sharedAssetPage(parts) {
+    const libId = `${parts[0]}/${parts[1]}`; const path = parts.slice(3).join('/');
+    const want = parse().q.get('rule');
+    // Without ?rule, show the file in the context of the first rule that links to it.
+    const r = (want && ruleFrom(libId, want)) || allRules().find(x => x.lib.id === libId && ruleAssets(x).some(a => a.shared && a.path === path));
+    return assetPage(r, r && ruleAssets(r).find(a => a.shared && a.path === path));
+  }
+
   function rulePage(parts) {
     const [owner, repo, kind, g, slug] = parts;
     const lib = libById(`${owner}/${repo}`); if (!lib) return notFound();
@@ -460,11 +538,12 @@
     let body = '';
     if (tab === 'rule') {
       body = `<div class="rule-cols"><div class="md">
-          <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${r.body.replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
+          <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${linkAssets(r, r.body, r.group).replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
         <aside class="side">
           <div class="panel"><div class="panel-h"><span class="index">Usage</span></div><div class="panel-b">
             <div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div><div class="sub">${r.usedBy ? `Net ${r.net30 >= 0 ? '+' : ''}${r.net30} in the last 30 days` : 'New on Rulemart'}</div></div>
             <div class="stat"><div class="big">${openN}</div><div class="lbl">open issues and PRs</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div></div></div>
+          ${assetsPanel(r)}
           <div class="kv">
             <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
             <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${esc(lib.id.split('/')[1])}</a></span></div>
@@ -989,6 +1068,8 @@
     else if (a === 'l') html = libraryPage(rest.join('/'));
     else if (a === 'r') html = rulePage(rest);
     else if (a === 'o') html = ownerPage(rest[0]);
+    else if (!RESERVED.has(a) && rest[1] === 'assets' && rest.length >= 3) html = sharedAssetPage(parts);
+    else if (!RESERVED.has(a) && rest[4] === 'assets' && rest.length >= 6) html = ruleAssetPage(parts);
     else if (!RESERVED.has(a) && rest.length === 0) html = ownerPage(a);
     else if (!RESERVED.has(a) && rest.length === 1) html = libraryPage(`${a}/${rest[0]}`);
     else if (!RESERVED.has(a) && rest.length === 3) html = libraryGroupPage(`${a}/${rest[0]}`, `${rest[1]}/${rest[2]}`);
