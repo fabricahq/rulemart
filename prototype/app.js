@@ -494,7 +494,7 @@
         ${inCart(r.key) || inCart(groupItemKey(lib.id, r.group))
           ? `<div class="cart-state"><div class="row"><span class="incart">✓ ${inCart(r.key) ? 'In cart' : `${groupName(r.group)} group in cart`}</span><a class="btn primary" href="#/cart">Checkout</a></div>
              <button class="linkbtn sm" data-act="cart-remove" data-key="${esc(inCart(r.key) ? r.key : groupItemKey(lib.id, r.group))}">Remove ${inCart(r.key) ? '' : `${groupName(r.group)} group `}from cart</button></div>`
-          : `<button class="btn primary" data-act="add-project">Add to project</button>`}</div>
+          : `<button class="btn primary" data-act="add-to-cart">${icon.cart}Add to cart</button>`}</div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${ruleUrl(r)}${k === 'rule' ? '' : `?tab=${k}`}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
       ${body}</div>`;
   }
@@ -918,12 +918,12 @@
   const closeModal = () => { $('#modal-root').innerHTML = ''; };
   const currentRule = () => { const { parts } = parse(); const p = parts[0] === 'r' ? parts.slice(1) : parts; if (p.length !== 5 || RESERVED.has(p[0])) return null; const [owner, repo, kind, g, slug] = p; return allRules().find(x => x.lib.id === `${owner}/${repo}` && x.group === `${kind}/${g}` && x.slug === slug); };
 
-  function addToProjectModal(r) {
+  function addToCartModal(r) {
     const others = r.lib.rules.filter(x => x.group === r.group).length - 1;
-    openModal(`<div class="modal-h"><div><h2>Add to project</h2><p class="muted sm" style="margin:4px 0 0">What would you like to add to your cart?</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+    openModal(`<div class="modal-h"><div><h2>Add to cart</h2><p class="muted sm" style="margin:4px 0 0">What would you like to add?</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
       <button class="choice-btn" data-act="cart-pick" data-key="${esc(r.key)}"><b class="ct">Just this rule</b><span class="cd">Adds only “${esc(r.title)}.” It stays in sync with ${esc(libName(r.lib))}, and nothing else from the group is added.</span></button>
       <button class="choice-btn" data-act="cart-pick" data-key="${esc(groupItemKey(r.lib.id, r.group))}"><b class="ct">The whole ${techIcon(r.group, 'xs')}${groupName(r.group)} group</b><span class="cd">Adds this rule and the ${others} other ${groupName(r.group)} ${others === 1 ? 'rule' : 'rules'} from ${esc(libName(r.lib))}. New rules the library adds to this group arrive when you update.</span></button>
-      <p class="faint xs" style="margin:14px 0 0">You'll get the commands at checkout, where you can also choose to fork a rule instead of staying in sync.</p>`, true);
+      <p class="faint xs" style="margin:14px 0 0">At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.</p>`, true);
   }
 
   function discussModal(r) {
@@ -1026,7 +1026,7 @@
       case 'feedback': e.preventDefault(); feedbackModal(); break;
       case 'theme': state.theme = { system: 'light', light: 'dark', dark: 'system' }[state.theme]; save(); render(false); break;
       case 'reset': try { localStorage.removeItem(STORE); } catch { /* ignore */ } state = fresh(); go('#/'); render(); toast('Demo reset'); break;
-      case 'add-project': addToProjectModal(r); break;
+      case 'add-to-cart': addToCartModal(r); break;
       case 'cart-pick': toggleCart(t.dataset.key, true); closeModal(); render(false); toast('Added to cart'); break;
       case 'cart-rule': { const on = !inCart(t.dataset.key); toggleCart(t.dataset.key, on); render(false); toast(on ? 'Added to cart' : 'Removed from cart'); break; }
       case 'cart-groups': { const lib = libById(libIdFromPath()); const sel = (parse().q.get('sel') || '').split(',').filter(Boolean); sel.forEach(g => toggleCart(groupItemKey(lib.id, g), true)); setQuery({ sel: null }); toast(`Added ${sel.length} ${sel.length === 1 ? 'group' : 'groups'} to cart`); break; }
