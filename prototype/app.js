@@ -69,6 +69,7 @@
   const isFabrica = lib => lib.owner === 'fabricahq';
   const allRules = () => libraries().flatMap(lib => lib.rules.map(r => ({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` })));
   const ruleUrl = r => `#/${r.lib.id}/${r.group}/${r.slug}`;
+  const ruleUrlById = (lib, id) => `#/${lib.id}/${id}`;
   const libUrl = (lib, tab) => `#/${lib.id}${tab ? `?tab=${tab}` : ''}`;
   const libGroupUrl = (lib, g, sel) => `#/${lib.id}/${g}${sel && sel.length ? `?sel=${encodeURIComponent(sel.join(','))}` : ''}`;
   // First path segments that are Rulemart pages, not GitHub owners.
@@ -454,7 +455,9 @@
           <div class="row" style="margin-top:10px"><button class="chip" data-selall="1">Select all groups</button>${sel.length ? '<button class="chip" data-selall="0">Clear</button>' : ''}</div>
         </div>`;
     } else if (tab === 'rules') {
-      body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
+      const gone = retiredRules(lib);
+      body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('')
+        + (gone.length ? `<div class="sec-h"><span>Retired</span></div>${rowList(gone.map(x => `<a class="rowlink" href="${ruleUrl(x)}"><div><div class="t">${esc(x.title)}</div><div class="s"><span class="mono">${x.group}/${x.slug}</span> · retired in ${releaseTag(x.retiredIn)}${x.replacedBy ? `, replaced by ${esc(x.replacedBy)}` : ''}</div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}` : '');
     } else if (tab === 'releases') {
       body = `<p class="muted sm" style="margin:0 0 16px">A library release publishes new versions of one or more rules at once. Each rule keeps its own version.</p>`
         + [...lib.releases].reverse().map(rel => libraryReleaseCard(lib, rel)).join('');
@@ -474,25 +477,29 @@
   }
 
   // What one library release published, read from its release record, in the order of the generated GitHub Release page.
+  const retiredRules = lib => (lib.retired || []).map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }));
   function releaseRecord(lib, n) {
-    const rules = lib.rules.map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }));
+    const rules = [...lib.rules.map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` })), ...retiredRules(lib)];
     const changes = rules.flatMap(r => ruleVersions(r).filter(v => v.release === n).map(v => ({ ...v, r })));
-    const versions = rules.filter(r => r.added <= n).map(r => ({ r, version: ruleVersions(r).find(v => v.release <= n).version }));
-    return { changes, versions };
+    const retired = retiredRules(lib).filter(r => r.retiredIn === n).map(r => ({ r, lastVersion: ruleVersion(r) }));
+    const versions = rules.filter(r => r.added <= n && !(r.retiredIn <= n)).map(r => ({ r, version: ruleVersions(r).find(v => v.release <= n).version }));
+    return { changes, retired, versions };
   }
   const countPhrase = parts => (parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')}${parts.length > 2 ? ',' : ''} and ${parts[parts.length - 1]}`);
   function libraryReleaseCard(lib, rel) {
-    const { changes, versions } = releaseRecord(lib, rel.n);
+    const { changes, retired, versions } = releaseRecord(lib, rel.n);
     const kinds = [['major', 'Major changes', 'major'], ['minor', 'Minor changes', 'minor'], ['patch', 'Patch changes', 'patch'], ['new', 'New rules', 'new']];
-    const counts = kinds.map(([k, , word]) => [changes.filter(c => c.change === k).length, word]).filter(([n]) => n).map(([n, word]) => `${n} ${word}`);
+    const counts = [...kinds.map(([k, , word]) => [changes.filter(c => c.change === k).length, word]), [retired.length, 'retired']].filter(([n]) => n).map(([n, word]) => `${n} ${word}`);
+    const total = changes.length + retired.length;
     // The first library release needs no change notes, so its new rules carry no summaries.
     const item = c => `<li><a href="${ruleUrl(c.r)}?tab=versions"><b>${esc(c.r.title)}</b></a> <span class="mono faint">${c.r.group}/${c.r.slug}</span> <span class="mono">${c.from ? `${c.from} → ${c.version}` : c.version}</span>${c.summary && rel.n > 1 ? `<div class="muted">${esc(c.summary)}</div>` : ''}</li>`;
     const isLatest = rel.n === latestRelease(lib).n;
     return `<section class="relcard">
       <div class="rel-h"><b class="mono">${releaseTag(rel.n)}</b>${isLatest ? '<span class="chip">Latest</span>' : ''}<span class="faint sm">${esc(rel.date)}</span>
         <a class="sm rel-gh" href="https://github.com/${esc(lib.id)}/releases/tag/${releaseTag(rel.n)}" data-act="ghlink">${icon.gh}GitHub Release page</a></div>
-      <p class="rel-count">Library release ${rel.n} changes ${changes.length} ${changes.length === 1 ? 'rule' : 'rules'}: ${countPhrase(counts)}.</p>
+      <p class="rel-count">Library release ${rel.n} changes ${total} ${total === 1 ? 'rule' : 'rules'}: ${countPhrase(counts)}.</p>
       ${kinds.map(([k, title]) => { const cs = changes.filter(c => c.change === k); return cs.length ? `<h4>${title}</h4>${k === 'major' ? '<p class="sm muted rel-warn">Code that complied with the previous rule version could fail the new one, so review these before updating.</p>' : ''}<ul class="rel-list">${cs.map(item).join('')}</ul>` : ''; }).join('')}
+      ${retired.length ? `<h4>Retired rules</h4><ul class="rel-list">${retired.map(x => `<li><a href="${ruleUrl(x.r)}"><b>${esc(x.r.title)}</b></a> <span class="mono faint">${x.r.group}/${x.r.slug}</span>, last version <span class="mono">${x.lastVersion}</span><div class="muted">${esc(x.r.summary)}${x.r.replacedBy ? ` Replaced by <a href="${ruleUrlById(lib, x.r.replacedBy)}">${esc(x.r.replacedBy)}</a>.` : ''}</div></li>`).join('')}</ul>` : ''}
       ${rel.libraryFiles ? `<p class="faint xs" style="margin:12px 0 0">Library-wide files changed: ${rel.libraryFiles.map(f => `<span class="mono">${esc(f)}</span>`).join(', ')}</p>` : ''}
       <details class="rel-all"><summary>All rule versions in this library release</summary>
         <table class="data"><thead><tr><th>Rule</th><th>Version</th></tr></thead><tbody>${versions.sort((a, b) => `${a.r.group}/${a.r.slug}`.localeCompare(`${b.r.group}/${b.r.slug}`)).map(v => `<tr><td class="mono">${v.r.group}/${v.r.slug}</td><td class="mono">${v.version}</td></tr>`).join('')}</tbody></table></details>
@@ -576,7 +583,8 @@
   function rulePage(parts) {
     const [owner, repo, kind, g, slug] = parts;
     const lib = libById(`${owner}/${repo}`); if (!lib) return notFound();
-    const base = lib.rules.find(r => r.group === `${kind}/${g}` && r.slug === slug); if (!base) return notFound();
+    const base = lib.rules.find(r => r.group === `${kind}/${g}` && r.slug === slug);
+    if (!base) { const gone = retiredRules(lib).find(r => r.group === `${kind}/${g}` && r.slug === slug); return gone ? retiredRulePage(gone) : notFound(); }
     const r = { ...base, lib, key: `${lib.id}::${base.group}/${base.slug}` };
     const { q } = parse();
     const tab = q.get('tab') || 'rule';
@@ -611,7 +619,8 @@
         ${rowList(pool.slice(0, n).map((p, i) => `<a class="rowlink" href="https://github.com/${esc(p)}" data-act="ghlink"><div class="row" style="flex-wrap:nowrap;gap:12px">${avatar(p.split('/')[0], 'md')}<div><div class="t">${esc(p)}</div><div class="s">on ${versions[Math.min(versions.length - 1, i % 3)].version}</div></div></div><span class="faint sm">synced ${i + 2} days ago</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}
         <p class="faint sm" style="margin-top:14px">and ${fmt(Math.max(0, r.usedBy - n))} more public projects</p>`;
     } else if (tab === 'versions') {
-      body = `<p class="faint sm" style="margin:0 0 14px">A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" target="_blank" rel="noopener">How versions work</a></p>`
+      const replaces = retiredRules(lib).filter(x => x.replacedBy === `${r.group}/${r.slug}`);
+      body = `${replaces.map(x => `<div class="note" style="margin-bottom:14px"><span>Replaces <a href="${ruleUrl(x)}">${esc(x.title)}</a> <span class="mono">${x.group}/${x.slug}</span>, retired in ${releaseTag(x.retiredIn)}.</span></div>`).join('')}<p class="faint sm" style="margin:0 0 14px">A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" target="_blank" rel="noopener">How versions work</a></p>`
         + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.from ? `<a class="sm" href="https://github.com/${esc(lib.id)}/compare/${releaseTag(versions[k + 1].release)}...${releaseTag(v.release)}" data-act="ghlink">Compare</a>` : '<span></span>'}</div>`).join(''));
     }
     const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['usedby', 'Used by', showUsage ? fmt(r.usedBy) : null], ['versions', 'Versions', versions.length]];
@@ -630,6 +639,23 @@
           : `<button class="btn primary" data-act="add-to-cart">${icon.cart}Add to cart</button>`}</div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${ruleUrl(r)}${k === 'rule' ? '' : `?tab=${k}`}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
       ${body}</div>`;
+  }
+
+  // A retired rule's page: its history ends at the library release that retired it, so there is nothing to add.
+  function retiredRulePage(r) {
+    const lib = r.lib; const versions = ruleVersions(r); const repl = r.replacedBy && lib.rules.find(x => `${x.group}/${x.slug}` === r.replacedBy);
+    return `<div class="page wrap">
+      <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> <span class="mono">${r.group}</span></div>
+      <h1 class="title-xl">${esc(r.title)}</h1>
+      <div class="meta" style="margin-top:10px"><span class="pill">Retired</span><span>Last version <span class="mono">${versions[0].version}</span></span></div>
+      <div class="retired-box">
+        <p><b>Retired in <a class="mono" href="${libUrl(lib, 'releases')}">${releaseTag(r.retiredIn)}</a></b> <span class="faint">· ${esc(releaseDate(lib, r.retiredIn))}</span></p>
+        <p class="muted">${esc(r.summary)}</p>
+        ${repl ? `<p>Replaced by <a href="${ruleUrlById(lib, r.replacedBy)}"><b>${esc(repl.title)}</b></a> <span class="mono faint">${esc(r.replacedBy)}</span></p>` : ''}
+        <p class="faint sm">Projects that pin it keep its last version. Other projects drop it when they update.</p>
+      </div>
+      <p class="index list-label">Versions</p>
+      ${rowList(versions.map(v => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b><a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div><span></span></div>`).join(''))}</div>`;
   }
 
   // ---------- Dashboard ----------

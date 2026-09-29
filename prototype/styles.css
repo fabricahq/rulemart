@@ -546,3 +546,6 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .rel-all summary { cursor: pointer; color: var(--muted); }
 .rel-all table { margin-top: 8px; }
 .rel-all td { padding: 6px 10px; font-size: 12.5px; }
+.retired-box { margin: 22px 0 28px; border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 10px; padding: 14px 18px; background: var(--surface); }
+.retired-box p { margin: 0 0 6px; }
+.retired-box p:last-child { margin-bottom: 0; }

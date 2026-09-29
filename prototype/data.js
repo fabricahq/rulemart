@@ -190,7 +190,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'verify-retry-limits', group: 'practices/testing', title: 'Verify retry limits in tests', impact: 'HIGH', tags: ['retries'], usedBy: 0, net30: 0, stars: 0,
           whenToRead: 'Before adding or changing bounded retries, test that requests stop at the configured limit.',
           body: simple('When code retries, write a test that proves it stops at the configured limit.', 'it("retries", async () => {\n  await callWithRetry(flaky);\n});', 'it("stops after 3 attempts", async () => {\n  await expect(callWithRetry(alwaysFails)).rejects.toThrow();\n  expect(alwaysFails).toHaveBeenCalledTimes(3);\n});', 'The test fails if one extra retry is added.'),
-          added: 5, changes: [] },
+          added: 5, addedSummary: 'Rename to describe what the rule checks.', changes: [] },
         { slug: 'test-failure-paths', group: 'practices/testing', title: 'Test failure paths, not just success', impact: 'HIGH', tags: ['errors'], usedBy: 1190, net30: 60, stars: 201,
           whenToRead: 'When adding or changing code that can fail, reject input, or time out.',
           body: simple('For every failure the code handles, add a test that triggers it and checks the result.', 'it("saves a user", ...)', 'it("saves a user", ...)\nit("rejects a duplicate email", ...)\nit("surfaces a database timeout", ...)', 'Each handled error branch is reached by at least one test.'),
@@ -244,6 +244,13 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
           whenToRead: 'When adding log statements.',
           body: simple('Put variable data in fields, not in the message string.', 'log.info(`user ${id} paid ${amount}`);', 'log.info("payment received", { userId: id, amountCents: amount });', 'Log messages are constant strings; data lives in fields.'),
           added: 5, addedSummary: 'Add a rule about keeping log data in fields.', changes: [] },
+      ],
+      // Retired rules leave lib.rules. Each keeps its history; its last version stays its final one, and its ID is never reused.
+      retired: [
+        { slug: 'check-retry-limits', group: 'practices/testing', title: 'Check retry limits', impact: 'HIGH', tags: ['retries'],
+          whenToRead: 'Before adding or changing bounded retries.',
+          added: 1, changes: [{ release: 2, change: 'minor', summary: 'Add an example for exponential backoff.' }],
+          retiredIn: 5, replacedBy: 'practices/testing/verify-retry-limits', summary: 'Rename to describe what the rule checks.' },
       ],
       insights: [
         { rule: 'comment-role-result-and-constraints', using: 947, ever: 1061, removed: 114, reason: '"Generated code gets headers that codegen wipes." (17 similar, 41 with no reason)' },
