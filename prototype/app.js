@@ -777,10 +777,12 @@
           ? `<div class="proj-box" style="margin-top:12px"><div class="row between" style="margin-bottom:12px"><b class="sm">A new project</b><button class="linkbtn sm" data-act="cart-existing">Cancel</button></div>${repoField}<p class="sm muted" style="margin:12px 0 0">The prompt sets up Code Rules there first.</p></div>`
           : '<button class="linkbtn" style="display:block;margin-top:12px" data-act="cart-newproject">+ Or use a project that doesn\'t use Code Rules yet</button>'}`;
     }
-    // Signing in is its own call to action, separate from the reassurance about setup.
+    // Signed out, picking a project and entering one by hand are two explicit alternatives, split by "or".
     const top = state.signedIn
       ? `<p class="sm muted proj-top">We didn't find any of your projects using Code Rules${state.private ? '' : ' in your public repos. <a href="#/me/private">Include private projects</a>'}.</p>`
-      : `<div class="proj-top proj-signin"><div><b class="sm">Pick from your projects</b><p class="sm muted">Sign in to choose a project and see when its rules have updates.</p></div><a class="btn small" href="#/signin" data-act="remember">${icon.gh}Sign in with GitHub</a></div>`;
+      : `<div class="proj-signin"><div><b class="sm">Pick from your projects</b><p class="sm muted">Sign in to choose a project and see when its rules have updates.</p></div><a class="btn small" href="#/signin" data-act="remember">${icon.gh}Sign in with GitHub</a></div>
+        <div class="or-div"><span>or</span></div>
+        <b class="sm" style="display:block;margin-bottom:10px">Enter your project</b>`;
     return `<div class="proj-box flat">${top}${repoField}
       <p class="sm muted" style="margin:14px 0 0"><b>New to Code Rules?</b> The prompt sets it up for you.</p></div>`;
   }

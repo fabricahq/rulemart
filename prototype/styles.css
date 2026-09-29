@@ -518,6 +518,8 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .proj-box.flat { border: 0; padding: 0; background: none; border-radius: 0; }
 .adopt-box.co-card { padding: 0; }
 .adopt-box.ready.co-card > .co-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.or-div { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--faint); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.or-div::before, .or-div::after { content: ''; flex: 1; border-top: 1px solid var(--border-subtle); }
 @media (max-width: 720px) {
   .co-sub { flex-basis: 100%; margin: -6px 0 0 36px; }
   .co-bar { padding: 14px 16px; }
