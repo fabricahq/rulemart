@@ -75,6 +75,8 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 <p><b>Correct:</b></p><pre><code>${good}</code></pre>
 <h3>Validation</h3><p>${check}</p>`);
 
+  // NOTE: Code Rules is changing how rule versions work. The versions, release tags, and change history
+  // below are placeholders for the UI. Check the latest Code Rules implementation before relying on them.
   // Release events: each is the commit where some rules were tagged. They carry dates, not a library version.
   const fabTags = [
     { v: 'v1.0.0', date: '7 months ago', summary: 'First release: 5 groups, 11 rules.' },
