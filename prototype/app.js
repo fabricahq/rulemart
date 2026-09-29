@@ -16,10 +16,6 @@
   // ---------- Helpers ----------
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const fmt = n => n.toLocaleString('en-US');
-  // Counts stay hidden until they carry signal: "Used by 2" reads as unpopular, not new. Zero-count rules show what is true from day one instead.
-  const USAGE_MIN = 10;
-  const usageShown = n => n >= USAGE_MIN;
-  const usedBy = n => (usageShown(n) ? `Used by ${fmt(n)}` : '');
   const $ = sel => document.querySelector(sel);
   const user = D.user;
 
@@ -76,7 +72,6 @@
   const RESERVED = new Set(['search', 'browse', 'libraries', 'g', 'me', 'signin', 'gh', 'cart', 'faq', 'feedback', 'l', 'r', 'o']);
   const libIdFromPath = () => { const { parts } = parse(); if (parts[0] === 'l') return parts.slice(1).join('/'); return parts.length >= 2 && !RESERVED.has(parts[0]) ? `${parts[0]}/${parts[1]}` : null; };
   const starCount = r => r.stars + (state.stars[r.key] ? 1 : 0);
-  const isMaintainer = lib => state.signedIn && (lib.owner === user.login || user.orgs.includes(lib.owner));
   const groupName = id => (D.groups[id] || { name: id }).name;
   const isCanonical = id => (D.groups[id] || {}).canonical === true;
   // Code language for a rule's examples: an explicit override, else its group's language (practices default to TypeScript).
@@ -221,15 +216,14 @@
     const hl = s => (q ? esc(s).replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>') : esc(s));
     return `<a class="result" href="${ruleUrl(r)}">
       <div class="t"><span>${hl(r.title)}</span> ${impact(r.impact)}</div>
-      <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span>${usedBy(r.usedBy) ? `<span>${usedBy(r.usedBy)}</span>` : ''}${starCount(r) ? `<span>★ ${fmt(starCount(r))}</span>` : ''}</div></a>`;
+      <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span>${starCount(r) ? `<span>★ ${fmt(starCount(r))}</span>` : ''}</div></a>`;
   }
-  // The library's facts, shown beside each tab so the header stays short. Insights, a wide table for maintainers, goes without.
+  // The library's facts, shown beside each tab so the header stays short.
   function libAbout(lib) {
     return `<div class="kv lib-about">
       <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
       <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink" title="github.com/${esc(lib.id)}">${esc(lib.id.split('/')[1])}</a></span></div>
       <div><span>License</span><span>${esc(lib.license)}</span></div>
-      ${usageShown(lib.usedBy) ? `<div><span>Used by</span><span>${fmt(lib.usedBy)} projects</span></div>` : ''}
       <div><span>Latest library release</span><span><a class="mono" href="${libUrl(lib, 'releases')}">${releaseTag(latestRelease(lib).n)}</a></span></div>
       <div><span>Updated</span><span>${esc(latestRelease(lib).date)}</span></div>
       <div><span>On Rulemart since</span><span>${esc(lib.addedOn)}</span></div>
@@ -241,7 +235,7 @@
     return `<a class="rowlink" href="${libUrl(lib)}"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:14px">${avatar(lib.owner, 'md')}<div>
       <div class="t">${esc(libName(lib))}</div>
       <div class="sm muted" style="margin-top:2px">${esc(lib.description)}</div>
-      <div class="s" style="margin-top:4px"><span class="mono">${esc(lib.id)}</span> · ${lib.rules.length} rules${usedBy(lib.usedBy) ? ` · ${usedBy(lib.usedBy).replace('Used by', 'used by')}` : ''}</div></div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`;
+      <div class="s" style="margin-top:4px"><span class="mono">${esc(lib.id)}</span> · ${lib.rules.length} rules</div></div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`;
   }
   const rowList = rows => `<div class="rowlist">${rows}</div>`;
 
@@ -275,7 +269,7 @@
   function readFilters(q) {
     return {
       kind: q.get('kind') || '', imp: q.get('impact') || '', onlyFab: q.get('fabrica') === '1', mine: q.get('mine') === '1',
-      libs: new Set((q.get('libs') || '').split(',').filter(Boolean)), stars: Number(q.get('stars') || 0), used: Number(q.get('used') || 0),
+      libs: new Set((q.get('libs') || '').split(',').filter(Boolean)), stars: Number(q.get('stars') || 0),
     };
   }
   function applyFilters(items, f) {
@@ -284,27 +278,26 @@
       && (f.imp !== 'high' || ['CRITICAL', 'HIGH'].includes(r.impact))
       && (f.imp !== 'medium' || !['CRITICAL', 'HIGH'].includes(r.impact))
       && (!f.onlyFab || isFabrica(r.lib)) && (!f.mine || myLibs.has(r.lib.id))
-      && (!f.libs.size || f.libs.has(r.lib.id)) && starCount(r) >= f.stars && r.usedBy >= f.used);
+      && (!f.libs.size || f.libs.has(r.lib.id)) && starCount(r) >= f.stars);
   }
   function filterSidebar(base, f, { kind = false } = {}) {
     const cb = (key, val, label, on) => `<label><input type="checkbox" data-filter="${key}" data-val="${val}" ${on ? 'checked' : ''}> ${label}</label>`;
     const radios = (key, cur, opts) => opts.map(([v, l]) => `<label><input type="radio" name="${key}" data-radio="${key}" value="${v}" ${String(cur) === String(v) ? 'checked' : ''}> ${l}</label>`).join('');
-    const libs = [...new Set(base.map(x => x.r.lib.id))].map(libById).sort((a, b) => (isFabrica(b) ? 1 : 0) - (isFabrica(a) ? 1 : 0) || b.usedBy - a.usedBy);
-    const active = f.kind || f.imp || f.onlyFab || f.mine || f.libs.size || f.stars || f.used;
+    const libs = [...new Set(base.map(x => x.r.lib.id))].map(libById).sort((a, b) => (isFabrica(b) ? 1 : 0) - (isFabrica(a) ? 1 : 0) || libName(a).localeCompare(libName(b)));
+    const active = f.kind || f.imp || f.onlyFab || f.mine || f.libs.size || f.stars;
     return `<aside class="filters">
       <div class="fg"><h5>Libraries</h5>${state.signedIn ? cb('mine', '1', 'My libraries', f.mine) : ''}${libs.map(l => `<label class="${isFabrica(l) ? 'fab-row' : ''}"><input type="checkbox" data-multi="libs" data-val="${esc(l.id)}" ${f.libs.has(l.id) ? 'checked' : ''}> ${avatar(l.owner, 'xs')}<span class="trunc" title="${esc(libName(l))}">${esc(libName(l))}</span><span class="faint">${base.filter(x => x.r.lib.id === l.id).length}</span></label>`).join('')}</div>
       ${kind ? `<div class="fg"><h5>Kind</h5>${cb('kind', 'techs/', 'Technologies', f.kind === 'techs/')}${cb('kind', 'practices/', 'Practices', f.kind === 'practices/')}</div>` : ''}
       <div class="fg"><h5>Impact</h5>${cb('impact', 'high', 'Critical and high', f.imp === 'high')}${cb('impact', 'medium', 'Medium and lower', f.imp === 'medium')}</div>
       <div class="fg"><h5>Stars</h5>${radios('stars', f.stars, [[0, 'Any'], [10, '10+'], [50, '50+'], [100, '100+']])}</div>
-      <div class="fg"><h5>Used by</h5>${radios('used', f.used, [[0, 'Any'], [100, '100+ projects'], [500, '500+ projects'], [1000, '1,000+ projects']])}</div>
       ${active ? '<button class="chip" data-clearfilters>Clear filters</button>' : ''}
     </aside>`;
   }
-  // Ties are common before a rule has usage or stars, so they fall back to Fabrica's rules first.
+  // Ties are common while rules have few stars, so they fall back to Fabrica's rules first.
   const fabricaFirst = (a, b) => (isFabrica(b.r.lib) ? 1 : 0) - (isFabrica(a.r.lib) ? 1 : 0);
   const sorters = {
-    best: (a, b) => b.score - a.score || b.r.usedBy - a.r.usedBy || fabricaFirst(a, b), used: (a, b) => b.r.usedBy - a.r.usedBy || fabricaFirst(a, b),
-    stars: (a, b) => starCount(b.r) - starCount(a.r) || fabricaFirst(a, b), new: (a, b) => (b.r.lib.fresh ? 1 : 0) - (a.r.lib.fresh ? 1 : 0) || b.r.net30 - a.r.net30,
+    best: (a, b) => b.score - a.score || starCount(b.r) - starCount(a.r) || fabricaFirst(a, b),
+    stars: (a, b) => starCount(b.r) - starCount(a.r) || fabricaFirst(a, b), new: (a, b) => (b.r.lib.fresh ? 1 : 0) - (a.r.lib.fresh ? 1 : 0) || starCount(b.r) - starCount(a.r),
   };
   function resultsList(rows, sort, sortOptions, term, emptyHtml, { grouped = false } = {}) {
     const libsN = new Set(rows.map(x => x.r.lib.id)).size;
@@ -345,7 +338,7 @@
     return `<div class="page wrap">
       <p class="index">Search</p><h1 class="title-xl" style="margin:8px 0 22px">${term ? `Rules matching “${esc(term)}”` : 'All rules'}</h1>
       <div class="search-layout">${filterSidebar(base, f, { kind: true })}
-        ${resultsList(rows, sort, [['best', 'Best match'], ['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#/feedback">tell us what you were looking for</a>.</div>`, { grouped: true })}
+        ${resultsList(rows, sort, [['best', 'Best match'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#/feedback">tell us what you were looking for</a>.</div>`, { grouped: true })}
       </div></div>`;
   }
 
@@ -389,7 +382,7 @@
     const g = D.groups[gid]; if (!g) return notFound();
     const { q } = parse();
     const f = readFilters(q);
-    const sort = q.get('sort') || 'used';
+    const sort = q.get('sort') || 'stars';
     const base = allRules().filter(r => r.group === gid).map(r => ({ r, score: 1 }));
     const rows = applyFilters(base, f).sort(sorters[sort]);
     const libsN = new Set(base.map(x => x.r.lib.id)).size;
@@ -401,7 +394,7 @@
       ${canon ? '' : `<div class="note" style="margin-top:14px"><span><span class="mono">${gid}</span> isn't a canonical group, so it only includes rules from libraries that chose this exact name.${g.similarTo ? ` Looking for <a href="#/g/${g.similarTo}">${groupName(g.similarTo)}</a>?` : ''}</span></div>`}
       <p class="muted" style="margin:8px 0 24px">${base.length} ${base.length === 1 ? 'rule' : 'rules'} from ${libsN} ${libsN === 1 ? 'library' : 'libraries'}${groupBlurb(gid) ? ` · ${esc(groupBlurb(gid))}` : ''}</p>
       <div class="search-layout">${filterSidebar(base, f)}
-        ${resultsList(rows, sort, [['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], '', '<div class="empty">No rules match these filters. <button class="chip" data-clearfilters>Clear filters</button></div>')}
+        ${resultsList(rows, sort, [['stars', 'Most starred'], ['new', 'Newest']], '', '<div class="empty">No rules match these filters. <button class="chip" data-clearfilters>Clear filters</button></div>')}
       </div>
       ${aliases.length ? `<p class="faint sm" style="margin-top:22px">Also see ${aliases.map(x => `<a href="#/g/${x}" class="mono">${x}</a>`).join(', ')}, a non-canonical group with similar rules.</p>` : ''}</div>`;
   }
@@ -450,7 +443,6 @@
     const disc = lib.rules.flatMap(r => discussionFor({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }).map(d => ({ ...d, rule: r })));
     const openDisc = disc.filter(d => d.state === 'open').length;
     const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['releases', 'Library releases', lib.releases.length], ['discussion', 'Discussion', openDisc]];
-    if (isMaintainer(lib) && lib.insights) tabs.push(['insights', 'Insights', null]);
     let body = ''; let sideTop = '';
     if (tab === 'groups') {
       const selected = (q.get('sel') ?? (lib.featuredSel || '')).split(',').filter(Boolean);
@@ -475,8 +467,6 @@
         + [...lib.releases].reverse().map(rel => libraryReleaseCard(lib, rel)).join('');
     } else if (tab === 'discussion') {
       body = discussionList(disc, lib, true);
-    } else if (tab === 'insights') {
-      body = insightsView(lib);
     }
     const groupsN = groupIds.length;
     return `<div class="page wrap">
@@ -485,7 +475,7 @@
         <p class="muted" style="margin-top:6px">${esc(lib.description)}</p></div>
         <div class="row actions"><a class="btn small" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${icon.gh}View on GitHub</a></div></div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${libUrl(lib, k)}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
-      ${tab === 'insights' ? body : `<div class="lib-cols"><div>${body}</div><aside class="side">${sideTop}${libAbout(lib)}</aside></div>`}</div>`;
+      <div class="lib-cols"><div>${body}</div><aside class="side">${sideTop}${libAbout(lib)}</aside></div></div>`;
   }
 
   // What one library release published, read from its release record, in the order of the generated GitHub Release page.
@@ -518,15 +508,6 @@
     </section>`;
   }
 
-  function insightsView(lib) {
-    const featured = lib.rules.find(r => r.removals);
-    return `<div class="note" style="margin-bottom:18px"><span>Visible to maintainers of ${esc(lib.id)} only. Counts come from the Git history of public projects.</span></div>
-      <table class="data"><thead><tr><th>Rule</th><th>Using now</th><th>Ever added</th><th>Removed</th><th>Most common reason</th></tr></thead><tbody>
-      ${lib.insights.map(i => { const r = lib.rules.find(x => x.slug === i.rule); return `<tr><td><a href="${ruleUrl({ ...r, lib })}">${esc(r.title)}</a></td><td>${fmt(i.using)}</td><td>${fmt(i.ever)}</td><td>${fmt(i.removed)}</td><td>${esc(i.reason)}</td></tr>`; }).join('')}
-      </tbody></table>
-      ${featured ? `<p class="index" style="margin:28px 0 10px">Recent removals of “${esc(featured.title)}”</p>${featured.removals.map(x => `<div class="reason">${x.reason ? `“${esc(x.reason)}”` : '<span class="muted">No reason recorded. The project stopped importing the group.</span>'}<div class="by"><span class="kind">${x.kind}</span>${esc(x.project)} · ${x.when} · at ${x.at}${x.with ? ` · with <span class="mono">${esc(x.with)}</span>` : ''} · <a href="#" data-act="noop">view commit</a></div></div>`).join('')}` : ''}`;
-  }
-
   function discussionList(items, lib, showRule) {
     if (!items.length) return `<div class="empty">No discussion yet. Issues and pull requests about ${showRule ? 'these rules' : 'this rule'} on GitHub will show up here.</div>`;
     const prs = items.filter(d => d.kind === 'pr');
@@ -539,13 +520,13 @@
       <p class="faint xs" style="margin-top:14px">Mirrored from GitHub. Everything opens on GitHub; Rulemart stores no comments.</p>`;
   }
 
-  // Stands in for the Usage panel while a rule has no usage or discussion: who publishes it, how fresh it is, and where to talk about it.
-  function aboutPanel(r, versions) {
+  // The rule's top-right panel: who publishes it, how fresh it is, and where to talk about it.
+  function aboutPanel(r, versions, openN) {
     const lib = r.lib; const owner = D.owners[lib.owner] || { name: lib.owner };
     return `<div class="panel"><div class="panel-h"><span class="index">About</span></div><div class="panel-b about">
       <a class="about-pub" href="${libUrl(lib)}">${avatar(lib.owner, 'md')}<span><span class="t">${esc(libName(lib))}</span><span class="faint xs">Published by ${esc(owner.name)}</span></span></a>
       <div class="about-fact"><span>Updated</span><span>${esc(versions[0].date)}</span></div>
-      <div class="about-cta"><p class="sm muted">Questions or suggestions?</p><button class="btn small" data-act="discuss">${icon.chat}Discuss this rule</button></div></div></div>`;
+      <div class="about-cta">${openN ? `<p class="sm muted"><a href="${ruleUrl(r)}?tab=discussion">${openN} open ${openN === 1 ? 'issue or PR' : 'issues and PRs'}</a> about this rule.</p>` : '<p class="sm muted">Questions or suggestions?</p>'}<button class="btn small" data-act="discuss">${icon.chat}Discuss this rule</button></div></div></div>`;
   }
 
   function assetsPanel(r, current) {
@@ -604,15 +585,12 @@
     const openN = disc.filter(d => d.state === 'open').length;
     const versions = ruleVersions(r);
     const starred = !!state.stars[r.key];
-    const showUsage = usageShown(r.usedBy);
     let body = '';
     if (tab === 'rule') {
       body = `<div class="rule-cols"><div class="prose">
           <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${linkAssets(r, r.body, r.group).replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
         <aside class="side">
-          ${showUsage || openN ? `<div class="panel"><div class="panel-h"><span class="index">${showUsage ? 'Usage' : 'Discussion'}</span></div><div class="panel-b">
-            ${showUsage ? `<div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div>${r.net30 > 0 ? `<div class="sub">Net +${r.net30} in the last 30 days</div>` : ''}</div>` : ''}
-            ${openN ? `<div class="stat"><div class="big">${openN}</div><div class="lbl">open ${openN === 1 ? 'issue or PR' : 'issues and PRs'}</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div>` : ''}</div></div>` : aboutPanel(r, versions)}
+          ${aboutPanel(r, versions, openN)}
           ${assetsPanel(r)}
           <div class="kv">
             <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
@@ -622,20 +600,12 @@
           </div></aside></div>`;
     } else if (tab === 'discussion') {
       body = `<div class="row between" style="margin-bottom:10px"><span class="muted sm">Issues and pull requests on <span class="mono">${esc(lib.id)}</span> that are about this rule.</span><button class="btn small" data-act="discuss">${icon.chat}Discuss</button></div>${discussionList(disc, lib, false)}`;
-    } else if (tab === 'usedby' && !showUsage) {
-      body = `<div class="empty">Rulemart counts the public GitHub projects whose <span class="mono">.code-rules/generated/provenance.json</span> lists this rule. They appear here as projects adopt it.</div>`;
-    } else if (tab === 'usedby') {
-      const pool = D.projectPool;
-      const n = Math.min(pool.length, 10);
-      body = `<p class="muted sm" style="margin-bottom:12px">Public projects whose <span class="mono">.code-rules/generated/provenance.json</span> lists this rule.</p>
-        ${rowList(pool.slice(0, n).map((p, i) => `<a class="rowlink" href="https://github.com/${esc(p)}" data-act="ghlink"><div class="row" style="flex-wrap:nowrap;gap:12px">${avatar(p.split('/')[0], 'md')}<div><div class="t">${esc(p)}</div><div class="s">on ${versions[Math.min(versions.length - 1, i % 3)].version}</div></div></div><span class="faint sm">synced ${i + 2} days ago</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}
-        <p class="faint sm" style="margin-top:14px">and ${fmt(Math.max(0, r.usedBy - n))} more public projects</p>`;
     } else if (tab === 'versions') {
       const replaces = retiredRules(lib).filter(x => x.replacedBy === `${r.group}/${r.slug}`);
       body = `${replaces.map(x => `<div class="note" style="margin-bottom:14px"><span>Replaces <a href="${ruleUrl(x)}">${esc(x.title)}</a> <span class="mono">${x.group}/${x.slug}</span>, retired in ${releaseTag(x.retiredIn)}.</span></div>`).join('')}<p class="faint sm" style="margin:0 0 14px">A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" target="_blank" rel="noopener">How versions work</a></p>`
         + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.from ? `<a class="sm" href="https://github.com/${esc(lib.id)}/compare/${releaseTag(versions[k + 1].release)}...${releaseTag(v.release)}" data-act="ghlink">Compare</a>` : '<span></span>'}</div>`).join(''));
     }
-    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['usedby', 'Used by', showUsage ? fmt(r.usedBy) : null], ['versions', 'Versions', versions.length]];
+    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['versions', 'Versions', versions.length]];
     return `<div class="page wrap">
       <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> <span class="mono">${r.group}</span></div>
       <div class="rulehead"><div>
@@ -692,7 +662,7 @@
         : `<div class="note"><span>Showing public repos only.</span><a href="#/me/private">Include private projects</a></div>`}
         <div class="sec-h" style="margin-top:24px"><span>Published by you and your orgs</span><span>${published.length}</span></div>
         ${published.map(l => `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a>${l.fresh ? ' <span class="chip on">New</span>' : ''}</div><div class="s"><span class="mono">${esc(l.id)}</span> · ${l.rules.length} rules</div></div>
-          <div class="row"><span class="meta">${usedBy(l.usedBy) ? `<span>${usedBy(l.usedBy)}</span>` : ''}</span>${l.insights ? `<a class="btn small" href="${libUrl(l, 'insights')}">Insights</a>` : ''}</div></div>`).join('')}
+          <span class="meta"><span>★ ${fmt(l.rules.reduce((n, x) => n + starCount({ ...x, key: `${l.id}::${x.group}/${x.slug}` }), 0))}</span></span></div>`).join('')}
         <div style="margin-top:12px"><a class="btn small" href="#/me/add">+ Add a library</a></div>
         <div class="sec-h" style="margin-top:30px"><span>Used in your projects</span><span>${Object.keys(usedMap).length}</span></div>
         ${Object.entries(usedMap).map(([id, uses]) => { const l = libById(id); return `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a></div>
@@ -862,7 +832,7 @@
 
   function faqPage() {
     const qa = [
-      ['What is Rulemart?', `<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them and how widely they're used, and add the ones you want to your own codebase.</p><p>Think of it as shopping for best practices instead of writing every rule yourself.</p>`],
+      ['What is Rulemart?', `<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them and which ones people star, and add the ones you want to your own codebase.</p><p>Think of it as shopping for best practices instead of writing every rule yourself.</p>`],
       ['Can I use Rulemart with any project?', `<p>Yes, in any language, public or private, as long as it uses <a href="https://code-rules.fabricahq.com" target="_blank" rel="noopener">Code Rules</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Code Rules adds them to your project and keeps them in sync.</p><p>If your project doesn't use Code Rules yet, checkout includes the setup.</p>`],
       ['What is Code Rules?', `<p>Rulemart uses <a href="https://code-rules.fabricahq.com" target="_blank" rel="noopener">Code Rules</a> to add the rules you pick to your project and keep them in sync.</p><p>Code Rules is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.code-rules/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p><p>Teams manage this guidance rule by rule, for a single repo or across their organization. They can share one library of rules between repos and still add or exclude rules where a project differs.</p>`],
       ['How do I use Rulemart?', `<ol><li><b>Browse</b> rules or search for what you need.</li><li><b>Add to cart</b> the rules you want.</li><li><b>Check out</b> to get one prompt for your coding agent, or the exact commands to run yourself.</li></ol>`],
