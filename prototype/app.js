@@ -725,7 +725,7 @@
     ];
     return `<div class="page wrap" style="max-width:780px">
       <p class="index">Publish</p><h1 class="title-xl" style="margin:8px 0 6px">Add a library</h1>
-      <p class="muted" style="margin-bottom:20px">Your repos and your organizations' repos that contain a <span class="mono">rule-library.yaml</span>. The library's page will show its owner, its repository, and that you added it.</p>
+      <p class="muted" style="margin-bottom:20px">Your repos and your organizations' repos that contain a <span class="mono">rule-library.yaml</span> and have published a library release. The library's page will show its owner, its repository, and that you added it.</p>
       <div class="panel"><div class="panel-h"><span class="index">Your libraries on GitHub</span></div><div class="panel-b">${rows.join('')}</div></div>
       <div class="note" style="margin-top:14px"><span>Only public libraries can be published on Rulemart.${state.private ? '' : ' Rulemart can only see your public repos right now.'}</span>${state.private ? '' : '<a href="#/me/private">Include private repos</a>'}</div>
       <form data-form="addurl" style="margin-top:28px"><p class="index" style="margin-bottom:8px">Or add any public library by URL</p>
@@ -740,12 +740,14 @@
     const p = D.publishable.find(x => x.id === repo);
     if (!p) return notFound();
     const lib = p.library;
-    const steps = [`Found <b>rule-library.yaml</b> in ${esc(repo)}`, `Library check passed`, `<b>${new Set(lib.rules.map(r => r.group)).size} group</b>, <b>${lib.rules.length} rules</b> indexed`, `Tagged ${lib.rules.length} rules at <b>1.0.0</b> · license <b>${lib.license}</b>`, 'Watching for new rule releases'];
+    // Rulemart only reads: rule versions come from the library's release/<n> tags, which the author publishes with code-rules library release.
+    const rel = latestRelease(lib);
+    const steps = [`Found <b>rule-library.yaml</b> in ${esc(repo)}`, `Read library release <b>${releaseTag(rel.n)}</b> · ${lib.rules.length} rules at their published versions`, `<b>${new Set(lib.rules.map(r => r.group)).size} group</b>, <b>${lib.rules.length} rules</b> indexed · license <b>${lib.license}</b>`, 'Watching for new library releases'];
     setTimeout(() => runSteps(repo, steps.length), 50);
     return `<div class="page wrap" style="max-width:640px">
       <p class="index">Publish</p><h1 class="title-xl" style="margin:8px 0 18px">Adding ${esc(repo)}</h1>
       <div class="panel"><div class="panel-b">${steps.map((s, i) => `<div class="check" data-step="${i}"><span class="tick">✓</span><span>${s}</span></div>`).join('')}</div></div>
-      <div id="run-done" class="hidden" style="margin-top:20px"><p style="font-size:17px;font-weight:500;margin-bottom:6px">${esc(repo)} is live on Rulemart.</p><p class="muted sm">Push a new tag and Rulemart updates within minutes.</p>
+      <div id="run-done" class="hidden" style="margin-top:20px"><p style="font-size:17px;font-weight:500;margin-bottom:6px">${esc(repo)} is live on Rulemart.</p><p class="muted sm">Publish a library release with <code>code-rules library release</code>, and Rulemart picks it up within minutes.</p>
         <div class="row" style="margin-top:14px"><a class="btn primary" href="${`#/${repo}`}">View library page</a><a class="btn" href="#/me">Back to Dashboard</a></div></div></div>`;
   }
   function runSteps(repo, n) {
