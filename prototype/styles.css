@@ -372,6 +372,15 @@ ol.setup b { color: var(--ink); font-weight: 600; }
 .cart-state { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .linkbtn.sm { font-size: 13px; color: var(--muted); }
 
+.lib-cols.cart-cols { grid-template-columns: minmax(0, 1fr) 380px; gap: 32px; }
+.adopt-box.ready { max-height: calc(100vh - 110px); display: flex; flex-direction: column; }
+.tabs2 { align-self: flex-start; margin-bottom: 10px; }
+pre.preview { margin: 0; flex: 1 1 auto; min-height: 120px; max-height: 360px; overflow: auto; background: var(--surface-header); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-family: var(--mono); font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+pre.preview span { display: inline; border-radius: 3px; }
+pre.preview span.chg { animation: chg 1.8s ease-out; }
+@keyframes chg { from { background: var(--ok-bg); box-shadow: 0 0 0 2px var(--ok-bg); } to { background: transparent; box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { pre.preview span.chg { animation: none; } }
+
 /* FAQ */
 details.faq { border-top: 1px solid var(--border); padding: 4px 0; }
 details.faq:last-of-type { border-bottom: 1px solid var(--border); }
@@ -433,6 +442,7 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .mocktag { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); padding: 2px 8px; font-size: 11.5px; }
 
 @media (max-width: 960px) {
+  .lib-cols.cart-cols { grid-template-columns: minmax(0, 1fr); }
   .rule-cols, .lib-cols, .search-layout { grid-template-columns: minmax(0, 1fr); }
   .adopt-box { position: static; }
   .filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; position: static; }

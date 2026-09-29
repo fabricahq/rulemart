@@ -5,7 +5,7 @@
   const STORE = 'rulemart-mock-v1';
 
   // ---------- State ----------
-  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null, cart: [], cartFork: {}, cartFull: {}, cartProject: null, cartNewRepo: '' });
+  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null, cart: [], cartFork: {}, cartFull: {}, cartProject: null, cartNewRepo: '', checkoutTab: 'prompt' });
   let state = fresh();
   try { state = { ...fresh(), ...JSON.parse(localStorage.getItem(STORE) || '{}') }; } catch { /* storage unavailable: run in memory */ }
   state.cart = state.cart || []; state.cartFork = state.cartFork || {}; state.cartFull = state.cartFull || {};
@@ -592,6 +592,7 @@
         <div class="row" style="justify-content:center;margin-top:20px"><a class="btn primary" href="#/browse/techs">Browse techs</a><a class="btn" href="#/browse/practices">Browse practices</a></div></div>`;
     }
     const plan = cartPlan();
+    const tab = state.checkoutTab === 'commands' ? 'commands' : 'prompt';
     const rulesN = items.filter(i => i.kind === 'rule').length; const groupsN = items.length - rulesN;
     const seg = it => `<div class="seg"><label><input type="radio" name="m-${esc(it.k)}" value="sync" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? '' : 'checked'}>Stay in sync</label><label><input type="radio" name="m-${esc(it.k)}" value="fork" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? 'checked' : ''}>Fork</label></div>`;
     // Rules get a document icon; whole groups get their group icon, a label, and the rules they bring along.
@@ -607,22 +608,29 @@
     return `<div class="page wrap">
       <p class="index">Cart</p><h1 class="title-xl" style="margin:8px 0 6px">Checkout</h1>
       <p class="muted" style="margin-bottom:24px">${rulesN ? `${rulesN} ${rulesN === 1 ? 'rule' : 'rules'}` : ''}${rulesN && groupsN ? ' and ' : ''}${groupsN ? `${groupsN} whole ${groupsN === 1 ? 'group' : 'groups'}` : ''} from ${plan.length} ${plan.length === 1 ? 'library' : 'libraries'}.</p>
-      <div class="lib-cols">
+      <div class="lib-cols cart-cols">
         <div>${plan.map(p => `<div class="cart-lib"><div class="row" style="gap:10px;margin-bottom:10px">${avatar(p.lib.owner)}<b>${esc(libName(p.lib))}</b><span class="rid">${esc(p.lib.id)}</span></div>
           ${rowList(items.filter(i => i.lib.id === p.lib.id).map(itemRow).join(''))}
           ${p.extra || p.full ? `<label class="sm muted row" style="gap:8px;margin-top:10px"><input type="checkbox" data-cartfull="${esc(p.lib.id)}" ${p.full ? 'checked' : ''}> Also add the other ${[...new Set(p.picks.map(r => groupName(r.group)))].join(' and ')} rules${p.full ? '' : ` (${p.extra} more)`}</label>` : ''}</div>`).join('')}
           ${whereSection()}
-          <p class="index list-label" style="margin-top:30px">Commands</p>
-          <pre class="codebox">${esc(checkoutCommands(plan))}</pre>
-          <p class="faint xs" style="margin:10px 0 0">Rules you didn't pick are excluded, so only your picks reach your agents. <span class="flag">--exclude</span> and <span class="flag">--from</span> are proposed CLI flags.</p>
           <button class="chip" data-act="cart-clear" style="margin-top:22px">Clear cart</button></div>
-        <aside><div class="adopt-box">
+        <aside><div class="adopt-box ready">
           <p class="index" style="margin-bottom:6px">Ready to add</p>
-          <p class="sm muted" style="margin-bottom:12px">Give your agent this prompt, or run the commands yourself from your project root.</p>
-          <button class="btn primary" style="width:100%" data-copy="checkout-prompt">Copy prompt for agent</button>
-          <button class="btn" style="width:100%;margin-top:8px" data-copy="checkout-cmd">Copy commands</button>
-          <details class="prompt"><summary>What the prompt says</summary><pre>${esc(checkoutPrompt(plan))}</pre></details>
+          <p class="sm muted" style="margin-bottom:12px">Give your agent the prompt, or run the commands yourself. Both update as you change your cart.</p>
+          <div class="seg tabs2">${[['prompt', 'Prompt'], ['commands', 'Commands']].map(([k, l]) => `<button data-checkouttab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+          ${livePreview(tab, tab === 'prompt' ? checkoutPrompt(plan) : checkoutCommands(plan))}
+          <button class="btn primary" style="width:100%;margin-top:12px" data-copy="${tab === 'prompt' ? 'checkout-prompt' : 'checkout-cmd'}">${tab === 'prompt' ? 'Copy prompt for agent' : 'Copy commands'}</button>
+          <p class="faint xs" style="margin:10px 0 0">Rules you didn't pick are excluded, so only your picks reach your agents. <span class="flag">--exclude</span> and <span class="flag">--from</span> are proposed CLI flags.</p>
         </div></aside></div></div>`;
+  }
+
+  // Live preview: lines that weren't in the last render of the same tab get a brief highlight.
+  let lastPreview = { tab: null, lines: new Set() };
+  function livePreview(tab, text) {
+    const lines = text.split('\n');
+    const prev = lastPreview.tab === tab ? lastPreview.lines : null;
+    lastPreview = { tab, lines: new Set(lines) };
+    return `<pre class="preview">${lines.map(l => `<span class="${prev && l.trim() && !prev.has(l) ? 'chg' : ''}">${esc(l) || ' '}</span>`).join('\n')}</pre>`;
   }
 
   function whereSection() {
@@ -958,10 +966,11 @@
 
   // ---------- Events ----------
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-act],[data-copy],[data-sort],[data-libfilter],[data-selall],[data-clearfilters]');
+    const t = e.target.closest('[data-act],[data-copy],[data-sort],[data-libfilter],[data-selall],[data-clearfilters],[data-checkouttab]');
     if (!t) { if (!e.target.closest('.menu')) $('#menu')?.classList.add('hidden'); return; }
     const act = t.dataset.act;
     const r = currentRule();
+    if (t.dataset.checkouttab) { state.checkoutTab = t.dataset.checkouttab; save(); return render(false); }
     if (t.dataset.sort) return setQuery({ sort: t.dataset.sort === t.dataset.default ? null : t.dataset.sort });
     if (t.hasAttribute('data-clearfilters')) return setQuery({ kind: null, impact: null, fabrica: null, mine: null, libs: null, stars: null, used: null });
     if (t.dataset.libfilter !== undefined) return setQuery({ lib: t.dataset.libfilter || null });
