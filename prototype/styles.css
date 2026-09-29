@@ -504,3 +504,22 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .proj-top { margin: -2px 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
 .proj-signin { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .proj-signin p { margin: 2px 0 0; }
+
+/* Checkout steps: each is a card whose shaded header bar carries the number and title, matching the site's panels. */
+.co-card { border: 1px solid var(--border); border-radius: var(--r-panel); background: var(--paper); overflow: hidden; }
+.co-card + .co-card { margin-top: 20px; }
+.co-bar { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: var(--surface-header); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.co-bar h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -.02em; line-height: 1.3; margin: 0; }
+.co-sub { margin-left: auto; font-size: 13px; color: var(--muted); }
+.co-n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--paper); font-size: 12.5px; font-weight: 600; display: grid; place-items: center; }
+.co-body { padding: 20px; }
+.co-body > .cart-lib:last-of-type { margin-bottom: 14px; }
+/* Inside a card, the project form needs no box of its own. */
+.proj-box.flat { border: 0; padding: 0; background: none; border-radius: 0; }
+.adopt-box.co-card { padding: 0; }
+.adopt-box.ready.co-card > .co-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+@media (max-width: 720px) {
+  .co-sub { flex-basis: 100%; margin: -6px 0 0 36px; }
+  .co-bar { padding: 14px 16px; }
+  .co-body { padding: 16px; }
+}

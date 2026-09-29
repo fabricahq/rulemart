@@ -735,22 +735,22 @@
         <ul class="grp-rules">${rs.map(x => `<li>${esc(x.title)}</li>`).join('')}</ul></div><span class="faint sm">Stays in sync</span><button class="x" data-act="cart-remove" data-key="${esc(it.k)}" aria-label="Remove">×</button></div>`;
     };
     return `<div class="page wrap">
-      <p class="index">Cart</p><h1 class="title-xl" style="margin:8px 0 6px">Checkout</h1>
-      <p class="muted" style="margin-bottom:24px">${rulesN ? `${rulesN} ${rulesN === 1 ? 'rule' : 'rules'}` : ''}${rulesN && groupsN ? ' and ' : ''}${groupsN ? `${groupsN} whole ${groupsN === 1 ? 'group' : 'groups'}` : ''} from ${plan.length} ${plan.length === 1 ? 'library' : 'libraries'}.</p>
+      <p class="index">Cart</p><h1 class="title-xl" style="margin:8px 0 28px">Checkout</h1>
       <div class="lib-cols cart-cols">
-        <div>${plan.map(p => `<div class="cart-lib"><div class="row" style="gap:10px;margin-bottom:10px">${avatar(p.lib.owner)}<b>${esc(libName(p.lib))}</b><span class="rid">${esc(p.lib.id)}</span></div>
+        <div><section class="co-card">${stepHead(1, 'What you\'re adding', `${rulesN ? `${rulesN} ${rulesN === 1 ? 'rule' : 'rules'}` : ''}${rulesN && groupsN ? ' and ' : ''}${groupsN ? `${groupsN} whole ${groupsN === 1 ? 'group' : 'groups'}` : ''} from ${plan.length} ${plan.length === 1 ? 'library' : 'libraries'}`)}<div class="co-body">
+          ${plan.map(p => `<div class="cart-lib"><div class="row" style="gap:10px;margin-bottom:10px">${avatar(p.lib.owner)}<b>${esc(libName(p.lib))}</b><span class="rid">${esc(p.lib.id)}</span></div>
           ${rowList(items.filter(i => i.lib.id === p.lib.id).map(itemRow).join(''))}
           ${p.extra || p.full ? `<label class="sm muted row" style="gap:8px;margin-top:10px"><input type="checkbox" data-cartfull="${esc(p.lib.id)}" ${p.full ? 'checked' : ''}> Also add the other ${[...new Set(p.picks.map(r => groupName(r.group)))].join(' and ')} rules${p.full ? '' : ` (${p.extra} more)`}</label>` : ''}</div>`).join('')}
-          ${projectSection()}
-          <button class="chip" data-act="cart-clear" style="margin-top:22px">Clear cart</button></div>
-        <aside><div class="adopt-box ready">
-          <p class="index" style="margin-bottom:6px">Finish checkout</p>
-          <p class="sm muted" style="margin-bottom:12px">Give your agent the prompt, or run the commands yourself. Both update as you change your cart.</p>
+          <button class="linkbtn sm" data-act="cart-clear">Clear cart</button></div></section>
+          <section class="co-card">${stepHead(2, 'Where it goes', 'The project these rules are for')}<div class="co-body">${projectSection()}</div></section></div>
+        <aside><div class="adopt-box ready co-card">
+          ${stepHead(3, 'Finish checkout')}<div class="co-body">
+          <p class="sm muted" style="margin:0 0 12px">Give your agent the prompt, or run the commands yourself. Both update as you change your cart.</p>
           <div class="seg tabs2">${[['prompt', 'Prompt'], ['commands', 'Commands']].map(([k, l]) => `<button data-checkouttab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
           ${livePreview(tab, tab === 'prompt' ? checkoutPrompt(plan) : checkoutCommands(plan))}
           <button class="btn primary" style="width:100%;margin-top:12px" data-copy="${tab === 'prompt' ? 'checkout-prompt' : 'checkout-cmd'}">${tab === 'prompt' ? 'Copy prompt for agent' : 'Copy commands'}</button>
           <p class="faint xs" style="margin:10px 0 0">Rules you didn't pick are excluded, so only your picks reach your agents. <span class="flag">--exclude</span> and <span class="flag">--from</span> are proposed CLI flags.</p>
-        </div></aside></div></div>`;
+        </div></div></aside></div></div>`;
   }
 
   // Live preview: lines that weren't in the last render of the same tab get a brief highlight.
@@ -762,16 +762,17 @@
     return `<pre class="preview">${lines.map(l => `<span class="${prev && l.trim() && !prev.has(l) ? 'chg' : ''}">${esc(l) || ' '}</span>`).join('\n')}</pre>`;
   }
 
+  // Checkout is three numbered cards: what you're adding, where it goes, and the finished prompt. Each card's shaded header bar sets it apart from its content.
+  const stepHead = (n, title, sub = '') => `<div class="co-bar"><span class="co-n">${n}</span><h2>${title}</h2>${sub ? `<span class="co-sub">${sub}</span>` : ''}</div>`;
+
   // Collects where the rules go. It gives no instructions of its own: the checkout panel is the only output.
   function projectSection() {
     const t = checkoutTarget();
     const repoField = `<label class="fl sm muted" style="display:block;margin:0 0 6px">GitHub repository <span class="faint">(optional, so the prompt names it)</span></label>
       <input class="input" data-cartrepo placeholder="https://github.com/owner/repo" value="${esc(state.cartNewRepo || '')}" autocomplete="off">
       ${state.cartNewRepo ? (newRepo() ? `<p class="faint xs" style="margin:6px 0 0">Using <span class="mono">${esc(newRepo())}</span></p>` : '<p class="err">That doesn\'t look like a GitHub repository URL.</p>') : ''}`;
-    const label = '<p class="index list-label" style="margin-top:30px">Your project</p>';
     if (t.detected.length) {
-      return `${label}
-        ${rowList(t.detected.map(p => `<label class="proj-opt"><input type="radio" name="cart-project" data-cartproject="${esc(p.repo)}" ${t.project && t.project.repo === p.repo ? 'checked' : ''}><div><b>${esc(p.repo)}</b>${p.private ? ' <span class="chip">Private</span>' : ''}<div class="s">Uses ${p.sources.map(x => esc(libName(libById(x.lib)))).join(', ')}</div></div></label>`).join(''))}
+      return `${rowList(t.detected.map(p => `<label class="proj-opt"><input type="radio" name="cart-project" data-cartproject="${esc(p.repo)}" ${t.project && t.project.repo === p.repo ? 'checked' : ''}><div><b>${esc(p.repo)}</b>${p.private ? ' <span class="chip">Private</span>' : ''}<div class="s">Uses ${p.sources.map(x => esc(libName(libById(x.lib)))).join(', ')}</div></div></label>`).join(''))}
         ${t.mode === 'new'
           ? `<div class="proj-box" style="margin-top:12px"><div class="row between" style="margin-bottom:12px"><b class="sm">A new project</b><button class="linkbtn sm" data-act="cart-existing">Cancel</button></div>${repoField}<p class="sm muted" style="margin:12px 0 0">The prompt sets up Code Rules there first.</p></div>`
           : '<button class="linkbtn" style="display:block;margin-top:12px" data-act="cart-newproject">+ Or use a project that doesn\'t use Code Rules yet</button>'}`;
@@ -780,7 +781,7 @@
     const top = state.signedIn
       ? `<p class="sm muted proj-top">We didn't find any of your projects using Code Rules${state.private ? '' : ' in your public repos. <a href="#/me/private">Include private projects</a>'}.</p>`
       : `<div class="proj-top proj-signin"><div><b class="sm">Pick from your projects</b><p class="sm muted">Sign in to choose a project and see when its rules have updates.</p></div><a class="btn small" href="#/signin" data-act="remember">${icon.gh}Sign in with GitHub</a></div>`;
-    return `${label}<div class="proj-box">${top}${repoField}
+    return `<div class="proj-box flat">${top}${repoField}
       <p class="sm muted" style="margin:14px 0 0"><b>New to Code Rules?</b> The prompt sets it up for you.</p></div>`;
   }
 
