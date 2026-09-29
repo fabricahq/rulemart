@@ -73,7 +73,7 @@
   const libUrl = (lib, tab) => `#/${lib.id}${tab ? `?tab=${tab}` : ''}`;
   const libGroupUrl = (lib, g, sel) => `#/${lib.id}/${g}${sel && sel.length ? `?sel=${encodeURIComponent(sel.join(','))}` : ''}`;
   // First path segments that are Rulemart pages, not GitHub owners.
-  const RESERVED = new Set(['search', 'browse', 'libraries', 'g', 'me', 'signin', 'gh', 'cart', 'faq', 'l', 'r', 'o']);
+  const RESERVED = new Set(['search', 'browse', 'libraries', 'g', 'me', 'signin', 'gh', 'cart', 'faq', 'feedback', 'l', 'r', 'o']);
   const libIdFromPath = () => { const { parts } = parse(); if (parts[0] === 'l') return parts.slice(1).join('/'); return parts.length >= 2 && !RESERVED.has(parts[0]) ? `${parts[0]}/${parts[1]}` : null; };
   const starCount = r => r.stars + (state.stars[r.key] ? 1 : 0);
   const isMaintainer = lib => state.signedIn && (lib.owner === user.login || user.orgs.includes(lib.owner));
@@ -190,7 +190,7 @@
     const themeLabel = { system: 'Theme: system', light: 'Theme: light', dark: 'Theme: dark' }[state.theme];
     return `<footer class="foot"><div class="wrap">
       <div class="row"><span>Fabrica / Rulemart</span><span class="mocktag">Click-through mock · all data invented</span></div>
-      <div class="row" style="gap:18px"><a href="#" data-act="feedback">Feedback on Code Rules</a><button data-act="theme">${themeLabel}</button><button data-act="reset">Reset demo</button></div>
+      <div class="row" style="gap:18px"><a href="#/feedback">Give us feedback</a><button data-act="theme">${themeLabel}</button><button data-act="reset">Reset demo</button></div>
     </div></footer>`;
   }
 
@@ -323,7 +323,7 @@
     return `<div class="page wrap">
       <p class="index">Search</p><h1 class="title-xl" style="margin:8px 0 22px">${term ? `Rules matching “${esc(term)}”` : 'All rules'}</h1>
       <div class="search-layout">${filterSidebar(base, f, { kind: true })}
-        ${resultsList(rows, sort, [['best', 'Best match'], ['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#" data-act="feedback">tell us what you were looking for</a>.</div>`, { grouped: true })}
+        ${resultsList(rows, sort, [['best', 'Best match'], ['used', 'Most used'], ['stars', 'Most starred'], ['new', 'Newest']], term, `<div class="empty">No rules match. Try a broader word, or <a href="#/feedback">tell us what you were looking for</a>.</div>`, { grouped: true })}
       </div></div>`;
   }
 
@@ -798,11 +798,12 @@
       ['How are rules versioned?', `<p>Each rule has its own version, using <a href="https://code-rules.fabricahq.com/guides/version-rules/" target="_blank" rel="noopener">semantic versioning adapted for rules</a>. A major version changes what the rule requires, a minor version widens its guidance, and a patch clarifies wording or examples. When you update, Code Rules shows you what changed and asks before taking a major version.</p>`],
       ['Who can publish a library?', `<p>Anyone with a public Code Rules library on GitHub. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be published.</p>`],
       ['Do I need a Rulemart account?', `<p>No. You can browse, read rules, and check out without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>Easier checkout</b>, since Rulemart knows which of your GitHub projects use Code Rules</li><li><b>Project tracking</b>, so you see when rule updates are available for your projects that use Code Rules</li><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library publishing</b>, so you can list your own libraries on Rulemart</li></ul>`],
+      ['How do I give feedback?', `<p>For Rulemart or Code Rules itself, use the <a href="#/feedback">feedback page</a>. Pick a topic, and it opens an issue on GitHub where we track and reply to it.</p><p>For a specific rule, use <b>Discuss</b> on that rule's page. It goes to the library that publishes the rule.</p>`],
     ];
     return `<div class="page wrap" style="max-width:760px">
       <p class="index">FAQ</p><h1 class="title-xl" style="margin:8px 0 24px">Questions and answers</h1>
       ${qa.map(([q, a]) => `<details class="faq"><summary>${q}</summary><div class="faq-a">${a}</div></details>`).join('')}
-      <p class="muted sm" style="margin-top:28px">Still have a question? <a href="#" data-act="feedback">Ask us on GitHub</a>.</p></div>`;
+      <p class="muted sm" style="margin-top:28px">Still have a question? <a href="#/feedback">Ask us</a>.</p></div>`;
   }
 
   function signinPage() {
@@ -855,13 +856,13 @@
       <div class="row" style="margin-top:16px"><button class="gh-btn" data-act="gh-install">Install</button><button class="gh-btn alt" data-act="gh-cancel-install">Cancel</button></div></div>`);
   }
 
+  // Topics become issue labels, grouped by what the feedback is about.
   const feedbackTopics = {
-    format: { label: 'The rule format', ex: 'Frontmatter fields, groups, impact levels, how rules are written.' },
-    cli: { label: 'The CLI', ex: 'Commands, sync and update, error messages, config.' },
-    agents: { label: 'How agents use rules', ex: "Rules your agent missed, misread, or applied where it shouldn't." },
-    hub: { label: 'Rulemart', ex: 'Search, library and rule pages, anything missing.' },
-    docs: { label: 'Documentation', ex: 'Anything unclear, wrong, or hard to find.' },
-    other: { label: 'Something else', ex: "Ideas, questions, or anything that doesn't fit above." },
+    hub: { group: 'Rulemart', label: 'Using Rulemart', ex: 'Finding rules, library and rule pages, checking out, and anything missing.' },
+    cli: { group: 'Code Rules', label: 'The tool', ex: 'The code-rules CLI: commands, syncing, error messages, and config.' },
+    format: { group: 'Code Rules', label: 'Rule format', ex: 'Frontmatter fields, groups, impact levels, and how rules are written.' },
+    docs: { group: 'Code Rules', label: 'Documentation', ex: 'Anything unclear, wrong, or hard to find.' },
+    other: { group: 'Anything else', label: 'Ideas and questions', ex: "Anything that doesn't fit above." },
   };
 
   function ghNewIssue() {
@@ -1040,10 +1041,15 @@
       <div style="margin-top:20px"><a class="btn primary" href="${newIssue}" data-act="close-nav">${icon.gh}Start a discussion on GitHub</a></div>`, true);
   }
 
-  function feedbackModal() {
-    openModal(`<div class="modal-h"><div><h2>Help shape Code Rules</h2><p class="muted sm" style="margin:4px 0 0">Code Rules is young, and we're changing it based on what you tell us. Pick a topic to open an issue on GitHub.</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
-      <div class="grid2">${Object.entries(feedbackTopics).map(([k, t]) => `<a class="tile" href="#/gh/new?repo=fabricahq/code-rules&topic=${k}" data-act="close-nav"><div class="row between"><b>${t.label}</b><span class="faint xs">↗ GitHub</span></div><div class="sub">${t.ex}</div></a>`).join('')}</div>
-      <p class="faint sm" style="margin-top:14px">Feedback about a specific rule? Use <b>Discuss</b> on that rule's page. It goes to the library that publishes it.</p>`);
+  function feedbackPage() {
+    const group = g => `<p class="index list-label">${g}</p>${rowList(Object.entries(feedbackTopics).filter(([, t]) => t.group === g).map(([k, t]) => `<a class="rowlink" href="#/gh/new?repo=fabricahq/code-rules&topic=${k}"><div><div class="t">${t.label}</div><div class="s">${t.ex}</div></div><span class="faint xs">↗ GitHub</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}`;
+    return `<div class="page wrap" style="max-width:760px">
+      <p class="index">Feedback</p><h1 class="title-xl" style="margin:8px 0 10px">Give us feedback</h1>
+      <p class="muted" style="margin-bottom:26px">Rulemart and Code Rules are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>
+      ${group('Rulemart')}${group('Code Rules')}
+      <p class="index list-label">A specific rule</p>
+      <p class="muted sm" style="margin:0">Use <b>Discuss</b> on that rule's page. It goes to the library that publishes the rule, since they maintain it.</p>
+      ${group('Anything else')}</div>`;
   }
 
   function starSigninModal() {
@@ -1087,6 +1093,7 @@
     else if (a === 'libraries') { html = librariesPage(); active = 'libraries'; }
     else if (a === 'cart') { html = cartPage(); active = 'cart'; }
     else if (a === 'faq') { html = faqPage(); active = 'faq'; }
+    else if (a === 'feedback') html = feedbackPage();
     else if (a === 'g') html = groupPage(rest.join('/'));
     else if (a === 'l') html = libraryPage(rest.join('/'));
     else if (a === 'r') html = rulePage(rest);
@@ -1130,7 +1137,6 @@
       case 'signout': state.signedIn = false; save(); go('#/'); render(); toast('Signed out'); break;
       case 'remember': state.returnTo = location.hash || '#/'; save(); break;
       case 'remember-add': state.returnTo = '#/me/add'; save(); break;
-      case 'feedback': e.preventDefault(); feedbackModal(); break;
       case 'theme': state.theme = { system: 'light', light: 'dark', dark: 'system' }[state.theme]; save(); render(false); break;
       case 'reset': try { localStorage.removeItem(STORE); } catch { /* ignore */ } state = fresh(); go('#/'); render(); toast('Demo reset'); break;
       case 'add-to-cart': addToCartModal(r); break;
