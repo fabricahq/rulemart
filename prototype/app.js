@@ -5,9 +5,10 @@
   const STORE = 'rulemart-mock-v1';
 
   // ---------- State ----------
-  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null });
+  const fresh = () => ({ signedIn: false, stars: {}, added: [], private: false, issues: [], theme: 'system', returnTo: null, cart: [], cartFork: {}, cartFull: {}, cartProject: null, cartNewRepo: '' });
   let state = fresh();
   try { state = { ...fresh(), ...JSON.parse(localStorage.getItem(STORE) || '{}') }; } catch { /* storage unavailable: run in memory */ }
+  state.cart = state.cart || []; state.cartFork = state.cartFork || {}; state.cartFull = state.cartFull || {};
   const save = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { /* ignore */ } };
 
   // ---------- Helpers ----------
@@ -23,6 +24,8 @@
     fab: '<svg viewBox="0 0 24 24" fill="none"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1.75 21.25 7.1V17L12 22.35 2.75 17V7.1Z"/><path d="m2.75 7.1 9.25 5.35 9.25-5.35M12 12.45v9.9"/><path d="m7.375 4.425 9.25 5.35M7.375 9.775v9.9M12 17.4l9.25-5.35"/></g></svg>',
     star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
     starOn: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"/></svg>',
+    doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>',
+    cart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.2"/><circle cx="17" cy="19.5" r="1.2"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4Z"/></svg>',
   };
   // Small library mark for quiet rows: Fabrica's logo on a dark tile, otherwise the owner's avatar.
@@ -129,10 +132,11 @@
       <div class="brand"><a class="fab-link" href="https://fabricahq.com">${icon.fab}Fabrica</a><span class="slash">/</span><a href="#/" aria-label="Rulemart home">Rulemart</a></div>
       <label class="topsearch">${icon.search}<input id="topq" placeholder="Search rules" value="${esc(active === 'search' ? parse().q.get('q') || '' : '')}" aria-label="Search rules"></label>
       <nav class="nav">
-        <a href="#/browse/techs" class="hide-md ${active === 'techs' ? 'cur' : ''}">Technologies</a>
+        <a href="#/browse/techs" class="hide-md ${active === 'techs' ? 'cur' : ''}">Techs</a>
         <a href="#/browse/practices" class="hide-md ${active === 'practices' ? 'cur' : ''}">Practices</a>
         <a href="#/libraries" class="hide-md ${active === 'libraries' ? 'cur' : ''}">Libraries</a>
-        <a href="#" data-act="feedback" class="hide-md">Feedback</a>
+        <a href="#/faq" class="hide-md ${active === 'faq' ? 'cur' : ''}">FAQ</a>
+        <a class="cartlink ${active === 'cart' ? 'cur' : ''}" href="#/cart" aria-label="Cart, ${state.cart.length} ${state.cart.length === 1 ? 'item' : 'items'}">${icon.cart}${state.cart.length ? `<span class="cartn">${state.cart.length}</span>` : ''}</a>
         ${signed}
       </nav></div></header>`;
   }
@@ -351,21 +355,18 @@
     if (tab === 'groups') {
       const selected = (q.get('sel') ?? (lib.featuredSel || '')).split(',').filter(Boolean);
       const sel = selected.length ? selected : [];
-      const row = g => { const n = lib.rules.filter(r => r.group === g).length; return `<label class="gsel"><input type="checkbox" data-gsel="${g}" ${sel.includes(g) ? 'checked' : ''}><div class="row" style="flex-wrap:nowrap;gap:10px">${techIcon(g)}<div><b>${groupName(g)}</b><span class="gid">${g}</span>${isCanonical(g) ? '' : ' <span class="flag" title="Not on the canonical list, so Rulemart won\'t combine it with other libraries">not canonical</span>'}</div></div><p>${esc(groupBlurb(g))}</p><span class="gc">${n} ${n === 1 ? 'rule' : 'rules'}</span></label>`; };
+      const row = g => { const n = lib.rules.filter(r => r.group === g).length; return `<label class="gsel"><input type="checkbox" data-gsel="${g}" ${sel.includes(g) ? 'checked' : ''}><div class="row" style="flex-wrap:nowrap;gap:10px">${techIcon(g)}<div><b>${groupName(g)}</b><span class="gid">${g}</span>${isCanonical(g) ? '' : ' <span class="flag" title="Not on the canonical list, so Rulemart won\'t combine it with other libraries">not canonical</span>'}</div></div><p>${esc(groupBlurb(g))}</p><span class="gc">${inCart(groupItemKey(lib.id, g)) ? '<span class="incart sm-badge">✓ In cart</span> ' : ''}${n} ${n === 1 ? 'rule' : 'rules'}</span></label>`; };
       const techs = groupIds.filter(g => g.startsWith('techs/'));
       const pracs = groupIds.filter(g => g.startsWith('practices/'));
-      const cmd = sel.length ? importCommand(lib, sel) : '# Select one or more groups';
       body = `<div class="lib-cols"><div>
           ${techs.length ? `<p class="index list-label">Technologies · ${techs.length}</p>${rowList(techs.map(row).join(''))}` : ''}
           ${pracs.length ? `<p class="index list-label">Practices · ${pracs.length}</p>${rowList(pracs.map(row).join(''))}` : ''}
         </div>
         <aside><div class="adopt-box">
-          <p class="index" style="margin-bottom:6px">Add to project</p>
-          <p class="sm muted" style="margin-bottom:12px">${sel.length ? `${sel.length} ${sel.length === 1 ? 'group' : 'groups'} selected. Stays in sync with ${esc(libName(lib))}.` : 'Select groups to add. They stay in sync with this library.'}</p>
-          <pre class="codebox">${esc(cmd)}</pre>
-          <div class="row" style="margin-top:12px"><button class="btn small primary" data-copy="prompt-lib" ${sel.length ? '' : 'disabled'}>Copy prompt for agent</button><button class="btn small" data-copy="cmd-lib" ${sel.length ? '' : 'disabled'}>Copy command</button></div>
+          <p class="index" style="margin-bottom:6px">Add to cart</p>
+          <p class="sm muted" style="margin-bottom:14px">${sel.length ? `${sel.length} ${sel.length === 1 ? 'group' : 'groups'} selected. Whole groups stay in sync with ${esc(libName(lib))}.` : 'Select whole groups to add. You can also add single rules from their pages.'}</p>
+          <button class="btn primary" style="width:100%" data-act="cart-groups" ${sel.length ? '' : 'disabled'}>${icon.cart}Add ${sel.length || ''} ${sel.length === 1 ? 'group' : 'groups'} to cart</button>
           <div class="row" style="margin-top:10px"><button class="chip" data-selall="1">Select all groups</button>${sel.length ? '<button class="chip" data-selall="0">Clear</button>' : ''}</div>
-          ${sel.length ? `<details class="prompt"><summary>What the prompt says</summary><pre>${esc(libPrompt(lib, sel))}</pre></details>` : ''}
         </div></aside></div>`;
     } else if (tab === 'rules') {
       body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
@@ -461,7 +462,10 @@
           <button class="btn small ghost ${starred ? 'on' : ''}" data-act="star" aria-pressed="${starred}">${starred ? icon.starOn : icon.star}${starred ? 'Starred' : 'Star'} <span class="faint">${fmt(starCount(r))}</span></button>
           <button class="btn small ghost" data-act="discuss">${icon.chat}Discuss <span class="faint">${openN}</span></button>
         </div></div>
-        <button class="btn primary" data-act="add-project">Add to project</button></div>
+        ${inCart(r.key) || inCart(groupItemKey(lib.id, r.group))
+          ? `<div class="cart-state"><div class="row"><span class="incart">✓ ${inCart(r.key) ? 'In cart' : `${groupName(r.group)} group in cart`}</span><a class="btn primary" href="#/cart">Checkout</a></div>
+             <button class="linkbtn sm" data-act="cart-remove" data-key="${esc(inCart(r.key) ? r.key : groupItemKey(lib.id, r.group))}">Remove ${inCart(r.key) ? '' : `${groupName(r.group)} group `}from cart</button></div>`
+          : `<button class="btn primary" data-act="add-project">Add to project</button>`}</div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${ruleUrl(r)}${k === 'rule' ? '' : `?tab=${k}`}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
       ${body}</div>`;
   }
@@ -578,6 +582,87 @@
         <span class="faint sm">You can change this anytime.</span></div></div>`;
   }
 
+  function cartPage() {
+    const items = cartItems();
+    if (!items.length) {
+      return `<div class="page wrap" style="max-width:640px;text-align:center;padding-top:72px">
+        <div class="cart-empty-icon">${icon.cart}</div>
+        <h1 class="title-xl" style="margin:16px 0 8px">Your cart is empty</h1>
+        <p class="muted">Browse rules and add the ones you want. When you check out, you get one prompt for your agent and the exact commands to run.</p>
+        <div class="row" style="justify-content:center;margin-top:20px"><a class="btn primary" href="#/browse/techs">Browse techs</a><a class="btn" href="#/browse/practices">Browse practices</a></div></div>`;
+    }
+    const plan = cartPlan();
+    const rulesN = items.filter(i => i.kind === 'rule').length; const groupsN = items.length - rulesN;
+    const seg = it => `<div class="seg"><label><input type="radio" name="m-${esc(it.k)}" value="sync" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? '' : 'checked'}>Stay in sync</label><label><input type="radio" name="m-${esc(it.k)}" value="fork" data-cartmode="${esc(it.k)}" ${state.cartFork[it.k] ? 'checked' : ''}>Fork</label></div>`;
+    // Rules get a document icon; whole groups get their group icon, a label, and the rules they bring along.
+    const itemRow = it => {
+      if (it.kind === 'rule') {
+        return `<div class="cart-item"><span class="ci-icon">${icon.doc}</span><div><a class="t" href="${ruleUrl(it.r)}">${esc(it.r.title)}</a><div class="s">Rule in ${groupName(it.r.group)} · ${ruleVersion(it.r)}</div></div>${seg(it)}<button class="x" data-act="cart-remove" data-key="${esc(it.k)}" aria-label="Remove">×</button></div>`;
+      }
+      const rs = it.lib.rules.filter(x => x.group === it.g);
+      return `<div class="cart-item group-item">${techIcon(it.g, 'md') || `<span class="ci-icon">${icon.doc}</span>`}<div><div class="row" style="gap:8px"><a class="t" href="#/g/${it.g}">${groupName(it.g)}</a><span class="grp-tag">Whole group</span></div>
+        <div class="s">${rs.length} ${rs.length === 1 ? 'rule' : 'rules'} · <span class="mono">${it.g}</span></div>
+        <ul class="grp-rules">${rs.map(x => `<li>${esc(x.title)}</li>`).join('')}</ul></div><span class="faint sm">Stays in sync</span><button class="x" data-act="cart-remove" data-key="${esc(it.k)}" aria-label="Remove">×</button></div>`;
+    };
+    return `<div class="page wrap">
+      <p class="index">Cart</p><h1 class="title-xl" style="margin:8px 0 6px">Checkout</h1>
+      <p class="muted" style="margin-bottom:24px">${rulesN ? `${rulesN} ${rulesN === 1 ? 'rule' : 'rules'}` : ''}${rulesN && groupsN ? ' and ' : ''}${groupsN ? `${groupsN} whole ${groupsN === 1 ? 'group' : 'groups'}` : ''} from ${plan.length} ${plan.length === 1 ? 'library' : 'libraries'}.</p>
+      <div class="lib-cols">
+        <div>${plan.map(p => `<div class="cart-lib"><div class="row" style="gap:10px;margin-bottom:10px">${avatar(p.lib.owner)}<b>${esc(libName(p.lib))}</b><span class="rid">${esc(p.lib.id)}</span></div>
+          ${rowList(items.filter(i => i.lib.id === p.lib.id).map(itemRow).join(''))}
+          ${p.extra || p.full ? `<label class="sm muted row" style="gap:8px;margin-top:10px"><input type="checkbox" data-cartfull="${esc(p.lib.id)}" ${p.full ? 'checked' : ''}> Also add the other ${[...new Set(p.picks.map(r => groupName(r.group)))].join(' and ')} rules${p.full ? '' : ` (${p.extra} more)`}</label>` : ''}</div>`).join('')}
+          ${whereSection()}
+          <p class="index list-label" style="margin-top:30px">Commands</p>
+          <pre class="codebox">${esc(checkoutCommands(plan))}</pre>
+          <p class="faint xs" style="margin:10px 0 0">Rules you didn't pick are excluded, so only your picks reach your agents. <span class="flag">--exclude</span> and <span class="flag">--from</span> are proposed CLI flags.</p>
+          <button class="chip" data-act="cart-clear" style="margin-top:22px">Clear cart</button></div>
+        <aside><div class="adopt-box">
+          <p class="index" style="margin-bottom:6px">Ready to add</p>
+          <p class="sm muted" style="margin-bottom:12px">Give your agent this prompt, or run the commands yourself from your project root.</p>
+          <button class="btn primary" style="width:100%" data-copy="checkout-prompt">Copy prompt for agent</button>
+          <button class="btn" style="width:100%;margin-top:8px" data-copy="checkout-cmd">Copy commands</button>
+          <details class="prompt"><summary>What the prompt says</summary><pre>${esc(checkoutPrompt(plan))}</pre></details>
+        </div></aside></div></div>`;
+  }
+
+  function whereSection() {
+    const t = checkoutTarget();
+    const repoField = `<label class="fl sm muted" style="display:block;margin:14px 0 6px">GitHub repository <span class="faint">(optional, so the prompt names it)</span></label>
+      <input class="input" data-cartrepo placeholder="https://github.com/owner/repo" value="${esc(state.cartNewRepo || '')}" autocomplete="off">
+      ${state.cartNewRepo ? (newRepo() ? `<p class="faint xs" style="margin:6px 0 0">Using <span class="mono">${esc(newRepo())}</span></p>` : '<p class="err">That doesn\'t look like a GitHub repository URL.</p>') : ''}`;
+    const setupActions = `<div class="row" style="margin-top:14px"><button class="btn small primary" data-copy="setup-prompt">Copy setup prompt for agent</button></div>
+      <details class="prompt"><summary>What the prompt says</summary><pre>${esc(setupPrompt())}</pre></details>`;
+    const setupSteps = `<ol class="setup"><li><b>Install the Code Rules CLI.</b> <a href="https://code-rules.fabricahq.com/start-here/install/" target="_blank" rel="noopener">Other ways to install</a></li><li><b>Run <code>code-rules project init</code></b> from your project's root. It creates the <code>.code-rules/</code> directory.</li><li><b>Add your rules</b> with the commands below. The agent prompt covers all three steps.</li></ol>`;
+    if (t.detected.length) {
+      return `<p class="index list-label" style="margin-top:30px">Add to which project?</p>
+        ${rowList(t.detected.map(p => `<label class="proj-opt"><input type="radio" name="cart-project" data-cartproject="${esc(p.repo)}" ${t.project && t.project.repo === p.repo ? 'checked' : ''}><div><b>${esc(p.repo)}</b>${p.private ? ' <span class="chip">Private</span>' : ''}<div class="s">Uses ${p.sources.map(x => esc(libName(libById(x.lib)))).join(', ')}</div></div></label>`).join('')
+        )}
+        ${t.setup
+          ? `<div class="setup-box" style="margin-top:14px"><div class="row between"><p style="font-weight:600;margin:0">Set up a new project with Code Rules</p><button class="linkbtn" data-act="cart-existing">Cancel</button></div>${repoField}${setupSteps}${setupActions}</div>`
+          : '<button class="linkbtn" style="margin-top:12px" data-act="cart-newproject">+ Or set up a new project with Code Rules</button>'}`;
+    }
+    return `<div class="setup-box"><p style="font-weight:600;margin:0 0 4px">${state.signedIn ? "We didn't find any of your projects using Code Rules" : 'New to Code Rules? Set it up first'}</p>
+      <p class="muted sm" style="margin:0 0 10px">${state.signedIn ? `Set up Code Rules in the project you want these rules in.${state.private ? '' : ' Rulemart only checked your public repos; <a href="#/me/private">include private projects</a>.'}` : 'Skip this if your project already has a <code>.code-rules/</code> directory. <a href="#/signin" data-act="remember">Sign in with GitHub</a> to see which of your projects already use it.'}</p>
+      ${repoField}${setupSteps}${setupActions}</div>`;
+  }
+
+  function faqPage() {
+    const qa = [
+      ['What is Rulemart?', `<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them and how widely they're used, and add the ones you want to your own codebase.</p><p>Think of it as shopping for best practices instead of writing every rule yourself.</p>`],
+      ['How do I use it?', `<ol><li><b>Browse</b> techs like Go or React, or practices like testing, or search for what you need.</li><li><b>Add to cart</b> the rules you want, or whole groups from a library.</li><li><b>Check out</b> to get one prompt for your coding agent, or the exact commands to run yourself.</li></ol><p>Browsing and checkout need no account.</p>`],
+      ['What is Code Rules?', `<p><a href="https://code-rules.fabricahq.com" target="_blank" rel="noopener">Code Rules</a> is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.code-rules/</code> directory, and your agent reads them before it works.</p><p>Rulemart is where you find rules. Code Rules is how they get into your project and stay up to date.</p>`],
+      ['What are rules, groups, and libraries?', `<p>A <b>rule</b> is one practice, like "Wrap errors with the operation that failed." Rules are organized into <b>groups</b>, either a tech (Go, React) or a practice (testing, error handling). A <b>library</b> is a GitHub repo that publishes groups of rules.</p>`],
+      ['Should I stay in sync or fork?', `<p><b>Stay in sync</b> when you want the publisher's improvements: your project gets new versions when you update. <b>Fork</b> when you want to change the rule yourself: it's copied into your project and credited to the original.</p>`],
+      ['How are rules versioned?', `<p>Each rule has its own version, using semver: a major version changes what the rule requires, a minor version widens its guidance, and a patch clarifies wording or examples. When you update, Code Rules shows you what changed and asks before taking a major version.</p>`],
+      ['Who can publish a library?', `<p>Anyone with a public Code Rules library on GitHub. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be published.</p>`],
+      ['Do I need an account?', `<p>No. A free account, using GitHub sign-in, lets you star rules, track the libraries your projects use, and publish your own libraries.</p>`],
+    ];
+    return `<div class="page wrap" style="max-width:760px">
+      <p class="index">FAQ</p><h1 class="title-xl" style="margin:8px 0 24px">Questions and answers</h1>
+      ${qa.map(([q, a], i) => `<details class="faq" ${i < 3 ? 'open' : ''}><summary>${q}</summary><div class="faq-a">${a}</div></details>`).join('')}
+      <p class="muted sm" style="margin-top:28px">Still have a question? <a href="#" data-act="feedback">Ask us on GitHub</a>.</p></div>`;
+  }
+
   function signinPage() {
     const perks = [
       'Star the rules you find useful',
@@ -689,6 +774,95 @@
       <div class="row" style="margin-top:20px"><button class="gh-btn alt" data-act="gh-back-hub" data-href="${r ? `${ruleUrl(r)}?tab=discussion` : '#/'}">← Back to Rulemart</button></div>`);
   }
 
+  // ---------- Cart ----------
+  // Items are whole groups or single rules. A rule stays in sync with its library by default, or is forked.
+  const groupItemKey = (libId, g) => `group::${libId}::${g}`;
+  const inCart = key => state.cart.includes(key);
+  const toggleCart = (key, on) => {
+    state.cart = state.cart.filter(k => k !== key);
+    if (on) state.cart.push(key);
+    save();
+  };
+  function cartItems() {
+    const rules = allRules();
+    return state.cart.map(k => {
+      if (k.startsWith('group::')) { const [, libId, g] = k.split('::'); const lib = libById(libId); return lib ? { k, kind: 'group', lib, g } : null; }
+      const r = rules.find(x => x.key === k); return r ? { k, kind: 'rule', lib: r.lib, r } : null;
+    }).filter(Boolean);
+  }
+  // Turns the cart into one plan per library: groups to import, rules to exclude from them, and rules to fork.
+  function cartPlan() {
+    const byLib = new Map();
+    cartItems().forEach(it => { if (!byLib.has(it.lib.id)) byLib.set(it.lib.id, { lib: it.lib, wholeGroups: new Set(), picks: [], forks: [] }); const p = byLib.get(it.lib.id);
+      if (it.kind === 'group') p.wholeGroups.add(it.g); else if (state.cartFork[it.k]) p.forks.push(it.r); else p.picks.push(it.r); });
+    return [...byLib.values()].map(p => {
+      const groups = [...new Set([...p.wholeGroups, ...p.picks.map(r => r.group)])];
+      const picked = new Set([...p.picks, ...p.forks].map(r => r.key));
+      const full = !!state.cartFull[p.lib.id];
+      const excludes = groups.filter(g => !p.wholeGroups.has(g)).flatMap(g => p.lib.rules.filter(x => x.group === g))
+        .map(x => ({ ...x, lib: p.lib, key: `${p.lib.id}::${x.group}/${x.slug}` }))
+        .filter(x => (full ? p.forks.some(f => f.key === x.key) : !picked.has(x.key) || p.forks.some(f => f.key === x.key)));
+      const extra = full ? 0 : excludes.filter(x => !picked.has(x.key)).length;
+      return { ...p, groups, excludes, extra, full };
+    });
+  }
+  const SETUP = ['curl -fsSL https://code-rules.fabricahq.com/install.sh | sh', 'code-rules project init'];
+  // Projects Rulemart found using Code Rules; a new project needs the CLI installed and initialized first.
+  // Accepts any github.com URL (including deeper pages like issues or blobs), git@github.com:owner/repo.git, or owner/repo.
+  const parseRepo = url => {
+    const text = String(url || '').trim();
+    const gh = text.match(/github\.com[/:]([\w.-]+)\/([\w.-]+)/i);
+    const bare = text.match(/^([\w.-]+)\/([\w.-]+)$/);
+    const m = gh || bare;
+    return m ? `${m[1]}/${m[2].replace(/\.git$/i, '')}` : null;
+  };
+  const newRepo = () => parseRepo(state.cartNewRepo);
+  function setupPrompt() {
+    const where = newRepo() ? `the ${newRepo()} repository (https://github.com/${newRepo()})` : 'this project';
+    return [`Set up Code Rules in ${where}.`, '',
+      `1. Install the Code Rules CLI if it isn't installed: ${SETUP[0]}`,
+      `2. From the repository root, run: ${SETUP[1]}`,
+      '3. Make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md before they work.',
+      '4. Run code-rules project check and confirm it passes.'].join('\n');
+  }
+  function checkoutTarget() {
+    const detected = state.signedIn ? projects() : [];
+    const pick = detected.find(p => p.repo === state.cartProject) || (state.cartProject === 'new' ? null : detected[0]);
+    return { detected, project: pick || null, setup: !pick };
+  }
+  function checkoutCommands(plan, target = checkoutTarget()) {
+    const out = [];
+    if (target.setup) out.push(`# 1. Install the Code Rules CLI\n${SETUP[0]}`, `# 2. From the root of ${newRepo() || 'your project'}, set up Code Rules\n${SETUP[1]}`, '# 3. Add your rules');
+    else out.push(`# From the root of ${target.project.repo}`);
+    plan.forEach(p => {
+      if (p.groups.length) {
+        const already = target.project && target.project.sources.some(x => x.lib === p.lib.id);
+        const lines = [...(already ? [`# ${target.project.repo} already imports ${p.lib.id}; this adds to it`] : []), `code-rules project add library ${alias(p.lib)} \\`, `  --repository https://github.com/${p.lib.id}.git`];
+        p.groups.forEach(g => lines.push(`  --groups ${g}`));
+        p.excludes.forEach(x => lines.push(`  --exclude ${x.group}/${x.slug}`));
+        const first = already ? 1 : 0;
+        out.push(lines.map((l, i) => (i > first && i < lines.length - 1 && !l.endsWith('\\') ? `${l} \\` : l)).join('\n'));
+      }
+      p.forks.forEach(r => out.push([`code-rules project add rule ${r.group}/${r.slug} \\`, `  --from ${p.lib.id}@${ruleVersion(r)}`].join('\n')));
+    });
+    out.push(plan.some(p => p.groups.length) ? 'code-rules project sync' : 'code-rules project build');
+    return out.join('\n\n');
+  }
+  function checkoutPrompt(plan, target = checkoutTarget()) {
+    const lines = [target.setup
+      ? `${newRepo() ? `The ${newRepo()} repository` : 'This project'} does not use Code Rules yet. Install the Code Rules CLI and set it up${newRepo() ? ' there' : ' in this project'}, then add these engineering rules.`
+      : `Add these engineering rules to ${target.project.repo} with the Code Rules CLI.`, ''];
+    plan.forEach(p => {
+      lines.push(`From ${libName(p.lib)} (${p.lib.id}):`);
+      p.picks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}@${ruleVersion(r)}), kept in sync with the library`));
+      [...p.wholeGroups].forEach(g => lines.push(`- The whole ${groupName(g)} group (${g}), kept in sync with the library`));
+      p.forks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}@${ruleVersion(r)}), forked as a local rule we can edit`));
+      lines.push('');
+    });
+    lines.push('Run:', checkoutCommands(plan, target), '', 'Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.');
+    return lines.join('\n');
+  }
+
   // ---------- Commands and prompts ----------
   function importCommand(lib, groupIds) {
     const lines = [`code-rules project add library ${alias(lib)} \\`, `  --repository https://github.com/${lib.id}.git \\`];
@@ -697,10 +871,6 @@
     return lines.join('\n');
   }
   const forkCommand = r => [`code-rules project add rule \\`, `  ${r.group}/${r.slug} \\`, `  --from ${r.lib.id}@${ruleVersion(r)}`, 'code-rules project build'].join('\n');
-  const installNote = 'If the code-rules CLI is not installed, install it first: https://code-rules.fabricahq.com/start-here/install/';
-  const libPrompt = (lib, groupIds) => `Add these rule groups from the ${lib.id} Code Rules library to this project and keep them in sync with the library: ${groupIds.join(', ')}.\n\nRun:\n${importCommand(lib, groupIds)}\n\n${installNote}\nThen make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.`;
-  const groupPrompt = r => `Add the "${groupName(r.group)}" rule group (${r.group}) from the ${r.lib.id} Code Rules library to this project, and keep it in sync with the library. It includes the rule "${r.title}".\n\nRun:\n${importCommand(r.lib, [r.group])}\n\n${installNote}\nThen make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.`;
-  const forkPrompt = r => `Fork the Code Rules rule "${r.title}" (${r.group}/${r.slug}) from ${r.lib.id}, version ${ruleVersion(r)}, into this project's local rules, with attribution. We will edit it ourselves, so it should not track upstream updates.\n\nRun:\n${forkCommand(r)}\n\n${installNote}`;
 
   // ---------- Modals ----------
   function openModal(html, narrow) {
@@ -711,19 +881,12 @@
   const closeModal = () => { $('#modal-root').innerHTML = ''; };
   const currentRule = () => { const { parts } = parse(); if (parts[0] !== 'r') return null; const [owner, repo, kind, g, slug] = parts.slice(1); return allRules().find(x => x.lib.id === `${owner}/${repo}` && x.group === `${kind}/${g}` && x.slug === slug); };
 
-  function addProjectModal(r) {
-    const n = r.lib.rules.filter(x => x.group === r.group).length;
-    openModal(`<div class="modal-h"><div><h2>Add to project</h2><p class="muted sm" style="margin:4px 0 0">${esc(r.title)} · ${esc(libName(r.lib))}</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
-      <div class="option lead"><div class="row between"><h3>1. Add the ${groupName(r.group)} group</h3><span class="chip on">Stays in sync</span></div>
-        <ul><li>${n} ${n === 1 ? 'rule' : 'rules'} from ${esc(libName(r.lib))}, including this one</li><li>Updates arrive when you run sync</li>${n > 1 ? `<li>Don't want some of the other ${n - 1}? Exclude them in your config</li>` : ''}</ul>
-        <pre class="codebox">${esc(importCommand(r.lib, [r.group]))}</pre>
-        <div class="row"><button class="btn small primary" data-copy="prompt-group">Copy prompt for agent</button><button class="btn small" data-copy="cmd-group">Copy command</button></div>
-        <details class="prompt"><summary>What the prompt says</summary><pre>${esc(groupPrompt(r))}</pre></details></div>
-      <div class="option"><div class="row between"><h3>2. Fork only this rule</h3><span class="chip">You own it</span></div>
-        <p class="muted sm" style="margin:0">Copies just this rule into <span class="mono">.code-rules/local/</span>, with attribution to version ${ruleVersion(r)}. Edit it freely; it won't get updates from ${esc(r.lib.owner)}.</p>
-        <pre class="codebox">${esc(forkCommand(r))}</pre>
-        <div class="row"><button class="btn small primary" data-copy="prompt-fork">Copy prompt for agent</button><button class="btn small" data-copy="cmd-fork">Copy command</button><span class="flag">--from is a proposed CLI flag</span></div>
-        <details class="prompt"><summary>What the prompt says</summary><pre>${esc(forkPrompt(r))}</pre></details></div>`);
+  function addToProjectModal(r) {
+    const others = r.lib.rules.filter(x => x.group === r.group).length - 1;
+    openModal(`<div class="modal-h"><div><h2>Add to project</h2><p class="muted sm" style="margin:4px 0 0">What would you like to add to your cart?</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+      <button class="choice-btn" data-act="cart-pick" data-key="${esc(r.key)}"><b class="ct">Just this rule</b><span class="cd">Adds only “${esc(r.title)}.” It stays in sync with ${esc(libName(r.lib))}, and nothing else from the group is added.</span></button>
+      <button class="choice-btn" data-act="cart-pick" data-key="${esc(groupItemKey(r.lib.id, r.group))}"><b class="ct">The whole ${techIcon(r.group, 'xs')}${groupName(r.group)} group</b><span class="cd">Adds this rule and the ${others} other ${groupName(r.group)} ${others === 1 ? 'rule' : 'rules'} from ${esc(libName(r.lib))}. New rules the library adds to this group arrive when you update.</span></button>
+      <p class="faint xs" style="margin:14px 0 0">You'll get the commands at checkout, where you can also choose to fork a rule instead of staying in sync.</p>`, true);
   }
 
   function discussModal(r) {
@@ -779,6 +942,8 @@
     else if (a === 'search') { html = search(); active = 'search'; }
     else if (a === 'browse') { const k = rest[0] === 'practices' ? 'practices' : 'techs'; html = browse(k, rest[1] === 'other'); active = k; }
     else if (a === 'libraries') { html = librariesPage(); active = 'libraries'; }
+    else if (a === 'cart') { html = cartPage(); active = 'cart'; }
+    else if (a === 'faq') { html = faqPage(); active = 'faq'; }
     else if (a === 'g') html = groupPage(rest.join('/'));
     else if (a === 'l') html = libraryPage(rest.join('/'));
     else if (a === 'r') html = rulePage(rest);
@@ -805,14 +970,9 @@
       return setQuery({ sel: t.dataset.selall === '1' ? [...new Set(lib.rules.map(x => x.group))].join(',') : null });
     }
     if (t.dataset.copy) {
-      const lib = libById(parse().parts.slice(1).join('/'));
-      const sel = (parse().q.get('sel') || '').split(',').filter(Boolean);
-      const map = {
-        'prompt-group': () => copy(groupPrompt(r), 'Prompt'), 'cmd-group': () => copy(importCommand(r.lib, [r.group]), 'Command'),
-        'prompt-fork': () => copy(forkPrompt(r), 'Prompt'), 'cmd-fork': () => copy(forkCommand(r), 'Command'),
-        'prompt-lib': () => copy(libPrompt(lib, sel), 'Prompt'), 'cmd-lib': () => copy(importCommand(lib, sel), 'Command'),
-      };
-      return map[t.dataset.copy]();
+      const plan = cartPlan();
+      if (t.dataset.copy === 'setup-prompt') return copy(setupPrompt(), 'Setup prompt');
+      return t.dataset.copy === 'checkout-prompt' ? copy(checkoutPrompt(plan), 'Prompt') : copy(checkoutCommands(plan), 'Commands');
     }
     switch (act) {
       case 'noop': e.preventDefault(); toast('Would open GitHub (not part of the mock)'); break;
@@ -824,7 +984,14 @@
       case 'feedback': e.preventDefault(); feedbackModal(); break;
       case 'theme': state.theme = { system: 'light', light: 'dark', dark: 'system' }[state.theme]; save(); render(false); break;
       case 'reset': try { localStorage.removeItem(STORE); } catch { /* ignore */ } state = fresh(); go('#/'); render(); toast('Demo reset'); break;
-      case 'add-project': addProjectModal(r); break;
+      case 'add-project': addToProjectModal(r); break;
+      case 'cart-pick': toggleCart(t.dataset.key, true); closeModal(); render(false); toast('Added to cart'); break;
+      case 'cart-rule': { const on = !inCart(t.dataset.key); toggleCart(t.dataset.key, on); render(false); toast(on ? 'Added to cart' : 'Removed from cart'); break; }
+      case 'cart-groups': { const lib = libById(parse().parts.slice(1).join('/')); const sel = (parse().q.get('sel') || '').split(',').filter(Boolean); sel.forEach(g => toggleCart(groupItemKey(lib.id, g), true)); setQuery({ sel: null }); toast(`Added ${sel.length} ${sel.length === 1 ? 'group' : 'groups'} to cart`); break; }
+      case 'cart-remove': toggleCart(t.dataset.key, false); delete state.cartFork[t.dataset.key]; save(); render(false); toast('Removed from cart'); break;
+      case 'cart-newproject': state.cartProject = 'new'; save(); render(false); break;
+      case 'cart-existing': state.cartProject = null; save(); render(false); break;
+      case 'cart-clear': state.cart = []; state.cartFork = {}; state.cartFull = {}; save(); render(false); break;
       case 'discuss': discussModal(r); break;
       case 'star':
         if (!state.signedIn) { starSigninModal(); break; }
@@ -859,6 +1026,10 @@
       if (t.checked) vals.add(t.dataset.val); else vals.delete(t.dataset.val);
       return setQuery({ [t.dataset.multi]: [...vals].join(',') || null });
     }
+    if (t.hasAttribute('data-cartrepo')) { state.cartNewRepo = t.value.trim(); save(); return render(false); }
+    if (t.dataset.cartproject) { state.cartProject = t.dataset.cartproject; save(); return render(false); }
+    if (t.dataset.cartmode) { if (t.value === 'fork') state.cartFork[t.dataset.cartmode] = true; else delete state.cartFork[t.dataset.cartmode]; save(); return render(false); }
+    if (t.dataset.cartfull) { if (t.checked) state.cartFull[t.dataset.cartfull] = true; else delete state.cartFull[t.dataset.cartfull]; save(); return render(false); }
     if (t.dataset.gsel) {
       const sel = [...document.querySelectorAll('[data-gsel]:checked')].map(x => x.dataset.gsel);
       return setQuery({ sel: sel.join(',') || null });
