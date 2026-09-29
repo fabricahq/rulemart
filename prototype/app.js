@@ -64,6 +64,7 @@
   const allRules = () => libraries().flatMap(lib => lib.rules.map(r => ({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` })));
   const ruleUrl = r => `#/${r.lib.id}/${r.group}/${r.slug}`;
   const libUrl = (lib, tab) => `#/${lib.id}${tab ? `?tab=${tab}` : ''}`;
+  const libGroupUrl = (lib, g, sel) => `#/${lib.id}/${g}${sel && sel.length ? `?sel=${encodeURIComponent(sel.join(','))}` : ''}`;
   // First path segments that are Rulemart pages, not GitHub owners.
   const RESERVED = new Set(['search', 'browse', 'libraries', 'g', 'me', 'signin', 'gh', 'cart', 'faq', 'l', 'r', 'o']);
   const libIdFromPath = () => { const { parts } = parse(); if (parts[0] === 'l') return parts.slice(1).join('/'); return parts.length >= 2 && !RESERVED.has(parts[0]) ? `${parts[0]}/${parts[1]}` : null; };
@@ -334,6 +335,30 @@
       ${aliases.length ? `<p class="faint sm" style="margin-top:22px">Also see ${aliases.map(x => `<a href="#/g/${x}" class="mono">${x}</a>`).join(', ')}, a non-canonical group with similar rules.</p>` : ''}</div>`;
   }
 
+  function libraryGroupPage(libId, gid) {
+    const lib = libById(libId); const g = D.groups[gid];
+    if (!lib || !g) return notFound();
+    const sel = (parse().q.get('sel') || '').split(',').filter(Boolean);
+    const rs = lib.rules.filter(r => r.group === gid).map(r => ({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }));
+    if (!rs.length) return notFound();
+    const key = groupItemKey(lib.id, gid);
+    const back = `#/${lib.id}${sel.length ? `?sel=${encodeURIComponent(sel.join(','))}` : ''}`;
+    return `<div class="page wrap">
+      <div class="crumbs">${avatar(lib.owner)}<a href="${back}">${esc(libName(lib))}</a> › <span class="mono">${gid}</span></div>
+      <h1 class="title-xl row" style="gap:14px">${techIcon(gid, 'lg')}${g.name}</h1>
+      <p class="muted" style="margin:8px 0 24px">${rs.length} ${rs.length === 1 ? 'rule' : 'rules'} in ${esc(libName(lib))}${groupBlurb(gid) ? ` · ${esc(groupBlurb(gid))}` : ''}</p>
+      <div class="lib-cols"><div>${rs.map(r => ruleResult(r, '', { showGroup: false })).join('')}
+        <a class="linkbtn sm" style="display:inline-block;margin-top:14px" href="${back}">← Back to all groups in ${esc(libName(lib))}</a></div>
+        <aside><div class="adopt-box">
+          <p class="index" style="margin-bottom:6px">Whole group</p>
+          <p class="sm muted" style="margin-bottom:14px">Adds all ${rs.length} ${g.name} ${rs.length === 1 ? 'rule' : 'rules'} from ${esc(libName(lib))}. New rules the library adds to this group arrive when you update.</p>
+          ${inCart(key)
+            ? `<div class="row" style="justify-content:space-between"><span class="incart">✓ In cart</span><a class="btn primary" href="#/cart">Checkout</a></div><button class="linkbtn sm" style="margin-top:10px" data-act="cart-remove" data-key="${esc(key)}">Remove from cart</button>`
+            : `<button class="btn primary" style="width:100%" data-act="cart-pick" data-key="${esc(key)}">${icon.cart}Add ${g.name} group to cart</button>`}
+          ${isCanonical(gid) ? `<p class="sm" style="margin:16px 0 0"><a href="#/g/${gid}">See ${g.name} rules from every library →</a></p>` : ''}
+        </div></aside></div></div>`;
+  }
+
   function ownerPage(login) {
     const o = D.owners[login]; if (!o) return notFound();
     const libs = libraries().filter(l => l.owner === login);
@@ -359,7 +384,7 @@
     if (tab === 'groups') {
       const selected = (q.get('sel') ?? (lib.featuredSel || '')).split(',').filter(Boolean);
       const sel = selected.length ? selected : [];
-      const row = g => { const n = lib.rules.filter(r => r.group === g).length; return `<label class="gsel"><input type="checkbox" data-gsel="${g}" ${sel.includes(g) ? 'checked' : ''}><div class="row" style="flex-wrap:nowrap;gap:10px">${techIcon(g)}<div><b>${groupName(g)}</b><span class="gid">${g}</span>${isCanonical(g) ? '' : ' <span class="flag" title="Not on the canonical list, so Rulemart won\'t combine it with other libraries">not canonical</span>'}</div></div><p>${esc(groupBlurb(g))}</p><span class="gc">${inCart(groupItemKey(lib.id, g)) ? '<span class="incart sm-badge">✓ In cart</span> ' : ''}${n} ${n === 1 ? 'rule' : 'rules'}</span></label>`; };
+      const row = g => { const n = lib.rules.filter(r => r.group === g).length; return `<label class="gsel"><input type="checkbox" data-gsel="${g}" ${sel.includes(g) ? 'checked' : ''}><div class="row" style="flex-wrap:nowrap;gap:10px">${techIcon(g)}<div><b>${groupName(g)}</b><span class="gid">${g}</span>${isCanonical(g) ? '' : ' <span class="flag" title="Not on the canonical list, so Rulemart won\'t combine it with other libraries">not canonical</span>'}</div></div><p>${esc(groupBlurb(g))}</p><span class="gc">${inCart(groupItemKey(lib.id, g)) ? '<span class="incart sm-badge">✓ In cart</span> ' : ''}<a class="gview" href="${libGroupUrl(lib, g, sel)}">${n} ${n === 1 ? 'rule' : 'rules'} ›</a></span></label>`; };
       const techs = groupIds.filter(g => g.startsWith('techs/'));
       const pracs = groupIds.filter(g => g.startsWith('practices/'));
       body = `<div class="lib-cols"><div>
@@ -962,6 +987,7 @@
     else if (a === 'o') html = ownerPage(rest[0]);
     else if (!RESERVED.has(a) && rest.length === 0) html = ownerPage(a);
     else if (!RESERVED.has(a) && rest.length === 1) html = libraryPage(`${a}/${rest[0]}`);
+    else if (!RESERVED.has(a) && rest.length === 3) html = libraryGroupPage(`${a}/${rest[0]}`, `${rest[1]}/${rest[2]}`);
     else if (!RESERVED.has(a) && rest.length === 4) html = rulePage(parts);
     else if (a === 'signin') html = state.signedIn ? me() : signinPage();
     else if (a === 'me') html = rest[0] === 'private' ? privatePage() : rest[0] === 'add' ? (rest[1] === 'run' ? addRunPage() : addLibraryPage()) : me();

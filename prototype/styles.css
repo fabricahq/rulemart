@@ -381,6 +381,9 @@ pre.preview span.chg { animation: chg 1.8s ease-out; }
 @keyframes chg { from { background: var(--ok-bg); box-shadow: 0 0 0 2px var(--ok-bg); } to { background: transparent; box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { pre.preview span.chg { animation: none; } }
 
+.gview { color: var(--muted); text-decoration: none; white-space: nowrap; }
+.gview:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
 /* FAQ */
 details.faq { border-top: 1px solid var(--border); padding: 4px 0; }
 details.faq:last-of-type { border-bottom: 1px solid var(--border); }
