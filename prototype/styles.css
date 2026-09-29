@@ -243,13 +243,13 @@ mark { background: color-mix(in srgb, var(--ink) 16%, transparent); color: inher
 .rule-cols { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 36px; }
 .whento { border-left: 2px solid var(--border-strong); padding: 2px 0 2px 14px; margin: 0 0 20px; color: var(--muted); font-size: 14px; }
 .whento b { display: block; color: var(--ink); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; margin-bottom: 2px; }
-.md h2 { font-size: 1.3rem; letter-spacing: -.035em; margin: 26px 0 10px; }
-.md h3 { font-size: 1.05rem; letter-spacing: -.025em; margin: 22px 0 8px; font-weight: 600; }
-.md p, .md li { color: var(--muted); }
-.md p b, .md li b { color: var(--ink); }
-.md pre { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; margin: 10px 0 16px; }
-.md code { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0 4px; }
-.md pre code { background: none; border: 0; padding: 0; font-size: inherit; }
+.prose h2 { font-size: 1.3rem; letter-spacing: -.035em; margin: 26px 0 10px; }
+.prose h3 { font-size: 1.05rem; letter-spacing: -.025em; margin: 22px 0 8px; font-weight: 600; }
+.prose p, .prose li { color: var(--muted); }
+.prose p b, .prose li b { color: var(--ink); }
+.prose pre { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.65; margin: 10px 0 16px; }
+.prose code { background: var(--surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0 4px; }
+.prose pre code { background: none; border: 0; padding: 0; font-size: inherit; }
 .side { display: grid; gap: 18px; align-content: start; }
 .stat { padding: 12px 0; border-top: 1px solid var(--border); }
 .stat:first-of-type { border-top: 0; padding-top: 0; }
@@ -470,9 +470,9 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 }
 
 /* Rule assets */
-.md img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; margin: 6px 0; }
-.md a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
-.md a:hover { text-decoration-color: var(--ink); }
+.prose img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; margin: 6px 0; }
+.prose a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.prose a:hover { text-decoration-color: var(--ink); }
 .assets { display: grid; gap: 2px; padding: 10px 10px 12px; }
 .asset-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink); text-decoration: none; }
 .asset-row svg { width: 16px; height: 16px; color: var(--muted); }

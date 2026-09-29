@@ -512,8 +512,8 @@
     const content = a.type === 'image'
       ? `<div class="asset-img"><img src="${assetSrc(r, repoPath)}" alt="${esc(a.alt || a.path)}"></div>`
       : a.type === 'markdown'
-        ? `<div class="md asset-md">${linkAssets(r, a.html, dirOf(repoPath))}</div>`
-        : `<div class="md"><pre><code class="language-${a.type}">${esc(a.text)}</code></pre></div>`;
+        ? `<div class="prose asset-md">${linkAssets(r, a.html, dirOf(repoPath))}</div>`
+        : `<div class="prose"><pre><code class="language-${a.type}">${esc(a.text)}</code></pre></div>`;
     return `<div class="page wrap">
       <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> › <a href="${ruleUrl(r)}">${esc(r.title)}</a></div>
       <div class="rulehead"><div>
@@ -552,7 +552,7 @@
     const showUsage = usageShown(r.usedBy);
     let body = '';
     if (tab === 'rule') {
-      body = `<div class="rule-cols"><div class="md">
+      body = `<div class="rule-cols"><div class="prose">
           <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${linkAssets(r, r.body, r.group).replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
         <aside class="side">
           ${showUsage || openN ? `<div class="panel"><div class="panel-h"><span class="index">${showUsage ? 'Usage' : 'Discussion'}</span></div><div class="panel-b">
@@ -1093,7 +1093,7 @@
     else if (a === 'me') html = rest[0] === 'private' ? privatePage() : rest[0] === 'add' ? (rest[1] === 'run' ? addRunPage() : addLibraryPage()) : me();
     else html = notFound();
     document.getElementById('app').innerHTML = `${header(active)}<main>${html}</main>${footer()}`;
-    if (window.hljs) document.querySelectorAll('.md pre code[class*="language-"]').forEach(el => window.hljs.highlightElement(el));
+    if (window.hljs) document.querySelectorAll('.prose pre code[class*="language-"]').forEach(el => window.hljs.highlightElement(el));
     if (scroll) window.scrollTo(0, 0);
   }
 
