@@ -86,7 +86,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 
   const libraries = [
     {
-      id: 'fabricahq/.code-rules', owner: 'fabricahq', name: 'Fabrica Public Rules', description: 'Rules for teams building software with AI agents.',
+      id: 'fabricahq/public-rules', owner: 'fabricahq', name: 'Fabrica Public Rules', description: 'Rules for teams building software with AI agents.',
       license: 'MIT', tags: fabTags, addedBy: 'josh-padnick', addedOn: '2 Mar 2026', fabrica: true, usedBy: 1516,
       rules: [
         { slug: 'wrap-errors-with-operation', group: 'techs/go', title: 'Wrap errors with the operation that failed', impact: 'HIGH', tags: ['errors'], usedBy: 1102, net30: 74, stars: 340,
@@ -334,12 +334,12 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
   // Projects that use Code Rules, as Rulemart would read them from provenance.json.
   const myProjects = {
     public: [
-      { repo: 'josh-padnick/api-server', sources: [{ lib: 'fabricahq/.code-rules', updates: 2, groups: 3 }, { lib: 'gopherworks/go-rules', updates: 0, groups: 1 }] },
-      { repo: 'josh-padnick/site', sources: [{ lib: 'fabricahq/.code-rules', updates: 0, groups: 2 }] },
+      { repo: 'josh-padnick/api-server', sources: [{ lib: 'fabricahq/public-rules', updates: 2, groups: 3 }, { lib: 'gopherworks/go-rules', updates: 0, groups: 1 }] },
+      { repo: 'josh-padnick/site', sources: [{ lib: 'fabricahq/public-rules', updates: 0, groups: 2 }] },
     ],
     private: [
-      { repo: 'josh-padnick/billing-service', sources: [{ lib: 'fabricahq/.code-rules', updates: 0, groups: 4 }, { lib: 'acme/.code-rules', updates: 0, groups: 2 }] },
-      { repo: 'josh-padnick/mobile-app', sources: [{ lib: 'fabricahq/.code-rules', updates: 1, groups: 3 }] },
+      { repo: 'josh-padnick/billing-service', sources: [{ lib: 'fabricahq/public-rules', updates: 0, groups: 4 }, { lib: 'acme/.code-rules', updates: 0, groups: 2 }] },
+      { repo: 'josh-padnick/mobile-app', sources: [{ lib: 'fabricahq/public-rules', updates: 1, groups: 3 }] },
     ],
   };
 

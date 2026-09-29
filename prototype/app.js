@@ -62,8 +62,11 @@
   const isFabrica = lib => lib.owner === 'fabricahq';
   const latest = lib => lib.tags[lib.tags.length - 1].v;
   const allRules = () => libraries().flatMap(lib => lib.rules.map(r => ({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` })));
-  const ruleUrl = r => `#/r/${r.lib.id}/${r.group}/${r.slug}`;
-  const libUrl = (lib, tab) => `#/l/${lib.id}${tab ? `?tab=${tab}` : ''}`;
+  const ruleUrl = r => `#/${r.lib.id}/${r.group}/${r.slug}`;
+  const libUrl = (lib, tab) => `#/${lib.id}${tab ? `?tab=${tab}` : ''}`;
+  // First path segments that are Rulemart pages, not GitHub owners.
+  const RESERVED = new Set(['search', 'browse', 'libraries', 'g', 'me', 'signin', 'gh', 'cart', 'faq', 'l', 'r', 'o']);
+  const libIdFromPath = () => { const { parts } = parse(); if (parts[0] === 'l') return parts.slice(1).join('/'); return parts.length >= 2 && !RESERVED.has(parts[0]) ? `${parts[0]}/${parts[1]}` : null; };
   const starCount = r => r.stars + (state.stars[r.key] ? 1 : 0);
   const isMaintainer = lib => state.signedIn && (lib.owner === user.login || user.orgs.includes(lib.owner));
   const groupName = id => (D.groups[id] || { name: id }).name;
@@ -123,6 +126,7 @@
 
   // ---------- Chrome ----------
   function header(active) {
+    const cartCount = cartItems().length;
     const signed = state.signedIn
       ? `<div class="menu"><button class="avatar" data-act="menu" aria-label="Account menu" style="cursor:pointer;padding:0"><img src="${avatarSrc(user.login)}" alt="" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">${user.initials}</button>
           <div class="menu-pop hidden" id="menu"><div class="who"><b>${user.name}</b><div class="faint">@${user.login}</div></div>
@@ -136,7 +140,7 @@
         <a href="#/browse/practices" class="hide-md ${active === 'practices' ? 'cur' : ''}">Practices</a>
         <a href="#/libraries" class="hide-md ${active === 'libraries' ? 'cur' : ''}">Libraries</a>
         <a href="#/faq" class="hide-md ${active === 'faq' ? 'cur' : ''}">FAQ</a>
-        <a class="cartlink ${active === 'cart' ? 'cur' : ''}" href="#/cart" aria-label="Cart, ${state.cart.length} ${state.cart.length === 1 ? 'item' : 'items'}">${icon.cart}${state.cart.length ? `<span class="cartn">${state.cart.length}</span>` : ''}</a>
+        <a class="cartlink ${active === 'cart' ? 'cur' : ''}" href="#/cart" aria-label="Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}">${icon.cart}${cartCount ? `<span class="cartn">${cartCount}</span>` : ''}</a>
         ${signed}
       </nav></div></header>`;
   }
@@ -159,7 +163,7 @@
   function originCards(lib) {
     const o = D.owners[lib.owner] || { type: 'user', verified: null };
     return `<div class="origin">
-      <div><span class="ol">Owner</span><a href="#/o/${lib.owner}"><b>${esc(lib.owner)}</b></a> · ${o.type === 'org' ? 'GitHub organization' : 'Personal account'} ${o.verified ? `<span class="verified">✓ ${o.verified}</span>` : ''}</div>
+      <div><span class="ol">Owner</span><a href="#/${lib.owner}"><b>${esc(lib.owner)}</b></a> · ${o.type === 'org' ? 'GitHub organization' : 'Personal account'} ${o.verified ? `<span class="verified">✓ ${o.verified}</span>` : ''}</div>
       <div><span class="ol">Repository</span><a href="#" data-act="noop">github.com/${esc(lib.id)}</a></div>
       <div><span class="ol">Added to Rulemart</span>by <b>@${esc(lib.addedBy)}</b> · ${esc(lib.addedOn)}</div></div>`;
   }
@@ -433,7 +437,7 @@
             <div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div><div class="sub">${r.usedBy ? `Net ${r.net30 >= 0 ? '+' : ''}${r.net30} in the last 30 days` : 'New on Rulemart'}</div></div>
             <div class="stat"><div class="big">${openN}</div><div class="lbl">open issues and PRs</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div></div></div>
           <div class="kv">
-            <div><span>Owner</span><span><a href="#/o/${lib.owner}">${esc(lib.owner)}</a></span></div>
+            <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
             <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${esc(lib.id.split('/')[1])}</a></span></div>
             <div><span>License</span><span>${esc(lib.license)}</span></div>
             <div><span>File</span><span><a class="mono" href="https://github.com/${esc(lib.id)}/blob/${r.group}/${r.slug}@${ruleVersion(r)}/${r.group}/${r.slug}.md" data-act="ghlink" title="${r.group}/${r.slug}.md">${r.slug}.md</a></span></div>
@@ -546,7 +550,7 @@
       <p class="index">Publish</p><h1 class="title-xl" style="margin:8px 0 18px">Adding ${esc(repo)}</h1>
       <div class="panel"><div class="panel-b">${steps.map((s, i) => `<div class="check" data-step="${i}"><span class="tick">✓</span><span>${s}</span></div>`).join('')}</div></div>
       <div id="run-done" class="hidden" style="margin-top:20px"><p style="font-size:17px;font-weight:500;margin-bottom:6px">${esc(repo)} is live on Rulemart.</p><p class="muted sm">Push a new tag and Rulemart updates within minutes.</p>
-        <div class="row" style="margin-top:14px"><a class="btn primary" href="${`#/l/${repo}`}">View library page</a><a class="btn" href="#/me">Back to Dashboard</a></div></div></div>`;
+        <div class="row" style="margin-top:14px"><a class="btn primary" href="${`#/${repo}`}">View library page</a><a class="btn" href="#/me">Back to Dashboard</a></div></div></div>`;
   }
   function runSteps(repo, n) {
     let i = 0;
@@ -887,7 +891,7 @@
     root.querySelector('.modal button, .modal a')?.focus();
   }
   const closeModal = () => { $('#modal-root').innerHTML = ''; };
-  const currentRule = () => { const { parts } = parse(); if (parts[0] !== 'r') return null; const [owner, repo, kind, g, slug] = parts.slice(1); return allRules().find(x => x.lib.id === `${owner}/${repo}` && x.group === `${kind}/${g}` && x.slug === slug); };
+  const currentRule = () => { const { parts } = parse(); const p = parts[0] === 'r' ? parts.slice(1) : parts; if (p.length !== 5 || RESERVED.has(p[0])) return null; const [owner, repo, kind, g, slug] = p; return allRules().find(x => x.lib.id === `${owner}/${repo}` && x.group === `${kind}/${g}` && x.slug === slug); };
 
   function addToProjectModal(r) {
     const others = r.lib.rules.filter(x => x.group === r.group).length - 1;
@@ -956,6 +960,9 @@
     else if (a === 'l') html = libraryPage(rest.join('/'));
     else if (a === 'r') html = rulePage(rest);
     else if (a === 'o') html = ownerPage(rest[0]);
+    else if (!RESERVED.has(a) && rest.length === 0) html = ownerPage(a);
+    else if (!RESERVED.has(a) && rest.length === 1) html = libraryPage(`${a}/${rest[0]}`);
+    else if (!RESERVED.has(a) && rest.length === 4) html = rulePage(parts);
     else if (a === 'signin') html = state.signedIn ? me() : signinPage();
     else if (a === 'me') html = rest[0] === 'private' ? privatePage() : rest[0] === 'add' ? (rest[1] === 'run' ? addRunPage() : addLibraryPage()) : me();
     else html = notFound();
@@ -975,7 +982,7 @@
     if (t.hasAttribute('data-clearfilters')) return setQuery({ kind: null, impact: null, fabrica: null, mine: null, libs: null, stars: null, used: null });
     if (t.dataset.libfilter !== undefined) return setQuery({ lib: t.dataset.libfilter || null });
     if (t.dataset.selall !== undefined) {
-      const lib = libById(parse().parts.slice(1).join('/'));
+      const lib = libById(libIdFromPath());
       return setQuery({ sel: t.dataset.selall === '1' ? [...new Set(lib.rules.map(x => x.group))].join(',') : null });
     }
     if (t.dataset.copy) {
@@ -996,7 +1003,7 @@
       case 'add-project': addToProjectModal(r); break;
       case 'cart-pick': toggleCart(t.dataset.key, true); closeModal(); render(false); toast('Added to cart'); break;
       case 'cart-rule': { const on = !inCart(t.dataset.key); toggleCart(t.dataset.key, on); render(false); toast(on ? 'Added to cart' : 'Removed from cart'); break; }
-      case 'cart-groups': { const lib = libById(parse().parts.slice(1).join('/')); const sel = (parse().q.get('sel') || '').split(',').filter(Boolean); sel.forEach(g => toggleCart(groupItemKey(lib.id, g), true)); setQuery({ sel: null }); toast(`Added ${sel.length} ${sel.length === 1 ? 'group' : 'groups'} to cart`); break; }
+      case 'cart-groups': { const lib = libById(libIdFromPath()); const sel = (parse().q.get('sel') || '').split(',').filter(Boolean); sel.forEach(g => toggleCart(groupItemKey(lib.id, g), true)); setQuery({ sel: null }); toast(`Added ${sel.length} ${sel.length === 1 ? 'group' : 'groups'} to cart`); break; }
       case 'cart-remove': toggleCart(t.dataset.key, false); delete state.cartFork[t.dataset.key]; save(); render(false); toast('Removed from cart'); break;
       case 'cart-newproject': state.cartProject = 'new'; save(); render(false); break;
       case 'cart-existing': state.cartProject = null; save(); render(false); break;
@@ -1058,7 +1065,7 @@
       const m = url.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i);
       if (!m) return setQuery({ err: 'Enter a GitHub repository URL, like https://github.com/owner/repo.' });
       const id = `${m[1]}/${m[2]}`;
-      if (libById(id)) { go(`#/l/${id}`); return toast(`${id} is already on Rulemart`); }
+      if (libById(id)) { go(`#/${id}`); return toast(`${id} is already on Rulemart`); }
       if (D.publishable.find(p => p.id === id && p.visibility === 'public')) return go(`#/me/add/run?repo=${encodeURIComponent(id)}`);
       if (D.publishable.find(p => p.id === id)) return setQuery({ err: `${id} is private. Private libraries can't be published on Rulemart.` });
       return setQuery({ err: `No rule-library.yaml at the root of github.com/${id}. Is it a Code Rules library? (In this mock, try github.com/josh-padnick/rules-experimental.)` });
