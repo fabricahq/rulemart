@@ -486,3 +486,14 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .asset-img { border: 1px solid var(--border); border-radius: 12px; padding: 18px; background: var(--surface); }
 .asset-img img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 8px; }
 .asset-md h2:first-child { margin-top: 0; }
+
+/* About panel: stands in for Usage on rules with no activity yet */
+.about { display: grid; gap: 14px; }
+.about-pub { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.about-pub > span:last-child { display: grid; gap: 1px; min-width: 0; }
+.about-pub .t { font-size: 14px; font-weight: 500; }
+.about-pub:hover .t { text-decoration: underline; text-underline-offset: 3px; }
+.about-fact { display: flex; justify-content: space-between; font-size: 13px; padding-top: 12px; border-top: 1px solid var(--border); }
+.about-fact span:first-child { color: var(--muted); }
+.about-cta { padding-top: 12px; border-top: 1px solid var(--border); }
+.about-cta p { margin: 0 0 8px; }

@@ -16,7 +16,10 @@
   // ---------- Helpers ----------
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const fmt = n => n.toLocaleString('en-US');
-  const usedBy = n => (n ? `Used by ${fmt(n)}` : 'Not used yet');
+  // Counts stay hidden until they carry signal: "Used by 2" reads as unpopular, not new. Zero-count rules show what is true from day one instead.
+  const USAGE_MIN = 10;
+  const usageShown = n => n >= USAGE_MIN;
+  const usedBy = n => (usageShown(n) ? `Used by ${fmt(n)}` : '');
   const $ = sel => document.querySelector(sel);
   const user = D.user;
 
@@ -197,7 +200,7 @@
     const hl = s => (q ? esc(s).replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'ig'), '<mark>$1</mark>') : esc(s));
     return `<a class="result" href="${ruleUrl(r)}">
       <div class="t"><span>${hl(r.title)}</span> ${impact(r.impact)}</div>
-      <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span><span>${usedBy(r.usedBy)}</span><span>★ ${fmt(starCount(r))}</span></div></a>`;
+      <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span>${usedBy(r.usedBy) ? `<span>${usedBy(r.usedBy)}</span>` : ''}${starCount(r) ? `<span>★ ${fmt(starCount(r))}</span>` : ''}</div></a>`;
   }
   function originCards(lib) {
     const o = D.owners[lib.owner] || { type: 'user', verified: null };
@@ -210,7 +213,7 @@
     return `<a class="rowlink" href="${libUrl(lib)}"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:14px">${avatar(lib.owner, 'md')}<div>
       <div class="t">${esc(libName(lib))}</div>
       <div class="sm muted" style="margin-top:2px">${esc(lib.description)}</div>
-      <div class="s" style="margin-top:4px"><span class="mono">${esc(lib.id)}</span> · ${lib.rules.length} rules · ${usedBy(lib.usedBy).replace('Used by', 'used by')}</div></div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`;
+      <div class="s" style="margin-top:4px"><span class="mono">${esc(lib.id)}</span> · ${lib.rules.length} rules${usedBy(lib.usedBy) ? ` · ${usedBy(lib.usedBy).replace('Used by', 'used by')}` : ''}</div></div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`;
   }
   const rowList = rows => `<div class="rowlist">${rows}</div>`;
 
@@ -269,9 +272,11 @@
       ${active ? '<button class="chip" data-clearfilters>Clear filters</button>' : ''}
     </aside>`;
   }
+  // Ties are common before a rule has usage or stars, so they fall back to Fabrica's rules first.
+  const fabricaFirst = (a, b) => (isFabrica(b.r.lib) ? 1 : 0) - (isFabrica(a.r.lib) ? 1 : 0);
   const sorters = {
-    best: (a, b) => b.score - a.score || b.r.usedBy - a.r.usedBy, used: (a, b) => b.r.usedBy - a.r.usedBy,
-    stars: (a, b) => starCount(b.r) - starCount(a.r), new: (a, b) => (b.r.lib.fresh ? 1 : 0) - (a.r.lib.fresh ? 1 : 0) || b.r.net30 - a.r.net30,
+    best: (a, b) => b.score - a.score || b.r.usedBy - a.r.usedBy || fabricaFirst(a, b), used: (a, b) => b.r.usedBy - a.r.usedBy || fabricaFirst(a, b),
+    stars: (a, b) => starCount(b.r) - starCount(a.r) || fabricaFirst(a, b), new: (a, b) => (b.r.lib.fresh ? 1 : 0) - (a.r.lib.fresh ? 1 : 0) || b.r.net30 - a.r.net30,
   };
   function resultsList(rows, sort, sortOptions, term, emptyHtml, { grouped = false } = {}) {
     const libsN = new Set(rows.map(x => x.r.lib.id)).size;
@@ -452,7 +457,7 @@
       <div class="libhead">${avatar(lib.owner, 'lg')}<div>
         <h1 class="title-xl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(libName(lib))}</h1>
         <p class="muted" style="margin:6px 0 8px">${esc(lib.description)}</p>
-        <div class="meta"><span class="mono">${esc(lib.id)}</span><span>${esc(lib.license)}</span><span>${lib.rules.length} rules</span><span>${lib.usedBy ? `Used by ${fmt(lib.usedBy)} public projects` : 'Not used by public projects yet'}</span><span>Updated ${lib.tags[lib.tags.length - 1].date}</span></div></div>
+        <div class="meta"><span class="mono">${esc(lib.id)}</span><span>${esc(lib.license)}</span><span>${lib.rules.length} rules</span>${usageShown(lib.usedBy) ? `<span>Used by ${fmt(lib.usedBy)} public projects</span>` : ''}<span>Updated ${lib.tags[lib.tags.length - 1].date}</span></div></div>
         <div class="row actions"><a class="btn small" href="#" data-act="noop">${icon.gh}View on GitHub</a></div></div>
       ${originCards(lib)}
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${libUrl(lib, k)}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
@@ -478,6 +483,15 @@
     return `${prs.length ? `<div class="sec-h"><span>Pull requests</span><span>${prs.length}</span></div>${prs.map(item).join('')}` : ''}
       ${issues.length ? `<div class="sec-h"><span>Issues</span><span>${issues.length}</span></div>${issues.map(item).join('')}` : ''}
       <p class="faint xs" style="margin-top:14px">Mirrored from GitHub. Everything opens on GitHub; Rulemart stores no comments.</p>`;
+  }
+
+  // Stands in for the Usage panel while a rule has no usage or discussion: who publishes it, how fresh it is, and where to talk about it.
+  function aboutPanel(r, versions) {
+    const lib = r.lib; const owner = D.owners[lib.owner] || { name: lib.owner };
+    return `<div class="panel"><div class="panel-h"><span class="index">About</span></div><div class="panel-b about">
+      <a class="about-pub" href="${libUrl(lib)}">${avatar(lib.owner, 'md')}<span><span class="t">${esc(libName(lib))}</span><span class="faint xs">Published by ${esc(owner.name)}</span></span></a>
+      <div class="about-fact"><span>Updated</span><span>${esc(versions[0].date)}</span></div>
+      <div class="about-cta"><p class="sm muted">Questions or suggestions?</p><button class="btn small" data-act="discuss">${icon.chat}Discuss this rule</button></div></div></div>`;
   }
 
   function assetsPanel(r, current) {
@@ -535,14 +549,15 @@
     const openN = disc.filter(d => d.state === 'open').length;
     const versions = ruleVersions(r);
     const starred = !!state.stars[r.key];
+    const showUsage = usageShown(r.usedBy);
     let body = '';
     if (tab === 'rule') {
       body = `<div class="rule-cols"><div class="md">
           <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${linkAssets(r, r.body, r.group).replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
         <aside class="side">
-          <div class="panel"><div class="panel-h"><span class="index">Usage</span></div><div class="panel-b">
-            <div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div><div class="sub">${r.usedBy ? `Net ${r.net30 >= 0 ? '+' : ''}${r.net30} in the last 30 days` : 'New on Rulemart'}</div></div>
-            <div class="stat"><div class="big">${openN}</div><div class="lbl">open issues and PRs</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div></div></div>
+          ${showUsage || openN ? `<div class="panel"><div class="panel-h"><span class="index">${showUsage ? 'Usage' : 'Discussion'}</span></div><div class="panel-b">
+            ${showUsage ? `<div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div>${r.net30 > 0 ? `<div class="sub">Net +${r.net30} in the last 30 days</div>` : ''}</div>` : ''}
+            ${openN ? `<div class="stat"><div class="big">${openN}</div><div class="lbl">open ${openN === 1 ? 'issue or PR' : 'issues and PRs'}</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div>` : ''}</div></div>` : aboutPanel(r, versions)}
           ${assetsPanel(r)}
           <div class="kv">
             <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
@@ -552,8 +567,8 @@
           </div></aside></div>`;
     } else if (tab === 'discussion') {
       body = `<div class="row between" style="margin-bottom:10px"><span class="muted sm">Issues and pull requests on <span class="mono">${esc(lib.id)}</span> that are about this rule.</span><button class="btn small" data-act="discuss">${icon.chat}Discuss</button></div>${discussionList(disc, lib, false)}`;
-    } else if (tab === 'usedby' && r.usedBy === 0) {
-      body = '<div class="empty">No public projects use this rule yet. Rulemart checks new projects every day.</div>';
+    } else if (tab === 'usedby' && !showUsage) {
+      body = `<div class="empty">Rulemart counts the public GitHub projects whose <span class="mono">.code-rules/generated/provenance.json</span> lists this rule. They appear here as projects adopt it.</div>`;
     } else if (tab === 'usedby') {
       const pool = D.projectPool;
       const n = Math.min(pool.length, 10);
@@ -564,15 +579,15 @@
       body = `<p class="faint sm" style="margin:0 0 14px">Versions follow semver for rules: <b>major</b> changes what the rule requires, <b>minor</b> widens its guidance, <b>patch</b> clarifies wording or examples.</p>`
         + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.diff ? `<a class="sm" href="#" data-act="noop">View diff</a>` : '<span></span>'}</div>`).join(''));
     }
-    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN], ['usedby', 'Used by', fmt(r.usedBy)], ['versions', 'Versions', versions.length]];
+    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['usedby', 'Used by', showUsage ? fmt(r.usedBy) : null], ['versions', 'Versions', versions.length]];
     return `<div class="page wrap">
       <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> <span class="mono">${r.group}</span></div>
       <div class="rulehead"><div>
         <h1 class="title-xl">${esc(r.title)}</h1>
         <div class="meta" style="margin-top:10px">${impact(r.impact)}<span class="mono" title="Latest version">${ruleVersion(r)}</span>${r.tags.map(t => `<a class="tag" href="#/search?q=${encodeURIComponent(t)}" title="Search tag">#${esc(t)}</a>`).join('')}</div>
         <div class="engage">
-          <button class="btn small ghost ${starred ? 'on' : ''}" data-act="star" aria-pressed="${starred}">${starred ? icon.starOn : icon.star}${starred ? 'Starred' : 'Star'} <span class="faint">${fmt(starCount(r))}</span></button>
-          <button class="btn small ghost" data-act="discuss">${icon.chat}Discuss <span class="faint">${openN}</span></button>
+          <button class="btn small ghost ${starred ? 'on' : ''}" data-act="star" aria-pressed="${starred}">${starred ? icon.starOn : icon.star}${starred ? 'Starred' : 'Star'}${starCount(r) ? ` <span class="faint">${fmt(starCount(r))}</span>` : ''}</button>
+          <button class="btn small ghost" data-act="discuss">${icon.chat}Discuss${openN ? ` <span class="faint">${openN}</span>` : ''}</button>
         </div></div>
         ${inCart(r.key) || inCart(groupItemKey(lib.id, r.group))
           ? `<div class="cart-state"><div class="row"><span class="incart">✓ ${inCart(r.key) ? 'In cart' : `${groupName(r.group)} group in cart`}</span><a class="btn primary" href="#/cart">Checkout</a></div>
@@ -604,7 +619,7 @@
         : `<div class="note"><span>Showing public repos only.</span><a href="#/me/private">Include private projects</a></div>`}
         <div class="sec-h" style="margin-top:24px"><span>Published by you and your orgs</span><span>${published.length}</span></div>
         ${published.map(l => `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a>${l.fresh ? ' <span class="chip on">New</span>' : ''}</div><div class="s"><span class="mono">${esc(l.id)}</span> · ${l.rules.length} rules</div></div>
-          <div class="row"><span class="meta"><span>${usedBy(l.usedBy)}</span></span>${l.insights ? `<a class="btn small" href="${libUrl(l, 'insights')}">Insights</a>` : ''}</div></div>`).join('')}
+          <div class="row"><span class="meta">${usedBy(l.usedBy) ? `<span>${usedBy(l.usedBy)}</span>` : ''}</span>${l.insights ? `<a class="btn small" href="${libUrl(l, 'insights')}">Insights</a>` : ''}</div></div>`).join('')}
         <div style="margin-top:12px"><a class="btn small" href="#/me/add">+ Add a library</a></div>
         <div class="sec-h" style="margin-top:30px"><span>Used in your projects</span><span>${Object.keys(usedMap).length}</span></div>
         ${Object.entries(usedMap).map(([id, uses]) => { const l = libById(id); return `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a></div>
