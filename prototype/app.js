@@ -202,13 +202,19 @@
       <div class="t"><span>${hl(r.title)}</span> ${impact(r.impact)}</div>
       <div class="meta"><span class="row" style="gap:7px">${libMark(r.lib)}${esc(libName(r.lib))}${showGroup ? ` · ${groupName(r.group)}` : ''}</span>${usedBy(r.usedBy) ? `<span>${usedBy(r.usedBy)}</span>` : ''}${starCount(r) ? `<span>★ ${fmt(starCount(r))}</span>` : ''}</div></a>`;
   }
-  function originCards(lib) {
-    const o = D.owners[lib.owner] || { type: 'user', verified: null };
-    return `<div class="origin">
-      <div><span class="ol">Owner</span><a href="#/${lib.owner}"><b>${esc(lib.owner)}</b></a> · ${o.type === 'org' ? 'GitHub organization' : 'Personal account'} ${o.verified ? `<span class="verified">✓ ${o.verified}</span>` : ''}</div>
-      <div><span class="ol">Repository</span><a href="#" data-act="noop">github.com/${esc(lib.id)}</a></div>
-      <div><span class="ol">Added to Rulemart</span>by <b>@${esc(lib.addedBy)}</b> · ${esc(lib.addedOn)}</div></div>`;
+  // The library's facts, shown beside each tab so the header stays short. Insights, a wide table for maintainers, goes without.
+  function libAbout(lib) {
+    return `<div class="kv lib-about">
+      <div><span>Owner</span><span><a href="#/${lib.owner}">${esc(lib.owner)}</a></span></div>
+      <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink" title="github.com/${esc(lib.id)}">${esc(lib.id.split('/')[1])}</a></span></div>
+      <div><span>License</span><span>${esc(lib.license)}</span></div>
+      ${usageShown(lib.usedBy) ? `<div><span>Used by</span><span>${fmt(lib.usedBy)} projects</span></div>` : ''}
+      <div><span>Updated</span><span>${esc(lib.tags[lib.tags.length - 1].date)}</span></div>
+      <div><span>On Rulemart since</span><span>${esc(lib.addedOn)}</span></div>
+      <div><span>Added by</span><span><a href="#/${lib.addedBy}">@${esc(lib.addedBy)}</a></span></div>
+    </div>`;
   }
+
   function libLine(lib) {
     return `<a class="rowlink" href="${libUrl(lib)}"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:14px">${avatar(lib.owner, 'md')}<div>
       <div class="t">${esc(libName(lib))}</div>
@@ -423,23 +429,21 @@
     const openDisc = disc.filter(d => d.state === 'open').length;
     const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['releases', 'Releases', null], ['discussion', 'Discussion', openDisc]];
     if (isMaintainer(lib) && lib.insights) tabs.push(['insights', 'Insights', null]);
-    let body = '';
+    let body = ''; let sideTop = '';
     if (tab === 'groups') {
       const selected = (q.get('sel') ?? (lib.featuredSel || '')).split(',').filter(Boolean);
       const sel = selected.length ? selected : [];
       const row = g => { const n = lib.rules.filter(r => r.group === g).length; return `<label class="gsel"><input type="checkbox" data-gsel="${g}" ${sel.includes(g) ? 'checked' : ''}><div class="row" style="flex-wrap:nowrap;gap:10px">${techIcon(g)}<div><b>${groupName(g)}</b><span class="gid">${g}</span>${isCanonical(g) ? '' : ' <span class="flag" title="Not on the canonical list, so Rulemart won\'t combine it with other libraries">not canonical</span>'}</div></div><p>${esc(groupBlurb(g))}</p><span class="gc">${inCart(groupItemKey(lib.id, g)) ? '<span class="incart sm-badge">✓ In cart</span> ' : ''}<a class="gview" href="${libGroupUrl(lib, g, sel)}">${n} ${n === 1 ? 'rule' : 'rules'} ›</a></span></label>`; };
       const techs = groupIds.filter(g => g.startsWith('techs/'));
       const pracs = groupIds.filter(g => g.startsWith('practices/'));
-      body = `<div class="lib-cols"><div>
-          ${techs.length ? `<p class="index list-label">Technologies · ${techs.length}</p>${rowList(techs.map(row).join(''))}` : ''}
-          ${pracs.length ? `<p class="index list-label">Practices · ${pracs.length}</p>${rowList(pracs.map(row).join(''))}` : ''}
-        </div>
-        <aside><div class="adopt-box">
+      body = `${techs.length ? `<p class="index list-label">Technologies · ${techs.length}</p>${rowList(techs.map(row).join(''))}` : ''}
+          ${pracs.length ? `<p class="index list-label">Practices · ${pracs.length}</p>${rowList(pracs.map(row).join(''))}` : ''}`;
+      sideTop = `<div class="adopt-box">
           <p class="index" style="margin-bottom:6px">Add to cart</p>
           <p class="sm muted" style="margin-bottom:14px">${sel.length ? `${sel.length} ${sel.length === 1 ? 'group' : 'groups'} selected. Whole groups stay in sync with ${esc(libName(lib))}.` : 'Select whole groups to add. You can also add single rules from their pages.'}</p>
           <button class="btn primary" style="width:100%" data-act="cart-groups" ${sel.length ? '' : 'disabled'}>${icon.cart}Add ${sel.length || ''} ${sel.length === 1 ? 'group' : 'groups'} to cart</button>
           <div class="row" style="margin-top:10px"><button class="chip" data-selall="1">Select all groups</button>${sel.length ? '<button class="chip" data-selall="0">Clear</button>' : ''}</div>
-        </div></aside></div>`;
+        </div>`;
     } else if (tab === 'rules') {
       body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
     } else if (tab === 'releases') {
@@ -456,12 +460,10 @@
     return `<div class="page wrap">
       <div class="libhead">${avatar(lib.owner, 'lg')}<div>
         <h1 class="title-xl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(libName(lib))}</h1>
-        <p class="muted" style="margin:6px 0 8px">${esc(lib.description)}</p>
-        <div class="meta"><span class="mono">${esc(lib.id)}</span><span>${esc(lib.license)}</span><span>${lib.rules.length} rules</span>${usageShown(lib.usedBy) ? `<span>Used by ${fmt(lib.usedBy)} public projects</span>` : ''}<span>Updated ${lib.tags[lib.tags.length - 1].date}</span></div></div>
-        <div class="row actions"><a class="btn small" href="#" data-act="noop">${icon.gh}View on GitHub</a></div></div>
-      ${originCards(lib)}
+        <p class="muted" style="margin-top:6px">${esc(lib.description)}</p></div>
+        <div class="row actions"><a class="btn small" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${icon.gh}View on GitHub</a></div></div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${libUrl(lib, k)}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
-      ${body}</div>`;
+      ${tab === 'insights' ? body : `<div class="lib-cols"><div>${body}</div><aside class="side">${sideTop}${libAbout(lib)}</aside></div>`}</div>`;
   }
 
   function insightsView(lib) {
