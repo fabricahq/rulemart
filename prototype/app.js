@@ -101,10 +101,22 @@
   const assetRepoPath = (r, a) => (a.shared ? `assets/${a.path}` : `${ruleAssetDir(r)}/${a.path}`);
   const ownAssets = r => (r.assets || []).map(a => ({ ...a, shared: false }));
   const relLinks = html => [...html.matchAll(/(?:href|src)="([^"#:]+)(?:#[^"]*)?"/g)].map(m => m[1]);
-  // Code Rules copies the whole root assets/ directory when the rule or one of its Markdown assets links into it.
-  const usesShared = r => [{ html: r.body, dir: r.group }, ...ownAssets(r).filter(a => a.html).map(a => ({ html: a.html, dir: dirOf(assetRepoPath(r, a)) }))]
-    .some(d => relLinks(d.html).some(rel => resolvePath(d.dir, rel).startsWith('assets/')));
-  const ruleAssets = r => [...ownAssets(r), ...(usesShared(r) ? (r.lib.sharedAssets || []).map(a => ({ ...a, shared: true })) : [])];
+  // From the library-root assets/ directory, Code Rules imports only the files the rule or its Markdown assets link to,
+  // and the files those shared files link to in turn. Other shared files stay out of the project.
+  function linkedShared(r) {
+    const shared = r.lib.sharedAssets || [];
+    const queue = [{ html: r.body, dir: r.group }, ...ownAssets(r).filter(a => a.html).map(a => ({ html: a.html, dir: dirOf(assetRepoPath(r, a)) }))];
+    const found = new Set();
+    while (queue.length) {
+      const doc = queue.shift();
+      relLinks(doc.html).map(rel => resolvePath(doc.dir, rel)).filter(p => p.startsWith('assets/')).forEach(p => {
+        const a = shared.find(x => `assets/${x.path}` === p);
+        if (a && !found.has(a.path)) { found.add(a.path); if (a.html) queue.push({ html: a.html, dir: 'assets' }); }
+      });
+    }
+    return shared.filter(a => found.has(a.path)).map(a => ({ ...a, shared: true }));
+  }
+  const ruleAssets = r => [...ownAssets(r), ...linkedShared(r)];
   const assetAt = (r, repoPath) => ruleAssets(r).find(a => assetRepoPath(r, a) === repoPath);
   const assetUrl = (r, a) => (a.shared ? `#/${r.lib.id}/assets/${a.path}?rule=${encodeURIComponent(`${r.group}/${r.slug}`)}` : `${ruleUrl(r)}/assets/${a.path}`);
   // A rule version covers its Markdown file and its own asset directory, so those link to the library release that published
@@ -544,8 +556,8 @@
     const own = all.filter(a => !a.shared); const shared = all.filter(a => a.shared);
     return `<div class="panel"><div class="panel-h"><span class="index">Assets</span><span class="faint xs">${all.length} files</span></div><div class="panel-b assets">
       ${own.map(row).join('')}
-      ${shared.length ? `<div class="asset-sub">Shared across the library</div>${shared.map(row).join('')}` : ''}
-      <p class="faint xs asset-note">All of these come with the rule when you add it.</p></div></div>`;
+      ${shared.length ? `<div class="asset-sub">Shared across the library</div>${shared.map(row).join('')}<p class="faint xs asset-note" style="margin-top:4px">Not part of this rule's version. Projects get the copy from the newest library release.</p>` : ''}
+      <p class="faint xs asset-note">These files come with the rule when you add it.</p></div></div>`;
   }
 
   function assetPage(r, a) {
@@ -560,7 +572,7 @@
       <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> › <a href="${ruleUrl(r)}">${esc(r.title)}</a></div>
       <div class="rulehead"><div>
         <h1 class="asset-title">${esc(a.path.split('/').pop())}</h1>
-        <p class="muted sm" style="margin-top:8px">${a.shared ? `Shared file in ${esc(libName(lib))}, linked from this rule` : 'Supporting file for this rule'} · ${esc(a.size)}</p></div>
+        <p class="muted sm" style="margin-top:8px">${a.shared ? `Shared file in ${esc(libName(lib))}, used by this rule. Not part of the rule's version; this copy is from ${releaseTag(latestRelease(lib).n)}` : `Supporting file for this rule, part of version ${ruleVersion(r)}`} · ${esc(a.size)}</p></div>
         <div class="row"><a class="btn small" href="${ghFileUrl(r, repoPath)}" data-act="ghlink">${icon.gh}View on GitHub</a><a class="btn small" href="${ghFileUrl(r, repoPath, 'raw')}" data-act="ghlink">Raw</a></div></div>
       <div class="rule-cols" style="margin-top:26px"><div>${content}
         <a class="linkbtn sm" style="display:inline-block;margin-top:18px" href="${ruleUrl(r)}">← Back to ${esc(r.title)}</a></div>

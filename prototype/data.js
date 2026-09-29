@@ -112,16 +112,21 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 <p>A regression test that fails only sometimes is worse than none. Before merging, check:</p>
 <ul><li>The test does not depend on the current time, time zone, or locale.</li><li>It does not share state with other tests or rely on test order.</li><li>Every wait has an explicit condition, not a fixed sleep.</li></ul>`) },
   ];
-  // Files in the library's root assets/ directory. Code Rules copies the whole directory into a project when a selected rule links into it.
+  // Files in the library's root assets/ directory. A project gets only the ones its rules link to, and the files those link to in turn,
+  // from the newest library release: shared files aren't part of any rule's version. The review checklist is linked from nothing here.
   const fabSharedAssets = [
     { path: 'testing-glossary.md', type: 'markdown', size: '1.6 KB', html: c(`
 <h2>Testing glossary</h2>
 <h3>Regression test</h3><p>A test added with a bug fix that fails on the old code and passes on the new code, so the bug cannot return unnoticed.</p>
 <h3>Characterization test</h3><p>A test that records what existing code does today, written before changing code that has no tests.</p>
-<h3>Test double</h3><p>A stand-in for a real dependency in a test, such as a fake, stub, or mock.</p>`) },
+<h3>Test double</h3><p>A stand-in for a real dependency in a test, such as a fake, stub, or mock.</p>
+<p>For naming conventions, see <a href="test-naming.md">naming tests</a>.</p>`) },
     { path: 'test-naming.md', type: 'markdown', size: '720 B', html: c(`
 <h2>Naming tests</h2>
 <p>Name a test after the behavior it proves, not the function it calls: <code>rounds half up to the nearest cent</code>, not <code>test_round</code>.</p>`) },
+    { path: 'review-checklist.md', type: 'markdown', size: '900 B', html: c(`
+<h2>Reviewing tests</h2>
+<p>Check that each new test fails without the change it covers.</p>`) },
   ];
 
   // Library releases: each is one release/<n> tag whose message holds the release record. Rule histories below
