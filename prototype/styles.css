@@ -279,9 +279,6 @@ mark { background: color-mix(in srgb, var(--ink) 16%, transparent); color: inher
 .gsel .gc { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
 .codebox { background: var(--surface-header); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: var(--mono); font-size: 12px; line-height: 1.65; white-space: pre; overflow-x: auto; margin: 0; }
 .adopt-box { border: 1px solid var(--border); border-radius: var(--r-panel); padding: 18px; background: var(--paper); position: sticky; top: 84px; }
-details.prompt { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
-details.prompt summary { cursor: pointer; }
-details.prompt pre { white-space: pre-wrap; font-family: var(--mono); font-size: 11.5px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; color: var(--ink); }
 table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 table.data th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 table.data td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
@@ -360,10 +357,7 @@ table.data td:first-child { color: var(--ink); font-weight: 500; }
 .proj-opt:has(input:checked) { background: var(--surface); }
 .proj-opt input { margin: 3px 0 0; }
 .proj-opt .s { font-size: 12.5px; color: var(--faint); margin-top: 2px; }
-.setup-box { margin-top: 30px; border: 1px solid var(--border); border-radius: var(--r-card); padding: 16px 18px; background: var(--surface); }
-ol.setup { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
-ol.setup li { margin-bottom: 6px; }
-ol.setup b { color: var(--ink); font-weight: 600; }
+.proj-box { border: 1px solid var(--border); border-radius: var(--r-card); padding: 16px 18px; background: var(--paper); }
 
 .linkbtn { background: none; border: 0; padding: 0; color: var(--ink); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .linkbtn:hover { color: var(--muted); }
@@ -497,3 +491,6 @@ footer.foot a:hover, footer.foot button:hover { color: var(--ink); text-decorati
 .about-fact span:first-child { color: var(--muted); }
 .about-cta { padding-top: 12px; border-top: 1px solid var(--border); }
 .about-cta p { margin: 0 0 8px; }
+.proj-top { margin: -2px 0 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
+.proj-signin { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.proj-signin p { margin: 2px 0 0; }

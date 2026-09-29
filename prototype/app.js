@@ -741,10 +741,10 @@
         <div>${plan.map(p => `<div class="cart-lib"><div class="row" style="gap:10px;margin-bottom:10px">${avatar(p.lib.owner)}<b>${esc(libName(p.lib))}</b><span class="rid">${esc(p.lib.id)}</span></div>
           ${rowList(items.filter(i => i.lib.id === p.lib.id).map(itemRow).join(''))}
           ${p.extra || p.full ? `<label class="sm muted row" style="gap:8px;margin-top:10px"><input type="checkbox" data-cartfull="${esc(p.lib.id)}" ${p.full ? 'checked' : ''}> Also add the other ${[...new Set(p.picks.map(r => groupName(r.group)))].join(' and ')} rules${p.full ? '' : ` (${p.extra} more)`}</label>` : ''}</div>`).join('')}
-          ${whereSection()}
+          ${projectSection()}
           <button class="chip" data-act="cart-clear" style="margin-top:22px">Clear cart</button></div>
         <aside><div class="adopt-box ready">
-          <p class="index" style="margin-bottom:6px">Ready to add</p>
+          <p class="index" style="margin-bottom:6px">Finish checkout</p>
           <p class="sm muted" style="margin-bottom:12px">Give your agent the prompt, or run the commands yourself. Both update as you change your cart.</p>
           <div class="seg tabs2">${[['prompt', 'Prompt'], ['commands', 'Commands']].map(([k, l]) => `<button data-checkouttab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
           ${livePreview(tab, tab === 'prompt' ? checkoutPrompt(plan) : checkoutCommands(plan))}
@@ -762,25 +762,26 @@
     return `<pre class="preview">${lines.map(l => `<span class="${prev && l.trim() && !prev.has(l) ? 'chg' : ''}">${esc(l) || ' '}</span>`).join('\n')}</pre>`;
   }
 
-  function whereSection() {
+  // Collects where the rules go. It gives no instructions of its own: the checkout panel is the only output.
+  function projectSection() {
     const t = checkoutTarget();
-    const repoField = `<label class="fl sm muted" style="display:block;margin:14px 0 6px">GitHub repository <span class="faint">(optional, so the prompt names it)</span></label>
+    const repoField = `<label class="fl sm muted" style="display:block;margin:0 0 6px">GitHub repository <span class="faint">(optional, so the prompt names it)</span></label>
       <input class="input" data-cartrepo placeholder="https://github.com/owner/repo" value="${esc(state.cartNewRepo || '')}" autocomplete="off">
       ${state.cartNewRepo ? (newRepo() ? `<p class="faint xs" style="margin:6px 0 0">Using <span class="mono">${esc(newRepo())}</span></p>` : '<p class="err">That doesn\'t look like a GitHub repository URL.</p>') : ''}`;
-    const setupActions = `<div class="row" style="margin-top:14px"><button class="btn small primary" data-copy="setup-prompt">Copy setup prompt for agent</button></div>
-      <details class="prompt"><summary>What the prompt says</summary><pre>${esc(setupPrompt())}</pre></details>`;
-    const setupSteps = `<ol class="setup"><li><b>Install the Code Rules CLI.</b> <a href="https://code-rules.fabricahq.com/start-here/install/" target="_blank" rel="noopener">Other ways to install</a></li><li><b>Run <code>code-rules project init</code></b> from your project's root. It creates the <code>.code-rules/</code> directory.</li><li><b>Add your rules</b> with the commands below. The agent prompt covers all three steps.</li></ol>`;
+    const label = '<p class="index list-label" style="margin-top:30px">Your project</p>';
     if (t.detected.length) {
-      return `<p class="index list-label" style="margin-top:30px">Add to which project?</p>
-        ${rowList(t.detected.map(p => `<label class="proj-opt"><input type="radio" name="cart-project" data-cartproject="${esc(p.repo)}" ${t.project && t.project.repo === p.repo ? 'checked' : ''}><div><b>${esc(p.repo)}</b>${p.private ? ' <span class="chip">Private</span>' : ''}<div class="s">Uses ${p.sources.map(x => esc(libName(libById(x.lib)))).join(', ')}</div></div></label>`).join('')
-        )}
-        ${t.setup
-          ? `<div class="setup-box" style="margin-top:14px"><div class="row between"><p style="font-weight:600;margin:0">Set up a new project with Code Rules</p><button class="linkbtn" data-act="cart-existing">Cancel</button></div>${repoField}${setupSteps}${setupActions}</div>`
-          : '<button class="linkbtn" style="margin-top:12px" data-act="cart-newproject">+ Or set up a new project with Code Rules</button>'}`;
+      return `${label}
+        ${rowList(t.detected.map(p => `<label class="proj-opt"><input type="radio" name="cart-project" data-cartproject="${esc(p.repo)}" ${t.project && t.project.repo === p.repo ? 'checked' : ''}><div><b>${esc(p.repo)}</b>${p.private ? ' <span class="chip">Private</span>' : ''}<div class="s">Uses ${p.sources.map(x => esc(libName(libById(x.lib)))).join(', ')}</div></div></label>`).join(''))}
+        ${t.mode === 'new'
+          ? `<div class="proj-box" style="margin-top:12px"><div class="row between" style="margin-bottom:12px"><b class="sm">A new project</b><button class="linkbtn sm" data-act="cart-existing">Cancel</button></div>${repoField}<p class="sm muted" style="margin:12px 0 0">The prompt sets up Code Rules there first.</p></div>`
+          : '<button class="linkbtn" style="display:block;margin-top:12px" data-act="cart-newproject">+ Or use a project that doesn\'t use Code Rules yet</button>'}`;
     }
-    return `<div class="setup-box"><p style="font-weight:600;margin:0 0 4px">${state.signedIn ? "We didn't find any of your projects using Code Rules" : 'New to Code Rules? Set it up first'}</p>
-      <p class="muted sm" style="margin:0 0 10px">${state.signedIn ? `Set up Code Rules in the project you want these rules in.${state.private ? '' : ' Rulemart only checked your public repos; <a href="#/me/private">include private projects</a>.'}` : 'Skip this if your project already has a <code>.code-rules/</code> directory. <a href="#/signin" data-act="remember">Sign in with GitHub</a> to see which of your projects already use it.'}</p>
-      ${repoField}${setupSteps}${setupActions}</div>`;
+    // Signing in is its own call to action, separate from the reassurance about setup.
+    const top = state.signedIn
+      ? `<p class="sm muted proj-top">We didn't find any of your projects using Code Rules${state.private ? '' : ' in your public repos. <a href="#/me/private">Include private projects</a>'}.</p>`
+      : `<div class="proj-top proj-signin"><div><b class="sm">Pick from your projects</b><p class="sm muted">Sign in to choose a project and see when its rules have updates.</p></div><a class="btn small" href="#/signin" data-act="remember">${icon.gh}Sign in with GitHub</a></div>`;
+    return `${label}<div class="proj-box">${top}${repoField}
+      <p class="sm muted" style="margin:14px 0 0"><b>New to Code Rules?</b> The prompt sets it up for you.</p></div>`;
   }
 
   function faqPage() {
@@ -945,7 +946,7 @@
     });
   }
   const SETUP = ['curl -fsSL https://code-rules.fabricahq.com/install.sh | sh', 'code-rules project init'];
-  // Projects Rulemart found using Code Rules; a new project needs the CLI installed and initialized first.
+  // A project without Code Rules needs the CLI installed and initialized before rules can be added.
   // Accepts any github.com URL (including deeper pages like issues or blobs), git@github.com:owner/repo.git, or owner/repo.
   const parseRepo = url => {
     const text = String(url || '').trim();
@@ -955,23 +956,18 @@
     return m ? `${m[1]}/${m[2].replace(/\.git$/i, '')}` : null;
   };
   const newRepo = () => parseRepo(state.cartNewRepo);
-  function setupPrompt() {
-    const where = newRepo() ? `the ${newRepo()} repository (https://github.com/${newRepo()})` : 'this project';
-    return [`Set up Code Rules in ${where}.`, '',
-      `1. Install the Code Rules CLI if it isn't installed: ${SETUP[0]}`,
-      `2. From the repository root, run: ${SETUP[1]}`,
-      '3. Make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md before they work.',
-      '4. Run code-rules project check and confirm it passes.'].join('\n');
-  }
+  // known: a project Rulemart found using Code Rules. new: one the user says needs setup. unknown: Rulemart can't tell, so setup is conditional.
   function checkoutTarget() {
     const detected = state.signedIn ? projects() : [];
-    const pick = detected.find(p => p.repo === state.cartProject) || (state.cartProject === 'new' ? null : detected[0]);
-    return { detected, project: pick || null, setup: !pick };
+    const isNew = detected.length && state.cartProject === 'new';
+    const pick = isNew ? null : detected.find(p => p.repo === state.cartProject) || detected[0] || null;
+    return { detected, project: pick, mode: pick ? 'known' : isNew ? 'new' : 'unknown' };
   }
   function checkoutCommands(plan, target = checkoutTarget()) {
-    const out = [];
-    if (target.setup) out.push(`# 1. Install the Code Rules CLI\n${SETUP[0]}`, `# 2. From the root of ${newRepo() || 'your project'}, set up Code Rules\n${SETUP[1]}`, '# 3. Add your rules');
-    else out.push(`# From the root of ${target.project.repo}`);
+    const out = [`# From the root of ${target.project ? target.project.repo : newRepo() || 'your project'}`];
+    if (target.mode === 'new') out.push(`# Set up Code Rules\n${SETUP.join('\n')}`);
+    if (target.mode === 'unknown') out.push(`# Only if it doesn't use Code Rules yet\n${SETUP.join('\n')}`);
+    const setupN = out.length;
     plan.forEach(p => {
       if (p.groups.length) {
         const already = target.project && target.project.sources.some(x => x.lib === p.lib.id);
@@ -984,12 +980,18 @@
       p.forks.forEach(r => out.push([`code-rules project add rule ${r.group}/${r.slug} \\`, `  --from ${p.lib.id}@${ruleVersion(r)}`].join('\n')));
     });
     out.push(plan.some(p => p.groups.length) ? 'code-rules project sync' : 'code-rules project build');
+    // After setup steps, label where adding the rules begins.
+    if (setupN > 1) out[setupN] = `# Add your rules\n${out[setupN]}`;
     return out.join('\n\n');
   }
   function checkoutPrompt(plan, target = checkoutTarget()) {
-    const lines = [target.setup
-      ? `${newRepo() ? `The ${newRepo()} repository` : 'This project'} does not use Code Rules yet. Install the Code Rules CLI and set it up${newRepo() ? ' there' : ' in this project'}, then add these engineering rules.`
-      : `Add these engineering rules to ${target.project.repo} with the Code Rules CLI.`, ''];
+    const where = target.project ? target.project.repo : newRepo() ? `the ${newRepo()} repository` : 'this project';
+    const intro = {
+      known: `Add these engineering rules to ${where} with the Code Rules CLI.`,
+      new: `Set up Code Rules in ${where}, which doesn't use it yet, then add these engineering rules.`,
+      unknown: `Add these engineering rules to ${where} with the Code Rules CLI. If it has no .code-rules/ directory yet, install the CLI and run code-rules project init first.`,
+    }[target.mode];
+    const lines = [intro, ''];
     plan.forEach(p => {
       lines.push(`From ${libName(p.lib)} (${p.lib.id}):`);
       p.picks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}@${ruleVersion(r)}), kept in sync with the library`));
@@ -1116,7 +1118,6 @@
     }
     if (t.dataset.copy) {
       const plan = cartPlan();
-      if (t.dataset.copy === 'setup-prompt') return copy(setupPrompt(), 'Setup prompt');
       return t.dataset.copy === 'checkout-prompt' ? copy(checkoutPrompt(plan), 'Prompt') : copy(checkoutCommands(plan), 'Commands');
     }
     switch (act) {
