@@ -394,7 +394,7 @@ details.faq summary::-webkit-details-marker { display: none; }
 details.faq summary::after { content: '+'; color: var(--faint); font-weight: 400; }
 details.faq[open] summary::after { content: '−'; }
 .faq-a { padding: 0 0 16px; color: var(--muted); }
-.faq-a ol { margin: 0 0 10px; padding-left: 20px; }
+.faq-a ol, .faq-a ul { margin: 0 0 10px; padding-left: 20px; }
 .faq-a li { margin-bottom: 6px; }
 .faq-a b { color: var(--ink); }
 
