@@ -173,7 +173,7 @@
       ? `<div class="menu"><button class="avatar" data-act="menu" aria-label="Account menu" style="cursor:pointer;padding:0"><img src="${avatarSrc(user.login)}" alt="" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">${user.initials}</button>
           <div class="menu-pop hidden" id="menu"><div class="who"><b>${user.name}</b><div class="faint">@${user.login}</div></div>
           <a href="#/me">Dashboard</a><a href="#/me/add">Add a library</a><a href="#/me?tab=stars">Starred rules</a><button data-act="signout">Sign out</button></div></div>`
-      : `<a class="btn small" href="#/signin" data-act="remember">${icon.gh}Sign in with GitHub</a>`;
+      : `<a class="btn small" href="#/signin" data-act="remember">${icon.gh}<span>Sign in<span class="hide-sm"> with GitHub</span></span></a>`;
     return `<header class="top"><div class="wrap">
       <div class="brand"><a class="fab-link" href="https://fabricahq.com">${icon.fab}Fabrica</a><span class="slash">/</span><a href="#/" aria-label="Rulemart home">Rulemart</a></div>
       <label class="topsearch">${icon.search}<input id="topq" placeholder="Search rules" value="${esc(active === 'search' ? parse().q.get('q') || '' : '')}" aria-label="Search rules"></label>
