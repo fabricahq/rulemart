@@ -10,7 +10,8 @@ Browse rules other teams wrote for their agents, see who publishes and uses them
 This branch holds an early prototype for exploring the user experience. It is not the product.
 
 - [`prototype/`](prototype/) is a click-through mock of Rulemart. Every screen, including GitHub sign-in, app install, and issue creation, is simulated. All libraries, rules, and numbers are invented.
-- [`docs/concept.html`](docs/concept.html) is the concept write-up: the mental model, UI walkthroughs, the feedback model, and the decisions made so far.
+
+The prototype supersedes the original concept write-up, which remains in the history at `bad2a68:docs/concept.html`.
 
 ## Run the prototype
 
