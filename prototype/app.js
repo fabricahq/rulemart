@@ -13,7 +13,7 @@
   // ---------- Helpers ----------
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const fmt = n => n.toLocaleString('en-US');
-  const usedBy = n => (n ? `Used by ${fmt(n)}+` : 'Not used yet');
+  const usedBy = n => (n ? `Used by ${fmt(n)}` : 'Not used yet');
   const $ = sel => document.querySelector(sel);
   const user = D.user;
 
@@ -43,7 +43,9 @@
   const avatarSrc = login => ((D.owners[login] || {}).real ? `https://github.com/${login}.png?size=96` : identicon(login));
   const avatar = (owner, cls = '') => {
     const o = D.owners[owner] || { initials: owner.slice(0, 2).toUpperCase(), type: 'user' };
-    return `<span class="avatar ${cls} ${o.type === 'org' ? 'org' : ''}"><img src="${avatarSrc(owner)}" alt="" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">${esc(o.initials)}</span>`;
+    const av = `<span class="avatar ${cls} ${o.type === 'org' ? 'org' : ''}"><img src="${avatarSrc(owner)}" alt="" onload="this.parentNode.classList.add('has-img')" onerror="this.remove()">${esc(o.initials)}</span>`;
+    // Fabrica's avatar carries a small blue check instead of a separate badge.
+    return owner === 'fabricahq' ? `<span class="av-wrap ${cls}" title="Published by Fabrica">${av}<span class="vcheck" aria-label="Published by Fabrica"><svg viewBox="0 0 12 12"><path d="M3.2 6.2 5.1 8l3.7-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span>` : av;
   };
 
   // Libraries on Rulemart: fixtures plus anything the user published during the demo.
@@ -63,13 +65,31 @@
   const isMaintainer = lib => state.signedIn && (lib.owner === user.login || user.orgs.includes(lib.owner));
   const groupName = id => (D.groups[id] || { name: id }).name;
   const isCanonical = id => (D.groups[id] || {}).canonical === true;
+  // Code language for a rule's examples: an explicit override, else its group's language (practices default to TypeScript).
+  const groupLang = { 'techs/go': 'go', 'techs/golang': 'go', 'techs/typescript': 'typescript', 'techs/react': 'typescript', 'techs/playwright': 'typescript', 'techs/nextjs': 'typescript', 'techs/python': 'python', 'techs/rust': 'rust', 'techs/postgresql': 'sql', 'techs/docker': 'dockerfile', 'techs/kubernetes': 'yaml', 'techs/terraform': 'ini' };
+  const ruleLang = r => r.lang || groupLang[r.group] || 'typescript';
   // Technology names are self-explanatory; only practices show their reading guidance.
   const groupBlurb = id => (id.startsWith('practices/') ? (D.groups[id] || {}).whenToRead || '' : '');
   // Canonical groups carry an icon: Devicon logos (MIT) for technologies, Lucide line icons (ISC) for practices. Non-canonical groups have none.
   const iconUrl = g => (g.iconUrl || (g.icon ? `https://cdn.jsdelivr.net/gh/devicons/devicon@v2.17.0/icons/${g.icon}.svg` : g.lucide ? `https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/${g.lucide}.svg` : null));
   const techIcon = (id, cls = '') => { const g = D.groups[id]; const url = g && g.canonical && iconUrl(g); return url ? `<span class="ticon ${cls} ${g.lucide ? 'line' : ''} ${g.iconUrl ? 'wide' : ''}"><img src="${url}" alt=""></span>` : ''; };
   const alias = lib => lib.owner.replace(/hq$/, '').replace(/[^a-z0-9-]/gi, '');
-  const refFor = lib => { const [maj, min] = latest(lib).slice(1).split('.'); return `~> ${maj}.${min}`; };
+  // Each rule has its own semver history. Release events (lib.tags) only supply dates and ordering.
+  const releaseOf = (lib, v) => { const i = lib.tags.findIndex(t => t.v === v); return { i, date: i >= 0 ? lib.tags[i].date : '' }; };
+  function ruleVersions(r) {
+    const first = releaseOf(r.lib, r.added);
+    let [maj, min, pat] = [1, 0, 0];
+    const out = [{ version: '1.0.0', bump: 'new', summary: 'First published.', date: first.date, i: first.i }];
+    [...r.changes].sort((a, b) => releaseOf(r.lib, a.v).i - releaseOf(r.lib, b.v).i).forEach(c => {
+      if (c.bump === 'major') { maj += 1; min = 0; pat = 0; } else if (c.bump === 'minor') { min += 1; pat = 0; } else { pat += 1; }
+      const rel = releaseOf(r.lib, c.v);
+      out.push({ version: `${maj}.${min}.${pat}`, bump: c.bump, summary: c.summary, diff: c.diff, date: rel.date, i: rel.i });
+    });
+    return out.reverse();
+  }
+  const ruleVersion = r => ruleVersions(r)[0].version;
+  // Version rows only call out the latest version; the version numbers say the rest.
+  const versionChips = (v, isLatest) => (isLatest ? '<span class="chip">Latest</span>' : '');
   const issuesFor = ruleKey => state.issues.filter(i => i.ruleKey === ruleKey);
   const discussionFor = r => [...issuesFor(r.key).map(i => ({ kind: 'issue', num: i.num, title: i.title, author: i.author, comments: 0, state: 'open', when: 'just now', mine: true })), ...(r.discussion || [])];
 
@@ -141,7 +161,7 @@
   }
   function libLine(lib) {
     return `<a class="rowlink" href="${libUrl(lib)}"><div class="row" style="flex-wrap:nowrap;align-items:flex-start;gap:14px">${avatar(lib.owner, 'md')}<div>
-      <div class="t">${esc(libName(lib))} ${isFabrica(lib) ? fabBadge() : ''}</div>
+      <div class="t">${esc(libName(lib))}</div>
       <div class="sm muted" style="margin-top:2px">${esc(lib.description)}</div>
       <div class="s" style="margin-top:4px"><span class="mono">${esc(lib.id)}</span> · ${lib.rules.length} rules · ${usedBy(lib.usedBy).replace('Used by', 'used by')}</div></div></div><span></span><span class="chev" aria-hidden="true">›</span></a>`;
   }
@@ -311,7 +331,7 @@
     const libs = libraries().filter(l => l.owner === login);
     return `<div class="page wrap">
       <div class="row" style="gap:18px;align-items:flex-start;flex-wrap:nowrap">${avatar(login, 'xl')}<div>
-        <h1 class="title-xl">${esc(o.name)} ${login === 'fabricahq' ? fabBadge() : ''}</h1>
+        <h1 class="title-xl">${esc(o.name)}</h1>
         <div class="meta" style="margin-top:6px"><span class="mono">github.com/${esc(login)}</span><span>${o.type === 'org' ? 'GitHub organization' : 'Personal account'}</span>${o.verified ? `<span class="verified">✓ ${o.verified}</span>` : ''}</div>
         <p class="muted" style="margin-top:8px">${esc(o.bio)}</p></div></div>
       <div class="sec-h" style="margin-top:30px"><span>Libraries</span><span>${libs.length}</span></div>
@@ -325,7 +345,7 @@
     const groupIds = [...new Set(lib.rules.map(r => r.group))];
     const disc = lib.rules.flatMap(r => discussionFor({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }).map(d => ({ ...d, rule: r })));
     const openDisc = disc.filter(d => d.state === 'open').length;
-    const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['versions', 'Versions', lib.tags.length], ['discussion', 'Discussion', openDisc]];
+    const tabs = [['groups', 'Groups', groupIds.length], ['rules', 'All rules', lib.rules.length], ['releases', 'Releases', null], ['discussion', 'Discussion', openDisc]];
     if (isMaintainer(lib) && lib.insights) tabs.push(['insights', 'Insights', null]);
     let body = '';
     if (tab === 'groups') {
@@ -349,8 +369,11 @@
         </div></aside></div>`;
     } else if (tab === 'rules') {
       body = groupIds.map(g => `<div class="sec-h"><span>${groupName(g)} <span class="mono" style="text-transform:none;letter-spacing:0">${g}</span></span></div>${lib.rules.filter(r => r.group === g).map(r => ruleResult({ ...r, lib, key: `${lib.id}::${r.group}/${r.slug}` }, '', { showGroup: false })).join('')}`).join('');
-    } else if (tab === 'versions') {
-      body = `<div class="versions">${[...lib.tags].reverse().map(t => `<div><b>${t.v}</b> · ${t.date}<br><span class="muted">${esc(t.summary)}</span></div>`).join('')}</div><p class="faint sm" style="margin-top:18px">Versions come from Git tags. Untagged commits never appear.</p>`;
+    } else if (tab === 'releases') {
+      const entries = lib.rules.flatMap(x => { const rr = { ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }; return ruleVersions(rr).map(v => ({ ...v, r: rr })); });
+      const byRelease = [...new Set(entries.map(e => e.i))].sort((a, b) => b - a);
+      body = byRelease.map(i => `<p class="index list-label">${esc(lib.tags[i].date)}</p>${rowList(entries.filter(e => e.i === i).map(e => `<a class="rowlink" href="${ruleUrl(e.r)}?tab=versions"><div><div class="t">${esc(e.r.title)}</div><div class="s">${esc(e.summary)}</div></div><span class="mono sm">${e.version}</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}`).join('')
+        + '<p class="faint sm" style="margin-top:16px">Every rule is versioned on its own. Each entry is a tag like <span class="mono">practices/testing/verify-retry-limits@1.3.0</span>.</p>';
     } else if (tab === 'discussion') {
       body = discussionList(disc, lib, true);
     } else if (tab === 'insights') {
@@ -359,9 +382,9 @@
     const groupsN = groupIds.length;
     return `<div class="page wrap">
       <div class="libhead">${avatar(lib.owner, 'lg')}<div>
-        <h1 class="title-xl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(libName(lib))} ${isFabrica(lib) ? fabBadge() : ''}</h1>
+        <h1 class="title-xl" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(libName(lib))}</h1>
         <p class="muted" style="margin:6px 0 8px">${esc(lib.description)}</p>
-        <div class="meta"><span class="mono">${esc(lib.id)}</span><span class="mono">${latest(lib)}</span><span>${esc(lib.license)}</span><span>${lib.rules.length} rules</span><span>${lib.usedBy ? `Used by ${fmt(lib.usedBy)}+ public projects` : 'Not used by public projects yet'}</span><span>Updated ${lib.tags[lib.tags.length - 1].date}</span></div></div>
+        <div class="meta"><span class="mono">${esc(lib.id)}</span><span>${esc(lib.license)}</span><span>${lib.rules.length} rules</span><span>${lib.usedBy ? `Used by ${fmt(lib.usedBy)} public projects` : 'Not used by public projects yet'}</span><span>Updated ${lib.tags[lib.tags.length - 1].date}</span></div></div>
         <div class="row actions"><a class="btn small" href="#" data-act="noop">${icon.gh}View on GitHub</a></div></div>
       ${originCards(lib)}
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${libUrl(lib, k)}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
@@ -383,7 +406,7 @@
     const issues = items.filter(d => d.kind === 'issue');
     const item = d => `<div class="disc-item"><div><a class="tt" href="#/gh/issue/${lib.id}/${d.num}">${esc(d.title)}</a>${d.mine ? ' <span class="chip on" style="margin-left:4px">Yours</span>' : ''}
       <div class="s"><span>#${d.num}</span><span>· by ${esc(d.author)}</span>${d.relation ? `<span>· <b style="color:var(--ink);font-weight:500">${d.relation === 'changes' ? 'changes this rule' : 'mentions this rule'}</b></span>` : ''}<span>· ${d.comments} comments</span>${d.note ? `<span>· ${esc(d.note)}</span>` : ''}${d.last ? `<span>· last: “${esc(d.last)}”</span>` : ''}${showRule ? `<span>· <a href="${ruleUrl({ ...d.rule, lib })}">${esc(d.rule.title)}</a></span>` : ''}</div></div>
-      ${d.state === 'open' ? '<span class="pill open">Open</span>' : `<span class="pill">Closed${d.closedIn ? ` · changed in ${d.closedIn}` : ''}</span>`}</div>`;
+      ${d.state === 'open' ? '<span class="pill open">Open</span>' : `<span class="pill">Closed${d.closedIn ? ` · fixed in ${d.closedIn}` : ''}</span>`}</div>`;
     return `${prs.length ? `<div class="sec-h"><span>Pull requests</span><span>${prs.length}</span></div>${prs.map(item).join('')}` : ''}
       ${issues.length ? `<div class="sec-h"><span>Issues</span><span>${issues.length}</span></div>${issues.map(item).join('')}` : ''}
       <p class="faint xs" style="margin-top:14px">Mirrored from GitHub. Everything opens on GitHub; Rulemart stores no comments.</p>`;
@@ -398,24 +421,21 @@
     const tab = q.get('tab') || 'rule';
     const disc = discussionFor(r);
     const openN = disc.filter(d => d.state === 'open').length;
-    const versions = [...r.changes.map(c => ({ ...c })), { v: r.added, summary: 'First published.' }].sort((a, b) => b.v.localeCompare(a.v, undefined, { numeric: true }));
+    const versions = ruleVersions(r);
     const starred = !!state.stars[r.key];
     let body = '';
     if (tab === 'rule') {
-      const lastChange = versions[0];
       body = `<div class="rule-cols"><div class="md">
-          <div class="whento"><b>When to read</b>${esc(r.whenToRead)}</div>${r.body}</div>
+          <div class="whento"><b>When to apply</b>${esc(r.whenToRead)}</div>${r.body.replace(/<pre><code>/g, `<pre><code class="language-${ruleLang(r)}">`)}</div>
         <aside class="side">
-          <div class="panel"><div class="panel-h"><span class="index">Usage · public projects</span></div><div class="panel-b">
-            <div class="stat"><div class="big">${r.usedBy ? `${fmt(r.usedBy)}+` : '0'}</div><div class="lbl">public projects use this rule</div><div class="sub">${r.usedBy ? `Net ${r.net30 >= 0 ? '+' : ''}${r.net30} in the last 30 days` : 'New on Rulemart'}</div></div>
-            <div class="stat"><div class="big">${openN}</div><div class="lbl">open issues and PRs</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div>
-            <p class="faint xs" style="margin:10px 0 0">“+” because Rulemart only sees public projects it has found.</p></div></div>
+          <div class="panel"><div class="panel-h"><span class="index">Usage</span></div><div class="panel-b">
+            <div class="stat"><div class="big">${fmt(r.usedBy)}</div><div class="lbl">public projects use this rule</div><div class="sub">${r.usedBy ? `Net ${r.net30 >= 0 ? '+' : ''}${r.net30} in the last 30 days` : 'New on Rulemart'}</div></div>
+            <div class="stat"><div class="big">${openN}</div><div class="lbl">open issues and PRs</div><div class="sub"><a href="${ruleUrl(r)}?tab=discussion">See the discussion</a></div></div></div></div>
           <div class="kv">
             <div><span>Owner</span><span><a href="#/o/${lib.owner}">${esc(lib.owner)}</a></span></div>
-            <div><span>Repository</span><span class="mono">${esc(lib.id)}</span></div>
+            <div><span>Repository</span><span><a class="mono" href="https://github.com/${esc(lib.id)}" data-act="ghlink">${esc(lib.id.split('/')[1])}</a></span></div>
             <div><span>License</span><span>${esc(lib.license)}</span></div>
-            <div><span>Last changed</span><span>${lastChange.v}</span></div>
-            <div><span>File</span><span class="mono">${r.group}/${r.slug}.md</span></div>
+            <div><span>File</span><span><a class="mono" href="https://github.com/${esc(lib.id)}/blob/${r.group}/${r.slug}@${ruleVersion(r)}/${r.group}/${r.slug}.md" data-act="ghlink" title="${r.group}/${r.slug}.md">${r.slug}.md</a></span></div>
           </div></aside></div>`;
     } else if (tab === 'discussion') {
       body = `<div class="row between" style="margin-bottom:10px"><span class="muted sm">Issues and pull requests on <span class="mono">${esc(lib.id)}</span> that are about this rule.</span><button class="btn small" data-act="discuss">${icon.chat}Discuss</button></div>${discussionList(disc, lib, false)}`;
@@ -425,21 +445,18 @@
       const pool = D.projectPool;
       const n = Math.min(pool.length, 10);
       body = `<p class="muted sm" style="margin-bottom:12px">Public projects whose <span class="mono">.code-rules/generated/provenance.json</span> lists this rule.</p>
-        ${pool.slice(0, n).map((p, i) => `<div class="list-row"><div><div class="t">${esc(p)}</div><div class="s">on ${lib.tags[Math.max(0, lib.tags.length - 1 - (i % 3))].v}</div></div><span class="faint sm">synced ${i + 2} days ago</span></div>`).join('')}
+        ${rowList(pool.slice(0, n).map((p, i) => `<a class="rowlink" href="https://github.com/${esc(p)}" data-act="ghlink"><div class="row" style="flex-wrap:nowrap;gap:12px">${avatar(p.split('/')[0], 'md')}<div><div class="t">${esc(p)}</div><div class="s">on ${versions[Math.min(versions.length - 1, i % 3)].version}</div></div></div><span class="faint sm">synced ${i + 2} days ago</span><span class="chev" aria-hidden="true">›</span></a>`).join(''))}
         <p class="faint sm" style="margin-top:14px">and ${fmt(Math.max(0, r.usedBy - n))} more public projects</p>`;
     } else if (tab === 'versions') {
-      const showEmpty = q.get('empty') === '1';
-      const lines = showEmpty
-        ? [...lib.tags].reverse().filter(t => t.v.localeCompare(r.added, undefined, { numeric: true }) >= 0).map(t => { const v = versions.find(x => x.v === t.v); return v ? versionLine(v, t, lib, r) : `<div class="empty-v"><b>${t.v}</b> · ${t.date} · no changes to this rule</div>`; }).join('')
-        : versions.map(v => versionLine(v, lib.tags.find(t => t.v === v.v), lib, r)).join('');
-      body = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><label class="sm muted row" style="gap:7px"><input type="checkbox" data-empty ${showEmpty ? 'checked' : ''}> Show empty versions</label></div><div class="versions">${lines}</div>`;
+      body = `<p class="faint sm" style="margin:0 0 14px">Versions follow semver for rules: <b>major</b> changes what the rule requires, <b>minor</b> widens its guidance, <b>patch</b> clarifies wording or examples.</p>`
+        + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.diff ? `<a class="sm" href="#" data-act="noop">View diff</a>` : '<span></span>'}</div>`).join(''));
     }
-    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN], ['usedby', 'Used by', r.usedBy ? `${fmt(r.usedBy)}+` : '0'], ['versions', 'Versions', versions.length]];
+    const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN], ['usedby', 'Used by', fmt(r.usedBy)], ['versions', 'Versions', versions.length]];
     return `<div class="page wrap">
-      <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a>${isFabrica(lib) ? fabBadge() : ''} › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> <span class="mono">${r.group}</span> › ${latest(lib)}</div>
+      <div class="crumbs">${avatar(lib.owner)}<a href="${libUrl(lib)}">${esc(libName(lib))}</a> › ${techIcon(r.group, 'xs')}<a href="#/g/${r.group}">${groupName(r.group)}</a> <span class="mono">${r.group}</span></div>
       <div class="rulehead"><div>
         <h1 class="title-xl">${esc(r.title)}</h1>
-        <div class="meta" style="margin-top:10px">${impact(r.impact)}${r.tags.map(t => `<span>${esc(t)}</span>`).join('')}</div>
+        <div class="meta" style="margin-top:10px">${impact(r.impact)}<span class="mono" title="Latest version">${ruleVersion(r)}</span>${r.tags.map(t => `<a class="tag" href="#/search?q=${encodeURIComponent(t)}" title="Search tag">#${esc(t)}</a>`).join('')}</div>
         <div class="engage">
           <button class="btn small ghost ${starred ? 'on' : ''}" data-act="star" aria-pressed="${starred}">${starred ? icon.starOn : icon.star}${starred ? 'Starred' : 'Star'} <span class="faint">${fmt(starCount(r))}</span></button>
           <button class="btn small ghost" data-act="discuss">${icon.chat}Discuss <span class="faint">${openN}</span></button>
@@ -447,9 +464,6 @@
         <button class="btn primary" data-act="add-project">Add to project</button></div>
       <nav class="tabs">${tabs.map(([k, l, n]) => `<a href="${ruleUrl(r)}${k === 'rule' ? '' : `?tab=${k}`}" class="${tab === k ? 'on' : ''}">${l}${n !== null ? `<span class="n">${n}</span>` : ''}</a>`).join('')}</nav>
       ${body}</div>`;
-  }
-  function versionLine(v, t, lib, r) {
-    return `<div><b>${v.v}</b> · ${t ? t.date : ''}<br><span class="muted">${esc(v.summary)}</span>${v.diff ? ` <a href="#" data-act="noop">View diff</a> <span class="faint sm">${v.diff} lines</span>` : ''}</div>`;
   }
 
   // ---------- Dashboard ----------
@@ -473,12 +487,12 @@
         ? `<div class="note"><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href="#/me/private">Manage</a></div>`
         : `<div class="note"><span>Showing public repos only.</span><a href="#/me/private">Include private projects</a></div>`}
         <div class="sec-h" style="margin-top:24px"><span>Published by you and your orgs</span><span>${published.length}</span></div>
-        ${published.map(l => `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a> ${isFabrica(l) ? fabBadge() : ''}${l.fresh ? ' <span class="chip on">New</span>' : ''}</div><div class="s"><span class="mono">${esc(l.id)}</span> · ${l.rules.length} rules · ${latest(l)}</div></div>
+        ${published.map(l => `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a>${l.fresh ? ' <span class="chip on">New</span>' : ''}</div><div class="s"><span class="mono">${esc(l.id)}</span> · ${l.rules.length} rules</div></div>
           <div class="row"><span class="meta"><span>${usedBy(l.usedBy)}</span></span>${l.insights ? `<a class="btn small" href="${libUrl(l, 'insights')}">Insights</a>` : ''}</div></div>`).join('')}
         <div style="margin-top:12px"><a class="btn small" href="#/me/add">+ Add a library</a></div>
         <div class="sec-h" style="margin-top:30px"><span>Used in your projects</span><span>${Object.keys(usedMap).length}</span></div>
-        ${Object.entries(usedMap).map(([id, uses]) => { const l = libById(id); return `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a> ${isFabrica(l) ? fabBadge() : ''}</div>
-          <div class="s">${uses.map(u => `${esc(u.repo)}${u.private ? ' (private)' : ''} on ${u.v}${u.v !== latest(l) ? ' · <b style="color:var(--ink);font-weight:500">1 behind</b>' : ''}`).join(' · ')}</div></div>
+        ${Object.entries(usedMap).map(([id, uses]) => { const l = libById(id); return `<div class="list-row"><div><div class="t"><a href="${libUrl(l)}">${esc(libName(l))}</a></div>
+          <div class="s">${uses.map(u => `${esc(u.repo)}${u.private ? ' (private)' : ''}${u.updates ? ` · <b style="color:var(--ink);font-weight:500">${u.updates} rule ${u.updates === 1 ? 'update' : 'updates'}</b>` : ' · up to date'}`).join(' · ')}</div></div>
           <span class="meta"><span>${uses.length} ${uses.length === 1 ? 'project' : 'projects'}</span></span></div>`; }).join('')}
         <p class="faint xs" style="margin-top:12px">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>`;
     } else {
@@ -522,7 +536,7 @@
     const p = D.publishable.find(x => x.id === repo);
     if (!p) return notFound();
     const lib = p.library;
-    const steps = [`Found <b>rule-library.yaml</b> in ${esc(repo)}`, `Library check passed at <b>${latest(lib)}</b>`, `<b>${new Set(lib.rules.map(r => r.group)).size} group</b>, <b>${lib.rules.length} rules</b> indexed`, `License <b>${lib.license}</b>`, 'Watching for new tags'];
+    const steps = [`Found <b>rule-library.yaml</b> in ${esc(repo)}`, `Library check passed`, `<b>${new Set(lib.rules.map(r => r.group)).size} group</b>, <b>${lib.rules.length} rules</b> indexed`, `Tagged ${lib.rules.length} rules at <b>1.0.0</b> · license <b>${lib.license}</b>`, 'Watching for new rule releases'];
     setTimeout(() => runSteps(repo, steps.length), 50);
     return `<div class="page wrap" style="max-width:640px">
       <p class="index">Publish</p><h1 class="title-xl" style="margin:8px 0 18px">Adding ${esc(repo)}</h1>
@@ -565,12 +579,18 @@
   }
 
   function signinPage() {
-    return `<div class="page wrap" style="max-width:440px;text-align:center;padding-top:80px">
+    const perks = [
+      'Star the rules you find useful',
+      'Track the libraries your projects use',
+      'Publish your libraries and see who uses them',
+    ];
+    return `<div class="page wrap" style="max-width:480px;padding-top:72px">
       <div style="width:44px;height:44px;margin:0 auto;color:var(--ink)">${icon.fab}</div>
-      <h1 class="title-xl" style="margin:18px 0 8px">Sign in to Rulemart</h1>
-      <p class="muted">Star rules, see your libraries, and publish your own. Browsing needs no account.</p>
-      <a class="btn primary" style="width:100%;margin-top:22px" href="#/gh/authorize">${icon.gh}Continue with GitHub</a>
-      <p class="faint sm" style="margin-top:14px">Rulemart reads your public profile and public repos. It never writes to GitHub.</p></div>`;
+      <h1 class="title-xl" style="margin:18px 0 22px;text-align:center">Sign in to Rulemart</h1>
+      <p style="margin:0 0 14px;font-weight:500">With a free Rulemart account, you can:</p>
+      <ul class="perks">${perks.map(p => `<li><span class="tick">✓</span>${p}</li>`).join('')}</ul>
+      <a class="btn primary" style="width:100%;margin-top:26px" href="#/gh/authorize">${icon.gh}Continue with GitHub</a>
+      <p class="faint sm" style="margin-top:14px;text-align:center">Browsing needs no account. Rulemart reads your public profile and public repos, and never writes to GitHub.</p></div>`;
   }
 
   function notFound() {
@@ -626,7 +646,7 @@
     let title = ''; let bodyText = '';
     if (r) {
       title = `[${r.title}] `;
-      bodyText = `**Rule:** ${r.group}/${r.slug} @ ${latest(r.lib)}\n\n<!-- Share your experience, ask a question, or suggest a change. -->\n\n\n---\nOpened from Rulemart`;
+      bodyText = `**Rule:** ${r.group}/${r.slug}@${ruleVersion(r)}\n\n<!-- Share your experience, ask a question, or suggest a change. -->\n\n\n---\nOpened from Rulemart`;
     } else if (topic) {
       const t = feedbackTopics[topic];
       title = `[${t.label}] `;
@@ -671,16 +691,16 @@
 
   // ---------- Commands and prompts ----------
   function importCommand(lib, groupIds) {
-    const lines = [`code-rules project add library ${alias(lib)} \\`, `  --repository https://github.com/${lib.id}.git \\`, `  --ref '${refFor(lib)}' \\`];
+    const lines = [`code-rules project add library ${alias(lib)} \\`, `  --repository https://github.com/${lib.id}.git \\`];
     groupIds.forEach((g, i) => lines.push(`  --groups ${g}${i < groupIds.length - 1 ? ' \\' : ''}`));
     lines.push('code-rules project sync');
     return lines.join('\n');
   }
-  const forkCommand = r => [`code-rules project add rule \\`, `  ${r.group}/${r.slug} \\`, `  --from rulemart:${r.lib.id}@${latest(r.lib)}`, 'code-rules project build'].join('\n');
+  const forkCommand = r => [`code-rules project add rule \\`, `  ${r.group}/${r.slug} \\`, `  --from ${r.lib.id}@${ruleVersion(r)}`, 'code-rules project build'].join('\n');
   const installNote = 'If the code-rules CLI is not installed, install it first: https://code-rules.fabricahq.com/start-here/install/';
   const libPrompt = (lib, groupIds) => `Add these rule groups from the ${lib.id} Code Rules library to this project and keep them in sync with the library: ${groupIds.join(', ')}.\n\nRun:\n${importCommand(lib, groupIds)}\n\n${installNote}\nThen make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.`;
   const groupPrompt = r => `Add the "${groupName(r.group)}" rule group (${r.group}) from the ${r.lib.id} Code Rules library to this project, and keep it in sync with the library. It includes the rule "${r.title}".\n\nRun:\n${importCommand(r.lib, [r.group])}\n\n${installNote}\nThen make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.`;
-  const forkPrompt = r => `Fork the Code Rules rule "${r.title}" (${r.group}/${r.slug}) from ${r.lib.id} ${latest(r.lib)} into this project's local rules, with attribution. We will edit it ourselves, so it should not track upstream updates.\n\nRun:\n${forkCommand(r)}\n\n${installNote}`;
+  const forkPrompt = r => `Fork the Code Rules rule "${r.title}" (${r.group}/${r.slug}) from ${r.lib.id}, version ${ruleVersion(r)}, into this project's local rules, with attribution. We will edit it ourselves, so it should not track upstream updates.\n\nRun:\n${forkCommand(r)}\n\n${installNote}`;
 
   // ---------- Modals ----------
   function openModal(html, narrow) {
@@ -700,7 +720,7 @@
         <div class="row"><button class="btn small primary" data-copy="prompt-group">Copy prompt for agent</button><button class="btn small" data-copy="cmd-group">Copy command</button></div>
         <details class="prompt"><summary>What the prompt says</summary><pre>${esc(groupPrompt(r))}</pre></details></div>
       <div class="option"><div class="row between"><h3>2. Fork only this rule</h3><span class="chip">You own it</span></div>
-        <p class="muted sm" style="margin:0">Copies just this rule into <span class="mono">.code-rules/local/</span>, with attribution to ${latest(r.lib)}. Edit it freely; it won't get updates from ${esc(r.lib.owner)}.</p>
+        <p class="muted sm" style="margin:0">Copies just this rule into <span class="mono">.code-rules/local/</span>, with attribution to version ${ruleVersion(r)}. Edit it freely; it won't get updates from ${esc(r.lib.owner)}.</p>
         <pre class="codebox">${esc(forkCommand(r))}</pre>
         <div class="row"><button class="btn small primary" data-copy="prompt-fork">Copy prompt for agent</button><button class="btn small" data-copy="cmd-fork">Copy command</button><span class="flag">--from is a proposed CLI flag</span></div>
         <details class="prompt"><summary>What the prompt says</summary><pre>${esc(forkPrompt(r))}</pre></details></div>`);
@@ -708,9 +728,10 @@
 
   function discussModal(r) {
     const open = discussionFor(r).filter(d => d.state === 'open');
-    openModal(`<div class="modal-h"><div><h2>Discuss this rule</h2><p class="muted sm" style="margin:4px 0 0">Discussion happens in GitHub issues on <span class="mono">${esc(r.lib.id)}</span>.</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
-      ${open.length ? `<p class="index" style="margin:6px 0 4px">Already open about this rule</p>${open.slice(0, 4).map(d => `<div class="disc-item"><div><span class="tt" style="font-weight:500">${esc(d.title)}</span><div class="s"><span class="kind">${d.kind === 'pr' ? 'PR' : 'Issue'}</span><span>#${d.num}</span><span>· ${d.comments} comments</span>${d.relation ? `<span>· ${d.relation === 'changes' ? 'changes this rule' : 'mentions this rule'}</span>` : ''}</div></div><a class="btn small" href="#/gh/issue/${r.lib.id}/${d.num}" data-act="close-nav">Open on GitHub</a></div>`).join('')}` : '<p class="muted">Nothing open about this rule yet.</p>'}
-      <div class="row" style="margin-top:18px"><a class="btn primary" href="#/gh/new?repo=${encodeURIComponent(r.lib.id)}&rule=${encodeURIComponent(r.key)}" data-act="close-nav">${icon.gh}Start a discussion</a><span class="faint sm">Opens a pre-filled issue on GitHub. You review it and submit it there.</span></div>`, true);
+    const newIssue = `#/gh/new?repo=${encodeURIComponent(r.lib.id)}&rule=${encodeURIComponent(r.key)}`;
+    openModal(`<div class="modal-h"><div><h2>Discuss this rule</h2><p class="muted sm" style="margin:4px 0 0">Share an experience, ask a question, or suggest a change. Discussions are GitHub issues on the library's repo.</p></div><button class="x" data-act="close" aria-label="Close">×</button></div>
+      ${open.length ? `<p class="index" style="margin:14px 0 2px">Already open</p>${open.slice(0, 4).map(d => `<a class="disc-link" href="#/gh/issue/${r.lib.id}/${d.num}" data-act="close-nav"><div><span class="tt">${esc(d.title)}</span><div class="s"><span class="kind">${d.kind === 'pr' ? 'PR' : 'Issue'}</span><span>#${d.num}</span><span>· ${d.comments} comments</span></div></div><span class="chev" aria-hidden="true">›</span></a>`).join('')}` : ''}
+      <div style="margin-top:20px"><a class="btn primary" href="${newIssue}" data-act="close-nav">${icon.gh}Start a discussion on GitHub</a></div>`, true);
   }
 
   function feedbackModal() {
@@ -721,7 +742,7 @@
 
   function starSigninModal() {
     openModal(`<div class="modal-h"><h2>Sign in to star rules</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
-      <p class="muted">Stars are public and tied to your GitHub account, one per rule.</p>
+      <p class="muted">Star this rule if you find it useful.</p>
       <div class="row" style="margin-top:16px"><a class="btn primary" href="#/signin" data-act="close-remember">${icon.gh}Continue with GitHub</a><button class="btn" data-act="close">Not now</button></div>`, true);
   }
 
@@ -766,6 +787,7 @@
     else if (a === 'me') html = rest[0] === 'private' ? privatePage() : rest[0] === 'add' ? (rest[1] === 'run' ? addRunPage() : addLibraryPage()) : me();
     else html = notFound();
     document.getElementById('app').innerHTML = `${header(active)}<main>${html}</main>${footer()}`;
+    if (window.hljs) document.querySelectorAll('.md pre code[class*="language-"]').forEach(el => window.hljs.highlightElement(el));
     if (scroll) window.scrollTo(0, 0);
   }
 
@@ -794,6 +816,7 @@
     }
     switch (act) {
       case 'noop': e.preventDefault(); toast('Would open GitHub (not part of the mock)'); break;
+      case 'ghlink': e.preventDefault(); toast(`Opens ${t.getAttribute('href').replace('https://', '')}`); break;
       case 'menu': $('#menu').classList.toggle('hidden'); break;
       case 'signout': state.signedIn = false; save(); go('#/'); render(); toast('Signed out'); break;
       case 'remember': state.returnTo = location.hash || '#/'; save(); break;

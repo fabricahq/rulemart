@@ -75,6 +75,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 <p><b>Correct:</b></p><pre><code>${good}</code></pre>
 <h3>Validation</h3><p>${check}</p>`);
 
+  // Release events: each is the commit where some rules were tagged. They carry dates, not a library version.
   const fabTags = [
     { v: 'v1.0.0', date: '7 months ago', summary: 'First release: 5 groups, 11 rules.' },
     { v: 'v1.1.0', date: '4 months ago', summary: '2 rules changed, 2 added.' },
@@ -91,7 +92,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'wrap-errors-with-operation', group: 'techs/go', title: 'Wrap errors with the operation that failed', impact: 'HIGH', tags: ['errors'], usedBy: 1102, net30: 74, stars: 340,
           whenToRead: 'When returning an error from a Go function that called something that can fail.',
           body: simple('Wrap every returned error with the operation that failed, using <code>%w</code> so callers can still inspect it.', 'if err != nil {\n    return err\n}', 'if err != nil {\n    return fmt.Errorf("load config %s: %w", path, err)\n}', 'Every <code>return err</code> after a failing call adds context, and tests can still match the cause with <code>errors.Is</code>.'),
-          added: 'v1.0.0', changes: [{ v: 'v1.3.0', summary: 'Clarified when not to wrap sentinel errors.', diff: '+4 −1' }] },
+          added: 'v1.0.0', changes: [{ v: 'v1.3.0', bump: 'patch', summary: 'Clarified when not to wrap sentinel errors.', diff: '+4 −1' }] },
         { slug: 'avoid-package-level-state', group: 'techs/go', title: 'Avoid package-level mutable state', impact: 'MEDIUM', tags: ['concurrency'], usedBy: 688, net30: 21, stars: 97,
           whenToRead: 'When adding variables at package scope or singletons in Go.',
           body: simple('Pass dependencies explicitly instead of storing them in package-level variables.', 'var db *sql.DB\n\nfunc Save(u User) error { return insert(db, u) }', 'type Store struct{ db *sql.DB }\n\nfunc (s *Store) Save(u User) error { return insert(s.db, u) }', 'No package-level <code>var</code> holds a connection, client, or cache that tests would need to reset.'),
@@ -103,7 +104,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'narrow-unknown-values', group: 'techs/typescript', title: 'Narrow unknown values before use', impact: 'HIGH', tags: ['types', 'validation'], usedBy: 1210, net30: 88, stars: 286,
           whenToRead: 'When handling parsed JSON, API responses, or other data typed as unknown or any.',
           body: simple('Treat external data as <code>unknown</code> and narrow it with a schema or type guard before reading fields.', 'const user = JSON.parse(text) as User;\nsendEmail(user.email);', 'const user = UserSchema.parse(JSON.parse(text));\nsendEmail(user.email);', 'No <code>as</code> cast turns parsed or fetched data into a domain type without validation.'),
-          added: 'v1.0.0', changes: [{ v: 'v1.4.0', summary: 'Added a note on validating at the boundary only once.', diff: '+5 −0' }] },
+          added: 'v1.0.0', changes: [{ v: 'v1.4.0', bump: 'minor', summary: 'Added a note on validating at the boundary only once.', diff: '+5 −0' }] },
         { slug: 'model-valid-states', group: 'techs/typescript', title: 'Model only valid states', impact: 'MEDIUM', tags: ['types'], usedBy: 802, net30: 40, stars: 154,
           whenToRead: 'When defining types for data with modes, statuses, or optional fields that depend on each other.',
           body: simple('Use discriminated unions so impossible combinations cannot be represented.', 'type Load = { loading: boolean; data?: Data; error?: Error };', "type Load =\n  | { status: 'loading' }\n  | { status: 'done'; data: Data }\n  | { status: 'failed'; error: Error };", 'Types with a status field use a union where each status carries only its own fields.'),
@@ -143,7 +144,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'test-failure-paths', group: 'practices/testing', title: 'Test failure paths, not just success', impact: 'HIGH', tags: ['errors'], usedBy: 1190, net30: 60, stars: 201,
           whenToRead: 'When adding or changing code that can fail, reject input, or time out.',
           body: simple('For every failure the code handles, add a test that triggers it and checks the result.', 'it("saves a user", ...)', 'it("saves a user", ...)\nit("rejects a duplicate email", ...)\nit("surfaces a database timeout", ...)', 'Each handled error branch is reached by at least one test.'),
-          added: 'v1.0.0', changes: [{ v: 'v1.1.0', summary: 'Added timeouts as a failure path.', diff: '+3 −1' }] },
+          added: 'v1.0.0', changes: [{ v: 'v1.1.0', bump: 'minor', summary: 'Added timeouts as a failure path.', diff: '+3 −1' }] },
         { slug: 'test-changed-behavior', group: 'practices/testing', title: 'Test the behavior you changed', impact: 'MEDIUM-HIGH', tags: [], usedBy: 1320, net30: 95, stars: 244,
           whenToRead: 'When changing behavior or fixing a bug, even when no test files are in the diff.',
           body: simple('Every behavior change comes with a test that would fail without it.', '// Fixed the rounding bug. No test.', 'it("rounds half up to the nearest cent", () => {\n  expect(round(1.005)).toBe(1.01);\n});', 'Reverting the change makes at least one test fail.'),
@@ -152,8 +153,9 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
           whenToRead: 'Before writing or reviewing comments, file headers, or doc comments on exported code.',
           body: featuredBody, featured: true,
           added: 'v1.0.0', changes: [
-            { v: 'v1.1.0', summary: 'Added the hidden-constraint example.', diff: '+18 −0' },
-            { v: 'v1.3.0', summary: 'Clarified when a private helper needs a comment. Fixes #198.', diff: '+6 −2' },
+            { v: 'v1.1.0', bump: 'minor', summary: 'Added the hidden-constraint example.', diff: '+18 −0' },
+            { v: 'v1.2.0', bump: 'major', summary: 'Require a file header on every new file, not only on exported modules.', diff: '+9 −4' },
+            { v: 'v1.3.0', bump: 'patch', summary: 'Clarified when a private helper needs a comment. Fixes #198.', diff: '+6 −2' },
           ],
           discussion: [
             { kind: 'pr', num: 226, title: 'Exempt generated files from file headers', author: 'josh-padnick', comments: 4, state: 'open', relation: 'changes', note: 'linked to #221', when: '2 days ago' },
@@ -161,18 +163,18 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
             { kind: 'issue', num: 219, title: 'Stopped our agents from inventing rationales', author: 'dkato', comments: 2, reactions: 7, state: 'open', when: '1 week ago' },
             { kind: 'issue', num: 214, title: 'Does this apply to Go?', author: 'priya-r', comments: 3, reactions: 9, state: 'open', when: '2 weeks ago' },
             { kind: 'pr', num: 203, title: 'Link the comments rule from the Go group README', author: 'mlopez', comments: 1, state: 'open', relation: 'mentions', when: '3 weeks ago' },
-            { kind: 'issue', num: 198, title: 'When does a private helper need a comment?', author: 'mlopez', comments: 11, state: 'closed', closedIn: 'v1.3.0', when: '2 months ago' },
+            { kind: 'issue', num: 198, title: 'When does a private helper need a comment?', author: 'mlopez', comments: 11, state: 'closed', closedIn: '2.0.1', when: '2 months ago' },
           ],
           removals: [
-            { kind: 'Excluded', project: 'lumen-labs/api', at: 'v1.3.0', when: '12 Aug', reason: 'Agents over-comment when given this; we rely on names and tests.' },
-            { kind: 'Replaced', project: 'openledger/sdk-ts', at: 'v1.4.0', when: '20 Sep', reason: 'We want stricter: no body comments without a linked issue.', with: 'local/practices/comments/link-every-workaround' },
-            { kind: 'Group removed', project: 'tidepool/web', at: 'v1.2.0', when: '3 Jul', reason: null },
+            { kind: 'Excluded', project: 'lumen-labs/api', at: '2.0.0', when: '12 Aug', reason: 'Agents over-comment when given this; we rely on names and tests.' },
+            { kind: 'Replaced', project: 'openledger/sdk-ts', at: '2.0.1', when: '20 Sep', reason: 'We want stricter: no body comments without a linked issue.', with: 'local/practices/comments/link-every-workaround' },
+            { kind: 'Group removed', project: 'tidepool/web', at: '1.1.0', when: '3 Jul', reason: null },
           ] },
         { slug: 'dont-invent-rationale', group: 'practices/comments', title: "Don't invent a rationale in comments", impact: 'MEDIUM', tags: ['comments'], usedBy: 903, net30: 70, stars: 176,
           whenToRead: 'When a comment explains why code does something.',
           body: simple('If you do not know why the code works this way, say so or leave the reason out. Never guess.', '// Sleep for performance reasons.\nawait sleep(250);', '// TODO(#412): the reason for this delay is unknown; do not remove without testing the vendor sync.\nawait sleep(250);', 'Every "why" comment is backed by a link, a test, or a known constraint.'),
           added: 'v1.1.0', changes: [] },
-        { slug: 'make-errors-actionable', group: 'practices/error-handling', title: 'Make error messages actionable', impact: 'MEDIUM', tags: ['ux'], usedBy: 1044, net30: 58, stars: 190,
+        { slug: 'make-errors-actionable', lang: 'plaintext', group: 'practices/error-handling', title: 'Make error messages actionable', impact: 'MEDIUM', tags: ['ux'], usedBy: 1044, net30: 58, stars: 190,
           whenToRead: 'When writing or reviewing validation errors shown to users.',
           body: simple('Error messages must explain what went wrong and how to fix it.', '"Upload failed."', '"File too large. Choose a file up to 10 MB."', 'Upload an oversized file and check that the error states the size limit and how to proceed.'),
           added: 'v1.0.0', changes: [] },
@@ -246,7 +248,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'backoff-with-jitter', group: 'techs/go', title: 'Back off with jitter between attempts', impact: 'MEDIUM', tags: ['retries'], usedBy: 188, net30: 6, stars: 9,
           whenToRead: 'Before writing a retry loop in Go, use capped exponential backoff with jitter.',
           body: simple('Use capped exponential backoff with random jitter between retries.', 'for i := 0; i < 5; i++ {\n    time.Sleep(time.Second)\n}', 'b := backoff.NewExponential(100*time.Millisecond, 5*time.Second)\nfor attempt := range b.Attempts(5) { ... }', 'Retry loops never sleep a fixed interval.'),
-          added: 'v0.9.0', changes: [{ v: 'v0.9.2', summary: 'Wording fixes.', diff: '+2 −2' }] },
+          added: 'v0.9.0', changes: [{ v: 'v0.9.2', bump: 'patch', summary: 'Wording fixes.', diff: '+2 −2' }] },
         { slug: 'accept-interfaces-return-structs', group: 'techs/go', title: 'Accept interfaces, return structs', impact: 'MEDIUM', tags: ['api-design'], usedBy: 377, net30: 11, stars: 96,
           whenToRead: 'When designing Go function signatures and constructors.',
           body: simple('Take the narrowest interface you need; return concrete types.', 'func NewService(db *sql.DB) ServiceInterface', 'func NewService(q Querier) *Service', 'Constructors return concrete types.'),
@@ -285,15 +287,15 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
       license: 'MIT', tags: [{ v: 'v0.2.0', date: '2 months ago', summary: 'First rules.' }, { v: 'v0.3.0', date: '3 weeks ago', summary: 'Added a TypeScript rule.' }],
       addedBy: 'josh-padnick', addedOn: '5 Aug 2026', usedBy: 12,
       rules: [
-        { slug: 'document-why-not-what', group: 'practices/documentation', title: 'Document why, not what', impact: 'LOW-MEDIUM', tags: [], usedBy: 12, net30: 2, stars: 18,
+        { slug: 'document-why-not-what', lang: 'plaintext', group: 'practices/documentation', title: 'Document why, not what', impact: 'LOW-MEDIUM', tags: [], usedBy: 12, net30: 2, stars: 18,
           whenToRead: 'When writing READMEs or design notes.',
           body: simple('Explain decisions and constraints; the code already shows what it does.', 'This function loops over users and sends emails.', 'We batch emails in groups of 100 because the provider rate-limits per connection.', 'Every doc section answers a "why" the code cannot.'),
           added: 'v0.2.0', changes: [] },
-        { slug: 'keep-readme-runnable', group: 'practices/documentation', title: 'Keep README commands runnable', impact: 'MEDIUM', tags: [], usedBy: 9, net30: 1, stars: 13,
+        { slug: 'keep-readme-runnable', lang: 'bash', group: 'practices/documentation', title: 'Keep README commands runnable', impact: 'MEDIUM', tags: [], usedBy: 9, net30: 1, stars: 13,
           whenToRead: 'When changing commands, scripts, or setup steps.',
           body: simple('Every command in the README works when pasted into a fresh clone.', 'npm run start:dev  # removed last month', 'npm run dev', 'Run each README command in a clean checkout.'),
           added: 'v0.2.0', changes: [] },
-        { slug: 'small-prs-from-agents', group: 'practices/agent-hygiene', title: 'Keep agent pull requests small', impact: 'LOW-MEDIUM', tags: ['agents'], usedBy: 6, net30: 1, stars: 4,
+        { slug: 'small-prs-from-agents', lang: 'plaintext', group: 'practices/agent-hygiene', title: 'Keep agent pull requests small', impact: 'LOW-MEDIUM', tags: ['agents'], usedBy: 6, net30: 1, stars: 4,
           whenToRead: 'When an agent is about to open a pull request.',
           body: simple('Split agent work into pull requests a person can review in one sitting.', 'One PR: refactor + feature + dependency bump (2,400 lines).', 'Three PRs: refactor, then feature, then dependency bump.', 'Each PR changes one thing and stays under a few hundred lines.'),
           added: 'v0.3.0', changes: [] },
@@ -316,11 +318,11 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         id: 'josh-padnick/rules-experimental', owner: 'josh-padnick', name: 'Experimental Rules', description: "Rules I'm trying out before promoting them.",
         license: 'MIT', tags: [{ v: 'v0.1.0', date: 'yesterday', summary: 'First rules.' }], usedBy: 0,
         rules: [
-          { slug: 'review-plan-before-diff', group: 'practices/code-review', title: 'Review the plan before the diff', impact: 'MEDIUM', tags: ['agents'], usedBy: 0, net30: 0, stars: 0,
+          { slug: 'review-plan-before-diff', lang: 'plaintext', group: 'practices/code-review', title: 'Review the plan before the diff', impact: 'MEDIUM', tags: ['agents'], usedBy: 0, net30: 0, stars: 0,
             whenToRead: 'When reviewing an agent-written pull request.',
             body: simple('Read the stated plan and check it solves the right problem before reading line by line.', 'Start at file 1, line 1.', 'Read the PR description and plan; confirm the approach; then read the diff.', 'Review comments address the approach before style.'),
             added: 'v0.1.0', changes: [] },
-          { slug: 'flag-unverified-claims', group: 'practices/code-review', title: 'Flag unverified claims in PR descriptions', impact: 'MEDIUM', tags: ['agents'], usedBy: 0, net30: 0, stars: 0,
+          { slug: 'flag-unverified-claims', lang: 'plaintext', group: 'practices/code-review', title: 'Flag unverified claims in PR descriptions', impact: 'MEDIUM', tags: ['agents'], usedBy: 0, net30: 0, stars: 0,
             whenToRead: 'When a PR description says something was tested or verified.',
             body: simple('Ask for evidence when a description claims tests pass or behavior was verified.', '"All tests pass." (no CI run linked)', '"All tests pass: CI run #812. Verified manually in staging: screenshot attached."', 'Every verification claim links to evidence.'),
             added: 'v0.1.0', changes: [] },
@@ -332,12 +334,12 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
   // Projects that use Code Rules, as Rulemart would read them from provenance.json.
   const myProjects = {
     public: [
-      { repo: 'josh-padnick/api-server', sources: [{ lib: 'fabricahq/.code-rules', v: 'v1.3.0', groups: 3 }, { lib: 'gopherworks/go-rules', v: 'v0.9.2', groups: 1 }] },
-      { repo: 'josh-padnick/site', sources: [{ lib: 'fabricahq/.code-rules', v: 'v1.4.0', groups: 2 }] },
+      { repo: 'josh-padnick/api-server', sources: [{ lib: 'fabricahq/.code-rules', updates: 2, groups: 3 }, { lib: 'gopherworks/go-rules', updates: 0, groups: 1 }] },
+      { repo: 'josh-padnick/site', sources: [{ lib: 'fabricahq/.code-rules', updates: 0, groups: 2 }] },
     ],
     private: [
-      { repo: 'josh-padnick/billing-service', sources: [{ lib: 'fabricahq/.code-rules', v: 'v1.4.0', groups: 4 }, { lib: 'acme/.code-rules', v: 'v2.1.0', groups: 2 }] },
-      { repo: 'josh-padnick/mobile-app', sources: [{ lib: 'fabricahq/.code-rules', v: 'v1.3.0', groups: 3 }] },
+      { repo: 'josh-padnick/billing-service', sources: [{ lib: 'fabricahq/.code-rules', updates: 0, groups: 4 }, { lib: 'acme/.code-rules', updates: 0, groups: 2 }] },
+      { repo: 'josh-padnick/mobile-app', sources: [{ lib: 'fabricahq/.code-rules', updates: 1, groups: 3 }] },
     ],
   };
 
