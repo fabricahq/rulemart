@@ -820,7 +820,7 @@
           <div class="seg tabs2">${[['prompt', 'Prompt'], ['commands', 'Commands']].map(([k, l]) => `<button data-checkouttab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
           ${livePreview(tab, tab === 'prompt' ? checkoutPrompt(plan) : checkoutCommands(plan))}
           <button class="btn primary" style="width:100%;margin-top:12px" data-copy="${tab === 'prompt' ? 'checkout-prompt' : 'checkout-cmd'}">${tab === 'prompt' ? 'Copy prompt for agent' : 'Copy commands'}</button>
-          <p class="faint xs" style="margin:10px 0 0">Rules you didn't pick are excluded, so only your picks reach your agents. <span class="flag">--exclude</span> and <span class="flag">--from</span> are proposed CLI flags.</p>
+          <p class="faint xs" style="margin:10px 0 0">Rules move to newer versions only when your project runs <code>code-rules project update</code>.</p>
         </div></div></aside></div></div>`;
   }
 
@@ -1009,15 +1009,16 @@
     const byLib = new Map();
     cartItems().forEach(it => { if (!byLib.has(it.lib.id)) byLib.set(it.lib.id, { lib: it.lib, wholeGroups: new Set(), picks: [], forks: [] }); const p = byLib.get(it.lib.id);
       if (it.kind === 'group') p.wholeGroups.add(it.g); else if (state.cartFork[it.k]) p.forks.push(it.r); else p.picks.push(it.r); });
+    // Whole groups go in the source's groups and single rules in its rules, so the rest of their group stays out.
+    // "Also add the other rules" (full) turns single picks into their whole groups.
     return [...byLib.values()].map(p => {
-      const groups = [...new Set([...p.wholeGroups, ...p.picks.map(r => r.group)])];
-      const picked = new Set([...p.picks, ...p.forks].map(r => r.key));
       const full = !!state.cartFull[p.lib.id];
-      const excludes = groups.filter(g => !p.wholeGroups.has(g)).flatMap(g => p.lib.rules.filter(x => x.group === g))
-        .map(x => ({ ...x, lib: p.lib, key: `${p.lib.id}::${x.group}/${x.slug}` }))
-        .filter(x => (full ? p.forks.some(f => f.key === x.key) : !picked.has(x.key) || p.forks.some(f => f.key === x.key)));
-      const extra = full ? 0 : excludes.filter(x => !picked.has(x.key)).length;
-      return { ...p, groups, excludes, extra, full };
+      const pickGroups = [...new Set(p.picks.map(r => r.group))].filter(g => !p.wholeGroups.has(g));
+      const groups = [...p.wholeGroups, ...(full ? pickGroups : [])];
+      const rules = full ? [] : p.picks.filter(r => !p.wholeGroups.has(r.group));
+      const picked = new Set([...p.picks, ...p.forks].map(r => r.key));
+      const extra = full ? 0 : pickGroups.flatMap(g => p.lib.rules.filter(x => x.group === g)).filter(x => !picked.has(`${p.lib.id}::${x.group}/${x.slug}`)).length;
+      return { ...p, groups, rules, extra, full };
     });
   }
   const SETUP = ['curl -fsSL https://code-rules.fabricahq.com/install.sh | sh', 'code-rules project init'];
@@ -1043,18 +1044,24 @@
     if (target.mode === 'new') out.push(`# Set up Code Rules\n${SETUP.join('\n')}`);
     if (target.mode === 'unknown') out.push(`# Only if it doesn't use Code Rules yet\n${SETUP.join('\n')}`);
     const setupN = out.length;
+    const continued = lines => lines.map((l, i) => (i === 0 ? l : `  ${l}`)).map((l, i, all) => (i < all.length - 1 ? `${l} \\` : l)).join('\n');
     plan.forEach(p => {
-      if (p.groups.length) {
-        const already = target.project && target.project.sources.some(x => x.lib === p.lib.id);
-        const lines = [...(already ? [`# ${target.project.repo} already imports ${p.lib.id}; this adds to it`] : []), `code-rules project add library ${alias(p.lib)} \\`, `  --repository https://github.com/${p.lib.id}.git`];
-        p.groups.forEach(g => lines.push(`  --groups ${g}`));
-        p.excludes.forEach(x => lines.push(`  --exclude ${x.group}/${x.slug}`));
-        const first = already ? 1 : 0;
-        out.push(lines.map((l, i) => (i > first && i < lines.length - 1 && !l.endsWith('\\') ? `${l} \\` : l)).join('\n'));
+      const name = alias(p.lib); const url = `https://github.com/${p.lib.id}.git`;
+      const configured = !!target.project && target.project.sources.some(x => x.lib === p.lib.id);
+      const selects = p.groups.length || p.rules.length;
+      // A source the project already has: add to its groups and rules in configuration, then sync picks them up.
+      if (selects && configured) {
+        out.push([`# ${target.project.repo} already imports ${p.lib.id} as ${name}.`, `# In .code-rules/config.yaml, add to sources.${name}:`,
+          ...(p.groups.length ? ['#   groups:', ...p.groups.map(g => `#     - ${g}`)] : []),
+          ...(p.rules.length ? ['#   rules:', ...p.rules.map(r => `#     - ${r.group}/${r.slug}`)] : [])].join('\n'));
+      } else if (selects) {
+        out.push(continued([`code-rules project add library ${name}`, `--repository ${url}`, ...p.groups.map(g => `--groups ${g}`), ...p.rules.map(r => `--rules ${r.group}/${r.slug}`)]));
       }
-      p.forks.forEach(r => out.push([`code-rules project add rule ${r.group}/${r.slug} \\`, `  --from ${p.lib.id}@${ruleVersion(r)}`].join('\n')));
+      // A fork copies one version into local/. When the project also imports the rule, --reason records why the fork replaces it.
+      p.forks.forEach(r => out.push(continued([`code-rules project add rule ${r.group}/${r.slug}`, `--from ${configured || selects ? name : url}@${ruleVersion(r)}`,
+        ...(p.groups.includes(r.group) ? ["--reason 'We maintain our own version of this rule.'"] : [])])));
     });
-    out.push(plan.some(p => p.groups.length) ? 'code-rules project sync' : 'code-rules project build');
+    out.push(plan.some(p => p.groups.length || p.rules.length) ? 'code-rules project sync' : 'code-rules project build');
     // After setup steps, label where adding the rules begins.
     if (setupN > 1) out[setupN] = `# Add your rules\n${out[setupN]}`;
     return out.join('\n\n');
@@ -1069,23 +1076,14 @@
     const lines = [intro, ''];
     plan.forEach(p => {
       lines.push(`From ${libName(p.lib)} (${p.lib.id}):`);
-      p.picks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}@${ruleVersion(r)}), kept in sync with the library`));
-      [...p.wholeGroups].forEach(g => lines.push(`- The whole ${groupName(g)} group (${g}), kept in sync with the library`));
-      p.forks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}@${ruleVersion(r)}), forked as a local rule we can edit`));
+      p.groups.forEach(g => lines.push(`- The whole ${groupName(g)} group (${g}), including rules the library adds to it later`));
+      p.rules.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}), without the rest of its group`));
+      p.forks.forEach(r => lines.push(`- ${r.title} (${r.group}/${r.slug}), forked from version ${ruleVersion(r)} as a local rule we can edit`));
       lines.push('');
     });
-    lines.push('Run:', checkoutCommands(plan, target), '', 'Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md.');
+    lines.push('Run:', checkoutCommands(plan, target), '', 'Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer versions only when someone runs code-rules project update and confirms.');
     return lines.join('\n');
   }
-
-  // ---------- Commands and prompts ----------
-  function importCommand(lib, groupIds) {
-    const lines = [`code-rules project add library ${alias(lib)} \\`, `  --repository https://github.com/${lib.id}.git \\`];
-    groupIds.forEach((g, i) => lines.push(`  --groups ${g}${i < groupIds.length - 1 ? ' \\' : ''}`));
-    lines.push('code-rules project sync');
-    return lines.join('\n');
-  }
-  const forkCommand = r => [`code-rules project add rule \\`, `  ${r.group}/${r.slug} \\`, `  --from ${r.lib.id}@${ruleVersion(r)}`, 'code-rules project build'].join('\n');
 
   // ---------- Modals ----------
   function openModal(html, narrow) {
