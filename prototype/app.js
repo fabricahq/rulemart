@@ -266,7 +266,7 @@
       ${rowList(libraries().slice(0, 4).map(libLine).join(''))}
     </div></section>
     <section class="band"><div class="wrap"><div class="cta-band">
-      <div><p class="index" style="margin-bottom:6px">Stock the shelves</p><h3>Have a public Code Rules library?</h3><p class="muted" style="margin:6px 0 0">List it on Rulemart in a minute. Rulemart updates on every new tag.</p></div>
+      <div><p class="index" style="margin-bottom:6px">Stock the shelves</p><h3>Have a public Code Rules library?</h3><p class="muted" style="margin:6px 0 0">List it on Rulemart in a minute. Rulemart updates with every library release.</p></div>
       <a class="btn primary" href="${state.signedIn ? '#/me/add' : '#/signin'}" data-act="${state.signedIn ? '' : 'remember-add'}">List your library →</a>
     </div></div></section>`;
   }
