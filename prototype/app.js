@@ -86,7 +86,7 @@
   const groupBlurb = id => (id.startsWith('practices/') ? (D.groups[id] || {}).whenToRead || '' : '');
   // Canonical groups carry an icon: Devicon logos (MIT) for technologies, Lucide line icons (ISC) for practices. Non-canonical groups have none.
   const iconUrl = g => (g.iconUrl || (g.icon ? `https://cdn.jsdelivr.net/gh/devicons/devicon@v2.17.0/icons/${g.icon}.svg` : g.lucide ? `https://cdn.jsdelivr.net/npm/lucide-static@1.48.0/icons/${g.lucide}.svg` : null));
-  const techIcon = (id, cls = '') => { const g = D.groups[id]; const url = g && g.canonical && iconUrl(g); return url ? `<span class="ticon ${cls} ${g.lucide ? 'line' : ''} ${g.iconUrl ? 'wide' : ''}"><img src="${url}" alt=""></span>` : ''; };
+  const techIcon = (id, cls = '') => { const g = D.groups[id]; const url = g && g.canonical && iconUrl(g); return url ? `<span class="ticon ${cls} ${g.lucide ? 'line' : ''} ${g.ink ? 'ink' : ''} ${g.iconUrl ? 'wide' : ''}"><img src="${url}" alt=""></span>` : ''; };
   const alias = lib => lib.owner.replace(/hq$/, '').replace(/[^a-z0-9-]/gi, '');
   // ---------- Assets ----------
   // A rule's own files live in <group>/assets/<rule>/ beside it; files shared across the library live in the root assets/.
