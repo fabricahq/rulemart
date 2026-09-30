@@ -1,10 +1,10 @@
 // Package database gives each Rulemart function one long-lived Postgres pool whose connection string lives in an
 // SSM SecureString parameter.
 //
-// The pool opens on first use and is never closed while callers use it. Each new connection reads the current
-// password, so a password changed in Neon and in the parameter takes effect without replacing the function: when
-// Postgres rejects a password, Run reads the parameter again and retries once. Connections already open keep working,
-// because changing a Postgres password doesn't end existing sessions.
+// The pool opens on first use and is never closed while callers use it. Each new connection takes its target and
+// credentials from the parameter's latest value, so a changed password or endpoint takes effect without replacing the
+// function: when a connection fails, Run reads the parameter again and retries once. Connections already open keep
+// working, because changing a Postgres password doesn't end existing sessions.
 package database
 
 import (
@@ -74,11 +74,12 @@ func New(parameters ParameterReader, parameterName string, schemaVersion int64) 
 	}
 }
 
-// Run calls fn with the pool, opening it first if needed. When Postgres rejects the password, Run reads the
-// parameter again and makes one more attempt, so fn must be safe to repeat. Run returns fn's error unchanged.
+// Run calls fn with the pool, opening it first if needed. When a connection fails, such as when Postgres rejects the
+// password or the database has moved, Run reads the parameter again and makes one more attempt, so fn must be safe to
+// repeat. Run returns fn's error unchanged.
 func (d *DB) Run(ctx context.Context, fn func(*pgxpool.Pool) error) error {
-	rejected, err := d.attempt(ctx, fn)
-	if !rejected {
+	failedToConnect, err := d.attempt(ctx, fn)
+	if !failedToConnect {
 		return err
 	}
 	d.forgetConnString()
@@ -93,15 +94,14 @@ func (d *DB) Close() {
 	}
 }
 
-// attempt runs fn once and reports whether its error, or opening the pool, failed because Postgres rejected the
-// password.
-func (d *DB) attempt(ctx context.Context, fn func(*pgxpool.Pool) error) (rejected bool, err error) {
+// attempt runs fn once and reports whether it, or opening the pool, failed to connect to Postgres.
+func (d *DB) attempt(ctx context.Context, fn func(*pgxpool.Pool) error) (failedToConnect bool, err error) {
 	pool, err := d.get(ctx)
 	if err != nil {
-		return isAuthFailure(err), fmt.Errorf("open database parameter=%q: %v", d.parameterName, err)
+		return isConnectFailure(err), fmt.Errorf("open database parameter=%q: %v", d.parameterName, err)
 	}
 	err = fn(pool)
-	return isAuthFailure(err), err
+	return isConnectFailure(err), err
 }
 
 // get returns the open pool, opening it if no earlier attempt succeeded. A failed open leaves nothing behind, so
@@ -142,7 +142,7 @@ func (d *DB) open(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, errors.New("the parameter doesn't hold a valid Postgres connection string")
 	}
 	config.MaxConns = maxConns
-	config.BeforeConnect = d.useCurrentPassword
+	config.BeforeConnect = d.useCurrentTarget
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("create pool: %w", err)
@@ -154,8 +154,9 @@ func (d *DB) open(ctx context.Context) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-// useCurrentPassword gives a new connection the password in the parameter's latest value.
-func (d *DB) useCurrentPassword(ctx context.Context, config *pgx.ConnConfig) error {
+// useCurrentTarget gives a new connection the host, port, database, TLS settings, and credentials in the parameter's
+// latest value.
+func (d *DB) useCurrentTarget(ctx context.Context, config *pgx.ConnConfig) error {
 	connString, err := d.readConnString(ctx)
 	if err != nil {
 		return err
@@ -164,7 +165,7 @@ func (d *DB) useCurrentPassword(ctx context.Context, config *pgx.ConnConfig) err
 	if err != nil {
 		return errors.New("the parameter doesn't hold a valid Postgres connection string")
 	}
-	config.User, config.Password = current.User, current.Password
+	config.Config = current.Config
 	return nil
 }
 
@@ -230,10 +231,11 @@ func checkSchema(ctx context.Context, pool *pgxpool.Pool, required int64) error 
 	return nil
 }
 
-// isAuthFailure reports whether Postgres rejected a connection's credentials.
-func isAuthFailure(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && (pgErr.Code == "28P01" || pgErr.Code == "28000")
+// isConnectFailure reports whether err came from failing to establish a connection, such as a rejected password or a
+// database that no longer exists, rather than from a statement.
+func isConnectFailure(err error) bool {
+	var connectErr *pgconn.ConnectError
+	return errors.As(err, &connectErr)
 }
 
 // acquire takes the one slot in gate, or gives up when ctx ends.

@@ -40,7 +40,7 @@ func New(t *testing.T) string {
 	server := Server(t)
 	name := "rulemart_test_" + RandomHex(t, 8)
 	exec(t, server, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
-	t.Cleanup(func() { exec(t, server, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)") })
+	t.Cleanup(func() { exec(t, server, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)") })
 	return withDatabase(t, server, name)
 }
 

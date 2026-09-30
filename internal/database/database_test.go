@@ -62,8 +62,13 @@ func appRole(t *testing.T, connString string) func(password string) string {
 	testdb.Exec(t, connString, "CREATE ROLE "+ident+" LOGIN")
 	testdb.Exec(t, connString, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO "+ident)
 	t.Cleanup(func() {
-		testdb.Exec(t, connString, "DROP OWNED BY "+ident)
-		testdb.Exec(t, connString, "DROP ROLE "+ident)
+		// A test may have dropped the database, and the role's privileges with it.
+		var exists bool
+		testdb.QueryRow(t, testdb.Server(t), `SELECT exists(SELECT 1 FROM pg_database WHERE datname = '`+databaseName(t, connString)+`')`, &exists)
+		if exists {
+			testdb.Exec(t, connString, "DROP OWNED BY "+ident)
+		}
+		testdb.Exec(t, testdb.Server(t), "DROP ROLE "+ident)
 	})
 	return func(password string) string {
 		testdb.Exec(t, connString, "ALTER ROLE "+ident+" PASSWORD "+quote(password))
@@ -313,5 +318,55 @@ func TestRunGivesUpOnAPasswordRefreshThatStalls(t *testing.T) {
 	param.mu.Unlock()
 	if err := db.Run(ctx, selectOne(ctx)); err != nil {
 		t.Fatalf("query after the parameter could be read again: %v", err)
+	}
+}
+
+func currentDatabase(ctx context.Context, name *string) func(*pgxpool.Pool) error {
+	return func(pool *pgxpool.Pool) error { return pool.QueryRow(ctx, "SELECT current_database()").Scan(name) }
+}
+
+// databaseName returns the database a connection string names.
+func databaseName(t *testing.T, connString string) string {
+	t.Helper()
+	config, err := pgx.ParseConfig(connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return config.Database
+}
+
+// New connections used to keep the host, port, and database the pool first opened with, and take only the user and
+// password from the parameter, so a warm function couldn't follow the connection string to another database.
+func TestRunFollowsTheParameterToAnotherDatabase(t *testing.T) {
+	ctx := context.Background()
+	for name, cutover := range map[string]func(t *testing.T, oldDB string){
+		"the old database rejects the password": func(*testing.T, string) {},
+		"the old database no longer exists": func(t *testing.T, oldDB string) {
+			testdb.Exec(t, testdb.Server(t), "DROP DATABASE "+pgx.Identifier{databaseName(t, oldDB)}.Sanitize()+" WITH (FORCE)")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			oldDB, newDB := migrated(t), migrated(t)
+			oldPassword, newPassword := appRole(t, oldDB), appRole(t, newDB)
+			param := &parameter{value: oldPassword("first")}
+			db := New(param, "/test/database-url", requiredVersion(t))
+			t.Cleanup(db.Close)
+			var got string
+			if err := db.Run(ctx, currentDatabase(ctx, &got)); err != nil || got != databaseName(t, oldDB) {
+				t.Fatalf("first query reached %q, err %v; want %q", got, err, databaseName(t, oldDB))
+			}
+
+			oldPassword("retired")
+			param.set(newPassword("second"))
+			forceNewConnections(db)
+			cutover(t, oldDB)
+
+			if err := db.Run(ctx, currentDatabase(ctx, &got)); err != nil {
+				t.Fatalf("query after the parameter moved: %v", err)
+			}
+			if want := databaseName(t, newDB); got != want {
+				t.Fatalf("reached %q after the parameter moved, want %q", got, want)
+			}
+		})
 	}
 }
