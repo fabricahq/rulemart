@@ -5,10 +5,12 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 	"unicode/utf8"
@@ -73,17 +75,21 @@ func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest)
 	switch req.RawPath {
 	case "/":
 		return text(http.StatusOK, "no-store", "Rulemart walking skeleton\n\n"+
-			"GET /enqueue?text=hi  queue a message for the worker\n"+
-			"GET /messages         read what the worker stored in Neon\n"+
-			"GET /cached           cached by CloudFront for 60 seconds\n")
+			"POST /enqueue   queue a message for the worker; send its text as the form field text\n"+
+			"GET /messages   read what the worker stored in Neon\n"+
+			"GET /cached     cached by CloudFront for 60 seconds\n")
 	case "/enqueue":
-		// Queueing is a side effect, so HEAD probes and other methods don't reach it.
-		if req.RequestContext.HTTP.Method != http.MethodGet {
-			resp := text(http.StatusMethodNotAllowed, "no-store", "Use GET\n")
-			resp.Headers["allow"] = http.MethodGet
+		// Queueing is a side effect, so only POST reaches it. GET stays safe for crawlers, prefetchers, and retries.
+		if req.RequestContext.HTTP.Method != http.MethodPost {
+			resp := text(http.StatusMethodNotAllowed, "no-store", "Use POST\n")
+			resp.Headers["allow"] = http.MethodPost
 			return resp
 		}
-		msg := req.QueryStringParameters["text"]
+		form, err := formValues(req)
+		if err != nil {
+			return text(http.StatusBadRequest, "no-store", "Send the text as a URL-encoded form field\n")
+		}
+		msg := form.Get("text")
 		if msg == "" {
 			msg = "Hello from the web"
 		}
@@ -119,6 +125,19 @@ func (s *server) enqueue(ctx context.Context, msg, source string) (string, error
 		return "", fmt.Errorf("send to queue: %w", err)
 	}
 	return aws.ToString(out.MessageId), nil
+}
+
+// formValues parses a request's URL-encoded form body, which the Function URL may deliver base64-encoded.
+func formValues(req events.LambdaFunctionURLRequest) (url.Values, error) {
+	body := req.Body
+	if req.IsBase64Encoded {
+		decoded, err := base64.StdEncoding.DecodeString(body)
+		if err != nil {
+			return nil, err
+		}
+		body = string(decoded)
+	}
+	return url.ParseQuery(body)
 }
 
 func text(status int, cache, body string) events.LambdaFunctionURLResponse {

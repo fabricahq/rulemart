@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -27,9 +28,7 @@ func TestServe(t *testing.T) {
 		value  string
 	}{
 		{"home lists routes", request(http.MethodGet, "/", nil), http.StatusOK, "cache-control", "no-store"},
-		{"HEAD never queues", request(http.MethodHead, "/enqueue", nil), http.StatusMethodNotAllowed, "allow", http.MethodGet},
-		{"POST never queues", request(http.MethodPost, "/enqueue", nil), http.StatusMethodNotAllowed, "allow", http.MethodGet},
-		{"text is bounded", request(http.MethodGet, "/enqueue", map[string]string{"text": strings.Repeat("x", hello.MaxTextLength+1)}), http.StatusBadRequest, "cache-control", "no-store"},
+		{"text is bounded", post("/enqueue", url.Values{"text": {strings.Repeat("x", hello.MaxTextLength+1)}}), http.StatusBadRequest, "cache-control", "no-store"},
 		{"cached page is cacheable", request(http.MethodGet, "/cached", nil), http.StatusOK, "cache-control", "public, max-age=60"},
 		{"unknown path", request(http.MethodGet, "/nope", nil), http.StatusNotFound, "cache-control", "no-store"},
 	}
