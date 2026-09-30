@@ -1,5 +1,6 @@
-// Command worker consumes the job queue and stores each message in Neon. Failed messages are reported one by one,
-// so SQS retries only those and moves them to the dead-letter queue after repeated failures.
+// Command worker consumes the job queue and stores each message in Neon, once per SQS message ID. Invalid or failed
+// messages are reported one by one, so SQS retries only those and moves them to the dead-letter queue after repeated
+// failures.
 package main
 
 import (
@@ -30,7 +31,10 @@ func handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, e
 		var m hello.Message
 		err := json.Unmarshal([]byte(rec.Body), &m)
 		if err == nil {
-			err = hello.Insert(ctx, db, m)
+			err = m.Validate()
+		}
+		if err == nil {
+			err = hello.Insert(ctx, db, rec.MessageId, m)
 		}
 		if err != nil {
 			log.Printf("message %s: %v", rec.MessageId, err)
