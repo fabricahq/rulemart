@@ -17,17 +17,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
+	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/hello"
+	"github.com/fabricahq/rulemart/internal/migrate"
 )
 
 var (
 	queue    *sqs.Client
 	queueURL = os.Getenv("QUEUE_URL")
 
-	// Only /messages needs Neon, so / and /enqueue work before Neon is configured.
-	db hello.DB
+	// Only /messages needs Neon, and the store connects on first use, so / and /enqueue work before Neon is
+	// configured.
+	messages *hello.Store
 )
 
 func main() {
@@ -35,7 +38,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	schemaVersion, err := migrate.RequiredVersion()
+	if err != nil {
+		panic(err)
+	}
 	queue = sqs.NewFromConfig(cfg)
+	messages = hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))
 	lambda.Start(handle)
 }
 
@@ -79,11 +87,7 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 		}
 		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": msg})
 	case "/messages":
-		var rows []hello.Row
-		err := db.Run(ctx, func(pool *pgxpool.Pool) (err error) {
-			rows, err = hello.Latest(ctx, pool, 20)
-			return err
-		})
+		rows, err := messages.Latest(ctx, 20)
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}

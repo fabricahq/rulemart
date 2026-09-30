@@ -7,18 +7,32 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 
+	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/hello"
+	"github.com/fabricahq/rulemart/internal/migrate"
 )
 
-// Neon opens on the first message, so a message that can't be stored fails and retries instead of the function.
-var db hello.DB
+// The store connects on the first message, so a message that can't be stored fails and retries instead of the
+// function.
+var messages *hello.Store
 
 func main() {
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	schemaVersion, err := migrate.RequiredVersion()
+	if err != nil {
+		log.Fatal(err)
+	}
+	messages = hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))
 	lambda.Start(handle)
 }
 
@@ -31,7 +45,7 @@ func handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, e
 			err = m.Validate()
 		}
 		if err == nil {
-			err = db.Run(ctx, func(pool *pgxpool.Pool) error { return hello.Insert(ctx, pool, rec.MessageId, m) })
+			err = messages.Insert(ctx, rec.MessageId, m)
 		}
 		if err != nil {
 			log.Printf("message %s: %v", rec.MessageId, err)
