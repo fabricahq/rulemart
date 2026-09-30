@@ -44,6 +44,8 @@ window.RULEMART_DATA = (() => {
 <p>A comment is an index entry, not a narration of the next line. A file comment lets a reader decide whether to open the file. An export comment tells a caller what they get back, including rules the signature does not show. A body comment records a constraint that names and types cannot express.</p>
 <p>Agent-authored code fails this rule by omission more than by narration: files land with no header, exports carry <code>@param</code> tags that repeat the signature, and a magic sleep ships with no reason. When the reason is missing, do not invent one; a guessed rationale becomes a spec for the next agent.</p>
 <h3>File role and exported contract</h3>
+<p>Give every new file a header that states its role, including files that export nothing, such as scripts, tests, and configuration.</p>
+<p>A private helper needs a comment only when its name and signature leave a caller guessing, such as a unit, an ordering requirement, or a side effect.</p>
 <p><b>Incorrect:</b> no file header, and the export comment repeats the name and signature.</p>
 <pre><code>/**
  * Parses transactions.
@@ -62,12 +64,80 @@ export function parseTransactions(csv: string): Transaction[]</code></pre>
  * Throws on a row with the wrong field count or an unparsable amount.
  */
 export function parseTransactions(csv: string): Transaction[]</code></pre>
+<p>See <a href="assets/comment-role-result-and-constraints/file-header.ts">a complete file header</a> for a script that exports nothing.</p>
 <h3>Hidden constraints</h3>
 <p>Record the constraint the code cannot show, such as a vendor rate limit, next to the value it explains.</p>
 <pre><code>// The vendor rejects more than 4 calls per second per API key.
 const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
 <h3>Validation</h3>
 <p>Every new file has a header that states its role. Every export comment describes the result or a rule the signature hides. No comment restates the next line.</p>`);
+
+  // The comment rule's own files at each of its versions, keyed by path from its group directory. Rulemart would read
+  // them at the library release tag that published each version; the mock builds them here to compare versions.
+  // featuredBody renders the latest version.
+  const atLeast = (version, v) => version.localeCompare(v, undefined, { numeric: true }) >= 0;
+  const commentRuleMarkdown = version => {
+    const at = v => atLeast(version, v);
+    const ts = code => `\`\`\`ts\n${code}\n\`\`\``;
+    return [
+      `---
+title: Comment the role, the result, and the hidden constraint
+whenToRead: 'Before writing or reviewing comments, file headers, or doc comments on exported code.'
+impact: MEDIUM
+impactDescription: Readers and agents can't tell what a file or export is for, or why a value is what it is.
+tags: [typescript, comments, documentation]
+---`,
+      `A comment is an index entry, not a narration of the next line. A file comment lets a reader decide whether to open the file. An export comment tells a caller what they get back, including rules the signature does not show.${at('1.1.0') ? ' A body comment records a constraint that names and types cannot express.' : ''}`,
+      'Agent-authored code fails this rule by omission more than by narration: files land with no header, exports carry `@param` tags that repeat the signature, and a magic sleep ships with no reason. When the reason is missing, do not invent one; a guessed rationale becomes a spec for the next agent.',
+      '### File role and exported contract',
+      at('2.0.0')
+        ? 'Give every new file a header that states its role, including files that export nothing, such as scripts, tests, and configuration.'
+        : 'Give every module that exports code a header that states its role.',
+      ...(at('2.0.1') ? ['A private helper needs a comment only when its name and signature leave a caller guessing, such as a unit, an ordering requirement, or a side effect.'] : []),
+      '**Incorrect:** no file header, and the export comment repeats the name and signature.',
+      ts(`/**
+ * Parses transactions.
+ * @param csv - The CSV string to parse
+ * @returns The parsed transactions
+ */
+export function parseTransactions(csv: string): Transaction[]`),
+      '**Correct:** the file states its role, and the export describes the result and supported input.',
+      ts(`/**
+ * @fileoverview Ingests the ledger's id,posted_at,amount CSV export.
+ * Not a general CSV parser: fields are never quoted.
+ */
+
+/**
+ * Parse the ledger export into transactions with amounts in integer cents.
+ * Throws on a row with the wrong field count or an unparsable amount.
+ */
+export function parseTransactions(csv: string): Transaction[]`),
+      ...(at('2.0.0') ? ['See [a complete file header](assets/comment-role-result-and-constraints/file-header.ts) for a script that exports nothing.'] : []),
+      ...(at('1.1.0') ? [
+        '### Hidden constraints',
+        'Record the constraint the code cannot show, such as a vendor rate limit, next to the value it explains.',
+        ts(`// The vendor rejects more than 4 calls per second per API key.
+const VENDOR_MIN_CALL_INTERVAL_MS = 250;`),
+      ] : []),
+      '### Validation',
+      `${at('2.0.0') ? 'Every new file has a header that states its role.' : 'Every module that exports code has a header that states its role.'} Every export comment describes the result or a rule the signature hides. No comment restates the next line.`,
+    ].join('\n\n') + '\n';
+  };
+  const commentRuleHeaderExample = c(`
+/**
+ * @fileoverview Seeds the local database with the rows in fixtures/*.json.
+ * Deletes existing rows first, so it refuses to run unless DATABASE_URL
+ * points at localhost.
+ */
+import { loadFixtures, resetDatabase } from "./fixtures";
+
+await resetDatabase();
+await loadFixtures("fixtures");`) + '\n';
+  const commentRuleAssets = [{ path: 'file-header.ts', type: 'typescript', size: '318 B', text: commentRuleHeaderExample }];
+  const commentRuleFiles = Object.fromEntries(['1.0.0', '1.1.0', '2.0.0', '2.0.1'].map(v => [v, {
+    'comment-role-result-and-constraints.md': commentRuleMarkdown(v),
+    ...(atLeast(v, '2.0.0') ? { 'assets/comment-role-result-and-constraints/file-header.ts': commentRuleHeaderExample } : {}),
+  }]));
 
   const simple = (lead, bad, good, check) => c(`
 <p>${lead}</p>
@@ -147,7 +217,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'wrap-errors-with-operation', group: 'techs/go', title: 'Wrap errors with the operation that failed', impact: 'HIGH', tags: ['errors'], stars: 340,
           whenToRead: 'When returning an error from a Go function that called something that can fail.',
           body: simple('Wrap every returned error with the operation that failed, using <code>%w</code> so callers can still inspect it.', 'if err != nil {\n    return err\n}', 'if err != nil {\n    return fmt.Errorf("load config %s: %w", path, err)\n}', 'Every <code>return err</code> after a failing call adds context, and tests can still match the cause with <code>errors.Is</code>.'),
-          added: 1, changes: [{ release: 4, change: 'patch', summary: 'Clarify when not to wrap sentinel errors.' }] },
+          added: 1, changes: [{ release: 4, change: 'patch', summaries: ['Clarify when not to wrap sentinel errors.'] }] },
         { slug: 'avoid-package-level-state', group: 'techs/go', title: 'Avoid package-level mutable state', impact: 'MEDIUM', tags: ['concurrency'], stars: 97,
           whenToRead: 'When adding variables at package scope or singletons in Go.',
           body: simple('Pass dependencies explicitly instead of storing them in package-level variables.', 'var db *sql.DB\n\nfunc Save(u User) error { return insert(db, u) }', 'type Store struct{ db *sql.DB }\n\nfunc (s *Store) Save(u User) error { return insert(s.db, u) }', 'No package-level <code>var</code> holds a connection, client, or cache that tests would need to reset.'),
@@ -155,11 +225,11 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'close-what-you-open', group: 'techs/go', title: 'Close what you open, right after checking the error', impact: 'HIGH', tags: ['resources'], stars: 121,
           whenToRead: 'When opening files, response bodies, rows, or other closable resources in Go.',
           body: simple('Defer <code>Close</code> immediately after the error check that follows the open.', 'resp, err := http.Get(url)\nbody, _ := io.ReadAll(resp.Body)', 'resp, err := http.Get(url)\nif err != nil {\n    return err\n}\ndefer resp.Body.Close()', 'Every opened resource has a <code>defer Close</code> on the line after its error check.'),
-          added: 2, addedSummary: 'Add a rule about closing resources in Go.', changes: [] },
+          added: 2, addedSummaries: ['Add a rule about closing resources in Go.'], changes: [] },
         { slug: 'narrow-unknown-values', group: 'techs/typescript', title: 'Narrow unknown values before use', impact: 'HIGH', tags: ['types', 'validation'], stars: 286,
           whenToRead: 'When handling parsed JSON, API responses, or other data typed as unknown or any.',
           body: simple('Treat external data as <code>unknown</code> and narrow it with a schema or type guard before reading fields.', 'const user = JSON.parse(text) as User;\nsendEmail(user.email);', 'const user = UserSchema.parse(JSON.parse(text));\nsendEmail(user.email);', 'No <code>as</code> cast turns parsed or fetched data into a domain type without validation.'),
-          added: 1, changes: [{ release: 5, change: 'minor', summary: 'Add a note on validating at the boundary only once.' }] },
+          added: 1, changes: [{ release: 5, change: 'minor', summaries: ['Add a note on validating at the boundary only once.'] }] },
         { slug: 'model-valid-states', group: 'techs/typescript', title: 'Model only valid states', impact: 'MEDIUM', tags: ['types'], stars: 154,
           whenToRead: 'When defining types for data with modes, statuses, or optional fields that depend on each other.',
           body: simple('Use discriminated unions so impossible combinations cannot be represented.', 'type Load = { loading: boolean; data?: Data; error?: Error };', "type Load =\n  | { status: 'loading' }\n  | { status: 'done'; data: Data }\n  | { status: 'failed'; error: Error };", 'Types with a status field use a union where each status carries only its own fields.'),
@@ -167,50 +237,50 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'locate-by-role', group: 'techs/playwright', title: 'Locate elements by role, not CSS selectors', impact: 'HIGH', tags: ['testing', 'accessibility'], stars: 188,
           whenToRead: 'When selecting elements in a Playwright test.',
           body: simple('Use role and accessible-name locators so tests survive markup changes and check accessibility too.', "page.locator('.btn-primary.submit')", "page.getByRole('button', { name: 'Submit order' })", 'No test selects by class name or nth-child.'),
-          added: 3, addedSummary: 'Add the Playwright group.', changes: [] },
+          added: 3, addedSummaries: ['Add the Playwright group.'], changes: [] },
         { slug: 'web-first-assertions', group: 'techs/playwright', title: 'Wait with web-first assertions, not timeouts', impact: 'MEDIUM', tags: ['flakiness'], stars: 142,
           whenToRead: 'When a Playwright test waits for the page to change.',
           body: simple('Use assertions that retry until the condition holds instead of fixed waits.', 'await page.waitForTimeout(2000);\nexpect(await page.textContent(".status")).toBe("Paid");', "await expect(page.getByText('Paid')).toBeVisible();", 'No test calls waitForTimeout.'),
-          added: 3, addedSummary: 'Add the Playwright group.', changes: [] },
+          added: 3, addedSummaries: ['Add the Playwright group.'], changes: [] },
         { slug: 'type-public-functions', group: 'techs/python', title: 'Type-annotate every public function', impact: 'MEDIUM', tags: ['types'], stars: 97,
           whenToRead: 'When adding or changing public Python functions or methods.',
           body: simple('Annotate parameters and return types on public functions so type checkers and agents can rely on them.', 'def load(path, strict=False):', 'def load(path: Path, strict: bool = False) -> Config:', 'mypy or pyright passes in strict mode on changed modules.'),
-          added: 4, addedSummary: 'Add a rule about typing public Python functions.', changes: [] },
+          added: 4, addedSummaries: ['Add a rule about typing public Python functions.'], changes: [] },
         { slug: 'fetch-in-server-components', group: 'techs/nextjs', title: 'Fetch data in Server Components', impact: 'MEDIUM', tags: ['data-fetching'], stars: 119,
           whenToRead: 'When loading data for a Next.js App Router page.',
           body: simple('Fetch on the server by default; reach for client fetching only for interactive, user-specific data.', "'use client';\nuseEffect(() => { fetch('/api/posts').then(...) }, []);", 'export default async function Page() {\n  const posts = await getPosts();\n  return &lt;PostList posts={posts} /&gt;;\n}', 'Pages do not fetch initial data in useEffect.'),
-          added: 5, addedSummary: 'Add a rule about loading page data on the server.', changes: [] },
+          added: 5, addedSummaries: ['Add a rule about loading page data on the server.'], changes: [] },
         { slug: 'create-indexes-concurrently', group: 'techs/postgresql', title: 'Create indexes concurrently in migrations', impact: 'HIGH', tags: ['migrations'], stars: 156,
           whenToRead: 'When a migration adds an index to an existing PostgreSQL table.',
           body: simple('Use CREATE INDEX CONCURRENTLY so the migration does not lock writes on a live table.', 'CREATE INDEX idx_orders_user ON orders (user_id);', 'CREATE INDEX CONCURRENTLY idx_orders_user ON orders (user_id);', 'Index migrations on existing tables use CONCURRENTLY and run outside a transaction.'),
-          added: 4, addedSummary: 'Add a rule about index migrations on live tables.', changes: [] },
+          added: 4, addedSummaries: ['Add a rule about index migrations on live tables.'], changes: [] },
         { slug: 'keep-state-local', group: 'techs/react', title: 'Keep state as local as possible', impact: 'MEDIUM', tags: ['state'], stars: 133,
           whenToRead: 'When adding state to React components or context providers.',
           body: simple('Put state in the lowest component that needs it. Lift it only when a sibling needs it too.', 'const [open, setOpen] = useAppStore(s => [s.menuOpen, s.setMenuOpen]);', 'const [open, setOpen] = useState(false);', 'Global stores and context hold only state that several distant components read.'),
-          added: 3, addedSummary: 'Add the React group.', changes: [] },
+          added: 3, addedSummaries: ['Add the React group.'], changes: [] },
         { slug: 'name-interactive-controls', group: 'techs/react', title: 'Give every interactive control an accessible name', impact: 'HIGH', tags: ['accessibility'], stars: 162,
           whenToRead: 'When adding buttons, links, inputs, or custom controls in React.',
           body: simple('Every control needs a name a screen reader can announce: visible text, a label, or <code>aria-label</code>.', '&lt;button onClick={close}&gt;&lt;XIcon /&gt;&lt;/button&gt;', '&lt;button onClick={close} aria-label="Close dialog"&gt;&lt;XIcon /&gt;&lt;/button&gt;', 'Querying each control by role and name in tests finds it.'),
-          added: 3, addedSummary: 'Add the React group.', changes: [] },
+          added: 3, addedSummaries: ['Add the React group.'], changes: [] },
         { slug: 'verify-retry-limits', group: 'practices/testing', title: 'Verify retry limits in tests', impact: 'HIGH', tags: ['retries'], stars: 0,
           whenToRead: 'Before adding or changing bounded retries, test that requests stop at the configured limit.',
           body: simple('When code retries, write a test that proves it stops at the configured limit.', 'it("retries", async () => {\n  await callWithRetry(flaky);\n});', 'it("stops after 3 attempts", async () => {\n  await expect(callWithRetry(alwaysFails)).rejects.toThrow();\n  expect(alwaysFails).toHaveBeenCalledTimes(3);\n});', 'The test fails if one extra retry is added.'),
-          added: 5, addedSummary: 'Rename to describe what the rule checks.', changes: [] },
+          added: 5, addedSummaries: ['Rename to describe what the rule checks.'], changes: [] },
         { slug: 'test-failure-paths', group: 'practices/testing', title: 'Test failure paths, not just success', impact: 'HIGH', tags: ['errors'], stars: 201,
           whenToRead: 'When adding or changing code that can fail, reject input, or time out.',
           body: simple('For every failure the code handles, add a test that triggers it and checks the result.', 'it("saves a user", ...)', 'it("saves a user", ...)\nit("rejects a duplicate email", ...)\nit("surfaces a database timeout", ...)', 'Each handled error branch is reached by at least one test.'),
-          added: 1, changes: [{ release: 2, change: 'minor', summary: 'Add timeouts as a failure path.' }] },
+          added: 1, changes: [{ release: 2, change: 'minor', summaries: ['Add timeouts as a failure path.'] }] },
         { slug: 'test-changed-behavior', group: 'practices/testing', title: 'Test the behavior you changed', impact: 'MEDIUM-HIGH', tags: [], stars: 244,
           whenToRead: 'When changing behavior or fixing a bug, even when no test files are in the diff.',
           body: changedBehaviorBody, assets: changedBehaviorAssets,
           added: 1, changes: [] },
         { slug: 'comment-role-result-and-constraints', group: 'practices/comments', title: 'Comment the role, the result, and the hidden constraint', impact: 'MEDIUM', tags: ['typescript', 'comments', 'documentation'], stars: 214,
           whenToRead: 'Before writing or reviewing comments, file headers, or doc comments on exported code.',
-          body: featuredBody, featured: true,
+          body: featuredBody, featured: true, assets: commentRuleAssets, files: commentRuleFiles,
           added: 1, changes: [
-            { release: 2, change: 'minor', summary: 'Add the hidden-constraint example.' },
-            { release: 3, change: 'major', summary: 'Require a file header on every new file, not only on exported modules.' },
-            { release: 4, change: 'patch', summary: 'Clarify when a private helper needs a comment. Fixes #198.' },
+            { release: 2, change: 'minor', summaries: ['Add the hidden-constraint example.'] },
+            { release: 3, change: 'major', summaries: ['Require a file header on every new file, not only on exported modules.', 'Add a TypeScript file header example.'] },
+            { release: 4, change: 'patch', summaries: ['Clarify when a private helper needs a comment. Fixes #198.'] },
           ],
           discussion: [
             { kind: 'pr', num: 226, title: 'Exempt generated files from file headers', author: 'josh-padnick', comments: 4, state: 'open', relation: 'changes', note: 'linked to #221', when: '2 days ago' },
@@ -223,7 +293,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'dont-invent-rationale', group: 'practices/comments', title: "Don't invent a rationale in comments", impact: 'MEDIUM', tags: ['comments'], stars: 176,
           whenToRead: 'When a comment explains why code does something.',
           body: simple('If you do not know why the code works this way, say so or leave the reason out. Never guess.', '// Sleep for performance reasons.\nawait sleep(250);', '// TODO(#412): the reason for this delay is unknown; do not remove without testing the vendor sync.\nawait sleep(250);', 'Every "why" comment is backed by a link, a test, or a known constraint.'),
-          added: 2, addedSummary: 'Add a rule against guessed rationales in comments.', changes: [] },
+          added: 2, addedSummaries: ['Add a rule against guessed rationales in comments.'], changes: [] },
         { slug: 'make-errors-actionable', lang: 'plaintext', group: 'practices/error-handling', title: 'Make error messages actionable', impact: 'MEDIUM', tags: ['ux'], stars: 190,
           whenToRead: 'When writing or reviewing validation errors shown to users.',
           body: simple('Error messages must explain what went wrong and how to fix it.', '"Upload failed."', '"File too large. Choose a file up to 10 MB."', 'Upload an oversized file and check that the error states the size limit and how to proceed.'),
@@ -243,14 +313,14 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'log-structured-fields', group: 'practices/observability', title: 'Log with structured fields', impact: 'MEDIUM', tags: ['logging'], stars: 88,
           whenToRead: 'When adding log statements.',
           body: simple('Put variable data in fields, not in the message string.', 'log.info(`user ${id} paid ${amount}`);', 'log.info("payment received", { userId: id, amountCents: amount });', 'Log messages are constant strings; data lives in fields.'),
-          added: 5, addedSummary: 'Add a rule about keeping log data in fields.', changes: [] },
+          added: 5, addedSummaries: ['Add a rule about keeping log data in fields.'], changes: [] },
       ],
       // Retired rules leave lib.rules. Each keeps its history; its last version stays its final one, and its ID is never reused.
       retired: [
         { slug: 'check-retry-limits', group: 'practices/testing', title: 'Check retry limits', impact: 'HIGH', tags: ['retries'],
           whenToRead: 'Before adding or changing bounded retries.',
-          added: 1, changes: [{ release: 2, change: 'minor', summary: 'Add an example for exponential backoff.' }],
-          retiredIn: 5, replacedBy: 'practices/testing/verify-retry-limits', summary: 'Rename to describe what the rule checks.' },
+          added: 1, changes: [{ release: 2, change: 'minor', summaries: ['Add an example for exponential backoff.'] }],
+          retiredIn: 5, replacedBy: 'practices/testing/verify-retry-limits', summaries: ['Rename to describe what the rule checks.'] },
       ],
     },
     {
@@ -265,27 +335,27 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'retry-only-idempotent', group: 'practices/resilience', title: 'Retry only idempotent requests', impact: 'CRITICAL', tags: ['retries'], stars: 57,
           whenToRead: 'Before adding retries to a network call, confirm the operation is safe to repeat.',
           body: simple('Retry only operations that are safe to repeat, or make them safe with an idempotency key.', 'await retry(() => charge(card, amount));', 'await retry(() => charge(card, amount, { idempotencyKey }));', 'Every retried write carries an idempotency key.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'set-timeouts-on-network-calls', group: 'practices/resilience', title: 'Set a timeout on every network call', impact: 'HIGH', tags: ['timeouts'], stars: 48,
           whenToRead: 'When making HTTP, RPC, or database calls.',
           body: simple('Every outbound call has an explicit timeout.', 'await fetch(url);', 'await fetch(url, { signal: AbortSignal.timeout(5_000) });', 'No client is constructed without a timeout.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'pin-base-images', group: 'techs/docker', title: 'Pin base images by digest', impact: 'HIGH', tags: ['supply-chain'], stars: 44,
           whenToRead: 'When writing or changing a Dockerfile FROM line.',
           body: simple('Pin base images to a digest so builds are reproducible and cannot change underneath you.', 'FROM node:20', 'FROM node:20@sha256:4b1d...e9f2', 'Every FROM line includes a digest.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'set-resource-requests', group: 'techs/kubernetes', title: 'Set resource requests and limits on every container', impact: 'HIGH', tags: ['reliability'], stars: 39,
           whenToRead: 'When writing or changing a Kubernetes Deployment or Pod spec.',
           body: simple('Give every container CPU and memory requests, and a memory limit, so the scheduler can place it and noisy neighbors cannot starve it.', 'containers:\n  - name: api\n    image: acme/api', 'containers:\n  - name: api\n    image: acme/api\n    resources:\n      requests: { cpu: 250m, memory: 256Mi }\n      limits: { memory: 512Mi }', 'No container spec lacks resources.requests.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'no-secrets-in-terraform', group: 'techs/terraform', title: 'Never hardcode secrets in Terraform', impact: 'CRITICAL', tags: ['security'], stars: 52,
           whenToRead: 'When a Terraform resource needs a password, key, or token.',
           body: simple('Read secrets from a secret manager or variables marked sensitive. Never write them into .tf files.', 'password = "hunter2"', 'password = data.aws_secretsmanager_secret_version.db.secret_string', 'No string literal in .tf files looks like a credential.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'never-log-card-numbers', group: 'practices/payments-compliance', title: 'Never log or persist full card numbers', impact: 'CRITICAL', tags: ['pci'], stars: 11,
           whenToRead: 'When code handles card numbers, CVVs, or payment tokens.',
           body: simple('Store and log only tokens or the last four digits. Full card numbers never leave the vault.', 'log.info("charge", { card: req.cardNumber });', 'log.info("charge", { cardLast4: token.last4 });', 'No log line, database column, or error message contains a full PAN.'),
-          added: 2, addedSummary: 'Add resilience, container, and infrastructure rules.', changes: [] },
+          added: 2, addedSummaries: ['Add resilience, container, and infrastructure rules.'], changes: [] },
         { slug: 'no-sleeps-in-tests', group: 'practices/testing', title: "Don't sleep in tests; wait for conditions", impact: 'MEDIUM', tags: ['flakiness'], stars: 71,
           whenToRead: 'When a test waits for something asynchronous.',
           body: simple('Wait for the condition you need, not a fixed amount of time.', 'await sleep(500);\nexpect(queue.size).toBe(0);', 'await waitFor(() => expect(queue.size).toBe(0));', 'No test calls sleep or setTimeout to wait for work to finish.'),
@@ -300,7 +370,7 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'backoff-with-jitter', group: 'techs/go', title: 'Back off with jitter between attempts', impact: 'MEDIUM', tags: ['retries'], stars: 9,
           whenToRead: 'Before writing a retry loop in Go, use capped exponential backoff with jitter.',
           body: simple('Use capped exponential backoff with random jitter between retries.', 'for i := 0; i < 5; i++ {\n    time.Sleep(time.Second)\n}', 'b := backoff.NewExponential(100*time.Millisecond, 5*time.Second)\nfor attempt := range b.Attempts(5) { ... }', 'Retry loops never sleep a fixed interval.'),
-          added: 1, changes: [{ release: 2, change: 'patch', summary: 'Clarify that the backoff cap applies to each attempt.' }] },
+          added: 1, changes: [{ release: 2, change: 'patch', summaries: ['Clarify that the backoff cap applies to each attempt.'] }] },
         { slug: 'accept-interfaces-return-structs', group: 'techs/go', title: 'Accept interfaces, return structs', impact: 'MEDIUM', tags: ['api-design'], stars: 96,
           whenToRead: 'When designing Go function signatures and constructors.',
           body: simple('Take the narrowest interface you need; return concrete types.', 'func NewService(db *sql.DB) ServiceInterface', 'func NewService(q Querier) *Service', 'Constructors return concrete types.'),
@@ -350,11 +420,11 @@ const VENDOR_MIN_CALL_INTERVAL_MS = 250;</code></pre>
         { slug: 'small-prs-from-agents', lang: 'plaintext', group: 'practices/agent-hygiene', title: 'Keep agent pull requests small', impact: 'LOW-MEDIUM', tags: ['agents'], stars: 4,
           whenToRead: 'When an agent is about to open a pull request.',
           body: simple('Split agent work into pull requests a person can review in one sitting.', 'One PR: refactor + feature + dependency bump (2,400 lines).', 'Three PRs: refactor, then feature, then dependency bump.', 'Each PR changes one thing and stays under a few hundred lines.'),
-          added: 2, addedSummary: 'Add rules for agent pull requests and TypeScript types.', changes: [] },
+          added: 2, addedSummaries: ['Add rules for agent pull requests and TypeScript types.'], changes: [] },
         { slug: 'prefer-type-aliases', group: 'techs/typescript', title: 'Prefer type aliases for object shapes', impact: 'LOW', tags: [], stars: 5,
           whenToRead: 'When declaring object types in TypeScript.',
           body: simple('Use <code>type</code> for object shapes unless you need declaration merging.', 'interface User { id: string }', 'type User = { id: string };', 'New object types use type aliases.'),
-          added: 2, addedSummary: 'Add rules for agent pull requests and TypeScript types.', changes: [] },
+          added: 2, addedSummaries: ['Add rules for agent pull requests and TypeScript types.'], changes: [] },
       ],
     },
   ];

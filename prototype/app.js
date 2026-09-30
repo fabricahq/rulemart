@@ -131,7 +131,8 @@
 
   // ---------- Library releases and rule versions ----------
   // A library release is one release/<n> tag. Its message ends with a YAML release record: every rule's version, and each
-  // change's level and summary. Rulemart builds rule histories from those records; GitHub Release pages are only announcements.
+  // change's level and summaries, one per change note. Rulemart builds rule histories from those records; GitHub Release pages
+  // are only announcements.
   const releaseTag = n => `release/${n}`;
   const latestRelease = lib => lib.releases[lib.releases.length - 1];
   const releaseDate = (lib, n) => (lib.releases.find(x => x.n === n) || {}).date || '';
@@ -139,23 +140,188 @@
     const [a, b, c] = v.split('.').map(Number);
     return change === 'major' ? `${a + 1}.0.0` : change === 'minor' ? `${a}.${b + 1}.0` : `${a}.${b}.${c + 1}`;
   };
-  // Newest first. A new rule starts at 1.0.0, and each change's level sets the next version.
+  // Newest first. A new rule starts at 1.0.0, and each change's level sets the next version. The first library release
+  // needs no change notes, so Code Rules records each of its rules with the summary "Add the rule."
   function ruleVersions(r) {
     let version = '1.0.0';
-    const out = [{ version, change: 'new', from: null, summary: r.addedSummary || (r.added === 1 ? 'Published in the first library release.' : ''), release: r.added, date: releaseDate(r.lib, r.added) }];
+    const out = [{ version, change: 'new', from: null, summaries: r.addedSummaries || ['Add the rule.'], release: r.added, date: releaseDate(r.lib, r.added) }];
     [...r.changes].sort((a, b) => a.release - b.release).forEach(c => {
       const from = version; version = bumpVersion(version, c.change);
-      out.push({ version, change: c.change, from, summary: c.summary, release: c.release, date: releaseDate(r.lib, c.release) });
+      out.push({ version, change: c.change, from, summaries: c.summaries, release: c.release, date: releaseDate(r.lib, c.release) });
     });
     return out.reverse();
   }
   const ruleVersion = r => ruleVersions(r)[0].version;
   // The library release that published the rule's current version. The rule's file and its own assets are at that tag's commit.
   const ruleRelease = r => ruleVersions(r)[0].release;
-  // Version rows only call out the latest version; the version numbers say the rest.
-  const versionChips = (v, isLatest) => (isLatest ? '<span class="chip">Latest</span>' : '');
+  // Version rows call out the latest version and major changes, the ones to review before updating. The version numbers
+  // say the rest.
+  const versionChips = (v, isLatest) => `${isLatest ? '<span class="chip">Latest</span>' : ''}${v.change === 'major' ? '<span class="vmark" title="Work that complied with the previous version could fail this one.">Major</span>' : ''}`;
+  const summaryLines = (list, cls) => list.map(x => `<div class="${cls}">${esc(x)}</div>`).join('');
+  // A version row links its library release on Rulemart. Its actions compare it with the previous version, when Rulemart
+  // has the rule's files, and, less prominently, open the GitHub Release page that announced it.
+  const versionRow = (r, v, prev, isLatest) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, isLatest)}<a class="faint sm mono" href="${libUrl(r.lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div style="margin-top:4px">${summaryLines(v.summaries, 'muted sm')}</div></div>
+    <div class="vrow-acts">${prev && canCompare(r) ? `<a class="btn small ghost" href="${compareUrl(r, prev, v.version)}">Compare with ${prev}</a>` : ''}<a class="vrow-gh" href="https://github.com/${esc(r.lib.id)}/releases/tag/${releaseTag(v.release)}" data-act="ghlink" title="GitHub Release page for ${releaseTag(v.release)}">${icon.gh}Release notes</a></div></div>`;
   const issuesFor = ruleKey => state.issues.filter(i => i.ruleKey === ruleKey);
   const discussionFor = r => [...issuesFor(r.key).map(i => ({ kind: 'issue', num: i.num, title: i.title, author: i.author, comments: 0, state: 'open', when: 'just now', mine: true })), ...(r.discussion || [])];
+
+  // ---------- Comparing rule versions ----------
+  // A rule version is its Markdown file and its own assets at the library release tag that published it, so comparing
+  // two versions is a git diff between those tags limited to the rule's paths. The mock keeps each version's files in
+  // data.js instead, for one rule.
+  const canCompare = r => !!r.files;
+  const compareUrl = (r, from, to, view) => `${ruleUrl(r)}?tab=versions&compare=${from}...${to}${view ? `&view=${view}` : ''}`;
+
+  // The edits that turn a into b along a longest common subsequence, as [op, i, j]: '=' keeps a[i] as b[j], '-' deletes
+  // a[i], and '+' inserts b[j]. Deletions come first.
+  function diffSeq(a, b, eq = (x, y) => x === y) {
+    const n = a.length; const m = b.length; const w = m + 1;
+    const lcs = new Uint32Array((n + 1) * w);
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) lcs[i * w + j] = eq(a[i], b[j]) ? lcs[(i + 1) * w + j + 1] + 1 : Math.max(lcs[(i + 1) * w + j], lcs[i * w + j + 1]);
+    }
+    const ops = []; let i = 0; let j = 0;
+    while (i < n && j < m) {
+      if (eq(a[i], b[j])) ops.push(['=', i++, j++]);
+      else if (lcs[(i + 1) * w + j] >= lcs[i * w + j + 1]) ops.push(['-', i++, j]);
+      else ops.push(['+', i, j++]);
+    }
+    while (i < n) ops.push(['-', i++, j]);
+    while (j < m) ops.push(['+', i, j++]);
+    return ops;
+  }
+
+  // Marks the words that changed between two texts, as HTML for the old side, the new side, and both together.
+  // Whitespace always compares equal, so rewrapping a paragraph shows no change.
+  function wordMarks(a, b) {
+    const split = s => s.match(/\s+|\S+/g) || [];
+    const blank = t => /^\s/.test(t);
+    const ta = split(a); const tb = split(b);
+    const ops = diffSeq(ta, tb, (x, y) => x === y || (blank(x) && blank(y)));
+    let old = ''; let neu = ''; let both = ''; let del = ''; let ins = '';
+    const flush = () => {
+      if (del.trim()) { old += `<del>${esc(del)}</del>`; both += `<del>${esc(del)}</del>`; } else old += esc(del);
+      if (ins.trim()) { neu += `<ins>${esc(ins)}</ins>`; both += `<ins>${esc(ins)}</ins>`; } else { neu += esc(ins); both += esc(ins); }
+      del = ''; ins = '';
+    };
+    ops.forEach(([op, i, j], k) => {
+      if (op === '-') del += ta[i];
+      else if (op === '+') ins += tb[j];
+      // A space between two changed words joins them into one change instead of splitting it.
+      else if (blank(tb[j]) && (del || ins) && ops[k + 1] && ops[k + 1][0] !== '=') { del += ta[i]; ins += tb[j]; }
+      else { flush(); old += esc(ta[i]); neu += esc(tb[j]); both += esc(tb[j]); }
+    });
+    flush();
+    return { old, neu, both };
+  }
+
+  const fileLines = s => (s ? s.replace(/\n$/, '').split('\n') : []);
+  // Markdown blocks: runs of lines between blank lines, keeping a fenced code block whole.
+  function mdBlocks(s) {
+    const blocks = []; let cur = []; let fence = false;
+    fileLines(s).forEach(line => {
+      if (/^(```|~~~)/.test(line)) fence = !fence;
+      if (!fence && !line.trim()) { if (cur.length) blocks.push(cur.join('\n')); cur = []; } else cur.push(line);
+    });
+    if (cur.length) blocks.push(cur.join('\n'));
+    return blocks;
+  }
+
+  // Word view: the new Markdown source with changed words marked. Unchanged blocks away from a change are folded.
+  function wordDiffView(a, b) {
+    const ba = mdBlocks(a); const bb = mdBlocks(b);
+    const same = (x, y) => x.replace(/\s+/g, ' ').trim() === y.replace(/\s+/g, ' ').trim();
+    const items = [];
+    diffSeq(ba, bb, same).forEach(([op, i, j]) => {
+      if (op === '=') { items.push({ same: bb[j] }); return; }
+      let last = items[items.length - 1];
+      if (!last || last.same !== undefined) items.push(last = { old: [], neu: [] });
+      if (op === '-') last.old.push(ba[i]); else last.neu.push(bb[j]);
+    });
+    const block = html => `<div class="wd-block">${html}</div>`;
+    const fold = run => `<details class="wd-fold"><summary>${run.length} unchanged ${run.length === 1 ? 'block' : 'blocks'}</summary>${run.map(x => block(esc(x.same))).join('')}</details>`;
+    let out = ''; let run = [];
+    const flushRun = (atStart, atEnd) => {
+      // Keep one unchanged block beside each change for context, unless it's the metadata, which says nothing about the change.
+      const context = x => x && !x.same.startsWith('---\n');
+      const head = atStart || !context(run[0]) ? [] : run.slice(0, 1);
+      const tail = atEnd || !context(run[run.length - 1]) || run.length === head.length ? [] : run.slice(-1);
+      const hidden = run.slice(head.length, run.length - tail.length);
+      out += head.map(x => block(esc(x.same))).join('') + (hidden.length ? fold(hidden) : '') + tail.map(x => block(esc(x.same))).join('');
+      run = [];
+    };
+    let seenChange = false;
+    items.forEach(it => {
+      if (it.same !== undefined) { run.push(it); return; }
+      flushRun(!seenChange, false); seenChange = true;
+      out += block(wordMarks(it.old.join('\n\n'), it.neu.join('\n\n')).both);
+    });
+    flushRun(!seenChange, true);
+    return `<div class="wd">${out}</div>`;
+  }
+
+  // Line view: a unified diff with three lines of context, marking changed words inside replaced lines.
+  function lineDiffView(a, b) {
+    const la = fileLines(a); const lb = fileLines(b);
+    const ops = diffSeq(la, lb);
+    const near = new Set();
+    ops.forEach(([op], k) => { if (op !== '=') for (let d = -3; d <= 3; d++) near.add(k + d); });
+    // Pair each replaced line with its replacement so the changed words stand out.
+    const marks = new Map();
+    for (let k = 0; k < ops.length;) {
+      if (ops[k][0] === '=') { k++; continue; }
+      const dels = []; const adds = [];
+      while (k < ops.length && ops[k][0] !== '=') (ops[k][0] === '-' ? dels : adds).push(k++);
+      dels.forEach((dk, x) => { if (adds[x] !== undefined) { const m = wordMarks(la[ops[dk][1]], lb[ops[adds[x]][2]]); marks.set(dk, m.old); marks.set(adds[x], m.neu); } });
+    }
+    let rows = ''; let inHunk = false; let oldN = 0; let newN = 0;
+    ops.forEach(([op, i, j], k) => {
+      if (op !== '+') oldN++;
+      if (op !== '-') newN++;
+      if (!near.has(k)) { inHunk = false; return; }
+      if (!inHunk) {
+        let oc = 0; let nc = 0; let e = k;
+        while (e < ops.length && near.has(e)) { if (ops[e][0] !== '+') oc++; if (ops[e][0] !== '-') nc++; e++; }
+        // Like git, a side with no lines in the hunk starts at the line before it.
+        const oStart = op === '+' && oc ? oldN + 1 : oldN; const nStart = op === '-' && nc ? newN + 1 : newN;
+        rows += `<tr class="hunk"><td colspan="4">@@ -${oStart},${oc} +${nStart},${nc} @@</td></tr>`;
+        inHunk = true;
+      }
+      const text = marks.get(k) ?? esc(op === '+' ? lb[j] : la[i]);
+      rows += `<tr class="${op === '+' ? 'add' : op === '-' ? 'del' : ''}"><td class="ln">${op === '+' ? '' : oldN}</td><td class="ln">${op === '-' ? '' : newN}</td><td class="sg">${op === '=' ? '' : op === '+' ? '+' : '−'}</td><td class="cd">${text || ' '}</td></tr>`;
+    });
+    return `<table class="dl"><colgroup><col class="c-ln"><col class="c-ln"><col class="c-sg"><col></colgroup>${rows}</table>`;
+  }
+
+  function compareView(r, versions, q) {
+    const lib = r.lib; const list = versions.map(v => v.version);
+    let [from, to] = (q.get('compare') || '').split('...');
+    if (!list.includes(from) || !list.includes(to)) return `<div class="empty">Choose two versions of this rule to compare.</div>`;
+    if (list.indexOf(from) < list.indexOf(to)) [from, to] = [to, from];
+    const view = q.get('view') === 'lines' ? 'lines' : 'words';
+    const pick = (side, cur) => `<select class="cmp-select" data-cmp="${side}" aria-label="${side === 'from' ? 'Older version' : 'Newer version'}">${list.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+    const bar = `<div class="cmp-bar"><a class="sm" href="${ruleUrl(r)}?tab=versions">← All versions</a><span class="cmp-pick">Compare ${pick('from', from)} → ${pick('to', to)}</span>
+      <div class="seg cmp-view">${[['words', 'Words'], ['lines', 'Lines']].map(([k, l]) => `<button data-cmpview="${k}" class="${view === k ? 'on' : ''}" aria-pressed="${view === k}">${l}</button>`).join('')}</div></div>`;
+    if (from === to) return `${bar}<div class="empty">Choose two different versions.</div>`;
+    const toV = versions.find(v => v.version === to);
+    const range = versions.slice(list.indexOf(to), list.indexOf(from));
+    const major = range.some(v => v.change === 'major');
+    const notes = `<div class="panel cmp-notes"><div class="panel-h"><span class="index">What changed</span><span class="faint xs">${range.length} ${range.length === 1 ? 'version' : 'versions'}</span></div><div class="panel-b">
+      ${major ? `<p class="sm cmp-warn">Includes a major change. Work that complied with ${from} could fail ${to}, so review the changes before updating.</p>` : ''}
+      ${range.map(v => `<div class="cmp-note"><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, false)}<a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div>${summaryLines(v.summaries, 'muted sm')}</div>`).join('')}</div></div>`;
+    const a = r.files[from]; const b = r.files[to];
+    const paths = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(p => a[p] !== b[p]);
+    const files = paths.map(p => {
+      const status = !(p in a) ? 'Added' : !(p in b) ? 'Removed' : 'Changed';
+      const ops = diffSeq(fileLines(a[p]), fileLines(b[p]));
+      const plus = ops.filter(o => o[0] === '+').length; const minus = ops.filter(o => o[0] === '-').length;
+      const repoPath = `${r.group}/${p}`;
+      const diff = view === 'words' && p.endsWith('.md') ? wordDiffView(a[p] || '', b[p] || '') : lineDiffView(a[p] || '', b[p] || '');
+      return `<section class="dfile"><div class="dfile-h"><span class="mono dfile-path">${esc(repoPath)}</span>${status === 'Changed' ? '' : `<span class="vmark">${status}</span>`}<span class="dstat mono"><span class="plus">+${plus}</span> <span class="minus">−${minus}</span></span>
+        ${status === 'Removed' ? '' : `<a class="sm rel-gh" href="https://github.com/${esc(lib.id)}/blob/${releaseTag(toV.release)}/${repoPath}" data-act="ghlink">${icon.gh}View at ${to}</a>`}</div>${diff}</section>`;
+    }).join('');
+    return `${bar}${notes}<p class="faint sm cmp-count">${paths.length} ${paths.length === 1 ? 'file' : 'files'} changed between ${releaseTag(versions[list.indexOf(from)].release)} and ${releaseTag(toV.release)}, limited to this rule's file and its own assets.</p>${files}`;
+  }
 
   function nextIssueNum(repo) {
     const lib = libById(repo);
@@ -480,10 +646,12 @@
 
   // What one library release published, read from its release record, in the order of the generated GitHub Release page.
   const retiredRules = lib => (lib.retired || []).map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` }));
+  // Release notes list rules in ID order.
+  const byId = (a, b) => `${a.r.group}/${a.r.slug}`.localeCompare(`${b.r.group}/${b.r.slug}`);
   function releaseRecord(lib, n) {
     const rules = [...lib.rules.map(x => ({ ...x, lib, key: `${lib.id}::${x.group}/${x.slug}` })), ...retiredRules(lib)];
-    const changes = rules.flatMap(r => ruleVersions(r).filter(v => v.release === n).map(v => ({ ...v, r })));
-    const retired = retiredRules(lib).filter(r => r.retiredIn === n).map(r => ({ r, lastVersion: ruleVersion(r) }));
+    const changes = rules.flatMap(r => ruleVersions(r).filter(v => v.release === n).map(v => ({ ...v, r }))).sort(byId);
+    const retired = retiredRules(lib).filter(r => r.retiredIn === n).map(r => ({ r, lastVersion: ruleVersion(r) })).sort(byId);
     const versions = rules.filter(r => r.added <= n && !(r.retiredIn <= n)).map(r => ({ r, version: ruleVersions(r).find(v => v.release <= n).version }));
     return { changes, retired, versions };
   }
@@ -493,18 +661,20 @@
     const kinds = [['major', 'Major changes', 'major'], ['minor', 'Minor changes', 'minor'], ['patch', 'Patch changes', 'patch'], ['new', 'New rules', 'new']];
     const counts = [...kinds.map(([k, , word]) => [changes.filter(c => c.change === k).length, word]), [retired.length, 'retired']].filter(([n]) => n).map(([n, word]) => `${n} ${word}`);
     const total = changes.length + retired.length;
-    // The first library release needs no change notes, so its new rules carry no summaries.
-    const item = c => `<li><a href="${ruleUrl(c.r)}?tab=versions"><b>${esc(c.r.title)}</b></a> <span class="mono faint">${c.r.group}/${c.r.slug}</span> <span class="mono">${c.from ? `${c.from} → ${c.version}` : c.version}</span>${c.summary && rel.n > 1 ? `<div class="muted">${esc(c.summary)}</div>` : ''}</li>`;
+    const item = c => `<li><a href="${ruleUrl(c.r)}?tab=versions"><b>${esc(c.r.title)}</b></a> <span class="mono faint">${c.r.group}/${c.r.slug}</span> ${c.from && canCompare(c.r) ? `<a class="mono nowrap" href="${compareUrl(c.r, c.from, c.version)}" title="Compare these versions">${c.from} → ${c.version}</a>` : `<span class="mono nowrap">${c.from ? `${c.from} → ${c.version}` : c.version}</span>`}${summaryLines(c.summaries, 'muted')}</li>`;
     const isLatest = rel.n === latestRelease(lib).n;
+    // Like the GitHub Release page, the card notes shared-file changes without listing the files. The first release adds every file.
     return `<section class="relcard">
       <div class="rel-h"><b class="mono">${releaseTag(rel.n)}</b>${isLatest ? '<span class="chip">Latest</span>' : ''}<span class="faint sm">${esc(rel.date)}</span>
         <a class="sm rel-gh" href="https://github.com/${esc(lib.id)}/releases/tag/${releaseTag(rel.n)}" data-act="ghlink">${icon.gh}GitHub Release page</a></div>
-      <p class="rel-count">Library release ${rel.n} changes ${total} ${total === 1 ? 'rule' : 'rules'}: ${countPhrase(counts)}.</p>
+      <div class="rel-body">
+      <p class="rel-count">${total ? `Library release ${rel.n} changes ${total} ${total === 1 ? 'rule' : 'rules'}: ${countPhrase(counts)}.` : `Library release ${rel.n} changes no rules. It updates shared files, such as group descriptions or shared assets.`}</p>
       ${kinds.map(([k, title]) => { const cs = changes.filter(c => c.change === k); return cs.length ? `<h4>${title}</h4>${k === 'major' ? '<p class="sm muted rel-warn">Code that complied with the previous rule version could fail the new one, so review these before updating.</p>' : ''}<ul class="rel-list">${cs.map(item).join('')}</ul>` : ''; }).join('')}
-      ${retired.length ? `<h4>Retired rules</h4><ul class="rel-list">${retired.map(x => `<li><a href="${ruleUrl(x.r)}"><b>${esc(x.r.title)}</b></a> <span class="mono faint">${x.r.group}/${x.r.slug}</span>, last version <span class="mono">${x.lastVersion}</span><div class="muted">${esc(x.r.summary)}${x.r.replacedBy ? ` Replaced by <a href="${ruleUrlById(lib, x.r.replacedBy)}">${esc(x.r.replacedBy)}</a>.` : ''}</div></li>`).join('')}</ul>` : ''}
-      ${rel.libraryFiles ? `<p class="faint xs" style="margin:12px 0 0">Library-wide files changed: ${rel.libraryFiles.map(f => `<span class="mono">${esc(f)}</span>`).join(', ')}</p>` : ''}
+      ${retired.length ? `<h4>Retired rules</h4><ul class="rel-list">${retired.map(x => `<li><a href="${ruleUrl(x.r)}"><b>${esc(x.r.title)}</b></a> <span class="mono faint">${x.r.group}/${x.r.slug}</span>, last version <span class="mono">${x.lastVersion}</span>${summaryLines(x.r.summaries, 'muted')}${x.r.replacedBy ? `<div class="muted">Replaced by <a href="${ruleUrlById(lib, x.r.replacedBy)}">${esc(x.r.replacedBy)}</a>.</div>` : ''}</li>`).join('')}</ul>` : ''}
+      ${rel.n > 1 && rel.libraryFiles && total ? '<p class="sm muted" style="margin:12px 0 0">This library release also updates shared files, such as group descriptions or shared assets.</p>' : ''}
       <details class="rel-all"><summary>All rule versions in this library release</summary>
-        <table class="data"><thead><tr><th>Rule</th><th>Version</th></tr></thead><tbody>${versions.sort((a, b) => `${a.r.group}/${a.r.slug}`.localeCompare(`${b.r.group}/${b.r.slug}`)).map(v => `<tr><td class="mono">${v.r.group}/${v.r.slug}</td><td class="mono">${v.version}</td></tr>`).join('')}</tbody></table></details>
+        <table class="data"><thead><tr><th>Rule</th><th>Version</th></tr></thead><tbody>${versions.sort(byId).map(v => `<tr><td class="mono"><a href="${ruleUrl(v.r)}?tab=versions">${v.r.group}/${v.r.slug}</a></td><td class="mono">${v.version}</td></tr>`).join('')}</tbody></table></details>
+      </div>
     </section>`;
   }
 
@@ -600,10 +770,13 @@
           </div></aside></div>`;
     } else if (tab === 'discussion') {
       body = `<div class="row between" style="margin-bottom:10px"><span class="muted sm">Issues and pull requests on <span class="mono">${esc(lib.id)}</span> that are about this rule.</span><button class="btn small" data-act="discuss">${icon.chat}Discuss</button></div>${discussionList(disc, lib, false)}`;
+    } else if (tab === 'versions' && q.get('compare')) {
+      body = compareView(r, versions, q);
     } else if (tab === 'versions') {
       const replaces = retiredRules(lib).filter(x => x.replacedBy === `${r.group}/${r.slug}`);
       body = `${replaces.map(x => `<div class="note" style="margin-bottom:14px"><span>Replaces <a href="${ruleUrl(x)}">${esc(x.title)}</a> <span class="mono">${x.group}/${x.slug}</span>, retired in ${releaseTag(x.retiredIn)}.</span></div>`).join('')}<p class="faint sm" style="margin:0 0 14px">A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" target="_blank" rel="noopener">How versions work</a></p>`
-        + rowList(versions.map((v, k) => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b>${versionChips(v, k === 0)}<a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div>${v.from ? `<a class="sm" href="https://github.com/${esc(lib.id)}/compare/${releaseTag(versions[k + 1].release)}...${releaseTag(v.release)}" data-act="ghlink">Compare</a>` : '<span></span>'}</div>`).join(''));
+        + (canCompare(r) && versions.length > 1 ? `<div class="row between" style="margin:0 0 12px"><span class="faint sm">${versions.length} versions</span><a class="btn small" href="${compareUrl(r, versions[versions.length - 1].version, versions[0].version)}">Compare versions</a></div>` : '')
+        + rowList(versions.map((v, k) => versionRow(r, v, versions[k + 1]?.version, k === 0)).join(''));
     }
     const tabs = [['rule', 'Rule', null], ['discussion', 'Discussion', openN || null], ['versions', 'Versions', versions.length]];
     return `<div class="page wrap">
@@ -632,12 +805,12 @@
       <div class="meta" style="margin-top:10px"><span class="pill">Retired</span><span>Last version <span class="mono">${versions[0].version}</span></span></div>
       <div class="retired-box">
         <p><b>Retired in <a class="mono" href="${libUrl(lib, 'releases')}">${releaseTag(r.retiredIn)}</a></b> <span class="faint">· ${esc(releaseDate(lib, r.retiredIn))}</span></p>
-        <p class="muted">${esc(r.summary)}</p>
+        ${summaryLines(r.summaries, 'muted')}
         ${repl ? `<p>Replaced by <a href="${ruleUrlById(lib, r.replacedBy)}"><b>${esc(repl.title)}</b></a> <span class="mono faint">${esc(r.replacedBy)}</span></p>` : ''}
         <p class="faint sm">Projects that pin it keep its last version. Other projects drop it when they update.</p>
       </div>
       <p class="index list-label">Versions</p>
-      ${rowList(versions.map(v => `<div class="vrow"><div><div class="row" style="gap:10px"><b class="mono">${v.version}</b><a class="faint sm mono" href="${libUrl(lib, 'releases')}">${releaseTag(v.release)}</a><span class="faint sm">${esc(v.date)}</span></div><div class="muted sm" style="margin-top:4px">${esc(v.summary)}</div></div><span></span></div>`).join(''))}</div>`;
+      ${rowList(versions.map((v, k) => versionRow(r, v, versions[k + 1]?.version, false)).join(''))}</div>`;
   }
 
   // ---------- Dashboard ----------
@@ -1155,11 +1328,12 @@
 
   // ---------- Events ----------
   document.addEventListener('click', e => {
-    const t = e.target.closest('[data-act],[data-copy],[data-sort],[data-libfilter],[data-selall],[data-clearfilters],[data-checkouttab]');
+    const t = e.target.closest('[data-act],[data-copy],[data-sort],[data-libfilter],[data-selall],[data-clearfilters],[data-checkouttab],[data-cmpview]');
     if (!t) { if (!e.target.closest('.menu')) $('#menu')?.classList.add('hidden'); return; }
     const act = t.dataset.act;
     const r = currentRule();
     if (t.dataset.checkouttab) { checkoutTab = t.dataset.checkouttab; return render(false); }
+    if (t.dataset.cmpview) return setQuery({ view: t.dataset.cmpview === 'words' ? null : t.dataset.cmpview });
     if (t.dataset.sort) return setQuery({ sort: t.dataset.sort === t.dataset.default ? null : t.dataset.sort });
     if (t.hasAttribute('data-clearfilters')) return setQuery({ kind: null, impact: null, fabrica: null, mine: null, libs: null, stars: null, used: null });
     if (t.dataset.libfilter !== undefined) return setQuery({ lib: t.dataset.libfilter || null });
@@ -1221,6 +1395,13 @@
       const vals = new Set((parse().q.get(t.dataset.multi) || '').split(',').filter(Boolean));
       if (t.checked) vals.add(t.dataset.val); else vals.delete(t.dataset.val);
       return setQuery({ [t.dataset.multi]: [...vals].join(',') || null });
+    }
+    if (t.dataset.cmp) {
+      let [from, to] = (parse().q.get('compare') || '').split('...');
+      if (t.dataset.cmp === 'from') from = t.value; else to = t.value;
+      // Keep the older version first, whichever side changed.
+      if (from.localeCompare(to, undefined, { numeric: true }) > 0) [from, to] = [to, from];
+      return setQuery({ compare: `${from}...${to}` });
     }
     if (t.hasAttribute('data-cartrepo')) { state.cartNewRepo = t.value.trim(); save(); return render(false); }
     if (t.dataset.cartproject) { state.cartProject = t.dataset.cartproject; save(); return render(false); }
