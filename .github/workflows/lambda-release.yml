@@ -31,8 +31,10 @@ jobs:
           python3 scripts/package-release.py --commit "$SOURCE_COMMIT" --output build/repeat
           for zip in build/release/*.zip; do cmp "$zip" "build/repeat/$(basename "$zip")"; done
           for zip in build/release/*.zip; do
-            unzip -q -o "$zip" bootstrap -d "build/unpacked/$(basename "$zip" .zip)"
-            file "build/unpacked/$(basename "$zip" .zip)/bootstrap" | grep -q 'ELF 64-bit LSB executable, ARM aarch64'
+            unpacked="build/unpacked/$(basename "$zip" .zip)"
+            mkdir -p "$unpacked"
+            unzip -q -o "$zip" bootstrap -d "$unpacked"
+            file "$unpacked/bootstrap" | grep -q 'ELF 64-bit LSB executable, ARM aarch64'
           done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
