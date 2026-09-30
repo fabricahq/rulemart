@@ -12,9 +12,7 @@ EventBridge Scheduler -> web Lambda, standing in for the library-release poller
 - `cmd/worker` stores each queued message in Neon.
 - `internal/hello` holds the shared message type and the Neon connection, read from an SSM parameter.
 
-The infrastructure is the `aws/rulemart/us-west-2/skeleton` stack in
-[fabricahq/infra-live](https://github.com/fabricahq/infra-live), built from modules in
-[fabricahq/infra-catalog](https://github.com/fabricahq/infra-catalog).
+Fabrica's private infrastructure repositories define and deploy the AWS resources.
 
 ## Build and release
 
@@ -22,4 +20,4 @@ The infrastructure is the `aws/rulemart/us-west-2/skeleton` stack in
 arm64 and writes `dist/<function>.zip`, `SHA256SUMS`, and `manifest.json`. The ZIPs are reproducible.
 
 CI builds the same assets on every push. Pushing a `v*` tag on a commit merged into `main` publishes them as a
-GitHub release. To deploy one, copy its SHA-256 values into the infra-live stack.
+GitHub release. A deployment pins each release's SHA-256 values, so publishing a release doesn't deploy it.
