@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"time"
-	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -64,7 +63,7 @@ func (s *server) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	if err := json.Unmarshal(raw, &req); err == nil && req.RequestContext.HTTP.Method != "" {
 		return s.serve(ctx, req), nil
 	}
-	id, err := s.enqueue(ctx, "Hello from the schedule", "schedule")
+	id, err := s.enqueue(ctx, hello.Message{Text: "Hello from the schedule", Source: "schedule", SentAt: time.Now().UTC()})
 	if err != nil {
 		return nil, err
 	}
@@ -89,18 +88,19 @@ func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest)
 		if err != nil {
 			return text(http.StatusBadRequest, "no-store", "Send the text as a URL-encoded form field\n")
 		}
-		msg := form.Get("text")
-		if msg == "" {
-			msg = "Hello from the web"
+		m := hello.Message{Text: form.Get("text"), Source: "web", SentAt: time.Now().UTC()}
+		if m.Text == "" {
+			m.Text = "Hello from the web"
 		}
-		if utf8.RuneCountInString(msg) > hello.MaxTextLength {
-			return text(http.StatusBadRequest, "no-store", fmt.Sprintf("text must be at most %d characters\n", hello.MaxTextLength))
+		// Refuse what the worker couldn't store, rather than queueing a message that fails on every delivery.
+		if err := m.Validate(); err != nil {
+			return text(http.StatusBadRequest, "no-store", err.Error()+"\n")
 		}
-		id, err := s.enqueue(ctx, msg, "web")
+		id, err := s.enqueue(ctx, m)
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}
-		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": msg})
+		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": m.Text})
 	case "/messages":
 		rows, err := s.messages.Latest(ctx, 20)
 		if err != nil {
@@ -115,8 +115,9 @@ func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest)
 	}
 }
 
-func (s *server) enqueue(ctx context.Context, msg, source string) (string, error) {
-	body, err := json.Marshal(hello.Message{Text: msg, Source: source, SentAt: time.Now().UTC()})
+// enqueue sends m to the jobs queue and returns its SQS message ID.
+func (s *server) enqueue(ctx context.Context, m hello.Message) (string, error) {
+	body, err := json.Marshal(m)
 	if err != nil {
 		return "", err
 	}

@@ -61,3 +61,22 @@ func TestEnqueueQueuesTheFormTextForPost(t *testing.T) {
 		})
 	}
 }
+
+// A message with a NUL character was queued and acknowledged, then failed on every delivery, because Postgres text
+// can't hold NUL. The web function now refuses it before queueing.
+func TestEnqueueRejectsTextPostgresCannotStore(t *testing.T) {
+	for name, text := range map[string]string{"NUL": "hello\x00world", "invalid UTF-8": "caf\xe9"} {
+		t.Run(name, func(t *testing.T) {
+			q := &fakeQueue{}
+
+			resp := (&server{queue: q}).serve(context.Background(), post("/enqueue", url.Values{"text": {text}}))
+
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("got %d: %s, want 400", resp.StatusCode, resp.Body)
+			}
+			if sent := q.messages(t); len(sent) != 0 {
+				t.Fatalf("queued %d messages, want none", len(sent))
+			}
+		})
+	}
+}
