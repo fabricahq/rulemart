@@ -61,6 +61,14 @@ Before planning, implementing, reviewing, testing, or diagnosing, complete these
 
 **Open group:** [Go](groups/techs/go.md)
 
+### Goose
+
+**Description:** Keep SQL-only goose migration directories safe for CLI discovery.
+
+**When to read this group:** Before planning, creating, organizing, or reviewing SQL migrations in a project using goose.
+
+**Open group:** [Goose](groups/techs/goose.md)
+
 ---
 
 These files are generated. Edit source rules or configuration and rebuild to change them.

@@ -18,6 +18,11 @@ func TestValidateRejectsMessagesTheWebFunctionCouldNotSend(t *testing.T) {
 		"no source":     {Text: "hi", SentAt: sent},
 		"no sent time":  {Text: "hi", Source: "web"},
 		"text too long": {Text: strings.Repeat("é", MaxTextLength+1), Source: "web", SentAt: sent},
+		// Postgres text can't hold NUL or invalid UTF-8, so these could never be stored.
+		"NUL in text":          {Text: "hello\x00world", Source: "web", SentAt: sent},
+		"NUL in source":        {Text: "hi", Source: "we\x00b", SentAt: sent},
+		"invalid UTF-8 text":   {Text: "caf\xe9", Source: "web", SentAt: sent},
+		"invalid UTF-8 source": {Text: "hi", Source: "\xff", SentAt: sent},
 	} {
 		if err := m.Validate(); err == nil {
 			t.Errorf("%s: accepted %+v", name, m)

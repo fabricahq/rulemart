@@ -38,6 +38,7 @@ This folder retains byte-for-byte copies of declared library license and notice 
 | `techs/go/comments-package-doc-vs-file-header` | No version | Unreleased |
 | `techs/go/errors-include-useful-diagnostic-data` | No version | Unreleased |
 | `techs/go/errors-use-contract-errors-deliberately` | No version | Unreleased |
+| `techs/goose/migrations-directory-contains-only-sql` | No version | Unreleased |
 
 ## License terms
 

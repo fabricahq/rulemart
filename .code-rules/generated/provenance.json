@@ -12,14 +12,16 @@
         "practices/performance",
         "practices/readmes",
         "practices/testing",
-        "techs/go"
+        "techs/go",
+        "techs/goose"
       ],
       "groupSelection": [
         "practices/code-design",
         "practices/performance",
         "practices/readmes",
         "practices/testing",
-        "techs/go"
+        "techs/go",
+        "techs/goose"
       ],
       "licenseFiles": [
         "LICENSE.md",
@@ -116,6 +118,22 @@
             "name": "Go",
             "description": "Document Go struct fields and packages, and give errors useful context and deliberate contracts.",
             "whenToRead": "Before planning, writing, or reviewing Go packages, structs, comments, or error handling."
+          }
+        }
+      ],
+      "effectiveGuidanceSources": [
+        "fabrica"
+      ]
+    },
+    {
+      "id": "techs/goose",
+      "guidance": [
+        {
+          "source": "fabrica",
+          "metadata": {
+            "name": "Goose",
+            "description": "Keep SQL-only goose migration directories safe for CLI discovery.",
+            "whenToRead": "Before planning, creating, organizing, or reviewing SQL migrations in a project using goose."
           }
         }
       ],
@@ -801,6 +819,38 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/errors-use-contract-errors-deliberately.md",
+        "repository": "https://github.com/fabricahq/public-rules.git",
+        "ref": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
+        "resolvedCommit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
+        "version": null,
+        "release": null
+      },
+      "upstream": null,
+      "replacementReason": null,
+      "licenseBasis": "library",
+      "license": {
+        "spdxExpression": "MIT",
+        "files": [
+          "vendor/fabrica/LICENSE.md"
+        ],
+        "attributionFiles": [
+          "vendor/fabrica/NOTICE.md"
+        ],
+        "generatedFiles": [
+          "libraries/fabrica/licenses/LICENSE.md"
+        ],
+        "generatedAttributionFiles": [
+          "libraries/fabrica/licenses/notices/001.md"
+        ]
+      },
+      "attribution": []
+    },
+    {
+      "id": "fabrica:techs/goose/migrations-directory-contains-only-sql",
+      "group": "techs/goose",
+      "origin": {
+        "source": "fabrica",
+        "file": "techs/goose/migrations-directory-contains-only-sql.md",
         "repository": "https://github.com/fabricahq/public-rules.git",
         "ref": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
         "resolvedCommit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",

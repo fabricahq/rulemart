@@ -1,6 +1,6 @@
 """Build each Lambda for provided.al2023 on arm64 and package reproducible release assets.
 
-Writes <function>.zip for every command under cmd/, plus SHA256SUMS and manifest.json, which records the source
+Writes <function>.zip for each Lambda command under cmd/, plus SHA256SUMS and manifest.json, which records the source
 commit and each asset's digest. Fixed timestamps and permissions keep the ZIP bytes identical across builds, so CI
 can build twice and compare.
 """
@@ -15,6 +15,8 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = "provided.al2023"
+# Commands deployed as Lambda functions. Others under cmd/, such as migrate, run on an operator's machine.
+FUNCTIONS = ("web", "worker")
 ARCHITECTURE = "arm64"
 
 
@@ -45,7 +47,7 @@ def main():
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    functions = sorted(path.name for path in (ROOT / "cmd").iterdir() if path.is_dir())
+    functions = sorted(FUNCTIONS)
     assets = []
     with tempfile.TemporaryDirectory() as workdir:
         for function in functions:
