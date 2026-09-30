@@ -1,23 +1,17 @@
 # Rulemart
 
-A catalog of public [Code Rules](https://code-rules.fabricahq.com) libraries. This branch holds the walking skeleton:
-the full request path with no business logic, to prove the infrastructure end to end.
+Rulemart helps you find and adopt [Code Rules](https://code-rules.fabricahq.com) libraries: the engineering rules
+coding agents follow while they write and review your code. It will be at
+[rulemart.fabricahq.com](https://rulemart.fabricahq.com).
+
+This repository is the site's source. Right now it holds the walking skeleton: the full request path with no
+product features, which proves the infrastructure end to end.
 
 ```text
 CloudFront -> web Lambda (Function URL) -> SQS -> worker Lambda -> Neon Postgres
 EventBridge Scheduler -> web Lambda, standing in for the library-release poller
 ```
 
-- `cmd/web` answers through CloudFront and on the schedule, queueing a message either way.
-- `cmd/worker` stores each queued message in Neon.
-- `internal/hello` holds the shared message type and the Neon connection, read from an SSM parameter.
-
-Fabrica's private infrastructure repositories define and deploy the AWS resources.
-
-## Build and release
-
-`make check` vets and tests the code. `make dist` builds each function under `cmd/` for `provided.al2023` on
-arm64 and writes `dist/<function>.zip`, `SHA256SUMS`, and `manifest.json`. The ZIPs are reproducible.
-
-CI builds the same assets on every push. Pushing a `v*` tag on a commit merged into `main` publishes them as a
-GitHub release. A deployment pins each release's SHA-256 values, so publishing a release doesn't deploy it.
+Fabrica's private infrastructure repositories define and deploy the AWS resources. To build, test, or change
+Rulemart, see [CONTRIBUTING.md](CONTRIBUTING.md). The decisions that shape it are in
+[docs/decisions.md](docs/decisions.md).
