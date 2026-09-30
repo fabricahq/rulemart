@@ -1,0 +1,6 @@
+formatVersion: 1
+license:
+  spdxExpression: MIT
+  file: LICENSE.md
+  notices:
+    - NOTICE.md

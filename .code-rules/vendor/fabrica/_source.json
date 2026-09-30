@@ -1,0 +1,160 @@
+{
+  "formatVersion": 2,
+  "repository": "https://github.com/fabricahq/public-rules.git",
+  "ref": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
+  "resolvedCommit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
+  "groupSelection": [
+    "practices/code-design",
+    "practices/performance",
+    "practices/readmes",
+    "practices/testing",
+    "techs/go"
+  ],
+  "groups": [
+    "practices/code-design",
+    "practices/performance",
+    "practices/readmes",
+    "practices/testing",
+    "techs/go"
+  ],
+  "rules": {
+    "practices/code-design/express-operations-as-meaningful-steps": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/code-design/organize-code-by-feature": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/code-design/separate-pure-computation-from-effects": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/performance/optimize-measured-hot-paths": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/readmes/give-a-quick-start-that-runs-as-written": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/readmes/keep-the-readme-an-entry-point": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/readmes/match-presentation-to-product-tier": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/readmes/open-with-what-the-product-does": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/readmes/state-what-the-product-does-not-do": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/choose-tests-by-risk": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/cover-boundary-cases": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/keep-tests-independent": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/name-tests-for-behavior-and-condition": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/run-focused-tests-while-iterating": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/test-at-the-lowest-layer": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/test-bug-fixes-before-fixing": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "practices/testing/test-observable-behavior": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "techs/go/comment-non-obvious-struct-fields": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "techs/go/comments-package-doc-vs-file-header": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "techs/go/errors-include-useful-diagnostic-data": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "techs/go/errors-use-contract-errors-deliberately": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    }
+  },
+  "retiredRules": [],
+  "files": {
+    "LICENSE.md": "58f9b79033cf651c5213465e6751b63ba00886247fdc11374a2b4dbe86f49c19",
+    "NOTICE.md": "974f41a884c1b42c97332ad26814277dbdd2c70ad95846bac578bb27c23ff5e5",
+    "assets/testing-philosophy.md": "dd19fa4b0f09ff3e1a9755e5a79c6a0102b040abea49d10020b349c1da0ce30b",
+    "practices/code-design/_group.yaml": "88948988c44ed7ff6c8777dda114b11e0c5ec8c9d92a070e191a72a76a8a4170",
+    "practices/code-design/express-operations-as-meaningful-steps.md": "84198930940407350668c996c7c042a60c7ea7d93f2e313ef095544de211a4b8",
+    "practices/code-design/organize-code-by-feature.md": "87dd8be5e02e19430421c97955b545b92143751058ce00f1c36df6f644657ce8",
+    "practices/code-design/separate-pure-computation-from-effects.md": "338379ccb1bba922957509b02043d349473987d8824d86922075b3b2a7876d3d",
+    "practices/performance/_group.yaml": "06b5930eadbac8c2a52b62f905104735033a9636fb8519924ff2cf18dd6f51c6",
+    "practices/performance/optimize-measured-hot-paths.md": "6f55cec0cff2c6857904993566c63c4dea4c902e5c94445555be823c3cd936ae",
+    "practices/readmes/_group.yaml": "dca7a6d911e994a10f8f1090740336ab5e5e4792a5cf41238d502c487c8ddb1e",
+    "practices/readmes/give-a-quick-start-that-runs-as-written.md": "80c1b571eb3297bb36aff22b126179c7e4e3264ff92922ee536683e3b9bd746a",
+    "practices/readmes/keep-the-readme-an-entry-point.md": "58d9192fa3c065031c50d4abc566fc5d4bed7df50947a299f338bc48b1d20407",
+    "practices/readmes/match-presentation-to-product-tier.md": "29a8230cd69751a71ced67927a9346ae6cd4ccbf12e8a1ae6a5964b2a9957673",
+    "practices/readmes/open-with-what-the-product-does.md": "169400038f44641f29d6705ca2c5b01c06178eb8747a65fbfe1f5f103386af02",
+    "practices/readmes/state-what-the-product-does-not-do.md": "2bc5ef3526b8e27e05a662142c099ddaf57ccc2718094362dece2992008d77f7",
+    "practices/testing/_group.yaml": "dd2e272699f133acb011289de84a0d7904da1a71f2a058db8a1e870063089ed6",
+    "practices/testing/choose-tests-by-risk.md": "b487a83d3cc66407f95506b5b156b438e74dd3d28dee9c334070c75b9d31d199",
+    "practices/testing/cover-boundary-cases.md": "10e8c8245ab251fb8f31293ff2f2e69551eb64fc3a7cc97b6a65963bd18a1339",
+    "practices/testing/keep-tests-independent.md": "c9117e3a4f7a0ad4a226b3a59e1cf74f839bcc295fda64b97737e217315e79ed",
+    "practices/testing/name-tests-for-behavior-and-condition.md": "84d1b9452fd940263252c516ce9deb501e82972097274c10f26672d30b15eed8",
+    "practices/testing/run-focused-tests-while-iterating.md": "948f894cca81c3ee661bd7d5bcd2bd27cd47332c2b2556ff7040e48c027659a9",
+    "practices/testing/test-at-the-lowest-layer.md": "683adcd82ba868a65441f51f7dd61d42076fd426206ed92fc72496db2f48244d",
+    "practices/testing/test-bug-fixes-before-fixing.md": "51dbfc950c1f241da44a37d81a64a77cd15b983a1c5ef61fd754a828fb45a44f",
+    "practices/testing/test-observable-behavior.md": "31f7c9e67b16e137414ce11f8105282758a227fbd131d6bb9a46e76b39d2b0a5",
+    "rule-library.yaml": "d8f64d4c72618e71379a25cd492a05209940585bfc433805d4aed1604b35d59e",
+    "techs/go/_group.yaml": "39acb79b7721d35c0207214112c54c248cff986a06bf249895b67c967f4b9f6b",
+    "techs/go/comment-non-obvious-struct-fields.md": "32162b186e7e330e1c0fc66129677dff9958e18c0be89048b0e3650be454c40e",
+    "techs/go/comments-package-doc-vs-file-header.md": "f098ae65071fa302232c577e3848639130055422fbf7b15d4e0ca698e75be162",
+    "techs/go/errors-include-useful-diagnostic-data.md": "210bb7ae532abe64c2ec63f733ed94c503154672ba01a2086cffbfb56b4f7918",
+    "techs/go/errors-use-contract-errors-deliberately.md": "ea4816387b02c203b5391ab85d0a7ae4a5959728dc35812d501e2c8bc63965ad"
+  }
+}
