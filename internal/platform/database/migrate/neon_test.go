@@ -1,6 +1,9 @@
 package migrate
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDirectConnStringDropsPoolerFromTheEndpoint(t *testing.T) {
 	for name, tc := range map[string]struct{ pooled, direct string }{
@@ -32,6 +35,36 @@ func TestDirectConnStringRejectsWhatIsNotAPooledNeonURL(t *testing.T) {
 		"key-value format":            "host=ep-a-pooler.example.neon.tech user=app",
 		"other scheme":                "mysql://app:secret@ep-a-pooler.example.neon.tech/db",
 		"empty":                       "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got, err := DirectConnString(pooled); err == nil {
+				t.Fatalf("accepted %q as %q", pooled, got)
+			}
+		})
+	}
+}
+
+// pgx's parse errors quote the connection string, so a malformed value used to reach public CI logs with password
+// fragments in it.
+func TestDirectConnStringKeepsCredentialsOutOfItsErrors(t *testing.T) {
+	_, err := DirectConnString("postgresql://app:secret@ep-a-pooler.example.neon.tech/db?password=SECRETFRAGMENT&MORESECRET")
+	if err == nil {
+		t.Fatal("accepted a connection string pgx can't parse")
+	}
+	for _, leak := range []string{"SECRETFRAGMENT", "MORESECRET", "secret"} {
+		if strings.Contains(err.Error(), leak) {
+			t.Fatalf("error %q repeats %q from the connection string", err, leak)
+		}
+	}
+}
+
+// pgx honors host and port in the query, which used to override the rewritten host, so migrations could still reach
+// the pooler or anywhere else.
+func TestDirectConnStringRejectsDestinationOverrides(t *testing.T) {
+	for name, pooled := range map[string]string{
+		"host override":  "postgresql://app:secret@ep-a-pooler.example.neon.tech/db?host=127.0.0.1&port=1",
+		"pooler in host": "postgresql://app:secret@ep-a-pooler.example.neon.tech/db?host=ep-a-pooler.example.neon.tech",
+		"several hosts":  "postgresql://app:secret@ep-a-pooler.example.neon.tech,ep-b-pooler.example.neon.tech/db",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got, err := DirectConnString(pooled); err == nil {
