@@ -10,3 +10,4 @@ sources:
       - practices/readmes
       - practices/testing
       - techs/go
+      - techs/goose

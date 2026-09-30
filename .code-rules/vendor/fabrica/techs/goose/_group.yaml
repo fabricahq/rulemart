@@ -1,0 +1,3 @@
+name: Goose
+description: Keep SQL-only goose migration directories safe for CLI discovery.
+whenToRead: Before planning, creating, organizing, or reviewing SQL migrations in a project using goose.

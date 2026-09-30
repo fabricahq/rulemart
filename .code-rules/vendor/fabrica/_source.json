@@ -8,14 +8,16 @@
     "practices/performance",
     "practices/readmes",
     "practices/testing",
-    "techs/go"
+    "techs/go",
+    "techs/goose"
   ],
   "groups": [
     "practices/code-design",
     "practices/performance",
     "practices/readmes",
     "practices/testing",
-    "techs/go"
+    "techs/go",
+    "techs/goose"
   ],
   "rules": {
     "practices/code-design/express-operations-as-meaningful-steps": {
@@ -122,6 +124,11 @@
       "version": null,
       "release": null,
       "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+    },
+    "techs/goose/migrations-directory-contains-only-sql": {
+      "version": null,
+      "release": null,
+      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
     }
   },
   "retiredRules": [],
@@ -155,6 +162,8 @@
     "techs/go/comment-non-obvious-struct-fields.md": "32162b186e7e330e1c0fc66129677dff9958e18c0be89048b0e3650be454c40e",
     "techs/go/comments-package-doc-vs-file-header.md": "f098ae65071fa302232c577e3848639130055422fbf7b15d4e0ca698e75be162",
     "techs/go/errors-include-useful-diagnostic-data.md": "210bb7ae532abe64c2ec63f733ed94c503154672ba01a2086cffbfb56b4f7918",
-    "techs/go/errors-use-contract-errors-deliberately.md": "ea4816387b02c203b5391ab85d0a7ae4a5959728dc35812d501e2c8bc63965ad"
+    "techs/go/errors-use-contract-errors-deliberately.md": "ea4816387b02c203b5391ab85d0a7ae4a5959728dc35812d501e2c8bc63965ad",
+    "techs/goose/_group.yaml": "dc0c54d969eac840bf8ff2b74eb7b0da85980597dcad505e4dacf6e7dbeabd77",
+    "techs/goose/migrations-directory-contains-only-sql.md": "e90b6df6e2c94b99c0c6d382003069318e35c428f67cf16d54be9c1207046991"
   }
 }
