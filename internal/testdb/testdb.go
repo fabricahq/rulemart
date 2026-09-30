@@ -63,7 +63,7 @@ func exec(t *testing.T, connString, statement string, args ...any) {
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, connString)
 	if err != nil {
-		t.Fatalf("connect to test database: %v", err)
+		t.Fatalf("connect to the test Postgres server (start one with make db): %v", err)
 	}
 	defer conn.Close(ctx)
 	if _, err := conn.Exec(ctx, statement, args...); err != nil {
