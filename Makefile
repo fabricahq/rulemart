@@ -1,13 +1,11 @@
-# Builds each Lambda as an arm64 `bootstrap` binary for the provided.al2023 runtime, zipped into dist/.
-FUNCTIONS := web worker
+# Local build of the release assets CI publishes: one ZIP per function under cmd/, plus SHA256SUMS and manifest.json.
+.PHONY: dist check clean
+dist:
+	python3 scripts/package-release.py --commit "$$(git rev-parse HEAD)" --output dist
 
-.PHONY: dist clean
-dist: $(FUNCTIONS:%=dist/%.zip)
-
-dist/%.zip: $(shell find cmd internal -name '*.go') go.mod go.sum
-	@mkdir -p dist/$*
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -trimpath -ldflags='-s -w' -o dist/$*/bootstrap ./cmd/$*
-	cd dist/$* && rm -f ../$*.zip && zip -q -X ../$*.zip bootstrap
+check:
+	go vet ./...
+	go test ./...
 
 clean:
 	rm -rf dist
