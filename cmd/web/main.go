@@ -11,6 +11,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -26,11 +27,28 @@ var (
 	queue    *sqs.Client
 	queueURL = os.Getenv("QUEUE_URL")
 
-	// The database opens on the first request that needs it, so / and /enqueue work even before Neon is configured.
-	dbOnce sync.Once
-	db     *pgxpool.Pool
-	dbErr  error
+	// The database opens on the first request that needs it, so / and /enqueue work before Neon is configured.
+	// Only a successful pool is kept; after a failure, the next request tries again.
+	dbMu sync.Mutex
+	db   *pgxpool.Pool
 )
+
+// database returns the shared pool, opening it within the request's deadline if no earlier attempt succeeded.
+func database(ctx context.Context) (*pgxpool.Pool, error) {
+	dbMu.Lock()
+	defer dbMu.Unlock()
+	if db != nil {
+		return db, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	pool, err := hello.OpenDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	db = pool
+	return db, nil
+}
 
 func main() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -62,9 +80,18 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 			"GET /messages         read what the worker stored in Neon\n"+
 			"GET /cached           cached by CloudFront for 60 seconds\n")
 	case "/enqueue":
+		// Queueing is a side effect, so HEAD probes and other methods don't reach it.
+		if req.RequestContext.HTTP.Method != http.MethodGet {
+			resp := text(http.StatusMethodNotAllowed, "no-store", "Use GET\n")
+			resp.Headers["allow"] = http.MethodGet
+			return resp
+		}
 		msg := req.QueryStringParameters["text"]
 		if msg == "" {
 			msg = "Hello from the web"
+		}
+		if utf8.RuneCountInString(msg) > hello.MaxTextLength {
+			return text(http.StatusBadRequest, "no-store", fmt.Sprintf("text must be at most %d characters\n", hello.MaxTextLength))
 		}
 		id, err := enqueue(ctx, msg, "web")
 		if err != nil {
@@ -72,11 +99,11 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 		}
 		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": msg})
 	case "/messages":
-		dbOnce.Do(func() { db, dbErr = hello.OpenDB(context.Background()) })
-		if dbErr != nil {
-			return text(http.StatusServiceUnavailable, "no-store", dbErr.Error())
+		pool, err := database(ctx)
+		if err != nil {
+			return text(http.StatusServiceUnavailable, "no-store", err.Error())
 		}
-		rows, err := hello.Latest(ctx, db, 20)
+		rows, err := hello.Latest(ctx, pool, 20)
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}
