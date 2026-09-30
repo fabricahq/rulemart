@@ -1,0 +1,3 @@
+name: Go
+description: Document Go struct fields and packages, and give errors useful context and deliberate contracts.
+whenToRead: Before planning, writing, or reviewing Go packages, structs, comments, or error handling.

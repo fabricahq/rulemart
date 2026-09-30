@@ -1,0 +1,3 @@
+name: Code design
+description: Structure functions, modules, and folders so operations read clearly, computation stays separate from effects, and each feature's code stays together.
+whenToRead: When planning, implementing, refactoring, or reviewing function, module, or folder structure.

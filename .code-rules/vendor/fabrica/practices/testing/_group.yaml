@@ -1,0 +1,3 @@
+name: Testing
+description: Spend test effort where bugs are likely and costly, prove each behavior at the lowest layer that can, keep tests independent and focused on observable behavior, cover regressions and boundary cases, and name and run tests for clear feedback.
+whenToRead: When adding or changing behavior, fixing a bug, or writing, running, and reviewing tests.

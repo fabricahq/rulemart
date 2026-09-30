@@ -1,0 +1,12 @@
+schemaVersion: 1
+sources:
+  fabrica:
+    repository: https://github.com/fabricahq/public-rules.git
+    # public-rules v1.1.0. Drop this once the library publishes release/1, so rules follow their newest versions.
+    ref: ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea
+    groups:
+      - practices/code-design
+      - practices/performance
+      - practices/readmes
+      - practices/testing
+      - techs/go

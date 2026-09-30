@@ -1,0 +1,3 @@
+name: Performance
+description: Improve speed and resource use where measurement shows it matters, without changing behavior.
+whenToRead: When planning, implementing, changing, reviewing, or diagnosing code for speed or resource use, such as a slow loop, render, request, or data transformation.
