@@ -10,6 +10,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -39,6 +42,14 @@ func New(t *testing.T) string {
 	exec(t, server, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 	t.Cleanup(func() { exec(t, server, "DROP DATABASE "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)") })
 	return withDatabase(t, server, name)
+}
+
+// Parameter stands in for an SSM parameter whose value is a connection string that never changes.
+type Parameter string
+
+// GetParameter returns p as the parameter's value.
+func (p Parameter) GetParameter(context.Context, *ssm.GetParameterInput, ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+	return &ssm.GetParameterOutput{Parameter: &types.Parameter{Value: aws.String(string(p))}}, nil
 }
 
 // Exec runs one statement on the database at connString and fails t if it errors.

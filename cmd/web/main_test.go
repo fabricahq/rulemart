@@ -35,7 +35,7 @@ func TestServe(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp := serve(context.Background(), tt.req)
+			resp := (&server{}).serve(context.Background(), tt.req)
 			if resp.StatusCode != tt.status || resp.Headers[tt.header] != tt.value {
 				t.Fatalf("got %d with %s=%q, want %d with %q", resp.StatusCode, tt.header, resp.Headers[tt.header], tt.status, tt.value)
 			}

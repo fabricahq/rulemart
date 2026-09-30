@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -24,43 +25,51 @@ import (
 	"github.com/fabricahq/rulemart/internal/migrate"
 )
 
-var (
-	queue    *sqs.Client
-	queueURL = os.Getenv("QUEUE_URL")
+// queue is the part of the SQS client the web function uses.
+type queue interface {
+	SendMessage(context.Context, *sqs.SendMessageInput, ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
+}
 
-	// Only /messages needs Neon, and the store connects on first use, so / and /enqueue work before Neon is
-	// configured.
+// server answers the web function's invocations.
+type server struct {
+	queue queue
+	// queueURL identifies the jobs queue the worker consumes.
+	queueURL string
+	// messages connects to Neon on first use, so routes other than /messages work before Neon is configured.
 	messages *hello.Store
-)
+}
 
 func main() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	schemaVersion, err := migrate.RequiredVersion()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	queue = sqs.NewFromConfig(cfg)
-	messages = hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))
-	lambda.Start(handle)
+	s := &server{
+		queue:    sqs.NewFromConfig(cfg),
+		queueURL: os.Getenv("QUEUE_URL"),
+		messages: hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion)),
+	}
+	lambda.Start(s.handle)
 }
 
 // handle tells a Function URL request from a scheduled invocation by the request's HTTP method.
-func handle(ctx context.Context, raw json.RawMessage) (any, error) {
+func (s *server) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var req events.LambdaFunctionURLRequest
 	if err := json.Unmarshal(raw, &req); err == nil && req.RequestContext.HTTP.Method != "" {
-		return serve(ctx, req), nil
+		return s.serve(ctx, req), nil
 	}
-	id, err := enqueue(ctx, "Hello from the schedule", "schedule")
+	id, err := s.enqueue(ctx, "Hello from the schedule", "schedule")
 	if err != nil {
 		return nil, err
 	}
 	return map[string]string{"queued": id}, nil
 }
 
-func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.LambdaFunctionURLResponse {
+func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.LambdaFunctionURLResponse {
 	switch req.RawPath {
 	case "/":
 		return text(http.StatusOK, "no-store", "Rulemart walking skeleton\n\n"+
@@ -81,13 +90,13 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 		if utf8.RuneCountInString(msg) > hello.MaxTextLength {
 			return text(http.StatusBadRequest, "no-store", fmt.Sprintf("text must be at most %d characters\n", hello.MaxTextLength))
 		}
-		id, err := enqueue(ctx, msg, "web")
+		id, err := s.enqueue(ctx, msg, "web")
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}
 		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": msg})
 	case "/messages":
-		rows, err := messages.Latest(ctx, 20)
+		rows, err := s.messages.Latest(ctx, 20)
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}
@@ -100,12 +109,12 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 	}
 }
 
-func enqueue(ctx context.Context, msg, source string) (string, error) {
+func (s *server) enqueue(ctx context.Context, msg, source string) (string, error) {
 	body, err := json.Marshal(hello.Message{Text: msg, Source: source, SentAt: time.Now().UTC()})
 	if err != nil {
 		return "", err
 	}
-	out, err := queue.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(queueURL), MessageBody: aws.String(string(body))})
+	out, err := s.queue.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(s.queueURL), MessageBody: aws.String(string(body))})
 	if err != nil {
 		return "", fmt.Errorf("send to queue: %w", err)
 	}

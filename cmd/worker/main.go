@@ -19,9 +19,12 @@ import (
 	"github.com/fabricahq/rulemart/internal/migrate"
 )
 
-// The store connects on the first message, so a message that can't be stored fails and retries instead of the
-// function.
-var messages *hello.Store
+// worker stores the messages the queue delivers.
+type worker struct {
+	// messages connects to Neon on the first message, so a message that can't be stored fails and retries instead
+	// of the function.
+	messages *hello.Store
+}
 
 func main() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -32,11 +35,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	messages = hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))
-	lambda.Start(handle)
+	w := &worker{messages: hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))}
+	lambda.Start(w.handle)
 }
 
-func handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
+// handle stores each record's message and reports the records it couldn't validate or store, so SQS retries only
+// those.
+func (w *worker) handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
 	var failed []events.SQSBatchItemFailure
 	for _, rec := range ev.Records {
 		var m hello.Message
@@ -45,7 +50,7 @@ func handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, e
 			err = m.Validate()
 		}
 		if err == nil {
-			err = messages.Insert(ctx, rec.MessageId, m)
+			err = w.messages.Insert(ctx, rec.MessageId, m)
 		}
 		if err != nil {
 			log.Printf("message %s: %v", rec.MessageId, err)
