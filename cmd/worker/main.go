@@ -15,13 +15,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/hello"
 )
 
-var db *pgxpool.Pool
+// Neon opens on the first message, so a message that can't be stored fails and retries instead of the function.
+var db hello.DB
 
 func main() {
-	var err error
-	if db, err = hello.OpenDB(context.Background()); err != nil {
-		log.Fatal(err)
-	}
 	lambda.Start(handle)
 }
 
@@ -34,7 +31,7 @@ func handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, e
 			err = m.Validate()
 		}
 		if err == nil {
-			err = hello.Insert(ctx, db, rec.MessageId, m)
+			err = db.Run(ctx, func(pool *pgxpool.Pool) error { return hello.Insert(ctx, pool, rec.MessageId, m) })
 		}
 		if err != nil {
 			log.Printf("message %s: %v", rec.MessageId, err)

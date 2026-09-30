@@ -72,7 +72,15 @@ func OpenDB(ctx context.Context) (*pgxpool.Pool, error) {
 	if !strings.HasPrefix(url, "postgres") {
 		return nil, fmt.Errorf("parameter %s doesn't hold a Postgres connection string yet", name)
 	}
-	pool, err := pgxpool.New(ctx, url)
+	// The parse error would repeat the connection string, so leave it out.
+	poolConfig, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("parameter %s doesn't hold a valid connection string", name)
+	}
+	// An instance handles one invocation at a time, so it needs few connections. The cap keeps a burst of instances
+	// within what Neon's pooler serves.
+	poolConfig.MaxConns = 2
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("connect to Neon: %w", err)
 	}

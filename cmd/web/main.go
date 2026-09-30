@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -27,28 +26,9 @@ var (
 	queue    *sqs.Client
 	queueURL = os.Getenv("QUEUE_URL")
 
-	// The database opens on the first request that needs it, so / and /enqueue work before Neon is configured.
-	// Only a successful pool is kept; after a failure, the next request tries again.
-	dbMu sync.Mutex
-	db   *pgxpool.Pool
+	// Only /messages needs Neon, so / and /enqueue work before Neon is configured.
+	db hello.DB
 )
-
-// database returns the shared pool, opening it within the request's deadline if no earlier attempt succeeded.
-func database(ctx context.Context) (*pgxpool.Pool, error) {
-	dbMu.Lock()
-	defer dbMu.Unlock()
-	if db != nil {
-		return db, nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	pool, err := hello.OpenDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-	db = pool
-	return db, nil
-}
 
 func main() {
 	cfg, err := config.LoadDefaultConfig(context.Background())
@@ -99,11 +79,11 @@ func serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.Lamb
 		}
 		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": msg})
 	case "/messages":
-		pool, err := database(ctx)
-		if err != nil {
-			return text(http.StatusServiceUnavailable, "no-store", err.Error())
-		}
-		rows, err := hello.Latest(ctx, pool, 20)
+		var rows []hello.Row
+		err := db.Run(ctx, func(pool *pgxpool.Pool) (err error) {
+			rows, err = hello.Latest(ctx, pool, 20)
+			return err
+		})
 		if err != nil {
 			return text(http.StatusBadGateway, "no-store", err.Error())
 		}
