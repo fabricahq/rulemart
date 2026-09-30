@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,6 +39,8 @@ type server struct {
 	queueURL string
 	// messages connects to Neon on first use, so routes other than /messages work before Neon is configured.
 	messages *hello.Store
+	// log receives the details of failures that responses leave out.
+	log *slog.Logger
 }
 
 func main() {
@@ -53,6 +56,7 @@ func main() {
 		queue:    sqs.NewFromConfig(cfg),
 		queueURL: os.Getenv("QUEUE_URL"),
 		messages: hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion)),
+		log:      slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	}
 	lambda.Start(s.handle)
 }
@@ -98,13 +102,13 @@ func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest)
 		}
 		id, err := s.enqueue(ctx, m)
 		if err != nil {
-			return text(http.StatusBadGateway, "no-store", err.Error())
+			return s.fail(ctx, req, http.StatusBadGateway, "The message couldn't be queued. Try again later.", err)
 		}
 		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": m.Text})
 	case "/messages":
 		rows, err := s.messages.Latest(ctx, 20)
 		if err != nil {
-			return text(http.StatusBadGateway, "no-store", err.Error())
+			return s.fail(ctx, req, http.StatusServiceUnavailable, "Messages are unavailable right now. Try again later.", err)
 		}
 		return jsonBody(http.StatusOK, "no-store", rows)
 	case "/cached":
@@ -115,6 +119,14 @@ func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest)
 	}
 }
 
+// fail logs err with the request's route and ID, and answers with status and a public message that reveals nothing
+// about the failure.
+func (s *server) fail(ctx context.Context, req events.LambdaFunctionURLRequest, status int, public string, err error) events.LambdaFunctionURLResponse {
+	s.log.ErrorContext(ctx, "request failed", "route", req.RawPath, "method", req.RequestContext.HTTP.Method,
+		"requestID", req.RequestContext.RequestID, "status", status, "error", err.Error())
+	return text(status, "no-store", public+"\n")
+}
+
 // enqueue sends m to the jobs queue and returns its SQS message ID.
 func (s *server) enqueue(ctx context.Context, m hello.Message) (string, error) {
 	body, err := json.Marshal(m)
@@ -123,7 +135,7 @@ func (s *server) enqueue(ctx context.Context, m hello.Message) (string, error) {
 	}
 	out, err := s.queue.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(s.queueURL), MessageBody: aws.String(string(body))})
 	if err != nil {
-		return "", fmt.Errorf("send to queue: %w", err)
+		return "", fmt.Errorf("send message source=%q to queue: %v", m.Source, err)
 	}
 	return aws.ToString(out.MessageId), nil
 }
