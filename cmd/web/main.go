@@ -1,12 +1,13 @@
 // Command web is the walking skeleton's front door. CloudFront invokes it through its Function URL, and the
-// EventBridge schedule invokes it directly, standing in for the library-release poller. Either way it queues a
-// message for the worker; over HTTP it also reads back what the worker stored in Neon.
+// EventBridge schedule invokes it directly with {"source": "schedule"}, standing in for the library-release poller.
+// Either way it queues a message for the worker; over HTTP it also reads back what the worker stored in Neon.
 package main
 
 import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -61,12 +62,34 @@ func main() {
 	lambda.Start(s.handle)
 }
 
-// handle tells a Function URL request from a scheduled invocation by the request's HTTP method.
+// scheduleSource is the source field of the event the EventBridge schedule sends.
+const scheduleSource = "schedule"
+
+// invocation holds the fields handle uses to tell the web function's two kinds of events apart.
+type invocation struct {
+	// Source is scheduleSource in the schedule's event, and absent from Function URL requests.
+	Source string `json:"source"`
+	events.LambdaFunctionURLRequest
+}
+
+// handle serves Function URL requests, queues a message for the schedule's event, and rejects anything else.
 func (s *server) handle(ctx context.Context, raw json.RawMessage) (any, error) {
-	var req events.LambdaFunctionURLRequest
-	if err := json.Unmarshal(raw, &req); err == nil && req.RequestContext.HTTP.Method != "" {
-		return s.serve(ctx, req), nil
+	var event invocation
+	if err := json.Unmarshal(raw, &event); err != nil {
+		return nil, fmt.Errorf("decode invocation event: %v", err)
 	}
+	switch {
+	case event.Source == scheduleSource:
+		return s.poll(ctx)
+	case event.RequestContext.HTTP.Method != "":
+		return s.serve(ctx, event.LambdaFunctionURLRequest), nil
+	default:
+		return nil, errors.New("unrecognized invocation event: neither the schedule's event nor a Function URL request")
+	}
+}
+
+// poll stands in for the library-release poller: it queues one message for the worker.
+func (s *server) poll(ctx context.Context) (any, error) {
 	id, err := s.enqueue(ctx, hello.Message{Text: "Hello from the schedule", Source: "schedule", SentAt: time.Now().UTC()})
 	if err != nil {
 		return nil, err
