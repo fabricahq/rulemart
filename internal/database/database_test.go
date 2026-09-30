@@ -252,3 +252,66 @@ func TestRunKeepsAPausedCallersPoolUsableWhileAnotherRecoversFromAChangedPasswor
 		t.Fatalf("the paused caller failed after another caller recovered: %v", err)
 	}
 }
+
+// A connection string that starts with postgres but can't be used stayed cached, so correcting the parameter didn't
+// help until the function was replaced.
+func TestRunRereadsTheParameterAfterAConnectionStringThatDoesNotWork(t *testing.T) {
+	ctx := context.Background()
+	for name, broken := range map[string]string{
+		"malformed":       "postgres://%zz",
+		"host refuses it": "postgres://postgres:postgres@127.0.0.1:1/postgres?sslmode=disable&connect_timeout=2",
+	} {
+		t.Run(name, func(t *testing.T) {
+			param := &parameter{value: broken}
+			db := newDB(t, param, requiredVersion(t))
+			if err := db.Run(ctx, selectOne(ctx)); err == nil {
+				t.Fatal("Run succeeded with a connection string that can't work")
+			}
+
+			param.set(migrated(t))
+
+			if err := db.Run(ctx, selectOne(ctx)); err != nil {
+				t.Fatalf("query after the parameter was corrected: %v", err)
+			}
+		})
+	}
+}
+
+// pgx runs BeforeConnect with a context detached from the caller, so a refresh that never answered held the caller,
+// and the next ones, indefinitely.
+func TestRunGivesUpOnAPasswordRefreshThatStalls(t *testing.T) {
+	ctx := context.Background()
+	withPassword := appRole(t, migrated(t))
+	param := &parameter{value: withPassword("first")}
+	db := newDB(t, param, requiredVersion(t))
+	db.parameterTimeout = 100 * time.Millisecond
+	if err := db.Run(ctx, selectOne(ctx)); err != nil {
+		t.Fatal(err)
+	}
+
+	second := withPassword("second")
+	param.mu.Lock()
+	param.value, param.gate = second, make(chan struct{})
+	param.mu.Unlock()
+	forceNewConnections(db)
+
+	result := make(chan error, 1)
+	start := time.Now()
+	go func() { result <- db.Run(ctx, selectOne(ctx)) }()
+	select {
+	case err := <-result:
+		if err == nil {
+			t.Fatal("Run succeeded while the parameter couldn't be read")
+		}
+	case <-time.After(5 * time.Second):
+		close(param.gate)
+		t.Fatalf("Run was still waiting on the stalled refresh after %v", time.Since(start))
+	}
+
+	param.mu.Lock()
+	param.gate = nil
+	param.mu.Unlock()
+	if err := db.Run(ctx, selectOne(ctx)); err != nil {
+		t.Fatalf("query after the parameter could be read again: %v", err)
+	}
+}

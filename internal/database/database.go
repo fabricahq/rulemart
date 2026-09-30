@@ -30,6 +30,10 @@ const maxConns = 2
 // openTimeout bounds opening the pool, which reads the parameter and checks the schema.
 const openTimeout = 10 * time.Second
 
+// defaultParameterTimeout bounds each read of the parameter. pgx runs BeforeConnect with a context detached from the
+// caller, so without it a stalled read would hold every new connection.
+const defaultParameterTimeout = 5 * time.Second
+
 // ParameterReader is the part of the SSM client that reads the connection string.
 type ParameterReader interface {
 	GetParameter(context.Context, *ssm.GetParameterInput, ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
@@ -41,6 +45,8 @@ type DB struct {
 	parameterName string
 	// schemaVersion is the newest migration this release needs; the pool doesn't open until the database has it.
 	schemaVersion int64
+	// parameterTimeout bounds each read of the parameter, including the wait for another reader.
+	parameterTimeout time.Duration
 
 	pool atomic.Pointer[pgxpool.Pool]
 	// opening admits one caller at a time to open the pool. Callers wait for it with their own context, so a canceled
@@ -61,8 +67,10 @@ func New(parameters ParameterReader, parameterName string, schemaVersion int64) 
 		parameters:    parameters,
 		parameterName: parameterName,
 		schemaVersion: schemaVersion,
-		opening:       make(chan struct{}, 1),
-		reading:       make(chan struct{}, 1),
+		// A test shortens it.
+		parameterTimeout: defaultParameterTimeout,
+		opening:          make(chan struct{}, 1),
+		reading:          make(chan struct{}, 1),
 	}
 }
 
@@ -113,6 +121,8 @@ func (d *DB) get(ctx context.Context) (*pgxpool.Pool, error) {
 	defer cancel()
 	pool, err := d.open(ctx)
 	if err != nil {
+		// Whatever the parameter held didn't open a pool, so read it again next time: it may have been corrected.
+		d.forgetConnString()
 		return nil, err
 	}
 	d.pool.Store(pool)
@@ -158,11 +168,14 @@ func (d *DB) useCurrentPassword(ctx context.Context, config *pgx.ConnConfig) err
 	return nil
 }
 
-// readConnString returns the parameter's value, reading it from SSM unless an earlier read is still trusted.
+// readConnString returns the parameter's value, reading it from SSM unless an earlier read is still trusted. It only
+// caches a value that parses as a Postgres connection string.
 func (d *DB) readConnString(ctx context.Context) (string, error) {
 	if connString := d.cachedConnString(); connString != "" {
 		return connString, nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, d.parameterTimeout)
+	defer cancel()
 	if err := acquire(ctx, d.reading); err != nil {
 		return "", err
 	}
@@ -177,6 +190,10 @@ func (d *DB) readConnString(ctx context.Context) (string, error) {
 	connString := aws.ToString(out.Parameter.Value)
 	if !strings.HasPrefix(connString, "postgres") {
 		return "", errors.New("the parameter doesn't hold a Postgres connection string yet")
+	}
+	if _, err := pgx.ParseConfig(connString); err != nil {
+		// The parse error would repeat the connection string, so leave it out.
+		return "", errors.New("the parameter doesn't hold a valid Postgres connection string")
 	}
 	d.mu.Lock()
 	d.connString = connString
