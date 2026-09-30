@@ -761,7 +761,7 @@
         <div class="cart-empty-icon">${icon.cart}</div>
         <h1 class="title-xl" style="margin:16px 0 8px">Your cart is empty</h1>
         <p class="muted">Browse rules and add the ones you want. When you check out, you get one prompt for your agent and the exact commands to run.</p>
-        <div class="row" style="justify-content:center;margin-top:20px"><a class="btn primary" href="#/browse/techs">Browse techs</a><a class="btn" href="#/browse/practices">Browse practices</a></div></div>`;
+        <div class="row" style="justify-content:center;margin-top:20px"><a class="btn" href="#/browse/techs">Browse techs</a><a class="btn" href="#/browse/practices">Browse practices</a></div></div>`;
     }
     const plan = cartPlan();
     const tab = checkoutTab === 'commands' ? 'commands' : 'prompt';
