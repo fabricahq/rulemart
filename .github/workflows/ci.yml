@@ -1,0 +1,60 @@
+name: CI
+# Tests every push and pull request, and builds the release assets as a release would. Release Planner, not this
+# workflow, tags and publishes releases. The default branch ruleset requires the build job's check.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    # Test on the Lambdas' own CPU architecture.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    # Integration tests create their own databases on this server.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      RULEMART_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:55432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # The sqlc queries, templ components, and stylesheet are committed; fail when they don't match their sources.
+      - run: make check-generated
+      # The Code Rules files must match .code-rules/config.yaml and the imported releases. The version and checksum
+      # are pinned; raise both together.
+      - name: Check the Code Rules files
+        env:
+          CODE_RULES_VERSION: 0.2.0
+          CODE_RULES_SHA256: a38be1da2b6d8d9bd8938136d1a397fdc8ced81c236b248ba7c495e92c9d6882
+        run: |
+          archive="code-rules_${CODE_RULES_VERSION}_linux_arm64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/fabricahq/code-rules/releases/download/v${CODE_RULES_VERSION}/$archive"
+          echo "$CODE_RULES_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" code-rules
+          "$RUNNER_TEMP/code-rules" project check
+      - run: make check
+  # The same build, package, and checks the release runs, so an irreproducible or broken build fails here first.
+  release-assets:
+    name: Release assets
+    uses: ./.github/workflows/build-release.yml
+    with:
+      ref: ${{ github.sha }}

@@ -1,5 +1,5 @@
-# Local build and checks. dist builds the release assets CI publishes: one ZIP per Lambda function, plus SHA256SUMS
-# and manifest.json. check needs the Postgres from db; CI provides its own.
+# Local build and checks. dist builds the release assets Release Planner publishes: one ZIP per Lambda function, plus
+# SHA256SUMS and manifest.json. check needs the Postgres from db; CI provides its own.
 .PHONY: dist check generate check-generated db db-stop migrate ingest web clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
@@ -24,6 +24,13 @@ export RULEMART_TEST_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOS
 # other way round.
 LOCAL_DATABASE_ENV = $(if $(DATABASE_URL)$(DATABASE_URL_PARAMETER),,DATABASE_URL='$(LOCAL_DATABASE_URL)')
 
+# fabricahq/lambda-build's packager, which builds the release assets as lambda-build.toml says, in Docker. Keep the
+# commit equal to the one .github/workflows/build-release.yml checks out, and the SHA-256 equal to lambda_build.py's
+# at that commit.
+LAMBDA_BUILD_COMMIT := 15992fe67ee5af77c338558bcb4a4203c4aaed58
+LAMBDA_BUILD_SHA256 := d8a1514e9088b87e502d9ac6db2f545eaef5a05c14a64fa5e5eb6dfdacb4bf67
+LAMBDA_BUILD := bin/lambda_build-$(LAMBDA_BUILD_COMMIT).py
+
 # Tailwind's standalone CLI, so building the stylesheet needs no Node. Each platform's binary is pinned by the
 # SHA-256 in the release's sha256sums.txt; update the version and every checksum together.
 TAILWIND_VERSION := 4.3.3
@@ -45,8 +52,11 @@ TEMPL_DIR := internal/platform/web
 STYLESHEET_OUT := internal/platform/web/static/generated
 GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go'
 
-dist:
-	python3 scripts/package-release.py --commit "$$(git rev-parse HEAD)" --output dist
+# Builds HEAD's committed tree twice, as the release does, and requires identical ZIPs. Uncommitted changes aren't in
+# the build.
+dist: $(LAMBDA_BUILD)
+	rm -rf dist
+	python3 $(LAMBDA_BUILD) package --output dist
 
 check:
 	go vet ./...
@@ -74,6 +84,12 @@ $(TAILWIND):
 	curl -fsSL -o $@.download https://github.com/tailwindlabs/tailwindcss/releases/download/v$(TAILWIND_VERSION)/tailwindcss-$(TAILWIND_PLATFORM)
 	@echo "$(TAILWIND_SHA256_$(TAILWIND_PLATFORM))  $@.download" | shasum -a 256 -c - >/dev/null || { echo "Tailwind binary checksum mismatch"; rm -f $@.download; exit 1; }
 	@chmod +x $@.download && mv $@.download $@
+
+$(LAMBDA_BUILD):
+	@mkdir -p bin
+	curl -fsSL -o $@.download https://raw.githubusercontent.com/fabricahq/lambda-build/$(LAMBDA_BUILD_COMMIT)/lambda_build.py
+	@echo "$(LAMBDA_BUILD_SHA256)  $@.download" | shasum -a 256 -c - >/dev/null || { echo "lambda_build.py checksum mismatch"; rm -f $@.download; exit 1; }
+	@mv $@.download $@
 
 db:
 	@docker start $(LOCAL_DB_CONTAINER) >/dev/null 2>&1 || docker run -d --name $(LOCAL_DB_CONTAINER) \
