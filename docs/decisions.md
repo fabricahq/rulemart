@@ -29,7 +29,11 @@ than adding history.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
   release records with Code Rules' own parser: a copy in `third_party/coderules` until Code Rules publishes a public
   parsing package.
-- **Functions connect with the database owner for now.** Slice 1 adds a runtime role with data-only permissions.
+- **The web function connects as `rulemart_web`, a role that can only read what the pages show.** Infrastructure
+  creates it with SQL, as a plain LOGIN role, because a role made through Neon's API or console joins
+  `neon_superuser`, which can read and write every table and create roles and databases. Migrations grant it what
+  each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
+  ingestion connect as the database's owner.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 
 ## Infrastructure and delivery

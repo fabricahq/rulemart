@@ -14,8 +14,9 @@ Tests create their own databases on that server and drop them afterward. `make d
 
 ## Run the site locally
 
-`make db` also creates a `rulemart` database for local development. Migrate it, ingest a library, and serve the
-pages at <http://127.0.0.1:8080>:
+`make db` also creates a `rulemart` database for local development, and the `rulemart_web` role the web function
+connects as. Migrate the database and ingest a library as its owner, then serve the pages at
+<http://127.0.0.1:8080>; `make web` connects as `rulemart_web`, as the deployed function does:
 
 ```sh
 export DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart?sslmode=disable'
@@ -73,6 +74,8 @@ go tool goose -dir db/migrations -s create add_libraries sql
 - Migrations are forward-only. Leave the `Down` section as `-- Up-only migration; no rollback defined.` and fix a
   mistake with a new migration. To undo a local experiment, recreate the database.
 - Migrations change the schema, not data for testing.
+- Grant `rulemart_web` what the web function needs from each new table, usually `SELECT` on what the pages read,
+  and nothing on tables the pages don't read. The site's tests read as that role, so a missing grant fails them.
 - A migration must work with the release that's still running, because the schema changes before the functions
   do. Make a breaking change in two releases: add the new shape first, and remove the old one after nothing uses
   it.
