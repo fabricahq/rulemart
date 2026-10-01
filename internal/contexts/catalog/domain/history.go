@@ -1,14 +1,12 @@
 // Build each rule's version history from a library's release records, checking that the records agree.
 
-package app
+package domain
 
 import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
@@ -20,11 +18,11 @@ import (
 // version, a change starts from the rule's previous version, a new rule has none, a retirement retires the rule's
 // current version, every rule the previous record listed is either still listed or retired, and a retired ID never
 // returns. Errors name the release and field that broke the history.
-func buildHistory(records []coderules.ReleaseRecord) ([]domain.Rule, error) {
-	histories := map[string]*domain.Rule{}
+func buildHistory(records []coderules.ReleaseRecord) ([]Rule, error) {
+	histories := map[string]*Rule{}
 	previous := map[string]coderules.RuleVersion{}
 	for i, record := range records {
-		tag := "release/" + strconv.Itoa(record.Release)
+		tag := ReleaseTag(record.Release)
 		if record.Release != i+1 {
 			return nil, fmt.Errorf("%s: expected release/%d next; library releases are numbered from 1 without gaps", tag, i+1)
 		}
@@ -35,10 +33,10 @@ func buildHistory(records []coderules.ReleaseRecord) ([]domain.Rule, error) {
 			change := record.Changes[id]
 			history := histories[id]
 			if history == nil {
-				history = &domain.Rule{Path: id}
+				history = &Rule{Path: id}
 				histories[id] = history
 			}
-			history.Versions = append(history.Versions, domain.Version{
+			history.Versions = append(history.Versions, Version{
 				Number: record.Rules[id], Release: record.Release, Change: change.Change, Summaries: change.Summaries,
 			})
 		}
@@ -49,7 +47,7 @@ func buildHistory(records []coderules.ReleaseRecord) ([]domain.Rule, error) {
 		}
 		previous = record.Rules
 	}
-	result := make([]domain.Rule, 0, len(histories))
+	result := make([]Rule, 0, len(histories))
 	for _, id := range slices.Sorted(maps.Keys(histories)) {
 		result = append(result, *histories[id])
 	}
@@ -58,7 +56,7 @@ func buildHistory(records []coderules.ReleaseRecord) ([]domain.Rule, error) {
 
 // followsFrom checks that record follows from the rule versions the previous record listed, given the histories
 // built so far. Code Rules' parser has already checked that each change leads to the version record lists.
-func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*domain.Rule, tag string) error {
+func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*Rule, tag string) error {
 	for _, id := range slices.Sorted(maps.Keys(record.Rules)) {
 		version := record.Rules[id]
 		before, listed := previous[id]

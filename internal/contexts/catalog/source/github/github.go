@@ -1,5 +1,4 @@
-// Package github identifies a library's GitHub repository: it parses the repository's URL, and looks the
-// repository up in GitHub's REST API.
+// Package github looks up a library's repository in GitHub's REST API.
 package github
 
 import (
@@ -10,29 +9,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
-
-// githubName matches a GitHub owner or repository name.
-var githubName = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-
-// ParseRepositoryURL returns the owner and name in a GitHub repository URL, such as
-// https://github.com/fabricahq/code-rules-test-library. It accepts a trailing slash or .git suffix.
-func ParseRepositoryURL(raw string) (owner, name string, err error) {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Host != "github.com" || u.RawQuery != "" || u.Fragment != "" {
-		return "", "", fmt.Errorf("repository URL %q: expected https://github.com/<owner>/<repository>", raw)
-	}
-	parts := strings.Split(strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(u.Path, "/"), "/"), ".git"), "/")
-	if len(parts) != 2 || !githubName.MatchString(parts[0]) || !githubName.MatchString(parts[1]) {
-		return "", "", fmt.Errorf("repository URL %q: expected https://github.com/<owner>/<repository>", raw)
-	}
-	return parts[0], parts[1], nil
-}
 
 // Client looks up repositories in GitHub's REST API.
 type Client struct {

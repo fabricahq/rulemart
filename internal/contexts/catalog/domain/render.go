@@ -1,9 +1,10 @@
 // Render a rule's Markdown body as the HTML its Rulemart page shows.
 
-package app
+package domain
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html"
 	"net/url"
@@ -36,12 +37,12 @@ type rulePage struct {
 	tag, latestTag string
 }
 
-// pageKey carries the rulePage being rendered to pageTransformer, and budgetKey the contentBudget that pays for
-// rewritten links. refusedKey holds the budget's error when rewriting links would pass it.
+// pageKey carries the rulePage being rendered to pageTransformer, and allowanceKey the allowance that pays for
+// rewritten links. refusedKey holds the allowance's error when rewriting links would pass it.
 var (
-	pageKey    = parser.NewContextKey()
-	budgetKey  = parser.NewContextKey()
-	refusedKey = parser.NewContextKey()
+	pageKey      = parser.NewContextKey()
+	allowanceKey = parser.NewContextKey()
+	refusedKey   = parser.NewContextKey()
 )
 
 // markdown parses rule bodies: CommonMark with GitHub's extensions, adapted to the rule's page.
@@ -54,39 +55,39 @@ var markdown = goldmark.New(
 )
 
 // htmlRenderer renders what markdown parses: goldmark's HTML for CommonMark and GitHub's extensions, and
-// ruleNodeRenderer's raw HTML as text and highlighted code. Every node it renders first checks the budgetWriter it
-// writes to, and stops the whole render once the budget is spent, so nothing past the budget is escaped or built.
+// ruleNodeRenderer's raw HTML as text and highlighted code. Every node it renders first checks the allowanceWriter
+// it writes to, and stops the whole render once the allowance is spent, so nothing past it is escaped or built.
 // It names GitHub's extensions' renderers itself, so it can wrap them; a parser extension added to markdown needs
 // its renderer added here.
 var htmlRenderer = renderer.NewRenderer(renderer.WithNodeRenderers(
-	util.Prioritized(stopAtBudget{goldmarkhtml.NewRenderer()}, 1000),
-	util.Prioritized(stopAtBudget{extension.NewTableHTMLRenderer()}, 500),
-	util.Prioritized(stopAtBudget{extension.NewStrikethroughHTMLRenderer()}, 500),
-	util.Prioritized(stopAtBudget{extension.NewTaskCheckBoxHTMLRenderer()}, 500),
-	util.Prioritized(stopAtBudget{ruleNodeRenderer{}}, 100),
+	util.Prioritized(stopAtAllowance{goldmarkhtml.NewRenderer()}, 1000),
+	util.Prioritized(stopAtAllowance{extension.NewTableHTMLRenderer()}, 500),
+	util.Prioritized(stopAtAllowance{extension.NewStrikethroughHTMLRenderer()}, 500),
+	util.Prioritized(stopAtAllowance{extension.NewTaskCheckBoxHTMLRenderer()}, 500),
+	util.Prioritized(stopAtAllowance{ruleNodeRenderer{}}, 100),
 ))
 
-// stopAtBudget is a node renderer whose functions stop the render once its budgetWriter has refused a write.
-type stopAtBudget struct {
+// stopAtAllowance is a node renderer whose functions stop the render once its allowanceWriter has refused a write.
+type stopAtAllowance struct {
 	renderer.NodeRenderer
 }
 
-func (s stopAtBudget) RegisterFuncs(registerer renderer.NodeRendererFuncRegisterer) {
-	s.NodeRenderer.RegisterFuncs(budgetRegisterer{registerer})
+func (s stopAtAllowance) RegisterFuncs(registerer renderer.NodeRendererFuncRegisterer) {
+	s.NodeRenderer.RegisterFuncs(allowanceRegisterer{registerer})
 }
 
-// budgetRegisterer registers each node rendering function behind a check of the budget.
-type budgetRegisterer struct {
+// allowanceRegisterer registers each node rendering function behind a check of the allowance.
+type allowanceRegisterer struct {
 	renderer.NodeRendererFuncRegisterer
 }
 
-func (r budgetRegisterer) Register(kind ast.NodeKind, render renderer.NodeRendererFunc) {
+func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.NodeRendererFunc) {
 	r.NodeRendererFuncRegisterer.Register(kind, func(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
-		out := w.(*budgetWriter)
+		out := w.(*allowanceWriter)
 		if out.err != nil {
 			return ast.WalkStop, out.err
 		}
-		status, err := render(w, source, node, entering)
+		status, err := renderNode(w, source, node, entering)
 		if out.err != nil {
 			return ast.WalkStop, out.err
 		}
@@ -94,77 +95,97 @@ func (r budgetRegisterer) Register(kind ast.NodeKind, render renderer.NodeRender
 	})
 }
 
-// renderRule returns the HTML for a rule's Markdown body. It drops a leading heading that repeats the title,
-// points relative links and images at the files on GitHub at the release that holds them, highlights fenced code,
-// and escapes raw HTML. goldmark's renderer already drops links with dangerous schemes, such as javascript:.
+// render returns the HTML for a rule's Markdown body, and the bytes it used of allowance. It drops a leading
+// heading that repeats the title, points relative links and images at the files on GitHub at the release that
+// holds them, highlights fenced code, and escapes raw HTML. goldmark's renderer already drops links with dangerous
+// schemes, such as javascript:.
 //
-// A short body can expand, such as many references to one long link definition, so renderRule spends budget as it
-// goes, on each rewritten link and each byte of HTML, and stops with the budget's error rather than allocate past
-// it.
-func renderRule(body string, page rulePage, budget *contentBudget) (string, error) {
+// A short body can expand, such as many references to one long link definition, so render counts what it builds
+// as it goes, each rewritten link and each byte of HTML, and stops with errOverAllowance rather than build past
+// allowance.
+func render(body string, page rulePage, allowance int64) (html string, used int64, err error) {
+	spent := &spending{limit: allowance}
 	context := parser.NewContext()
 	context.Set(pageKey, page)
-	context.Set(budgetKey, budget)
+	context.Set(allowanceKey, spent)
 	source := []byte(body)
 	document := markdown.Parser().Parse(text.NewReader(source), parser.WithContext(context))
 	if err, refused := context.Get(refusedKey).(error); refused {
-		return "", err
+		return "", 0, err
 	}
-	out := budgetWriter{budget: budget}
-	err := htmlRenderer.Render(&out, source, document)
+	out := allowanceWriter{spent: spent}
+	err = htmlRenderer.Render(&out, source, document)
 	if out.err != nil {
-		return "", out.err
+		return "", 0, out.err
 	}
 	if err != nil {
-		return "", fmt.Errorf("render Markdown: %v", err)
+		return "", 0, fmt.Errorf("render Markdown: %v", err)
 	}
-	return out.html.String(), nil
+	return out.html.String(), spent.used, nil
 }
 
-// budgetWriter collects rendered HTML, spending budget on every write, and refuses every write once one would pass
-// it. It writes straight through, as a util.BufWriter, so the renderer adds no buffer of its own between them.
-type budgetWriter struct {
-	budget *contentBudget
-	html   bytes.Buffer
-	// err is the budget's refusal, once a write was refused.
+// errOverAllowance reports a render that would build more than its allowance.
+var errOverAllowance = errors.New("the rule's HTML needs more bytes than its allowance")
+
+// spending counts the bytes one render builds, up to its allowance.
+type spending struct {
+	limit, used int64
+}
+
+// spend records n more bytes, or refuses them when they would pass the limit.
+func (s *spending) spend(n int64) error {
+	if s.used+n > s.limit {
+		return errOverAllowance
+	}
+	s.used += n
+	return nil
+}
+
+// allowanceWriter collects rendered HTML, spending the render's allowance on every write, and refuses every write
+// once one would pass it. It writes straight through, as a util.BufWriter, so the renderer adds no buffer of its
+// own between them.
+type allowanceWriter struct {
+	spent *spending
+	html  bytes.Buffer
+	// err is the allowance's refusal, once a write was refused.
 	err error
 }
 
-func (w *budgetWriter) Write(p []byte) (int, error) {
+func (w *allowanceWriter) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
 	}
-	if err := w.budget.spend(int64(len(p))); err != nil {
+	if err := w.spent.spend(int64(len(p))); err != nil {
 		w.err = err
 		return 0, err
 	}
 	return w.html.Write(p)
 }
 
-func (w *budgetWriter) WriteString(text string) (int, error) {
+func (w *allowanceWriter) WriteString(text string) (int, error) {
 	return w.Write([]byte(text))
 }
 
-func (w *budgetWriter) WriteByte(c byte) error {
+func (w *allowanceWriter) WriteByte(c byte) error {
 	_, err := w.Write([]byte{c})
 	return err
 }
 
-func (w *budgetWriter) WriteRune(r rune) (int, error) {
+func (w *allowanceWriter) WriteRune(r rune) (int, error) {
 	return w.Write(utf8.AppendRune(nil, r))
 }
 
 // Flush, Available, and Buffered complete util.BufWriter: nothing is buffered.
-func (w *budgetWriter) Flush() error   { return w.err }
-func (w *budgetWriter) Available() int { return 0 }
-func (w *budgetWriter) Buffered() int  { return 0 }
+func (w *allowanceWriter) Flush() error   { return w.err }
+func (w *allowanceWriter) Available() int { return 0 }
+func (w *allowanceWriter) Buffered() int  { return 0 }
 
 // pageTransformer adapts a parsed rule body to its page, using the rulePage in the parser context.
 type pageTransformer struct{}
 
 func (pageTransformer) Transform(document *ast.Document, reader text.Reader, context parser.Context) {
 	page := context.Get(pageKey).(rulePage)
-	budget := context.Get(budgetKey).(*contentBudget)
+	spent := context.Get(allowanceKey).(*spending)
 	source := reader.Source()
 	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.title) {
 		document.RemoveChild(document, heading)
@@ -177,7 +198,7 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 			return url, nil
 		}
 		url := to(string(destination))
-		if err := budget.spend(int64(len(url))); err != nil {
+		if err := spent.spend(int64(len(url))); err != nil {
 			return nil, err
 		}
 		rewritten[string(destination)] = []byte(url)
@@ -212,9 +233,9 @@ func (p rulePage) linkURL(destination string) string {
 		return destination
 	}
 	if file == "" {
-		return "https://github.com/" + p.repository + "/tree/" + p.tagFor(file) + suffix
+		return TreeURL(p.repository, p.tagFor(file)) + suffix
 	}
-	return "https://github.com/" + p.repository + "/blob/" + p.tagFor(file) + "/" + escapePath(file) + suffix
+	return BlobURL(p.repository, p.tagFor(file), file) + suffix
 }
 
 // imageURL returns where an image in the rule loads from: a relative source loads the file from GitHub, and an
@@ -224,7 +245,7 @@ func (p rulePage) imageURL(source string) string {
 	if !ok || file == "" {
 		return source
 	}
-	return "https://raw.githubusercontent.com/" + p.repository + "/refs/tags/" + p.tagFor(file) + "/" + escapePath(file) + suffix
+	return RawURL(p.repository, p.tagFor(file), file) + suffix
 }
 
 // resolve returns the repository file a relative destination names, resolved against the rule's directory, and
@@ -261,15 +282,6 @@ func (p rulePage) tagFor(file string) string {
 		return p.tag
 	}
 	return p.latestTag
-}
-
-// escapePath percent-encodes each segment of a repository path for a URL.
-func escapePath(file string) string {
-	segments := strings.Split(file, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	return strings.Join(segments, "/")
 }
 
 // ruleNodeRenderer renders the nodes Rulemart shows differently from goldmark: raw HTML as escaped text, and fenced

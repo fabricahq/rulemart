@@ -1,6 +1,6 @@
 // Bound the memory a fetch can use: an in-memory repository that checks the packfile before inflating anything.
 
-package app
+package git
 
 import (
 	"bytes"
@@ -13,26 +13,18 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
-// fetchLimits bounds what fetching a library may hold in memory, so a repository can't exhaust it.
-type fetchLimits struct {
-	// tags bounds the release tags.
-	tags int
-	// packBytes bounds the packfile the remote sends, which is held while it's checked.
-	packBytes int64
-	// objects bounds the objects the packfile holds.
-	objects int
-	// objectBytes bounds one object, inflated, and totalBytes all of them together.
-	objectBytes, totalBytes int64
-}
-
-// defaultFetchLimits leave room for any library Code Rules publishes, which holds at most 10,000 files, while
-// keeping a fetch well under a gigabyte.
-var defaultFetchLimits = fetchLimits{
-	tags:        10_000,
-	packBytes:   128 << 20,
-	objects:     100_000,
-	objectBytes: 32 << 20,
-	totalBytes:  256 << 20,
+// Limits bound what fetching a library may hold in memory, so a repository can't exhaust it.
+type Limits struct {
+	// Tags bounds the release tags.
+	Tags int
+	// TagBytes bounds one release tag object, its message and any signature included.
+	TagBytes int64
+	// PackBytes bounds the packfile the remote sends, which is held while it's checked.
+	PackBytes int64
+	// Objects bounds the objects the packfile holds.
+	Objects int
+	// ObjectBytes bounds one object, inflated, and TotalBytes all of them together.
+	ObjectBytes, TotalBytes int64
 }
 
 // boundedStorage is an in-memory repository that refuses objects past its limits. It receives a fetch's
@@ -41,13 +33,13 @@ var defaultFetchLimits = fetchLimits{
 // stored, as a second check.
 type boundedStorage struct {
 	*memory.Storage
-	limits fetchLimits
+	limits Limits
 	// objects and bytes count the objects stored so far, and their inflated bytes.
 	objects int
 	bytes   int64
 }
 
-func newBoundedStorage(limits fetchLimits) *boundedStorage {
+func newBoundedStorage(limits Limits) *boundedStorage {
 	return &boundedStorage{Storage: memory.NewStorage(), limits: limits}
 }
 
@@ -57,11 +49,11 @@ func (s *boundedStorage) SetEncodedObject(o plumbing.EncodedObject) (plumbing.Ha
 	s.objects++
 	s.bytes += o.Size()
 	switch {
-	case o.Size() > s.limits.objectBytes:
+	case o.Size() > s.limits.ObjectBytes:
 		return plumbing.ZeroHash, objectTooLarge(o.Size(), s.limits)
-	case s.objects > s.limits.objects:
+	case s.objects > s.limits.Objects:
 		return plumbing.ZeroHash, tooManyObjects(s.limits)
-	case s.bytes > s.limits.totalBytes:
+	case s.bytes > s.limits.TotalBytes:
 		return plumbing.ZeroHash, tooManyBytes(s.limits)
 	}
 	return s.Storage.SetEncodedObject(o)
@@ -80,8 +72,8 @@ type packWriter struct {
 }
 
 func (w *packWriter) Write(p []byte) (int, error) {
-	if int64(w.pack.Len()+len(p)) > w.storage.limits.packBytes {
-		return 0, fmt.Errorf("the repository sent more than %d bytes, which ingestion won't hold", w.storage.limits.packBytes)
+	if int64(w.pack.Len()+len(p)) > w.storage.limits.PackBytes {
+		return 0, fmt.Errorf("the repository sent more than %d bytes, which ingestion won't hold", w.storage.limits.PackBytes)
 	}
 	return w.pack.Write(p)
 }
@@ -106,13 +98,13 @@ func (w *packWriter) Close() error {
 // checkPack checks a packfile against limits before any of its objects is inflated into memory: its object
 // count, each object's size, and their total. A delta's size is that of the object it produces, which it declares
 // first; the delta itself is inflated, within the one-object limit, to read it.
-func checkPack(pack []byte, limits fetchLimits) error {
+func checkPack(pack []byte, limits Limits) error {
 	scanner := packfile.NewScanner(bytes.NewReader(pack))
 	_, count, err := scanner.Header()
 	if err != nil {
 		return fmt.Errorf("read packfile header: %v", err)
 	}
-	if int64(count) > int64(limits.objects) {
+	if int64(count) > int64(limits.Objects) {
 		return tooManyObjects(limits)
 	}
 	var total int64
@@ -121,7 +113,7 @@ func checkPack(pack []byte, limits fetchLimits) error {
 		if err != nil {
 			return fmt.Errorf("read packfile: %v", err)
 		}
-		if header.Length > limits.objectBytes {
+		if header.Length > limits.ObjectBytes {
 			return objectTooLarge(header.Length, limits)
 		}
 		size := header.Length
@@ -133,14 +125,14 @@ func checkPack(pack []byte, limits fetchLimits) error {
 			if size, err = deltaTargetSize(delta.Bytes()); err != nil {
 				return err
 			}
-			if size > limits.objectBytes {
+			if size > limits.ObjectBytes {
 				return objectTooLarge(size, limits)
 			}
 		} else if _, _, err := scanner.NextObject(io.Discard); err != nil {
 			return fmt.Errorf("read packfile: %v", err)
 		}
 		total += size
-		if total > limits.totalBytes {
+		if total > limits.TotalBytes {
 			return tooManyBytes(limits)
 		}
 	}
@@ -174,14 +166,14 @@ func deltaSize(b []byte) (size int64, rest []byte, ok bool) {
 	return 0, nil, false
 }
 
-func objectTooLarge(size int64, limits fetchLimits) error {
-	return fmt.Errorf("the repository holds a %d-byte object, more than the %d bytes ingestion accepts for one", size, limits.objectBytes)
+func objectTooLarge(size int64, limits Limits) error {
+	return fmt.Errorf("the repository holds a %d-byte object, more than the %d bytes ingestion accepts for one", size, limits.ObjectBytes)
 }
 
-func tooManyObjects(limits fetchLimits) error {
-	return fmt.Errorf("the repository's release tags reach more than %d objects, which ingestion won't hold", limits.objects)
+func tooManyObjects(limits Limits) error {
+	return fmt.Errorf("the repository's release tags reach more than %d objects, which ingestion won't hold", limits.Objects)
 }
 
-func tooManyBytes(limits fetchLimits) error {
-	return fmt.Errorf("the repository's release tags reach more than %d bytes of objects, which ingestion won't hold", limits.totalBytes)
+func tooManyBytes(limits Limits) error {
+	return fmt.Errorf("the repository's release tags reach more than %d bytes of objects, which ingestion won't hold", limits.TotalBytes)
 }

@@ -1,26 +1,27 @@
-package app
+package domain
 
 import (
+	"errors"
 	"runtime"
 	"strings"
 	"testing"
 )
 
-// unlimited is a content budget no test body comes near.
-func unlimited() *contentBudget { return &contentBudget{limit: 1 << 40} }
+// unlimited is an allowance no test body comes near.
+const unlimited = 1 << 40
 
 var page = rulePage{
 	repository: "example/rules", path: "practices/testing/verify-retry-limits.md", title: "Verify retry limits",
 	tag: "release/2", latestTag: "release/5",
 }
 
-func TestRenderRuleShowsRawHTMLAsText(t *testing.T) {
+func TestRenderShowsRawHTMLAsText(t *testing.T) {
 	for name, body := range map[string]string{
 		"block":  "<script>alert(1)</script>\n\nText.",
 		"inline": "Press <img src=x onerror=alert(1)> now.",
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(body, page, unlimited())
+			html, _, err := render(body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -34,8 +35,8 @@ func TestRenderRuleShowsRawHTMLAsText(t *testing.T) {
 	}
 }
 
-func TestRenderRuleDropsDangerousLinks(t *testing.T) {
-	html, err := renderRule("[click](javascript:alert(1))", page, unlimited())
+func TestRenderDropsDangerousLinks(t *testing.T) {
+	html, _, err := render("[click](javascript:alert(1))", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestRenderRuleDropsDangerousLinks(t *testing.T) {
 	}
 }
 
-func TestRenderRuleDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
+func TestRenderDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 	for name, tc := range map[string]struct {
 		body, want, unwanted string
 	}{
@@ -53,7 +54,7 @@ func TestRenderRuleDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 		"a later repeat":    {"Intro.\n\n## Verify retry limits\n", "<h2", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(tc.body, page, unlimited())
+			html, _, err := render(tc.body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,7 +65,7 @@ func TestRenderRuleDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 	}
 }
 
-func TestRenderRulePointsRelativeLinksAtGitHub(t *testing.T) {
+func TestRenderPointsRelativeLinksAtGitHub(t *testing.T) {
 	for name, tc := range map[string]struct{ markdown, want string }{
 		"the rule's own asset, at the rule's release": {
 			"[example](assets/verify-retry-limits/example.md#limits)",
@@ -104,7 +105,7 @@ func TestRenderRulePointsRelativeLinksAtGitHub(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(tc.markdown, page, unlimited())
+			html, _, err := render(tc.markdown, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -115,8 +116,8 @@ func TestRenderRulePointsRelativeLinksAtGitHub(t *testing.T) {
 	}
 }
 
-func TestRenderRuleHighlightsFencedCodeInKnownLanguages(t *testing.T) {
-	html, err := renderRule("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited())
+func TestRenderHighlightsFencedCodeInKnownLanguages(t *testing.T) {
+	html, _, err := render("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,8 +133,8 @@ func TestRenderRuleHighlightsFencedCodeInKnownLanguages(t *testing.T) {
 }
 
 // A small body can expand: every reference to one long link definition repeats its destination in the HTML,
-// escaped. Rendering must stop at the budget, rather than keep building, or escaping, the rest of the page.
-func TestRenderRuleStopsAtTheBudgetWhileExpandingReferenceLinks(t *testing.T) {
+// escaped. Rendering must stop at its allowance, rather than keep building, or escaping, the rest of the page.
+func TestRenderStopsAtItsAllowanceWhileExpandingReferenceLinks(t *testing.T) {
 	for name, character := range map[string]string{
 		"a destination that needs no escaping": "a",
 		// HTML escaping turns each & into &amp;, so every reference would allocate five times the destination.
@@ -143,28 +144,39 @@ func TestRenderRuleStopsAtTheBudgetWhileExpandingReferenceLinks(t *testing.T) {
 			const references = 2_000
 			destination := "assets/" + strings.Repeat(character, 32<<10) // 32 KiB, repeated in every reference's link
 			body := strings.Repeat("[x][d] ", references) + "\n\n[d]: " + destination + "\n"
-			budget := &contentBudget{limit: 1 << 20}
 
 			var before, after runtime.MemStats
 			runtime.GC()
 			runtime.ReadMemStats(&before)
-			_, err := renderRule(body, page, budget)
+			_, _, err := render(body, page, 1<<20)
 			runtime.ReadMemStats(&after)
 
-			if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of content") {
-				t.Fatalf("got error %v, want a refusal past the 1 MiB budget", err)
+			if !errors.Is(err, errOverAllowance) {
+				t.Fatalf("got error %v, want a refusal past the 1 MiB allowance", err)
 			}
 			// Rendering every reference would allocate at least the destination per reference: over 64 MiB here.
 			if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
-				t.Fatalf("rendering allocated %d MiB for a 1 MiB budget", allocated>>20)
+				t.Fatalf("rendering allocated %d MiB for a 1 MiB allowance", allocated>>20)
 			}
 		})
 	}
 }
 
+// What a render uses is its HTML, and each distinct rewritten link once, however many references share it.
+func TestRenderCountsTheHTMLAndEachRewrittenLinkOnce(t *testing.T) {
+	html, used, err := render("[a][d] and [b][d]\n\n[d]: check-retry-backoff.md\n", page, unlimited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := "https://github.com/example/rules/blob/release/5/practices/testing/check-retry-backoff.md"
+	if want := int64(len(html) + len(link)); used != want || strings.Count(html, link) != 2 {
+		t.Fatalf("used %d for %s, want %d", used, html, want)
+	}
+}
+
 // The renderer names GitHub's extensions' renderers itself, so each must still render what the parser finds.
-func TestRenderRuleRendersGitHubExtensions(t *testing.T) {
-	html, err := renderRule("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited())
+func TestRenderRendersGitHubExtensions(t *testing.T) {
+	html, _, err := render("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -115,11 +115,14 @@ func (l *Library) Tag(name string, commit *object.Commit, message string) {
 	l.tags++
 }
 
+// URL returns where git.Fetch fetches the library from: its directory.
+func (l *Library) URL() string { return l.dir }
+
 // Repository describes the library as GitHub would: example/rules, with GitHub repository ID id.
 func (l *Library) Repository(id int64) domain.Repository {
 	return domain.Repository{
 		Host: domain.GitHub, ID: strconv.FormatInt(id, 10), Owner: "example", Name: "rules", Description: "Example rules for tests.",
-		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", CloneURL: l.dir,
+		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", CloneURL: l.URL(),
 	}
 }
 

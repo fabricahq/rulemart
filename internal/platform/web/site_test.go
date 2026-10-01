@@ -91,13 +91,13 @@ retired:
   practices/legacy/old-habit: {lastVersion: 1.0.0, summaries: [Drop the legacy group.]}
   practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge into verify-retry-limits.]}
 `)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(vettedID)); err != nil {
-		t.Fatal(err)
-	}
 	unvetted := lib.Repository(unvettedID)
 	unvetted.Owner, unvetted.Name = "stranger", "unvetted-rules"
-	if _, err := app.Ingest(context.Background(), store, unvetted); err != nil {
-		t.Fatal(err)
+	for _, repo := range []domain.Repository{lib.Repository(vettedID), unvetted} {
+		ingester := app.Ingester{Repositories: repositories{repo}, Store: store, Limits: app.DefaultLimits}
+		if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Pages read as the web function's role, so a table the migrations don't grant it fails these tests.
@@ -107,6 +107,13 @@ retired:
 		t.Fatal(err)
 	}
 	return handler
+}
+
+// repositories describes every repository as repo, as GitHub would describe it.
+type repositories struct{ repo domain.Repository }
+
+func (r repositories) Repository(context.Context, string, string) (domain.Repository, error) {
+	return r.repo, nil
 }
 
 // get requests path from handler.

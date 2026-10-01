@@ -1,52 +1,31 @@
-package app
+package git
 
 import (
 	"context"
 	"crypto/rand"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/go-git/go-git/v5"
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 )
 
-// taggedRepository commits files into a new repository on disk, tags the commit release/1 through release/<tags>,
-// and returns the repository's path.
+// taggedRepository returns the URL of a repository whose one commit holds files and is tagged release/1 through
+// release/<tags>.
 func taggedRepository(t *testing.T, files map[string][]byte, tags int) string {
 	t.Helper()
-	dir := t.TempDir()
-	repo, err := git.PlainInit(dir, false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	lib := gittest.NewLibrary(t)
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		lib.Write(name, string(content))
 	}
-	worktree, err := repo.Worktree()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := worktree.AddWithOptions(&git.AddOptions{All: true}); err != nil {
-		t.Fatal(err)
-	}
-	author := &object.Signature{Name: "Author", Email: "author@example.com", When: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
-	commit, err := worktree.Commit("Add files", &git.CommitOptions{Author: author, AllowEmptyCommits: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	commit := lib.Commit("Add files")
 	for n := 1; n <= tags; n++ {
-		if _, err := repo.CreateTag("release/"+strconv.Itoa(n), commit, &git.CreateTagOptions{Tagger: author, Message: "Release."}); err != nil {
-			t.Fatal(err)
-		}
+		lib.Tag("release/"+strconv.Itoa(n), commit, "Release.")
 	}
-	return dir
+	return lib.URL()
 }
 
 func randomBytes(t *testing.T, n int) []byte {
@@ -59,36 +38,36 @@ func randomBytes(t *testing.T, n int) []byte {
 }
 
 // small are limits a test can pass with a few small files.
-var small = fetchLimits{tags: 10, packBytes: 1 << 20, objects: 100, objectBytes: 64 << 10, totalBytes: 256 << 10}
+var small = Limits{Tags: 10, TagBytes: 1 << 20, PackBytes: 1 << 20, Objects: 100, ObjectBytes: 64 << 10, TotalBytes: 256 << 10}
 
 func TestFetchReleaseTagsStaysWithinItsLimits(t *testing.T) {
 	for name, tc := range map[string]struct {
 		files  map[string][]byte
 		tags   int
-		limits func(fetchLimits) fetchLimits
+		limits func(Limits) Limits
 		want   string
 	}{
 		"too many release tags": {
 			tags:   3,
-			limits: func(l fetchLimits) fetchLimits { l.tags = 2; return l },
+			limits: func(l Limits) Limits { l.Tags = 2; return l },
 			want:   "3 release tags, more than the 2",
 		},
 		"a pack too large": {
 			files:  map[string][]byte{"noise.bin": randomBytes(t, 48<<10)},
 			tags:   1,
-			limits: func(l fetchLimits) fetchLimits { l.packBytes = 16 << 10; return l },
+			limits: func(l Limits) Limits { l.PackBytes = 16 << 10; return l },
 			want:   "more than 16384 bytes",
 		},
 		"too many objects": {
 			files:  map[string][]byte{"a": []byte("a"), "b": []byte("b"), "c": []byte("c"), "d": []byte("d")},
 			tags:   1,
-			limits: func(l fetchLimits) fetchLimits { l.objects = 4; return l },
+			limits: func(l Limits) Limits { l.Objects = 4; return l },
 			want:   "more than 4 objects",
 		},
 		"an object too large": {
 			files:  map[string][]byte{"zeros.bin": make([]byte, 128<<10)},
 			tags:   1,
-			limits: func(l fetchLimits) fetchLimits { return l },
+			limits: func(l Limits) Limits { return l },
 			want:   "131072-byte object",
 		},
 		"too many bytes": {
@@ -96,7 +75,7 @@ func TestFetchReleaseTagsStaysWithinItsLimits(t *testing.T) {
 				"a.bin": randomBytes(t, 40<<10), "b.bin": randomBytes(t, 40<<10), "c.bin": randomBytes(t, 40<<10),
 			},
 			tags:   1,
-			limits: func(l fetchLimits) fetchLimits { l.totalBytes = 100 << 10; return l },
+			limits: func(l Limits) Limits { l.TotalBytes = 100 << 10; return l },
 			want:   "more than 102400 bytes of objects",
 		},
 	} {
@@ -130,7 +109,7 @@ func TestFetchReleaseTagsFetchesARepositoryWithinItsLimits(t *testing.T) {
 }
 
 // countTags counts the fetched tags.
-func countTags(repo *git.Repository) (int, error) {
+func countTags(repo *gogit.Repository) (int, error) {
 	tags, err := repo.Tags()
 	if err != nil {
 		return 0, err

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
@@ -92,7 +93,7 @@ func TestIngestStoresTheFirstRelease(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
 
-	result, err := app.Ingest(context.Background(), store, lib.Repository(42))
+	result, err := ingest(store, lib.Repository(42))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +131,7 @@ func TestIngestRecordsEachChangeLevelAndRetirement(t *testing.T) {
 	lib := firstRelease(t)
 	laterReleases(t, lib)
 
-	result, err := app.Ingest(context.Background(), store, lib.Repository(42))
+	result, err := ingest(store, lib.Repository(42))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,29 +171,12 @@ func TestIngestRecordsEachChangeLevelAndRetirement(t *testing.T) {
 	}
 }
 
-// A rule's current version is the file at the release that published it. A later edit no release recorded
-// must not show.
-func TestIngestReadsAnUnchangedRuleFromTheReleaseThatPublishedIt(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	laterReleases(t, lib)
-
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-
-	title, html := currentContent(t, connString, returnErrors)
-	if title != "Return errors with context" || !strings.Contains(html, "operation that failed") {
-		t.Fatalf("%s shows %q: %s, want release/3's version", returnErrors, title, html)
-	}
-}
-
 // Rows keep their ids while they exist, so anything that refers to a release, group, rule, or version keeps
 // pointing at it after every ingestion.
 func TestIngestKeepsTheIDsOfRowsThatSurvive(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := ids(t, connString)
@@ -212,7 +196,7 @@ retired:
   practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge it.]}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +218,7 @@ retired:
 func TestIngestKeepsTheGroupOfRetiredRules(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := ids(t, connString)
@@ -249,7 +233,7 @@ retired:
   techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -294,7 +278,7 @@ changes:
   techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -318,12 +302,12 @@ func TestIngestChangesNothingWhenRunAgain(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
 	laterReleases(t, lib)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := catalog(t, connString)
 
-	result, err := app.Ingest(context.Background(), store, lib.Repository(42))
+	result, err := ingest(store, lib.Repository(42))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,18 +320,10 @@ func TestIngestChangesNothingWhenRunAgain(t *testing.T) {
 	}
 }
 
+// A refused library writes nothing, whether fetching refuses its tags or assembly refuses what they publish.
 func TestIngestRejectsAMalformedRecordWithoutWriting(t *testing.T) {
 	for name, record := range map[string]string{
 		"invalid YAML": "formatVersion: 1\nrelease: [2\n",
-		"change from the wrong version": `formatVersion: 1
-release: 2
-rules:
-  practices/testing/check-retry-backoff: 1.0.0
-  practices/testing/verify-retry-limits: 1.2.1
-  techs/go/return-errors: 1.0.0
-changes:
-  practices/testing/verify-retry-limits: {change: patch, from: 1.2.0, summaries: [Fix a typo.]}
-`,
 		"rule dropped without retiring it": `formatVersion: 1
 release: 2
 rules:
@@ -358,14 +334,14 @@ rules:
 		t.Run(name, func(t *testing.T) {
 			store, connString := newStore(t)
 			lib := firstRelease(t)
-			if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+			if _, err := ingest(store, lib.Repository(42)); err != nil {
 				t.Fatal(err)
 			}
 			before := catalog(t, connString)
 			lib.Rule(retryLimits, "Verify retry limits", "A change in a broken release.")
 			lib.Release(2, record)
 
-			_, err := app.Ingest(context.Background(), store, lib.Repository(42))
+			_, err := ingest(store, lib.Repository(42))
 
 			if err == nil || !strings.Contains(err.Error(), "release/2") {
 				t.Fatalf("got error %v, want one naming release/2", err)
@@ -377,34 +353,6 @@ rules:
 	}
 }
 
-// The library page links to the license file, so a release whose manifest names a missing one is refused rather
-// than stored as a broken link.
-func TestIngestRejectsAMissingLicenseFileWithoutWriting(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := catalog(t, connString)
-	lib.Remove("LICENSE")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules:
-  practices/testing/check-retry-backoff: 1.0.0
-  practices/testing/verify-retry-limits: 1.0.0
-  techs/go/return-errors: 1.0.0
-`)
-
-	_, err := app.Ingest(context.Background(), store, lib.Repository(42))
-
-	if err == nil || !strings.Contains(err.Error(), "release/2") || !strings.Contains(err.Error(), "LICENSE") {
-		t.Fatalf("got error %v, want one naming release/2 and LICENSE", err)
-	}
-	if after := catalog(t, connString); after != before {
-		t.Fatalf("a refused release changed the catalog:\nbefore:\n%s\nafter:\n%s", before, after)
-	}
-}
-
 // hugeObject is larger, inflated, than ingestion holds in memory for one object. It's zeros, so it compresses to
 // almost nothing and only its inflated size can stop it.
 var hugeObject = strings.Repeat("\x00", 40<<20)
@@ -412,7 +360,7 @@ var hugeObject = strings.Repeat("\x00", 40<<20)
 func TestIngestRejectsAnOversizedObjectWithoutWriting(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := catalog(t, connString)
@@ -425,7 +373,7 @@ rules:
   techs/go/return-errors: 1.0.0
 `)
 
-	_, err := app.Ingest(context.Background(), store, lib.Repository(42))
+	_, err := ingest(store, lib.Repository(42))
 
 	if err == nil || !strings.Contains(err.Error(), "bytes") {
 		t.Fatalf("got error %v, want one about the object's size", err)
@@ -435,56 +383,12 @@ rules:
 	}
 }
 
-// Ingestion reads only the trees at tagged commits, so history it doesn't read, even an oversized object, isn't
-// fetched.
-func TestIngestFetchesOnlyTheTaggedCommits(t *testing.T) {
-	store, _ := newStore(t)
-	lib := gittest.NewLibrary(t)
-	lib.Write("assets/huge.bin", hugeObject)
-	lib.Commit("Add a large file")
-	lib.Remove("assets/huge.bin")
-	lib.Commit("Remove the large file")
-	lib.Group("techs/go", "Go")
-	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	lib.Release(1, `formatVersion: 1
-release: 1
-rules:
-  techs/go/return-errors: 1.0.0
-changes:
-  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
-`)
-
-	result, err := app.Ingest(context.Background(), store, lib.Repository(42))
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Releases != 1 || result.Rules != 1 {
-		t.Fatalf("ingested %+v, want 1 release and 1 rule", result)
-	}
-}
-
-func TestIngestRejectsALibraryWithoutReleases(t *testing.T) {
-	store, connString := newStore(t)
-	lib := gittest.NewLibrary(t)
-	lib.Commit("Start the library")
-
-	_, err := app.Ingest(context.Background(), store, lib.Repository(42))
-
-	if err == nil {
-		t.Fatal("ingested a library without release tags")
-	}
-	if got := catalog(t, connString); got != "" {
-		t.Fatalf("stored rows for a library without releases:\n%s", got)
-	}
-}
-
 // A library whose tags were rewritten, as when a test library is reset, keeps only what its current tags publish.
 func TestIngestRemovesWhatRewrittenTagsNoLongerPublish(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
 	laterReleases(t, lib)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := ids(t, connString)
@@ -499,7 +403,7 @@ changes:
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, fresh.Repository(42)); err != nil {
+	if _, err := ingest(store, fresh.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -543,7 +447,7 @@ release: 2
 rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
 changes: {techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}}
 `)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := ids(t, connString)
@@ -559,7 +463,7 @@ changes:
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, reset.Repository(42)); err != nil {
+	if _, err := ingest(store, reset.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -587,7 +491,7 @@ release: 2
 rules: {techs/go/return-errors: 1.0.1}
 changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
 `)
-	if _, err := app.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+	if _, err := ingest(store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 	before := ids(t, connString)
@@ -612,7 +516,7 @@ rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.1}
 changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
 `)
 
-	if _, err := app.Ingest(context.Background(), store, reset.Repository(42)); err != nil {
+	if _, err := ingest(store, reset.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -631,6 +535,19 @@ func assertIDsSurvive(t *testing.T, before, after map[string]string) {
 			t.Errorf("%s had id %s, and now %s", key, id, now)
 		}
 	}
+}
+
+// repositories describes every repository as repo, as GitHub would describe it.
+type repositories struct{ repo domain.Repository }
+
+func (r repositories) Repository(context.Context, string, string) (domain.Repository, error) {
+	return r.repo, nil
+}
+
+// ingest ingests the library in repo into store, within the default limits.
+func ingest(store *postgres.Store, repo domain.Repository) (app.Result, error) {
+	ingester := app.Ingester{Repositories: repositories{repo}, Store: store, Limits: app.DefaultLimits}
+	return ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName())
 }
 
 func newStore(t *testing.T) (*postgres.Store, string) {

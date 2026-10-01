@@ -1,7 +1,7 @@
 // Package app holds the catalog's operations. Ingest builds the catalog from a Code Rules library's release/<number>
-// tags: it fetches a library's repository into memory, reads every release record and the files the releases
-// published, and replaces what the catalog stores about the library in one transaction: its releases, groups,
-// rules, and every rule version, with the current version's content rendered for the web.
+// tags: it looks the library's repository up on its code host, fetches the release tags, assembles the library they
+// publish, and replaces what the catalog stores about it in one transaction: its releases, groups, rules, and every
+// rule version, with the current version's content rendered for the web.
 package app
 
 import (
@@ -9,12 +9,27 @@ import (
 	"fmt"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
+
+// Repositories looks repositories up on their code host.
+type Repositories interface {
+	// Repository returns the repository owner/name as the host describes it now.
+	Repository(ctx context.Context, owner, name string) (domain.Repository, error)
+}
+
+// Ingester ingests libraries into the catalog.
+type Ingester struct {
+	Repositories Repositories
+	Store        store.Writer
+	Limits       Limits
+}
 
 // Result summarizes one ingestion.
 type Result struct {
+	// Repository is the library's repository, as its host describes it.
+	Repository domain.Repository
 	// Releases counts the library releases read, and Rules the current rules.
 	Releases, Rules int
 	// Changed counts the rows ingestion inserted, updated, or deleted. It's 0 when the catalog already matched the
@@ -22,54 +37,30 @@ type Result struct {
 	Changed int64
 }
 
-// Ingest makes the catalog's rows for repo's library match its release tags. It writes nothing when a tag, its
-// record, the history the records describe, or a file a release published is invalid; errors name the tag and file.
-// Running it again on unchanged tags changes nothing.
-func Ingest(ctx context.Context, store store.Writer, repo domain.Repository) (Result, error) {
-	return ingest(ctx, store, repo, defaultLimits)
-}
-
-// limits bounds the memory one ingestion uses.
-type limits struct {
-	fetch fetchLimits
-	// contentBytes bounds the content ingestion reads and holds: every rule's Markdown and HTML, and every group's
-	// metadata.
-	contentBytes int64
-}
-
-// defaultLimits leave room for any real library: 256 MiB of content is tens of thousands of long rules.
-var defaultLimits = limits{fetch: defaultFetchLimits, contentBytes: 256 << 20}
-
-// ingest is Ingest within limits.
-func ingest(ctx context.Context, store store.Writer, repo domain.Repository, limits limits) (Result, error) {
-	lib, err := load(ctx, repo, limits)
+// Ingest makes the catalog's rows for the library at repositoryURL, such as https://github.com/owner/name, match
+// its release tags. It writes nothing when a tag, its record, the history the records describe, or a file a
+// release published is invalid, or when the library passes in.Limits; errors name the tag and file. Running it
+// again on unchanged tags changes nothing.
+func (in Ingester) Ingest(ctx context.Context, repositoryURL string) (Result, error) {
+	owner, name, err := domain.ParseRepositoryURL(repositoryURL)
+	if err != nil {
+		return Result{}, err
+	}
+	repo, err := in.Repositories.Repository(ctx, owner, name)
+	if err != nil {
+		return Result{}, err
+	}
+	releases, err := git.Fetch(ctx, repo.CloneURL, in.Limits.Fetch)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	changed, err := store.ReplaceLibrary(ctx, lib)
+	lib, err := domain.Assemble(repo, releases, in.Limits.Content)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	return Result{Releases: len(lib.Releases), Rules: lib.CurrentRules(), Changed: changed}, nil
-}
-
-// load fetches repo's release tags and reads the library they publish, within limits.
-func load(ctx context.Context, repo domain.Repository, limits limits) (domain.Library, error) {
-	git, err := fetchReleaseTags(ctx, repo.CloneURL, limits.fetch)
+	changed, err := in.Store.ReplaceLibrary(ctx, lib)
 	if err != nil {
-		return domain.Library{}, err
+		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	releases, err := readReleases(git)
-	if err != nil {
-		return domain.Library{}, err
-	}
-	records := make([]coderules.ReleaseRecord, len(releases))
-	for i, r := range releases {
-		records[i] = r.record
-	}
-	histories, err := buildHistory(records)
-	if err != nil {
-		return domain.Library{}, err
-	}
-	return readLibrary(repo, releases, histories, limits.contentBytes)
+	return Result{Repository: repo, Releases: len(lib.Releases), Rules: lib.CurrentRules(), Changed: changed}, nil
 }

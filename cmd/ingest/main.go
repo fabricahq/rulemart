@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
@@ -45,15 +44,6 @@ func main() {
 
 // run ingests the library at repositoryURL and reports the result.
 func run(ctx context.Context, repositoryURL string) error {
-	owner, name, err := github.ParseRepositoryURL(repositoryURL)
-	if err != nil {
-		return err
-	}
-	gitHub := github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")}
-	repo, err := gitHub.Repository(ctx, owner, name)
-	if err != nil {
-		return err
-	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
 	if err != nil {
 		return err
@@ -64,16 +54,22 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
-	result, err := app.Ingest(ctx, postgres.New(db), repo)
+	ingester := app.Ingester{
+		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Store:        postgres.New(db),
+		Limits:       app.DefaultLimits,
+	}
+	result, err := ingester.Ingest(ctx, repositoryURL)
 	if err != nil {
 		return err
 	}
-	log.Print(summary(repo, result))
+	log.Print(summary(result))
 	return nil
 }
 
-// summary describes what ingesting repo did.
-func summary(repo domain.Repository, result app.Result) string {
+// summary describes what an ingestion did.
+func summary(result app.Result) string {
+	repo := result.Repository
 	return fmt.Sprintf("ingested %s (%s repository %s): %s, %s, %s", repo.FullName(), repo.Host, repo.ID,
 		count(int64(result.Releases), "library release", "library releases"),
 		count(int64(result.Rules), "current rule", "current rules"),
