@@ -1,14 +1,17 @@
-// Shape catalog rows into what each page shows: text, counts, dates, and links.
+// Shape the catalog's page reads into what each page shows: text, counts, dates, and links.
 
 package web
 
 import (
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // libraryView is what every page about a library shows of it.
@@ -23,17 +26,16 @@ type libraryView struct {
 }
 
 // newLibraryView describes lib.
-func newLibraryView(lib library) libraryView {
+func newLibraryView(lib views.Library) libraryView {
 	v := libraryView{
-		href: libraryHref(lib.owner, lib.name), owner: lib.owner, name: lib.name, description: lib.description,
-		avatar: lib.avatar, githubURL: "https://github.com/" + lib.owner + "/" + lib.name,
-		ownerURL: "https://github.com/" + lib.owner, latestTag: releaseTag(lib.latestRelease),
-		updated: date(lib.latestAt),
+		href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
+		avatar: lib.OwnerAvatarURL, githubURL: domain.RepositoryURL(lib.FullName()),
+		ownerURL: domain.OwnerURL(lib.Owner), latestTag: domain.ReleaseTag(lib.LatestRelease),
+		latestURL: domain.ReleaseNotesURL(lib.FullName(), lib.LatestRelease), updated: date(lib.LatestTaggedAt),
+		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
 	}
-	v.latestURL = releaseNotesURL(v.githubURL, lib.latestRelease)
-	v.license, v.licenseFile = lib.license, lib.licenseFile
-	if lib.licenseFile != "" {
-		v.licenseURL = v.githubURL + "/blob/" + v.latestTag + "/" + escapePath(lib.licenseFile)
+	if lib.LicenseFile != "" {
+		v.licenseURL = domain.BlobURL(lib.FullName(), v.latestTag, lib.LicenseFile)
 	}
 	return v
 }
@@ -44,12 +46,12 @@ type libraryCard struct {
 	rules                                  int
 }
 
-func newLibraryCards(rows []catalogdb.ListLibrariesRow) []libraryCard {
-	cards := make([]libraryCard, len(rows))
-	for i, row := range rows {
+func newLibraryCards(libraries []views.LibraryCard) []libraryCard {
+	cards := make([]libraryCard, len(libraries))
+	for i, lib := range libraries {
 		cards[i] = libraryCard{
-			href: libraryHref(row.Owner, row.Name), owner: row.Owner, name: row.Name, description: row.Description,
-			avatar: row.OwnerAvatarUrl, rules: int(row.RuleCount),
+			href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
+			avatar: lib.OwnerAvatarURL, rules: lib.Rules,
 		}
 	}
 	return cards
@@ -76,17 +78,16 @@ type libraryContents struct {
 	ruleCount        int
 }
 
-// newLibraryContents groups rules under groups, keeping both orders.
-func newLibraryContents(lib libraryView, c contents) libraryContents {
+// newLibraryContents groups the page's rules under its groups, keeping both orders.
+func newLibraryContents(lib libraryView, page views.LibraryPage) libraryContents {
 	byGroup := map[string][]ruleCard{}
-	for _, r := range c.rules {
-		byGroup[r.GroupPath] = append(byGroup[r.GroupPath], ruleCard{
-			href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
-			version: version(r.Major, r.Minor, r.Patch),
+	for _, r := range page.Rules {
+		byGroup[r.Group] = append(byGroup[r.Group], ruleCard{
+			href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String(),
 		})
 	}
 	var result libraryContents
-	for _, g := range c.groups {
+	for _, g := range page.Groups {
 		view := groupView{id: g.Path, name: g.Name, anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
 		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead
@@ -95,7 +96,7 @@ func newLibraryContents(lib libraryView, c contents) libraryContents {
 			result.techs = append(result.techs, view)
 		}
 	}
-	result.ruleCount = len(c.rules)
+	result.ruleCount = len(page.Rules)
 	return result
 }
 
@@ -124,20 +125,21 @@ type versionView struct {
 	summaries                    []string
 }
 
-// newRuleView describes rule r of lib.
-func newRuleView(lib libraryView, r rule) ruleView {
+// newRuleView describes the rule on page, a rule of lib.
+func newRuleView(lib libraryView, page views.RulePage) ruleView {
+	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
 		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
-		version: version(r.Major, r.Minor, r.Patch), whenToRead: r.WhenToRead, html: r.Html,
-		groupID: r.GroupPath, groupName: r.GroupName, groupHref: lib.href + "?tab=rules#" + groupAnchor(r.GroupPath),
-		updated: date(r.PublishedAt.Time), fileName: r.Path[strings.LastIndex(r.Path, "/")+1:] + ".md",
-		fileURL: lib.githubURL + "/blob/" + releaseTag(int(r.Release)) + "/" + escapePath(r.Path+".md"),
+		version: r.Version.String(), whenToRead: r.WhenToRead, html: r.HTML,
+		groupID: r.Group, groupName: r.GroupName, groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
+		updated: date(r.PublishedAt), fileName: path.Base(file),
+		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}
-	for i, row := range r.versions {
+	for i, version := range page.Versions {
 		v.versions = append(v.versions, versionView{
-			version: version(row.Major, row.Minor, row.Patch), tag: releaseTag(int(row.Release)),
-			date: date(row.PublishedAt.Time), notesURL: releaseNotesURL(lib.githubURL, int(row.Release)),
-			latest: i == 0, major: row.Change == "major", summaries: row.Summaries,
+			version: version.Version.String(), tag: domain.ReleaseTag(version.Release),
+			date: date(version.PublishedAt), notesURL: domain.ReleaseNotesURL(page.Library.FullName(), version.Release),
+			latest: i == 0, major: version.Change == coderules.ChangeMajor, summaries: version.Summaries,
 		})
 	}
 	return v
@@ -153,29 +155,9 @@ func groupAnchor(groupID string) string {
 	return "group-" + strings.ReplaceAll(groupID, "/", "-")
 }
 
-func releaseTag(number int) string { return "release/" + strconv.Itoa(number) }
-
-// releaseNotesURL is the GitHub Release page Code Rules creates for a library release.
-func releaseNotesURL(githubURL string, number int) string {
-	return githubURL + "/releases/tag/" + releaseTag(number)
-}
-
-func version(major, minor, patch int32) string {
-	return strconv.Itoa(int(major)) + "." + strconv.Itoa(int(minor)) + "." + strconv.Itoa(int(patch))
-}
-
 // date writes a day as pages show it, such as 2 Sep 2026, in UTC so every visitor and cache sees the same text.
 func date(t time.Time) string {
 	return t.UTC().Format("2 Jan 2006")
-}
-
-// escapePath percent-encodes each segment of a repository path for a URL.
-func escapePath(file string) string {
-	segments := strings.Split(file, "/")
-	for i, segment := range segments {
-		segments[i] = url.PathEscape(segment)
-	}
-	return strings.Join(segments, "/")
 }
 
 // plural returns "1 rule" or "n rules".

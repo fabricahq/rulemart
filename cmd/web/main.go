@@ -24,6 +24,8 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/fabricahq/rulemart/catalog"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/web"
@@ -60,8 +62,8 @@ func newHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 	if err != nil {
 		return nil, err
 	}
-	store := web.NewStore(source.Open(schemaVersion), vetted)
-	return web.New(store, web.Options{Log: logger, RequestID: lambdaRequestID})
+	pages := app.Pages{Store: postgres.New(source.Open(schemaVersion)), Vetted: vetted}
+	return web.New(pages, web.Options{Log: logger, RequestID: lambdaRequestID})
 }
 
 // lambdaRequestID returns the Lambda request ID of a request the Function URL delivered, or "" for another.

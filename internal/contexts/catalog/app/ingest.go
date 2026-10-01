@@ -1,7 +1,9 @@
-// Package app holds the catalog's operations. Ingest builds the catalog from a Code Rules library's release/<number>
-// tags: it looks the library's repository up on its code host, fetches the release tags, assembles the library they
-// publish, and replaces what the catalog stores about it in one transaction: its releases, groups, rules, and every
-// rule version, with the current version's content rendered for the web.
+// Package app holds the catalog's operations: Ingester ingests a library, and Pages reads what the pages show.
+//
+// Ingest builds the catalog from a Code Rules library's release/<number> tags: it looks the library's repository
+// up on its code host, fetches the release tags, assembles the library they publish, and replaces what the catalog
+// stores about it in one transaction: its releases, groups, rules, and every rule version, with the current
+// version's content rendered for the web.
 package app
 
 import (

@@ -1,4 +1,4 @@
-package web
+package postgres
 
 import (
 	"context"
@@ -17,15 +17,16 @@ func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	_, connString := databasetest.New(t)
 	postgrestest.Exec(t, connString, `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
 		VALUES ('github', '7', 'example', 'rules', 'Before ingestion.', '')`)
-	store := NewStore(databasetest.AsWebRole(t, connString), []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}})
+	s := New(databasetest.AsWebRole(t, connString))
+	vetted := vettedKeys([]domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}})
 
-	err := store.read(ctx, func(q *catalogdb.Queries) error {
-		before, err := q.ListLibraries(ctx, store.vetted)
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		before, err := q.ListLibraries(ctx, vetted)
 		if err != nil {
 			return err
 		}
 		postgrestest.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE host_repository_id = '7'`)
-		after, err := q.ListLibraries(ctx, store.vetted)
+		after, err := q.ListLibraries(ctx, vetted)
 		if err != nil {
 			return err
 		}

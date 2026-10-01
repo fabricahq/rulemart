@@ -1,16 +1,19 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, and each rule's
-// current version and version history. It reads the catalog that ingestion writes, and shows only the libraries
-// in the vetted list it's given.
+// current version and version history. It reads them from the catalog's page reads, which app.Pages implements.
 package web
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/a-h/templ"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
 // pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
@@ -33,22 +36,30 @@ type Options struct {
 	RequestID func(*http.Request) string
 }
 
+// Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
+type Catalog interface {
+	Libraries(ctx context.Context) ([]views.LibraryCard, error)
+	// LibraryPage and RulePage fail with app.ErrNotFound when there's no such library or current rule.
+	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
+	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+}
+
 // server answers page requests.
 type server struct {
-	store  *Store
-	assets *assets
-	chrome chrome
+	catalog Catalog
+	assets  *assets
+	chrome  chrome
 	Options
 }
 
-// New returns the handler for Rulemart's pages, reading the catalog from store.
-func New(store *Store, options Options) (http.Handler, error) {
+// New returns the handler for Rulemart's pages, reading them from catalog.
+func New(catalog Catalog, options Options) (http.Handler, error) {
 	assets, err := newAssets()
 	if err != nil {
 		return nil, err
 	}
 	s := &server{
-		store: store, assets: assets, Options: options,
+		catalog: catalog, assets: assets, Options: options,
 		chrome: chrome{
 			stylesheet: assets.url("app.css"), script: assets.url("theme.js"), icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -64,7 +75,7 @@ func New(store *Store, options Options) (http.Handler, error) {
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request) {
-	libraries, err := s.store.libraries(r.Context())
+	libraries, err := s.catalog.Libraries(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -73,27 +84,27 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	lib, contents, err := s.store.libraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
-	if !s.found(w, r, lib, err) {
+	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
+	if !s.found(w, r, page.Library, err) {
 		return
 	}
-	view := newLibraryView(lib)
-	s.render(w, r, http.StatusOK, libraryPage(s.chrome, view, newLibraryContents(view, contents), r.URL.Query().Get("tab") == "rules"))
+	view := newLibraryView(page.Library)
+	s.render(w, r, http.StatusOK, libraryPage(s.chrome, view, newLibraryContents(view, page), r.URL.Query().Get("tab") == "rules"))
 }
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
-	lib, found, err := s.store.rulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
-	if !s.found(w, r, lib, err) {
+	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
+	if !s.found(w, r, page.Library, err) {
 		return
 	}
-	s.render(w, r, http.StatusOK, rulePage(s.chrome, newRuleView(newLibraryView(lib), found), r.URL.Query().Get("tab") == "versions"))
+	s.render(w, r, http.StatusOK, rulePage(s.chrome, newRuleView(newLibraryView(page.Library), page), r.URL.Query().Get("tab") == "versions"))
 }
 
 // found reports whether a page's data loaded, for the library lib, and is at the path GitHub's spelling of the
 // library's owner and name gives. Otherwise it answers the request itself: with a missing page, a failure, or a
 // redirect to that path.
-func (s *server) found(w http.ResponseWriter, r *http.Request, lib library, err error) bool {
-	if errors.Is(err, errNotFound) {
+func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, err error) bool {
+	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
 		return false
 	}
@@ -101,8 +112,8 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib library, err 
 		s.fail(w, r, err)
 		return false
 	}
-	if lib.owner != r.PathValue("owner") || lib.name != r.PathValue("repo") {
-		canonical := url.URL{Path: libraryHref(lib.owner, lib.name), RawQuery: r.URL.RawQuery}
+	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") {
+		canonical := url.URL{Path: libraryHref(lib.Owner, lib.Name), RawQuery: r.URL.RawQuery}
 		if rule := r.PathValue("rule"); rule != "" {
 			canonical.Path += "/" + rule
 		}
