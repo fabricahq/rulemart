@@ -25,8 +25,9 @@ make web
 ```
 
 The [Makefile](Makefile) names the local database's connections. `make migrate` and `make ingest` connect as the
-database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`, which they
-use instead. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog,
+database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they
+never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection
+string in `DATABASE_URL`, so with only `DATABASE_URL_PARAMETER` set it stops and says so. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog,
 as the deployed function does. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
