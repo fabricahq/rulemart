@@ -232,6 +232,10 @@ retired:
 func TestIngestKeepsTheGroupOfRetiredRules(t *testing.T) {
 	store, connString := newStore(t)
 	lib := firstRelease(t)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := ids(t, connString)
 	lib.Remove(returnErrors + ".md")
 	lib.Remove("techs/go/_group.yaml")
 	lib.Release(2, `formatVersion: 1
@@ -249,6 +253,11 @@ retired:
 
 	if got := groups(t, connString); !slices.Equal(got, []string{"practices/testing Testing", "techs/go Go"}) {
 		t.Fatalf("groups are %q", got)
+	}
+	after := ids(t, connString)
+	assertIDsSurvive(t, before, after)
+	if len(after) < len(before) {
+		t.Errorf("rows went missing: before %v, after %v", before, after)
 	}
 	var group string
 	query(t, connString, `SELECT g.path FROM rules r JOIN library_groups g ON g.id = r.group_id WHERE r.path = '`+returnErrors+`'`, &group)
@@ -476,6 +485,7 @@ func TestIngestRemovesWhatRewrittenTagsNoLongerPublish(t *testing.T) {
 	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
+	before := ids(t, connString)
 	fresh := ingesttest.NewLibrary(t)
 	fresh.Group("techs/go", "Go")
 	fresh.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
@@ -501,6 +511,15 @@ changes:
 	}
 	if got := groups(t, connString); !slices.Equal(got, []string{"techs/go Go"}) {
 		t.Fatalf("groups are %q", got)
+	}
+	// What the rewritten tags still publish keeps its id: the library, release 1, the group, the rule, and its
+	// version.
+	after := ids(t, connString)
+	assertIDsSurvive(t, before, after)
+	for _, kept := range []string{"library github 42", "release 1", "group techs/go", "rule " + returnErrors, "version " + returnErrors + " 1.0.0"} {
+		if after[kept] == "" {
+			t.Errorf("no %s", kept)
+		}
 	}
 }
 
