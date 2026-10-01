@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
 	"github.com/fabricahq/rulemart/internal/site/sitedb"
 	"github.com/fabricahq/rulemart/internal/testdb"
@@ -14,16 +15,16 @@ import (
 func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	ctx := context.Background()
 	_, connString := ingesttest.NewDatabase(t)
-	testdb.Exec(t, connString, `INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url)
-		VALUES (7, 'example', 'rules', 'Before ingestion.', '')`)
-	store := NewStore(ingesttest.NewWebDatabase(t, connString), []int64{7})
+	testdb.Exec(t, connString, `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
+		VALUES ('github', '7', 'example', 'rules', 'Before ingestion.', '')`)
+	store := NewStore(ingesttest.NewWebDatabase(t, connString), []catalog.Library{{Host: catalog.GitHub, RepositoryID: "7"}})
 
 	err := store.read(ctx, func(q *sitedb.Queries) error {
 		before, err := q.ListLibraries(ctx, store.vetted)
 		if err != nil {
 			return err
 		}
-		testdb.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE github_id = 7`)
+		testdb.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE host_repository_id = '7'`)
 		after, err := q.ListLibraries(ctx, store.vetted)
 		if err != nil {
 			return err

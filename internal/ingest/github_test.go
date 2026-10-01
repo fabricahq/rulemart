@@ -47,7 +47,7 @@ func TestGitHubRepositoryReturnsTheRepositoryAsGitHubSpellsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := ingest.Repository{ID: 1234, Owner: "FabricaHQ", Name: "Code-Rules",
+	want := ingest.Repository{Host: "github", ID: "1234", Owner: "FabricaHQ", Name: "Code-Rules",
 		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/9?v=4", CloneURL: "https://github.com/FabricaHQ/Code-Rules.git"}
 	if repo != want {
 		t.Fatalf("got %+v, want %+v", repo, want)

@@ -18,7 +18,9 @@ type HelloMessage struct {
 }
 
 type Library struct {
-	GithubID          int64
+	ID                int64
+	Host              string
+	HostRepositoryID  string
 	Owner             string
 	Name              string
 	Description       string
@@ -28,14 +30,16 @@ type Library struct {
 }
 
 type LibraryGroup struct {
+	ID          int64
 	LibraryID   int64
-	GroupID     string
+	Path        string
 	Name        string
 	Description string
 	WhenToRead  string
 }
 
 type LibraryRelease struct {
+	ID        int64
 	LibraryID int64
 	Number    int32
 	CommitID  string
@@ -43,20 +47,21 @@ type LibraryRelease struct {
 }
 
 type Rule struct {
-	LibraryID  int64
-	RuleID     string
-	GroupID    string
-	RetiredIn  pgtype.Int4
-	ReplacedBy pgtype.Text
+	ID                 int64
+	LibraryID          int64
+	GroupID            int64
+	Path               string
+	RetiredInReleaseID pgtype.Int8
+	ReplacedBy         pgtype.Text
 }
 
 type RuleVersion struct {
-	LibraryID         int64
-	RuleID            string
+	ID                int64
+	RuleID            int64
+	ReleaseID         int64
 	Major             int32
 	Minor             int32
 	Patch             int32
-	Release           int32
 	Change            string
 	Summaries         []string
 	Title             pgtype.Text

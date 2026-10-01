@@ -20,13 +20,14 @@ type library struct {
 	licenseExpression, licenseFile string
 	// releases are in number order, from 1.
 	releases []release
-	// groups are the groups of the current rules, in ID order.
+	// groups are the groups of every rule, current or retired, in ID order.
 	groups []group
 	// rules are every rule the releases published, in ID order.
 	rules []rule
 }
 
-// group is a group's metadata at the latest release.
+// group is a group's metadata at the latest release that has its _group.yaml: the latest release while the group
+// holds a current rule.
 type group struct {
 	id   string
 	meta coderules.GroupMetadata
@@ -47,8 +48,9 @@ type content struct {
 	markdown, html string
 }
 
-// readLibrary reads the files releases publish for repo: rule-library.yaml and each group's _group.yaml at the
-// latest release, and each current rule's file at the release that published its current version.
+// readLibrary reads the files releases publish for repo: rule-library.yaml at the latest release, each group's
+// _group.yaml at the latest release that has it, and each current rule's file at the release that published its
+// current version.
 func readLibrary(repo Repository, releases []release, histories []ruleHistory, contentBytes int64) (library, error) {
 	latest := releases[len(releases)-1]
 	lib := library{repo: repo, releases: releases}
@@ -56,20 +58,19 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory, c
 	if lib.licenseExpression, lib.licenseFile, err = readLicense(latest, repo.FullName()); err != nil {
 		return library{}, err
 	}
-	groupIDs := map[string]bool{}
+	// current reports, for the group of every rule, whether it holds a current rule.
+	current := map[string]bool{}
 	budget := &contentBudget{limit: contentBytes}
 	for _, history := range histories {
 		r, err := readRule(repo, releases, history, budget)
 		if err != nil {
 			return library{}, err
 		}
-		if r.content != nil {
-			groupIDs[r.group] = true
-		}
+		current[r.group] = current[r.group] || r.content != nil
 		lib.rules = append(lib.rules, r)
 	}
-	for _, id := range slices.Sorted(maps.Keys(groupIDs)) {
-		g, err := readGroup(latest, id, budget)
+	for _, id := range slices.Sorted(maps.Keys(current)) {
+		g, err := readGroup(releases, id, current[id], budget)
 		if err != nil {
 			return library{}, err
 		}
@@ -168,16 +169,24 @@ func readRule(repo Repository, releases []release, history ruleHistory, budget *
 	return r, nil
 }
 
-// readGroup reads group id's _group.yaml at release r, spending budget on it.
-func readGroup(r release, id string, budget *contentBudget) (group, error) {
+// readGroup reads group id's _group.yaml, spending budget on it. A group with a current rule has one at the latest
+// release. A group whose rules are all retired keeps the metadata of the latest release that has the file.
+func readGroup(releases []release, id string, current bool, budget *contentBudget) (group, error) {
 	path := id + "/_group.yaml"
-	text, err := readFile(r.commit, path, budget.spend)
-	if err != nil {
-		return group{}, fmt.Errorf("%s: %s: %v", r.tag, path, err)
+	for i := len(releases) - 1; i >= 0; i-- {
+		r := releases[i]
+		text, err := readFile(r.commit, path, budget.spend)
+		if errors.Is(err, errFileMissing) && !current {
+			continue
+		}
+		if err != nil {
+			return group{}, fmt.Errorf("%s: %s: %v", r.tag, path, err)
+		}
+		meta, err := coderules.ParseGroupMetadataYAML(text, path)
+		if err != nil {
+			return group{}, fmt.Errorf("%s: %v", r.tag, err)
+		}
+		return group{id: id, meta: meta}, nil
 	}
-	meta, err := coderules.ParseGroupMetadataYAML(text, path)
-	if err != nil {
-		return group{}, fmt.Errorf("%s: %v", r.tag, err)
-	}
-	return group{id: id, meta: meta}, nil
+	return group{}, fmt.Errorf("%s: no library release has it, though its rules were published", path)
 }

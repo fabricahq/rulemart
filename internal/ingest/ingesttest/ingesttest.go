@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest"
 	"github.com/fabricahq/rulemart/internal/migrate"
@@ -123,7 +124,7 @@ func (l *Library) Tag(name string, commit *object.Commit, message string) {
 // Repository describes the library as GitHub would: example/rules, with GitHub repository ID id.
 func (l *Library) Repository(id int64) ingest.Repository {
 	return ingest.Repository{
-		ID: id, Owner: "example", Name: "rules", Description: "Example rules for tests.",
+		Host: catalog.GitHub, ID: strconv.FormatInt(id, 10), Owner: "example", Name: "rules", Description: "Example rules for tests.",
 		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", CloneURL: l.dir,
 	}
 }

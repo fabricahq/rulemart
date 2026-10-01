@@ -12,23 +12,25 @@ import (
 )
 
 const getLibrary = `-- name: GetLibrary :one
-SELECT l.github_id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
+SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at
 FROM libraries l
 JOIN LATERAL (
-    SELECT number, tagged_at FROM library_releases WHERE library_id = l.github_id ORDER BY number DESC LIMIT 1
+    SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
 ) latest ON true
-WHERE lower(l.owner) = lower($1) AND lower(l.name) = lower($2) AND l.github_id = ANY ($3::bigint[])
+WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
+  AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
 `
 
 type GetLibraryParams struct {
+	Host   string
 	Owner  string
 	Name   string
-	Vetted []int64
+	Vetted []string
 }
 
 type GetLibraryRow struct {
-	GithubID          int64
+	ID                int64
 	Owner             string
 	Name              string
 	Description       string
@@ -40,10 +42,15 @@ type GetLibraryRow struct {
 }
 
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
-	row := q.db.QueryRow(ctx, getLibrary, arg.Owner, arg.Name, arg.Vetted)
+	row := q.db.QueryRow(ctx, getLibrary,
+		arg.Host,
+		arg.Owner,
+		arg.Name,
+		arg.Vetted,
+	)
 	var i GetLibraryRow
 	err := row.Scan(
-		&i.GithubID,
+		&i.ID,
 		&i.Owner,
 		&i.Name,
 		&i.Description,
@@ -57,24 +64,25 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 }
 
 const getRule = `-- name: GetRule :one
-SELECT v.rule_id, r.group_id, g.name AS group_name, v.title::text AS title, v.impact::text AS impact,
-       v.when_to_read::text AS when_to_read, v.html::text AS html, v.major, v.minor, v.patch, v.release,
-       published.tagged_at AS published_at
-FROM rule_versions v
-JOIN rules r ON r.library_id = v.library_id AND r.rule_id = v.rule_id
-JOIN library_groups g ON g.library_id = r.library_id AND g.group_id = r.group_id
-JOIN library_releases published ON published.library_id = v.library_id AND published.number = v.release
-WHERE v.library_id = $1 AND v.rule_id = $2 AND v.html IS NOT NULL
+SELECT r.id, r.path, g.path AS group_path, g.name AS group_name, v.title::text AS title, v.impact::text AS impact,
+       v.when_to_read::text AS when_to_read, v.html::text AS html, v.major, v.minor, v.patch,
+       published.number AS release, published.tagged_at AS published_at
+FROM rules r
+JOIN library_groups g ON g.id = r.group_id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+JOIN library_releases published ON published.id = v.release_id
+WHERE r.library_id = $1 AND r.path = $2
 `
 
 type GetRuleParams struct {
 	LibraryID int64
-	RuleID    string
+	Path      string
 }
 
 type GetRuleRow struct {
-	RuleID      string
-	GroupID     string
+	ID          int64
+	Path        string
+	GroupPath   string
 	GroupName   string
 	Title       string
 	Impact      string
@@ -88,11 +96,12 @@ type GetRuleRow struct {
 }
 
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
-	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.RuleID)
+	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow
 	err := row.Scan(
-		&i.RuleID,
-		&i.GroupID,
+		&i.ID,
+		&i.Path,
+		&i.GroupPath,
 		&i.GroupName,
 		&i.Title,
 		&i.Impact,
@@ -108,21 +117,22 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 }
 
 const listCurrentRules = `-- name: ListCurrentRules :many
-SELECT v.rule_id, r.group_id, v.title::text AS title, v.impact::text AS impact, v.major, v.minor, v.patch
-FROM rule_versions v
-JOIN rules r ON r.library_id = v.library_id AND r.rule_id = v.rule_id
-WHERE v.library_id = $1 AND v.html IS NOT NULL
-ORDER BY r.group_id, lower(v.title), v.rule_id
+SELECT r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact, v.major, v.minor, v.patch
+FROM rules r
+JOIN library_groups g ON g.id = r.group_id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+WHERE r.library_id = $1
+ORDER BY g.path, lower(v.title), r.path
 `
 
 type ListCurrentRulesRow struct {
-	RuleID  string
-	GroupID string
-	Title   string
-	Impact  string
-	Major   int32
-	Minor   int32
-	Patch   int32
+	Path      string
+	GroupPath string
+	Title     string
+	Impact    string
+	Major     int32
+	Minor     int32
+	Patch     int32
 }
 
 func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]ListCurrentRulesRow, error) {
@@ -135,8 +145,8 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 	for rows.Next() {
 		var i ListCurrentRulesRow
 		if err := rows.Scan(
-			&i.RuleID,
-			&i.GroupID,
+			&i.Path,
+			&i.GroupPath,
 			&i.Title,
 			&i.Impact,
 			&i.Major,
@@ -154,22 +164,25 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 }
 
 const listGroups = `-- name: ListGroups :many
-SELECT g.group_id, g.name, g.description, g.when_to_read,
-       (SELECT count(*) FROM rules r
-        WHERE r.library_id = g.library_id AND r.group_id = g.group_id AND r.retired_in IS NULL) AS rule_count
+SELECT g.path, g.name, g.description, g.when_to_read, current.rule_count
 FROM library_groups g
+JOIN LATERAL (
+    SELECT count(*) AS rule_count FROM rules r WHERE r.group_id = g.id AND r.retired_in_release_id IS NULL
+) current ON current.rule_count > 0
 WHERE g.library_id = $1
-ORDER BY g.group_id
+ORDER BY g.path
 `
 
 type ListGroupsRow struct {
-	GroupID     string
+	Path        string
 	Name        string
 	Description string
 	WhenToRead  string
 	RuleCount   int64
 }
 
+// ListGroups returns the groups that hold current rules: a group whose rules are all retired stays in the catalog,
+// but not on the library's page.
 func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroupsRow, error) {
 	rows, err := q.db.Query(ctx, listGroups, libraryID)
 	if err != nil {
@@ -180,7 +193,7 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 	for rows.Next() {
 		var i ListGroupsRow
 		if err := rows.Scan(
-			&i.GroupID,
+			&i.Path,
 			&i.Name,
 			&i.Description,
 			&i.WhenToRead,
@@ -197,15 +210,15 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 }
 
 const listLibraries = `-- name: ListLibraries :many
-SELECT l.github_id, l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.github_id AND r.retired_in IS NULL) AS rule_count
+SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
 FROM libraries l
-WHERE l.github_id = ANY ($1::bigint[])
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
 ORDER BY lower(l.owner), lower(l.name)
 `
 
 type ListLibrariesRow struct {
-	GithubID       int64
+	ID             int64
 	Owner          string
 	Name           string
 	Description    string
@@ -213,7 +226,7 @@ type ListLibrariesRow struct {
 	RuleCount      int64
 }
 
-func (q *Queries) ListLibraries(ctx context.Context, vetted []int64) ([]ListLibrariesRow, error) {
+func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLibrariesRow, error) {
 	rows, err := q.db.Query(ctx, listLibraries, vetted)
 	if err != nil {
 		return nil, err
@@ -223,7 +236,7 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []int64) ([]ListLibr
 	for rows.Next() {
 		var i ListLibrariesRow
 		if err := rows.Scan(
-			&i.GithubID,
+			&i.ID,
 			&i.Owner,
 			&i.Name,
 			&i.Description,
@@ -241,17 +254,12 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []int64) ([]ListLibr
 }
 
 const listVersions = `-- name: ListVersions :many
-SELECT v.major, v.minor, v.patch, v.release, v.change, v.summaries, published.tagged_at AS published_at
+SELECT v.major, v.minor, v.patch, published.number AS release, v.change, v.summaries, published.tagged_at AS published_at
 FROM rule_versions v
-JOIN library_releases published ON published.library_id = v.library_id AND published.number = v.release
-WHERE v.library_id = $1 AND v.rule_id = $2
-ORDER BY v.release DESC
+JOIN library_releases published ON published.id = v.release_id
+WHERE v.rule_id = $1
+ORDER BY published.number DESC
 `
-
-type ListVersionsParams struct {
-	LibraryID int64
-	RuleID    string
-}
 
 type ListVersionsRow struct {
 	Major       int32
@@ -263,8 +271,8 @@ type ListVersionsRow struct {
 	PublishedAt pgtype.Timestamptz
 }
 
-func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]ListVersionsRow, error) {
-	rows, err := q.db.Query(ctx, listVersions, arg.LibraryID, arg.RuleID)
+func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersionsRow, error) {
+	rows, err := q.db.Query(ctx, listVersions, ruleID)
 	if err != nil {
 		return nil, err
 	}

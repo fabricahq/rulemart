@@ -12,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/migrate"
 	"github.com/fabricahq/rulemart/internal/testdb"
@@ -107,7 +108,7 @@ func budgetStore(t *testing.T) (*Store, string) {
 func TestIngestRefusesRuleContentPastItsBudgetWithoutWriting(t *testing.T) {
 	store, connString := budgetStore(t)
 	dir, total := sharedLibrary(t)
-	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+	repo := Repository{Host: catalog.GitHub, ID: "42", Owner: "example", Name: "rules", CloneURL: dir}
 
 	_, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total - 1})
 
@@ -124,7 +125,7 @@ func TestIngestRefusesRuleContentPastItsBudgetWithoutWriting(t *testing.T) {
 func TestIngestAcceptsRuleContentUpToItsBudget(t *testing.T) {
 	store, _ := budgetStore(t)
 	dir, total := sharedLibrary(t)
-	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+	repo := Repository{Host: catalog.GitHub, ID: "42", Owner: "example", Name: "rules", CloneURL: dir}
 
 	result, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total})
 
@@ -190,7 +191,7 @@ func sharedRuleBytes(t *testing.T) int64 {
 func TestIngestRefusesGroupMetadataPastTheBudgetWithoutWriting(t *testing.T) {
 	store, connString := budgetStore(t)
 	dir, total := sharedGroupsLibrary(t)
-	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+	repo := Repository{Host: catalog.GitHub, ID: "42", Owner: "example", Name: "rules", CloneURL: dir}
 
 	_, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total - 1})
 
@@ -207,7 +208,7 @@ func TestIngestRefusesGroupMetadataPastTheBudgetWithoutWriting(t *testing.T) {
 func TestIngestAcceptsGroupMetadataUpToTheBudget(t *testing.T) {
 	store, _ := budgetStore(t)
 	dir, total := sharedGroupsLibrary(t)
-	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+	repo := Repository{Host: catalog.GitHub, ID: "42", Owner: "example", Name: "rules", CloneURL: dir}
 
 	result, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total})
 

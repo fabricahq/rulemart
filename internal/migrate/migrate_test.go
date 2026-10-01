@@ -39,7 +39,7 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 		}
 	}
 	for name, statement := range map[string]string{
-		"write the catalog":      `INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url) VALUES (1, 'o', 'n', '', '')`,
+		"write the catalog":      `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url) VALUES ('github', '1', 'o', 'n', '', '')`,
 		"change the schema":      `CREATE TABLE intruder (id integer)`,
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
 	} {

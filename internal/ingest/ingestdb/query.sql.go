@@ -12,16 +12,16 @@ import (
 )
 
 const deleteGroupsExcept = `-- name: DeleteGroupsExcept :execrows
-DELETE FROM library_groups WHERE library_id = $1 AND NOT (group_id = ANY ($2::text[]))
+DELETE FROM library_groups WHERE library_id = $1 AND NOT (path = ANY ($2::text[]))
 `
 
 type DeleteGroupsExceptParams struct {
 	LibraryID int64
-	GroupIds  []string
+	Paths     []string
 }
 
 func (q *Queries) DeleteGroupsExcept(ctx context.Context, arg DeleteGroupsExceptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteGroupsExcept, arg.LibraryID, arg.GroupIds)
+	result, err := q.db.Exec(ctx, deleteGroupsExcept, arg.LibraryID, arg.Paths)
 	if err != nil {
 		return 0, err
 	}
@@ -46,16 +46,16 @@ func (q *Queries) DeleteReleasesExcept(ctx context.Context, arg DeleteReleasesEx
 }
 
 const deleteRulesExcept = `-- name: DeleteRulesExcept :execrows
-DELETE FROM rules WHERE library_id = $1 AND NOT (rule_id = ANY ($2::text[]))
+DELETE FROM rules WHERE library_id = $1 AND NOT (path = ANY ($2::text[]))
 `
 
 type DeleteRulesExceptParams struct {
 	LibraryID int64
-	RuleIds   []string
+	Paths     []string
 }
 
 func (q *Queries) DeleteRulesExcept(ctx context.Context, arg DeleteRulesExceptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteRulesExcept, arg.LibraryID, arg.RuleIds)
+	result, err := q.db.Exec(ctx, deleteRulesExcept, arg.LibraryID, arg.Paths)
 	if err != nil {
 		return 0, err
 	}
@@ -63,29 +63,131 @@ func (q *Queries) DeleteRulesExcept(ctx context.Context, arg DeleteRulesExceptPa
 }
 
 const deleteVersion = `-- name: DeleteVersion :execrows
-DELETE FROM rule_versions WHERE library_id = $1 AND rule_id = $2 AND release = $3
+DELETE FROM rule_versions WHERE id = $1
 `
 
-type DeleteVersionParams struct {
-	LibraryID int64
-	RuleID    string
-	Release   int32
-}
-
-func (q *Queries) DeleteVersion(ctx context.Context, arg DeleteVersionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteVersion, arg.LibraryID, arg.RuleID, arg.Release)
+func (q *Queries) DeleteVersion(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteVersion, id)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
 }
 
+const getLibraryID = `-- name: GetLibraryID :one
+SELECT id FROM libraries WHERE host = $1 AND host_repository_id = $2
+`
+
+type GetLibraryIDParams struct {
+	Host             string
+	HostRepositoryID string
+}
+
+func (q *Queries) GetLibraryID(ctx context.Context, arg GetLibraryIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLibraryID, arg.Host, arg.HostRepositoryID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const listGroupIDs = `-- name: ListGroupIDs :many
+SELECT id, path FROM library_groups WHERE library_id = $1
+`
+
+type ListGroupIDsRow struct {
+	ID   int64
+	Path string
+}
+
+func (q *Queries) ListGroupIDs(ctx context.Context, libraryID int64) ([]ListGroupIDsRow, error) {
+	rows, err := q.db.Query(ctx, listGroupIDs, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupIDsRow
+	for rows.Next() {
+		var i ListGroupIDsRow
+		if err := rows.Scan(&i.ID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReleaseIDs = `-- name: ListReleaseIDs :many
+SELECT id, number FROM library_releases WHERE library_id = $1
+`
+
+type ListReleaseIDsRow struct {
+	ID     int64
+	Number int32
+}
+
+func (q *Queries) ListReleaseIDs(ctx context.Context, libraryID int64) ([]ListReleaseIDsRow, error) {
+	rows, err := q.db.Query(ctx, listReleaseIDs, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReleaseIDsRow
+	for rows.Next() {
+		var i ListReleaseIDsRow
+		if err := rows.Scan(&i.ID, &i.Number); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleIDs = `-- name: ListRuleIDs :many
+SELECT id, path FROM rules WHERE library_id = $1
+`
+
+type ListRuleIDsRow struct {
+	ID   int64
+	Path string
+}
+
+func (q *Queries) ListRuleIDs(ctx context.Context, libraryID int64) ([]ListRuleIDsRow, error) {
+	rows, err := q.db.Query(ctx, listRuleIDs, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleIDsRow
+	for rows.Next() {
+		var i ListRuleIDsRow
+		if err := rows.Scan(&i.ID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVersionKeys = `-- name: ListVersionKeys :many
-SELECT rule_id, release, major, minor, patch FROM rule_versions WHERE library_id = $1
+SELECT v.id, r.path, rel.number AS release, v.major, v.minor, v.patch
+FROM rule_versions v
+JOIN rules r ON r.id = v.rule_id
+JOIN library_releases rel ON rel.id = v.release_id
+WHERE r.library_id = $1
 `
 
 type ListVersionKeysRow struct {
-	RuleID  string
+	ID      int64
+	Path    string
 	Release int32
 	Major   int32
 	Minor   int32
@@ -102,7 +204,8 @@ func (q *Queries) ListVersionKeys(ctx context.Context, libraryID int64) ([]ListV
 	for rows.Next() {
 		var i ListVersionKeysRow
 		if err := rows.Scan(
-			&i.RuleID,
+			&i.ID,
+			&i.Path,
 			&i.Release,
 			&i.Major,
 			&i.Minor,
@@ -119,9 +222,9 @@ func (q *Queries) ListVersionKeys(ctx context.Context, libraryID int64) ([]ListV
 }
 
 const upsertGroup = `-- name: UpsertGroup :execrows
-INSERT INTO library_groups (library_id, group_id, name, description, when_to_read)
+INSERT INTO library_groups (library_id, path, name, description, when_to_read)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (library_id, group_id) DO UPDATE SET
+ON CONFLICT (library_id, path) DO UPDATE SET
     name = excluded.name, description = excluded.description, when_to_read = excluded.when_to_read
 WHERE (library_groups.name, library_groups.description, library_groups.when_to_read)
     IS DISTINCT FROM (excluded.name, excluded.description, excluded.when_to_read)
@@ -129,7 +232,7 @@ WHERE (library_groups.name, library_groups.description, library_groups.when_to_r
 
 type UpsertGroupParams struct {
 	LibraryID   int64
-	GroupID     string
+	Path        string
 	Name        string
 	Description string
 	WhenToRead  string
@@ -138,7 +241,7 @@ type UpsertGroupParams struct {
 func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertGroup,
 		arg.LibraryID,
-		arg.GroupID,
+		arg.Path,
 		arg.Name,
 		arg.Description,
 		arg.WhenToRead,
@@ -150,9 +253,9 @@ func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (int64
 }
 
 const upsertLibrary = `-- name: UpsertLibrary :execrows
-INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url, license_expression, license_file)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (github_id) DO UPDATE SET
+INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url, license_expression, license_file)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+ON CONFLICT (host, host_repository_id) DO UPDATE SET
     owner = excluded.owner, name = excluded.name, description = excluded.description,
     owner_avatar_url = excluded.owner_avatar_url, license_expression = excluded.license_expression,
     license_file = excluded.license_file
@@ -163,7 +266,8 @@ WHERE (libraries.owner, libraries.name, libraries.description, libraries.owner_a
 `
 
 type UpsertLibraryParams struct {
-	GithubID          int64
+	Host              string
+	HostRepositoryID  string
 	Owner             string
 	Name              string
 	Description       string
@@ -174,7 +278,8 @@ type UpsertLibraryParams struct {
 
 func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertLibrary,
-		arg.GithubID,
+		arg.Host,
+		arg.HostRepositoryID,
 		arg.Owner,
 		arg.Name,
 		arg.Description,
@@ -216,28 +321,29 @@ func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (i
 }
 
 const upsertRule = `-- name: UpsertRule :execrows
-INSERT INTO rules (library_id, rule_id, group_id, retired_in, replaced_by)
+INSERT INTO rules (library_id, group_id, path, retired_in_release_id, replaced_by)
 VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (library_id, rule_id) DO UPDATE SET
-    group_id = excluded.group_id, retired_in = excluded.retired_in, replaced_by = excluded.replaced_by
-WHERE (rules.group_id, rules.retired_in, rules.replaced_by)
-    IS DISTINCT FROM (excluded.group_id, excluded.retired_in, excluded.replaced_by)
+ON CONFLICT (library_id, path) DO UPDATE SET
+    group_id = excluded.group_id, retired_in_release_id = excluded.retired_in_release_id,
+    replaced_by = excluded.replaced_by
+WHERE (rules.group_id, rules.retired_in_release_id, rules.replaced_by)
+    IS DISTINCT FROM (excluded.group_id, excluded.retired_in_release_id, excluded.replaced_by)
 `
 
 type UpsertRuleParams struct {
-	LibraryID  int64
-	RuleID     string
-	GroupID    string
-	RetiredIn  pgtype.Int4
-	ReplacedBy pgtype.Text
+	LibraryID          int64
+	GroupID            int64
+	Path               string
+	RetiredInReleaseID pgtype.Int8
+	ReplacedBy         pgtype.Text
 }
 
 func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertRule,
 		arg.LibraryID,
-		arg.RuleID,
 		arg.GroupID,
-		arg.RetiredIn,
+		arg.Path,
+		arg.RetiredInReleaseID,
 		arg.ReplacedBy,
 	)
 	if err != nil {
@@ -247,11 +353,11 @@ func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, 
 }
 
 const upsertVersion = `-- name: UpsertVersion :execrows
-INSERT INTO rule_versions (library_id, rule_id, major, minor, patch, release, change, summaries,
+INSERT INTO rule_versions (rule_id, release_id, major, minor, patch, change, summaries,
                            title, impact, impact_description, when_to_read, markdown, html)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14)
-ON CONFLICT (library_id, rule_id, major, minor, patch) DO UPDATE SET
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12, $13)
+ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
     impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
     markdown = excluded.markdown, html = excluded.html
@@ -262,12 +368,11 @@ WHERE (rule_versions.change, rule_versions.summaries, rule_versions.title, rule_
 `
 
 type UpsertVersionParams struct {
-	LibraryID         int64
-	RuleID            string
+	RuleID            int64
+	ReleaseID         int64
 	Major             int32
 	Minor             int32
 	Patch             int32
-	Release           int32
 	Change            string
 	Summaries         []string
 	Title             pgtype.Text
@@ -280,12 +385,11 @@ type UpsertVersionParams struct {
 
 func (q *Queries) UpsertVersion(ctx context.Context, arg UpsertVersionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertVersion,
-		arg.LibraryID,
 		arg.RuleID,
+		arg.ReleaseID,
 		arg.Major,
 		arg.Minor,
 		arg.Patch,
-		arg.Release,
 		arg.Change,
 		arg.Summaries,
 		arg.Title,

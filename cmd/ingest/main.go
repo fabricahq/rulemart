@@ -71,7 +71,7 @@ func run(ctx context.Context, repositoryURL string) error {
 
 // summary describes what ingesting repo did.
 func summary(repo ingest.Repository, result ingest.Result) string {
-	return fmt.Sprintf("ingested %s (GitHub repository ID %d): %s, %s, %s", repo.FullName(), repo.ID,
+	return fmt.Sprintf("ingested %s (%s repository %s): %s, %s, %s", repo.FullName(), repo.Host, repo.ID,
 		count(int64(result.Releases), "library release", "library releases"),
 		count(int64(result.Rules), "current rule", "current rules"),
 		count(result.Changed, "row changed", "rows changed"))

@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"go.yaml.in/yaml/v4"
 )
@@ -13,23 +14,39 @@ import (
 //go:embed vetted.yaml
 var vettedYAML []byte
 
-// Vetted returns the GitHub repository IDs of the libraries vetted.yaml lists, in file order.
-func Vetted() ([]int64, error) {
+// GitHub is the only code host Rulemart reads libraries from, as the catalog names it. Page URLs name no host,
+// so they're GitHub's.
+const GitHub = "github"
+
+// Library identifies a library by its code host and the host's repository ID, as the catalog stores it.
+type Library struct {
+	// Host is the code host; github is the only one.
+	Host string
+	// RepositoryID is the host's ID for the repository. GitHub's is its numeric repository ID, in decimal.
+	RepositoryID string
+}
+
+// Vetted returns the libraries vetted.yaml lists, in file order.
+func Vetted() ([]Library, error) {
 	return parseVetted(vettedYAML)
 }
 
 // vettedFile is vetted.yaml's structure.
 type vettedFile struct {
 	Libraries []struct {
-		GitHubID int64 `yaml:"githubID"`
+		Host         string `yaml:"host"`
+		RepositoryID string `yaml:"repositoryID"`
 		// Repository is the library's owner/name when it was vetted, for readers.
 		Repository string `yaml:"repository"`
 	} `yaml:"libraries"`
 }
 
-// parseVetted reads a vetted list, rejecting unknown fields, missing or repeated IDs, and entries without a
-// repository name.
-func parseVetted(input []byte) ([]int64, error) {
+// gitHubRepositoryID matches GitHub's numeric repository IDs.
+var gitHubRepositoryID = regexp.MustCompile(`^[1-9][0-9]*$`)
+
+// parseVetted reads a vetted list, rejecting unknown fields, hosts other than github, repository IDs that aren't
+// GitHub's, libraries listed twice, and entries without a repository name.
+func parseVetted(input []byte) ([]Library, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	decoder.KnownFields(true)
 	var file vettedFile
@@ -39,19 +56,22 @@ func parseVetted(input []byte) ([]int64, error) {
 	if file.Libraries == nil {
 		return nil, errors.New("read vetted libraries: expected a libraries list")
 	}
-	ids := make([]int64, 0, len(file.Libraries))
-	seen := map[int64]bool{}
-	for i, library := range file.Libraries {
+	libraries := make([]Library, 0, len(file.Libraries))
+	seen := map[Library]bool{}
+	for i, entry := range file.Libraries {
+		library := Library{Host: entry.Host, RepositoryID: entry.RepositoryID}
 		switch {
-		case library.GitHubID <= 0:
-			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected a GitHub repository ID in githubID", i)
-		case library.Repository == "":
+		case entry.Host != GitHub:
+			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected host github, the only code host Rulemart reads", i)
+		case !gitHubRepositoryID.MatchString(entry.RepositoryID):
+			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected GitHub's numeric repository ID in repositoryID", i)
+		case entry.Repository == "":
 			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected the repository's owner/name", i)
-		case seen[library.GitHubID]:
-			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: GitHub repository ID %d is listed twice", i, library.GitHubID)
+		case seen[library]:
+			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: %s repository %s is listed twice", i, entry.Host, entry.RepositoryID)
 		}
-		seen[library.GitHubID] = true
-		ids = append(ids, library.GitHubID)
+		seen[library] = true
+		libraries = append(libraries, library)
 	}
-	return ids, nil
+	return libraries, nil
 }

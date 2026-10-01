@@ -98,12 +98,12 @@ func TestIngestStoresTheFirstRelease(t *testing.T) {
 		t.Fatalf("ingested %+v, want 1 release and 3 rules", result)
 	}
 	var owner, name, license string
-	query(t, connString, `SELECT owner, name, license_expression FROM libraries WHERE github_id = 42`, &owner, &name, &license)
+	query(t, connString, `SELECT owner, name, license_expression FROM libraries WHERE host = 'github' AND host_repository_id = '42'`, &owner, &name, &license)
 	if owner != "example" || name != "rules" || license != "MIT" {
 		t.Fatalf("library is %s/%s under %s, want example/rules under MIT", owner, name, license)
 	}
 	var taggedAt time.Time
-	query(t, connString, `SELECT tagged_at FROM library_releases WHERE library_id = 42 AND number = 1`, &taggedAt)
+	query(t, connString, `SELECT tagged_at FROM library_releases WHERE number = 1`, &taggedAt)
 	if !taggedAt.Equal(ingesttest.FirstTagged) {
 		t.Fatalf("release/1 tagged at %s, want %s", taggedAt, ingesttest.FirstTagged)
 	}
@@ -153,12 +153,12 @@ func TestIngestRecordsEachChangeLevelAndRetirement(t *testing.T) {
 	}
 	var retiredIn int
 	var replacedBy string
-	query(t, connString, `SELECT retired_in, replaced_by FROM rules WHERE rule_id = '`+retryBackoff+`'`, &retiredIn, &replacedBy)
+	query(t, connString, `SELECT rel.number, r.replaced_by FROM rules r JOIN library_releases rel ON rel.id = r.retired_in_release_id WHERE r.path = '`+retryBackoff+`'`, &retiredIn, &replacedBy)
 	if retiredIn != 3 || replacedBy != retryLimits {
 		t.Fatalf("%s retired in release/%d, replaced by %q", retryBackoff, retiredIn, replacedBy)
 	}
 	var withContent int
-	query(t, connString, `SELECT count(*) FROM rule_versions WHERE rule_id = '`+retryBackoff+`' AND html IS NOT NULL`, &withContent)
+	query(t, connString, `SELECT count(*) FROM rule_versions v JOIN rules r ON r.id = v.rule_id WHERE r.path = '`+retryBackoff+`' AND v.html IS NOT NULL`, &withContent)
 	if withContent != 0 {
 		t.Fatal("the retired rule kept content")
 	}
@@ -181,6 +181,78 @@ func TestIngestReadsAnUnchangedRuleFromTheReleaseThatPublishedIt(t *testing.T) {
 	title, html := currentContent(t, connString, returnErrors)
 	if title != "Return errors with context" || !strings.Contains(html, "operation that failed") {
 		t.Fatalf("%s shows %q: %s, want release/3's version", returnErrors, title, html)
+	}
+}
+
+// Rows keep their ids while they exist, so anything that refers to a release, group, rule, or version keeps
+// pointing at it after every ingestion.
+func TestIngestKeepsTheIDsOfRowsThatSurvive(t *testing.T) {
+	store, connString := newStore(t)
+	lib := firstRelease(t)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := ids(t, connString)
+	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, timeouts included.")
+	lib.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
+	lib.Remove(retryBackoff + ".md")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules:
+  practices/testing/verify-retry-limits: 1.1.0
+  techs/go/close-what-you-open: 1.0.0
+  techs/go/return-errors: 1.0.0
+changes:
+  practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}
+  techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}
+retired:
+  practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge it.]}
+`)
+
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+
+	after := ids(t, connString)
+	for key, id := range before {
+		if after[key] != id {
+			t.Errorf("%s had id %s, and now %q", key, id, after[key])
+		}
+	}
+	for _, added := range []string{"release 2", "rule techs/go/close-what-you-open", "version practices/testing/verify-retry-limits 1.1.0"} {
+		if after[added] == "" {
+			t.Errorf("no %s", added)
+		}
+	}
+}
+
+// A group stays while any rule belongs to it, retired or not, so every rule's group exists. One whose rules are all
+// retired keeps the metadata of the last release that had it.
+func TestIngestKeepsTheGroupOfRetiredRules(t *testing.T) {
+	store, connString := newStore(t)
+	lib := firstRelease(t)
+	lib.Remove(returnErrors + ".md")
+	lib.Remove("techs/go/_group.yaml")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules:
+  practices/testing/check-retry-backoff: 1.0.0
+  practices/testing/verify-retry-limits: 1.0.0
+retired:
+  techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}
+`)
+
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := groups(t, connString); !slices.Equal(got, []string{"practices/testing Testing", "techs/go Go"}) {
+		t.Fatalf("groups are %q", got)
+	}
+	var group string
+	query(t, connString, `SELECT g.path FROM rules r JOIN library_groups g ON g.id = r.group_id WHERE r.path = '`+returnErrors+`'`, &group)
+	if group != "techs/go" {
+		t.Fatalf("the retired rule is in group %q", group)
 	}
 }
 
@@ -418,21 +490,39 @@ func lines(t *testing.T, connString, sql string, args ...any) []string {
 // versions describes each of a rule's versions, oldest first, as "<version> release/<n> <change> [<summaries>]".
 func versions(t *testing.T, connString, ruleID string) []string {
 	t.Helper()
-	return lines(t, connString, `SELECT format('%s.%s.%s release/%s %s [%s]', major, minor, patch, release, change,
-		array_to_string(summaries, ' ')) FROM rule_versions WHERE rule_id = $1 ORDER BY release`, ruleID)
+	return lines(t, connString, `SELECT format('%s.%s.%s release/%s %s [%s]', v.major, v.minor, v.patch, rel.number, v.change,
+		array_to_string(v.summaries, ' ')) FROM rule_versions v JOIN rules r ON r.id = v.rule_id
+		JOIN library_releases rel ON rel.id = v.release_id WHERE r.path = $1 ORDER BY rel.number`, ruleID)
 }
 
 // groups describes each stored group as "<id> <name>".
 func groups(t *testing.T, connString string) []string {
 	t.Helper()
-	return lines(t, connString, `SELECT group_id || ' ' || name FROM library_groups ORDER BY group_id`)
+	return lines(t, connString, `SELECT path || ' ' || name FROM library_groups ORDER BY path`)
 }
 
 // currentContent returns the title and HTML of a rule's version with content.
 func currentContent(t *testing.T, connString, ruleID string) (title, html string) {
 	t.Helper()
-	query(t, connString, `SELECT title, html FROM rule_versions WHERE rule_id = '`+ruleID+`' AND html IS NOT NULL`, &title, &html)
+	query(t, connString, `SELECT v.title, v.html FROM rule_versions v JOIN rules r ON r.id = v.rule_id WHERE r.path = '`+ruleID+`' AND v.html IS NOT NULL`, &title, &html)
 	return title, html
+}
+
+// ids returns the id of every catalog row, keyed by what the row is, such as "rule techs/go/return-errors".
+func ids(t *testing.T, connString string) map[string]string {
+	t.Helper()
+	result := map[string]string{}
+	for _, row := range lines(t, connString, `
+		SELECT 'library ' || host || ' ' || host_repository_id || '=' || id FROM libraries
+		UNION ALL SELECT 'release ' || number || '=' || id FROM library_releases
+		UNION ALL SELECT 'group ' || path || '=' || id FROM library_groups
+		UNION ALL SELECT 'rule ' || path || '=' || id FROM rules
+		UNION ALL SELECT 'version ' || r.path || ' ' || v.major || '.' || v.minor || '.' || v.patch || '=' || v.id
+			FROM rule_versions v JOIN rules r ON r.id = v.rule_id`) {
+		key, id, _ := strings.Cut(row, "=")
+		result[key] = id
+	}
+	return result
 }
 
 // catalog returns every catalog row as text, in a stable order, with each row's transaction ID, so it changes

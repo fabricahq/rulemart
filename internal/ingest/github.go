@@ -11,7 +11,10 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/fabricahq/rulemart/catalog"
 )
 
 // githubName matches a GitHub owner or repository name.
@@ -74,7 +77,10 @@ func (g GitHub) Repository(ctx context.Context, owner, name string) (Repository,
 	if err != nil {
 		return Repository{}, fmt.Errorf("look up repository=%q on GitHub: %v", owner+"/"+name, err)
 	}
-	repo := Repository{ID: found.ID, Owner: found.Owner.Login, Name: found.Name, CloneURL: found.CloneURL}
+	repo := Repository{
+		Host: catalog.GitHub, ID: strconv.FormatInt(found.ID, 10), Owner: found.Owner.Login, Name: found.Name,
+		CloneURL: found.CloneURL,
+	}
 	if found.Description != nil {
 		repo.Description = *found.Description
 	}

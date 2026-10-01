@@ -15,11 +15,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"golang.org/x/net/html"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest"
 	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
 	"github.com/fabricahq/rulemart/internal/site"
 )
+
+// vetted lists the library with GitHub repository ID vettedID.
+var vetted = []catalog.Library{{Host: catalog.GitHub, RepositoryID: "7"}}
 
 const (
 	vettedID   = 7
@@ -41,16 +45,20 @@ func newSite(t *testing.T) http.Handler {
 	lib := ingesttest.NewLibrary(t)
 	lib.Group("practices/testing", "Testing")
 	lib.Group("techs/go", "Go")
+	lib.Group("practices/legacy", "Legacy")
+	lib.Rule("practices/legacy/old-habit", "Old habit", "A rule a later release retires with its group.")
 	lib.Rule("practices/testing/verify-retry-limits", "Verify retry limits", "Stop after a fixed number of attempts.")
 	lib.Rule("practices/testing/check-retry-backoff", "Check retry backoff", "Wait longer after each attempt.")
 	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.")
 	lib.Release(1, `formatVersion: 1
 release: 1
 rules:
+  practices/legacy/old-habit: 1.0.0
   practices/testing/check-retry-backoff: 1.0.0
   practices/testing/verify-retry-limits: 1.0.0
   techs/go/return-errors: 1.0.0
 changes:
+  practices/legacy/old-habit: {change: new, summaries: [Add the rule.]}
   practices/testing/check-retry-backoff: {change: new, summaries: [Add the rule.]}
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
@@ -59,6 +67,7 @@ changes:
 	lib.Release(2, `formatVersion: 1
 release: 2
 rules:
+  practices/legacy/old-habit: 1.0.0
   practices/testing/check-retry-backoff: 1.0.0
   practices/testing/verify-retry-limits: 1.1.0
   techs/go/return-errors: 1.0.0
@@ -67,6 +76,8 @@ changes:
 `)
 	lib.Rule("techs/go/return-errors", "Return errors with context", "Wrap every returned error.\n\n"+hostileHTML)
 	lib.Remove("practices/testing/check-retry-backoff.md")
+	lib.Remove("practices/legacy/old-habit.md")
+	lib.Remove("practices/legacy/_group.yaml")
 	lib.Release(3, `formatVersion: 1
 release: 3
 rules:
@@ -75,6 +86,7 @@ rules:
 changes:
   techs/go/return-errors: {change: major, from: 1.0.0, summaries: [Require context on every error., Add an example.]}
 retired:
+  practices/legacy/old-habit: {lastVersion: 1.0.0, summaries: [Drop the legacy group.]}
   practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge into verify-retry-limits.]}
 `)
 	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(vettedID)); err != nil {
@@ -88,7 +100,7 @@ retired:
 
 	// Pages read as the web function's role, so a table the migrations don't grant it fails these tests.
 	web := ingesttest.NewWebDatabase(t, connString)
-	handler, err := site.New(site.NewStore(web, []int64{vettedID}), site.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	handler, err := site.New(site.NewStore(web, vetted), site.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,6 +180,12 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	)
 	if !strings.Contains(resp.Body.String(), `href="https://github.com/example/rules/releases/tag/release/3"`) {
 		t.Fatal("the latest release doesn't link its GitHub Release page")
+	}
+	// The catalog keeps a group whose rules are all retired, but the page lists only groups with current rules.
+	for _, tab := range []string{library, library + "?tab=rules"} {
+		if page := get(t, handler, tab).Body.String(); strings.Contains(page, "practices/legacy") {
+			t.Errorf("%s lists the retired group practices/legacy", tab)
+		}
 	}
 }
 
@@ -390,7 +408,7 @@ func (failingParameter) GetParameter(context.Context, *ssm.GetParameterInput, ..
 func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	var logs bytes.Buffer
 	db := database.New(failingParameter{}, "/rulemart/database-url", 1)
-	handler, err := site.New(site.NewStore(db, []int64{vettedID}), site.Options{
+	handler, err := site.New(site.NewStore(db, vetted), site.Options{
 		Log:       slog.New(slog.NewJSONHandler(&logs, nil)),
 		RequestID: func(*http.Request) string { return "request-123" },
 	})

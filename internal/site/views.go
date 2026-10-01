@@ -80,15 +80,15 @@ type libraryContents struct {
 func newLibraryContents(lib libraryView, c contents) libraryContents {
 	byGroup := map[string][]ruleCard{}
 	for _, r := range c.rules {
-		byGroup[r.GroupID] = append(byGroup[r.GroupID], ruleCard{
-			href: lib.href + "/" + r.RuleID, id: r.RuleID, title: r.Title, impact: r.Impact,
+		byGroup[r.GroupPath] = append(byGroup[r.GroupPath], ruleCard{
+			href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
 			version: version(r.Major, r.Minor, r.Patch),
 		})
 	}
 	var result libraryContents
 	for _, g := range c.groups {
-		view := groupView{id: g.GroupID, name: g.Name, anchor: groupAnchor(g.GroupID), rules: byGroup[g.GroupID]}
-		if strings.HasPrefix(g.GroupID, "practices/") {
+		view := groupView{id: g.Path, name: g.Name, anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
+		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead
 			result.practices = append(result.practices, view)
 		} else {
@@ -127,11 +127,11 @@ type versionView struct {
 // newRuleView describes rule r of lib.
 func newRuleView(lib libraryView, r rule) ruleView {
 	v := ruleView{
-		library: lib, href: lib.href + "/" + r.RuleID, id: r.RuleID, title: r.Title, impact: r.Impact,
+		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
 		version: version(r.Major, r.Minor, r.Patch), whenToRead: r.WhenToRead, html: r.Html,
-		groupID: r.GroupID, groupName: r.GroupName, groupHref: lib.href + "?tab=rules#" + groupAnchor(r.GroupID),
-		updated: date(r.PublishedAt.Time), fileName: r.RuleID[strings.LastIndex(r.RuleID, "/")+1:] + ".md",
-		fileURL: lib.githubURL + "/blob/" + releaseTag(int(r.Release)) + "/" + escapePath(r.RuleID+".md"),
+		groupID: r.GroupPath, groupName: r.GroupName, groupHref: lib.href + "?tab=rules#" + groupAnchor(r.GroupPath),
+		updated: date(r.PublishedAt.Time), fileName: r.Path[strings.LastIndex(r.Path, "/")+1:] + ".md",
+		fileURL: lib.githubURL + "/blob/" + releaseTag(int(r.Release)) + "/" + escapePath(r.Path+".md"),
 	}
 	for i, row := range r.versions {
 		v.versions = append(v.versions, versionView{

@@ -11,13 +11,14 @@ import (
 	"github.com/fabricahq/rulemart/third_party/coderules"
 )
 
-// Repository is a library's GitHub repository, as GitHub describes it.
+// Repository is a library's repository, as its code host describes it.
 type Repository struct {
-	// ID is GitHub's repository ID, which identifies the library across renames and transfers.
-	ID          int64
+	// Host is the code host, such as GitHub, and ID the host's ID for the repository, which identifies the library
+	// across renames and transfers. GitHub's is its numeric repository ID, in decimal.
+	Host, ID    string
 	Owner, Name string
 	Description string
-	// OwnerAvatarURL is the owner's avatar on GitHub's avatar host; empty when unknown.
+	// OwnerAvatarURL is the owner's avatar on the host's avatar host; empty when unknown.
 	OwnerAvatarURL string
 	// CloneURL is where ingestion fetches the release tags, such as https://github.com/owner/name.git.
 	CloneURL string

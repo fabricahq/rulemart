@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/site/sitedb"
 )
@@ -21,19 +22,23 @@ var errNotFound = errors.New("not found")
 // Store reads the catalog. It finds only the libraries in its vetted list.
 type Store struct {
 	db *database.DB
-	// vetted holds the GitHub repository IDs of the libraries pages may show.
-	vetted []int64
+	// vetted holds the libraries pages may show, each as host:repository ID, as the queries match them.
+	vetted []string
 }
 
-// NewStore returns a Store that reads through db and finds only the libraries whose GitHub repository IDs are in
-// vetted.
-func NewStore(db *database.DB, vetted []int64) *Store {
-	return &Store{db: db, vetted: vetted}
+// NewStore returns a Store that reads through db and finds only the libraries in vetted.
+func NewStore(db *database.DB, vetted []catalog.Library) *Store {
+	keys := make([]string, len(vetted))
+	for i, library := range vetted {
+		keys[i] = library.Host + ":" + library.RepositoryID
+	}
+	return &Store{db: db, vetted: keys}
 }
 
 // library is a vetted library, as every page about it describes it.
 type library struct {
-	githubID int64
+	// id is the library's catalog id.
+	id int64
 	// owner and name are spelled as GitHub spells them now.
 	owner, name, description string
 	// avatar is the owner's avatar URL; empty when GitHub reported none.
@@ -95,10 +100,10 @@ func (s *Store) libraryPage(ctx context.Context, owner, name string) (library, c
 		if lib, err = s.library(ctx, q, owner, name); err != nil {
 			return err
 		}
-		if c.groups, err = q.ListGroups(ctx, lib.githubID); err != nil {
+		if c.groups, err = q.ListGroups(ctx, lib.id); err != nil {
 			return err
 		}
-		c.rules, err = q.ListCurrentRules(ctx, lib.githubID)
+		c.rules, err = q.ListCurrentRules(ctx, lib.id)
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -120,10 +125,10 @@ func (s *Store) rulePage(ctx context.Context, owner, name, ruleID string) (libra
 		if lib, err = s.library(ctx, q, owner, name); err != nil {
 			return err
 		}
-		if r.GetRuleRow, err = q.GetRule(ctx, sitedb.GetRuleParams{LibraryID: lib.githubID, RuleID: ruleID}); err != nil {
+		if r.GetRuleRow, err = q.GetRule(ctx, sitedb.GetRuleParams{LibraryID: lib.id, Path: ruleID}); err != nil {
 			return err
 		}
-		r.versions, err = q.ListVersions(ctx, sitedb.ListVersionsParams{LibraryID: lib.githubID, RuleID: ruleID})
+		r.versions, err = q.ListVersions(ctx, r.ID)
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -137,12 +142,12 @@ func (s *Store) rulePage(ctx context.Context, owner, name, ruleID string) (libra
 
 // library returns the vetted library owner/name, or pgx.ErrNoRows when there's none.
 func (s *Store) library(ctx context.Context, q *sitedb.Queries, owner, name string) (library, error) {
-	row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Owner: owner, Name: name, Vetted: s.vetted})
+	row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Host: catalog.GitHub, Owner: owner, Name: name, Vetted: s.vetted})
 	if err != nil {
 		return library{}, err
 	}
 	return library{
-		githubID: row.GithubID, owner: row.Owner, name: row.Name, description: row.Description,
+		id: row.ID, owner: row.Owner, name: row.Name, description: row.Description,
 		avatar: row.OwnerAvatarUrl, license: row.LicenseExpression.String, licenseFile: row.LicenseFile.String,
 		latestRelease: int(row.LatestRelease), latestAt: row.LatestTaggedAt.Time,
 	}, nil
