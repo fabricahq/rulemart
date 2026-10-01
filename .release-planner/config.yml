@@ -44,8 +44,11 @@ release-assets:
 # It needs a workflow_call trigger with string inputs ref, tag, and version, and every job
 # must name the same GitHub environment, which holds its credentials; it gets no secrets. It
 # may run again, late, and alongside itself, so make that safe.
-# pre-publish:
-#   - workflow: migrate-database.yml
+#
+# Here it applies the release's schema migrations to production, in the production
+# environment, which only main can use.
+pre-publish:
+  - workflow: migrate-database.yml
 
 # Optional workflows to run after each new release publishes, in parallel, such as one that
 # deploys it or updates a Homebrew formula. A workflow in this repository gets the same inputs

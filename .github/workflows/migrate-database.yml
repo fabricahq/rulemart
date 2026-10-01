@@ -1,0 +1,85 @@
+name: Migrate the database
+# Release Planner's pre-publish workflow: after a release pull request merges, and before the release is tagged, it
+# applies the release commit's schema migrations to production. If it fails, nothing is published, so every
+# published release has its schema in place. The functions refuse a database that lacks their release's migrations.
+#
+# Release Planner never runs it on a pull request. Its job runs in the production environment, which only main can
+# use, and the AWS role that reads the database's connection string trusts only that environment.
+#
+# It may run again, late, and alongside itself: goose skips applied migrations, and its Postgres session lock lets
+# one run migrate at a time. So no concurrency group, which would cancel a waiting run and fail its release.
+# Migrations must work with the release that's still running; see CONTRIBUTING.md.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Full SHA of the release commit.
+        type: string
+        required: true
+      tag:
+        description: The release's tag, such as v0.1.0.
+        type: string
+        required: true
+      version:
+        description: The release's version without the v, such as 0.1.0.
+        type: string
+        required: true
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  migrate:
+    name: Apply migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Require a release commit merged into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ inputs.ref }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::ref must be a full commit SHA, not '$REF'"
+            exit 1
+          fi
+          status=$(gh api "repos/$GH_REPO/compare/$REF...main" --jq .status)
+          if [[ "$status" != identical && "$status" != ahead ]]; then
+            echo "::error::$REF isn't on main ($status); migrate only merged code"
+            exit 1
+          fi
+          echo "Migrating for $TAG at $REF"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # No cache: this job holds the database credential, so it builds only from go.sum-verified downloads.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      # Build before the job has AWS credentials, so only the finished command runs with them.
+      - name: Build migrate-database
+        run: go build -o "$RUNNER_TEMP/migrate-database" ./cmd/migrate-database
+      # Trades the job's OIDC token for temporary credentials; no AWS key is stored in GitHub. The environment's
+      # variables name the role, region, and parameter, so this public repository names no account details.
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.DB_MIGRATIONS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      # Reads Neon's pooled connection string from SSM and derives the direct one, which the migration lock needs.
+      - name: Apply migrations
+        env:
+          DATABASE_URL_PARAMETER: ${{ vars.DATABASE_URL_PARAMETER }}
+        run: |
+          if [[ -z "$DATABASE_URL_PARAMETER" ]]; then
+            echo "::error::Set the production environment's DATABASE_URL_PARAMETER variable"
+            exit 1
+          fi
+          "$RUNNER_TEMP/migrate-database"

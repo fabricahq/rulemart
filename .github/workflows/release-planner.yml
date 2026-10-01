@@ -1,4 +1,4 @@
-# release-planner:generated v0.5.0 sha256:975267c9759a4c4a. Do not edit; change .release-planner/config.yml and run release-planner install.
+# release-planner:generated v0.5.0 sha256:824001f5c1853504. Do not edit; change .release-planner/config.yml and run release-planner install.
 name: Release
 # A pull request that adds or edits release notes is validated, checked, and built before it
 # merges, and blocks at the start and end of its description report the release's status. Merging it
@@ -8,7 +8,7 @@ on:
     branches: ['main']
     paths: ['_releases/v*.md']
   pull_request:
-    paths: ['_releases/**', '.release-planner/**', '.github/workflows/release-planner.yml', '.github/workflows/build-release.yml']
+    paths: ['_releases/**', '.release-planner/**', '.github/workflows/release-planner.yml', '.github/workflows/build-release.yml', '.github/workflows/migrate-database.yml']
   # Retry a failed publication by naming the commit the release pull request merged as.
   workflow_dispatch:
     inputs:
@@ -143,15 +143,44 @@ jobs:
           overwrite: false
           if-no-files-found: error
 
+  # Run a pre-publish workflow on the release commit after the merge, once the release is
+  # checked and built, and before it's tagged, alongside any other pre-publish workflows. If it
+  # fails, nothing is published. It gets read access, an OIDC token, and no secrets; it must be
+  # safe to run again, after a newer release's, and alongside itself.
+  # Its jobs run in the GitHub environment production, which holds its credentials.
+  pre-publish-1:
+    name: 'pre-publish (migrate-database.yml)'
+    needs: [validate, release-assets, attest]
+    # !cancelled() stops GitHub from adding success(), which would skip this job whenever the
+    # build was reused and its jobs skipped.
+    if: >-
+      !cancelled() && github.event_name != 'pull_request' && needs.validate.outputs.publish == 'true'
+      && needs.validate.outputs.tag != ''
+      && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    permissions:
+      contents: read
+      id-token: write
+    # Runs one at a time, in arrival order.
+    concurrency:
+      group: 'release-pre-publish (migrate-database.yml)'
+      cancel-in-progress: false
+      queue: max
+    uses: ./.github/workflows/migrate-database.yml
+    with:
+      ref: ${{ needs.validate.outputs.commit }}
+      tag: ${{ needs.validate.outputs.tag }}
+      version: ${{ needs.validate.outputs.version }}
+
   # The only job that can write, and only after the merge. It runs the pinned Release Planner
   # version and no repository code. It tags the release commit and publishes the approved
   # notes, or replaces the notes of published releases.
   # It verifies each asset's attestation, stages the assets on a draft, and publishes last.
   publish:
-    needs: [validate, release-assets, attest]
+    needs: [validate, release-assets, attest, pre-publish-1]
     if: >-
       !cancelled() && github.event_name != 'pull_request' && needs.validate.outputs.publish == 'true'
       && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+      && (needs.validate.outputs.tag == '' || needs.pre-publish-1.result == 'success')
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -272,7 +301,7 @@ jobs:
   # failure also gets a comment that mentions whoever merged, since editing a description
   # notifies no one.
   report:
-    needs: [validate, release-assets, attest, publish, attest-release]
+    needs: [validate, release-assets, attest, pre-publish-1, publish, attest-release]
     if: always() && needs.validate.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
@@ -317,6 +346,7 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           MERGED: ${{ inputs.merged-commit || github.sha }}
+          HOOKS: '[{"job":"pre-publish-1","name":"pre-publish (migrate-database.yml)","when":"pre-publish","workflow":"migrate-database.yml","title":"Migrate the database"}]'
         run: |
           if [ -n "$PULL_REQUEST" ]; then target=(--pull-request "$PULL_REQUEST" --head-sha "$HEAD_SHA" --head-ref "$HEAD_REF" --head-repository "$HEAD_REPOSITORY"); else target=(--merged "$MERGED"); fi
-          release-planner report --needs "$NEEDS" --branch main --plan "$RUNNER_TEMP/plan/release-plan.json" --assets "$RUNNER_TEMP/release-assets" "${target[@]}"
+          release-planner report --needs "$NEEDS" --branch main --plan "$RUNNER_TEMP/plan/release-plan.json" --assets "$RUNNER_TEMP/release-assets" --hooks "$HOOKS" "${target[@]}"
