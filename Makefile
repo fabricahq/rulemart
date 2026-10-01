@@ -1,16 +1,27 @@
 # Local build and checks. dist builds the release assets CI publishes: one ZIP per Lambda function, plus SHA256SUMS
 # and manifest.json. check needs the Postgres from db; CI provides its own.
-.PHONY: dist check generate check-generated db db-stop migrate web clean
+.PHONY: dist check generate check-generated db db-stop migrate ingest web clean
 
-# Postgres for integration tests and local development, matching Neon's major version. make db also creates the
+# Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
 # rulemart database and the rulemart_web role that migrations grant access to.
-DB_IMAGE := postgres:18
-DB_CONTAINER := rulemart-postgres
-DB_PORT := 55432
-export RULEMART_TEST_DATABASE_URL ?= postgres://postgres:postgres@127.0.0.1:$(DB_PORT)/postgres?sslmode=disable
-# The web function's role. Infrastructure creates it in production; locally its password is a test value.
-WEB_ROLE_PASSWORD := rulemart-web-local
-WEB_DATABASE_URL ?= postgres://rulemart_web:$(WEB_ROLE_PASSWORD)@127.0.0.1:$(DB_PORT)/rulemart?sslmode=disable
+LOCAL_DB_IMAGE := postgres:18
+LOCAL_DB_CONTAINER := rulemart-postgres
+# IPv4, because make db publishes the port only on IPv4 loopback; localhost can resolve to ::1 first on macOS.
+LOCAL_DB_HOST := 127.0.0.1
+LOCAL_DB_PORT := 55432
+# The rulemart database as its owner, which migrates it and ingests libraries into it.
+LOCAL_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
+# The web function's role, which may only read the catalog. Infrastructure creates it in production; locally its
+# password is a test value, which internal/testdb also uses.
+LOCAL_WEB_ROLE_PASSWORD := rulemart-web-local
+# The rulemart database as rulemart_web, as the deployed web function connects.
+LOCAL_WEB_DATABASE_URL ?= postgres://rulemart_web:$(LOCAL_WEB_ROLE_PASSWORD)@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
+# The server where tests create their own databases. The Go tests and CI read this name.
+export RULEMART_TEST_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/postgres?sslmode=disable
+# Sets DATABASE_URL to the local database for a command, unless the environment already names a database with
+# DATABASE_URL or DATABASE_URL_PARAMETER, so a command meant for Neon never falls back to the local one, or the
+# other way round.
+LOCAL_DATABASE_ENV = $(if $(DATABASE_URL)$(DATABASE_URL_PARAMETER),,DATABASE_URL='$(LOCAL_DATABASE_URL)')
 
 # Tailwind's standalone CLI, so building the stylesheet needs no Node. Each platform's binary is pinned by the
 # SHA-256 in the release's sha256sums.txt; update the version and every checksum together.
@@ -64,26 +75,33 @@ $(TAILWIND):
 	@chmod +x $@.download && mv $@.download $@
 
 db:
-	@docker start $(DB_CONTAINER) >/dev/null 2>&1 || docker run -d --name $(DB_CONTAINER) \
-		-e POSTGRES_PASSWORD=postgres -p 127.0.0.1:$(DB_PORT):5432 $(DB_IMAGE) >/dev/null
-	@until docker exec $(DB_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
-	@docker exec $(DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
-		|| docker exec $(DB_CONTAINER) createdb -U postgres rulemart
-	@docker exec $(DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_web'" | grep -q 1 \
-		|| docker exec $(DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(WEB_ROLE_PASSWORD)'"
-	@echo "Postgres is ready at 127.0.0.1:$(DB_PORT), with a rulemart database and the rulemart_web role for local development"
+	@docker start $(LOCAL_DB_CONTAINER) >/dev/null 2>&1 || docker run -d --name $(LOCAL_DB_CONTAINER) \
+		-e POSTGRES_PASSWORD=postgres -p $(LOCAL_DB_HOST):$(LOCAL_DB_PORT):5432 $(LOCAL_DB_IMAGE) >/dev/null
+	@until docker exec $(LOCAL_DB_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
+	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
+		|| docker exec $(LOCAL_DB_CONTAINER) createdb -U postgres rulemart
+	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_web'" | grep -q 1 \
+		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)'"
+	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database and the rulemart_web role for local development"
 
 db-stop:
-	docker rm -f $(DB_CONTAINER)
+	docker rm -f $(LOCAL_DB_CONTAINER)
 
-# Applies migrations to the database at DATABASE_URL: Neon's direct connection string, or a local database.
+# Applies migrations to the local rulemart database, or to the one DATABASE_URL names, such as Neon's direct
+# connection string.
 migrate:
-	go run ./cmd/migrate
+	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate
+
+# Ingests the library at URL, such as https://github.com/fabricahq/code-rules-test-library, into the local rulemart
+# database, or into the one DATABASE_URL or DATABASE_URL_PARAMETER names.
+ingest:
+	@test -n "$(URL)" || { echo "usage: make ingest URL=https://github.com/<owner>/<repository>"; exit 2; }
+	$(LOCAL_DATABASE_ENV) go run ./cmd/ingest '$(URL)'
 
 # Serves the pages at http://127.0.0.1:8080 from the local rulemart database, connecting as rulemart_web as the
 # deployed function does.
 web:
-	DATABASE_URL='$(WEB_DATABASE_URL)' go run ./cmd/web
+	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run ./cmd/web
 
 clean:
 	rm -rf dist bin

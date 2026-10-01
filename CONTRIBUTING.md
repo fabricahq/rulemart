@@ -16,14 +16,19 @@ Tests create their own databases on that server and drop them afterward. `make d
 
 `make db` also creates a `rulemart` database for local development, and the `rulemart_web` role the web function
 connects as. Migrate the database and ingest a library as its owner, then serve the pages at
-<http://127.0.0.1:8080>; `make web` connects as `rulemart_web`, as the deployed function does:
+<http://127.0.0.1:8080>:
 
 ```sh
-export DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart?sslmode=disable'
 make migrate
-go run ./cmd/ingest https://github.com/fabricahq/code-rules-test-library
+make ingest URL=https://github.com/fabricahq/code-rules-test-library
 make web
 ```
+
+The [Makefile](Makefile) names the local database's connections. `make migrate` and `make ingest` connect as the
+database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`, which they
+use instead. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog,
+as the deployed function does. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
+`RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.

@@ -42,6 +42,8 @@ func Server(t *testing.T) string {
 // development create it with webRolePassword, a test value.
 const WebRole = "rulemart_web"
 
+// webRolePassword is the role's local password, the Makefile's LOCAL_WEB_ROLE_PASSWORD, so tests and make db agree
+// on the role they create.
 const webRolePassword = "rulemart-web-local"
 
 // New creates an empty database for t and returns a connection string for it, as the server's user. It first
