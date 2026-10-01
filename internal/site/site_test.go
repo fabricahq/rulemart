@@ -376,3 +376,16 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 		}
 	}
 }
+
+// Hovering an impact label explains what the level means, in Code Rules' terms: how serious the problem is that
+// the rule helps prevent, not how much code applying it changes.
+func TestImpactLabelsExplainTheirLevel(t *testing.T) {
+	handler := newSite(t)
+	const high = `title="High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems."`
+
+	for _, path := range []string{library + "?tab=rules", errorsRule} {
+		if page := get(t, handler, path).Body.String(); !strings.Contains(page, high) {
+			t.Errorf("%s: the HIGH label has no explanation", path)
+		}
+	}
+}

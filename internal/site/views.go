@@ -185,3 +185,23 @@ func plural(n int, one, many string) string {
 	}
 	return strconv.Itoa(n) + " " + many
 }
+
+// impactExplanations say what each impact level means, following Code Rules' rule-authoring reference: how serious
+// the problem is that a rule helps prevent, not how much code applying it changes.
+var impactExplanations = map[string]string{
+	"CRITICAL":    "Critical impact: this rule helps prevent severe harm, such as irreversible data loss or a major security breach.",
+	"HIGH":        "High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems.",
+	"MEDIUM-HIGH": "Medium-high impact: the problems this rule helps prevent fall between medium and high.",
+	"MEDIUM":      "Medium impact: this rule helps prevent meaningful but bounded defects or recurring development friction.",
+	"LOW-MEDIUM":  "Low-medium impact: the problems this rule helps prevent fall between low and medium.",
+	"LOW":         "Low impact: this rule improves local clarity or consistency, with limited consequences.",
+}
+
+// impactExplanation returns the hover text for an impact label, and a plain one for a level Code Rules doesn't
+// define.
+func impactExplanation(level string) string {
+	if explanation, ok := impactExplanations[level]; ok {
+		return explanation
+	}
+	return level + " impact, as the library declares it."
+}

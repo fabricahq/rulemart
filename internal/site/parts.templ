@@ -35,9 +35,9 @@ templ label(class string) {
 	</p>
 }
 
-// impact shows a rule's declared impact.
+// impact shows a rule's declared impact, explained on hover.
 templ impact(level string) {
-	<span class={ "rounded-[4px] border px-[5px] font-mono text-[10px] font-normal tracking-[.04em] whitespace-nowrap", templ.KV("border-border-strong text-muted", level == "CRITICAL"), templ.KV("border-border text-faint", level != "CRITICAL") }>{ level }</span>
+	<span class={ "rounded-[4px] border px-[5px] font-mono text-[10px] font-normal tracking-[.04em] whitespace-nowrap", templ.KV("border-border-strong text-muted", level == "CRITICAL"), templ.KV("border-border text-faint", level != "CRITICAL") } title={ impactExplanation(level) }>{ level }</span>
 }
 
 // chip is a quiet, rounded label.
