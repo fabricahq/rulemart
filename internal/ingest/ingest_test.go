@@ -277,6 +277,35 @@ rules:
 	}
 }
 
+// Ingestion reads only the trees at tagged commits, so history it doesn't read, even an oversized object, isn't
+// fetched.
+func TestIngestFetchesOnlyTheTaggedCommits(t *testing.T) {
+	store, _ := newStore(t)
+	lib := ingesttest.NewLibrary(t)
+	lib.Write("assets/huge.bin", hugeObject)
+	lib.Commit("Add a large file")
+	lib.Remove("assets/huge.bin")
+	lib.Commit("Remove the large file")
+	lib.Group("techs/go", "Go")
+	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules:
+  techs/go/return-errors: 1.0.0
+changes:
+  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+`)
+
+	result, err := ingest.Ingest(context.Background(), store, lib.Repository(42))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Releases != 1 || result.Rules != 1 {
+		t.Fatalf("ingested %+v, want 1 release and 1 rule", result)
+	}
+}
+
 func TestIngestRejectsALibraryWithoutReleases(t *testing.T) {
 	store, connString := newStore(t)
 	lib := ingesttest.NewLibrary(t)

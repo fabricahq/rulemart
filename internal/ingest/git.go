@@ -37,8 +37,8 @@ type release struct {
 	record   coderules.ReleaseRecord
 }
 
-// fetchReleaseTags fetches the release/* tags of the repository at url, and everything they reach, into memory
-// that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
+// fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
+// history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.
 func fetchReleaseTags(ctx context.Context, url string, limits fetchLimits) (*git.Repository, error) {
 	repo, err := git.Init(newBoundedStorage(limits), nil)
@@ -52,9 +52,11 @@ func fetchReleaseTags(ctx context.Context, url string, limits fetchLimits) (*git
 	if err := checkReleaseTagCount(ctx, remote, limits); err != nil {
 		return nil, err
 	}
+	// Ingestion reads only the trees of tagged commits, so a shallow fetch leaves out every other commit's objects.
 	err = remote.FetchContext(ctx, &git.FetchOptions{
 		RefSpecs: []config.RefSpec{"+refs/tags/release/*:refs/tags/release/*"},
 		Tags:     git.NoTags,
+		Depth:    1,
 	})
 	var noMatch git.NoMatchingRefSpecError
 	switch {
