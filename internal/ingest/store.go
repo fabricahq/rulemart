@@ -65,7 +65,8 @@ func (w *writer) exec(what string, statement func() (int64, error)) {
 	w.changed += rows
 }
 
-// write upserts lib's rows and deletes the ones its tags no longer publish, in the order the foreign keys and the
+// write upserts lib's rows and deletes the ones its tags no longer publish. Each upsert changes a row only when its
+// values differ, so unchanged tags write nothing. It writes in the order the foreign keys and the
 // one-current-version index need: releases before the rules and versions that refer to them, stale versions before
 // new ones, and stale releases last.
 func (w *writer) write(lib library) {

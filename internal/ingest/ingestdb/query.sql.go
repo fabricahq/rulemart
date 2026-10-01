@@ -150,7 +150,6 @@ func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (int64
 }
 
 const upsertLibrary = `-- name: UpsertLibrary :execrows
-
 INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url, license_expression, license_file)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (github_id) DO UPDATE SET
@@ -173,8 +172,6 @@ type UpsertLibraryParams struct {
 	LicenseFile       pgtype.Text
 }
 
-// Ingestion's writes. Each upsert changes a row only when its values differ, and each delete removes only rows the
-// library's tags no longer publish, so ingesting unchanged tags writes nothing.
 func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertLibrary,
 		arg.GithubID,

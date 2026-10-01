@@ -1,6 +1,3 @@
--- Ingestion's writes. Each upsert changes a row only when its values differ, and each delete removes only rows the
--- library's tags no longer publish, so ingesting unchanged tags writes nothing.
-
 -- name: UpsertLibrary :execrows
 INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url, license_expression, license_file)
 VALUES (@github_id, @owner, @name, @description, @owner_avatar_url, @license_expression, @license_file)
