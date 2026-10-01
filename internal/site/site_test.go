@@ -29,6 +29,9 @@ const (
 	errorsRule = library + "/techs/go/return-errors"
 )
 
+// hostileHTML is raw HTML in the current version of a rule, which a library could publish to attack visitors.
+const hostileHTML = "<script>alert(1)</script>\n\nPress <img src=x onerror=alert(2)> to <a href=\"javascript:alert(3)\">continue</a>."
+
 // newSite ingests a vetted library with three releases, and an unvetted one, and returns the pages' handler.
 func newSite(t *testing.T) http.Handler {
 	t.Helper()
@@ -40,7 +43,7 @@ func newSite(t *testing.T) http.Handler {
 	lib.Group("techs/go", "Go")
 	lib.Rule("practices/testing/verify-retry-limits", "Verify retry limits", "Stop after a fixed number of attempts.")
 	lib.Rule("practices/testing/check-retry-backoff", "Check retry backoff", "Wait longer after each attempt.")
-	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.\n\n<script>alert(1)</script>")
+	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.")
 	lib.Release(1, `formatVersion: 1
 release: 1
 rules:
@@ -62,7 +65,7 @@ rules:
 changes:
   practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts as attempts.]}
 `)
-	lib.Rule("techs/go/return-errors", "Return errors with context", "Wrap every returned error.")
+	lib.Rule("techs/go/return-errors", "Return errors with context", "Wrap every returned error.\n\n"+hostileHTML)
 	lib.Remove("practices/testing/check-retry-backoff.md")
 	lib.Release(3, `formatVersion: 1
 release: 3
@@ -254,14 +257,50 @@ func TestPagesRedirectToTheLibrarysSpelling(t *testing.T) {
 	}
 }
 
+// A rule's raw HTML must reach visitors as text: the page shows it escaped, and runs or loads nothing from it.
 func TestRulePageShowsRawHTMLAsText(t *testing.T) {
 	handler := newSite(t)
 
-	resp := get(t, handler, library+"/techs/go/return-errors")
+	resp := get(t, handler, errorsRule)
 
-	if strings.Contains(resp.Body.String(), "<script>alert") {
-		t.Fatal("a rule's raw HTML reached the page")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d", resp.Code)
 	}
+	assertShows(t, resp.Body.String(), "<script>alert(1)</script>", "Press <img src=x onerror=alert(2)> to")
+	doc, err := html.Parse(strings.NewReader(resp.Body.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			for _, attr := range n.Attr {
+				if strings.HasPrefix(attr.Key, "on") || strings.Contains(attr.Val, "javascript:") {
+					t.Errorf("<%s> has %s=%q", n.Data, attr.Key, attr.Val)
+				}
+			}
+			if n.Data == "script" && !strings.HasPrefix(attribute(n, "src"), "/_static/") {
+				t.Errorf("a script that isn't Rulemart's own: src=%q", attribute(n, "src"))
+			}
+			if n.Data == "img" && !strings.HasPrefix(attribute(n, "src"), "https://") {
+				t.Errorf("an image from the rule: src=%q", attribute(n, "src"))
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+}
+
+// attribute returns the value of n's attribute key, or "".
+func attribute(n *html.Node, key string) string {
+	for _, attr := range n.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
 }
 
 func TestPagesAreCacheableForAMinute(t *testing.T) {
