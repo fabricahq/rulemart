@@ -27,13 +27,21 @@ than adding history.
   binary, and HTMX is vendored.
 - **Static assets are embedded in the web binary** and cached by CloudFront for a year under hashed names.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
-  release records with Code Rules' own parser: a copy in `third_party/coderules` until Code Rules publishes a public
-  parsing package.
+  release records with Code Rules' own parser: a copy in `internal/lib/coderules` until Code Rules publishes a
+  public parsing package.
 - **The web function connects as `rulemart_web`, a role that can only read what the pages show.** Infrastructure
   creates it with SQL, as a plain LOGIN role, because a role made through Neon's API or console joins
   `neon_superuser`, which can read and write every table and create roles and databases. Migrations grant it what
   each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
   ingestion connect as the database's owner.
+- **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
+  ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
+  rules, with no I/O; `app` for ingestion and page reads; `source/git` and `source/github` for the adapters that
+  fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
+  catalog's only SQL; and `views` for what pages read. `internal/platform` holds runtime that contexts share, such
+  as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
+  `internal/lib` holds narrow libraries that own no product concept, such as the parser copy. Contexts added later,
+  such as accounts or the cart, get the same layout.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

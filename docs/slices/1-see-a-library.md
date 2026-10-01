@@ -17,13 +17,13 @@ so renames don't break it. The
 current version of each rule stores its rendered content. Every version stores
 its release, change level, and summaries.
 
-**Ingestion.** `internal/ingest` fetches a library's repository with go-git over
+**Ingestion.** The catalog context fetches a library's repository with go-git over
 HTTPS, in memory, and reads every annotated `release/<n>` tag. For each release
 it parses the record: which rules changed, their versions, their change levels
 and summaries, and retirements. It reads each current rule's file, and each
 group's `_group.yaml`, at the tag that published that rule's current version. It
 writes everything in one transaction, so running it again changes nothing.
-Parsing uses a temporary copy of Code Rules' parser in `third_party/coderules`,
+Parsing uses a temporary copy of Code Rules' parser in `internal/lib/coderules`,
 marked for removal once Code Rules publishes a public package.
 
 **Operator command.** `cmd/ingest <repository URL>` runs ingestion against

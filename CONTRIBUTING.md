@@ -30,18 +30,21 @@ repository ID. To see another library locally, ingest it and add it there, as a 
 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
 one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
-memory, and refuses a library whose tags, objects, or content pass the limits in `internal/ingest/ingest.go`.
+memory, and refuses a library that passes any of the limits that
+[internal/contexts/catalog/domain/limits.go](internal/contexts/catalog/domain/limits.go) documents: release tags,
+the size of a tag, of the fetched packfile, of each object and of all of them, the number of objects, the size of
+each file it reads, and the content it holds until the library is stored.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the connection string instead of `DATABASE_URL`, as the
 functions do. Ingestion parses records with the copy of Code Rules' parser in
-[third_party/coderules](third_party/coderules), so it reads only libraries released with a Code Rules version that
+[internal/lib/coderules](internal/lib/coderules), so it reads only libraries released with a Code Rules version that
 writes the same record format.
 
 ## Generated files
 
 sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
-so building needs none of them. After changing a `query.sql`, a migration, a `.templ` file, or
-`internal/site/styles/app.css`, run:
+so building needs none of them. After changing a query in `internal/contexts/catalog/store/postgres/queries`, a
+migration, a `.templ` file, or `internal/platform/web/styles/app.css`, run:
 
 ```sh
 make generate
@@ -57,9 +60,20 @@ file differs from what its sources generate.
   event. `cmd/worker` consumes the job queue, which has no jobs yet. Both run on Lambda.
 - `cmd/migrate` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's machine,
   never on Lambda.
-- `internal/ingest` reads a library's release tags and writes the catalog, and `internal/site` serves the pages from
-  it. Each keeps its queries in `query.sql`.
-- `internal/database` owns the connection to Neon, and `internal/migrate` the migrations.
+- `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
+  [docs/decisions.md](docs/decisions.md) explains:
+  - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
+    snapshots within the content budget, rendering rules' Markdown, addresses such as tags and GitHub URLs, and
+    every ingestion limit.
+  - `app` holds the operations: `Ingester` ingests a library, and `Pages` reads what the pages show.
+  - `source/git` fetches release snapshots with go-git, which nothing else uses outside its test fixture
+    `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.
+  - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
+    and sqlc's output in `catalogdb`.
+  - `views` holds the plain values pages read.
+- `internal/platform` holds shared runtime: `database` owns the connection to Neon, `migrate` the migrations, `web`
+  the HTTP server, templates, and static files, and `postgrestest` and `database/databasetest` the test databases.
+- `internal/lib/coderules` is the vendored copy of Code Rules' parser.
 - `db/migrations` holds the schema as numbered SQL files, and `catalog/vetted.yaml` the vetted libraries.
 
 ## Schema and migrations
@@ -77,7 +91,8 @@ go tool goose -dir db/migrations -s create add_libraries sql
 - Give each catalog table an `id` primary key and keep its natural key, such as a library and a rule's path, as
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_web` what the web function needs from each new table, usually `SELECT` on what the pages read,
-  and nothing on tables the pages don't read. The site's tests read as that role, so a missing grant fails them.
+  and nothing on tables the pages don't read. The store's page-read tests and the site's end-to-end tests read as
+  that role, so a missing grant fails them.
 - A migration must work with the release that's still running, because the schema changes before the functions
   do. Make a breaking change in two releases: add the new shape first, and remove the old one after nothing uses
   it.
