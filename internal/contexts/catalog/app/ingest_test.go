@@ -2,18 +2,18 @@ package app_test
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/jackc/pgx/v5"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 )
 
@@ -90,267 +90,66 @@ rules:
 `)
 }
 
-func TestIngestStoresTheFirstRelease(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-
-	result, err := ingest(store, lib.Repository(42))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if result.Releases != 1 || result.Rules != 3 {
-		t.Fatalf("ingested %+v, want 1 release and 3 rules", result)
-	}
-	var owner, name, license string
-	query(t, connString, `SELECT owner, name, license_expression FROM libraries WHERE host = 'github' AND host_repository_id = '42'`, &owner, &name, &license)
-	if owner != "example" || name != "rules" || license != "MIT" {
-		t.Fatalf("library is %s/%s under %s, want example/rules under MIT", owner, name, license)
-	}
-	var taggedAt time.Time
-	query(t, connString, `SELECT tagged_at FROM library_releases WHERE number = 1`, &taggedAt)
-	if !taggedAt.Equal(gittest.FirstTagged) {
-		t.Fatalf("release/1 tagged at %s, want %s", taggedAt, gittest.FirstTagged)
-	}
-	if got := groups(t, connString); !slices.Equal(got, []string{"practices/testing Testing", "techs/go Go"}) {
-		t.Fatalf("groups are %q", got)
-	}
-	if got := versions(t, connString, retryLimits); !slices.Equal(got, []string{"1.0.0 release/1 new [Add the rule.]"}) {
-		t.Fatalf("versions are %q", got)
-	}
-	title, html := currentContent(t, connString, retryLimits)
-	if title != "Verify retry limits" || !strings.Contains(html, "fixed number of attempts") {
-		t.Fatalf("current content is %q: %s", title, html)
-	}
-	if strings.Contains(html, "<h2") {
-		t.Fatalf("content repeats the title as a heading: %s", html)
-	}
-}
-
-func TestIngestRecordsEachChangeLevelAndRetirement(t *testing.T) {
-	store, connString := newStore(t)
+// Ingestion stores what the releases publish, as the pages read it: each change level, a retirement, and each
+// rule's content at the release that published its current version, not a later edit no release recorded.
+func TestIngestStoresWhatTheReleasesPublish(t *testing.T) {
+	ingester, pages := newCatalog(t)
 	lib := firstRelease(t)
 	laterReleases(t, lib)
 
-	result, err := ingest(store, lib.Repository(42))
+	result, err := ingest(ingester, lib.Repository(42))
+
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	if result.Releases != 4 || result.Rules != 2 {
+	if result.Releases != 4 || result.Rules != 2 || result.Repository != lib.Repository(42) {
 		t.Fatalf("ingested %+v, want 4 releases and 2 current rules", result)
 	}
-	for id, want := range map[string][]string{
-		retryLimits: {
-			"1.0.0 release/1 new [Add the rule.]",
-			"1.1.0 release/2 minor [Cover timeouts.]",
-			"1.1.1 release/3 patch [Fix a typo.]",
-		},
-		returnErrors: {
-			"1.0.0 release/1 new [Add the rule.]",
-			"2.0.0 release/3 major [Require context on every returned error. Add an example.]",
-		},
-		retryBackoff: {"1.0.0 release/1 new [Add the rule.]"},
-	} {
-		if got := versions(t, connString, id); !slices.Equal(got, want) {
-			t.Errorf("%s versions are %q, want %q", id, got, want)
-		}
-	}
-	var retiredIn int
-	var replacedBy string
-	query(t, connString, `SELECT rel.number, r.replaced_by FROM rules r JOIN library_releases rel ON rel.id = r.retired_in_release_id WHERE r.path = '`+retryBackoff+`'`, &retiredIn, &replacedBy)
-	if retiredIn != 3 || replacedBy != retryLimits {
-		t.Fatalf("%s retired in release/%d, replaced by %q", retryBackoff, retiredIn, replacedBy)
-	}
-	var withContent int
-	query(t, connString, `SELECT count(*) FROM rule_versions v JOIN rules r ON r.id = v.rule_id WHERE r.path = '`+retryBackoff+`' AND v.html IS NOT NULL`, &withContent)
-	if withContent != 0 {
-		t.Fatal("the retired rule kept content")
-	}
-	if title, html := currentContent(t, connString, retryLimits); !strings.Contains(html, "and says so") {
-		t.Fatalf("%s shows %q from an earlier version: %s", retryLimits, title, html)
-	}
-}
-
-// Rows keep their ids while they exist, so anything that refers to a release, group, rule, or version keeps
-// pointing at it after every ingestion.
-func TestIngestKeepsTheIDsOfRowsThatSurvive(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
+	page, err := pages.LibraryPage(context.Background(), "example", "rules")
+	if err != nil {
 		t.Fatal(err)
 	}
-	before := ids(t, connString)
-	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, timeouts included.")
-	lib.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
-	lib.Remove(retryBackoff + ".md")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules:
-  practices/testing/verify-retry-limits: 1.1.0
-  techs/go/close-what-you-open: 1.0.0
-  techs/go/return-errors: 1.0.0
-changes:
-  practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}
-  techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}
-retired:
-  practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge it.]}
-`)
-
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
+	if page.Library.LatestRelease != 4 || page.Library.LicenseExpression != "MIT" || len(page.Groups) != 2 {
+		t.Errorf("the library page is %+v", page)
+	}
+	var rules []string
+	for _, r := range page.Rules {
+		rules = append(rules, r.Path+" "+r.Version.String()+" "+r.Title)
+	}
+	if want := []string{retryLimits + " 1.1.1 Verify retry limits", returnErrors + " 2.0.0 Return errors with context"}; !slices.Equal(rules, want) {
+		t.Errorf("current rules are %q, want %q", rules, want)
+	}
+	rule, err := pages.RulePage(context.Background(), "example", "rules", returnErrors)
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	after := ids(t, connString)
-	for key, id := range before {
-		if after[key] != id {
-			t.Errorf("%s had id %s, and now %q", key, id, after[key])
-		}
+	if !strings.Contains(rule.Rule.HTML, "operation that failed") || strings.Contains(rule.Rule.HTML, "<h2") || rule.Rule.Release != 3 {
+		t.Errorf("%s shows release/%d's %s", returnErrors, rule.Rule.Release, rule.Rule.HTML)
 	}
-	for _, added := range []string{"release 2", "rule techs/go/close-what-you-open", "version practices/testing/verify-retry-limits 1.1.0"} {
-		if after[added] == "" {
-			t.Errorf("no %s", added)
-		}
+	var versions []string
+	for _, v := range rule.Versions {
+		versions = append(versions, v.Version.String()+" "+domain.ReleaseTag(v.Release)+" "+string(v.Change)+" "+strings.Join(v.Summaries, " | "))
 	}
-}
-
-// A group stays while any rule belongs to it, retired or not, so every rule's group exists. One whose rules are all
-// retired keeps the metadata of the last release that had it.
-func TestIngestKeepsTheGroupOfRetiredRules(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
+	if want := []string{"2.0.0 release/3 major Require context on every returned error. | Add an example.", "1.0.0 release/1 new Add the rule."}; !slices.Equal(versions, want) {
+		t.Errorf("versions are %q, want %q", versions, want)
 	}
-	before := ids(t, connString)
-	lib.Remove(returnErrors + ".md")
-	lib.Remove("techs/go/_group.yaml")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules:
-  practices/testing/check-retry-backoff: 1.0.0
-  practices/testing/verify-retry-limits: 1.0.0
-retired:
-  techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}
-`)
-
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := groups(t, connString); !slices.Equal(got, []string{"practices/testing Testing", "techs/go Go"}) {
-		t.Fatalf("groups are %q", got)
-	}
-	after := ids(t, connString)
-	assertIDsSurvive(t, before, after)
-	if len(after) < len(before) {
-		t.Errorf("rows went missing: before %v, after %v", before, after)
-	}
-	var group string
-	query(t, connString, `SELECT g.path FROM rules r JOIN library_groups g ON g.id = r.group_id WHERE r.path = '`+returnErrors+`'`, &group)
-	if group != "techs/go" {
-		t.Fatalf("the retired rule is in group %q", group)
-	}
-}
-
-// A release-notes view needs what each release did: the summaries of each retirement, and whether the release also
-// updated shared files, which Code Rules' notes say for any release after the first that lists library files.
-func TestIngestStoresRetirementSummariesAndSharedFileUpdates(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	lib.Group("techs/go", "Go language")
-	lib.Remove(retryBackoff + ".md")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules:
-  practices/testing/verify-retry-limits: 1.0.0
-  techs/go/return-errors: 1.0.0
-retired:
-  practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge into verify-retry-limits., Drop the duplicate.]}
-libraryFiles: [techs/go/_group.yaml]
-`)
-	lib.Rule(returnErrors, "Return errors", "Return errors to the caller.")
-	lib.Release(3, `formatVersion: 1
-release: 3
-rules:
-  practices/testing/verify-retry-limits: 1.0.0
-  techs/go/return-errors: 1.0.1
-changes:
-  techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}
-`)
-
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-
-	got := lines(t, connString, `SELECT path || ' ' || coalesce(array_to_string(retirement_summaries, ' | '), '-') FROM rules ORDER BY path`)
-	want := []string{
-		retryBackoff + " Merge into verify-retry-limits. | Drop the duplicate.",
-		retryLimits + " -",
-		returnErrors + " -",
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("retirement summaries are %q, want %q", got, want)
-	}
-	// Release 1 lists every file, as a first release does, but adds them rather than updating them.
-	got = lines(t, connString, `SELECT 'release/' || number || ' ' || updates_shared_files FROM library_releases ORDER BY number`)
-	if want := []string{"release/1 false", "release/2 true", "release/3 false"}; !slices.Equal(got, want) {
-		t.Errorf("shared file updates are %q, want %q", got, want)
+	if _, err := pages.RulePage(context.Background(), "example", "rules", retryBackoff); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("the retired rule %s: got %v, want app.ErrNotFound", retryBackoff, err)
 	}
 }
 
 func TestIngestChangesNothingWhenRunAgain(t *testing.T) {
-	store, connString := newStore(t)
+	ingester, _ := newCatalog(t)
 	lib := firstRelease(t)
 	laterReleases(t, lib)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := catalog(t, connString)
-
-	result, err := ingest(store, lib.Repository(42))
-	if err != nil {
+	if _, err := ingest(ingester, lib.Repository(42)); err != nil {
 		t.Fatal(err)
 	}
 
-	if result.Changed != 0 {
-		t.Fatalf("the second ingestion changed %d rows", result.Changed)
-	}
-	if after := catalog(t, connString); after != before {
-		t.Fatalf("the catalog changed:\nbefore:\n%s\nafter:\n%s", before, after)
-	}
-}
+	result, err := ingest(ingester, lib.Repository(42))
 
-// A refused library writes nothing, whether fetching refuses its tags or assembly refuses what they publish.
-func TestIngestRejectsAMalformedRecordWithoutWriting(t *testing.T) {
-	for name, record := range map[string]string{
-		"invalid YAML": "formatVersion: 1\nrelease: [2\n",
-		"rule dropped without retiring it": `formatVersion: 1
-release: 2
-rules:
-  practices/testing/verify-retry-limits: 1.0.0
-  techs/go/return-errors: 1.0.0
-`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			store, connString := newStore(t)
-			lib := firstRelease(t)
-			if _, err := ingest(store, lib.Repository(42)); err != nil {
-				t.Fatal(err)
-			}
-			before := catalog(t, connString)
-			lib.Rule(retryLimits, "Verify retry limits", "A change in a broken release.")
-			lib.Release(2, record)
-
-			_, err := ingest(store, lib.Repository(42))
-
-			if err == nil || !strings.Contains(err.Error(), "release/2") {
-				t.Fatalf("got error %v, want one naming release/2", err)
-			}
-			if after := catalog(t, connString); after != before {
-				t.Fatalf("a failed ingestion changed the catalog:\nbefore:\n%s\nafter:\n%s", before, after)
-			}
-		})
+	if err != nil || result.Changed != 0 {
+		t.Fatalf("the second ingestion changed %d rows, %v", result.Changed, err)
 	}
 }
 
@@ -358,183 +157,49 @@ rules:
 // almost nothing and only its inflated size can stop it.
 var hugeObject = strings.Repeat("\x00", 40<<20)
 
-func TestIngestRejectsAnOversizedObjectWithoutWriting(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := catalog(t, connString)
-	lib.Write("assets/huge.bin", hugeObject)
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules:
-  practices/testing/check-retry-backoff: 1.0.0
-  practices/testing/verify-retry-limits: 1.0.0
-  techs/go/return-errors: 1.0.0
-`)
+// A refused library writes nothing, whichever step refuses it: fetching the tags, or assembling what they publish.
+func TestIngestWritesNothingWhenItRefusesALibrary(t *testing.T) {
+	for name, release := range map[string]func(lib *gittest.Library){
+		"a record that isn't YAML": func(lib *gittest.Library) { lib.Release(2, "formatVersion: 1\nrelease: [2\n") },
+		"an object too large to fetch": func(lib *gittest.Library) {
+			lib.Write("assets/huge.bin", hugeObject)
+			lib.Release(2, "formatVersion: 1\nrelease: 2\nrules:\n  practices/testing/check-retry-backoff: 1.0.0\n"+
+				"  practices/testing/verify-retry-limits: 1.0.0\n  techs/go/return-errors: 1.0.0\n")
+		},
+		"a rule dropped without retiring it": func(lib *gittest.Library) {
+			lib.Release(2, "formatVersion: 1\nrelease: 2\nrules:\n  practices/testing/verify-retry-limits: 1.0.0\n"+
+				"  techs/go/return-errors: 1.0.0\n")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ingester, pages := newCatalog(t)
+			lib := firstRelease(t)
+			if _, err := ingest(ingester, lib.Repository(42)); err != nil {
+				t.Fatal(err)
+			}
+			before := read(t, pages)
+			lib.Rule(retryLimits, "Verify retry limits", "A change in a refused release.")
+			release(lib)
 
-	_, err := ingest(store, lib.Repository(42))
+			_, err := ingest(ingester, lib.Repository(42))
 
-	if err == nil || !strings.Contains(err.Error(), "bytes") {
-		t.Fatalf("got error %v, want one about the object's size", err)
-	}
-	if after := catalog(t, connString); after != before {
-		t.Fatalf("a refused fetch changed the catalog:\nbefore:\n%s\nafter:\n%s", before, after)
+			if err == nil {
+				t.Fatal("ingested a library that should be refused")
+			}
+			if after := read(t, pages); !reflect.DeepEqual(after, before) {
+				t.Fatalf("a refused ingestion changed the pages:\nbefore: %+v\nafter:  %+v", before, after)
+			}
+		})
 	}
 }
 
-// A library whose tags were rewritten, as when a test library is reset, keeps only what its current tags publish.
-func TestIngestRemovesWhatRewrittenTagsNoLongerPublish(t *testing.T) {
-	store, connString := newStore(t)
-	lib := firstRelease(t)
-	laterReleases(t, lib)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := ids(t, connString)
-	fresh := gittest.NewLibrary(t)
-	fresh.Group("techs/go", "Go")
-	fresh.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	fresh.Release(1, `formatVersion: 1
-release: 1
-rules:
-  techs/go/return-errors: 1.0.0
-changes:
-  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
-`)
+func TestIngestRejectsAURLThatIsntAGitHubRepository(t *testing.T) {
+	ingester := app.Ingester{Repositories: repositories{}, Fetch: git.Fetch, Limits: domain.DefaultLimits}
 
-	if _, err := ingest(store, fresh.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
+	_, err := ingester.Ingest(context.Background(), "https://gitlab.com/example/rules")
 
-	var releases, rules int
-	query(t, connString, `SELECT (SELECT count(*) FROM library_releases), (SELECT count(*) FROM rules)`, &releases, &rules)
-	if releases != 1 || rules != 1 {
-		t.Fatalf("kept %d releases and %d rules, want 1 of each", releases, rules)
-	}
-	if got := versions(t, connString, returnErrors); !slices.Equal(got, []string{"1.0.0 release/1 new [Add the rule.]"}) {
-		t.Fatalf("versions are %q", got)
-	}
-	if got := groups(t, connString); !slices.Equal(got, []string{"techs/go Go"}) {
-		t.Fatalf("groups are %q", got)
-	}
-	// What the rewritten tags still publish keeps its id: the library, release 1, the group, the rule, and its
-	// version.
-	after := ids(t, connString)
-	assertIDsSurvive(t, before, after)
-	for _, kept := range []string{"library github 42", "release 1", "group techs/go", "rule " + returnErrors, "version " + returnErrors + " 1.0.0"} {
-		if after[kept] == "" {
-			t.Errorf("no %s", kept)
-		}
-	}
-}
-
-// Rewritten tags can move a version to another release, such as when a reset library publishes in release 1 a rule
-// it first published in release 2. The version is the same row, so it keeps its id and moves with the tags.
-func TestIngestKeepsTheIDOfAVersionThatMovesToAnotherRelease(t *testing.T) {
-	store, connString := newStore(t)
-	lib := gittest.NewLibrary(t)
-	lib.Group("techs/go", "Go")
-	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	lib.Release(1, `formatVersion: 1
-release: 1
-rules: {techs/go/return-errors: 1.0.0}
-changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
-`)
-	lib.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
-changes: {techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}}
-`)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := ids(t, connString)
-	reset := gittest.NewLibrary(t)
-	reset.Group("techs/go", "Go")
-	reset.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	reset.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
-	reset.Release(1, `formatVersion: 1
-release: 1
-rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
-changes:
-  techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}
-  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
-`)
-
-	if _, err := ingest(store, reset.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-
-	assertIDsSurvive(t, before, ids(t, connString))
-	if got := versions(t, connString, "techs/go/close-what-you-open"); !slices.Equal(got, []string{"1.0.0 release/1 new [Add the rule.]"}) {
-		t.Fatalf("versions are %q", got)
-	}
-}
-
-// Moving a rule's versions each one release later passes through a moment where two of them share a release, which
-// the database must allow within the ingestion.
-func TestIngestMovesSeveralVersionsOfARuleToLaterReleases(t *testing.T) {
-	store, connString := newStore(t)
-	lib := gittest.NewLibrary(t)
-	lib.Group("techs/go", "Go")
-	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	lib.Release(1, `formatVersion: 1
-release: 1
-rules: {techs/go/return-errors: 1.0.0}
-changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
-`)
-	lib.Rule(returnErrors, "Return errors", "Return errors to the caller.")
-	lib.Release(2, `formatVersion: 1
-release: 2
-rules: {techs/go/return-errors: 1.0.1}
-changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
-`)
-	if _, err := ingest(store, lib.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-	before := ids(t, connString)
-	reset := gittest.NewLibrary(t)
-	reset.Group("techs/go", "Go")
-	reset.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
-	reset.Release(1, `formatVersion: 1
-release: 1
-rules: {techs/go/close-what-you-open: 1.0.0}
-changes: {techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}}
-`)
-	reset.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	reset.Release(2, `formatVersion: 1
-release: 2
-rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
-changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
-`)
-	reset.Rule(returnErrors, "Return errors", "Return errors to the caller.")
-	reset.Release(3, `formatVersion: 1
-release: 3
-rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.1}
-changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
-`)
-
-	if _, err := ingest(store, reset.Repository(42)); err != nil {
-		t.Fatal(err)
-	}
-
-	assertIDsSurvive(t, before, ids(t, connString))
-	want := []string{"1.0.0 release/2 new [Add the rule.]", "1.0.1 release/3 patch [Fix a typo.]"}
-	if got := versions(t, connString, returnErrors); !slices.Equal(got, want) {
-		t.Fatalf("versions are %q, want %q", got, want)
-	}
-}
-
-// assertIDsSurvive fails t unless every row in both before and after, by its natural key, kept its id.
-func assertIDsSurvive(t *testing.T, before, after map[string]string) {
-	t.Helper()
-	for key, id := range before {
-		if now, ok := after[key]; ok && now != id {
-			t.Errorf("%s had id %s, and now %s", key, id, now)
-		}
+	if err == nil || !strings.Contains(err.Error(), "expected https://github.com/<owner>/<repository>") {
+		t.Fatalf("got error %v, want one asking for a GitHub repository URL", err)
 	}
 }
 
@@ -545,97 +210,38 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 	return r.repo, nil
 }
 
-// ingest ingests the library in repo into store, within the default limits.
-func ingest(store *postgres.Store, repo domain.Repository) (app.Result, error) {
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Store: store, Limits: domain.DefaultLimits}
+// newCatalog returns an Ingester that fetches with go-git and writes to a new database, and the Pages that read it,
+// where example/rules with GitHub repository ID 42 is vetted.
+func newCatalog(t *testing.T) (app.Ingester, app.Pages) {
+	t.Helper()
+	db, _ := databasetest.New(t)
+	store := postgres.New(db)
+	ingester := app.Ingester{Fetch: git.Fetch, Store: store, Limits: domain.DefaultLimits}
+	return ingester, app.Pages{Store: store, Vetted: []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "42"}}}
+}
+
+// ingest ingests the library in repo with ingester.
+func ingest(ingester app.Ingester, repo domain.Repository) (app.Result, error) {
+	ingester.Repositories = repositories{repo}
 	return ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName())
 }
 
-func newStore(t *testing.T) (*postgres.Store, string) {
-	t.Helper()
-	db, connString := databasetest.New(t)
-	return postgres.New(db), connString
+// page is what the pages read of firstRelease's library.
+type page struct {
+	library views.LibraryPage
+	rule    views.RulePage
 }
 
-// query runs a query returning one row and scans it into dest.
-func query(t *testing.T, connString, sql string, dest ...any) {
+// read returns what the pages read of firstRelease's library.
+func read(t *testing.T, pages app.Pages) page {
 	t.Helper()
-	conn := connect(t, connString)
-	if err := conn.QueryRow(context.Background(), sql).Scan(dest...); err != nil {
-		t.Fatalf("run %q: %v", sql, err)
-	}
-}
-
-// lines runs a query returning one text column and returns its values.
-func lines(t *testing.T, connString, sql string, args ...any) []string {
-	t.Helper()
-	conn := connect(t, connString)
-	rows, err := conn.Query(context.Background(), sql, args...)
-	if err != nil {
-		t.Fatalf("run %q: %v", sql, err)
-	}
-	values, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
-		t.Fatalf("run %q: %v", sql, err)
-	}
-	return values
-}
-
-// versions describes each of a rule's versions, oldest first, as "<version> release/<n> <change> [<summaries>]".
-func versions(t *testing.T, connString, ruleID string) []string {
-	t.Helper()
-	return lines(t, connString, `SELECT format('%s.%s.%s release/%s %s [%s]', v.major, v.minor, v.patch, rel.number, v.change,
-		array_to_string(v.summaries, ' ')) FROM rule_versions v JOIN rules r ON r.id = v.rule_id
-		JOIN library_releases rel ON rel.id = v.release_id WHERE r.path = $1 ORDER BY rel.number`, ruleID)
-}
-
-// groups describes each stored group as "<id> <name>".
-func groups(t *testing.T, connString string) []string {
-	t.Helper()
-	return lines(t, connString, `SELECT path || ' ' || name FROM library_groups ORDER BY path`)
-}
-
-// currentContent returns the title and HTML of a rule's version with content.
-func currentContent(t *testing.T, connString, ruleID string) (title, html string) {
-	t.Helper()
-	query(t, connString, `SELECT v.title, v.html FROM rule_versions v JOIN rules r ON r.id = v.rule_id WHERE r.path = '`+ruleID+`' AND v.html IS NOT NULL`, &title, &html)
-	return title, html
-}
-
-// ids returns the id of every catalog row, keyed by what the row is, such as "rule techs/go/return-errors".
-func ids(t *testing.T, connString string) map[string]string {
-	t.Helper()
-	result := map[string]string{}
-	for _, row := range lines(t, connString, `
-		SELECT 'library ' || host || ' ' || host_repository_id || '=' || id FROM libraries
-		UNION ALL SELECT 'release ' || number || '=' || id FROM library_releases
-		UNION ALL SELECT 'group ' || path || '=' || id FROM library_groups
-		UNION ALL SELECT 'rule ' || path || '=' || id FROM rules
-		UNION ALL SELECT 'version ' || r.path || ' ' || v.major || '.' || v.minor || '.' || v.patch || '=' || v.id
-			FROM rule_versions v JOIN rules r ON r.id = v.rule_id`) {
-		key, id, _ := strings.Cut(row, "=")
-		result[key] = id
-	}
-	return result
-}
-
-// catalog returns every catalog row as text, in a stable order, with each row's transaction ID, so it changes
-// when any row is written, even with the same values.
-func catalog(t *testing.T, connString string) string {
-	t.Helper()
-	var all []string
-	for _, table := range []string{"libraries", "library_releases", "library_groups", "rules", "rule_versions"} {
-		all = append(all, lines(t, connString, `SELECT t.xmin::text || ' ' || t::text FROM `+table+` t ORDER BY t::text`)...)
-	}
-	return strings.Join(all, "\n")
-}
-
-func connect(t *testing.T, connString string) *pgx.Conn {
-	t.Helper()
-	conn, err := pgx.Connect(context.Background(), connString)
+	library, err := pages.LibraryPage(context.Background(), "example", "rules")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Close(context.Background()) })
-	return conn
+	rule, err := pages.RulePage(context.Background(), "example", "rules", retryLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return page{library, rule}
 }
