@@ -40,16 +40,26 @@ writes the same record format.
 ## Generated files
 
 sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
-so building needs none of them. After changing a `query.sql`, a migration, a `.templ` file, or
+so building needs none of them, and every generated file says so where it lives:
+
+- sqlc writes each feature's package into a `generated/` directory beside it, such as
+  `internal/site/generated/sitedb`, with files named `*.generated.go`.
+- Tailwind writes `internal/site/static/generated/app.css`.
+- templ output must stay beside its `.templ` source, because Go needs it in the same package and so the same
+  directory. `make generate` renames templ's `x_templ.go` to `x_templ.generated.go`.
+
+[.gitattributes](.gitattributes) marks `generated/` directories and `*.generated.*` files as generated, so GitHub
+collapses them in diffs. After changing a `query.sql`, a migration, a `.templ` file, or
 `internal/site/styles/app.css`, run:
 
 ```sh
 make generate
 ```
 
-It runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it downloads into `bin/` and checks
-against the SHA-256 pinned in the [Makefile](Makefile). CI runs `make check-generated`, which fails when a committed
-file differs from what its sources generate.
+It deletes the generated files, then runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it
+downloads into `bin/` and checks against the SHA-256 pinned in the [Makefile](Makefile). CI runs
+`make check-generated`, which fails when a committed generated file differs from what its sources generate, or is
+one they no longer generate, such as a file under an old name.
 
 ## Layout
 

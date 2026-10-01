@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/ingest/ingestdb"
+	"github.com/fabricahq/rulemart/internal/ingest/generated/ingestdb"
 )
 
 // Store writes the catalog.

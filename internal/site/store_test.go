@@ -6,7 +6,7 @@ import (
 
 	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
+	"github.com/fabricahq/rulemart/internal/site/generated/sitedb"
 	"github.com/fabricahq/rulemart/internal/testdb"
 )
 

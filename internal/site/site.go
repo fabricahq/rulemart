@@ -50,7 +50,7 @@ func New(store *Store, options Options) (http.Handler, error) {
 	s := &server{
 		store: store, assets: assets, Options: options,
 		chrome: chrome{
-			stylesheet: assets.url("app.css"), script: assets.url("theme.js"), icon: assets.url("favicon.svg"),
+			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}

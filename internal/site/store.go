@@ -13,7 +13,7 @@ import (
 
 	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
+	"github.com/fabricahq/rulemart/internal/site/generated/sitedb"
 )
 
 // errNotFound reports a library or rule that isn't in the catalog, or isn't vetted.

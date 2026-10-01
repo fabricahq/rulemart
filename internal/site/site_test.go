@@ -377,13 +377,13 @@ func TestPagesAreCacheableForAMinute(t *testing.T) {
 
 func TestStaticFilesAreCachedForAYearUnderTheirVersion(t *testing.T) {
 	handler := newSite(t)
-	stylesheet := regexp.MustCompile(`href="(/_static/[0-9a-f]+/app\.css)"`).FindStringSubmatch(get(t, handler, "/").Body.String())
+	stylesheet := regexp.MustCompile(`href="(/_static/[0-9a-f]+/generated/app\.css)"`).FindStringSubmatch(get(t, handler, "/").Body.String())
 	if stylesheet == nil {
 		t.Fatal("the page links no stylesheet")
 	}
 
 	current := get(t, handler, stylesheet[1])
-	stale := get(t, handler, "/_static/000000000000/app.css")
+	stale := get(t, handler, "/_static/000000000000/generated/app.css")
 
 	if current.Code != http.StatusOK || current.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" ||
 		!strings.HasPrefix(current.Header().Get("Content-Type"), "text/css") {

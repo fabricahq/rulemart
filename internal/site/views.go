@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
+	"github.com/fabricahq/rulemart/internal/site/generated/sitedb"
 )
 
 // libraryView is what every page about a library shows of it.

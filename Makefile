@@ -24,8 +24,14 @@ TAILWIND_ARCH := $(subst aarch64,arm64,$(subst x86_64,x64,$(shell uname -m)))
 TAILWIND_PLATFORM := $(TAILWIND_OS)-$(TAILWIND_ARCH)
 TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
-# Generated files, committed so builds need no generators. CI fails when they're stale.
-GENERATED := internal/ingest/ingestdb internal/site/sitedb internal/site/*_templ.go internal/site/static/app.css
+# Generated files, committed so builds need no generators. CI fails when they're stale. sqlc and Tailwind write into
+# generated/ directories; templ output must sit beside its source, in the same package, so it's named
+# *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed file shows as a
+# deletion.
+SQLC_OUT := internal/ingest/generated internal/site/generated
+TEMPL_DIR := internal/site
+STYLESHEET_OUT := internal/site/static/generated
+GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go'
 
 dist:
 	python3 scripts/package-release.py --commit "$$(git rev-parse HEAD)" --output dist
@@ -34,16 +40,21 @@ check:
 	go vet ./...
 	go test -race ./...
 
-# Regenerates the sqlc queries, the templ components, and the stylesheet.
+# Regenerates the sqlc queries, the templ components, and the stylesheet. templ always writes x_templ.go, so each is
+# renamed x_templ.generated.go.
 generate: $(TAILWIND)
+	rm -rf $(SQLC_OUT) $(STYLESHEET_OUT)
+	rm -f $(TEMPL_DIR)/*_templ*.go
 	go tool sqlc generate
-	go tool templ generate -path internal/site
-	$(TAILWIND) --input internal/site/styles/app.css --output internal/site/static/app.css --minify
+	go tool templ generate -path $(TEMPL_DIR)
+	@for f in $(TEMPL_DIR)/*_templ.go; do mv "$$f" "$${f%.go}.generated.go"; done
+	$(TAILWIND) --input internal/site/styles/app.css --output $(STYLESHEET_OUT)/app.css --minify
 
-# Fails when a generated file differs from what its sources generate.
+# Fails when a generated file differs from what its sources generate: changed, missing, or one they no longer
+# generate, which make generate deleted. It lists files the sources generate that git doesn't track.
 check-generated: generate
-	@git add --intent-to-add $(GENERATED)
-	@git diff --exit-code -- $(GENERATED) || { echo "Generated files are stale: run make generate and commit the result."; exit 1; }
+	@git diff --exit-code -- $(GENERATED) && test -z "$$(git ls-files --others --exclude-standard -- $(GENERATED) | tee /dev/stderr)" \
+		|| { echo "Generated files are stale: run make generate and commit the result."; exit 1; }
 
 $(TAILWIND):
 	@test -n "$(TAILWIND_SHA256_$(TAILWIND_PLATFORM))" || { echo "No pinned Tailwind binary for $(TAILWIND_PLATFORM)"; exit 1; }
