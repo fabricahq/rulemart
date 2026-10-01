@@ -1,4 +1,5 @@
-// Package catalog holds the list of vetted libraries, which ships with each release.
+// Package catalog holds the data the catalog ships with each release: the vetted libraries and Code Rules' canonical
+// group list.
 package catalog
 
 import (
