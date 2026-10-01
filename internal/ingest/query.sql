@@ -58,10 +58,9 @@ SELECT id, path FROM rules WHERE library_id = @library_id;
 DELETE FROM rules WHERE library_id = @library_id AND NOT (path = ANY (@paths::text[]));
 
 -- name: ListVersionKeys :many
-SELECT v.id, r.path, rel.number AS release, v.major, v.minor, v.patch
+SELECT v.id, r.path, v.major, v.minor, v.patch
 FROM rule_versions v
 JOIN rules r ON r.id = v.rule_id
-JOIN library_releases rel ON rel.id = v.release_id
 WHERE r.library_id = @library_id;
 
 -- name: DeleteVersion :execrows
@@ -73,10 +72,10 @@ INSERT INTO rule_versions (rule_id, release_id, major, minor, patch, change, sum
 VALUES (@rule_id, @release_id, @major, @minor, @patch, @change, @summaries,
         @title, @impact, @impact_description, @when_to_read, @markdown, @html)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
-    change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
+    release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
     impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
     markdown = excluded.markdown, html = excluded.html
-WHERE (rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
+WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
        rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html)
-    IS DISTINCT FROM (excluded.change, excluded.summaries, excluded.title, excluded.impact,
+    IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
        excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html);

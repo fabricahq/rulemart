@@ -504,6 +504,114 @@ changes:
 	}
 }
 
+// Rewritten tags can move a version to another release, such as when a reset library publishes in release 1 a rule
+// it first published in release 2. The version is the same row, so it keeps its id and moves with the tags.
+func TestIngestKeepsTheIDOfAVersionThatMovesToAnotherRelease(t *testing.T) {
+	store, connString := newStore(t)
+	lib := ingesttest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	lib.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
+changes: {techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}}
+`)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := ids(t, connString)
+	reset := ingesttest.NewLibrary(t)
+	reset.Group("techs/go", "Go")
+	reset.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
+	reset.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
+	reset.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
+changes:
+  techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}
+  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+`)
+
+	if _, err := ingest.Ingest(context.Background(), store, reset.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+
+	assertIDsSurvive(t, before, ids(t, connString))
+	if got := versions(t, connString, "techs/go/close-what-you-open"); !slices.Equal(got, []string{"1.0.0 release/1 new [Add the rule.]"}) {
+		t.Fatalf("versions are %q", got)
+	}
+}
+
+// Moving a rule's versions each one release later passes through a moment where two of them share a release, which
+// the database must allow within the ingestion.
+func TestIngestMovesSeveralVersionsOfARuleToLaterReleases(t *testing.T) {
+	store, connString := newStore(t)
+	lib := ingesttest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	lib.Rule(returnErrors, "Return errors", "Return errors to the caller.")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules: {techs/go/return-errors: 1.0.1}
+changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
+`)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := ids(t, connString)
+	reset := ingesttest.NewLibrary(t)
+	reset.Group("techs/go", "Go")
+	reset.Rule("techs/go/close-what-you-open", "Close what you open", "Close every resource you open.")
+	reset.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/close-what-you-open: 1.0.0}
+changes: {techs/go/close-what-you-open: {change: new, summaries: [Add the rule.]}}
+`)
+	reset.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
+	reset.Release(2, `formatVersion: 1
+release: 2
+rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	reset.Rule(returnErrors, "Return errors", "Return errors to the caller.")
+	reset.Release(3, `formatVersion: 1
+release: 3
+rules: {techs/go/close-what-you-open: 1.0.0, techs/go/return-errors: 1.0.1}
+changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
+`)
+
+	if _, err := ingest.Ingest(context.Background(), store, reset.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+
+	assertIDsSurvive(t, before, ids(t, connString))
+	want := []string{"1.0.0 release/2 new [Add the rule.]", "1.0.1 release/3 patch [Fix a typo.]"}
+	if got := versions(t, connString, returnErrors); !slices.Equal(got, want) {
+		t.Fatalf("versions are %q, want %q", got, want)
+	}
+}
+
+// assertIDsSurvive fails t unless every row in both before and after, by its natural key, kept its id.
+func assertIDsSurvive(t *testing.T, before, after map[string]string) {
+	t.Helper()
+	for key, id := range before {
+		if now, ok := after[key]; ok && now != id {
+			t.Errorf("%s had id %s, and now %s", key, id, now)
+		}
+	}
+}
+
 func newStore(t *testing.T) (*ingest.Store, string) {
 	t.Helper()
 	db, connString := ingesttest.NewDatabase(t)

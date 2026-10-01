@@ -172,7 +172,8 @@ func (w *writer) readIDs() {
 }
 
 // deleteStaleVersions deletes the stored versions that rules don't publish, such as after a library's tags were
-// rewritten, so the upserts that follow never meet a stale row on either of a version's unique keys.
+// rewritten. A version is its rule and number: one that rewritten tags moved to another release survives, and its
+// upsert moves it.
 func (w *writer) deleteStaleVersions(rules []rule) {
 	if w.err != nil {
 		return
@@ -183,17 +184,17 @@ func (w *writer) deleteStaleVersions(rules []rule) {
 		return
 	}
 	type key struct {
-		path                         string
-		release, major, minor, patch int32
+		path                string
+		major, minor, patch int32
 	}
 	published := map[key]bool{}
 	for _, r := range rules {
 		for _, v := range r.versions {
-			published[key{r.id, int32(v.release), int32(v.version.Major), int32(v.version.Minor), int32(v.version.Patch)}] = true
+			published[key{r.id, int32(v.version.Major), int32(v.version.Minor), int32(v.version.Patch)}] = true
 		}
 	}
 	for _, row := range stored {
-		if !published[key{row.Path, row.Release, row.Major, row.Minor, row.Patch}] {
+		if !published[key{row.Path, row.Major, row.Minor, row.Patch}] {
 			w.exec("delete stale version of "+row.Path, func() (int64, error) { return w.q.DeleteVersion(w.ctx, row.ID) })
 		}
 	}

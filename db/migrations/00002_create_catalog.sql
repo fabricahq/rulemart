@@ -93,7 +93,8 @@ CREATE TABLE rule_versions (
     markdown           text,
     html               text,
     UNIQUE (rule_id, major, minor, patch),
-    UNIQUE (rule_id, release_id),
+    -- Deferred, so rewritten tags can move several of a rule's versions between releases within one ingestion.
+    UNIQUE (rule_id, release_id) DEFERRABLE INITIALLY DEFERRED,
     CHECK (num_nulls(title, impact, impact_description, when_to_read, markdown, html) IN (0, 6))
 );
 

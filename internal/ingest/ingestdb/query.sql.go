@@ -178,20 +178,18 @@ func (q *Queries) ListRuleIDs(ctx context.Context, libraryID int64) ([]ListRuleI
 }
 
 const listVersionKeys = `-- name: ListVersionKeys :many
-SELECT v.id, r.path, rel.number AS release, v.major, v.minor, v.patch
+SELECT v.id, r.path, v.major, v.minor, v.patch
 FROM rule_versions v
 JOIN rules r ON r.id = v.rule_id
-JOIN library_releases rel ON rel.id = v.release_id
 WHERE r.library_id = $1
 `
 
 type ListVersionKeysRow struct {
-	ID      int64
-	Path    string
-	Release int32
-	Major   int32
-	Minor   int32
-	Patch   int32
+	ID    int64
+	Path  string
+	Major int32
+	Minor int32
+	Patch int32
 }
 
 func (q *Queries) ListVersionKeys(ctx context.Context, libraryID int64) ([]ListVersionKeysRow, error) {
@@ -206,7 +204,6 @@ func (q *Queries) ListVersionKeys(ctx context.Context, libraryID int64) ([]ListV
 		if err := rows.Scan(
 			&i.ID,
 			&i.Path,
-			&i.Release,
 			&i.Major,
 			&i.Minor,
 			&i.Patch,
@@ -365,12 +362,12 @@ INSERT INTO rule_versions (rule_id, release_id, major, minor, patch, change, sum
 VALUES ($1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12, $13)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
-    change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
+    release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
     impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
     markdown = excluded.markdown, html = excluded.html
-WHERE (rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
+WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
        rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html)
-    IS DISTINCT FROM (excluded.change, excluded.summaries, excluded.title, excluded.impact,
+    IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
        excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html)
 `
 
