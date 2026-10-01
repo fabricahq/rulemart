@@ -35,7 +35,7 @@ const hostileHTML = "<script>alert(1)</script>\n\nPress <img src=x onerror=alert
 // newSite ingests a vetted library with three releases, and an unvetted one, and returns the pages' handler.
 func newSite(t *testing.T) http.Handler {
 	t.Helper()
-	db, _ := ingesttest.NewDatabase(t)
+	db, connString := ingesttest.NewDatabase(t)
 	store := ingest.NewStore(db)
 
 	lib := ingesttest.NewLibrary(t)
@@ -86,7 +86,9 @@ retired:
 		t.Fatal(err)
 	}
 
-	handler, err := site.New(site.NewStore(db, []int64{vettedID}), site.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	// Pages read as the web function's role, so a table the migrations don't grant it fails these tests.
+	web := ingesttest.NewWebDatabase(t, connString)
+	handler, err := site.New(site.NewStore(web, []int64{vettedID}), site.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}

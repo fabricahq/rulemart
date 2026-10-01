@@ -13,10 +13,10 @@ import (
 // while a page reads mustn't show in the page's later queries.
 func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	ctx := context.Background()
-	db, connString := ingesttest.NewDatabase(t)
+	_, connString := ingesttest.NewDatabase(t)
 	testdb.Exec(t, connString, `INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url)
 		VALUES (7, 'example', 'rules', 'Before ingestion.', '')`)
-	store := NewStore(db, []int64{7})
+	store := NewStore(ingesttest.NewWebDatabase(t, connString), []int64{7})
 
 	err := store.read(ctx, func(q *sitedb.Queries) error {
 		before, err := q.ListLibraries(ctx, store.vetted)

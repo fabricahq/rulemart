@@ -148,3 +148,16 @@ func NewDatabase(t *testing.T) (*database.DB, string) {
 	t.Cleanup(db.Close)
 	return db, connString
 }
+
+// NewWebDatabase returns a DB for the test database at connString that connects as testdb.WebRole, as the web
+// function does, so it has only the access migrations grant that role. It closes the DB when the test ends.
+func NewWebDatabase(t *testing.T, connString string) *database.DB {
+	t.Helper()
+	version, err := migrate.RequiredVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := database.New(testdb.Parameter(testdb.AsWebRole(t, connString)), "test-web-database", version)
+	t.Cleanup(db.Close)
+	return db
+}
