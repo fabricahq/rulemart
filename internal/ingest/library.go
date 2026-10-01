@@ -49,7 +49,7 @@ type content struct {
 
 // readLibrary reads the files releases publish for repo: rule-library.yaml and each group's _group.yaml at the
 // latest release, and each current rule's file at the release that published its current version.
-func readLibrary(repo Repository, releases []release, histories []ruleHistory) (library, error) {
+func readLibrary(repo Repository, releases []release, histories []ruleHistory, contentBytes int64) (library, error) {
 	latest := releases[len(releases)-1]
 	lib := library{repo: repo, releases: releases}
 	var err error
@@ -57,8 +57,9 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory) (
 		return library{}, err
 	}
 	groupIDs := map[string]bool{}
+	budget := &contentBudget{limit: contentBytes}
 	for _, history := range histories {
-		r, err := readRule(repo, releases, history)
+		r, err := readRule(repo, releases, history, budget)
 		if err != nil {
 			return library{}, err
 		}
@@ -77,10 +78,26 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory) (
 	return lib, nil
 }
 
+// contentBudget bounds the rule content one ingestion reads and renders, Markdown and HTML together, across every
+// rule. Git stores a file once however many rule paths share it, so the fetch limits can't bound this: a small
+// release can list thousands of rules that share one large file.
+type contentBudget struct {
+	limit, spent int64
+}
+
+// spend records n more bytes of rule content, or refuses them when they would pass the limit.
+func (b *contentBudget) spend(n int64) error {
+	if b.spent+n > b.limit {
+		return fmt.Errorf("the library's rules hold more than %d bytes of Markdown and HTML, which ingestion won't hold", b.limit)
+	}
+	b.spent += n
+	return nil
+}
+
 // readLicense returns the license expression and file that rule-library.yaml declares at release, each empty
 // when it declares none. It refuses a declared file the release doesn't hold.
 func readLicense(r release, source string) (expression, file string, err error) {
-	manifest, err := readFile(r.commit, "rule-library.yaml")
+	manifest, err := readFile(r.commit, "rule-library.yaml", nil)
 	if errors.Is(err, errFileMissing) {
 		return "", "", fmt.Errorf("%s: rule-library.yaml is missing; every Code Rules library has one", r.tag)
 	}
@@ -96,7 +113,7 @@ func readLicense(r release, source string) (expression, file string, err error) 
 	}
 	// The library page links to the license file at this release, so it must be there.
 	file = license.Files[0]
-	if _, err := readFile(r.commit, file); errors.Is(err, errFileMissing) {
+	if _, err := readFile(r.commit, file, nil); errors.Is(err, errFileMissing) {
 		return "", "", fmt.Errorf("%s: rule-library.yaml declares the license file %s, which is missing", r.tag, file)
 	} else if err != nil {
 		return "", "", fmt.Errorf("%s: %s: %v", r.tag, file, err)
@@ -109,7 +126,7 @@ func readLicense(r release, source string) (expression, file string, err error) 
 
 // readRule returns history's rule, reading a current rule's file at the release that published its current
 // version.
-func readRule(repo Repository, releases []release, history ruleHistory) (rule, error) {
+func readRule(repo Repository, releases []release, history ruleHistory, budget *contentBudget) (rule, error) {
 	path := history.id + ".md"
 	groupID, err := coderules.GroupFromPath(path, path)
 	if err != nil {
@@ -120,7 +137,7 @@ func readRule(repo Repository, releases []release, history ruleHistory) (rule, e
 		return r, nil
 	}
 	published := releases[history.current().release-1]
-	text, err := readFile(published.commit, path)
+	text, err := readFile(published.commit, path, budget.spend)
 	if err != nil {
 		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
 	}
@@ -139,6 +156,9 @@ func readRule(repo Repository, releases []release, history ruleHistory) (rule, e
 	if err != nil {
 		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
 	}
+	if err := budget.spend(int64(len(html))); err != nil {
+		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
+	}
 	r.content = &content{
 		title: strings.TrimSpace(parsed.Title), impact: string(parsed.Impact),
 		impactDescription: strings.TrimSpace(parsed.ImpactDescription), whenToRead: strings.TrimSpace(parsed.WhenToRead),
@@ -150,7 +170,7 @@ func readRule(repo Repository, releases []release, history ruleHistory) (rule, e
 // readGroup reads group id's _group.yaml at release r.
 func readGroup(r release, id string) (group, error) {
 	path := id + "/_group.yaml"
-	text, err := readFile(r.commit, path)
+	text, err := readFile(r.commit, path, nil)
 	if err != nil {
 		return group{}, fmt.Errorf("%s: %s: %v", r.tag, path, err)
 	}

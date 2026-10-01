@@ -176,8 +176,9 @@ func readObject(encoded plumbing.EncodedObject) ([]byte, error) {
 var errFileMissing = errors.New("the file doesn't exist")
 
 // readFile returns the content of the file at path in commit. It fails with errFileMissing when there's none, and
-// refuses a file larger than maxFileBytes.
-func readFile(commit *object.Commit, path string) ([]byte, error) {
+// refuses a file larger than maxFileBytes. admit, when it isn't nil, is given the file's size before anything is
+// read, and its error refuses the file.
+func readFile(commit *object.Commit, path string, admit func(size int64) error) ([]byte, error) {
 	tree, err := commit.Tree()
 	if err != nil {
 		return nil, fmt.Errorf("load tree: %v", err)
@@ -191,6 +192,11 @@ func readFile(commit *object.Commit, path string) ([]byte, error) {
 	}
 	if file.Size > maxFileBytes {
 		return nil, fmt.Errorf("the file is %d bytes, more than the %d ingestion reads", file.Size, maxFileBytes)
+	}
+	if admit != nil {
+		if err := admit(file.Size); err != nil {
+			return nil, err
+		}
 	}
 	reader, err := file.Reader()
 	if err != nil {

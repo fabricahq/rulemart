@@ -39,7 +39,23 @@ type Result struct {
 // record, the history the records describe, or a file a release published is invalid; errors name the tag and file.
 // Running it again on unchanged tags changes nothing.
 func Ingest(ctx context.Context, store *Store, repo Repository) (Result, error) {
-	lib, err := load(ctx, repo)
+	return ingest(ctx, store, repo, defaultLimits)
+}
+
+// limits bounds the memory one ingestion uses.
+type limits struct {
+	fetch fetchLimits
+	// contentBytes bounds the rule content ingestion reads and renders, Markdown and HTML together, across every
+	// rule.
+	contentBytes int64
+}
+
+// defaultLimits leave room for any real library: 256 MiB of content is tens of thousands of long rules.
+var defaultLimits = limits{fetch: defaultFetchLimits, contentBytes: 256 << 20}
+
+// ingest is Ingest within limits.
+func ingest(ctx context.Context, store *Store, repo Repository, limits limits) (Result, error) {
+	lib, err := load(ctx, repo, limits)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
@@ -56,9 +72,9 @@ func Ingest(ctx context.Context, store *Store, repo Repository) (Result, error) 
 	return Result{Releases: len(lib.releases), Rules: current, Changed: changed}, nil
 }
 
-// load fetches repo's release tags and reads the library they publish.
-func load(ctx context.Context, repo Repository) (library, error) {
-	git, err := fetchReleaseTags(ctx, repo.CloneURL, defaultFetchLimits)
+// load fetches repo's release tags and reads the library they publish, within limits.
+func load(ctx context.Context, repo Repository, limits limits) (library, error) {
+	git, err := fetchReleaseTags(ctx, repo.CloneURL, limits.fetch)
 	if err != nil {
 		return library{}, err
 	}
@@ -74,5 +90,5 @@ func load(ctx context.Context, repo Repository) (library, error) {
 	if err != nil {
 		return library{}, err
 	}
-	return readLibrary(repo, releases, histories)
+	return readLibrary(repo, releases, histories, limits.contentBytes)
 }
