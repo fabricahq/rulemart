@@ -25,7 +25,7 @@ TAILWIND_PLATFORM := $(TAILWIND_OS)-$(TAILWIND_ARCH)
 TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
 # Generated files, committed so builds need no generators. CI fails when they're stale.
-GENERATED := internal/contexts/catalog/app/ingestdb internal/platform/web/sitedb internal/platform/web/*_templ.go internal/platform/web/static/app.css
+GENERATED := internal/contexts/catalog/store/postgres/catalogdb internal/platform/web/*_templ.go internal/platform/web/static/app.css
 
 dist:
 	python3 scripts/package-release.py --commit "$$(git rev-parse HEAD)" --output dist

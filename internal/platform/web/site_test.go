@@ -18,6 +18,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/web"
@@ -41,7 +42,7 @@ const hostileHTML = "<script>alert(1)</script>\n\nPress <img src=x onerror=alert
 func newSite(t *testing.T) http.Handler {
 	t.Helper()
 	db, connString := databasetest.New(t)
-	store := app.NewStore(db)
+	store := postgres.New(db)
 
 	lib := gittest.NewLibrary(t)
 	lib.Group("practices/testing", "Testing")

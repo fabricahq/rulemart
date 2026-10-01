@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
-	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
 
 // A page's queries must agree with each other, so a page never mixes catalog states. An ingestion that commits
@@ -19,7 +19,7 @@ func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 		VALUES ('github', '7', 'example', 'rules', 'Before ingestion.', '')`)
 	store := NewStore(databasetest.AsWebRole(t, connString), []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}})
 
-	err := store.read(ctx, func(q *sitedb.Queries) error {
+	err := store.read(ctx, func(q *catalogdb.Queries) error {
 		before, err := q.ListLibraries(ctx, store.vetted)
 		if err != nil {
 			return err

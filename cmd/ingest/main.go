@@ -23,6 +23,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/migrate"
 )
@@ -63,7 +64,7 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
-	result, err := app.Ingest(ctx, app.NewStore(db), repo)
+	result, err := app.Ingest(ctx, postgres.New(db), repo)
 	if err != nil {
 		return err
 	}

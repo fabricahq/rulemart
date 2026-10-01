@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
@@ -87,10 +88,10 @@ func releasedRepository(t *testing.T, files map[string][]byte, message string) s
 }
 
 // budgetStore returns a Store on a new, migrated test database, and its connection string.
-func budgetStore(t *testing.T) (*Store, string) {
+func budgetStore(t *testing.T) (*postgres.Store, string) {
 	t.Helper()
 	db, connString := databasetest.New(t)
-	return NewStore(db), connString
+	return postgres.New(db), connString
 }
 
 // Git stores one blob for every path that has its content, so the fetch limits can't bound what ingestion reads

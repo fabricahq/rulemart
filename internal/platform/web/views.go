@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
 )
 
 // libraryView is what every page about a library shows of it.
@@ -44,7 +44,7 @@ type libraryCard struct {
 	rules                                  int
 }
 
-func newLibraryCards(rows []sitedb.ListLibrariesRow) []libraryCard {
+func newLibraryCards(rows []catalogdb.ListLibrariesRow) []libraryCard {
 	cards := make([]libraryCard, len(rows))
 	for i, row := range rows {
 		cards[i] = libraryCard{

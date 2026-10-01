@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
@@ -24,7 +25,7 @@ type Result struct {
 // Ingest makes the catalog's rows for repo's library match its release tags. It writes nothing when a tag, its
 // record, the history the records describe, or a file a release published is invalid; errors name the tag and file.
 // Running it again on unchanged tags changes nothing.
-func Ingest(ctx context.Context, store *Store, repo domain.Repository) (Result, error) {
+func Ingest(ctx context.Context, store store.Writer, repo domain.Repository) (Result, error) {
 	return ingest(ctx, store, repo, defaultLimits)
 }
 
@@ -40,33 +41,27 @@ type limits struct {
 var defaultLimits = limits{fetch: defaultFetchLimits, contentBytes: 256 << 20}
 
 // ingest is Ingest within limits.
-func ingest(ctx context.Context, store *Store, repo domain.Repository, limits limits) (Result, error) {
+func ingest(ctx context.Context, store store.Writer, repo domain.Repository, limits limits) (Result, error) {
 	lib, err := load(ctx, repo, limits)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	changed, err := store.replace(ctx, lib)
+	changed, err := store.ReplaceLibrary(ctx, lib)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	current := 0
-	for _, r := range lib.rules {
-		if r.content != nil {
-			current++
-		}
-	}
-	return Result{Releases: len(lib.releases), Rules: current, Changed: changed}, nil
+	return Result{Releases: len(lib.Releases), Rules: lib.CurrentRules(), Changed: changed}, nil
 }
 
 // load fetches repo's release tags and reads the library they publish, within limits.
-func load(ctx context.Context, repo domain.Repository, limits limits) (library, error) {
+func load(ctx context.Context, repo domain.Repository, limits limits) (domain.Library, error) {
 	git, err := fetchReleaseTags(ctx, repo.CloneURL, limits.fetch)
 	if err != nil {
-		return library{}, err
+		return domain.Library{}, err
 	}
 	releases, err := readReleases(git)
 	if err != nil {
-		return library{}, err
+		return domain.Library{}, err
 	}
 	records := make([]coderules.ReleaseRecord, len(releases))
 	for i, r := range releases {
@@ -74,7 +69,7 @@ func load(ctx context.Context, repo domain.Repository, limits limits) (library, 
 	}
 	histories, err := buildHistory(records)
 	if err != nil {
-		return library{}, err
+		return domain.Library{}, err
 	}
 	return readLibrary(repo, releases, histories, limits.contentBytes)
 }

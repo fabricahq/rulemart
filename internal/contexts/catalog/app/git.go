@@ -16,6 +16,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
@@ -37,11 +38,14 @@ type release struct {
 	record   coderules.ReleaseRecord
 }
 
-// updatesSharedFiles reports whether the release changed library-wide files, such as group metadata or shared
-// assets, which Code Rules' release notes say for every release after the first that lists library files. A first
-// release lists every file, which it adds rather than updates.
-func (r release) updatesSharedFiles() bool {
-	return r.record.Release > 1 && len(r.record.LibraryFiles) > 0
+// domain returns the release as the catalog stores it. Code Rules' release notes say a release updated shared
+// files for every release after the first that lists library files; a first release lists every file, which it
+// adds rather than updates.
+func (r release) domain() domain.Release {
+	return domain.Release{
+		Number: r.record.Release, CommitID: r.commit.Hash.String(), TaggedAt: r.taggedAt,
+		UpdatesSharedFiles: r.record.Release > 1 && len(r.record.LibraryFiles) > 0,
+	}
 }
 
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other

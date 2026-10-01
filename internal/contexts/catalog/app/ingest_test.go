@@ -11,6 +11,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 )
 
@@ -632,10 +633,10 @@ func assertIDsSurvive(t *testing.T, before, after map[string]string) {
 	}
 }
 
-func newStore(t *testing.T) (*app.Store, string) {
+func newStore(t *testing.T) (*postgres.Store, string) {
 	t.Helper()
 	db, connString := databasetest.New(t)
-	return app.NewStore(db), connString
+	return postgres.New(db), connString
 }
 
 // query runs a query returning one row and scans it into dest.

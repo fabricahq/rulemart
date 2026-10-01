@@ -1,20 +1,12 @@
-# sqlc generates typed Go for each feature's queries against the schema in db/migrations. Run make generate after
+# sqlc generates typed Go for the catalog's queries against the schema in db/migrations. Run make generate after
 # changing a query or the schema.
 version: "2"
 sql:
   - engine: postgresql
     schema: db/migrations
-    queries: internal/contexts/catalog/app/query.sql
+    queries: internal/contexts/catalog/store/postgres/queries
     gen:
       go:
-        package: ingestdb
-        out: internal/contexts/catalog/app/ingestdb
-        sql_package: pgx/v5
-  - engine: postgresql
-    schema: db/migrations
-    queries: internal/platform/web/query.sql
-    gen:
-      go:
-        package: sitedb
-        out: internal/platform/web/sitedb
+        package: catalogdb
+        out: internal/contexts/catalog/store/postgres/catalogdb
         sql_package: pgx/v5

@@ -8,43 +8,20 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// ruleHistory is one rule's versions across a library's releases.
-type ruleHistory struct {
-	id string
-	// versions holds every version a library release published, oldest first. It's never empty, and its last entry
-	// is the current version while the rule is current.
-	versions []ruleVersion
-	// retiredIn is the number of the library release that retired the rule, or 0 while the rule is current.
-	retiredIn int
-	// replacedBy is the rule that replaced a retired rule, when its retirement named one.
-	replacedBy string
-	// retirementSummaries holds one summary per change note that retired the rule; nil while the rule is current.
-	retirementSummaries []string
-}
-
-// ruleVersion is one version of a rule, as the library release that published it records it.
-type ruleVersion struct {
-	version   coderules.RuleVersion
-	release   int
-	change    coderules.Change
-	summaries []string
-}
-
-// current returns the rule's newest version.
-func (h ruleHistory) current() ruleVersion { return h.versions[len(h.versions)-1] }
-
-// buildHistory returns the history of every rule that records publish, in rule ID order. records are a library's
+// buildHistory returns every rule that records publish, with its history but no group or content, in rule ID
+// order. records are a library's
 // release records in release order, and must be numbered from 1 without gaps.
 //
 // Each record must follow from the one before it, as Code Rules publishes them: a rule it doesn't change keeps its
 // version, a change starts from the rule's previous version, a new rule has none, a retirement retires the rule's
 // current version, every rule the previous record listed is either still listed or retired, and a retired ID never
 // returns. Errors name the release and field that broke the history.
-func buildHistory(records []coderules.ReleaseRecord) ([]ruleHistory, error) {
-	histories := map[string]*ruleHistory{}
+func buildHistory(records []coderules.ReleaseRecord) ([]domain.Rule, error) {
+	histories := map[string]*domain.Rule{}
 	previous := map[string]coderules.RuleVersion{}
 	for i, record := range records {
 		tag := "release/" + strconv.Itoa(record.Release)
@@ -58,21 +35,21 @@ func buildHistory(records []coderules.ReleaseRecord) ([]ruleHistory, error) {
 			change := record.Changes[id]
 			history := histories[id]
 			if history == nil {
-				history = &ruleHistory{id: id}
+				history = &domain.Rule{Path: id}
 				histories[id] = history
 			}
-			history.versions = append(history.versions, ruleVersion{
-				version: record.Rules[id], release: record.Release, change: change.Change, summaries: change.Summaries,
+			history.Versions = append(history.Versions, domain.Version{
+				Number: record.Rules[id], Release: record.Release, Change: change.Change, Summaries: change.Summaries,
 			})
 		}
 		for id, retired := range record.Retired {
-			histories[id].retiredIn = record.Release
-			histories[id].replacedBy = retired.ReplacedBy
-			histories[id].retirementSummaries = retired.Summaries
+			histories[id].RetiredIn = record.Release
+			histories[id].ReplacedBy = retired.ReplacedBy
+			histories[id].RetirementSummaries = retired.Summaries
 		}
 		previous = record.Rules
 	}
-	result := make([]ruleHistory, 0, len(histories))
+	result := make([]domain.Rule, 0, len(histories))
 	for _, id := range slices.Sorted(maps.Keys(histories)) {
 		result = append(result, *histories[id])
 	}
@@ -81,7 +58,7 @@ func buildHistory(records []coderules.ReleaseRecord) ([]ruleHistory, error) {
 
 // followsFrom checks that record follows from the rule versions the previous record listed, given the histories
 // built so far. Code Rules' parser has already checked that each change leads to the version record lists.
-func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*ruleHistory, tag string) error {
+func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*domain.Rule, tag string) error {
 	for _, id := range slices.Sorted(maps.Keys(record.Rules)) {
 		version := record.Rules[id]
 		before, listed := previous[id]
@@ -91,7 +68,7 @@ func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.R
 		case changed && change.Change == coderules.ChangeNew && listed:
 			return fmt.Errorf("%s: the rule is new, but release/%d already listed it at %s", tag+".changes."+id, record.Release-1, before)
 		case changed && change.Change == coderules.ChangeNew && histories[id] != nil:
-			return fmt.Errorf("%s: the rule is new, but release/%d retired that ID, and retired IDs can't be reused", tag+".changes."+id, histories[id].retiredIn)
+			return fmt.Errorf("%s: the rule is new, but release/%d retired that ID, and retired IDs can't be reused", tag+".changes."+id, histories[id].RetiredIn)
 		case changed && change.Change != coderules.ChangeNew && !listed:
 			return fmt.Errorf("%s: the rule changes from %s, but release/%d didn't list it", tag+".changes."+id, change.From, record.Release-1)
 		case changed && change.Change != coderules.ChangeNew && *change.From != before:
