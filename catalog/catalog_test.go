@@ -3,6 +3,8 @@ package catalog
 import (
 	"slices"
 	"testing"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // The shipped list must parse, or the web function couldn't start.
@@ -11,7 +13,7 @@ func TestVettedListsTheTestLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(libraries, Library{Host: "github", RepositoryID: "1398540739"}) {
+	if !slices.Contains(libraries, domain.LibraryKey{Host: "github", RepositoryID: "1398540739"}) {
 		t.Fatalf("vetted libraries are %v, without fabricahq/code-rules-test-library", libraries)
 	}
 }

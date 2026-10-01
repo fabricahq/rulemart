@@ -13,7 +13,7 @@ LOCAL_DB_PORT := 55432
 # The rulemart database as its owner, which migrates it and ingests libraries into it.
 LOCAL_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
 # The web function's login role, which may only read the catalog, through its membership in rulemart_catalog_reader.
-# Infrastructure creates it in production; locally its password is a test value, which internal/testdb also uses.
+# Infrastructure creates it in production; locally its password is a test value, which internal/platform/postgrestest also uses.
 LOCAL_WEB_ROLE_PASSWORD := rulemart-web-local
 # The rulemart database as rulemart_web, as the deployed web function connects.
 LOCAL_WEB_DATABASE_URL ?= postgres://rulemart_web:$(LOCAL_WEB_ROLE_PASSWORD)@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
@@ -40,9 +40,9 @@ TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 # generated/ directories; templ output must sit beside its source, in the same package, so it's named
 # *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed file shows as a
 # deletion.
-SQLC_OUT := internal/ingest/generated internal/site/generated
-TEMPL_DIR := internal/site
-STYLESHEET_OUT := internal/site/static/generated
+SQLC_OUT := internal/contexts/catalog/store/postgres/generated
+TEMPL_DIR := internal/platform/web
+STYLESHEET_OUT := internal/platform/web/static/generated
 GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go'
 
 dist:
@@ -60,7 +60,7 @@ generate: $(TAILWIND)
 	go tool sqlc generate
 	go tool templ generate -path $(TEMPL_DIR)
 	@for f in $(TEMPL_DIR)/*_templ.go; do mv "$$f" "$${f%.go}.generated.go"; done
-	$(TAILWIND) --input internal/site/styles/app.css --output $(STYLESHEET_OUT)/app.css --minify
+	$(TAILWIND) --input $(TEMPL_DIR)/styles/app.css --output $(STYLESHEET_OUT)/app.css --minify
 
 # Fails when a generated file differs from what its sources generate: changed, missing, or one they no longer
 # generate, which make generate deleted. It lists files the sources generate that git doesn't track.
@@ -95,7 +95,7 @@ db-stop:
 # Applies migrations to the local rulemart database, or to the one DATABASE_URL names, such as Neon's direct
 # connection string.
 migrate:
-	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate
+	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate-database
 
 # Ingests the library at URL, such as https://github.com/fabricahq/code-rules-test-library, into the local rulemart
 # database, or into the one DATABASE_URL or DATABASE_URL_PARAMETER names.

@@ -1,6 +1,6 @@
 # The libraries Rulemart shows, by code host and the host's repository ID, which stays the same when a repository is
 # renamed or transferred. GitHub's is its numeric repository ID. Add or remove a library in its own pull request,
-# and say why in it: this file's history is the public record of what was vetted, and when. See docs/decisions.md.
+# and say why in it: this file's history is the public record of what was vetted, and when. See _internal/decisions.md.
 #
 # repository is the name when the library was vetted, for readers; the host and ID are what count.
 libraries:

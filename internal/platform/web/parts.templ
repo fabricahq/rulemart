@@ -1,0 +1,145 @@
+// Pieces several pages share: avatars, labels, chips, tabs, panels, and lists.
+
+package web
+
+import (
+	"strconv"
+	"strings"
+)
+
+// avatarSize is an avatar's box: its size, corner radius, and initial's size.
+type avatarSize string
+
+const (
+	avatarXS avatarSize = "size-[18px] rounded-[4px] text-[8px]"
+	avatarSM avatarSize = "size-[30px] rounded-[8px] text-[11px]"
+	avatarMD avatarSize = "size-10 rounded-[10px] text-[13px]"
+	avatarLG avatarSize = "size-14 rounded-[14px] text-[20px]"
+)
+
+// avatar shows an owner's GitHub avatar, or the owner's initial when there's none.
+templ avatar(src, owner string, size avatarSize) {
+	<span class={ "relative inline-grid flex-none place-items-center overflow-hidden border border-border font-semibold text-ink", string(size), templ.KV("bg-white", src != ""), templ.KV("bg-surface-header", src == "") }>
+		if src != "" {
+			<img class="absolute inset-0 size-full object-cover" src={ src } alt=""/>
+		} else {
+			{ strings.ToUpper(owner[:1]) }
+		}
+	</span>
+}
+
+// label is a small uppercase heading, such as a list's or a panel's.
+templ label(class string) {
+	<p class={ "text-[12px] font-medium tracking-[.12em] text-muted uppercase", class }>
+		{ children... }
+	</p>
+}
+
+// impact shows a rule's declared impact, explained on hover.
+templ impact(level string) {
+	<span class={ "rounded-[4px] border px-[5px] font-mono text-[10px] font-normal tracking-[.04em] whitespace-nowrap", templ.KV("border-border-strong text-muted", level == "CRITICAL"), templ.KV("border-border text-faint", level != "CRITICAL") } title={ impactExplanation(level) }>{ level }</span>
+}
+
+// chip is a quiet, rounded label.
+templ chip() {
+	<span class="inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted">
+		{ children... }
+	</span>
+}
+
+// smallButton is a link styled as a small outlined button.
+templ smallButton(href string) {
+	<a class="inline-flex min-h-8 items-center justify-center gap-2 rounded-full border border-border-strong px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface" href={ templ.SafeURL(href) }>
+		{ children... }
+	</a>
+}
+
+// tab is one tab in a page's tab bar; count is shown after its name when it's 0 or more.
+type tab struct {
+	name, href string
+	count      int
+	on         bool
+}
+
+templ tabs(items []tab) {
+	<nav class="mt-[26px] mb-[22px] flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none]">
+		for _, t := range items {
+			<a
+				class={ "pb-[11px] text-[14px] whitespace-nowrap no-underline hover:text-ink", templ.KV("font-medium text-ink shadow-[inset_0_-2px_var(--ink)]", t.on), templ.KV("text-muted", !t.on) }
+				href={ templ.SafeURL(t.href) }
+				if t.on {
+					aria-current="page"
+				}
+			>
+				{ t.name }@tabCount(t.count)
+			</a>
+		}
+	</nav>
+}
+
+// tabCount shows a tab's count right after its name, or nothing for a negative count.
+templ tabCount(count int) {
+	if count >= 0 {
+		<span class="ml-[5px] text-faint">{ strconv.Itoa(count) }</span>
+	}
+}
+
+// rowList frames rows that are each one full-width target.
+templ rowList() {
+	<div class="overflow-hidden rounded-card border border-border bg-paper">
+		{ children... }
+	</div>
+}
+
+// facts lists a library's or rule's facts as label and value pairs.
+templ facts() {
+	<div class="grid gap-[7px] px-0.5 text-[13px]">
+		{ children... }
+	</div>
+}
+
+templ fact(name string) {
+	<div class="flex justify-between gap-3">
+		<span class="whitespace-nowrap text-muted">{ name }</span>
+		<span class="min-w-0 text-right [overflow-wrap:anywhere]">
+			{ children... }
+		</span>
+	</div>
+}
+
+// factLink is a fact's value that links elsewhere, in code type, shortened to fit.
+templ factLink(href, text, title string) {
+	<a class="inline-block max-w-full overflow-hidden align-bottom font-mono text-[.86em] text-ellipsis whitespace-nowrap" href={ templ.SafeURL(href) } title={ title }>{ text }</a>
+}
+
+// libraryFacts is the facts every library page shows beside its content.
+templ libraryFacts(lib libraryView) {
+	@facts() {
+		@fact("Owner") {
+			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
+		}
+		@fact("Repository") {
+			@factLink(lib.githubURL, lib.name, "github.com/"+lib.owner+"/"+lib.name)
+		}
+		@fact("License") {
+			@license(lib)
+		}
+		@fact("Latest library release") {
+			@factLink(lib.latestURL, lib.latestTag, "GitHub Release page for "+lib.latestTag)
+		}
+		@fact("Updated") {
+			{ lib.updated }
+		}
+	}
+}
+
+// license shows the declared SPDX expression, or else a link to the declared license file.
+templ license(lib libraryView) {
+	if lib.license != "" {
+		{ lib.license }
+	} else if lib.licenseFile != "" {
+		@factLink(lib.licenseURL, lib.licenseFile, lib.licenseFile)
+	} else {
+		<span class="text-faint">Not declared</span>
+	}
+}

@@ -20,9 +20,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/ingest"
-	"github.com/fabricahq/rulemart/internal/migrate"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 )
 
 func main() {
@@ -40,14 +45,16 @@ func main() {
 	}
 }
 
-// run ingests the library at repositoryURL and reports the result.
+// run ingests the library at repositoryURL and reports the result. It checks the URL and looks the repository up
+// on GitHub before it reads the database settings, so a mistyped URL is reported as one.
 func run(ctx context.Context, repositoryURL string) error {
-	owner, name, err := ingest.ParseRepositoryURL(repositoryURL)
-	if err != nil {
-		return err
+	ingester := app.Ingester{
+		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Fetch:        git.Fetch,
+		Render:       render.Rule,
+		Limits:       domain.DefaultLimits,
 	}
-	github := ingest.GitHub{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")}
-	repo, err := github.Repository(ctx, owner, name)
+	repo, err := ingester.Resolve(ctx, repositoryURL)
 	if err != nil {
 		return err
 	}
@@ -61,16 +68,18 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
-	result, err := ingest.Ingest(ctx, ingest.NewStore(db), repo)
+	ingester.Store = postgres.New(db)
+	result, err := ingester.IngestRepository(ctx, repo)
 	if err != nil {
 		return err
 	}
-	log.Print(summary(repo, result))
+	log.Print(summary(result))
 	return nil
 }
 
-// summary describes what ingesting repo did.
-func summary(repo ingest.Repository, result ingest.Result) string {
+// summary describes what an ingestion did.
+func summary(result app.Result) string {
+	repo := result.Repository
 	return fmt.Sprintf("ingested %s (%s repository %s): %s, %s, %s", repo.FullName(), repo.Host, repo.ID,
 		count(int64(result.Releases), "library release", "library releases"),
 		count(int64(result.Rules), "current rule", "current rules"),

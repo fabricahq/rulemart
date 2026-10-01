@@ -14,4 +14,4 @@ CloudFront -> web Lambda (Function URL) -> Neon Postgres <- cmd/ingest, run by a
 
 Fabrica's private infrastructure repositories define and deploy the AWS resources. To build, test, or change
 Rulemart, see [CONTRIBUTING.md](CONTRIBUTING.md). The decisions that shape it are in
-[docs/decisions.md](docs/decisions.md).
+[_internal/decisions.md](_internal/decisions.md).
