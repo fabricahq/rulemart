@@ -305,6 +305,45 @@ func attribute(n *html.Node, key string) string {
 	return ""
 }
 
+// theme.js finds the footer's theme menu by these hooks, so a page without them would show no way to choose a theme.
+func TestPagesOfferTheThemeMenuItsScriptDrives(t *testing.T) {
+	handler := newSite(t)
+
+	page := get(t, handler, "/").Body.String()
+
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	control := find(doc, func(n *html.Node) bool { return attribute(n, "id") == "theme-control" })
+	if control == nil || control.Data != "details" {
+		t.Fatal("no theme menu")
+	}
+	if summary := find(control, func(n *html.Node) bool { return n.Data == "summary" }); summary == nil || attribute(summary, "aria-label") != "Color theme: System" {
+		t.Fatal("the theme menu has no labeled button")
+	}
+	for _, theme := range []string{"light", "dark", "system"} {
+		icon := find(control, func(n *html.Node) bool { return attribute(n, "data-theme-icon") == theme })
+		choice := find(control, func(n *html.Node) bool { return attribute(n, "data-theme-choice") == theme })
+		if icon == nil || choice == nil || choice.Data != "button" || attribute(choice, "aria-pressed") == "" {
+			t.Errorf("the theme menu lacks the %s icon or choice", theme)
+		}
+	}
+}
+
+// find returns the first node under n, n included, that matches.
+func find(n *html.Node, matches func(*html.Node) bool) *html.Node {
+	if n.Type == html.ElementNode && matches(n) {
+		return n
+	}
+	for child := n.FirstChild; child != nil; child = child.NextSibling {
+		if found := find(child, matches); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 func TestPagesAreCacheableForAMinute(t *testing.T) {
 	handler := newSite(t)
 	for _, path := range []string{"/", library, retryRule, retryRule + "?tab=versions", "/example/missing"} {
