@@ -1,63 +1,26 @@
-// Command worker consumes the job queue and stores each message in Neon, once per SQS message ID. Invalid or failed
-// messages are reported one by one, so SQS retries only those and moves them to the dead-letter queue after repeated
-// failures.
+// Command worker consumes the job queue. No job is defined yet: the library-release poller that will queue
+// ingestion jobs arrives in the next slice. Until then it reports every message as failed, so SQS retries it and
+// then moves it to the dead-letter queue, where an unexpected message stays visible instead of being dropped.
 package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
-	"os"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
-
-	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/hello"
-	"github.com/fabricahq/rulemart/internal/migrate"
 )
 
-// worker stores the messages the queue delivers.
-type worker struct {
-	// messages connects to Neon on the first message, so a message that can't be stored fails and retries instead
-	// of the function.
-	messages *hello.Store
-}
-
 func main() {
-	cfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		log.Fatal(err)
-	}
-	schemaVersion, err := migrate.RequiredVersion()
-	if err != nil {
-		log.Fatal(err)
-	}
-	w := &worker{messages: hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion))}
-	lambda.Start(w.handle)
+	lambda.Start(handle)
 }
 
-// handle stores each record's message and reports the records it couldn't validate or store, so SQS retries only
-// those.
-func (w *worker) handle(ctx context.Context, ev events.SQSEvent) (events.SQSEventResponse, error) {
-	var failed []events.SQSBatchItemFailure
-	for _, rec := range ev.Records {
-		var m hello.Message
-		err := json.Unmarshal([]byte(rec.Body), &m)
-		if err == nil {
-			err = m.Validate()
-		}
-		if err == nil {
-			err = w.messages.Insert(ctx, rec.MessageId, m)
-		}
-		if err != nil {
-			log.Printf("message %s: %v", rec.MessageId, err)
-			failed = append(failed, events.SQSBatchItemFailure{ItemIdentifier: rec.MessageId})
-			continue
-		}
-		log.Printf("stored message %s from %s", rec.MessageId, m.Source)
+// handle reports every record as failed, since no job is defined yet.
+func handle(_ context.Context, event events.SQSEvent) (events.SQSEventResponse, error) {
+	failed := make([]events.SQSBatchItemFailure, 0, len(event.Records))
+	for _, record := range event.Records {
+		log.Printf("message %s: no job is defined yet, so the worker leaves it for the dead-letter queue", record.MessageId)
+		failed = append(failed, events.SQSBatchItemFailure{ItemIdentifier: record.MessageId})
 	}
 	return events.SQSEventResponse{BatchItemFailures: failed}, nil
 }

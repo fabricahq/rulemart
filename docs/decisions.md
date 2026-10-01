@@ -6,8 +6,8 @@ than adding history.
 ## Catalog and trust
 
 - **Anyone signed in can list a public library.** New libraries are unvetted until vetted.
-- **Vetting is a reviewed change to a `catalog/vetted.yaml` file** (planned), which lists each library by GitHub
-  repository ID. `main`'s protection guards it, and it ships with each release, so the public
+- **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by its code host and
+  the host's repository ID. `main`'s protection guards it, and it ships with each release, so the public
   history shows when and why each library was vetted.
 - **Vetting covers a library, including its future releases.** A major version is declared by the library's
   maintainer, so pausing vetting on one would add nothing. The FAQ says so.
@@ -27,9 +27,18 @@ than adding history.
   binary, and HTMX is vendored.
 - **Static assets are embedded in the web binary** and cached by CloudFront for a year under hashed names.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
-  release records with Code Rules' own public parsing package once it exists.
-- **Functions connect with the database owner for now.** Slice 1 adds a runtime role with data-only permissions.
+  release records with Code Rules' own parser: a copy in `third_party/coderules` until Code Rules publishes a public
+  parsing package.
+- **The web function connects as `rulemart_web`, a role that can only read what the pages show.** Infrastructure
+  creates it with SQL, as a plain LOGIN role, because a role made through Neon's API or console joins
+  `neon_superuser`, which can read and write every table and create roles and databases. Migrations grant it what
+  each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
+  ingestion connect as the database's owner.
 - **Build in thin vertical slices**, each deployed and checked end to end.
+- **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
+  host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by
+  host and the host's repository ID, but the schema's host check, the vetting parser, and ingestion allow only
+  github, so a second host also needs changes there.
 
 ## Infrastructure and delivery
 

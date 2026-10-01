@@ -1,65 +1,87 @@
-// Command web is the walking skeleton's front door. CloudFront invokes it through its Function URL, and the
-// EventBridge schedule invokes it directly with {"source": "schedule"}, standing in for the library-release poller.
-// Either way it queues a message for the worker; over HTTP it also reads back what the worker stored in Neon.
+// Command web serves Rulemart's pages. On Lambda, CloudFront reaches it through its Function URL, and the
+// EventBridge schedule invokes it with {"source": "schedule"}, which it acknowledges and ignores until the
+// library-release poller arrives in the next slice. Run anywhere else, it serves HTTP at ADDR, 127.0.0.1:8080 by
+// default.
+//
+// Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
 package main
 
 import (
+	"cmp"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/awslabs/aws-lambda-go-api-proxy/core"
+	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
+	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/hello"
 	"github.com/fabricahq/rulemart/internal/migrate"
+	"github.com/fabricahq/rulemart/internal/site"
 )
 
-// queue is the part of the SQS client the web function uses.
-type queue interface {
-	SendMessage(context.Context, *sqs.SendMessageInput, ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
-}
-
-// server answers the web function's invocations.
-type server struct {
-	queue queue
-	// queueURL identifies the jobs queue the worker consumes.
-	queueURL string
-	// messages connects to Neon on first use, so routes other than /messages work before Neon is configured.
-	messages *hello.Store
-	// log receives the details of failures that responses leave out.
-	log *slog.Logger
-}
-
 func main() {
-	cfg, err := config.LoadDefaultConfig(context.Background())
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	handler, err := newHandler(context.Background(), logger)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
+		lambda.Start(newFunction(handler, logger).handle)
+		return
+	}
+	addr := cmp.Or(os.Getenv("ADDR"), "127.0.0.1:8080")
+	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	logger.Info("serving Rulemart", "url", "http://"+addr)
+	log.Fatal(server.ListenAndServe())
+}
+
+// newHandler returns the pages' handler, reading the catalog from the database the environment names. It
+// connects on the first request, so a misconfigured database fails requests rather than the function's start.
+func newHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) {
+	source, err := database.SourceFromEnv(ctx, os.Getenv)
+	if err != nil {
+		return nil, err
 	}
 	schemaVersion, err := migrate.RequiredVersion()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	s := &server{
-		queue:    sqs.NewFromConfig(cfg),
-		queueURL: os.Getenv("QUEUE_URL"),
-		messages: hello.NewStore(database.New(ssm.NewFromConfig(cfg), os.Getenv("DATABASE_URL_PARAMETER"), schemaVersion)),
-		log:      slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+	vetted, err := catalog.Vetted()
+	if err != nil {
+		return nil, err
 	}
-	lambda.Start(s.handle)
+	store := site.NewStore(source.Open(schemaVersion), vetted)
+	return site.New(store, site.Options{Log: logger, RequestID: lambdaRequestID})
+}
+
+// lambdaRequestID returns the Lambda request ID of a request the Function URL delivered, or "" for another.
+func lambdaRequestID(r *http.Request) string {
+	context, ok := core.GetAPIGatewayV2ContextFromContext(r.Context())
+	if !ok {
+		return ""
+	}
+	return context.RequestID
+}
+
+// function answers the web function's Lambda invocations.
+type function struct {
+	// adapter turns Function URL requests into requests for the pages' handler.
+	adapter *httpadapter.HandlerAdapterV2
+	log     *slog.Logger
+}
+
+func newFunction(handler http.Handler, logger *slog.Logger) *function {
+	return &function{adapter: httpadapter.NewV2(handler), log: logger}
 }
 
 // scheduleSource is the source field of the event the EventBridge schedule sends.
@@ -68,119 +90,32 @@ const scheduleSource = "schedule"
 // invocation holds the fields handle uses to tell the web function's two kinds of events apart.
 type invocation struct {
 	// Source is scheduleSource in the schedule's event, and absent from Function URL requests.
-	Source string `json:"source"`
-	events.LambdaFunctionURLRequest
+	Source         string `json:"source"`
+	RequestContext struct {
+		HTTP struct {
+			Method string `json:"method"`
+		} `json:"http"`
+	} `json:"requestContext"`
 }
 
-// handle serves Function URL requests, queues a message for the schedule's event, and rejects anything else.
-func (s *server) handle(ctx context.Context, raw json.RawMessage) (any, error) {
+// handle serves Function URL requests, acknowledges the schedule's event, and rejects anything else.
+func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var event invocation
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return nil, fmt.Errorf("decode invocation event: %v", err)
 	}
 	switch {
 	case event.Source == scheduleSource:
-		return s.poll(ctx)
+		f.log.InfoContext(ctx, "ignored the scheduled invocation: the library-release poller isn't built yet")
+		return map[string]string{"status": "ignored"}, nil
 	case event.RequestContext.HTTP.Method != "":
-		return s.serve(ctx, event.LambdaFunctionURLRequest), nil
+		// A Function URL request has the same shape as an API Gateway HTTP API request with payload format 2.0.
+		var request events.APIGatewayV2HTTPRequest
+		if err := json.Unmarshal(raw, &request); err != nil {
+			return nil, fmt.Errorf("decode Function URL request: %v", err)
+		}
+		return f.adapter.ProxyWithContext(ctx, request)
 	default:
 		return nil, errors.New("unrecognized invocation event: neither the schedule's event nor a Function URL request")
 	}
-}
-
-// poll stands in for the library-release poller: it queues one message for the worker.
-func (s *server) poll(ctx context.Context) (any, error) {
-	id, err := s.enqueue(ctx, hello.Message{Text: "Hello from the schedule", Source: "schedule", SentAt: time.Now().UTC()})
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{"queued": id}, nil
-}
-
-func (s *server) serve(ctx context.Context, req events.LambdaFunctionURLRequest) events.LambdaFunctionURLResponse {
-	switch req.RawPath {
-	case "/":
-		return text(http.StatusOK, "no-store", "Rulemart walking skeleton\n\n"+
-			"POST /enqueue   queue a message for the worker; send its text as the form field text\n"+
-			"GET /messages   read what the worker stored in Neon\n"+
-			"GET /cached     cached by CloudFront for 60 seconds\n")
-	case "/enqueue":
-		// Queueing is a side effect, so only POST reaches it. GET stays safe for crawlers, prefetchers, and retries.
-		if req.RequestContext.HTTP.Method != http.MethodPost {
-			resp := text(http.StatusMethodNotAllowed, "no-store", "Use POST\n")
-			resp.Headers["allow"] = http.MethodPost
-			return resp
-		}
-		form, err := formValues(req)
-		if err != nil {
-			return text(http.StatusBadRequest, "no-store", "Send the text as a URL-encoded form field\n")
-		}
-		m := hello.Message{Text: form.Get("text"), Source: "web", SentAt: time.Now().UTC()}
-		if m.Text == "" {
-			m.Text = "Hello from the web"
-		}
-		// Refuse what the worker couldn't store, rather than queueing a message that fails on every delivery.
-		if err := m.Validate(); err != nil {
-			return text(http.StatusBadRequest, "no-store", err.Error()+"\n")
-		}
-		id, err := s.enqueue(ctx, m)
-		if err != nil {
-			return s.fail(ctx, req, http.StatusBadGateway, "The message couldn't be queued. Try again later.", err)
-		}
-		return jsonBody(http.StatusOK, "no-store", map[string]string{"queued": id, "text": m.Text})
-	case "/messages":
-		rows, err := s.messages.Latest(ctx, 20)
-		if err != nil {
-			return s.fail(ctx, req, http.StatusServiceUnavailable, "Messages are unavailable right now. Try again later.", err)
-		}
-		return jsonBody(http.StatusOK, "no-store", rows)
-	case "/cached":
-		// CloudFront keeps this for 60 seconds, so repeated requests show the same time and an x-cache: Hit header.
-		return text(http.StatusOK, "public, max-age=60", fmt.Sprintf("Rendered at %s\n", time.Now().UTC().Format(time.RFC3339)))
-	default:
-		return text(http.StatusNotFound, "no-store", "Not found\n")
-	}
-}
-
-// fail logs err with the request's route and ID, and answers with status and a public message that reveals nothing
-// about the failure.
-func (s *server) fail(ctx context.Context, req events.LambdaFunctionURLRequest, status int, public string, err error) events.LambdaFunctionURLResponse {
-	s.log.ErrorContext(ctx, "request failed", "route", req.RawPath, "method", req.RequestContext.HTTP.Method,
-		"requestID", req.RequestContext.RequestID, "status", status, "error", err.Error())
-	return text(status, "no-store", public+"\n")
-}
-
-// enqueue sends m to the jobs queue and returns its SQS message ID.
-func (s *server) enqueue(ctx context.Context, m hello.Message) (string, error) {
-	body, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	out, err := s.queue.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(s.queueURL), MessageBody: aws.String(string(body))})
-	if err != nil {
-		return "", fmt.Errorf("send message source=%q to queue: %v", m.Source, err)
-	}
-	return aws.ToString(out.MessageId), nil
-}
-
-// formValues parses a request's URL-encoded form body, which the Function URL may deliver base64-encoded.
-func formValues(req events.LambdaFunctionURLRequest) (url.Values, error) {
-	body := req.Body
-	if req.IsBase64Encoded {
-		decoded, err := base64.StdEncoding.DecodeString(body)
-		if err != nil {
-			return nil, err
-		}
-		body = string(decoded)
-	}
-	return url.ParseQuery(body)
-}
-
-func text(status int, cache, body string) events.LambdaFunctionURLResponse {
-	return events.LambdaFunctionURLResponse{StatusCode: status, Body: body, Headers: map[string]string{"content-type": "text/plain; charset=utf-8", "cache-control": cache}}
-}
-
-func jsonBody(status int, cache string, v any) events.LambdaFunctionURLResponse {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	return events.LambdaFunctionURLResponse{StatusCode: status, Body: string(b) + "\n", Headers: map[string]string{"content-type": "application/json", "cache-control": cache}}
 }

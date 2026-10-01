@@ -36,6 +36,8 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      # The sqlc queries, templ components, and stylesheet are committed; fail when they don't match their sources.
+      - run: make check-generated
       - run: make check
       - name: Package and verify reproducibility
         env:

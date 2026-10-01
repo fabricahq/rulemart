@@ -1,25 +1,95 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
 	"testing"
+
+	"github.com/aws/aws-lambda-go/events"
 )
 
-func TestHandleQueuesAMessageForTheScheduledEvent(t *testing.T) {
-	q := &fakeQueue{}
+// functionURLRequest is a GET request as a Lambda Function URL delivers it.
+const functionURLRequest = `{
+  "version": "2.0",
+  "rawPath": "/fabricahq/code-rules-test-library/practices/testing/verify-retry-limits",
+  "rawQueryString": "tab=versions",
+  "headers": {"accept": "text/html", "host": "abc.lambda-url.us-east-1.on.aws"},
+  "requestContext": {
+    "domainName": "abc.lambda-url.us-east-1.on.aws",
+    "requestId": "request-123",
+    "http": {"method": "GET", "path": "/fabricahq/code-rules-test-library/practices/testing/verify-retry-limits", "sourceIp": "203.0.113.1"}
+  },
+  "isBase64Encoded": false
+}`
 
-	if _, err := (&server{queue: q}).handle(context.Background(), json.RawMessage(`{"source":"schedule"}`)); err != nil {
+// recorder is a pages handler that records the request it got and answers with body.
+type recorder struct {
+	got  *http.Request
+	body []byte
+}
+
+func (h *recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.got = r
+	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(h.body)
+}
+
+func newTestFunction(handler http.Handler) *function {
+	return newFunction(handler, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func TestHandleServesFunctionURLRequestsWithThePages(t *testing.T) {
+	pages := &recorder{body: []byte("<h1>Verify retry limits</h1>")}
+
+	out, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(functionURLRequest))
+
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	if sent := q.messages(t); len(sent) != 1 || sent[0].Source != "schedule" {
-		t.Fatalf("queued %+v, want one scheduled message", sent)
+	if pages.got == nil || pages.got.URL.Path != "/fabricahq/code-rules-test-library/practices/testing/verify-retry-limits" ||
+		pages.got.URL.Query().Get("tab") != "versions" || lambdaRequestID(pages.got) != "request-123" {
+		t.Fatalf("the pages got %+v", pages.got)
+	}
+	resp := out.(events.APIGatewayV2HTTPResponse)
+	if resp.StatusCode != http.StatusOK || resp.Body != string(pages.body) || resp.Headers["Cache-Control"] != "public, max-age=60" {
+		t.Fatalf("answered %+v", resp)
 	}
 }
 
-// Any invocation without an HTTP method used to count as the schedule and queue a message. Only the schedule's
-// explicit event does now.
+// Fonts aren't text, so the Function URL needs them base64-encoded.
+func TestHandleEncodesBinaryResponses(t *testing.T) {
+	font := []byte{0x77, 0x4f, 0x46, 0x32, 0xff, 0xfe, 0x00}
+
+	out, err := newTestFunction(&recorder{body: font}).handle(context.Background(), json.RawMessage(functionURLRequest))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := out.(events.APIGatewayV2HTTPResponse)
+	decoded, err := base64.StdEncoding.DecodeString(resp.Body)
+	if !resp.IsBase64Encoded || err != nil || !bytes.Equal(decoded, font) {
+		t.Fatalf("answered %+v", resp)
+	}
+}
+
+func TestHandleIgnoresTheScheduledEvent(t *testing.T) {
+	pages := &recorder{}
+
+	if _, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(`{"source":"schedule"}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	if pages.got != nil {
+		t.Fatal("the scheduled event reached the pages")
+	}
+}
+
 func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 	for name, event := range map[string]string{
 		"empty object":      `{}`,
@@ -28,15 +98,15 @@ func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 		"not a JSON object": `[]`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			q := &fakeQueue{}
+			pages := &recorder{}
 
-			_, err := (&server{queue: q}).handle(context.Background(), json.RawMessage(event))
+			_, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(event))
 
 			if err == nil {
 				t.Fatal("accepted an unrecognized event")
 			}
-			if sent := q.messages(t); len(sent) != 0 {
-				t.Fatalf("queued %d messages for an unrecognized event, want none", len(sent))
+			if pages.got != nil {
+				t.Fatal("an unrecognized event reached the pages")
 			}
 		})
 	}

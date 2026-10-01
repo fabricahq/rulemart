@@ -1,0 +1,3 @@
+# Generated files: GitHub collapses them in diffs and leaves them out of language statistics.
+**/generated/** linguist-generated=true
+*.generated.* linguist-generated=true
