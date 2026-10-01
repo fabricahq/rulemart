@@ -70,6 +70,8 @@ type GroupIcon struct {
 	File string
 	// Monochrome marks an icon drawn in black or one dark color, which dark themes invert so it stays visible.
 	Monochrome bool
+	// Narrow marks an icon whose drawing is much narrower than its square, which pages draw larger.
+	Narrow bool
 }
 
 // RuleCard is a current rule in a library's list of rules.

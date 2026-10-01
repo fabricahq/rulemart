@@ -7,7 +7,9 @@
 # internal/platform/web/static/icons/README.md explains.
 #
 # file is the icon's path under icons/. monochrome: true marks an icon drawn in black or one dark color, which dark
-# themes invert so it stays visible; other icons keep their colors in both themes. Keep entries sorted by group ID.
+# themes invert so it stays visible; other icons keep their colors in both themes. narrow: true marks an icon whose
+# drawing is much narrower than its square, such as Go's gopher, which pages draw larger so it looks as big as square
+# logos. Keep entries sorted by group ID.
 practices/accessibility:
   file: lucide/accessibility.svg
   monochrome: true
@@ -99,6 +101,7 @@ techs/github-actions:
   file: devicon/githubactions-original.svg
 techs/go:
   file: devicon/go-original.svg
+  narrow: true
 techs/graphql:
   file: devicon/graphql-plain.svg
 techs/java:

@@ -50,14 +50,14 @@ func TestGroupIconsNameExactlyTheVendoredIcons(t *testing.T) {
 
 func TestParseGroupIconsReadsEachGroupsIcon(t *testing.T) {
 	got, err := parseGroupIcons([]byte("# Icons.\npractices/testing:\n  file: lucide/flask-conical.svg\n  monochrome: true\n" +
-		"techs/go:\n  file: devicon/go-original.svg\n"))
+		"techs/go:\n  file: devicon/go-original.svg\n  narrow: true\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	want := map[string]domain.GroupIcon{
 		"practices/testing": {File: "lucide/flask-conical.svg", Monochrome: true},
-		"techs/go":          {File: "devicon/go-original.svg"},
+		"techs/go":          {File: "devicon/go-original.svg", Narrow: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v; want %+v", got, want)

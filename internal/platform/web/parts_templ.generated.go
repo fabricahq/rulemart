@@ -116,7 +116,7 @@ const (
 
 // groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
 // no icon for it, and any other group with an empty dashed tile, so names line up either way. Monochrome icons are
-// inverted in dark themes.
+// inverted in dark themes, and narrow icons fill more of the tile so they look as big as square logos.
 func groupTile(label groupLabel, icon groupIcon, size tileSize) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -161,7 +161,7 @@ func groupTile(label groupLabel, icon groupIcon, size tileSize) templ.Component 
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var9 = []any{"size-[64%] object-contain", templ.KV("icon-ink", icon.monochrome)}
+			var templ_7745c5c3_Var9 = []any{"object-contain", templ.KV("size-[64%]", !icon.narrow), templ.KV("size-[88%]", icon.narrow), templ.KV("icon-ink", icon.monochrome)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var9...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -186,7 +186,7 @@ func groupTile(label groupLabel, icon groupIcon, size tileSize) templ.Component 
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(icon.src)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 45, Col: 99}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 45, Col: 163}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {

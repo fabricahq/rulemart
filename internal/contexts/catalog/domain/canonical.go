@@ -24,6 +24,9 @@ type GroupIcon struct {
 	File string
 	// Monochrome marks an icon drawn in black or one dark color, which dark themes invert so it stays visible.
 	Monochrome bool
+	// Narrow marks an icon whose drawing is much narrower than its square, such as Go's gopher, which pages draw
+	// larger so it looks as big as square logos.
+	Narrow bool
 }
 
 // CanonicalGroups is Code Rules' canonical group list, with Rulemart's icons for its groups. Its zero value is an

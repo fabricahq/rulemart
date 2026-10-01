@@ -100,8 +100,8 @@ const notCanonicalExplanation = "Not on Code Rules' canonical group list, which 
 type groupIcon struct {
 	// src is empty when the group has no icon.
 	src string
-	// monochrome icons are inverted in dark themes.
-	monochrome bool
+	// monochrome icons are inverted in dark themes, and narrow ones drawn larger.
+	monochrome, narrow bool
 }
 
 // ruleCard is a rule's entry in a library's list of rules.
@@ -128,7 +128,8 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	for _, g := range page.Groups {
 		view := groupView{label: newGroupLabel(g.Path, g.Canonical), anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
 		if g.Canonical != nil && g.Canonical.Icon.File != "" {
-			view.icon = groupIcon{src: iconURL(g.Canonical.Icon.File), monochrome: g.Canonical.Icon.Monochrome}
+			icon := g.Canonical.Icon
+			view.icon = groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow}
 		}
 		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead
