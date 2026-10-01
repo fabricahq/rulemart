@@ -602,7 +602,7 @@ func groupList(kind string, lib libraryView, groups []groupView) templ.Component
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = notCanonical().Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = notCanonical(flagMD).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -746,7 +746,7 @@ func allRules(contents libraryContents) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = notCanonical().Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = notCanonical(flagSM).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -973,7 +973,7 @@ func rulePage(c chrome, r ruleView, versionsTab bool) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = notCanonical().Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = notCanonical(flagSM).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

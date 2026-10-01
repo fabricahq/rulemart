@@ -117,7 +117,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 							} else {
 								<b class="block font-mono text-[13px] leading-[22px] font-semibold">{ g.label.id }</b>
 								<span class="block leading-[20px]">
-									@notCanonical()
+									@notCanonical(flagMD)
 								</span>
 							}
 						</div>
@@ -139,7 +139,7 @@ templ allRules(contents libraryContents) {
 				<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
 			} else {
 				<span class="mono tracking-normal normal-case">{ g.label.id }</span>
-				@notCanonical()
+				@notCanonical(flagSM)
 			}
 		</div>
 		for _, r := range g.rules {
@@ -170,7 +170,7 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 					<span class="mono">{ r.group.id }</span>
 				} else {
 					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
-					@notCanonical()
+					@notCanonical(flagSM)
 				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">
