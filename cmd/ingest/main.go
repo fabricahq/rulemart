@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/database"
@@ -64,7 +65,22 @@ func run(ctx context.Context, repositoryURL string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("ingested %s (GitHub repository ID %d): %d library releases, %d current rules, %d rows changed",
-		repo.FullName(), repo.ID, result.Releases, result.Rules, result.Changed)
+	log.Print(summary(repo, result))
 	return nil
+}
+
+// summary describes what ingesting repo did.
+func summary(repo ingest.Repository, result ingest.Result) string {
+	return fmt.Sprintf("ingested %s (GitHub repository ID %d): %s, %s, %s", repo.FullName(), repo.ID,
+		count(int64(result.Releases), "library release", "library releases"),
+		count(int64(result.Rules), "current rule", "current rules"),
+		count(result.Changed, "row changed", "rows changed"))
+}
+
+// count writes n with the noun phrase that agrees with it, such as "1 current rule" or "2 current rules".
+func count(n int64, one, many string) string {
+	if n == 1 {
+		return "1 " + one
+	}
+	return strconv.FormatInt(n, 10) + " " + many
 }
