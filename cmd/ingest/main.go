@@ -45,8 +45,19 @@ func main() {
 	}
 }
 
-// run ingests the library at repositoryURL and reports the result.
+// run ingests the library at repositoryURL and reports the result. It checks the URL and looks the repository up
+// on GitHub before it reads the database settings, so a mistyped URL is reported as one.
 func run(ctx context.Context, repositoryURL string) error {
+	ingester := app.Ingester{
+		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Fetch:        git.Fetch,
+		Render:       render.Rule,
+		Limits:       domain.DefaultLimits,
+	}
+	repo, err := ingester.Resolve(ctx, repositoryURL)
+	if err != nil {
+		return err
+	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
 	if err != nil {
 		return err
@@ -57,14 +68,8 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
-	ingester := app.Ingester{
-		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
-		Fetch:        git.Fetch,
-		Render:       render.Rule,
-		Store:        postgres.New(db),
-		Limits:       domain.DefaultLimits,
-	}
-	result, err := ingester.Ingest(ctx, repositoryURL)
+	ingester.Store = postgres.New(db)
+	result, err := ingester.IngestRepository(ctx, repo)
 	if err != nil {
 		return err
 	}

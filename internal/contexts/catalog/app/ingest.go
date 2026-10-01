@@ -46,18 +46,29 @@ type Result struct {
 }
 
 // Ingest makes the catalog's rows for the library at repositoryURL, such as https://github.com/owner/name, match
-// its release tags. It writes nothing when a tag, its record, the history the records describe, or a file a
-// release published is invalid, or when the library passes in.Limits; errors name the tag and file. Running it
-// again on unchanged tags changes nothing.
+// its release tags: it resolves the repository, then ingests it with IngestRepository.
 func (in Ingester) Ingest(ctx context.Context, repositoryURL string) (Result, error) {
+	repo, err := in.Resolve(ctx, repositoryURL)
+	if err != nil {
+		return Result{}, err
+	}
+	return in.IngestRepository(ctx, repo)
+}
+
+// Resolve checks that repositoryURL names a GitHub repository, and looks the repository up on its host. It needs
+// no Store.
+func (in Ingester) Resolve(ctx context.Context, repositoryURL string) (domain.Repository, error) {
 	owner, name, err := domain.ParseRepositoryURL(repositoryURL)
 	if err != nil {
-		return Result{}, err
+		return domain.Repository{}, err
 	}
-	repo, err := in.Repositories.Repository(ctx, owner, name)
-	if err != nil {
-		return Result{}, err
-	}
+	return in.Repositories.Repository(ctx, owner, name)
+}
+
+// IngestRepository makes the catalog's rows for the library in repo match its release tags. It writes nothing when
+// a tag, its record, the history the records describe, or a file a release published is invalid, or when the
+// library passes in.Limits; errors name the tag and file. Running it again on unchanged tags changes nothing.
+func (in Ingester) IngestRepository(ctx context.Context, repo domain.Repository) (Result, error) {
 	releases, err := in.Fetch(ctx, repo.CloneURL, in.Limits.Fetch)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
