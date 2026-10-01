@@ -52,7 +52,9 @@ db:
 	@docker start $(DB_CONTAINER) >/dev/null 2>&1 || docker run -d --name $(DB_CONTAINER) \
 		-e POSTGRES_PASSWORD=postgres -p 127.0.0.1:$(DB_PORT):5432 $(DB_IMAGE) >/dev/null
 	@until docker exec $(DB_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
-	@echo "Postgres is ready at 127.0.0.1:$(DB_PORT)"
+	@docker exec $(DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
+		|| docker exec $(DB_CONTAINER) createdb -U postgres rulemart
+	@echo "Postgres is ready at 127.0.0.1:$(DB_PORT), with a rulemart database for local development"
 
 db-stop:
 	docker rm -f $(DB_CONTAINER)

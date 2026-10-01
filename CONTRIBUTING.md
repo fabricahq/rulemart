@@ -2,7 +2,8 @@
 
 ## Set up
 
-You need the Go version in [go.mod](go.mod), Docker, and Python 3.11 or later.
+You need the Go version in [go.mod](go.mod), Docker, Python 3.11 or later, and a C compiler for sqlc. There's no
+Node.
 
 ```sh
 make db     # start Postgres 18 in Docker on 127.0.0.1:55432
@@ -11,14 +12,52 @@ make check  # vet, and run every test with the race detector
 
 Tests create their own databases on that server and drop them afterward. `make db-stop` removes the container.
 
+## Run the site locally
+
+`make db` also creates a `rulemart` database for local development. Migrate it, ingest a library, and serve the
+pages at <http://127.0.0.1:8080>:
+
+```sh
+export DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart?sslmode=disable'
+make migrate
+go run ./cmd/ingest https://github.com/fabricahq/code-rules-test-library
+make web
+```
+
+Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by GitHub repository ID. To see
+another library locally, ingest it and add its ID there, as a vetting pull request would.
+
+`cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
+one transaction; running it again on unchanged tags changes nothing. Set `GITHUB_TOKEN` if GitHub's rate limit for
+anonymous requests gets in the way. Against Neon, set `DATABASE_URL_PARAMETER` to the SSM parameter holding the
+connection string instead of `DATABASE_URL`, as the functions do. Ingestion parses records with the copy of Code
+Rules' parser in [third_party/coderules](third_party/coderules), so it reads only libraries released with a Code
+Rules version that writes the same record format.
+
+## Generated files
+
+sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
+so building needs none of them. After changing a `query.sql`, a migration, a `.templ` file, or
+`internal/site/styles/app.css`, run:
+
+```sh
+make generate
+```
+
+It runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it downloads into `bin/` and checks
+against the SHA-256 pinned in the [Makefile](Makefile). CI runs `make check-generated`, which fails when a committed
+file differs from what its sources generate.
+
 ## Layout
 
-- `cmd/web` answers through CloudFront and on the schedule, and `cmd/worker` stores queued messages. Both run on
-  Lambda.
-- `cmd/migrate` applies schema migrations. It runs on an operator's machine, never on Lambda.
-- `internal/database` owns the connection to Neon, `internal/hello` the skeleton's messages and their store, and
-  `internal/migrate` the migrations.
-- `db/migrations` holds the schema as numbered SQL files.
+- `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server, and acknowledges the schedule's
+  event. `cmd/worker` consumes the job queue, which has no jobs yet. Both run on Lambda.
+- `cmd/migrate` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's machine,
+  never on Lambda.
+- `internal/ingest` reads a library's release tags and writes the catalog, and `internal/site` serves the pages from
+  it. Each keeps its queries in `query.sql`.
+- `internal/database` owns the connection to Neon, and `internal/migrate` the migrations.
+- `db/migrations` holds the schema as numbered SQL files, and `catalog/vetted.yaml` the vetted libraries.
 
 ## Schema and migrations
 

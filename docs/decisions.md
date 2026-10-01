@@ -6,7 +6,7 @@ than adding history.
 ## Catalog and trust
 
 - **Anyone signed in can list a public library.** New libraries are unvetted until vetted.
-- **Vetting is a reviewed change to a `catalog/vetted.yaml` file** (planned), which lists each library by GitHub
+- **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by GitHub
   repository ID. `main`'s protection guards it, and it ships with each release, so the public
   history shows when and why each library was vetted.
 - **Vetting covers a library, including its future releases.** A major version is declared by the library's
@@ -27,7 +27,8 @@ than adding history.
   binary, and HTMX is vendored.
 - **Static assets are embedded in the web binary** and cached by CloudFront for a year under hashed names.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
-  release records with Code Rules' own public parsing package once it exists.
+  release records with Code Rules' own parser: a copy in `third_party/coderules` until Code Rules publishes a public
+  parsing package.
 - **Functions connect with the database owner for now.** Slice 1 adds a runtime role with data-only permissions.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 
