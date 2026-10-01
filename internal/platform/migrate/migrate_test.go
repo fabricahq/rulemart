@@ -3,15 +3,21 @@ package migrate
 import (
 	"context"
 	"errors"
+	"io/fs"
+	"slices"
+	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/fabricahq/rulemart/db"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
-// The web function connects as the web role, which may read the catalog and the schema version, and nothing else.
+// The web function connects as the web role, which may read the catalog and the schema version, through its
+// membership in the catalog reader role, and nothing else.
 func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
@@ -49,4 +55,126 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 			t.Errorf("%s: got %v, want permission denied", name, err)
 		}
 	}
+}
+
+// Migrations grant to the catalog reader role, never to the web role, so infrastructure can replace or rotate the
+// login without a migration.
+func TestMigrationsGrantTheCatalogReaderRoleAndNotTheWebRole(t *testing.T) {
+	ctx := context.Background()
+	connString := postgrestest.New(t)
+	if err := Up(ctx, connString); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	grants := func(role string) []string {
+		t.Helper()
+		var got []string
+		err := conn.QueryRow(ctx, `
+			SELECT ARRAY(
+				SELECT 'table ' || c.relname || ' ' || a.privilege_type
+				FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a WHERE a.grantee = to_regrole($1)
+				UNION ALL
+				SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
+				FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a WHERE a.grantee = to_regrole($1)
+				ORDER BY 1)`, role).Scan(&got)
+		if err != nil {
+			t.Fatalf("read %s's grants: %v", role, err)
+		}
+		return got
+	}
+
+	want := []string{
+		"schema public USAGE",
+		"table goose_db_version SELECT",
+		"table libraries SELECT",
+		"table library_groups SELECT",
+		"table library_releases SELECT",
+		"table rule_versions SELECT",
+		"table rules SELECT",
+	}
+	if got := grants(postgrestest.CatalogReaderRole); !slices.Equal(got, want) {
+		t.Errorf("%s has %q, want %q", postgrestest.CatalogReaderRole, got, want)
+	}
+	if got := grants(postgrestest.WebRole); len(got) > 0 {
+		t.Errorf("%s has its own grants %q; migrations must grant to %s", postgrestest.WebRole, got, postgrestest.CatalogReaderRole)
+	}
+}
+
+// Grants can't narrow what a privileged role already holds, so the migration must refuse a catalog reader role that
+// isn't the plain NOLOGIN group role infrastructure creates, rather than give its members a false boundary. Roles span
+// the server, so each case gives the migration its own role instead of changing the one other tests share.
+func TestMigrationsRefuseACatalogReaderRoleThatIsMissingOrPrivileged(t *testing.T) {
+	server := postgrestest.Server(t)
+	for name, tc := range map[string]struct {
+		create []string
+		want   string
+	}{
+		"missing":          {nil, "does not exist"},
+		"able to log in":   {[]string{"CREATE ROLE %s LOGIN"}, "can log in"},
+		"a superuser":      {[]string{"CREATE ROLE %s NOLOGIN SUPERUSER"}, "is privileged"},
+		"with CREATEROLE":  {[]string{"CREATE ROLE %s NOLOGIN CREATEROLE"}, "is privileged"},
+		"with CREATEDB":    {[]string{"CREATE ROLE %s NOLOGIN CREATEDB"}, "is privileged"},
+		"with BYPASSRLS":   {[]string{"CREATE ROLE %s NOLOGIN BYPASSRLS"}, "is privileged"},
+		"with REPLICATION": {[]string{"CREATE ROLE %s NOLOGIN REPLICATION"}, "is privileged"},
+		"a member of a predefined role": {
+			[]string{"CREATE ROLE %s NOLOGIN", "GRANT pg_read_all_data TO %s"}, "is privileged",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			role := "rulemart_reader_" + postgrestest.RandomHex(t, 6)
+			// Registered before the database, so it runs after the database, and the grants in it, are dropped.
+			t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
+			for _, statement := range tc.create {
+				postgrestest.Exec(t, server, strings.ReplaceAll(statement, "%s", role))
+			}
+			connString := postgrestest.New(t)
+
+			err := up(ctx, connString, migrationsGrantingTo(t, role))
+			if err == nil || !strings.Contains(err.Error(), role+" "+tc.want) || !strings.Contains(err.Error(), "infrastructure creates it") {
+				t.Fatalf("got %v, want a refusal saying %s %s and that infrastructure creates it", err, role, tc.want)
+			}
+			var version int64
+			postgrestest.QueryRow(t, connString, "SELECT max(version_id) FROM goose_db_version", &version)
+			if version != 2 {
+				t.Errorf("the database is at version %d, want 2, before the refused migration", version)
+			}
+		})
+	}
+
+	// The same migrations accept a plain NOLOGIN role, so the refusals above come from the role's shape.
+	t.Run("a plain NOLOGIN role", func(t *testing.T) {
+		role := "rulemart_reader_" + postgrestest.RandomHex(t, 6)
+		t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
+		postgrestest.Exec(t, server, "CREATE ROLE "+role+" NOLOGIN")
+		if err := up(context.Background(), postgrestest.New(t), migrationsGrantingTo(t, role)); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+// migrationsGrantingTo returns the embedded migrations with the catalog reader role's name replaced by role.
+func migrationsGrantingTo(t *testing.T, role string) fs.FS {
+	t.Helper()
+	migrations := fstest.MapFS{}
+	err := fs.WalkDir(db.Migrations, "migrations", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		content, err := fs.ReadFile(db.Migrations, name)
+		if err != nil {
+			return err
+		}
+		replaced := strings.ReplaceAll(string(content), postgrestest.CatalogReaderRole, role)
+		migrations[strings.TrimPrefix(name, "migrations/")] = &fstest.MapFile{Data: []byte(replaced)}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("read the embedded migrations: %v", err)
+	}
+	return migrations
 }

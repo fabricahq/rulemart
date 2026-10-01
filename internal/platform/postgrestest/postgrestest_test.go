@@ -31,28 +31,51 @@ func TestWithUserReplacesTheCredentialsPgxUses(t *testing.T) {
 	}
 }
 
-// The web role is a shared fixture tests don't change, so a leftover role with more power than production's must
+// The roles are shared fixtures tests don't change, so a leftover role shaped differently from production's must
 // stop the tests rather than make them pass with access rulemart_web won't have.
-func TestCheckRoleRejectsARoleWithMoreThanLogin(t *testing.T) {
+func TestCheckRoleAcceptsOnlyRolesShapedLikeProductions(t *testing.T) {
 	server := Server(t)
-	plain := "rulemart_check_" + RandomHex(t, 6)
+	group := "rulemart_check_" + RandomHex(t, 6)
+	member := "rulemart_check_" + RandomHex(t, 6)
 	powerful := "rulemart_check_" + RandomHex(t, 6)
-	exec(t, server, "CREATE ROLE "+plain+" LOGIN")
-	exec(t, server, "CREATE ROLE "+powerful+" LOGIN CREATEDB CREATEROLE")
+	loner := "rulemart_check_" + RandomHex(t, 6)
+	loginGroup := "rulemart_check_" + RandomHex(t, 6)
+	exec(t, server, "CREATE ROLE "+group+" NOLOGIN")
+	exec(t, server, "CREATE ROLE "+member+" LOGIN IN ROLE "+group)
+	exec(t, server, "CREATE ROLE "+powerful+" LOGIN CREATEDB CREATEROLE IN ROLE "+group)
 	exec(t, server, "GRANT pg_read_all_data TO "+powerful)
-	t.Cleanup(func() { exec(t, server, "DROP ROLE "+plain+", "+powerful) })
+	exec(t, server, "CREATE ROLE "+loner+" LOGIN")
+	exec(t, server, "CREATE ROLE "+loginGroup+" LOGIN")
+	t.Cleanup(func() { exec(t, server, "DROP ROLE "+member+", "+powerful+", "+loner+", "+loginGroup+", "+group) })
 	conn := connect(t, server)
+	ctx := context.Background()
 
-	if err := checkRole(context.Background(), conn, plain); err != nil {
-		t.Fatalf("rejected a plain LOGIN role: %v", err)
+	if err := checkRole(ctx, conn, group, false); err != nil {
+		t.Errorf("rejected a plain NOLOGIN group role: %v", err)
 	}
-	err := checkRole(context.Background(), conn, powerful)
-	if err == nil {
-		t.Fatal("accepted a role with CREATEDB, CREATEROLE, and a membership")
+	if err := checkRole(ctx, conn, member, true, group); err != nil {
+		t.Errorf("rejected a plain LOGIN role that is a member of only its group: %v", err)
 	}
-	for _, want := range []string{"CREATEDB", "CREATEROLE", "pg_read_all_data", "make db-stop"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("the error %q doesn't mention %s", err, want)
-		}
+	for name, tc := range map[string]struct {
+		err  error
+		want []string
+	}{
+		"a login role with attributes and another membership": {
+			checkRole(ctx, conn, powerful, true, group), []string{"CREATEDB", "CREATEROLE", "pg_read_all_data", "make db-stop"},
+		},
+		"a login role missing its group": {checkRole(ctx, conn, loner, true, group), []string{"no role", group}},
+		"a group role that can log in":   {checkRole(ctx, conn, loginGroup, false), []string{"can log in"}},
+		"a group role that is a member":  {checkRole(ctx, conn, member, false), []string{"can log in", group}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if tc.err == nil {
+				t.Fatal("accepted it")
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(tc.err.Error(), want) {
+					t.Errorf("the error %q doesn't mention %s", tc.err, want)
+				}
+			}
+		})
 	}
 }

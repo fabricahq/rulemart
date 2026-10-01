@@ -19,12 +19,21 @@ import (
 // as goose recommends when several processes may migrate at once, such as overlapping deploys. connString must be a
 // direct connection: a transaction-mode pooler, such as Neon's, doesn't keep the session the lock needs.
 func Up(ctx context.Context, connString string) error {
+	migrations, err := fs.Sub(db.Migrations, "migrations")
+	if err != nil {
+		return fmt.Errorf("load migrations: %v", err)
+	}
+	return up(ctx, connString, migrations)
+}
+
+// up applies every pending migration in migrations, a directory of numbered SQL files, as Up does.
+func up(ctx context.Context, connString string, migrations fs.FS) error {
 	conn, err := sql.Open("pgx", connString)
 	if err != nil {
 		return fmt.Errorf("open database for migrations: %v", err)
 	}
 	defer conn.Close()
-	provider, err := newProvider(conn)
+	provider, err := newProvider(conn, migrations)
 	if err != nil {
 		return err
 	}
@@ -55,12 +64,8 @@ func RequiredVersion() (int64, error) {
 	return newest, nil
 }
 
-// newProvider returns a goose provider for the embedded migrations that serializes runs with a session lock.
-func newProvider(conn *sql.DB) (*goose.Provider, error) {
-	migrations, err := fs.Sub(db.Migrations, "migrations")
-	if err != nil {
-		return nil, fmt.Errorf("load migrations: %v", err)
-	}
+// newProvider returns a goose provider for migrations that serializes runs with a session lock.
+func newProvider(conn *sql.DB, migrations fs.FS) (*goose.Provider, error) {
 	locker, err := lock.NewPostgresSessionLocker()
 	if err != nil {
 		return nil, fmt.Errorf("create migration lock: %v", err)

@@ -14,8 +14,9 @@ Tests create their own databases on that server and drop them afterward. `make d
 
 ## Run the site locally
 
-`make db` also creates a `rulemart` database for local development, and the `rulemart_web` role the web function
-connects as. Migrate the database and ingest a library as its owner, then serve the pages at
+`make db` also creates a `rulemart` database for local development, and the roles infrastructure creates in
+production: `rulemart_catalog_reader`, a group role that can't log in, and `rulemart_web`, the login role the web
+function connects as, which is a member of it. Migrate the database and ingest a library as its owner, then serve the pages at
 <http://127.0.0.1:8080>:
 
 ```sh
@@ -28,9 +29,9 @@ The [Makefile](Makefile) names the local database's connections. `make migrate` 
 database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they
 never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection
 string in `DATABASE_URL`, so with only `DATABASE_URL_PARAMETER` set it stops and says so. `make web` connects with
-`LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog, as the deployed function does. Each
-starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does `RULEMART_TEST_DATABASE_URL`, the server where tests create
-their databases.
+`LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog through its membership in
+`rulemart_catalog_reader`, as the deployed function does. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as
+does `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.
@@ -108,9 +109,11 @@ go tool goose -dir db/migrations -s create add_libraries sql
 - Migrations change the schema, not data for testing.
 - Give each catalog table an `id` primary key and keep its natural key, such as a library and a rule's path, as
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
-- Grant `rulemart_web` what the web function needs from each new table, usually `SELECT` on what the pages read,
-  and nothing on tables the pages don't read. The store's page-read tests and the site's end-to-end tests read as
-  that role, so a missing grant fails them.
+- Grant `rulemart_catalog_reader` what the web function needs from each new table, usually `SELECT` on what the
+  pages read, and nothing on tables the pages don't read. Never grant to `rulemart_web` or another login role:
+  infrastructure owns the logins and their memberships, and migrations own the grants, so a login can be replaced
+  or rotated without a migration. The site's tests read as `rulemart_web`, through its membership, so a missing
+  grant fails them.
 - A migration must work with the release that's still running, because the schema changes before the functions
   do. Make a breaking change in two releases: add the new shape first, and remove the old one after nothing uses
   it.

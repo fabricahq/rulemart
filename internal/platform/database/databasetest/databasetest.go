@@ -23,7 +23,8 @@ func New(t *testing.T) (*database.DB, string) {
 }
 
 // AsWebRole returns a DB for the test database at connString that connects as postgrestest.WebRole, as the web
-// function does, so it has only the access migrations grant that role. It closes the DB when the test ends.
+// function does, so it has only the access migrations grant postgrestest.CatalogReaderRole, its group. It closes the
+// DB when the test ends.
 func AsWebRole(t *testing.T, connString string) *database.DB {
 	t.Helper()
 	return open(t, postgrestest.AsWebRole(t, connString), "test-web-database")
