@@ -29,6 +29,8 @@ This page contains summaries. Before planning, implementing, reviewing, testing,
 
 Rule ID: `fabrica:practices/code-design/express-operations-as-meaningful-steps`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, or reviewing a function that coordinates multiple steps, such as parsing input, validating it, calling another operation, or constructing a result.
 
 **Impact:** MEDIUM
@@ -41,6 +43,8 @@ Rule ID: `fabrica:practices/code-design/express-operations-as-meaningful-steps`
 
 Rule ID: `fabrica:practices/code-design/organize-code-by-feature`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, moving, or reviewing where files live in a project, such as adding a feature, creating shared components or utilities, or choosing import paths.
 
 **Impact:** MEDIUM
@@ -52,6 +56,8 @@ Rule ID: `fabrica:practices/code-design/organize-code-by-feature`
 ### Separate pure computation from effects
 
 Rule ID: `fabrica:practices/code-design/separate-pure-computation-from-effects`
+
+Version: 1.0.0
 
 **When to read:** Before planning, writing, changing, or reviewing functions that transform data, especially ones that also read global state, mutate their inputs, or perform I/O such as network, storage, or UI updates.
 

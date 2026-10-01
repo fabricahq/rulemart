@@ -29,6 +29,8 @@ This page contains summaries. Before planning, implementing, reviewing, testing,
 
 Rule ID: `fabrica:practices/performance/optimize-measured-hot-paths`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, reviewing, or diagnosing code that is slow or runs very often over collections, such as lookups inside loops, repeated passes over large lists, or computations repeated on every render or request.
 
 **Impact:** MEDIUM

@@ -29,6 +29,8 @@ This page contains summaries. Before planning, implementing, reviewing, testing,
 
 Rule ID: `fabrica:practices/testing/choose-tests-by-risk`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, or reviewing the tests for a change, or deciding whether an existing test is worth keeping, such as when adding a feature, changing complex logic, or pruning a slow or brittle suite.
 
 **Impact:** HIGH
@@ -40,6 +42,8 @@ Rule ID: `fabrica:practices/testing/choose-tests-by-risk`
 ### Cover empty inputs and boundaries
 
 Rule ID: `fabrica:practices/testing/cover-boundary-cases`
+
+Version: 1.0.0
 
 **When to read:** Before planning, writing, changing, or reviewing code or tests that process collections, check ranges or thresholds, compute positions, or relate two items, such as validation limits, pagination, sorting, or moving items in a list or tree.
 
@@ -53,6 +57,8 @@ Rule ID: `fabrica:practices/testing/cover-boundary-cases`
 
 Rule ID: `fabrica:practices/testing/keep-tests-independent`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, debugging, or reviewing automated tests that share data, global state, or services, such as tests against a shared database, browser tests that run in parallel workers, tests that change configuration or the clock, or tests that call external services.
 
 **Impact:** MEDIUM-HIGH
@@ -64,6 +70,8 @@ Rule ID: `fabrica:practices/testing/keep-tests-independent`
 ### Name tests for the behavior and the condition
 
 Rule ID: `fabrica:practices/testing/name-tests-for-behavior-and-condition`
+
+Version: 1.0.0
 
 **When to read:** Before writing, changing, or reviewing test names or descriptions in any test framework.
 
@@ -77,6 +85,8 @@ Rule ID: `fabrica:practices/testing/name-tests-for-behavior-and-condition`
 
 Rule ID: `fabrica:practices/testing/run-focused-tests-while-iterating`
 
+Version: 1.0.0
+
 **When to read:** Before running tests during implementation, debugging, or review, or before declaring a change complete.
 
 **Impact:** LOW-MEDIUM
@@ -88,6 +98,8 @@ Rule ID: `fabrica:practices/testing/run-focused-tests-while-iterating`
 ### Test at the lowest layer that proves the behavior
 
 Rule ID: `fabrica:practices/testing/test-at-the-lowest-layer`
+
+Version: 1.0.0
 
 **When to read:** Before planning, writing, or reviewing a test and choosing whether it should be a unit, integration, or end-to-end test, including regression tests for bug fixes.
 
@@ -101,6 +113,8 @@ Rule ID: `fabrica:practices/testing/test-at-the-lowest-layer`
 
 Rule ID: `fabrica:practices/testing/test-bug-fixes-before-fixing`
 
+Version: 1.0.0
+
 **When to read:** Before planning, diagnosing, fixing, or reviewing the fix for a behavior defect, such as a reported bug, a failing production case, or an edge case that escaped the tests.
 
 **Impact:** HIGH
@@ -112,6 +126,8 @@ Rule ID: `fabrica:practices/testing/test-bug-fixes-before-fixing`
 ### Test observable behavior
 
 Rule ID: `fabrica:practices/testing/test-observable-behavior`
+
+Version: 1.0.0
 
 **When to read:** Before planning, writing, changing, or reviewing automated tests, or refactoring code that has tests, such as deciding what a test should assert or which dependencies to replace with test doubles.
 

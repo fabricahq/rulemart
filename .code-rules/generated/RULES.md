@@ -55,9 +55,9 @@ Before planning, implementing, reviewing, testing, or diagnosing, complete these
 
 ### Go
 
-**Description:** Document Go struct fields and packages, and give errors useful context and deliberate contracts.
+**Description:** Write clear, maintainable Go that follows the language's conventions.
 
-**When to read this group:** Before planning, writing, or reviewing Go packages, structs, comments, or error handling.
+**When to read this group:** Before planning, writing, or reviewing Go code.
 
 **Open group:** [Go](groups/techs/go.md)
 

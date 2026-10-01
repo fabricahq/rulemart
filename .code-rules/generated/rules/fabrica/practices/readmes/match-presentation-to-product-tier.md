@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/readmes/match-presentation-to-product-tier`
 
+Version: 1.0.0
+
 **When to read:** Before writing, restructuring, or reviewing a README's overall layout and tone, such as its title block, badges, opening pitch, section headings, and feature descriptions.
 
 **Impact:** MEDIUM
@@ -138,7 +140,7 @@ Neither is a primary README without an image, or a primary README that is short.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/readmes/match-presentation-to-product-tier.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/readmes/match-presentation-to-product-tier.md)
 
 **Declared license:** MIT
 

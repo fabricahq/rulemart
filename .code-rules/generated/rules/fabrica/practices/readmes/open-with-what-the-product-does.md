@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/readmes/open-with-what-the-product-does`
 
+Version: 1.0.0
+
 **When to read:** Before writing or reviewing the opening of a README, such as its title, tagline, first paragraphs, badges, and any notices or links placed above the description.
 
 **Impact:** MEDIUM
@@ -72,7 +74,7 @@ Neither is a link to the documentation after the description.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/readmes/open-with-what-the-product-does.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/readmes/open-with-what-the-product-does.md)
 
 **Declared license:** MIT
 

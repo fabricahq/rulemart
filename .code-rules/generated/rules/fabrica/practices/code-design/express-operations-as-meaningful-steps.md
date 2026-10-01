@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/code-design/express-operations-as-meaningful-steps`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, or reviewing a function that coordinates multiple steps, such as parsing input, validating it, calling another operation, or constructing a result.
 
 **Impact:** MEDIUM
@@ -199,7 +201,7 @@ Identify the mixed responsibilities, repeated invariant, or obscured step that m
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/code-design/express-operations-as-meaningful-steps.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/code-design/express-operations-as-meaningful-steps.md)
 
 **Declared license:** MIT
 

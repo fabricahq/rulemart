@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/performance/optimize-measured-hot-paths`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, reviewing, or diagnosing code that is slow or runs very often over collections, such as lookups inside loops, repeated passes over large lists, or computations repeated on every render or request.
 
 **Impact:** MEDIUM
@@ -60,12 +62,17 @@ For 1,000 orders and 1,000 users, this can compare up to a million pairs.
 
 ```ts
 function attachUsers(orders: ReadonlyArray<Order>, users: ReadonlyArray<User>) {
-  const userById = new Map(users.map((user) => [user.id, user]));
+  const userById = new Map<User['id'], User>();
+  for (const user of users) {
+    if (!userById.has(user.id)) {
+      userById.set(user.id, user);
+    }
+  }
   return orders.map((order) => ({ ...order, user: userById.get(order.userId) }));
 }
 ```
 
-Building the map takes one pass, and each lookup is constant time.
+Building the map takes one pass, and each lookup is constant time. Keeping the first user for each ID preserves what `find` returned when IDs repeat.
 
 #### Application: Sorting to find one value
 
@@ -105,7 +112,7 @@ Straightforward code in paths that are not hot is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/performance/optimize-measured-hot-paths.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/performance/optimize-measured-hot-paths.md)
 
 **Attribution:** [Adapted from nine Vercel Agent Skills React best-practice rules \(js-set-map-lookups, js-index-maps, js-combine-iterations, js-early-exit, js-hoist-regexp, js-length-check-first, js-min-max-loop, js-cache-function-results, and js-cache-storage\), merged into one language-neutral practice with a measure-first requirement and without claims that depend on engine details.](<https://github.com/vercel-labs/agent-skills/tree/4ec6f84b61cd3c931046c3e6e398f3ae7de372f7/skills/react-best-practices/rules>)
 

@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/name-tests-for-behavior-and-condition`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing test names or descriptions in any test framework.
 
 **Impact:** LOW
@@ -54,7 +56,7 @@ A different consistent form, such as Go's `TestXxx_Condition` names, is not a vi
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/testing/name-tests-for-behavior-and-condition.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/testing/name-tests-for-behavior-and-condition.md)
 
 **Attribution:** [Adapted from mkosir TypeScript Style Guide guidance \(use-clear-should-when-test-descriptions; MIT, notice retained in NOTICE.md\): moved from the TypeScript group to testing, generalized beyond one naming template, and restructured to the rule template.](<https://github.com/mkosir/typescript-style-guide/blob/86bebd58a987e23277dba02028c0ee2d6ffb5073/website/src/pages/index.mdx>)
 

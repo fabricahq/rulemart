@@ -5,9 +5,9 @@
 
 **Group ID:** `techs/go`
 
-**Description:** Document Go struct fields and packages, and give errors useful context and deliberate contracts.
+**Description:** Write clear, maintainable Go that follows the language's conventions.
 
-**When to read this group:** Before planning, writing, or reviewing Go packages, structs, comments, or error handling.
+**When to read this group:** Before planning, writing, or reviewing Go code.
 
 ## How to use this group
 
@@ -29,6 +29,8 @@ This page contains summaries. Before planning, implementing, reviewing, testing,
 
 Rule ID: `fabrica:techs/go/comment-non-obvious-struct-fields`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, or reviewing Go struct fields, especially fields whose nil or zero values, ownership, or relationships to other fields carry rules that other packages rely on.
 
 **Impact:** MEDIUM
@@ -40,6 +42,8 @@ Rule ID: `fabrica:techs/go/comment-non-obvious-struct-fields`
 ### Separate package documentation from file headers
 
 Rule ID: `fabrica:techs/go/comments-package-doc-vs-file-header`
+
+Version: 1.0.0
 
 **When to read:** Before writing, changing, or reviewing a comment at the top of a Go file, above the package clause, or a package's doc.go.
 
@@ -53,6 +57,8 @@ Rule ID: `fabrica:techs/go/comments-package-doc-vs-file-header`
 
 Rule ID: `fabrica:techs/go/errors-include-useful-diagnostic-data`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing Go code that returns errors from database, network, filesystem, parsing, or cross-package calls.
 
 **Impact:** MEDIUM
@@ -65,6 +71,8 @@ Rule ID: `fabrica:techs/go/errors-include-useful-diagnostic-data`
 
 Rule ID: `fabrica:techs/go/errors-use-contract-errors-deliberately`
 
+Version: 1.0.0
+
 **When to read:** Before defining sentinel or typed errors in Go, or writing, changing, or reviewing code that wraps errors with %w or checks them with errors.Is or errors.As.
 
 **Impact:** MEDIUM
@@ -72,6 +80,20 @@ Rule ID: `fabrica:techs/go/errors-use-contract-errors-deliberately`
 **Why it matters:** Wrapping implementation errors with %w makes driver and library errors part of a package's API, so callers depend on details that change with the implementation.
 
 **Read full rule:** [Expose error identity only for contract errors](../../rules/fabrica/techs/go/errors-use-contract-errors-deliberately.md)
+
+### Give text and its parsed form one owner
+
+Rule ID: `fabrica:techs/go/one-owner-for-text-and-parsed-form`
+
+Version: 1.0.0
+
+**When to read:** Before planning, writing, changing, or reviewing Go code that keeps a value's text and also needs its parsed or normalized form, such as a configuration setting, or code that parses such a field again or compares such values.
+
+**Impact:** MEDIUM
+
+**Why it matters:** A stored parsed copy can drift from the text it came from, so callers disagree about which field to trust, parse the text again, or compare spellings instead of meanings.
+
+**Read full rule:** [Give text and its parsed form one owner](../../rules/fabrica/techs/go/one-owner-for-text-and-parsed-form.md)
 
 ---
 

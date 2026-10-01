@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/test-bug-fixes-before-fixing`
 
+Version: 1.0.0
+
 **When to read:** Before planning, diagnosing, fixing, or reviewing the fix for a behavior defect, such as a reported bug, a failing production case, or an edge case that escaped the tests.
 
 **Impact:** HIGH
@@ -84,7 +86,7 @@ A fix without a new test does not violate this rule when it changes no observabl
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/testing/test-bug-fixes-before-fixing.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/testing/test-bug-fixes-before-fixing.md)
 
 **Declared license:** MIT
 

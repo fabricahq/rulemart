@@ -1,8 +1,9 @@
 {
   "formatVersion": 2,
+  "checksum": "7047d35ce2281fc95e7672577c8532f4f52e7007b6852c70d38cbab7ca8eb6c7",
   "repository": "https://github.com/fabricahq/public-rules.git",
-  "ref": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
-  "resolvedCommit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea",
+  "release": 1,
+  "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
   "groupSelection": [
     "practices/code-design",
     "practices/performance",
@@ -21,114 +22,119 @@
   ],
   "rules": {
     "practices/code-design/express-operations-as-meaningful-steps": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/code-design/organize-code-by-feature": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/code-design/separate-pure-computation-from-effects": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/performance/optimize-measured-hot-paths": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/readmes/give-a-quick-start-that-runs-as-written": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/readmes/keep-the-readme-an-entry-point": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/readmes/match-presentation-to-product-tier": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/readmes/open-with-what-the-product-does": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/readmes/state-what-the-product-does-not-do": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/choose-tests-by-risk": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/cover-boundary-cases": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/keep-tests-independent": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/name-tests-for-behavior-and-condition": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/run-focused-tests-while-iterating": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/test-at-the-lowest-layer": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/test-bug-fixes-before-fixing": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "practices/testing/test-observable-behavior": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "techs/go/comment-non-obvious-struct-fields": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "techs/go/comments-package-doc-vs-file-header": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "techs/go/errors-include-useful-diagnostic-data": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "techs/go/errors-use-contract-errors-deliberately": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
+    },
+    "techs/go/one-owner-for-text-and-parsed-form": {
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     },
     "techs/goose/migrations-directory-contains-only-sql": {
-      "version": null,
-      "release": null,
-      "commit": "ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea"
+      "version": "1.0.0",
+      "release": 1,
+      "commit": "568e32f46cc3bf557ab90e82b8df6d661b839112"
     }
   },
   "retiredRules": [],
@@ -141,13 +147,13 @@
     "practices/code-design/organize-code-by-feature.md": "87dd8be5e02e19430421c97955b545b92143751058ce00f1c36df6f644657ce8",
     "practices/code-design/separate-pure-computation-from-effects.md": "338379ccb1bba922957509b02043d349473987d8824d86922075b3b2a7876d3d",
     "practices/performance/_group.yaml": "06b5930eadbac8c2a52b62f905104735033a9636fb8519924ff2cf18dd6f51c6",
-    "practices/performance/optimize-measured-hot-paths.md": "6f55cec0cff2c6857904993566c63c4dea4c902e5c94445555be823c3cd936ae",
+    "practices/performance/optimize-measured-hot-paths.md": "0294cdf0e0a2feeeaa4d9300dd161e83f730d0641ea0ba02b1e973e0b91f50da",
     "practices/readmes/_group.yaml": "dca7a6d911e994a10f8f1090740336ab5e5e4792a5cf41238d502c487c8ddb1e",
     "practices/readmes/give-a-quick-start-that-runs-as-written.md": "80c1b571eb3297bb36aff22b126179c7e4e3264ff92922ee536683e3b9bd746a",
     "practices/readmes/keep-the-readme-an-entry-point.md": "58d9192fa3c065031c50d4abc566fc5d4bed7df50947a299f338bc48b1d20407",
     "practices/readmes/match-presentation-to-product-tier.md": "29a8230cd69751a71ced67927a9346ae6cd4ccbf12e8a1ae6a5964b2a9957673",
     "practices/readmes/open-with-what-the-product-does.md": "169400038f44641f29d6705ca2c5b01c06178eb8747a65fbfe1f5f103386af02",
-    "practices/readmes/state-what-the-product-does-not-do.md": "2bc5ef3526b8e27e05a662142c099ddaf57ccc2718094362dece2992008d77f7",
+    "practices/readmes/state-what-the-product-does-not-do.md": "02b0002e1cecb5b039bb7e4ef5b61bd159fb24b2c0f281a6c68c68281caf140e",
     "practices/testing/_group.yaml": "dd2e272699f133acb011289de84a0d7904da1a71f2a058db8a1e870063089ed6",
     "practices/testing/choose-tests-by-risk.md": "b487a83d3cc66407f95506b5b156b438e74dd3d28dee9c334070c75b9d31d199",
     "practices/testing/cover-boundary-cases.md": "10e8c8245ab251fb8f31293ff2f2e69551eb64fc3a7cc97b6a65963bd18a1339",
@@ -158,11 +164,12 @@
     "practices/testing/test-bug-fixes-before-fixing.md": "51dbfc950c1f241da44a37d81a64a77cd15b983a1c5ef61fd754a828fb45a44f",
     "practices/testing/test-observable-behavior.md": "31f7c9e67b16e137414ce11f8105282758a227fbd131d6bb9a46e76b39d2b0a5",
     "rule-library.yaml": "d8f64d4c72618e71379a25cd492a05209940585bfc433805d4aed1604b35d59e",
-    "techs/go/_group.yaml": "39acb79b7721d35c0207214112c54c248cff986a06bf249895b67c967f4b9f6b",
+    "techs/go/_group.yaml": "1a2d94d762306b7fb2913093433ffc1de9181aa674e1747b895f2ff3c7fb78dd",
     "techs/go/comment-non-obvious-struct-fields.md": "32162b186e7e330e1c0fc66129677dff9958e18c0be89048b0e3650be454c40e",
     "techs/go/comments-package-doc-vs-file-header.md": "f098ae65071fa302232c577e3848639130055422fbf7b15d4e0ca698e75be162",
     "techs/go/errors-include-useful-diagnostic-data.md": "210bb7ae532abe64c2ec63f733ed94c503154672ba01a2086cffbfb56b4f7918",
     "techs/go/errors-use-contract-errors-deliberately.md": "ea4816387b02c203b5391ab85d0a7ae4a5959728dc35812d501e2c8bc63965ad",
+    "techs/go/one-owner-for-text-and-parsed-form.md": "0123083e3c1815a8a2406ff4cd0c17846061469e906ad4253e5f675e6c91c170",
     "techs/goose/_group.yaml": "dc0c54d969eac840bf8ff2b74eb7b0da85980597dcad505e4dacf6e7dbeabd77",
     "techs/goose/migrations-directory-contains-only-sql.md": "e90b6df6e2c94b99c0c6d382003069318e35c428f67cf16d54be9c1207046991"
   }
