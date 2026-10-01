@@ -39,20 +39,22 @@ type LibraryGroup struct {
 }
 
 type LibraryRelease struct {
-	ID        int64
-	LibraryID int64
-	Number    int32
-	CommitID  string
-	TaggedAt  pgtype.Timestamptz
+	ID                 int64
+	LibraryID          int64
+	Number             int32
+	CommitID           string
+	TaggedAt           pgtype.Timestamptz
+	UpdatesSharedFiles bool
 }
 
 type Rule struct {
-	ID                 int64
-	LibraryID          int64
-	GroupID            int64
-	Path               string
-	RetiredInReleaseID pgtype.Int8
-	ReplacedBy         pgtype.Text
+	ID                  int64
+	LibraryID           int64
+	GroupID             int64
+	Path                string
+	RetiredInReleaseID  pgtype.Int8
+	ReplacedBy          pgtype.Text
+	RetirementSummaries []string
 }
 
 type RuleVersion struct {

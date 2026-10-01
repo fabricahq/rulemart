@@ -82,7 +82,7 @@ func (w *writer) write(lib library) {
 		w.exec("upsert "+r.tag, func() (int64, error) {
 			return w.q.UpsertRelease(w.ctx, ingestdb.UpsertReleaseParams{
 				LibraryID: w.library, Number: numbers[i], CommitID: r.commit.Hash.String(),
-				TaggedAt: pgtype.Timestamptz{Time: r.taggedAt, Valid: true},
+				TaggedAt: pgtype.Timestamptz{Time: r.taggedAt, Valid: true}, UpdatesSharedFiles: r.updatesSharedFiles(),
 			})
 		})
 	}
@@ -208,7 +208,7 @@ func (w *writer) writeRule(r rule) {
 	w.exec("upsert rule "+r.id, func() (int64, error) {
 		return w.q.UpsertRule(w.ctx, ingestdb.UpsertRuleParams{
 			LibraryID: w.library, GroupID: w.groups[r.group], Path: r.id, RetiredInReleaseID: retiredIn,
-			ReplacedBy: optionalText(r.replacedBy),
+			ReplacedBy: optionalText(r.replacedBy), RetirementSummaries: r.retirementSummaries,
 		})
 	})
 }

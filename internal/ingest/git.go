@@ -37,6 +37,13 @@ type release struct {
 	record   coderules.ReleaseRecord
 }
 
+// updatesSharedFiles reports whether the release changed library-wide files, such as group metadata or shared
+// assets, which Code Rules' release notes say for every release after the first that lists library files. A first
+// release lists every file, which it adds rather than updates.
+func (r release) updatesSharedFiles() bool {
+	return r.record.Release > 1 && len(r.record.LibraryFiles) > 0
+}
+
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
 // history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.

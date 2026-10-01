@@ -294,17 +294,20 @@ func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (i
 }
 
 const upsertRelease = `-- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, commit_id, tagged_at)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (library_id, number) DO UPDATE SET commit_id = excluded.commit_id, tagged_at = excluded.tagged_at
-WHERE (library_releases.commit_id, library_releases.tagged_at) IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at)
+INSERT INTO library_releases (library_id, number, commit_id, tagged_at, updates_shared_files)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (library_id, number) DO UPDATE SET
+    commit_id = excluded.commit_id, tagged_at = excluded.tagged_at, updates_shared_files = excluded.updates_shared_files
+WHERE (library_releases.commit_id, library_releases.tagged_at, library_releases.updates_shared_files)
+    IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files)
 `
 
 type UpsertReleaseParams struct {
-	LibraryID int64
-	Number    int32
-	CommitID  string
-	TaggedAt  pgtype.Timestamptz
+	LibraryID          int64
+	Number             int32
+	CommitID           string
+	TaggedAt           pgtype.Timestamptz
+	UpdatesSharedFiles bool
 }
 
 func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (int64, error) {
@@ -313,6 +316,7 @@ func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (i
 		arg.Number,
 		arg.CommitID,
 		arg.TaggedAt,
+		arg.UpdatesSharedFiles,
 	)
 	if err != nil {
 		return 0, err
@@ -321,21 +325,23 @@ func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (i
 }
 
 const upsertRule = `-- name: UpsertRule :execrows
-INSERT INTO rules (library_id, group_id, path, retired_in_release_id, replaced_by)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO rules (library_id, group_id, path, retired_in_release_id, replaced_by, retirement_summaries)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (library_id, path) DO UPDATE SET
     group_id = excluded.group_id, retired_in_release_id = excluded.retired_in_release_id,
-    replaced_by = excluded.replaced_by
-WHERE (rules.group_id, rules.retired_in_release_id, rules.replaced_by)
-    IS DISTINCT FROM (excluded.group_id, excluded.retired_in_release_id, excluded.replaced_by)
+    replaced_by = excluded.replaced_by, retirement_summaries = excluded.retirement_summaries
+WHERE (rules.group_id, rules.retired_in_release_id, rules.replaced_by, rules.retirement_summaries)
+    IS DISTINCT FROM (excluded.group_id, excluded.retired_in_release_id, excluded.replaced_by,
+       excluded.retirement_summaries)
 `
 
 type UpsertRuleParams struct {
-	LibraryID          int64
-	GroupID            int64
-	Path               string
-	RetiredInReleaseID pgtype.Int8
-	ReplacedBy         pgtype.Text
+	LibraryID           int64
+	GroupID             int64
+	Path                string
+	RetiredInReleaseID  pgtype.Int8
+	ReplacedBy          pgtype.Text
+	RetirementSummaries []string
 }
 
 func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, error) {
@@ -345,6 +351,7 @@ func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, 
 		arg.Path,
 		arg.RetiredInReleaseID,
 		arg.ReplacedBy,
+		arg.RetirementSummaries,
 	)
 	if err != nil {
 		return 0, err

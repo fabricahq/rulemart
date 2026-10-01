@@ -14,10 +14,12 @@ WHERE (libraries.owner, libraries.name, libraries.description, libraries.owner_a
 SELECT id FROM libraries WHERE host = @host AND host_repository_id = @host_repository_id;
 
 -- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, commit_id, tagged_at)
-VALUES (@library_id, @number, @commit_id, @tagged_at)
-ON CONFLICT (library_id, number) DO UPDATE SET commit_id = excluded.commit_id, tagged_at = excluded.tagged_at
-WHERE (library_releases.commit_id, library_releases.tagged_at) IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at);
+INSERT INTO library_releases (library_id, number, commit_id, tagged_at, updates_shared_files)
+VALUES (@library_id, @number, @commit_id, @tagged_at, @updates_shared_files)
+ON CONFLICT (library_id, number) DO UPDATE SET
+    commit_id = excluded.commit_id, tagged_at = excluded.tagged_at, updates_shared_files = excluded.updates_shared_files
+WHERE (library_releases.commit_id, library_releases.tagged_at, library_releases.updates_shared_files)
+    IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files);
 
 -- name: ListReleaseIDs :many
 SELECT id, number FROM library_releases WHERE library_id = @library_id;
@@ -40,13 +42,14 @@ SELECT id, path FROM library_groups WHERE library_id = @library_id;
 DELETE FROM library_groups WHERE library_id = @library_id AND NOT (path = ANY (@paths::text[]));
 
 -- name: UpsertRule :execrows
-INSERT INTO rules (library_id, group_id, path, retired_in_release_id, replaced_by)
-VALUES (@library_id, @group_id, @path, @retired_in_release_id, @replaced_by)
+INSERT INTO rules (library_id, group_id, path, retired_in_release_id, replaced_by, retirement_summaries)
+VALUES (@library_id, @group_id, @path, @retired_in_release_id, @replaced_by, @retirement_summaries)
 ON CONFLICT (library_id, path) DO UPDATE SET
     group_id = excluded.group_id, retired_in_release_id = excluded.retired_in_release_id,
-    replaced_by = excluded.replaced_by
-WHERE (rules.group_id, rules.retired_in_release_id, rules.replaced_by)
-    IS DISTINCT FROM (excluded.group_id, excluded.retired_in_release_id, excluded.replaced_by);
+    replaced_by = excluded.replaced_by, retirement_summaries = excluded.retirement_summaries
+WHERE (rules.group_id, rules.retired_in_release_id, rules.replaced_by, rules.retirement_summaries)
+    IS DISTINCT FROM (excluded.group_id, excluded.retired_in_release_id, excluded.replaced_by,
+       excluded.retirement_summaries);
 
 -- name: ListRuleIDs :many
 SELECT id, path FROM rules WHERE library_id = @library_id;

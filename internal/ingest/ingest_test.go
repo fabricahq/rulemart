@@ -38,6 +38,7 @@ changes:
   practices/testing/check-retry-backoff: {change: new, summaries: [Add the rule.]}
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+libraryFiles: [LICENSE, practices/testing/_group.yaml, rule-library.yaml, techs/go/_group.yaml]
 `)
 	return lib
 }
@@ -253,6 +254,52 @@ retired:
 	query(t, connString, `SELECT g.path FROM rules r JOIN library_groups g ON g.id = r.group_id WHERE r.path = '`+returnErrors+`'`, &group)
 	if group != "techs/go" {
 		t.Fatalf("the retired rule is in group %q", group)
+	}
+}
+
+// A release-notes view needs what each release did: the summaries of each retirement, and whether the release also
+// updated shared files, which Code Rules' notes say for any release after the first that lists library files.
+func TestIngestStoresRetirementSummariesAndSharedFileUpdates(t *testing.T) {
+	store, connString := newStore(t)
+	lib := firstRelease(t)
+	lib.Group("techs/go", "Go language")
+	lib.Remove(retryBackoff + ".md")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules:
+  practices/testing/verify-retry-limits: 1.0.0
+  techs/go/return-errors: 1.0.0
+retired:
+  practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge into verify-retry-limits., Drop the duplicate.]}
+libraryFiles: [techs/go/_group.yaml]
+`)
+	lib.Rule(returnErrors, "Return errors", "Return errors to the caller.")
+	lib.Release(3, `formatVersion: 1
+release: 3
+rules:
+  practices/testing/verify-retry-limits: 1.0.0
+  techs/go/return-errors: 1.0.1
+changes:
+  techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}
+`)
+
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+
+	got := lines(t, connString, `SELECT path || ' ' || coalesce(array_to_string(retirement_summaries, ' | '), '-') FROM rules ORDER BY path`)
+	want := []string{
+		retryBackoff + " Merge into verify-retry-limits. | Drop the duplicate.",
+		retryLimits + " -",
+		returnErrors + " -",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("retirement summaries are %q, want %q", got, want)
+	}
+	// Release 1 lists every file, as a first release does, but adds them rather than updating them.
+	got = lines(t, connString, `SELECT 'release/' || number || ' ' || updates_shared_files FROM library_releases ORDER BY number`)
+	if want := []string{"release/1 false", "release/2 true", "release/3 false"}; !slices.Equal(got, want) {
+		t.Errorf("shared file updates are %q, want %q", got, want)
 	}
 }
 

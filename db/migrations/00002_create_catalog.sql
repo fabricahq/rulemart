@@ -35,6 +35,9 @@ CREATE TABLE library_releases (
     commit_id            text NOT NULL,
     -- When the tag was made, from its tagger line.
     tagged_at            timestamptz NOT NULL,
+    -- Whether the release changed library-wide files, such as group metadata or shared assets, after the first
+    -- release: when Code Rules' release notes say it updates shared files.
+    updates_shared_files boolean NOT NULL,
     UNIQUE (library_id, number)
 );
 
@@ -61,8 +64,12 @@ CREATE TABLE rules (
     retired_in_release_id bigint REFERENCES library_releases,
     -- The path of the rule that replaced a retired rule, when the retirement named one.
     replaced_by           text,
+    -- One summary per change note that retired the rule, in note order; NULL while the rule is current.
+    retirement_summaries  text[],
     UNIQUE (library_id, path),
-    CHECK (replaced_by IS NULL OR retired_in_release_id IS NOT NULL)
+    CHECK (replaced_by IS NULL OR retired_in_release_id IS NOT NULL),
+    CHECK ((retired_in_release_id IS NULL) = (retirement_summaries IS NULL)),
+    CHECK (retirement_summaries IS NULL OR cardinality(retirement_summaries) > 0)
 );
 
 -- Each version a library release published of a rule.

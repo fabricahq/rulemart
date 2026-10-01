@@ -21,6 +21,8 @@ type ruleHistory struct {
 	retiredIn int
 	// replacedBy is the rule that replaced a retired rule, when its retirement named one.
 	replacedBy string
+	// retirementSummaries holds one summary per change note that retired the rule; nil while the rule is current.
+	retirementSummaries []string
 }
 
 // ruleVersion is one version of a rule, as the library release that published it records it.
@@ -66,6 +68,7 @@ func buildHistory(records []coderules.ReleaseRecord) ([]ruleHistory, error) {
 		for id, retired := range record.Retired {
 			histories[id].retiredIn = record.Release
 			histories[id].replacedBy = retired.ReplacedBy
+			histories[id].retirementSummaries = retired.Summaries
 		}
 		previous = record.Rules
 	}
