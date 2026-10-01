@@ -123,7 +123,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {
-		<div class="mt-5 flex scroll-mt-20 justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
+		<div class="mt-8 mb-3 flex scroll-mt-20 justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
 			<span>{ g.name } <span class="mono tracking-normal normal-case">{ g.id }</span></span>
 		</div>
 		for _, r := range g.rules {
