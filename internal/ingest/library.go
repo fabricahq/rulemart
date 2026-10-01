@@ -78,7 +78,7 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory) (
 }
 
 // readLicense returns the license expression and file that rule-library.yaml declares at release, each empty
-// when it declares none.
+// when it declares none. It refuses a declared file the release doesn't hold.
 func readLicense(r release, source string) (expression, file string, err error) {
 	manifest, err := readFile(r.commit, "rule-library.yaml")
 	if errors.Is(err, errFileMissing) {
@@ -94,10 +94,17 @@ func readLicense(r release, source string) (expression, file string, err error) 
 	if license == nil {
 		return "", "", nil
 	}
+	// The library page links to the license file at this release, so it must be there.
+	file = license.Files[0]
+	if _, err := readFile(r.commit, file); errors.Is(err, errFileMissing) {
+		return "", "", fmt.Errorf("%s: rule-library.yaml declares the license file %s, which is missing", r.tag, file)
+	} else if err != nil {
+		return "", "", fmt.Errorf("%s: %s: %v", r.tag, file, err)
+	}
 	if license.SPDXExpression != nil {
 		expression = *license.SPDXExpression
 	}
-	return expression, license.Files[0], nil
+	return expression, file, nil
 }
 
 // readRule returns history's rule, reading a current rule's file at the release that published its current

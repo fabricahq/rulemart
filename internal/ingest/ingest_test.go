@@ -247,6 +247,34 @@ rules:
 	}
 }
 
+// The library page links to the license file, so a release whose manifest names a missing one is refused rather
+// than stored as a broken link.
+func TestIngestRejectsAMissingLicenseFileWithoutWriting(t *testing.T) {
+	store, connString := newStore(t)
+	lib := firstRelease(t)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := catalog(t, connString)
+	lib.Remove("LICENSE")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules:
+  practices/testing/check-retry-backoff: 1.0.0
+  practices/testing/verify-retry-limits: 1.0.0
+  techs/go/return-errors: 1.0.0
+`)
+
+	_, err := ingest.Ingest(context.Background(), store, lib.Repository(42))
+
+	if err == nil || !strings.Contains(err.Error(), "release/2") || !strings.Contains(err.Error(), "LICENSE") {
+		t.Fatalf("got error %v, want one naming release/2 and LICENSE", err)
+	}
+	if after := catalog(t, connString); after != before {
+		t.Fatalf("a refused release changed the catalog:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
 // hugeObject is larger, inflated, than ingestion holds in memory for one object. It's zeros, so it compresses to
 // almost nothing and only its inflated size can stop it.
 var hugeObject = strings.Repeat("\x00", 40<<20)
