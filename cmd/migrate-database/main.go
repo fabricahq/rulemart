@@ -13,6 +13,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -61,7 +62,7 @@ func directConnString(ctx context.Context, databaseURL, parameterName string) (s
 	case parameterName != "":
 		pooled, err := readParameter(ctx, parameterName)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("read the connection string from SSM parameter %q: %w", parameterName, err)
 		}
 		return migrate.DirectConnString(pooled)
 	default:
