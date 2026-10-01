@@ -10,3 +10,11 @@ sql:
         package: ingestdb
         out: internal/ingest/ingestdb
         sql_package: pgx/v5
+  - engine: postgresql
+    schema: db/migrations
+    queries: internal/site/query.sql
+    gen:
+      go:
+        package: sitedb
+        out: internal/site/sitedb
+        sql_package: pgx/v5
