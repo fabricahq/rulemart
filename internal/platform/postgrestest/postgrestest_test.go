@@ -1,4 +1,4 @@
-package testdb
+package postgrestest
 
 import (
 	"context"

@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/fabricahq/rulemart/internal/migrate"
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 func env(vars map[string]string) func(string) string {
@@ -15,7 +15,7 @@ func env(vars map[string]string) func(string) string {
 }
 
 func TestSourceFromEnvConnectsWithDatabaseURL(t *testing.T) {
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,6 @@
-// Package testdb gives each integration test its own Postgres database, created on the server that
+// Package postgrestest gives each integration test its own Postgres database, created on the server that
 // RULEMART_TEST_DATABASE_URL names and dropped when the test ends.
-package testdb
+package postgrestest
 
 import (
 	"context"

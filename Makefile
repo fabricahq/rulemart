@@ -25,7 +25,7 @@ TAILWIND_PLATFORM := $(TAILWIND_OS)-$(TAILWIND_ARCH)
 TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
 # Generated files, committed so builds need no generators. CI fails when they're stale.
-GENERATED := internal/ingest/ingestdb internal/site/sitedb internal/site/*_templ.go internal/site/static/app.css
+GENERATED := internal/ingest/ingestdb internal/platform/web/sitedb internal/platform/web/*_templ.go internal/platform/web/static/app.css
 
 dist:
 	python3 scripts/package-release.py --commit "$$(git rev-parse HEAD)" --output dist
@@ -37,8 +37,8 @@ check:
 # Regenerates the sqlc queries, the templ components, and the stylesheet.
 generate: $(TAILWIND)
 	go tool sqlc generate
-	go tool templ generate -path internal/site
-	$(TAILWIND) --input internal/site/styles/app.css --output internal/site/static/app.css --minify
+	go tool templ generate -path internal/platform/web
+	$(TAILWIND) --input internal/platform/web/styles/app.css --output internal/platform/web/static/app.css --minify
 
 # Fails when a generated file differs from what its sources generate.
 check-generated: generate

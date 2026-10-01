@@ -15,10 +15,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 
 	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest"
-	"github.com/fabricahq/rulemart/internal/migrate"
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // FirstTagged is when a fixture's first tag is made; each later tag is a day after the one before.
@@ -137,7 +137,7 @@ func signature(when time.Time) *object.Signature {
 // the test ends.
 func NewDatabase(t *testing.T) (*database.DB, string) {
 	t.Helper()
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatal(err)
 	}
@@ -145,12 +145,12 @@ func NewDatabase(t *testing.T) (*database.DB, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := database.New(testdb.Parameter(connString), "test-database", version)
+	db := database.New(postgrestest.Parameter(connString), "test-database", version)
 	t.Cleanup(db.Close)
 	return db, connString
 }
 
-// NewWebDatabase returns a DB for the test database at connString that connects as testdb.WebRole, as the web
+// NewWebDatabase returns a DB for the test database at connString that connects as postgrestest.WebRole, as the web
 // function does, so it has only the access migrations grant that role. It closes the DB when the test ends.
 func NewWebDatabase(t *testing.T, connString string) *database.DB {
 	t.Helper()
@@ -158,7 +158,7 @@ func NewWebDatabase(t *testing.T, connString string) *database.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := database.New(testdb.Parameter(testdb.AsWebRole(t, connString)), "test-web-database", version)
+	db := database.New(postgrestest.Parameter(postgrestest.AsWebRole(t, connString)), "test-web-database", version)
 	t.Cleanup(db.Close)
 	return db
 }

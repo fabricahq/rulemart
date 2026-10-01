@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // library is everything the catalog stores about one library.

@@ -16,7 +16,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // errNoReleases reports a repository without library releases.

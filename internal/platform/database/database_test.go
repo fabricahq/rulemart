@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/fabricahq/rulemart/internal/migrate"
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // parameter stands in for the SSM parameter that holds the connection string.
@@ -57,22 +57,22 @@ func (p *parameter) readCount() int {
 // sets its password and returns a connection string for it.
 func appRole(t *testing.T, connString string) func(password string) string {
 	t.Helper()
-	role := "rulemart_app_" + testdb.RandomHex(t, 6)
+	role := "rulemart_app_" + postgrestest.RandomHex(t, 6)
 	ident := pgx.Identifier{role}.Sanitize()
-	testdb.Exec(t, connString, "CREATE ROLE "+ident+" LOGIN")
-	testdb.Exec(t, connString, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO "+ident)
+	postgrestest.Exec(t, connString, "CREATE ROLE "+ident+" LOGIN")
+	postgrestest.Exec(t, connString, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO "+ident)
 	t.Cleanup(func() {
 		// A test may have dropped the database, and the role's privileges with it.
 		var exists bool
-		testdb.QueryRow(t, testdb.Server(t), `SELECT exists(SELECT 1 FROM pg_database WHERE datname = '`+databaseName(t, connString)+`')`, &exists)
+		postgrestest.QueryRow(t, postgrestest.Server(t), `SELECT exists(SELECT 1 FROM pg_database WHERE datname = '`+databaseName(t, connString)+`')`, &exists)
 		if exists {
-			testdb.Exec(t, connString, "DROP OWNED BY "+ident)
+			postgrestest.Exec(t, connString, "DROP OWNED BY "+ident)
 		}
-		testdb.Exec(t, testdb.Server(t), "DROP ROLE "+ident)
+		postgrestest.Exec(t, postgrestest.Server(t), "DROP ROLE "+ident)
 	})
 	return func(password string) string {
-		testdb.Exec(t, connString, "ALTER ROLE "+ident+" PASSWORD "+quote(password))
-		return testdb.WithUser(t, connString, role, password)
+		postgrestest.Exec(t, connString, "ALTER ROLE "+ident+" PASSWORD "+quote(password))
+		return postgrestest.WithUser(t, connString, role, password)
 	}
 }
 
@@ -80,7 +80,7 @@ func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'
 
 func migrated(t *testing.T) string {
 	t.Helper()
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatalf("migrate test database: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestRunSucceedsWithTheNewPasswordAfterItChanges(t *testing.T) {
 
 func TestRunRetriesOnceWhenThePasswordStaysWrong(t *testing.T) {
 	ctx := context.Background()
-	param := &parameter{value: testdb.WithUser(t, migrated(t), "nobody_"+testdb.RandomHex(t, 4), "wrong")}
+	param := &parameter{value: postgrestest.WithUser(t, migrated(t), "nobody_"+postgrestest.RandomHex(t, 4), "wrong")}
 	db := newDB(t, param, requiredVersion(t))
 
 	calls := 0
@@ -175,7 +175,7 @@ func TestRunRefusesADatabaseWithoutTheSchemaTheReleaseNeeds(t *testing.T) {
 		"release needs a newer migration": {migrate: true, schemaVersion: func(required int64) int64 { return required + 1 }},
 	} {
 		t.Run(name, func(t *testing.T) {
-			connString := testdb.New(t)
+			connString := postgrestest.New(t)
 			if tc.migrate {
 				if err := migrate.Up(ctx, connString); err != nil {
 					t.Fatal(err)
@@ -189,7 +189,7 @@ func TestRunRefusesADatabaseWithoutTheSchemaTheReleaseNeeds(t *testing.T) {
 				t.Fatalf("got %v, want an error asking to run the migrate command", err)
 			}
 			var tables int
-			testdb.QueryRow(t, connString, `SELECT count(*) FROM pg_tables WHERE tablename = 'hello_messages'`, &tables)
+			postgrestest.QueryRow(t, connString, `SELECT count(*) FROM pg_tables WHERE tablename = 'hello_messages'`, &tables)
 			if want := map[bool]int{false: 0, true: 1}[tc.migrate]; tables != want {
 				t.Fatalf("found %d hello_messages tables, want %d: opening must not change the schema", tables, want)
 			}
@@ -342,7 +342,7 @@ func TestRunFollowsTheParameterToAnotherDatabase(t *testing.T) {
 	for name, cutover := range map[string]func(t *testing.T, oldDB string){
 		"the old database rejects the password": func(*testing.T, string) {},
 		"the old database no longer exists": func(t *testing.T, oldDB string) {
-			testdb.Exec(t, testdb.Server(t), "DROP DATABASE "+pgx.Identifier{databaseName(t, oldDB)}.Sanitize()+" WITH (FORCE)")
+			postgrestest.Exec(t, postgrestest.Server(t), "DROP DATABASE "+pgx.Identifier{databaseName(t, oldDB)}.Sanitize()+" WITH (FORCE)")
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

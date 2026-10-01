@@ -1,6 +1,6 @@
 // Serve the embedded static files under a path that changes whenever any of them does.
 
-package site
+package web
 
 import (
 	"crypto/sha256"

@@ -1,7 +1,7 @@
-// Package site serves Rulemart's pages: the vetted libraries, each library's groups and rules, and each rule's
+// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, and each rule's
 // current version and version history. It reads the catalog that ingestion writes, and shows only the libraries
 // in the vetted list it's given.
-package site
+package web
 
 import (
 	"bytes"

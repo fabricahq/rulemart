@@ -12,9 +12,9 @@ sql:
         sql_package: pgx/v5
   - engine: postgresql
     schema: db/migrations
-    queries: internal/site/query.sql
+    queries: internal/platform/web/query.sql
     gen:
       go:
         package: sitedb
-        out: internal/site/sitedb
+        out: internal/platform/web/sitedb
         sql_package: pgx/v5

@@ -20,9 +20,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest"
-	"github.com/fabricahq/rulemart/internal/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/migrate"
 )
 
 func main() {

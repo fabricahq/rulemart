@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest/ingestdb"
+	"github.com/fabricahq/rulemart/internal/platform/database"
 )
 
 // Store writes the catalog.

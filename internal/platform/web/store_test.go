@@ -1,4 +1,4 @@
-package site
+package web
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 
 	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
 
 // A page's queries must agree with each other, so a page never mixes catalog states. An ingestion that commits
@@ -15,7 +15,7 @@ import (
 func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	ctx := context.Background()
 	_, connString := ingesttest.NewDatabase(t)
-	testdb.Exec(t, connString, `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
+	postgrestest.Exec(t, connString, `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
 		VALUES ('github', '7', 'example', 'rules', 'Before ingestion.', '')`)
 	store := NewStore(ingesttest.NewWebDatabase(t, connString), []catalog.Library{{Host: catalog.GitHub, RepositoryID: "7"}})
 
@@ -24,7 +24,7 @@ func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		testdb.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE host_repository_id = '7'`)
+		postgrestest.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE host_repository_id = '7'`)
 		after, err := q.ListLibraries(ctx, store.vetted)
 		if err != nil {
 			return err

@@ -8,7 +8,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // Repository is a library's repository, as its code host describes it.

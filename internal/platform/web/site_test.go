@@ -1,4 +1,4 @@
-package site_test
+package web_test
 
 import (
 	"bytes"
@@ -16,10 +16,10 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/database"
 	"github.com/fabricahq/rulemart/internal/ingest"
 	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
-	"github.com/fabricahq/rulemart/internal/site"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
 // vetted lists the library with GitHub repository ID vettedID.
@@ -99,8 +99,8 @@ retired:
 	}
 
 	// Pages read as the web function's role, so a table the migrations don't grant it fails these tests.
-	web := ingesttest.NewWebDatabase(t, connString)
-	handler, err := site.New(site.NewStore(web, vetted), site.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	webDB := ingesttest.NewWebDatabase(t, connString)
+	handler, err := web.New(web.NewStore(webDB, vetted), web.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +408,7 @@ func (failingParameter) GetParameter(context.Context, *ssm.GetParameterInput, ..
 func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	var logs bytes.Buffer
 	db := database.New(failingParameter{}, "/rulemart/database-url", 1)
-	handler, err := site.New(site.NewStore(db, vetted), site.Options{
+	handler, err := web.New(web.NewStore(db, vetted), web.Options{
 		Log:       slog.New(slog.NewJSONHandler(&logs, nil)),
 		RequestID: func(*http.Request) string { return "request-123" },
 	})

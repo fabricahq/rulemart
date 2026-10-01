@@ -3,7 +3,7 @@
 // templ: version: v0.3.1020
 // Pieces several pages share: avatars, labels, chips, tabs, panels, and lists.
 
-package site
+package web
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 

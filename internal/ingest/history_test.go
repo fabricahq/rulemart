@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // first publishes rule a.

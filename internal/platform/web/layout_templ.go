@@ -3,7 +3,7 @@
 // templ: version: v0.3.1020
 // The frame every page shares: the document head, the header with Rulemart's name, and the footer.
 
-package site
+package web
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 

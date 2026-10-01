@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // ruleHistory is one rule's versions across a library's releases.

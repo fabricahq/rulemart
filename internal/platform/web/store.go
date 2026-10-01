@@ -1,6 +1,6 @@
 // Read what the pages show from the catalog, limited to vetted libraries.
 
-package site
+package web
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
 
 // errNotFound reports a library or rule that isn't in the catalog, or isn't vetted.

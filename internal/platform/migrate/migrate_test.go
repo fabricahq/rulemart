@@ -8,17 +8,17 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // The web function connects as the web role, which may read the catalog and the schema version, and nothing else.
 func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 	ctx := context.Background()
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := Up(ctx, connString); err != nil {
 		t.Fatal(err)
 	}
-	conn, err := pgx.Connect(ctx, testdb.AsWebRole(t, connString))
+	conn, err := pgx.Connect(ctx, postgrestest.AsWebRole(t, connString))
 	if err != nil {
 		t.Fatal(err)
 	}

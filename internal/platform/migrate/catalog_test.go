@@ -8,14 +8,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/fabricahq/rulemart/internal/testdb"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // A rule, and each of its versions, belong to one library, so a reference to another library's group or release
 // must fail even though the referenced row exists.
 func TestCatalogRefusesReferencesAcrossLibraries(t *testing.T) {
 	ctx := context.Background()
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := Up(ctx, connString); err != nil {
 		t.Fatal(err)
 	}

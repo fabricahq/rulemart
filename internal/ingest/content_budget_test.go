@@ -13,10 +13,10 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 
 	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/database"
-	"github.com/fabricahq/rulemart/internal/migrate"
-	"github.com/fabricahq/rulemart/internal/testdb"
-	"github.com/fabricahq/rulemart/third_party/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // sharedRules is how many rules the budget tests publish, all with one file's content, which Git stores once.
@@ -90,7 +90,7 @@ func releasedRepository(t *testing.T, files map[string][]byte, message string) s
 // budgetStore returns a Store on a new, migrated test database, and its connection string.
 func budgetStore(t *testing.T) (*Store, string) {
 	t.Helper()
-	connString := testdb.New(t)
+	connString := postgrestest.New(t)
 	if err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func budgetStore(t *testing.T) (*Store, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := database.New(testdb.Parameter(connString), "test-database", version)
+	db := database.New(postgrestest.Parameter(connString), "test-database", version)
 	t.Cleanup(db.Close)
 	return NewStore(db), connString
 }
@@ -116,7 +116,7 @@ func TestIngestRefusesRuleContentPastItsBudgetWithoutWriting(t *testing.T) {
 		t.Fatalf("got error %v, want a refusal past %d bytes of rule content", err, total-1)
 	}
 	var libraries int
-	testdb.QueryRow(t, connString, "SELECT count(*) FROM libraries", &libraries)
+	postgrestest.QueryRow(t, connString, "SELECT count(*) FROM libraries", &libraries)
 	if libraries != 0 {
 		t.Fatal("a refused ingestion wrote the library")
 	}
@@ -199,7 +199,7 @@ func TestIngestRefusesGroupMetadataPastTheBudgetWithoutWriting(t *testing.T) {
 		t.Fatalf("got error %v, want a group file refused past %d bytes", err, total-1)
 	}
 	var libraries int
-	testdb.QueryRow(t, connString, "SELECT count(*) FROM libraries", &libraries)
+	postgrestest.QueryRow(t, connString, "SELECT count(*) FROM libraries", &libraries)
 	if libraries != 0 {
 		t.Fatal("a refused ingestion wrote the library")
 	}

@@ -1,6 +1,6 @@
 // Shape catalog rows into what each page shows: text, counts, dates, and links.
 
-package site
+package web
 
 import (
 	"net/url"
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/site/sitedb"
+	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
 
 // libraryView is what every page about a library shows of it.

@@ -3,7 +3,7 @@
 // templ: version: v0.3.1020
 // The pages: home, a library, a rule, and the pages for a missing page or a failure.
 
-package site
+package web
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
