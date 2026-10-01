@@ -28,6 +28,15 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 		if _, err := conn.Exec(ctx, "SELECT count(*) FROM "+table); err != nil {
 			t.Errorf("read %s: %v", table, err)
 		}
+		for _, privilege := range []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
+			var has bool
+			if err := conn.QueryRow(ctx, "SELECT has_table_privilege(current_user, $1, $2)", table, privilege).Scan(&has); err != nil {
+				t.Fatal(err)
+			}
+			if has {
+				t.Errorf("the web role has %s on %s", privilege, table)
+			}
+		}
 	}
 	for name, statement := range map[string]string{
 		"write the catalog":      `INSERT INTO libraries (github_id, owner, name, description, owner_avatar_url) VALUES (1, 'o', 'n', '', '')`,
