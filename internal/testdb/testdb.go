@@ -122,7 +122,8 @@ func QueryRow(t *testing.T, connString, query string, dest ...any) {
 	}
 }
 
-// WithUser returns connString with its user and password replaced.
+// WithUser returns connString with its user and password replaced. It removes user and password from the query
+// too, since pgx applies those after the URL's userinfo.
 func WithUser(t *testing.T, connString, user, password string) string {
 	t.Helper()
 	u, err := url.Parse(connString)
@@ -130,6 +131,10 @@ func WithUser(t *testing.T, connString, user, password string) string {
 		t.Fatalf("parse test connection string: %v", err)
 	}
 	u.User = url.UserPassword(user, password)
+	query := u.Query()
+	query.Del("user")
+	query.Del("password")
+	u.RawQuery = query.Encode()
 	return u.String()
 }
 
