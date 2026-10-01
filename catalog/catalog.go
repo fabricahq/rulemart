@@ -1,5 +1,5 @@
-// Package catalog holds the data the catalog ships with each release: the vetted libraries and Code Rules' canonical
-// group list.
+// Package catalog holds the data the catalog ships with each release: the vetted libraries, Code Rules' canonical
+// group list, and Rulemart's icons for its groups.
 package catalog
 
 import (

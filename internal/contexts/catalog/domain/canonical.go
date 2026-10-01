@@ -2,27 +2,49 @@
 
 package domain
 
-import "github.com/fabricahq/rulemart/internal/lib/coderules"
+import (
+	"fmt"
+	"maps"
+	"slices"
+
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
+)
 
 // CanonicalGroup is a group on Code Rules' canonical group list. Every library whose group has its ID shares the
 // group, under the list's display name.
 type CanonicalGroup struct {
 	ID, Name string
+	// Icon is zero when Rulemart has no icon for the group.
+	Icon GroupIcon
 }
 
-// CanonicalGroups is Code Rules' canonical group list. Its zero value is an empty list, on which no group is
-// canonical.
+// GroupIcon is the icon pages show beside a canonical group.
+type GroupIcon struct {
+	// File is the icon's path under the site's icons, such as devicon/go-original.svg.
+	File string
+	// Monochrome marks an icon drawn in black or one dark color, which dark themes invert so it stays visible.
+	Monochrome bool
+}
+
+// CanonicalGroups is Code Rules' canonical group list, with Rulemart's icons for its groups. Its zero value is an
+// empty list, on which no group is canonical.
 type CanonicalGroups struct {
 	byID map[string]CanonicalGroup
 }
 
-// NewCanonicalGroups returns the list holding groups, which coderules.ParseCanonicalGroups has validated.
-func NewCanonicalGroups(groups []coderules.CanonicalGroup) CanonicalGroups {
+// NewCanonicalGroups returns the list holding groups, which coderules.ParseCanonicalGroups has validated, with
+// icons, keyed by group ID. It rejects an icon for a group that isn't on the list.
+func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]GroupIcon) (CanonicalGroups, error) {
 	byID := make(map[string]CanonicalGroup, len(groups))
 	for _, g := range groups {
-		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name}
+		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Icon: icons[g.ID]}
 	}
-	return CanonicalGroups{byID: byID}
+	for _, id := range slices.Sorted(maps.Keys(icons)) {
+		if _, ok := byID[id]; !ok {
+			return CanonicalGroups{}, fmt.Errorf("group icons: %s has an icon but isn't on the canonical group list", id)
+		}
+	}
+	return CanonicalGroups{byID: byID}, nil
 }
 
 // Find returns the canonical group whose ID is exactly id, and whether there's one. The list has no aliases, and IDs

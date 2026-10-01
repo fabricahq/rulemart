@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
@@ -11,21 +12,45 @@ var canonicalList = []coderules.CanonicalGroup{
 	{ID: "techs/go", Name: "Go", Description: "The Go language."},
 }
 
-func TestFindReturnsTheListsNameForACanonicalID(t *testing.T) {
-	groups := NewCanonicalGroups(canonicalList)
+var goIcon = GroupIcon{File: "devicon/go-original.svg"}
 
-	for id, name := range map[string]string{"techs/go": "Go", "practices/testing": "Testing"} {
-		group, ok := groups.Find(id)
-		if !ok || group.ID != id || group.Name != name {
-			t.Errorf("Find(%q) = %+v, %v; want %s", id, group, ok, name)
+// newCanonicalGroups returns canonicalList, with an icon for techs/go only.
+func newCanonicalGroups(t *testing.T) CanonicalGroups {
+	t.Helper()
+	groups, err := NewCanonicalGroups(canonicalList, map[string]GroupIcon{"techs/go": goIcon})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return groups
+}
+
+func TestFindReturnsTheListsNameAndAnyIconForACanonicalID(t *testing.T) {
+	groups := newCanonicalGroups(t)
+
+	for id, want := range map[string]CanonicalGroup{
+		"techs/go":          {ID: "techs/go", Name: "Go", Icon: goIcon},
+		"practices/testing": {ID: "practices/testing", Name: "Testing"}, // canonical, without an icon
+	} {
+		if group, ok := groups.Find(id); !ok || group != want {
+			t.Errorf("Find(%q) = %+v, %v; want %+v", id, group, ok, want)
 		}
+	}
+}
+
+// An icon may only mark a group as one every library shares, so one for a group off the list is a mistake in the
+// icons, not a new group.
+func TestNewCanonicalGroupsRejectsAnIconForAGroupNotOnTheList(t *testing.T) {
+	_, err := NewCanonicalGroups(canonicalList, map[string]GroupIcon{"techs/go": goIcon, "techs/golang": goIcon})
+
+	if err == nil || !strings.Contains(err.Error(), "techs/golang") {
+		t.Fatalf("got %v; want an error naming techs/golang", err)
 	}
 }
 
 // The list has no aliases: only the exact ID is canonical, so a library that names its group differently gets a
 // group of its own.
 func TestFindReportsNoGroupWhenTheIDIsntExactlyOnTheList(t *testing.T) {
-	groups := NewCanonicalGroups(canonicalList)
+	groups := newCanonicalGroups(t)
 
 	for _, id := range []string{
 		"techs/golang",       // another name for the same technology
@@ -45,10 +70,12 @@ func TestFindReportsNoGroupWhenTheIDIsntExactlyOnTheList(t *testing.T) {
 }
 
 func TestFindReportsNoGroupWhenTheListIsEmpty(t *testing.T) {
-	for name, groups := range map[string]CanonicalGroups{
-		"the zero value": {},
-		"an empty list":  NewCanonicalGroups(nil),
-	} {
+	empty, err := NewCanonicalGroups(nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, groups := range map[string]CanonicalGroups{"the zero value": {}, "an empty list": empty} {
 		if group, ok := groups.Find("techs/go"); ok {
 			t.Errorf("%s: found %+v", name, group)
 		}
