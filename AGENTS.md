@@ -2,8 +2,9 @@
 
 Rulemart is a catalog of public [Code Rules](https://code-rules.fabricahq.com)
 libraries. See [CONTRIBUTING.md](CONTRIBUTING.md) to build, test, migrate, and
-release it, and [docs/decisions.md](docs/decisions.md) for the decisions that
-shape it. Run `make db`, then `make check`, to vet and test the code.
+release it, and [_internal/decisions.md](_internal/decisions.md) for the
+decisions that shape it. Run `make db`, then `make check`, to vet and test the
+code.
 
 README tier: secondary. The site is the product's landing page; the README
 serves people working on this repository.

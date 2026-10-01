@@ -79,7 +79,7 @@ one they no longer generate, such as a file under an old name.
 - `cmd/migrate-database` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's
   machine, never on Lambda.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
-  [docs/decisions.md](docs/decisions.md) explains:
+  [_internal/decisions.md](_internal/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
     snapshots within the content budget, addresses such as tags and GitHub URLs, and every ingestion limit.
   - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
