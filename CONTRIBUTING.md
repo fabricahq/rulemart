@@ -36,6 +36,12 @@ does `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.
 
+Pages name a group whose ID is on Code Rules' canonical group list,
+[catalog/canonical-groups.yaml](catalog/canonical-groups.yaml), by the list's name and its icon from
+[catalog/group-icons.yaml](catalog/group-icons.yaml), and flag any other group as not canonical. To update the
+list, copy the file from a newer Code Rules commit and update the commit and the SHA-256 its test pins. To add an
+icon, follow [the icons' README](internal/platform/web/static/icons/README.md).
+
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
 one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
 memory, and refuses a library that passes any of the limits that
@@ -94,7 +100,10 @@ one they no longer generate, such as a file under an old name.
   migrations, `web` the HTTP server, templates, and static files, and `postgrestest` and `database/databasetest` the
   test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser.
-- `db/migrations` holds the schema as numbered SQL files, and `catalog/vetted.yaml` the vetted libraries.
+- `db/migrations` holds the schema as numbered SQL files.
+- `catalog` holds the data each release ships: `vetted.yaml`, the vetted libraries; `canonical-groups.yaml`, Code
+  Rules' canonical group list, copied unchanged at a pinned commit; and `group-icons.yaml`, the icon for each
+  canonical group, which `internal/platform/web/static/icons` vendors with its license.
 
 ## Schema and migrations
 
