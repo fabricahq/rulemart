@@ -1,6 +1,8 @@
 package testdb
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -26,5 +28,31 @@ func TestWithUserReplacesTheCredentialsPgxUses(t *testing.T) {
 				t.Fatalf("lost the database or sslmode: %+v", config.Config)
 			}
 		})
+	}
+}
+
+// The web role is a shared fixture tests don't change, so a leftover role with more power than production's must
+// stop the tests rather than make them pass with access rulemart_web won't have.
+func TestCheckRoleRejectsARoleWithMoreThanLogin(t *testing.T) {
+	server := Server(t)
+	plain := "rulemart_check_" + RandomHex(t, 6)
+	powerful := "rulemart_check_" + RandomHex(t, 6)
+	exec(t, server, "CREATE ROLE "+plain+" LOGIN")
+	exec(t, server, "CREATE ROLE "+powerful+" LOGIN CREATEDB CREATEROLE")
+	exec(t, server, "GRANT pg_read_all_data TO "+powerful)
+	t.Cleanup(func() { exec(t, server, "DROP ROLE "+plain+", "+powerful) })
+	conn := connect(t, server)
+
+	if err := checkRole(context.Background(), conn, plain); err != nil {
+		t.Fatalf("rejected a plain LOGIN role: %v", err)
+	}
+	err := checkRole(context.Background(), conn, powerful)
+	if err == nil {
+		t.Fatal("accepted a role with CREATEDB, CREATEROLE, and a membership")
+	}
+	for _, want := range []string{"CREATEDB", "CREATEROLE", "pg_read_all_data", "make db-stop"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error %q doesn't mention %s", err, want)
+		}
 	}
 }
