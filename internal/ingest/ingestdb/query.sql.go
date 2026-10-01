@@ -357,10 +357,10 @@ func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, 
 }
 
 const upsertVersion = `-- name: UpsertVersion :execrows
-INSERT INTO rule_versions (rule_id, release_id, major, minor, patch, change, summaries,
+INSERT INTO rule_versions (library_id, rule_id, release_id, major, minor, patch, change, summaries,
                            title, impact, impact_description, when_to_read, markdown, html)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11, $12, $13)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
     impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
@@ -372,6 +372,7 @@ WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, 
 `
 
 type UpsertVersionParams struct {
+	LibraryID         int64
 	RuleID            int64
 	ReleaseID         int64
 	Major             int32
@@ -389,6 +390,7 @@ type UpsertVersionParams struct {
 
 func (q *Queries) UpsertVersion(ctx context.Context, arg UpsertVersionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertVersion,
+		arg.LibraryID,
 		arg.RuleID,
 		arg.ReleaseID,
 		arg.Major,

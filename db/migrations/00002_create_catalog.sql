@@ -2,6 +2,9 @@
 -- The catalog: what each library's release/<n> tags published. Ingestion owns every row here. It rewrites a
 -- library's rows from its tags in one transaction, upserting on each table's natural key, so a row that still
 -- exists keeps its id across ingestions.
+--
+-- Every row below a library carries its library_id, and references between them include it, through the
+-- UNIQUE (library_id, id) each referenced table declares, so a row can't point into another library.
 
 -- A library is a public repository on a code host that publishes Code Rules release tags.
 CREATE TABLE libraries (
@@ -38,7 +41,8 @@ CREATE TABLE library_releases (
     -- Whether the release changed library-wide files, such as group metadata or shared assets, after the first
     -- release: when Code Rules' release notes say it updates shared files.
     updates_shared_files boolean NOT NULL,
-    UNIQUE (library_id, number)
+    UNIQUE (library_id, number),
+    UNIQUE (library_id, id)
 );
 
 -- A group that holds or held a rule, as its _group.yaml describes it at the latest library release that has it.
@@ -50,23 +54,27 @@ CREATE TABLE library_groups (
     name         text NOT NULL,
     description  text NOT NULL,
     when_to_read text NOT NULL,
-    UNIQUE (library_id, path)
+    UNIQUE (library_id, path),
+    UNIQUE (library_id, id)
 );
 
 -- Every rule a library release has published, including retired ones.
 CREATE TABLE rules (
     id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     library_id            bigint NOT NULL REFERENCES libraries ON DELETE CASCADE,
-    group_id              bigint NOT NULL REFERENCES library_groups,
+    group_id              bigint NOT NULL,
     -- The Code Rules rule ID: the rule's path without .md, such as practices/testing/verify-retry-limits.
     path                  text NOT NULL,
     -- The library release that retired the rule; NULL while the rule is current.
-    retired_in_release_id bigint REFERENCES library_releases,
+    retired_in_release_id bigint,
     -- The path of the rule that replaced a retired rule, when the retirement named one.
     replaced_by           text,
     -- One summary per change note that retired the rule, in note order; NULL while the rule is current.
     retirement_summaries  text[],
     UNIQUE (library_id, path),
+    UNIQUE (library_id, id),
+    FOREIGN KEY (library_id, group_id) REFERENCES library_groups (library_id, id),
+    FOREIGN KEY (library_id, retired_in_release_id) REFERENCES library_releases (library_id, id),
     CHECK (replaced_by IS NULL OR retired_in_release_id IS NOT NULL),
     CHECK ((retired_in_release_id IS NULL) = (retirement_summaries IS NULL)),
     CHECK (retirement_summaries IS NULL OR cardinality(retirement_summaries) > 0)
@@ -75,9 +83,11 @@ CREATE TABLE rules (
 -- Each version a library release published of a rule.
 CREATE TABLE rule_versions (
     id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    rule_id            bigint NOT NULL REFERENCES rules ON DELETE CASCADE,
+    -- The rule's library, which its rule and release must both belong to.
+    library_id         bigint NOT NULL,
+    rule_id            bigint NOT NULL,
     -- The library release that published this version.
-    release_id         bigint NOT NULL REFERENCES library_releases,
+    release_id         bigint NOT NULL,
     major              integer NOT NULL CHECK (major >= 0),
     minor              integer NOT NULL CHECK (minor >= 0),
     patch              integer NOT NULL CHECK (patch >= 0),
@@ -95,6 +105,8 @@ CREATE TABLE rule_versions (
     UNIQUE (rule_id, major, minor, patch),
     -- Deferred, so rewritten tags can move several of a rule's versions between releases within one ingestion.
     UNIQUE (rule_id, release_id) DEFERRABLE INITIALLY DEFERRED,
+    FOREIGN KEY (library_id, rule_id) REFERENCES rules (library_id, id) ON DELETE CASCADE,
+    FOREIGN KEY (library_id, release_id) REFERENCES library_releases (library_id, id),
     CHECK (num_nulls(title, impact, impact_description, when_to_read, markdown, html) IN (0, 6))
 );
 

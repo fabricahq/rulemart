@@ -67,9 +67,9 @@ WHERE r.library_id = @library_id;
 DELETE FROM rule_versions WHERE id = @id;
 
 -- name: UpsertVersion :execrows
-INSERT INTO rule_versions (rule_id, release_id, major, minor, patch, change, summaries,
+INSERT INTO rule_versions (library_id, rule_id, release_id, major, minor, patch, change, summaries,
                            title, impact, impact_description, when_to_read, markdown, html)
-VALUES (@rule_id, @release_id, @major, @minor, @patch, @change, @summaries,
+VALUES (@library_id, @rule_id, @release_id, @major, @minor, @patch, @change, @summaries,
         @title, @impact, @impact_description, @when_to_read, @markdown, @html)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,

@@ -219,7 +219,7 @@ func (w *writer) writeRule(r rule) {
 func (w *writer) writeVersions(r rule) {
 	for i, v := range r.versions {
 		params := ingestdb.UpsertVersionParams{
-			RuleID: w.rules[r.id], ReleaseID: w.releases[v.release], Change: string(v.change), Summaries: v.summaries,
+			LibraryID: w.library, RuleID: w.rules[r.id], ReleaseID: w.releases[v.release], Change: string(v.change), Summaries: v.summaries,
 			Major: int32(v.version.Major), Minor: int32(v.version.Minor), Patch: int32(v.version.Patch),
 		}
 		if c := r.content; c != nil && i == len(r.versions)-1 {

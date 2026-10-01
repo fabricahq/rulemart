@@ -59,6 +59,7 @@ type Rule struct {
 
 type RuleVersion struct {
 	ID                int64
+	LibraryID         int64
 	RuleID            int64
 	ReleaseID         int64
 	Major             int32
