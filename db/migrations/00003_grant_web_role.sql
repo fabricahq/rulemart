@@ -10,6 +10,16 @@ BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'rulemart_web') THEN
         RAISE EXCEPTION 'role rulemart_web does not exist: infrastructure creates it with SQL, as a plain LOGIN role, before this migration grants it access; migrations never create it (locally, make db does)';
     END IF;
+    -- Grants can't narrow what a privileged role already holds, so refuse one rather than give it a false boundary.
+    IF EXISTS (
+        SELECT FROM pg_roles
+        WHERE rolname = 'rulemart_web'
+          AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolbypassrls OR rolreplication)
+    ) OR EXISTS (
+        SELECT FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member WHERE r.rolname = 'rulemart_web'
+    ) THEN
+        RAISE EXCEPTION 'role rulemart_web is privileged: it must be a plain LOGIN role with no SUPERUSER, CREATEROLE, CREATEDB, BYPASSRLS, or REPLICATION and no role memberships, such as neon_superuser, which Neon gives roles made through its API or console; recreate it with SQL';
+    END IF;
 END
 $$;
 -- +goose StatementEnd
