@@ -27,7 +27,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
-	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 )
 
 func main() {

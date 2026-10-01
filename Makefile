@@ -95,7 +95,7 @@ db-stop:
 # Applies migrations to the local rulemart database, or to the one DATABASE_URL names, such as Neon's direct
 # connection string.
 migrate:
-	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate
+	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate-database
 
 # Ingests the library at URL, such as https://github.com/fabricahq/code-rules-test-library, into the local rulemart
 # database, or into the one DATABASE_URL or DATABASE_URL_PARAMETER names.

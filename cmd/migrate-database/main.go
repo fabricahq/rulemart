@@ -14,7 +14,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 )
 
 func main() {

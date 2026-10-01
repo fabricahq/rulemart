@@ -27,7 +27,7 @@ Parsing uses a temporary copy of Code Rules' parser in `internal/lib/coderules`,
 marked for removal once Code Rules publishes a public package.
 
 **Operator command.** `cmd/ingest <repository URL>` runs ingestion against
-`DATABASE_URL`, or against `DATABASE_URL_PARAMETER` like `cmd/migrate`. The
+`DATABASE_URL`, or against `DATABASE_URL_PARAMETER` like `cmd/migrate-database`. The
 scheduled poller that runs ingestion automatically is slice 2.
 
 **Vetting.** `catalog/vetted.yaml` lists vetted libraries by GitHub repository

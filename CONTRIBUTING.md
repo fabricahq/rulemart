@@ -76,8 +76,8 @@ one they no longer generate, such as a file under an old name.
 
 - `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server, and acknowledges the schedule's
   event. `cmd/worker` consumes the job queue, which has no jobs yet. Both run on Lambda.
-- `cmd/migrate` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's machine,
-  never on Lambda.
+- `cmd/migrate-database` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's
+  machine, never on Lambda.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [docs/decisions.md](docs/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
@@ -90,8 +90,9 @@ one they no longer generate, such as a file under an old name.
   - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
     and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
-- `internal/platform` holds shared runtime: `database` owns the connection to Neon, `migrate` the migrations, `web`
-  the HTTP server, templates, and static files, and `postgrestest` and `database/databasetest` the test databases.
+- `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
+  migrations, `web` the HTTP server, templates, and static files, and `postgrestest` and `database/databasetest` the
+  test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser.
 - `db/migrations` holds the schema as numbered SQL files, and `catalog/vetted.yaml` the vetted libraries.
 

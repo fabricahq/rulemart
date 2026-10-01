@@ -27,7 +27,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
-	"github.com/fabricahq/rulemart/internal/platform/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
