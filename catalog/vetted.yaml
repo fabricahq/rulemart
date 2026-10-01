@@ -1,0 +1,8 @@
+# The libraries Rulemart shows, by GitHub repository ID, which stays the same when a repository is renamed or
+# transferred. Add or remove a library in its own pull request, and say why in it: this file's history is the public
+# record of what was vetted, and when. See docs/decisions.md.
+#
+# repository is the name when the library was vetted, for readers; the ID is what counts.
+libraries:
+  - githubID: 1398540739
+    repository: fabricahq/code-rules-test-library
