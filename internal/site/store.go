@@ -56,12 +56,27 @@ type rule struct {
 	versions []sitedb.ListVersionsRow
 }
 
+// readOnlySnapshot is how every page reads: all its queries see one committed state of the catalog, so an
+// ingestion that commits midway can't mix two library releases on one page. Read-only also keeps a page from
+// writing, while the functions still connect as the database's owner.
+var readOnlySnapshot = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}
+
+// read runs fn with queries that all see one snapshot of the catalog, in a read-only transaction. fn may run again
+// after a failed connection.
+func (s *Store) read(ctx context.Context, fn func(*sitedb.Queries) error) error {
+	return s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		return pgx.BeginTxFunc(ctx, pool, readOnlySnapshot, func(tx pgx.Tx) error {
+			return fn(sitedb.New(tx))
+		})
+	})
+}
+
 // libraries returns the vetted libraries, ordered by owner and name.
 func (s *Store) libraries(ctx context.Context) ([]sitedb.ListLibrariesRow, error) {
 	var rows []sitedb.ListLibrariesRow
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+	err := s.read(ctx, func(q *sitedb.Queries) error {
 		var err error
-		rows, err = sitedb.New(pool).ListLibraries(ctx, s.vetted)
+		rows, err = q.ListLibraries(ctx, s.vetted)
 		return err
 	})
 	if err != nil {
@@ -70,69 +85,65 @@ func (s *Store) libraries(ctx context.Context) ([]sitedb.ListLibrariesRow, error
 	return rows, nil
 }
 
-// library returns the vetted library owner/name, matched without regard to case. It fails with errNotFound when
-// there's none.
-func (s *Store) library(ctx context.Context, owner, name string) (library, error) {
+// libraryPage returns the vetted library owner/name, matched without regard to case, with its groups and current
+// rules. It fails with errNotFound when there's no such library.
+func (s *Store) libraryPage(ctx context.Context, owner, name string) (library, contents, error) {
 	var lib library
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		q := sitedb.New(pool)
-		row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Owner: owner, Name: name, Vetted: s.vetted})
-		if err != nil {
-			return err
-		}
-		lib = library{
-			githubID: row.GithubID, owner: row.Owner, name: row.Name, description: row.Description,
-			avatar: row.OwnerAvatarUrl, license: row.LicenseExpression.String, licenseFile: row.LicenseFile.String,
-			latestRelease: int(row.LatestRelease), latestAt: row.LatestTaggedAt.Time,
-		}
-		return nil
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return library{}, fmt.Errorf("load library %s/%s: %w", owner, name, errNotFound)
-	}
-	if err != nil {
-		return library{}, fmt.Errorf("load library %s/%s: %v", owner, name, err)
-	}
-	return lib, nil
-}
-
-// contents returns the groups and current rules of the library with GitHub repository ID libraryID.
-func (s *Store) contents(ctx context.Context, libraryID int64) (contents, error) {
 	var c contents
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		q := sitedb.New(pool)
+	err := s.read(ctx, func(q *sitedb.Queries) error {
 		var err error
-		if c.groups, err = q.ListGroups(ctx, libraryID); err != nil {
+		if lib, err = s.library(ctx, q, owner, name); err != nil {
 			return err
 		}
-		c.rules, err = q.ListCurrentRules(ctx, libraryID)
-		return err
-	})
-	if err != nil {
-		return contents{}, fmt.Errorf("list groups and rules githubID=%d: %v", libraryID, err)
-	}
-	return c, nil
-}
-
-// rule returns the current rule ruleID of the library with GitHub repository ID libraryID, with every version,
-// newest first. It fails with errNotFound when the library has no such current rule.
-func (s *Store) rule(ctx context.Context, libraryID int64, ruleID string) (rule, error) {
-	var r rule
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		q := sitedb.New(pool)
-		row, err := q.GetRule(ctx, sitedb.GetRuleParams{LibraryID: libraryID, RuleID: ruleID})
-		if err != nil {
+		if c.groups, err = q.ListGroups(ctx, lib.githubID); err != nil {
 			return err
 		}
-		r.GetRuleRow = row
-		r.versions, err = q.ListVersions(ctx, sitedb.ListVersionsParams{LibraryID: libraryID, RuleID: ruleID})
+		c.rules, err = q.ListCurrentRules(ctx, lib.githubID)
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return rule{}, fmt.Errorf("load rule githubID=%d rule=%q: %w", libraryID, ruleID, errNotFound)
+		return library{}, contents{}, fmt.Errorf("load library %s/%s: %w", owner, name, errNotFound)
 	}
 	if err != nil {
-		return rule{}, fmt.Errorf("load rule githubID=%d rule=%q: %v", libraryID, ruleID, err)
+		return library{}, contents{}, fmt.Errorf("load library %s/%s: %v", owner, name, err)
 	}
-	return r, nil
+	return lib, c, nil
+}
+
+// rulePage returns the vetted library owner/name, matched as libraryPage matches it, and its current rule ruleID
+// with every version, newest first. It fails with errNotFound when there's no such library or current rule.
+func (s *Store) rulePage(ctx context.Context, owner, name, ruleID string) (library, rule, error) {
+	var lib library
+	var r rule
+	err := s.read(ctx, func(q *sitedb.Queries) error {
+		var err error
+		if lib, err = s.library(ctx, q, owner, name); err != nil {
+			return err
+		}
+		if r.GetRuleRow, err = q.GetRule(ctx, sitedb.GetRuleParams{LibraryID: lib.githubID, RuleID: ruleID}); err != nil {
+			return err
+		}
+		r.versions, err = q.ListVersions(ctx, sitedb.ListVersionsParams{LibraryID: lib.githubID, RuleID: ruleID})
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return library{}, rule{}, fmt.Errorf("load rule %s/%s/%s: %w", owner, name, ruleID, errNotFound)
+	}
+	if err != nil {
+		return library{}, rule{}, fmt.Errorf("load rule %s/%s/%s: %v", owner, name, ruleID, err)
+	}
+	return lib, r, nil
+}
+
+// library returns the vetted library owner/name, or pgx.ErrNoRows when there's none.
+func (s *Store) library(ctx context.Context, q *sitedb.Queries, owner, name string) (library, error) {
+	row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Owner: owner, Name: name, Vetted: s.vetted})
+	if err != nil {
+		return library{}, err
+	}
+	return library{
+		githubID: row.GithubID, owner: row.Owner, name: row.Name, description: row.Description,
+		avatar: row.OwnerAvatarUrl, license: row.LicenseExpression.String, licenseFile: row.LicenseFile.String,
+		latestRelease: int(row.LatestRelease), latestAt: row.LatestTaggedAt.Time,
+	}, nil
 }

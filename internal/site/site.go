@@ -73,13 +73,8 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	lib, ok := s.findLibrary(w, r)
-	if !ok {
-		return
-	}
-	contents, err := s.store.contents(r.Context(), lib.githubID)
-	if err != nil {
-		s.fail(w, r, err)
+	lib, contents, err := s.store.libraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
+	if !s.found(w, r, lib, err) {
 		return
 	}
 	view := newLibraryView(lib)
@@ -87,46 +82,35 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
-	lib, ok := s.findLibrary(w, r)
-	if !ok {
-		return
-	}
-	found, err := s.store.rule(r.Context(), lib.githubID, r.PathValue("rule"))
-	if errors.Is(err, errNotFound) {
-		s.notFound(w, r)
-		return
-	}
-	if err != nil {
-		s.fail(w, r, err)
+	lib, found, err := s.store.rulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
+	if !s.found(w, r, lib, err) {
 		return
 	}
 	s.render(w, r, http.StatusOK, rulePage(s.chrome, newRuleView(newLibraryView(lib), found), r.URL.Query().Get("tab") == "versions"))
 }
 
-// findLibrary returns the vetted library the request's path names. When there's none, or the path spells its
-// owner or name differently from GitHub, it answers the request itself, with a missing page or a redirect to the
-// path as GitHub spells it, and reports false.
-func (s *server) findLibrary(w http.ResponseWriter, r *http.Request) (library, bool) {
-	owner, name := r.PathValue("owner"), r.PathValue("repo")
-	lib, err := s.store.library(r.Context(), owner, name)
+// found reports whether a page's data loaded, for the library lib, and is at the path GitHub's spelling of the
+// library's owner and name gives. Otherwise it answers the request itself: with a missing page, a failure, or a
+// redirect to that path.
+func (s *server) found(w http.ResponseWriter, r *http.Request, lib library, err error) bool {
 	if errors.Is(err, errNotFound) {
 		s.notFound(w, r)
-		return library{}, false
+		return false
 	}
 	if err != nil {
 		s.fail(w, r, err)
-		return library{}, false
+		return false
 	}
-	if lib.owner != owner || lib.name != name {
+	if lib.owner != r.PathValue("owner") || lib.name != r.PathValue("repo") {
 		canonical := url.URL{Path: libraryHref(lib.owner, lib.name), RawQuery: r.URL.RawQuery}
 		if rule := r.PathValue("rule"); rule != "" {
 			canonical.Path += "/" + rule
 		}
 		w.Header().Set("Cache-Control", pageCache)
 		http.Redirect(w, r, canonical.String(), http.StatusMovedPermanently)
-		return library{}, false
+		return false
 	}
-	return lib, true
+	return true
 }
 
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
