@@ -131,25 +131,46 @@ func TestRenderRuleHighlightsFencedCodeInKnownLanguages(t *testing.T) {
 	}
 }
 
-// A small body can expand: every reference to one long link definition repeats its destination in the HTML, and in
-// the rewritten link. Rendering must stop at the budget rather than build the whole page and then measure it.
+// A small body can expand: every reference to one long link definition repeats its destination in the HTML,
+// escaped. Rendering must stop at the budget, rather than keep building, or escaping, the rest of the page.
 func TestRenderRuleStopsAtTheBudgetWhileExpandingReferenceLinks(t *testing.T) {
-	const references = 2_000
-	destination := "assets/" + strings.Repeat("a", 32<<10) // 32 KiB, repeated in every reference's link
-	body := strings.Repeat("[x][d] ", references) + "\n\n[d]: " + destination + "\n"
-	budget := &contentBudget{limit: 1 << 20}
+	for name, character := range map[string]string{
+		"a destination that needs no escaping": "a",
+		// HTML escaping turns each & into &amp;, so every reference would allocate five times the destination.
+		"a destination that escaping expands": "&",
+	} {
+		t.Run(name, func(t *testing.T) {
+			const references = 2_000
+			destination := "assets/" + strings.Repeat(character, 32<<10) // 32 KiB, repeated in every reference's link
+			body := strings.Repeat("[x][d] ", references) + "\n\n[d]: " + destination + "\n"
+			budget := &contentBudget{limit: 1 << 20}
 
-	var before, after runtime.MemStats
-	runtime.GC()
-	runtime.ReadMemStats(&before)
-	_, err := renderRule(body, page, budget)
-	runtime.ReadMemStats(&after)
+			var before, after runtime.MemStats
+			runtime.GC()
+			runtime.ReadMemStats(&before)
+			_, err := renderRule(body, page, budget)
+			runtime.ReadMemStats(&after)
 
-	if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of content") {
-		t.Fatalf("got error %v, want a refusal past the 1 MiB budget", err)
+			if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of content") {
+				t.Fatalf("got error %v, want a refusal past the 1 MiB budget", err)
+			}
+			// Rendering every reference would allocate at least the destination per reference: over 64 MiB here.
+			if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
+				t.Fatalf("rendering allocated %d MiB for a 1 MiB budget", allocated>>20)
+			}
+		})
 	}
-	// Building the whole page would allocate the destination about twice per reference: over 128 MiB here.
-	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
-		t.Fatalf("rendering allocated %d MiB for a 1 MiB budget", allocated>>20)
+}
+
+// The renderer names GitHub's extensions' renderers itself, so each must still render what the parser finds.
+func TestRenderRuleRendersGitHubExtensions(t *testing.T) {
+	html, err := renderRule("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"<table>", "<td>1</td>", "<del>old</del>", `<input checked="" disabled="" type="checkbox"`, `<a href="https://example.com">`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("got %s, want %s", html, want)
+		}
 	}
 }

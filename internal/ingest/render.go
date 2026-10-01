@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -17,6 +18,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
+	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -42,16 +44,55 @@ var (
 	refusedKey = parser.NewContextKey()
 )
 
-// markdown renders rule bodies: CommonMark with GitHub's extensions, with raw HTML shown as text rather than
-// interpreted, since rule content comes from repositories Rulemart doesn't control.
+// markdown parses rule bodies: CommonMark with GitHub's extensions, adapted to the rule's page.
 var markdown = goldmark.New(
 	goldmark.WithExtensions(extension.GFM),
 	goldmark.WithParserOptions(
 		parser.WithAutoHeadingID(),
 		parser.WithASTTransformers(util.Prioritized(pageTransformer{}, 100)),
 	),
-	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(ruleNodeRenderer{}, 100))),
 )
+
+// htmlRenderer renders what markdown parses: goldmark's HTML for CommonMark and GitHub's extensions, and
+// ruleNodeRenderer's raw HTML as text and highlighted code. Every node it renders first checks the budgetWriter it
+// writes to, and stops the whole render once the budget is spent, so nothing past the budget is escaped or built.
+// It names GitHub's extensions' renderers itself, so it can wrap them; a parser extension added to markdown needs
+// its renderer added here.
+var htmlRenderer = renderer.NewRenderer(renderer.WithNodeRenderers(
+	util.Prioritized(stopAtBudget{goldmarkhtml.NewRenderer()}, 1000),
+	util.Prioritized(stopAtBudget{extension.NewTableHTMLRenderer()}, 500),
+	util.Prioritized(stopAtBudget{extension.NewStrikethroughHTMLRenderer()}, 500),
+	util.Prioritized(stopAtBudget{extension.NewTaskCheckBoxHTMLRenderer()}, 500),
+	util.Prioritized(stopAtBudget{ruleNodeRenderer{}}, 100),
+))
+
+// stopAtBudget is a node renderer whose functions stop the render once its budgetWriter has refused a write.
+type stopAtBudget struct {
+	renderer.NodeRenderer
+}
+
+func (s stopAtBudget) RegisterFuncs(registerer renderer.NodeRendererFuncRegisterer) {
+	s.NodeRenderer.RegisterFuncs(budgetRegisterer{registerer})
+}
+
+// budgetRegisterer registers each node rendering function behind a check of the budget.
+type budgetRegisterer struct {
+	renderer.NodeRendererFuncRegisterer
+}
+
+func (r budgetRegisterer) Register(kind ast.NodeKind, render renderer.NodeRendererFunc) {
+	r.NodeRendererFuncRegisterer.Register(kind, func(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+		out := w.(*budgetWriter)
+		if out.err != nil {
+			return ast.WalkStop, out.err
+		}
+		status, err := render(w, source, node, entering)
+		if out.err != nil {
+			return ast.WalkStop, out.err
+		}
+		return status, err
+	})
+}
 
 // renderRule returns the HTML for a rule's Markdown body. It drops a leading heading that repeats the title,
 // points relative links and images at the files on GitHub at the release that holds them, highlights fenced code,
@@ -70,7 +111,7 @@ func renderRule(body string, page rulePage, budget *contentBudget) (string, erro
 		return "", err
 	}
 	out := budgetWriter{budget: budget}
-	err := markdown.Renderer().Render(&out, source, document)
+	err := htmlRenderer.Render(&out, source, document)
 	if out.err != nil {
 		return "", out.err
 	}
@@ -81,7 +122,7 @@ func renderRule(body string, page rulePage, budget *contentBudget) (string, erro
 }
 
 // budgetWriter collects rendered HTML, spending budget on every write, and refuses every write once one would pass
-// it.
+// it. It writes straight through, as a util.BufWriter, so the renderer adds no buffer of its own between them.
 type budgetWriter struct {
 	budget *contentBudget
 	html   bytes.Buffer
@@ -99,6 +140,24 @@ func (w *budgetWriter) Write(p []byte) (int, error) {
 	}
 	return w.html.Write(p)
 }
+
+func (w *budgetWriter) WriteString(text string) (int, error) {
+	return w.Write([]byte(text))
+}
+
+func (w *budgetWriter) WriteByte(c byte) error {
+	_, err := w.Write([]byte{c})
+	return err
+}
+
+func (w *budgetWriter) WriteRune(r rune) (int, error) {
+	return w.Write(utf8.AppendRune(nil, r))
+}
+
+// Flush, Available, and Buffered complete util.BufWriter: nothing is buffered.
+func (w *budgetWriter) Flush() error   { return w.err }
+func (w *budgetWriter) Available() int { return 0 }
+func (w *budgetWriter) Buffered() int  { return 0 }
 
 // pageTransformer adapts a parsed rule body to its page, using the rulePage in the parser context.
 type pageTransformer struct{}
