@@ -1,9 +1,13 @@
 package ingest
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// unlimited is a content budget no test body comes near.
+func unlimited() *contentBudget { return &contentBudget{limit: 1 << 40} }
 
 var page = rulePage{
 	repository: "example/rules", path: "practices/testing/verify-retry-limits.md", title: "Verify retry limits",
@@ -16,7 +20,7 @@ func TestRenderRuleShowsRawHTMLAsText(t *testing.T) {
 		"inline": "Press <img src=x onerror=alert(1)> now.",
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(body, page)
+			html, err := renderRule(body, page, unlimited())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -31,7 +35,7 @@ func TestRenderRuleShowsRawHTMLAsText(t *testing.T) {
 }
 
 func TestRenderRuleDropsDangerousLinks(t *testing.T) {
-	html, err := renderRule("[click](javascript:alert(1))", page)
+	html, err := renderRule("[click](javascript:alert(1))", page, unlimited())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +53,7 @@ func TestRenderRuleDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 		"a later repeat":    {"Intro.\n\n## Verify retry limits\n", "<h2", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(tc.body, page)
+			html, err := renderRule(tc.body, page, unlimited())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +104,7 @@ func TestRenderRulePointsRelativeLinksAtGitHub(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, err := renderRule(tc.markdown, page)
+			html, err := renderRule(tc.markdown, page, unlimited())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -112,7 +116,7 @@ func TestRenderRulePointsRelativeLinksAtGitHub(t *testing.T) {
 }
 
 func TestRenderRuleHighlightsFencedCodeInKnownLanguages(t *testing.T) {
-	html, err := renderRule("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page)
+	html, err := renderRule("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,5 +128,28 @@ func TestRenderRuleHighlightsFencedCodeInKnownLanguages(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("got %s, want %s", html, want)
 		}
+	}
+}
+
+// A small body can expand: every reference to one long link definition repeats its destination in the HTML, and in
+// the rewritten link. Rendering must stop at the budget rather than build the whole page and then measure it.
+func TestRenderRuleStopsAtTheBudgetWhileExpandingReferenceLinks(t *testing.T) {
+	const references = 2_000
+	destination := "assets/" + strings.Repeat("a", 32<<10) // 32 KiB, repeated in every reference's link
+	body := strings.Repeat("[x][d] ", references) + "\n\n[d]: " + destination + "\n"
+	budget := &contentBudget{limit: 1 << 20}
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	_, err := renderRule(body, page, budget)
+	runtime.ReadMemStats(&after)
+
+	if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of Markdown and HTML") {
+		t.Fatalf("got error %v, want a refusal past the 1 MiB budget", err)
+	}
+	// Building the whole page would allocate the destination about twice per reference: over 128 MiB here.
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
+		t.Fatalf("rendering allocated %d MiB for a 1 MiB budget", allocated>>20)
 	}
 }

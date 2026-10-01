@@ -152,11 +152,8 @@ func readRule(repo Repository, releases []release, history ruleHistory, budget *
 	html, err := renderRule(document.Body, rulePage{
 		repository: repo.FullName(), path: path, title: parsed.Title,
 		tag: published.tag, latestTag: releases[len(releases)-1].tag,
-	})
+	}, budget)
 	if err != nil {
-		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
-	}
-	if err := budget.spend(int64(len(html))); err != nil {
 		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
 	}
 	r.content = &content{

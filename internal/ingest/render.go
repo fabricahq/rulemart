@@ -34,8 +34,13 @@ type rulePage struct {
 	tag, latestTag string
 }
 
-// pageKey carries the rulePage being rendered to rewriteLinks.
-var pageKey = parser.NewContextKey()
+// pageKey carries the rulePage being rendered to pageTransformer, and budgetKey the contentBudget that pays for
+// rewritten links. refusedKey holds the budget's error when rewriting links would pass it.
+var (
+	pageKey    = parser.NewContextKey()
+	budgetKey  = parser.NewContextKey()
+	refusedKey = parser.NewContextKey()
+)
 
 // markdown renders rule bodies: CommonMark with GitHub's extensions, with raw HTML shown as text rather than
 // interpreted, since rule content comes from repositories Rulemart doesn't control.
@@ -51,14 +56,48 @@ var markdown = goldmark.New(
 // renderRule returns the HTML for a rule's Markdown body. It drops a leading heading that repeats the title,
 // points relative links and images at the files on GitHub at the release that holds them, highlights fenced code,
 // and escapes raw HTML. goldmark's renderer already drops links with dangerous schemes, such as javascript:.
-func renderRule(body string, page rulePage) (string, error) {
+//
+// A short body can expand, such as many references to one long link definition, so renderRule spends budget as it
+// goes, on each rewritten link and each byte of HTML, and stops with the budget's error rather than allocate past
+// it.
+func renderRule(body string, page rulePage, budget *contentBudget) (string, error) {
 	context := parser.NewContext()
 	context.Set(pageKey, page)
-	var out bytes.Buffer
-	if err := markdown.Convert([]byte(body), &out, parser.WithContext(context)); err != nil {
+	context.Set(budgetKey, budget)
+	source := []byte(body)
+	document := markdown.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	if err, refused := context.Get(refusedKey).(error); refused {
+		return "", err
+	}
+	out := budgetWriter{budget: budget}
+	err := markdown.Renderer().Render(&out, source, document)
+	if out.err != nil {
+		return "", out.err
+	}
+	if err != nil {
 		return "", fmt.Errorf("render Markdown: %v", err)
 	}
-	return out.String(), nil
+	return out.html.String(), nil
+}
+
+// budgetWriter collects rendered HTML, spending budget on every write, and refuses every write once one would pass
+// it.
+type budgetWriter struct {
+	budget *contentBudget
+	html   bytes.Buffer
+	// err is the budget's refusal, once a write was refused.
+	err error
+}
+
+func (w *budgetWriter) Write(p []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	if err := w.budget.spend(int64(len(p))); err != nil {
+		w.err = err
+		return 0, err
+	}
+	return w.html.Write(p)
 }
 
 // pageTransformer adapts a parsed rule body to its page, using the rulePage in the parser context.
@@ -66,22 +105,44 @@ type pageTransformer struct{}
 
 func (pageTransformer) Transform(document *ast.Document, reader text.Reader, context parser.Context) {
 	page := context.Get(pageKey).(rulePage)
+	budget := context.Get(budgetKey).(*contentBudget)
 	source := reader.Source()
 	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.title) {
 		document.RemoveChild(document, heading)
 	}
-	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+	// References to one definition share its destination, so each distinct destination is rewritten, and paid
+	// for, once.
+	links, images := map[string][]byte{}, map[string][]byte{}
+	rewrite := func(rewritten map[string][]byte, destination []byte, to func(string) string) ([]byte, error) {
+		if url, ok := rewritten[string(destination)]; ok {
+			return url, nil
+		}
+		url := to(string(destination))
+		if err := budget.spend(int64(len(url))); err != nil {
+			return nil, err
+		}
+		rewritten[string(destination)] = []byte(url)
+		return rewritten[string(destination)], nil
+	}
+	err := ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
+		var err error
 		switch node := node.(type) {
 		case *ast.Link:
-			node.Destination = []byte(page.linkURL(string(node.Destination)))
+			node.Destination, err = rewrite(links, node.Destination, page.linkURL)
 		case *ast.Image:
-			node.Destination = []byte(page.imageURL(string(node.Destination)))
+			node.Destination, err = rewrite(images, node.Destination, page.imageURL)
+		}
+		if err != nil {
+			return ast.WalkStop, err
 		}
 		return ast.WalkContinue, nil
 	})
+	if err != nil {
+		context.Set(refusedKey, err)
+	}
 }
 
 // linkURL returns where a link in the rule leads: a relative destination opens the file on GitHub, and anything

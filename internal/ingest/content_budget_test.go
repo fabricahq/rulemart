@@ -48,7 +48,7 @@ func sharedLibrary(t *testing.T) (string, int64) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	html, err := renderRule(document.Body, rulePage{repository: "example/rules", path: "techs/go/rule-00.md", title: "Shared rule", tag: "release/1", latestTag: "release/1"})
+	html, err := renderRule(document.Body, rulePage{repository: "example/rules", path: "techs/go/rule-00.md", title: "Shared rule", tag: "release/1", latestTag: "release/1"}, unlimited())
 	if err != nil {
 		t.Fatal(err)
 	}
