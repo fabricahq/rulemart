@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
@@ -56,8 +58,9 @@ func run(ctx context.Context, repositoryURL string) error {
 	defer db.Close()
 	ingester := app.Ingester{
 		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Fetch:        git.Fetch,
 		Store:        postgres.New(db),
-		Limits:       app.DefaultLimits,
+		Limits:       domain.DefaultLimits,
 	}
 	result, err := ingester.Ingest(ctx, repositoryURL)
 	if err != nil {

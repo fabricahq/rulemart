@@ -11,21 +11,9 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/packfile"
 	"github.com/go-git/go-git/v5/storage/memory"
-)
 
-// Limits bound what fetching a library may hold in memory, so a repository can't exhaust it.
-type Limits struct {
-	// Tags bounds the release tags.
-	Tags int
-	// TagBytes bounds one release tag object, its message and any signature included.
-	TagBytes int64
-	// PackBytes bounds the packfile the remote sends, which is held while it's checked.
-	PackBytes int64
-	// Objects bounds the objects the packfile holds.
-	Objects int
-	// ObjectBytes bounds one object, inflated, and TotalBytes all of them together.
-	ObjectBytes, TotalBytes int64
-}
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
 
 // boundedStorage is an in-memory repository that refuses objects past its limits. It receives a fetch's
 // packfile itself, as a storer.PackfileWriter, so it can check the pack's size, object count, and every object's
@@ -33,13 +21,13 @@ type Limits struct {
 // stored, as a second check.
 type boundedStorage struct {
 	*memory.Storage
-	limits Limits
+	limits domain.FetchLimits
 	// objects and bytes count the objects stored so far, and their inflated bytes.
 	objects int
 	bytes   int64
 }
 
-func newBoundedStorage(limits Limits) *boundedStorage {
+func newBoundedStorage(limits domain.FetchLimits) *boundedStorage {
 	return &boundedStorage{Storage: memory.NewStorage(), limits: limits}
 }
 
@@ -98,7 +86,7 @@ func (w *packWriter) Close() error {
 // checkPack checks a packfile against limits before any of its objects is inflated into memory: its object
 // count, each object's size, and their total. A delta's size is that of the object it produces, which it declares
 // first; the delta itself is inflated, within the one-object limit, to read it.
-func checkPack(pack []byte, limits Limits) error {
+func checkPack(pack []byte, limits domain.FetchLimits) error {
 	scanner := packfile.NewScanner(bytes.NewReader(pack))
 	_, count, err := scanner.Header()
 	if err != nil {
@@ -166,14 +154,14 @@ func deltaSize(b []byte) (size int64, rest []byte, ok bool) {
 	return 0, nil, false
 }
 
-func objectTooLarge(size int64, limits Limits) error {
+func objectTooLarge(size int64, limits domain.FetchLimits) error {
 	return fmt.Errorf("the repository holds a %d-byte object, more than the %d bytes ingestion accepts for one", size, limits.ObjectBytes)
 }
 
-func tooManyObjects(limits Limits) error {
+func tooManyObjects(limits domain.FetchLimits) error {
 	return fmt.Errorf("the repository's release tags reach more than %d objects, which ingestion won't hold", limits.Objects)
 }
 
-func tooManyBytes(limits Limits) error {
+func tooManyBytes(limits domain.FetchLimits) error {
 	return fmt.Errorf("the repository's release tags reach more than %d bytes of objects, which ingestion won't hold", limits.TotalBytes)
 }

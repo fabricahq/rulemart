@@ -12,23 +12,11 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// Limits bound what assembling one library reads and holds.
-type Limits struct {
-	// FileBytes bounds each rule, group, or manifest file assembly reads.
-	FileBytes int64
-	// ContentBytes bounds the content assembly holds until the library is stored: every current rule's Markdown,
-	// its title, impact description, and reading guidance, its HTML and the links rendering rewrites, and every
-	// group's metadata file. A release's files share storage however many paths have the same content, so what a
-	// source fetches can't bound this: a small release can list thousands of rules or groups that share one large
-	// file.
-	ContentBytes int64
-}
-
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
 // number order. It checks that their records form one history, then reads rule-library.yaml at the latest
 // release, each group's _group.yaml at the latest release that has it, and each current rule's file at the release
 // that published its current version. Errors name the release and file at fault.
-func Assemble(repo Repository, releases []ReleaseSnapshot, limits Limits) (Library, error) {
+func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits) (Library, error) {
 	if len(releases) == 0 {
 		return Library{}, errors.New("the library has no releases")
 	}
@@ -72,11 +60,11 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits Limits) (Libra
 type assembly struct {
 	repo     Repository
 	releases []ReleaseSnapshot
-	limits   Limits
+	limits   ContentLimits
 	budget   contentBudget
 }
 
-// contentBudget is what's left of Limits.ContentBytes as assembly reads and renders.
+// contentBudget is what's left of ContentLimits.ContentBytes as assembly reads and renders.
 type contentBudget struct {
 	limit, spent int64
 }
@@ -99,7 +87,7 @@ func (b *contentBudget) exceeded() error {
 }
 
 // open returns the file at path in release r, without reading it. It fails with ErrFileMissing when there's none,
-// and refuses a file larger than Limits.FileBytes.
+// and refuses a file larger than ContentLimits.FileBytes.
 func (a *assembly) open(r ReleaseSnapshot, path string) (File, error) {
 	file, err := r.Files.Open(path)
 	if err != nil {

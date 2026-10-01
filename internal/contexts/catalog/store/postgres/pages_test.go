@@ -184,7 +184,10 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			_, err := reader.RulePage(ctx, vetted, "stranger", "unvetted-rules", "techs/go/return-errors")
 			return err
 		},
-		"an unknown rule": func() error { _, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/missing"); return err },
+		"an unknown rule": func() error {
+			_, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/missing")
+			return err
+		},
 		"a retired rule": func() error {
 			_, err := reader.RulePage(ctx, vetted, "example", "rules", "practices/testing/check-retry-backoff")
 			return err

@@ -11,6 +11,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
@@ -546,7 +547,7 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 
 // ingest ingests the library in repo into store, within the default limits.
 func ingest(store *postgres.Store, repo domain.Repository) (app.Result, error) {
-	ingester := app.Ingester{Repositories: repositories{repo}, Store: store, Limits: app.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Store: store, Limits: domain.DefaultLimits}
 	return ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName())
 }
 

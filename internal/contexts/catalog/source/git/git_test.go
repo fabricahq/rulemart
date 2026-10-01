@@ -12,7 +12,7 @@ import (
 )
 
 // limits leave room for every test repository.
-var limits = git.Limits{Tags: 10, TagBytes: 1 << 20, PackBytes: 128 << 20, Objects: 1_000, ObjectBytes: 32 << 20, TotalBytes: 128 << 20}
+var limits = domain.FetchLimits{Tags: 10, TagBytes: 1 << 20, PackBytes: 128 << 20, Objects: 1_000, ObjectBytes: 32 << 20, TotalBytes: 128 << 20}
 
 const firstRecord = `formatVersion: 1
 release: 1

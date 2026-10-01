@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 )
 
@@ -21,11 +20,16 @@ type Repositories interface {
 	Repository(ctx context.Context, owner, name string) (domain.Repository, error)
 }
 
-// Ingester ingests libraries into the catalog.
+// Fetch fetches the release snapshots of the repository at url within limits, as git.Fetch does.
+type Fetch func(ctx context.Context, url string, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error)
+
+// Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch, so the
+// functions that only read pages don't carry a Git client.
 type Ingester struct {
 	Repositories Repositories
+	Fetch        Fetch
 	Store        store.Writer
-	Limits       Limits
+	Limits       domain.Limits
 }
 
 // Result summarizes one ingestion.
@@ -52,7 +56,7 @@ func (in Ingester) Ingest(ctx context.Context, repositoryURL string) (Result, er
 	if err != nil {
 		return Result{}, err
 	}
-	releases, err := git.Fetch(ctx, repo.CloneURL, in.Limits.Fetch)
+	releases, err := in.Fetch(ctx, repo.CloneURL, in.Limits.Fetch)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}

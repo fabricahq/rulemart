@@ -26,7 +26,7 @@ var errNoReleases = errors.New("the repository has no release/<number> tags; pub
 // Fetch returns the release snapshots of the repository at url, in number order: one for each release/<number>
 // tag, whose record it has parsed and whose files it reads when asked. url is any address go-git can fetch from,
 // such as an HTTPS URL or, in tests, a local path. Errors name the tag at fault.
-func Fetch(ctx context.Context, url string, limits Limits) ([]domain.ReleaseSnapshot, error) {
+func Fetch(ctx context.Context, url string, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
 	repo, err := fetchReleaseTags(ctx, url, limits)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func Fetch(ctx context.Context, url string, limits Limits) ([]domain.ReleaseSnap
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
 // history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.
-func fetchReleaseTags(ctx context.Context, url string, limits Limits) (*gogit.Repository, error) {
+func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (*gogit.Repository, error) {
 	repo, err := gogit.Init(newBoundedStorage(limits), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create in-memory repository: %v", err)
@@ -67,7 +67,7 @@ func fetchReleaseTags(ctx context.Context, url string, limits Limits) (*gogit.Re
 
 // checkReleaseTagCount lists the remote's references and fails when it has no release/<number> tags, or more than
 // limits allow.
-func checkReleaseTagCount(ctx context.Context, remote *gogit.Remote, limits Limits) error {
+func checkReleaseTagCount(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) error {
 	refs, err := remote.ListContext(ctx, &gogit.ListOptions{})
 	if errors.Is(err, transport.ErrEmptyRemoteRepository) {
 		return errNoReleases
@@ -94,7 +94,7 @@ func checkReleaseTagCount(ctx context.Context, remote *gogit.Remote, limits Limi
 // other names under release/, such as release/01, and fails when no tag remains. Each tag must be an annotated tag
 // of a commit, no larger than limits.TagBytes, whose message is release notes followed by a record for that
 // release.
-func readReleases(repo *gogit.Repository, limits Limits) ([]domain.ReleaseSnapshot, error) {
+func readReleases(repo *gogit.Repository, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
 	refs, err := repo.Tags()
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %v", err)
@@ -123,7 +123,7 @@ func readReleases(repo *gogit.Repository, limits Limits) ([]domain.ReleaseSnapsh
 }
 
 // readRelease reads the annotated tag object hash, which the tag named name points to.
-func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits Limits) (domain.ReleaseSnapshot, error) {
+func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
 	encoded, err := repo.Storer.EncodedObject(plumbing.AnyObject, hash)
 	if err != nil {
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load tag object: %v", err)

@@ -10,6 +10,7 @@ import (
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 )
 
@@ -38,36 +39,36 @@ func randomBytes(t *testing.T, n int) []byte {
 }
 
 // small are limits a test can pass with a few small files.
-var small = Limits{Tags: 10, TagBytes: 1 << 20, PackBytes: 1 << 20, Objects: 100, ObjectBytes: 64 << 10, TotalBytes: 256 << 10}
+var small = domain.FetchLimits{Tags: 10, TagBytes: 1 << 20, PackBytes: 1 << 20, Objects: 100, ObjectBytes: 64 << 10, TotalBytes: 256 << 10}
 
 func TestFetchReleaseTagsStaysWithinItsLimits(t *testing.T) {
 	for name, tc := range map[string]struct {
 		files  map[string][]byte
 		tags   int
-		limits func(Limits) Limits
+		limits func(domain.FetchLimits) domain.FetchLimits
 		want   string
 	}{
 		"too many release tags": {
 			tags:   3,
-			limits: func(l Limits) Limits { l.Tags = 2; return l },
+			limits: func(l domain.FetchLimits) domain.FetchLimits { l.Tags = 2; return l },
 			want:   "3 release tags, more than the 2",
 		},
 		"a pack too large": {
 			files:  map[string][]byte{"noise.bin": randomBytes(t, 48<<10)},
 			tags:   1,
-			limits: func(l Limits) Limits { l.PackBytes = 16 << 10; return l },
+			limits: func(l domain.FetchLimits) domain.FetchLimits { l.PackBytes = 16 << 10; return l },
 			want:   "more than 16384 bytes",
 		},
 		"too many objects": {
 			files:  map[string][]byte{"a": []byte("a"), "b": []byte("b"), "c": []byte("c"), "d": []byte("d")},
 			tags:   1,
-			limits: func(l Limits) Limits { l.Objects = 4; return l },
+			limits: func(l domain.FetchLimits) domain.FetchLimits { l.Objects = 4; return l },
 			want:   "more than 4 objects",
 		},
 		"an object too large": {
 			files:  map[string][]byte{"zeros.bin": make([]byte, 128<<10)},
 			tags:   1,
-			limits: func(l Limits) Limits { return l },
+			limits: func(l domain.FetchLimits) domain.FetchLimits { return l },
 			want:   "131072-byte object",
 		},
 		"too many bytes": {
@@ -75,7 +76,7 @@ func TestFetchReleaseTagsStaysWithinItsLimits(t *testing.T) {
 				"a.bin": randomBytes(t, 40<<10), "b.bin": randomBytes(t, 40<<10), "c.bin": randomBytes(t, 40<<10),
 			},
 			tags:   1,
-			limits: func(l Limits) Limits { l.TotalBytes = 100 << 10; return l },
+			limits: func(l domain.FetchLimits) domain.FetchLimits { l.TotalBytes = 100 << 10; return l },
 			want:   "more than 102400 bytes of objects",
 		},
 	} {

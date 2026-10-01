@@ -10,6 +10,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
@@ -39,7 +40,7 @@ rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Store: postgres.New(db), Limits: app.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}

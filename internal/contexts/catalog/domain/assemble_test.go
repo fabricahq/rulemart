@@ -54,7 +54,7 @@ func (f withUnreadable) Open(path string) (File, error) {
 }
 
 // limits leave room for every test library, except where a test lowers them.
-var limits = Limits{FileBytes: 1 << 20, ContentBytes: 1 << 30}
+var limits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30}
 
 var repo = Repository{Host: GitHub, ID: "42", Owner: "example", Name: "rules", Description: "Example rules."}
 
