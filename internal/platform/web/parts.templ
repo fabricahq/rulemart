@@ -45,7 +45,7 @@ templ groupTile(label groupLabel, icon groupIcon, size tileSize) {
 			<img class={ "object-contain", templ.KV("size-[64%]", !icon.narrow), templ.KV("size-[88%]", icon.narrow), templ.KV("icon-ink", icon.monochrome) } src={ icon.src } alt=""/>
 		</span>
 	} else if label.canonical {
-		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-surface-header leading-none font-semibold tracking-normal text-muted normal-case", string(size) } aria-hidden="true">{ label.initial() }</span>
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile leading-none font-semibold tracking-normal text-muted normal-case", string(size) } aria-hidden="true">{ label.initial() }</span>
 	} else {
 		<span class={ "inline-block flex-none border border-dashed border-border", string(size) } aria-hidden="true"></span>
 	}

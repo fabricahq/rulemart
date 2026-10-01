@@ -197,7 +197,7 @@ func groupTile(label groupLabel, icon groupIcon, size tileSize) templ.Component 
 				return templ_7745c5c3_Err
 			}
 		} else if label.canonical {
-			var templ_7745c5c3_Var12 = []any{"inline-grid flex-none place-items-center border border-border-subtle bg-surface-header leading-none font-semibold tracking-normal text-muted normal-case", string(size)}
+			var templ_7745c5c3_Var12 = []any{"inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile leading-none font-semibold tracking-normal text-muted normal-case", string(size)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -222,7 +222,7 @@ func groupTile(label groupLabel, icon groupIcon, size tileSize) templ.Component 
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(label.initial())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 48, Col: 223}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 48, Col: 218}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
