@@ -75,6 +75,7 @@ func TestParseGroupIconsRejectsAmbiguousEntries(t *testing.T) {
 		"a repeated group":                      "techs/go: {file: devicon/go.svg}\ntechs/go: {file: devicon/go.svg}\n",
 		"groups out of order":                   "techs/go: {file: devicon/go.svg}\npractices/testing: {file: lucide/flask-conical.svg}\n",
 		"a monochrome that isn't true or false": "techs/go: {file: devicon/go.svg, monochrome: sometimes}\n",
+		"a second document":                     "techs/go: {file: devicon/go.svg}\n---\ntechs/rust: {file: devicon/rust.svg}\n",
 		"a list":                                "- techs/go\n",
 		"nothing":                               "",
 	} {
