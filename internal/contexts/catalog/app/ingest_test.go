@@ -10,6 +10,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
@@ -216,7 +217,7 @@ func newCatalog(t *testing.T) (app.Ingester, app.Pages) {
 	t.Helper()
 	db, _ := databasetest.New(t)
 	store := postgres.New(db)
-	ingester := app.Ingester{Fetch: git.Fetch, Store: store, Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Fetch: git.Fetch, Render: render.Rule, Store: store, Limits: domain.DefaultLimits}
 	return ingester, app.Pages{Store: store, Vetted: []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "42"}}}
 }
 

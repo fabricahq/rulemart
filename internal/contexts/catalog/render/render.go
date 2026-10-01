@@ -1,10 +1,10 @@
-// Render a rule's Markdown body as the HTML its Rulemart page shows.
-
-package domain
+// Package render renders a rule's Markdown body as the HTML its Rulemart page shows, with Rulemart's link rules,
+// within a byte allowance. Rule implements domain.Render, which ingestion's assembly calls; only ingestion links
+// this package, so the web function carries no Markdown parser or highlighter.
+package render
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"html"
 	"net/url"
@@ -22,19 +22,13 @@ import (
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
-// rulePage is where a rule's Markdown came from, which its relative links and images resolve against.
+// rulePage is the page a rule is rendered for, with the link rules that apply to it.
 type rulePage struct {
-	// repository is the library's GitHub repository, as owner/name.
-	repository string
-	// path is the rule's file, such as practices/testing/verify-retry-limits.md.
-	path string
-	// title is the rule's title, which the page shows above the body.
-	title string
-	// tag published the rule's version, and latestTag is the library's latest release. Files the rule's version
-	// covers, its Markdown and its own assets, link to tag; library-wide files link to latestTag.
-	tag, latestTag string
+	domain.RulePage
 }
 
 // pageKey carries the rulePage being rendered to pageTransformer, and allowanceKey the allowance that pays for
@@ -95,18 +89,18 @@ func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.Nod
 	})
 }
 
-// render returns the HTML for a rule's Markdown body, and the bytes it used of allowance. It drops a leading
+// Rule returns the HTML for a rule's Markdown body, and the bytes it used of allowance. It drops a leading
 // heading that repeats the title, points relative links and images at the files on GitHub at the release that
 // holds them, highlights fenced code, and escapes raw HTML. goldmark's renderer already drops links with dangerous
 // schemes, such as javascript:.
 //
 // A short body can expand, such as many references to one long link definition, so render counts what it builds
-// as it goes, each rewritten link and each byte of HTML, and stops with errOverAllowance rather than build past
+// as it goes, each rewritten link and each byte of HTML, and stops with domain.ErrOverAllowance rather than build past
 // allowance.
-func render(body string, page rulePage, allowance int64) (html string, used int64, err error) {
+func Rule(body string, page domain.RulePage, allowance int64) (html string, used int64, err error) {
 	spent := &spending{limit: allowance}
 	context := parser.NewContext()
-	context.Set(pageKey, page)
+	context.Set(pageKey, rulePage{page})
 	context.Set(allowanceKey, spent)
 	source := []byte(body)
 	document := markdown.Parser().Parse(text.NewReader(source), parser.WithContext(context))
@@ -124,9 +118,6 @@ func render(body string, page rulePage, allowance int64) (html string, used int6
 	return out.html.String(), spent.used, nil
 }
 
-// errOverAllowance reports a render that would build more than its allowance.
-var errOverAllowance = errors.New("the rule's HTML needs more bytes than its allowance")
-
 // spending counts the bytes one render builds, up to its allowance.
 type spending struct {
 	limit, used int64
@@ -135,7 +126,7 @@ type spending struct {
 // spend records n more bytes, or refuses them when they would pass the limit.
 func (s *spending) spend(n int64) error {
 	if s.used+n > s.limit {
-		return errOverAllowance
+		return domain.ErrOverAllowance
 	}
 	s.used += n
 	return nil
@@ -187,7 +178,7 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 	page := context.Get(pageKey).(rulePage)
 	spent := context.Get(allowanceKey).(*spending)
 	source := reader.Source()
-	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.title) {
+	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.Title) {
 		document.RemoveChild(document, heading)
 	}
 	// References to one definition share its destination, so each distinct destination is rewritten, and paid
@@ -233,9 +224,9 @@ func (p rulePage) linkURL(destination string) string {
 		return destination
 	}
 	if file == "" {
-		return TreeURL(p.repository, p.tagFor(file)) + suffix
+		return domain.TreeURL(p.Repository, p.tagFor(file)) + suffix
 	}
-	return BlobURL(p.repository, p.tagFor(file), file) + suffix
+	return domain.BlobURL(p.Repository, p.tagFor(file), file) + suffix
 }
 
 // imageURL returns where an image in the rule loads from: a relative source loads the file from GitHub, and an
@@ -245,7 +236,7 @@ func (p rulePage) imageURL(source string) string {
 	if !ok || file == "" {
 		return source
 	}
-	return RawURL(p.repository, p.tagFor(file), file) + suffix
+	return domain.RawURL(p.Repository, p.tagFor(file), file) + suffix
 }
 
 // resolve returns the repository file a relative destination names, resolved against the rule's directory, and
@@ -265,7 +256,7 @@ func (p rulePage) resolve(destination string) (file, suffix string, ok bool) {
 	}
 	file = path.Clean(u.Path)
 	if !strings.HasPrefix(u.Path, "/") {
-		file = path.Join(path.Dir(p.path), u.Path)
+		file = path.Join(path.Dir(p.Path), u.Path)
 	}
 	file = strings.TrimPrefix(file, "/")
 	if file == "." || file == ".." || strings.HasPrefix(file, "../") {
@@ -277,11 +268,11 @@ func (p rulePage) resolve(destination string) (file, suffix string, ok bool) {
 // tagFor returns the release whose tree holds file as the rule shows it: the rule's own release for its Markdown
 // and its asset directory, assets/<rule name>/ beside it, and the latest release for everything else.
 func (p rulePage) tagFor(file string) string {
-	dir, name := path.Split(strings.TrimSuffix(p.path, ".md"))
-	if file == p.path || strings.HasPrefix(file, dir+"assets/"+name+"/") {
-		return p.tag
+	dir, name := path.Split(strings.TrimSuffix(p.Path, ".md"))
+	if file == p.Path || strings.HasPrefix(file, dir+"assets/"+name+"/") {
+		return p.Tag
 	}
-	return p.latestTag
+	return p.LatestTag
 }
 
 // ruleNodeRenderer renders the nodes Rulemart shows differently from goldmark: raw HTML as escaped text, and fenced

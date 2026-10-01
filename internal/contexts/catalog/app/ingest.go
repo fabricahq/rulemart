@@ -23,13 +23,15 @@ type Repositories interface {
 // Fetch fetches the release snapshots of the repository at url within limits, as git.Fetch does.
 type Fetch func(ctx context.Context, url string, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error)
 
-// Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch, so the
-// functions that only read pages don't carry a Git client.
+// Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch, and its Markdown
+// renderer as Render, so the functions that only read pages carry neither a Git client nor a renderer.
 type Ingester struct {
 	Repositories Repositories
 	Fetch        Fetch
-	Store        store.Writer
-	Limits       domain.Limits
+	// Render renders a current rule's Markdown body, as render.Rule does.
+	Render domain.Render
+	Store  store.Writer
+	Limits domain.Limits
 }
 
 // Result summarizes one ingestion.
@@ -60,7 +62,7 @@ func (in Ingester) Ingest(ctx context.Context, repositoryURL string) (Result, er
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	lib, err := domain.Assemble(repo, releases, in.Limits.Content)
+	lib, err := domain.Assemble(repo, releases, in.Limits.Content, in.Render)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}

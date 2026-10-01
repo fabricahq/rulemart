@@ -36,8 +36,9 @@ than adding history.
   ingestion connect as the database's owner.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
-  rules, with no I/O; `app` for ingestion and page reads; `source/git` and `source/github` for the adapters that
-  fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
+  rules, with no I/O; `render` for rules' Markdown, which assembly takes as a function so the web function doesn't
+  link a Markdown renderer; `app` for ingestion and page reads; `source/git` and `source/github` for the adapters
+  that fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
   catalog's only SQL; and `views` for what pages read. `internal/platform` holds runtime that contexts share, such
   as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy. Contexts added later,

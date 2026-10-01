@@ -80,8 +80,9 @@ one they no longer generate, such as a file under an old name.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [docs/decisions.md](docs/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
-    snapshots within the content budget, rendering rules' Markdown, addresses such as tags and GitHub URLs, and
-    every ingestion limit.
+    snapshots within the content budget, addresses such as tags and GitHub URLs, and every ingestion limit.
+  - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
+    function, so only ingestion links goldmark and chroma, and the web function doesn't.
   - `app` holds the operations: `Ingester` ingests a library, and `Pages` reads what the pages show.
   - `source/git` fetches release snapshots with go-git, which nothing else uses outside its test fixture
     `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.

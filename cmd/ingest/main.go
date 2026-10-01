@@ -22,6 +22,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
@@ -59,6 +60,7 @@ func run(ctx context.Context, repositoryURL string) error {
 	ingester := app.Ingester{
 		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
 		Fetch:        git.Fetch,
+		Render:       render.Rule,
 		Store:        postgres.New(db),
 		Limits:       domain.DefaultLimits,
 	}

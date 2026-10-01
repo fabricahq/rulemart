@@ -1,18 +1,20 @@
-package domain
+package render
 
 import (
 	"errors"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // unlimited is an allowance no test body comes near.
 const unlimited = 1 << 40
 
-var page = rulePage{
-	repository: "example/rules", path: "practices/testing/verify-retry-limits.md", title: "Verify retry limits",
-	tag: "release/2", latestTag: "release/5",
+var page = domain.RulePage{
+	Repository: "example/rules", Path: "practices/testing/verify-retry-limits.md", Title: "Verify retry limits",
+	Tag: "release/2", LatestTag: "release/5",
 }
 
 func TestRenderShowsRawHTMLAsText(t *testing.T) {
@@ -21,7 +23,7 @@ func TestRenderShowsRawHTMLAsText(t *testing.T) {
 		"inline": "Press <img src=x onerror=alert(1)> now.",
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := render(body, page, unlimited)
+			html, _, err := Rule(body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -36,7 +38,7 @@ func TestRenderShowsRawHTMLAsText(t *testing.T) {
 }
 
 func TestRenderDropsDangerousLinks(t *testing.T) {
-	html, _, err := render("[click](javascript:alert(1))", page, unlimited)
+	html, _, err := Rule("[click](javascript:alert(1))", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +56,7 @@ func TestRenderDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 		"a later repeat":    {"Intro.\n\n## Verify retry limits\n", "<h2", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := render(tc.body, page, unlimited)
+			html, _, err := Rule(tc.body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +107,7 @@ func TestRenderPointsRelativeLinksAtGitHub(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := render(tc.markdown, page, unlimited)
+			html, _, err := Rule(tc.markdown, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -117,7 +119,7 @@ func TestRenderPointsRelativeLinksAtGitHub(t *testing.T) {
 }
 
 func TestRenderHighlightsFencedCodeInKnownLanguages(t *testing.T) {
-	html, _, err := render("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited)
+	html, _, err := Rule("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,10 +150,10 @@ func TestRenderStopsAtItsAllowanceWhileExpandingReferenceLinks(t *testing.T) {
 			var before, after runtime.MemStats
 			runtime.GC()
 			runtime.ReadMemStats(&before)
-			_, _, err := render(body, page, 1<<20)
+			_, _, err := Rule(body, page, 1<<20)
 			runtime.ReadMemStats(&after)
 
-			if !errors.Is(err, errOverAllowance) {
+			if !errors.Is(err, domain.ErrOverAllowance) {
 				t.Fatalf("got error %v, want a refusal past the 1 MiB allowance", err)
 			}
 			// Rendering every reference would allocate at least the destination per reference: over 64 MiB here.
@@ -164,7 +166,7 @@ func TestRenderStopsAtItsAllowanceWhileExpandingReferenceLinks(t *testing.T) {
 
 // What a render uses is its HTML, and each distinct rewritten link once, however many references share it.
 func TestRenderCountsTheHTMLAndEachRewrittenLinkOnce(t *testing.T) {
-	html, used, err := render("[a][d] and [b][d]\n\n[d]: check-retry-backoff.md\n", page, unlimited)
+	html, used, err := Rule("[a][d] and [b][d]\n\n[d]: check-retry-backoff.md\n", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +178,7 @@ func TestRenderCountsTheHTMLAndEachRewrittenLinkOnce(t *testing.T) {
 
 // The renderer names GitHub's extensions' renderers itself, so each must still render what the parser finds.
 func TestRenderRendersGitHubExtensions(t *testing.T) {
-	html, _, err := render("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited)
+	html, _, err := Rule("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,7 +1,8 @@
 // Package domain holds the catalog's language and rules: the libraries Rulemart lists, the repositories that
 // publish them, and the rules their releases publish. It assembles a library from plain release snapshots: it
 // checks that their records form one history, reads only the files the catalog keeps within a content budget, and
-// renders each current rule's Markdown with Rulemart's link rules. It reads no network, disk, or database itself.
+// has each current rule's Markdown rendered within what's left of it. It reads no network, disk, or database
+// itself, and leaves Markdown to the render package.
 package domain
 
 // GitHub is the only code host Rulemart reads libraries from, as the catalog names it. Page URLs name no host,

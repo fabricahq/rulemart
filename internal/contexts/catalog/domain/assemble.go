@@ -15,8 +15,8 @@ import (
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
 // number order. It checks that their records form one history, then reads rule-library.yaml at the latest
 // release, each group's _group.yaml at the latest release that has it, and each current rule's file at the release
-// that published its current version. Errors name the release and file at fault.
-func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits) (Library, error) {
+// that published its current version, rendering its body with render. Errors name the release and file at fault.
+func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits, render Render) (Library, error) {
 	if len(releases) == 0 {
 		return Library{}, errors.New("the library has no releases")
 	}
@@ -28,7 +28,7 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits)
 	if err != nil {
 		return Library{}, err
 	}
-	a := assembly{repo: repo, releases: releases, limits: limits, budget: contentBudget{limit: limits.ContentBytes}}
+	a := assembly{repo: repo, releases: releases, limits: limits, renderBody: render, budget: contentBudget{limit: limits.ContentBytes}}
 	lib := Library{Repository: repo}
 	for _, r := range releases {
 		lib.Releases = append(lib.Releases, r.release())
@@ -61,7 +61,9 @@ type assembly struct {
 	repo     Repository
 	releases []ReleaseSnapshot
 	limits   ContentLimits
-	budget   contentBudget
+	// renderBody renders a current rule's Markdown body.
+	renderBody Render
+	budget     contentBudget
 }
 
 // contentBudget is what's left of ContentLimits.ContentBytes as assembly reads and renders.
@@ -176,9 +178,9 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 	if err != nil {
 		return Rule{}, fmt.Errorf("%s: %v", published.Tag, err)
 	}
-	html, err := a.render(document.Body, rulePage{
-		repository: a.repo.FullName(), path: path, title: parsed.Title,
-		tag: published.Tag, latestTag: a.releases[len(a.releases)-1].Tag,
+	html, err := a.render(document.Body, RulePage{
+		Repository: a.repo.FullName(), Path: path, Title: parsed.Title,
+		Tag: published.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
 	})
 	if err != nil {
 		return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
@@ -192,9 +194,9 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 }
 
 // render renders a rule's body within what's left of the budget, and spends what it used.
-func (a *assembly) render(body string, page rulePage) (string, error) {
-	html, used, err := render(body, page, a.budget.remaining())
-	if errors.Is(err, errOverAllowance) {
+func (a *assembly) render(body string, page RulePage) (string, error) {
+	html, used, err := a.renderBody(body, page, a.budget.remaining())
+	if errors.Is(err, ErrOverAllowance) {
 		return "", a.budget.exceeded()
 	}
 	if err != nil {
