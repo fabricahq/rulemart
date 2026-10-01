@@ -58,7 +58,7 @@ func Ingest(ctx context.Context, store *Store, repo Repository) (Result, error) 
 
 // load fetches repo's release tags and reads the library they publish.
 func load(ctx context.Context, repo Repository) (library, error) {
-	git, err := fetchReleaseTags(ctx, repo.CloneURL)
+	git, err := fetchReleaseTags(ctx, repo.CloneURL, defaultFetchLimits)
 	if err != nil {
 		return library{}, err
 	}

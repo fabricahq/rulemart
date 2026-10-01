@@ -247,6 +247,36 @@ rules:
 	}
 }
 
+// hugeObject is larger, inflated, than ingestion holds in memory for one object. It's zeros, so it compresses to
+// almost nothing and only its inflated size can stop it.
+var hugeObject = strings.Repeat("\x00", 40<<20)
+
+func TestIngestRejectsAnOversizedObjectWithoutWriting(t *testing.T) {
+	store, connString := newStore(t)
+	lib := firstRelease(t)
+	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(42)); err != nil {
+		t.Fatal(err)
+	}
+	before := catalog(t, connString)
+	lib.Write("assets/huge.bin", hugeObject)
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules:
+  practices/testing/check-retry-backoff: 1.0.0
+  practices/testing/verify-retry-limits: 1.0.0
+  techs/go/return-errors: 1.0.0
+`)
+
+	_, err := ingest.Ingest(context.Background(), store, lib.Repository(42))
+
+	if err == nil || !strings.Contains(err.Error(), "bytes") {
+		t.Fatalf("got error %v, want one about the object's size", err)
+	}
+	if after := catalog(t, connString); after != before {
+		t.Fatalf("a refused fetch changed the catalog:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
 func TestIngestRejectsALibraryWithoutReleases(t *testing.T) {
 	store, connString := newStore(t)
 	lib := ingesttest.NewLibrary(t)

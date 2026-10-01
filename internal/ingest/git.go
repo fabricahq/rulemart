@@ -14,7 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/storage/memory"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/fabricahq/rulemart/third_party/coderules"
 )
@@ -37,17 +37,20 @@ type release struct {
 	record   coderules.ReleaseRecord
 }
 
-// fetchReleaseTags fetches the release/* tags of the repository at url, and everything they reach, into memory.
-// url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A repository without
-// release tags fails.
-func fetchReleaseTags(ctx context.Context, url string) (*git.Repository, error) {
-	repo, err := git.Init(memory.NewStorage(), nil)
+// fetchReleaseTags fetches the release/* tags of the repository at url, and everything they reach, into memory
+// that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
+// repository without release tags, or with more than the limit, fails before anything is fetched.
+func fetchReleaseTags(ctx context.Context, url string, limits fetchLimits) (*git.Repository, error) {
+	repo, err := git.Init(newBoundedStorage(limits), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create in-memory repository: %v", err)
 	}
 	remote, err := repo.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{url}})
 	if err != nil {
 		return nil, fmt.Errorf("add remote: %v", err)
+	}
+	if err := checkReleaseTagCount(ctx, remote, limits); err != nil {
+		return nil, err
 	}
 	err = remote.FetchContext(ctx, &git.FetchOptions{
 		RefSpecs: []config.RefSpec{"+refs/tags/release/*:refs/tags/release/*"},
@@ -61,6 +64,31 @@ func fetchReleaseTags(ctx context.Context, url string) (*git.Repository, error) 
 		return nil, fmt.Errorf("fetch release tags: %v", err)
 	}
 	return repo, nil
+}
+
+// checkReleaseTagCount lists the remote's references and fails when it has no release/<number> tags, or more than
+// limits allow.
+func checkReleaseTagCount(ctx context.Context, remote *git.Remote, limits fetchLimits) error {
+	refs, err := remote.ListContext(ctx, &git.ListOptions{})
+	if errors.Is(err, transport.ErrEmptyRemoteRepository) {
+		return errNoReleases
+	}
+	if err != nil {
+		return fmt.Errorf("list the repository's references: %v", err)
+	}
+	count := 0
+	for _, ref := range refs {
+		if _, err := coderules.ParseReleaseTag(ref.Name().Short()); ref.Name().IsTag() && err == nil {
+			count++
+		}
+	}
+	switch {
+	case count == 0:
+		return errNoReleases
+	case count > limits.tags:
+		return fmt.Errorf("the repository has %d release tags, more than the %d ingestion reads", count, limits.tags)
+	}
+	return nil
 }
 
 // readReleases parses the record of every release/<number> tag in repo, in number order. Like Code Rules, it skips
