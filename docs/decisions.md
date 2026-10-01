@@ -6,8 +6,8 @@ than adding history.
 ## Catalog and trust
 
 - **Anyone signed in can list a public library.** New libraries are unvetted until vetted.
-- **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by GitHub
-  repository ID. `main`'s protection guards it, and it ships with each release, so the public
+- **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by its code host and
+  the host's repository ID. `main`'s protection guards it, and it ships with each release, so the public
   history shows when and why each library was vetted.
 - **Vetting covers a library, including its future releases.** A major version is declared by the library's
   maintainer, so pausing vetting on one would add nothing. The FAQ says so.
@@ -35,6 +35,9 @@ than adding history.
   each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
   ingestion connect as the database's owner.
 - **Build in thin vertical slices**, each deployed and checked end to end.
+- **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** Libraries are stored by host and the
+  host's repository ID, so a second host only needs its own URLs: it would add the host to them, such as
+  `/gitlab/{group}/{repo}`, and GitHub would keep the short form.
 
 ## Infrastructure and delivery
 

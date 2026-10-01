@@ -12,7 +12,8 @@ The library is `fabricahq/code-rules-test-library`, which publishes Code Rules'
 ## Scope
 
 **Data.** Migrations add libraries, their releases, rules, and rule versions. A
-library is identified by its GitHub repository ID, so renames don't break it. The
+library is matched by its code host and the host's repository ID, GitHub's for now,
+so renames don't break it. The
 current version of each rule stores its rendered content. Every version stores
 its release, change level, and summaries.
 

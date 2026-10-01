@@ -25,8 +25,8 @@ go run ./cmd/ingest https://github.com/fabricahq/code-rules-test-library
 make web
 ```
 
-Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by GitHub repository ID. To see
-another library locally, ingest it and add its ID there, as a vetting pull request would.
+Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
+repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.
 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
 one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
@@ -74,6 +74,8 @@ go tool goose -dir db/migrations -s create add_libraries sql
 - Migrations are forward-only. Leave the `Down` section as `-- Up-only migration; no rollback defined.` and fix a
   mistake with a new migration. To undo a local experiment, recreate the database.
 - Migrations change the schema, not data for testing.
+- Give each catalog table an `id` primary key and keep its natural key, such as a library and a rule's path, as
+  a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_web` what the web function needs from each new table, usually `SELECT` on what the pages read,
   and nothing on tables the pages don't read. The site's tests read as that role, so a missing grant fails them.
 - A migration must work with the release that's still running, because the schema changes before the functions
