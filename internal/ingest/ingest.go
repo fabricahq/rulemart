@@ -45,8 +45,8 @@ func Ingest(ctx context.Context, store *Store, repo Repository) (Result, error) 
 // limits bounds the memory one ingestion uses.
 type limits struct {
 	fetch fetchLimits
-	// contentBytes bounds the rule content ingestion reads and renders, Markdown and HTML together, across every
-	// rule.
+	// contentBytes bounds the content ingestion reads and holds: every rule's Markdown and HTML, and every group's
+	// metadata.
 	contentBytes int64
 }
 

@@ -145,7 +145,7 @@ func TestRenderRuleStopsAtTheBudgetWhileExpandingReferenceLinks(t *testing.T) {
 	_, err := renderRule(body, page, budget)
 	runtime.ReadMemStats(&after)
 
-	if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of Markdown and HTML") {
+	if err == nil || !strings.Contains(err.Error(), "more than 1048576 bytes of content") {
 		t.Fatalf("got error %v, want a refusal past the 1 MiB budget", err)
 	}
 	// Building the whole page would allocate the destination about twice per reference: over 128 MiB here.

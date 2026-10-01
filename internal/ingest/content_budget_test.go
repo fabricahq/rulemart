@@ -25,14 +25,17 @@ const sharedRules = 40
 var sharedRule = "---\ntitle: Shared rule\nwhenToRead: When testing budgets.\nimpact: LOW\nimpactDescription: Tests budgets.\n---\n\n" +
 	strings.Repeat("A paragraph that every rule repeats, so the release is small in Git and large once read.\n\n", 40)
 
+// goGroup is the _group.yaml of the group that holds sharedLibrary's rules.
+const goGroup = "name: Go\ndescription: Go rules.\nwhenToRead: When writing Go.\n"
+
 // sharedLibrary returns the path of a repository whose release/1 publishes sharedRules rules with sharedRule's
-// content, and how many bytes of Markdown and HTML ingestion reads and renders for all of them.
+// content, and how many bytes of content ingestion reads and holds for them and their group.
 func sharedLibrary(t *testing.T) (string, int64) {
 	t.Helper()
 	files := map[string][]byte{
 		"rule-library.yaml":    []byte("formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n"),
 		"LICENSE":              []byte("MIT License\n"),
-		"techs/go/_group.yaml": []byte("name: Go\ndescription: Go rules.\nwhenToRead: When writing Go.\n"),
+		"techs/go/_group.yaml": []byte(goGroup),
 	}
 	var rules, changes strings.Builder
 	for i := range sharedRules {
@@ -44,15 +47,7 @@ func sharedLibrary(t *testing.T) (string, int64) {
 	record := "formatVersion: 1\nrelease: 1\nrules:\n" + rules.String() + "changes:\n" + changes.String()
 	dir := releasedRepository(t, files, "Library release 1.\n---\n"+record)
 
-	document, err := coderules.SplitDocument(sharedRule, "techs/go/rule-00.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	html, err := renderRule(document.Body, rulePage{repository: "example/rules", path: "techs/go/rule-00.md", title: "Shared rule", tag: "release/1", latestTag: "release/1"}, unlimited())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir, sharedRules * int64(len(sharedRule)+len(html))
+	return dir, sharedRules*sharedRuleBytes(t) + int64(len(goGroup))
 }
 
 // releasedRepository commits files into a new repository on disk, tags the commit release/1 with message, and
@@ -116,7 +111,7 @@ func TestIngestRefusesRuleContentPastItsBudgetWithoutWriting(t *testing.T) {
 
 	_, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total - 1})
 
-	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("more than %d bytes of Markdown and HTML", total-1)) {
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("more than %d bytes of content", total-1)) {
 		t.Fatalf("got error %v, want a refusal past %d bytes of rule content", err, total-1)
 	}
 	var libraries int
@@ -138,5 +133,88 @@ func TestIngestAcceptsRuleContentUpToItsBudget(t *testing.T) {
 	}
 	if result.Rules != sharedRules {
 		t.Fatalf("ingested %d rules, want %d", result.Rules, sharedRules)
+	}
+}
+
+// sharedGroups is how many groups the group budget tests publish, all with one _group.yaml's content.
+const sharedGroups = 20
+
+// sharedGroup is the _group.yaml every group in the group budget tests has.
+var sharedGroup = "name: Shared\ndescription: " + strings.Repeat("A long description every group repeats. ", 1000) +
+	"\nwhenToRead: When testing budgets.\n"
+
+// sharedGroupsLibrary returns the path of a repository whose release/1 publishes sharedGroups groups with
+// sharedGroup's content, each with one rule with sharedRule's content, and how many bytes ingestion reads and
+// renders for them all.
+func sharedGroupsLibrary(t *testing.T) (string, int64) {
+	t.Helper()
+	files := map[string][]byte{
+		"rule-library.yaml": []byte("formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n"),
+		"LICENSE":           []byte("MIT License\n"),
+	}
+	var rules, changes strings.Builder
+	for i := range sharedGroups {
+		group := fmt.Sprintf("techs/g-%02d", i)
+		files[group+"/_group.yaml"] = []byte(sharedGroup)
+		files[group+"/rule.md"] = []byte(sharedRule)
+		fmt.Fprintf(&rules, "  %s/rule: 1.0.0\n", group)
+		fmt.Fprintf(&changes, "  %s/rule: {change: new, summaries: [Add the rule.]}\n", group)
+	}
+	record := "formatVersion: 1\nrelease: 1\nrules:\n" + rules.String() + "changes:\n" + changes.String()
+	dir := releasedRepository(t, files, "Library release 1.\n---\n"+record)
+	return dir, sharedGroups * (sharedRuleBytes(t) + int64(len(sharedGroup)))
+}
+
+// sharedRuleBytes returns how many bytes of content ingestion reads and holds for one rule with sharedRule's
+// content: its Markdown, its title, impact description, and reading guidance, and its HTML.
+func sharedRuleBytes(t *testing.T) int64 {
+	t.Helper()
+	parsed, err := coderules.Parse(sharedRule, "techs/go/rule-00.md", "example/rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := coderules.SplitDocument(sharedRule, "techs/go/rule-00.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, err := renderRule(document.Body, rulePage{repository: "example/rules", path: "techs/go/rule-00.md", title: "Shared rule", tag: "release/1", latestTag: "release/1"}, unlimited())
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := len(parsed.Title) + len(parsed.ImpactDescription) + len(parsed.WhenToRead)
+	return int64(len(sharedRule) + metadata + len(html))
+}
+
+// Groups' metadata is held until the library is written, like rules' content, and a release can list many groups
+// that share one _group.yaml, which Git stores once.
+func TestIngestRefusesGroupMetadataPastTheBudgetWithoutWriting(t *testing.T) {
+	store, connString := budgetStore(t)
+	dir, total := sharedGroupsLibrary(t)
+	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+
+	_, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total - 1})
+
+	if err == nil || !strings.Contains(err.Error(), "_group.yaml") || !strings.Contains(err.Error(), fmt.Sprintf("more than %d bytes", total-1)) {
+		t.Fatalf("got error %v, want a group file refused past %d bytes", err, total-1)
+	}
+	var libraries int
+	testdb.QueryRow(t, connString, "SELECT count(*) FROM libraries", &libraries)
+	if libraries != 0 {
+		t.Fatal("a refused ingestion wrote the library")
+	}
+}
+
+func TestIngestAcceptsGroupMetadataUpToTheBudget(t *testing.T) {
+	store, _ := budgetStore(t)
+	dir, total := sharedGroupsLibrary(t)
+	repo := Repository{ID: 42, Owner: "example", Name: "rules", CloneURL: dir}
+
+	result, err := ingest(context.Background(), store, repo, limits{fetch: defaultFetchLimits, contentBytes: total})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Rules != sharedGroups {
+		t.Fatalf("ingested %d rules, want %d", result.Rules, sharedGroups)
 	}
 }

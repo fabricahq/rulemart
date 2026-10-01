@@ -30,7 +30,7 @@ another library locally, ingest it and add its ID there, as a vetting pull reque
 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
 one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
-memory, and refuses a library whose tags, objects, or rule content pass the limits in `internal/ingest/ingest.go`.
+memory, and refuses a library whose tags, objects, or content pass the limits in `internal/ingest/ingest.go`.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the connection string instead of `DATABASE_URL`, as the
 functions do. Ingestion parses records with the copy of Code Rules' parser in

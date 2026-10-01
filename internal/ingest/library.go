@@ -69,7 +69,7 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory, c
 		lib.rules = append(lib.rules, r)
 	}
 	for _, id := range slices.Sorted(maps.Keys(groupIDs)) {
-		g, err := readGroup(latest, id)
+		g, err := readGroup(latest, id, budget)
 		if err != nil {
 			return library{}, err
 		}
@@ -78,9 +78,9 @@ func readLibrary(repo Repository, releases []release, histories []ruleHistory, c
 	return lib, nil
 }
 
-// contentBudget bounds the rule content one ingestion reads and renders, Markdown and HTML together, across every
-// rule. Git stores a file once however many rule paths share it, so the fetch limits can't bound this: a small
-// release can list thousands of rules that share one large file.
+// contentBudget bounds the content one ingestion reads and holds until it writes the library: each rule's Markdown
+// and HTML, and each group's metadata. Git stores a file once however many paths share it, so the fetch limits
+// can't bound this: a small release can list thousands of rules or groups that share one large file.
 type contentBudget struct {
 	limit, spent int64
 }
@@ -88,7 +88,7 @@ type contentBudget struct {
 // spend records n more bytes of rule content, or refuses them when they would pass the limit.
 func (b *contentBudget) spend(n int64) error {
 	if b.spent+n > b.limit {
-		return fmt.Errorf("the library's rules hold more than %d bytes of Markdown and HTML, which ingestion won't hold", b.limit)
+		return fmt.Errorf("the library's rules and groups hold more than %d bytes of content, which ingestion won't hold", b.limit)
 	}
 	b.spent += n
 	return nil
@@ -145,6 +145,10 @@ func readRule(repo Repository, releases []release, history ruleHistory, budget *
 	if err != nil {
 		return rule{}, fmt.Errorf("%s: %v", published.tag, err)
 	}
+	// The metadata the page shows is decoded from the frontmatter into copies of its own, which stay with the rule.
+	if err := budget.spend(int64(len(parsed.Title) + len(parsed.ImpactDescription) + len(parsed.WhenToRead))); err != nil {
+		return rule{}, fmt.Errorf("%s: %s: %v", published.tag, path, err)
+	}
 	document, err := coderules.SplitDocument(parsed.Document, path)
 	if err != nil {
 		return rule{}, fmt.Errorf("%s: %v", published.tag, err)
@@ -164,10 +168,10 @@ func readRule(repo Repository, releases []release, history ruleHistory, budget *
 	return r, nil
 }
 
-// readGroup reads group id's _group.yaml at release r.
-func readGroup(r release, id string) (group, error) {
+// readGroup reads group id's _group.yaml at release r, spending budget on it.
+func readGroup(r release, id string, budget *contentBudget) (group, error) {
 	path := id + "/_group.yaml"
-	text, err := readFile(r.commit, path, nil)
+	text, err := readFile(r.commit, path, budget.spend)
 	if err != nil {
 		return group{}, fmt.Errorf("%s: %s: %v", r.tag, path, err)
 	}
