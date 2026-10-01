@@ -131,6 +131,28 @@ func TestReplaceLibraryStoresRetirementSummariesAndSharedFileUpdates(t *testing.
 	}
 }
 
+// A retired rule keeps the release that retired it and the rule that replaced it, for its history. No page reads
+// them yet, so this reads them from the tables.
+func TestReplaceLibraryStoresEachRetirement(t *testing.T) {
+	s, connString := newStore(t)
+	lib := exampleRules
+	lib.Rules = slices.Clone(exampleRules.Rules)
+	// check-retry-backoff is retired in release 2, before old-habit, and replaced by verify-retry-limits.
+	lib.Rules[1].RetiredIn = 2
+
+	replace(t, s, lib)
+
+	got := lines(t, connString, `SELECT r.path || ' retired in release/' || rel.number || ', replaced by ' || coalesce(r.replaced_by, '-')
+		FROM rules r JOIN library_releases rel ON rel.id = r.retired_in_release_id ORDER BY r.path`)
+	want := []string{
+		"practices/legacy/old-habit retired in release/3, replaced by -",
+		"practices/testing/check-retry-backoff retired in release/2, replaced by practices/testing/verify-retry-limits",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("retirements are %q, want %q", got, want)
+	}
+}
+
 // Replacing a library with itself writes no row at all, which the rows' transaction IDs show.
 func TestReplaceLibraryChangesNothingWhenRepeated(t *testing.T) {
 	s, connString := newStore(t)
