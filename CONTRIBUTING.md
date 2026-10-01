@@ -28,11 +28,13 @@ Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, 
 another library locally, ingest it and add its ID there, as a vetting pull request would.
 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
-one transaction; running it again on unchanged tags changes nothing. Set `GITHUB_TOKEN` if GitHub's rate limit for
-anonymous requests gets in the way. Against Neon, set `DATABASE_URL_PARAMETER` to the SSM parameter holding the
-connection string instead of `DATABASE_URL`, as the functions do. Ingestion parses records with the copy of Code
-Rules' parser in [third_party/coderules](third_party/coderules), so it reads only libraries released with a Code
-Rules version that writes the same record format.
+one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
+memory, and refuses a library whose tags or objects pass the limits in `internal/ingest/bounded.go`. Set
+`GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
+`DATABASE_URL_PARAMETER` to the SSM parameter holding the connection string instead of `DATABASE_URL`, as the
+functions do. Ingestion parses records with the copy of Code Rules' parser in
+[third_party/coderules](third_party/coderules), so it reads only libraries released with a Code Rules version that
+writes the same record format.
 
 ## Generated files
 
