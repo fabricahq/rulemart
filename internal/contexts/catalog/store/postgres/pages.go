@@ -12,7 +12,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )

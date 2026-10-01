@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 )
 

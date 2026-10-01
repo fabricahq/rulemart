@@ -16,14 +16,21 @@ Tests create their own databases on that server and drop them afterward. `make d
 
 `make db` also creates a `rulemart` database for local development, and the `rulemart_web` role the web function
 connects as. Migrate the database and ingest a library as its owner, then serve the pages at
-<http://127.0.0.1:8080>; `make web` connects as `rulemart_web`, as the deployed function does:
+<http://127.0.0.1:8080>:
 
 ```sh
-export DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart?sslmode=disable'
 make migrate
-go run ./cmd/ingest https://github.com/fabricahq/code-rules-test-library
+make ingest URL=https://github.com/fabricahq/code-rules-test-library
 make web
 ```
+
+The [Makefile](Makefile) names the local database's connections. `make migrate` and `make ingest` connect as the
+database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they
+never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection
+string in `DATABASE_URL`, so with only `DATABASE_URL_PARAMETER` set it stops and says so. `make web` connects with
+`LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog, as the deployed function does. Each
+starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does `RULEMART_TEST_DATABASE_URL`, the server where tests create
+their databases.
 
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.
@@ -43,16 +50,26 @@ writes the same record format.
 ## Generated files
 
 sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
-so building needs none of them. After changing a query in `internal/contexts/catalog/store/postgres/queries`, a
-migration, a `.templ` file, or `internal/platform/web/styles/app.css`, run:
+so building needs none of them, and every generated file says so where it lives:
+
+- sqlc writes the catalog's queries into `internal/contexts/catalog/store/postgres/generated/catalogdb`, with files
+  named `*.generated.go`.
+- Tailwind writes `internal/platform/web/static/generated/app.css`.
+- templ output must stay beside its `.templ` source, because Go needs it in the same package and so the same
+  directory. `make generate` renames templ's `x_templ.go` to `x_templ.generated.go`.
+
+[.gitattributes](.gitattributes) marks `generated/` directories and `*.generated.*` files as generated, so GitHub
+collapses them in diffs. After changing a query in `internal/contexts/catalog/store/postgres/queries`, a migration,
+a `.templ` file, or `internal/platform/web/styles/app.css`, run:
 
 ```sh
 make generate
 ```
 
-It runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it downloads into `bin/` and checks
-against the SHA-256 pinned in the [Makefile](Makefile). CI runs `make check-generated`, which fails when a committed
-file differs from what its sources generate.
+It deletes the generated files, then runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it
+downloads into `bin/` and checks against the SHA-256 pinned in the [Makefile](Makefile). CI runs
+`make check-generated`, which fails when a committed generated file differs from what its sources generate, or is
+one they no longer generate, such as a file under an old name.
 
 ## Layout
 
@@ -69,7 +86,7 @@ file differs from what its sources generate.
   - `source/git` fetches release snapshots with go-git, which nothing else uses outside its test fixture
     `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.
   - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
-    and sqlc's output in `catalogdb`.
+    and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `migrate` the migrations, `web`
   the HTTP server, templates, and static files, and `postgrestest` and `database/databasetest` the test databases.

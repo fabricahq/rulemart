@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/catalogdb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
