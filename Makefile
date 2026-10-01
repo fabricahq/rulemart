@@ -84,7 +84,9 @@ db:
 	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_catalog_reader'" | grep -q 1 \
 		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_catalog_reader NOLOGIN"
 	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_web'" | grep -q 1 \
-		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)' IN ROLE rulemart_catalog_reader"
+		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)'"
+	@# Granted every time, so a container whose rulemart_web predates the group role gains the membership too.
+	@docker exec -e PGOPTIONS='-c client_min_messages=warning' $(LOCAL_DB_CONTAINER) psql -U postgres -qc "GRANT rulemart_catalog_reader TO rulemart_web"
 	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database, and rulemart_web as a member of rulemart_catalog_reader for local development"
 
 db-stop:
