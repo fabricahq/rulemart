@@ -24,3 +24,21 @@ If required rule files are unavailable or give conflicting instructions,
 report the issue rather than silently skipping them or choosing a policy.
 
 To add, change, or update rules, follow [.code-rules/README.md](.code-rules/README.md).
+
+<!-- release-planner:begin v0.5.0 sha256:5911c1f9642cb6bb -->
+## Releases
+
+This repository publishes releases with [Release Planner](https://github.com/fabricahq/release-planner) v0.5.0. When asked to make a release, draft, revise, or correct release notes, or retry a failed release, print the release procedure and follow it:
+
+```sh
+release-planner guide
+```
+
+First check that `release-planner version` prints `v0.5.0`. If it doesn't, or `release-planner` isn't installed, install that version:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/fabricahq/release-planner/v0.5.0/install.sh | sh -s -- --version v0.5.0
+```
+
+Read `.release-planner/policy.md` first for this repository's release policy. You prepare the release pull request; the maintainer approves the release by merging it. Never tag, publish, or merge.
+<!-- release-planner:end -->

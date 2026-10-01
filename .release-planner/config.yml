@@ -1,0 +1,76 @@
+# Release Planner configuration: https://release-planner.fabricahq.com/customize/configuration/
+
+# The format of this file.
+schema-version: 1
+
+# The Release Planner version to use. Bumping it upgrades the GitHub Actions workflow
+# (.github/workflows/release-planner.yml) and the agent guide together; run
+# release-planner install after changing it.
+version: v0.5.0
+
+# The version your first release must use.
+first-version: v0.1.0
+
+# Optional release-only checks, run on the release commit on the release pull request,
+# before you approve it. Your required pull request checks already test what merges, so use
+# this only for checks they don't run: a smoke test of what you ship, an API compatibility
+# check against the previous release, a fresh vulnerability scan, or a slow end-to-end suite.
+#
+# Either a Bash script, with optional go, node, and python toolchains:
+# release-checks:
+#   go: '1.27.x'
+#   run: |
+#     go install golang.org/x/vuln/cmd/govulncheck@latest
+#     govulncheck ./...
+#
+# Or one of your workflows, called with the commit to check and your repository's secrets.
+# It needs a workflow_call trigger with a string input named ref, and must check out that ref:
+# release-checks:
+#   workflow: release-checks.yml
+
+# Optional files to attach to each release, built from the release commit on the release
+# pull request by one of your workflows, then attested and published when you merge. It
+# needs a workflow_call trigger with string inputs ref, tag, and version; it must check out
+# ref, upload the files as one artifact named release-assets, and output that upload's ID as
+# artifact-id. It gets no secrets.
+#
+# Here it builds the two Lambda ZIPs with fabricahq/lambda-build, plus SHA256SUMS and
+# manifest.json. Deployments in Fabrica's infrastructure repository pin the ZIPs by SHA-256.
+release-assets:
+  workflow: build-release.yml
+
+# Optional workflow to run after you merge a release pull request and before the release is
+# tagged, such as one that applies database migrations. If it fails, nothing is published.
+# It needs a workflow_call trigger with string inputs ref, tag, and version, and every job
+# must name the same GitHub environment, which holds its credentials; it gets no secrets. It
+# may run again, late, and alongside itself, so make that safe.
+# pre-publish:
+#   - workflow: migrate-database.yml
+
+# Optional workflows to run after each new release publishes, in parallel, such as one that
+# deploys it or updates a Homebrew formula. A workflow in this repository gets the same inputs
+# as a pre-publish one, and its jobs name the GitHub environment that holds its credentials. A
+# workflow in another repository of the same owner is started with inputs tag and version,
+# with a GitHub App token from the dispatch environment. Prereleases are skipped unless an
+# entry sets prereleases: true. A failure leaves the release published.
+# post-publish:
+#   - workflow: deploy.yml
+#   - repository: your-org/homebrew-tap
+#     workflow: update-formula.yml
+
+# Release notes rules to turn off. release-planner validate checks the notes against every rule;
+# list them with: release-planner validate --rules
+# release-notes-rules:
+#   no-long-heading: off
+
+# Your own release notes style, if you want one: a markdown file, and how it combines with
+# Release Planner's default style. append adds yours after the default; replace uses only yours.
+# Print the default style with: release-planner guide --default-style
+# release-notes-style:
+#   file: .release-planner/release-notes-style.md
+#   mode: append
+
+# Where release notes live, and the branch that release pull requests merge into
+# and releases are published from.
+# release-notes-dir: _releases
+# release-branch: main
