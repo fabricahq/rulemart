@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"net/url"
 	"os"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ServerEnv names the variable holding a connection string for a Postgres server where tests may create databases.
@@ -34,14 +36,48 @@ func Server(t *testing.T) string {
 	return ""
 }
 
-// New creates an empty database for t and returns a connection string for it, as the server's user.
+// WebRole is the role the web function connects as. Infrastructure creates it in production; tests and local
+// development create it with webRolePassword, a test value.
+const WebRole = "rulemart_web"
+
+const webRolePassword = "rulemart-web-local"
+
+// New creates an empty database for t and returns a connection string for it, as the server's user. It first
+// makes sure the server has WebRole, which migrations grant access to.
 func New(t *testing.T) string {
 	t.Helper()
 	server := Server(t)
+	createWebRole(t, server)
 	name := "rulemart_test_" + RandomHex(t, 8)
 	exec(t, server, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 	t.Cleanup(func() { exec(t, server, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)") })
 	return withDatabase(t, server, name)
+}
+
+// AsWebRole returns connString with WebRole as its user, to connect as the web function does.
+func AsWebRole(t *testing.T, connString string) string {
+	t.Helper()
+	return WithUser(t, connString, WebRole, webRolePassword)
+}
+
+// createWebRole creates WebRole on server unless it exists. Roles span the server, and tests in several packages
+// create it at once, so losing that race to another test isn't an error.
+func createWebRole(t *testing.T, server string) {
+	t.Helper()
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, server)
+	if err != nil {
+		t.Fatalf("connect to the test Postgres server (start one with make db): %v", err)
+	}
+	defer conn.Close(ctx)
+	_, err = conn.Exec(ctx, "CREATE ROLE "+pgx.Identifier{WebRole}.Sanitize()+" LOGIN PASSWORD '"+webRolePassword+"'")
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && (pgErr.Code == "42710" || pgErr.Code == "23505") { // duplicate_object, unique_violation
+		return
+	}
+	if err != nil {
+		t.Fatalf("create role %s: %v", WebRole, err)
+	}
 }
 
 // Parameter stands in for an SSM parameter whose value is a connection string that never changes.

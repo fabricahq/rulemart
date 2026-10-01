@@ -2,11 +2,15 @@
 # and manifest.json. check needs the Postgres from db; CI provides its own.
 .PHONY: dist check generate check-generated db db-stop migrate web clean
 
-# Postgres for integration tests and local development, matching Neon's major version.
+# Postgres for integration tests and local development, matching Neon's major version. make db also creates the
+# rulemart database and the rulemart_web role that migrations grant access to.
 DB_IMAGE := postgres:18
 DB_CONTAINER := rulemart-postgres
 DB_PORT := 55432
 export RULEMART_TEST_DATABASE_URL ?= postgres://postgres:postgres@127.0.0.1:$(DB_PORT)/postgres?sslmode=disable
+# The web function's role. Infrastructure creates it in production; locally its password is a test value.
+WEB_ROLE_PASSWORD := rulemart-web-local
+WEB_DATABASE_URL ?= postgres://rulemart_web:$(WEB_ROLE_PASSWORD)@127.0.0.1:$(DB_PORT)/rulemart?sslmode=disable
 
 # Tailwind's standalone CLI, so building the stylesheet needs no Node. Each platform's binary is pinned by the
 # SHA-256 in the release's sha256sums.txt; update the version and every checksum together.
@@ -54,7 +58,9 @@ db:
 	@until docker exec $(DB_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 	@docker exec $(DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
 		|| docker exec $(DB_CONTAINER) createdb -U postgres rulemart
-	@echo "Postgres is ready at 127.0.0.1:$(DB_PORT), with a rulemart database for local development"
+	@docker exec $(DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_web'" | grep -q 1 \
+		|| docker exec $(DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(WEB_ROLE_PASSWORD)'"
+	@echo "Postgres is ready at 127.0.0.1:$(DB_PORT), with a rulemart database and the rulemart_web role for local development"
 
 db-stop:
 	docker rm -f $(DB_CONTAINER)
@@ -63,9 +69,10 @@ db-stop:
 migrate:
 	go run ./cmd/migrate
 
-# Serves the pages at http://127.0.0.1:8080 from the database at DATABASE_URL.
+# Serves the pages at http://127.0.0.1:8080 from the local rulemart database, connecting as rulemart_web as the
+# deployed function does.
 web:
-	go run ./cmd/web
+	DATABASE_URL='$(WEB_DATABASE_URL)' go run ./cmd/web
 
 clean:
 	rm -rf dist bin
