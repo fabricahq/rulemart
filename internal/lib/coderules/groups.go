@@ -1,6 +1,6 @@
-// Package coderules parses and validates Code Rules' rule, group, library manifest, and release record formats
-// without accessing the filesystem. It is a temporary copy of part of Code Rules' internal rules package; see
-// README.md.
+// Package coderules parses and validates Code Rules' rule, group, library manifest, release record, and canonical
+// group list formats without accessing the filesystem. It is a temporary copy of part of Code Rules' internal rules
+// package; see README.md.
 package coderules
 
 import (
