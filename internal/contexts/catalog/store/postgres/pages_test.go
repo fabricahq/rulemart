@@ -129,8 +129,8 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		t.Errorf("library is %+v, want %+v", page.Library, wantLibrary)
 	}
 	wantGroups := []views.Group{
-		{Path: "practices/testing", Name: "Testing", Description: "Testing rules.", WhenToRead: "When testing.", Rules: 1},
-		{Path: "techs/go", Name: "Go", Description: "Go rules.", WhenToRead: "When writing Go.", Rules: 1},
+		{Path: "practices/testing", Description: "Testing rules.", WhenToRead: "When testing.", Rules: 1},
+		{Path: "techs/go", Description: "Go rules.", WhenToRead: "When writing Go.", Rules: 1},
 	}
 	if !slices.Equal(page.Groups, wantGroups) {
 		t.Errorf("groups are %+v, want %+v", page.Groups, wantGroups)
@@ -158,7 +158,7 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	r := page.Rule
 	r.PublishedAt = day(3)
 	want := views.Rule{
-		Path: "techs/go/return-errors", Group: "techs/go", GroupName: "Go", Title: "Return errors", Impact: "HIGH",
+		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
 		WhenToRead: "When changing Return errors.", HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
 	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {

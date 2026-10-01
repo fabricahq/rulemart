@@ -82,7 +82,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		page = views.LibraryPage{Library: lib}
 		for _, g := range groups {
 			page.Groups = append(page.Groups, views.Group{
-				Path: g.Path, Name: g.Name, Description: g.Description, WhenToRead: g.WhenToRead, Rules: int(g.RuleCount),
+				Path: g.Path, Description: g.Description, WhenToRead: g.WhenToRead, Rules: int(g.RuleCount),
 			})
 		}
 		for _, r := range rules {
@@ -120,7 +120,7 @@ func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner,
 			return err
 		}
 		page = views.RulePage{Library: lib, Rule: views.Rule{
-			Path: r.Path, Group: r.GroupPath, GroupName: r.GroupName, Title: r.Title, Impact: r.Impact,
+			Path: r.Path, Group: r.GroupPath, Title: r.Title, Impact: r.Impact,
 			WhenToRead: r.WhenToRead, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
 			Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
 		}}

@@ -59,12 +59,49 @@ func newLibraryCards(libraries []views.LibraryCard) []libraryCard {
 
 // groupView is a group with its current rules.
 type groupView struct {
-	id, name string
+	label groupLabel
+	icon  groupIcon
 	// blurb tells a reader when the group applies. Technology names explain themselves, so only practices have one.
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
 	rules  []ruleCard
+}
+
+// groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
+// ID, flagged as not canonical, never by the name its library declares.
+type groupLabel struct {
+	id string
+	// name is empty when the group isn't canonical.
+	name      string
+	canonical bool
+}
+
+func newGroupLabel(id string, canonical *views.CanonicalGroup) groupLabel {
+	if canonical == nil {
+		return groupLabel{id: id}
+	}
+	return groupLabel{id: id, name: canonical.Name, canonical: true}
+}
+
+// initial returns the first letter of a canonical group's name, which stands in for an icon it doesn't have.
+func (l groupLabel) initial() string {
+	for _, r := range l.name {
+		return strings.ToUpper(string(r))
+	}
+	return ""
+}
+
+// notCanonicalExplanation is the hover text of a group's "not canonical" flag.
+const notCanonicalExplanation = "Not on Code Rules' canonical group list, which names the groups libraries share, " +
+	"so this group stands alone."
+
+// groupIcon is the icon beside a group.
+type groupIcon struct {
+	// src is empty when the group has no icon.
+	src string
+	// monochrome icons are inverted in dark themes.
+	monochrome bool
 }
 
 // ruleCard is a rule's entry in a library's list of rules.
@@ -78,8 +115,9 @@ type libraryContents struct {
 	ruleCount        int
 }
 
-// newLibraryContents groups the page's rules under its groups, keeping both orders.
-func newLibraryContents(lib libraryView, page views.LibraryPage) libraryContents {
+// newLibraryContents groups the page's rules under its groups, keeping both orders. iconURL returns where the site
+// serves an icon file.
+func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
 	byGroup := map[string][]ruleCard{}
 	for _, r := range page.Rules {
 		byGroup[r.Group] = append(byGroup[r.Group], ruleCard{
@@ -88,7 +126,10 @@ func newLibraryContents(lib libraryView, page views.LibraryPage) libraryContents
 	}
 	var result libraryContents
 	for _, g := range page.Groups {
-		view := groupView{id: g.Path, name: g.Name, anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
+		view := groupView{label: newGroupLabel(g.Path, g.Canonical), anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
+		if g.Canonical != nil && g.Canonical.Icon.File != "" {
+			view.icon = groupIcon{src: iconURL(g.Canonical.Icon.File), monochrome: g.Canonical.Icon.Monochrome}
+		}
 		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead
 			result.practices = append(result.practices, view)
@@ -107,10 +148,11 @@ func (c libraryContents) all() []groupView {
 
 // ruleView is what a rule's page shows.
 type ruleView struct {
-	library                       libraryView
-	href, id, title, impact       string
-	version, whenToRead, html     string
-	groupID, groupName, groupHref string
+	library                   libraryView
+	href, id, title, impact   string
+	version, whenToRead, html string
+	group                     groupLabel
+	groupHref                 string
 	// updated is when the release that published the current version was tagged.
 	updated string
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
@@ -131,7 +173,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	v := ruleView{
 		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
 		version: r.Version.String(), whenToRead: r.WhenToRead, html: r.HTML,
-		groupID: r.Group, groupName: r.GroupName, groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
+		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
 		updated: date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}

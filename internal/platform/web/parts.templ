@@ -28,6 +28,34 @@ templ avatar(src, owner string, size avatarSize) {
 	</span>
 }
 
+// tileSize is a group tile's box: its size, corner radius, and initial's size.
+type tileSize string
+
+const (
+	tileXS tileSize = "size-[18px] rounded-[4px] text-[9px]"
+	tileMD tileSize = "size-7 rounded-[7px] text-[12px]"
+)
+
+// groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
+// no icon for it, and any other group with an empty dashed tile, so names line up either way. Monochrome icons are
+// inverted in dark themes.
+templ groupTile(label groupLabel, icon groupIcon, size tileSize) {
+	if icon.src != "" {
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile", string(size) }>
+			<img class={ "size-[64%] object-contain", templ.KV("icon-ink", icon.monochrome) } src={ icon.src } alt=""/>
+		</span>
+	} else if label.canonical {
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-surface-header leading-none font-semibold tracking-normal text-muted normal-case", string(size) } aria-hidden="true">{ label.initial() }</span>
+	} else {
+		<span class={ "inline-block flex-none border border-dashed border-border", string(size) } aria-hidden="true"></span>
+	}
+}
+
+// notCanonical flags a group that isn't on Code Rules' canonical group list, explained on hover.
+templ notCanonical() {
+	<span class="inline-block rounded-[4px] border border-dashed border-border-strong px-1.5 align-middle font-mono text-[10.5px] leading-[15px] font-normal tracking-normal whitespace-nowrap text-faint normal-case" title={ notCanonicalExplanation }>not canonical</span>
+}
+
 // label is a small uppercase heading, such as a list's or a panel's.
 templ label(class string) {
 	<p class={ "text-[12px] font-medium tracking-[.12em] text-muted uppercase", class }>

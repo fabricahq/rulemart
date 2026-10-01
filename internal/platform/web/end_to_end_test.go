@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	shipped "github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
@@ -28,10 +29,9 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 }
 
 // newIngestedSite ingests a library whose rule holds hostileHTML into a new database, and returns the pages'
-// handler, reading as the web function's role, so a table the migrations don't grant it fails these tests.
+// handler.
 func newIngestedSite(t *testing.T) http.Handler {
 	t.Helper()
-	db, connString := databasetest.New(t)
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.\n\n"+hostileHTML)
@@ -40,12 +40,28 @@ release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
+	return ingest(t, lib)
+}
+
+// ingest ingests lib into a new database, and returns the pages' handler, reading as the web function's role, so a
+// table the migrations don't grant it fails these tests, and naming groups by the canonical group list Rulemart
+// ships.
+func ingest(t *testing.T, lib *gittest.Library) http.Handler {
+	t.Helper()
+	db, connString := databasetest.New(t)
 	repo := lib.Repository(7)
 	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}
-	pages := app.Pages{Store: postgres.New(databasetest.AsWebRole(t, connString)), Vetted: []domain.LibraryKey{{Host: repo.Host, RepositoryID: repo.ID}}}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := app.Pages{
+		Store: postgres.New(databasetest.AsWebRole(t, connString)), Vetted: []domain.LibraryKey{{Host: repo.Host, RepositoryID: repo.ID}},
+		Groups: groups,
+	}
 	return newSite(t, pages)
 }
 
@@ -102,4 +118,35 @@ func TestRulePageShowsRawHTMLAsText(t *testing.T) {
 		}
 	}
 	walk(doc)
+}
+
+// Pages name a group by the canonical list, never by the name its library declares: a library can't rename a group
+// every library shares, or pass off its own group as one by declaring a canonical name for it.
+func TestPagesNameIngestedGroupsByTheCanonicalList(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Golang")
+	lib.Group("techs/golang", "Go")
+	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
+	lib.Rule("techs/golang/pass-context-first", "Pass context first", "Take a context first.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0, techs/golang/pass-context-first: 1.0.0}
+changes:
+  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+  techs/golang/pass-context-first: {change: new, summaries: [Add the rule.]}
+`)
+	handler := ingest(t, lib)
+
+	for path, want := range map[string][]string{
+		library:                {"Technologies · 2 Go techs/go 1 rule › techs/golang not canonical 1 rule ›"},
+		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
+		errorsRule:             {"rules › Go techs/go"},
+		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},
+	} {
+		page := get(t, handler, path).Body.String()
+		assertShows(t, page, want...)
+		if text := visibleText(t, page); strings.Contains(text, "Golang") || strings.Contains(text, "Go techs/golang") {
+			t.Errorf("%s shows a name the library declared: %s", path, text)
+		}
+	}
 }
