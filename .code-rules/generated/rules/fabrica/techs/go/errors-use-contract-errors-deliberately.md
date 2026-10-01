@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:techs/go/errors-use-contract-errors-deliberately`
 
+Version: 1.0.0
+
 **When to read:** Before defining sentinel or typed errors in Go, or writing, changing, or reviewing code that wraps errors with %w or checks them with errors.Is or errors.As.
 
 **Impact:** MEDIUM
@@ -66,7 +68,7 @@ Wrapping with `%w` inside one package, where the error does not cross its bounda
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/techs/go/errors-use-contract-errors-deliberately.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/errors-use-contract-errors-deliberately.md)
 
 **Declared license:** MIT
 

@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:techs/go/errors-include-useful-diagnostic-data`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing Go code that returns errors from database, network, filesystem, parsing, or cross-package calls.
 
 **Impact:** MEDIUM
@@ -60,7 +62,7 @@ Returning an error unchanged from a small private helper whose caller adds conte
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/techs/go/errors-include-useful-diagnostic-data.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/errors-include-useful-diagnostic-data.md)
 
 **Declared license:** MIT
 

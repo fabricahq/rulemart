@@ -29,6 +29,8 @@ This page contains summaries. Before planning, implementing, reviewing, testing,
 
 Rule ID: `fabrica:practices/readmes/give-a-quick-start-that-runs-as-written`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing install or getting-started instructions in a README, such as install commands, version numbers, setup steps, example commands, and sample output, or before a release that changes any of them.
 
 **Impact:** MEDIUM-HIGH
@@ -40,6 +42,8 @@ Rule ID: `fabrica:practices/readmes/give-a-quick-start-that-runs-as-written`
 ### Keep the README an entry point, and link to the full documentation
 
 Rule ID: `fabrica:practices/readmes/keep-the-readme-an-entry-point`
+
+Version: 1.0.0
 
 **When to read:** Before adding or reviewing detailed material in a README, such as configuration tables, command references, FAQs, file formats, architecture notes, or build and contribution instructions, or when a README grows well past its quick start.
 
@@ -53,6 +57,8 @@ Rule ID: `fabrica:practices/readmes/keep-the-readme-an-entry-point`
 
 Rule ID: `fabrica:practices/readmes/match-presentation-to-product-tier`
 
+Version: 1.0.0
+
 **When to read:** Before writing, restructuring, or reviewing a README's overall layout and tone, such as its title block, badges, opening pitch, section headings, and feature descriptions.
 
 **Impact:** MEDIUM
@@ -65,6 +71,8 @@ Rule ID: `fabrica:practices/readmes/match-presentation-to-product-tier`
 
 Rule ID: `fabrica:practices/readmes/open-with-what-the-product-does`
 
+Version: 1.0.0
+
 **When to read:** Before writing or reviewing the opening of a README, such as its title, tagline, first paragraphs, badges, and any notices or links placed above the description.
 
 **Impact:** MEDIUM
@@ -76,6 +84,8 @@ Rule ID: `fabrica:practices/readmes/open-with-what-the-product-does`
 ### State what the product does not do
 
 Rule ID: `fabrica:practices/readmes/state-what-the-product-does-not-do`
+
+Version: 1.0.0
 
 **When to read:** Before writing or reviewing a README's description of what a product can do, such as its features, supported platforms and services, status, or comparisons with alternatives.
 

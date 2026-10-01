@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:techs/go/comment-non-obvious-struct-fields`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, changing, or reviewing Go struct fields, especially fields whose nil or zero values, ownership, or relationships to other fields carry rules that other packages rely on.
 
 **Impact:** MEDIUM
@@ -80,7 +82,7 @@ A self-describing field without a comment is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/techs/go/comment-non-obvious-struct-fields.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comment-non-obvious-struct-fields.md)
 
 **Declared license:** MIT
 

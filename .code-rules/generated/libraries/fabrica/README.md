@@ -7,38 +7,37 @@ This folder retains byte-for-byte copies of declared library license and notice 
 
 **Repository:** https://github.com/fabricahq/public-rules.git
 
-**Requested revision:** ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea
+**Library release:** release/1
 
-**Resolved commit:** `ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea`
-
-**Imported from unreleased changes.** This source's ref isn't a library release, so the source doesn't follow rule versions: rules with unreleased changes have no version to cite.
+**Resolved commit:** `568e32f46cc3bf557ab90e82b8df6d661b839112`
 
 ## Rule versions
 
-| Rule | Version | Library release |
-| --- | --- | --- |
-| `practices/code-design/express-operations-as-meaningful-steps` | No version | Unreleased |
-| `practices/code-design/organize-code-by-feature` | No version | Unreleased |
-| `practices/code-design/separate-pure-computation-from-effects` | No version | Unreleased |
-| `practices/performance/optimize-measured-hot-paths` | No version | Unreleased |
-| `practices/readmes/give-a-quick-start-that-runs-as-written` | No version | Unreleased |
-| `practices/readmes/keep-the-readme-an-entry-point` | No version | Unreleased |
-| `practices/readmes/match-presentation-to-product-tier` | No version | Unreleased |
-| `practices/readmes/open-with-what-the-product-does` | No version | Unreleased |
-| `practices/readmes/state-what-the-product-does-not-do` | No version | Unreleased |
-| `practices/testing/choose-tests-by-risk` | No version | Unreleased |
-| `practices/testing/cover-boundary-cases` | No version | Unreleased |
-| `practices/testing/keep-tests-independent` | No version | Unreleased |
-| `practices/testing/name-tests-for-behavior-and-condition` | No version | Unreleased |
-| `practices/testing/run-focused-tests-while-iterating` | No version | Unreleased |
-| `practices/testing/test-at-the-lowest-layer` | No version | Unreleased |
-| `practices/testing/test-bug-fixes-before-fixing` | No version | Unreleased |
-| `practices/testing/test-observable-behavior` | No version | Unreleased |
-| `techs/go/comment-non-obvious-struct-fields` | No version | Unreleased |
-| `techs/go/comments-package-doc-vs-file-header` | No version | Unreleased |
-| `techs/go/errors-include-useful-diagnostic-data` | No version | Unreleased |
-| `techs/go/errors-use-contract-errors-deliberately` | No version | Unreleased |
-| `techs/goose/migrations-directory-contains-only-sql` | No version | Unreleased |
+| Rule | Version | Library release | Status |
+| --- | --- | --- | --- |
+| `practices/code-design/express-operations-as-meaningful-steps` | 1.0.0 | release/1 | Active |
+| `practices/code-design/organize-code-by-feature` | 1.0.0 | release/1 | Active |
+| `practices/code-design/separate-pure-computation-from-effects` | 1.0.0 | release/1 | Active |
+| `practices/performance/optimize-measured-hot-paths` | 1.0.0 | release/1 | Active |
+| `practices/readmes/give-a-quick-start-that-runs-as-written` | 1.0.0 | release/1 | Active |
+| `practices/readmes/keep-the-readme-an-entry-point` | 1.0.0 | release/1 | Active |
+| `practices/readmes/match-presentation-to-product-tier` | 1.0.0 | release/1 | Active |
+| `practices/readmes/open-with-what-the-product-does` | 1.0.0 | release/1 | Active |
+| `practices/readmes/state-what-the-product-does-not-do` | 1.0.0 | release/1 | Active |
+| `practices/testing/choose-tests-by-risk` | 1.0.0 | release/1 | Active |
+| `practices/testing/cover-boundary-cases` | 1.0.0 | release/1 | Active |
+| `practices/testing/keep-tests-independent` | 1.0.0 | release/1 | Active |
+| `practices/testing/name-tests-for-behavior-and-condition` | 1.0.0 | release/1 | Active |
+| `practices/testing/run-focused-tests-while-iterating` | 1.0.0 | release/1 | Active |
+| `practices/testing/test-at-the-lowest-layer` | 1.0.0 | release/1 | Active |
+| `practices/testing/test-bug-fixes-before-fixing` | 1.0.0 | release/1 | Active |
+| `practices/testing/test-observable-behavior` | 1.0.0 | release/1 | Active |
+| `techs/go/comment-non-obvious-struct-fields` | 1.0.0 | release/1 | Active |
+| `techs/go/comments-package-doc-vs-file-header` | 1.0.0 | release/1 | Active |
+| `techs/go/errors-include-useful-diagnostic-data` | 1.0.0 | release/1 | Active |
+| `techs/go/errors-use-contract-errors-deliberately` | 1.0.0 | release/1 | Active |
+| `techs/go/one-owner-for-text-and-parsed-form` | 1.0.0 | release/1 | Active |
+| `techs/goose/migrations-directory-contains-only-sql` | 1.0.0 | release/1 | Active |
 
 ## License terms
 

@@ -29,6 +29,8 @@ Before planning, implementing, reviewing, testing, or diagnosing, complete these
 
 Rule ID: `fabrica:techs/goose/migrations-directory-contains-only-sql`
 
+Version: 1.0.0
+
 **When to read:** Before planning, adding, moving, or reviewing files in the directory a project uses for goose SQL migrations, or adding a Go migration.
 
 **Impact:** MEDIUM
@@ -83,7 +85,7 @@ A project that deliberately keeps SQL and Go migrations together, with one versi
 
 #### Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/techs/goose/migrations-directory-contains-only-sql.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/goose/migrations-directory-contains-only-sql.md)
 
 **Separate rule file:** [Keep the SQL migration directory for migration files only](../../rules/fabrica/techs/goose/migrations-directory-contains-only-sql.md)
 

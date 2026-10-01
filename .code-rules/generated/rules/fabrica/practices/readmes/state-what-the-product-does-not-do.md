@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/readmes/state-what-the-product-does-not-do`
 
+Version: 1.0.0
+
 **When to read:** Before writing or reviewing a README's description of what a product can do, such as its features, supported platforms and services, status, or comparisons with alternatives.
 
 **Impact:** MEDIUM
@@ -21,8 +23,8 @@ Claim only what the current release does.
 - For a primary product, add a short "What *product* doesn't do" section, with one bold lead per limit and, where known, what to use instead.
 - For a secondary product, add a short "Limits" list, or state a single limit in the opening paragraph.
 - Describe planned features as planned, without promising dates, and keep them out of feature lists.
-- Before stating that a feature is missing, check the default branch and open pull requests.
-  Leave out a gap that work in progress is about to close, and ask the owner when you cannot tell.
+- Keep stating a limit until a release removes it, even when work in progress is about to close it.
+  Check the default branch and open pull requests to note when support is planned, and ask the owner when you cannot tell.
 - When comparing with alternatives, describe the difference in approach fairly, including when an alternative is the better fit.
 - Leave minor limits to the reference documentation.
 
@@ -30,7 +32,7 @@ Claim only what the current release does.
 
 A limit a reader discovers after investing in setup costs far more than one they read before starting.
 Stating limits also makes the rest of the README credible: readers trust the claims of a page that is candid about gaps.
-Missing-feature limits go stale fastest, so a limit that is about to be closed misleads readers as much as an overstated feature.
+Missing-feature limits go stale fastest, so recheck each one against every release: a limit a release has closed misleads readers as much as an overstated feature.
 
 ### Examples
 
@@ -57,14 +59,14 @@ The product runs only on GitHub Actions, and artifact upload is planned, not rel
 ### Validation
 
 Compare each capability the README claims with the current release, and confirm it works as described.
-Check each stated gap against the default branch and open pull requests, and confirm it is still expected to hold.
+Check each stated gap against the current release, and confirm it still holds there.
 List the limits that would stop a typical reader from adopting the product, such as an unsupported platform, and check that the README states each one.
 
 A limit covered in the reference documentation but not the README is not a violation when it would not change a typical reader's decision.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/readmes/state-what-the-product-does-not-do.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/readmes/state-what-the-product-does-not-do.md)
 
 **Declared license:** MIT
 

@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/choose-tests-by-risk`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, or reviewing the tests for a change, or deciding whether an existing test is worth keeping, such as when adding a feature, changing complex logic, or pruning a slow or brittle suite.
 
 **Impact:** HIGH
@@ -89,7 +91,7 @@ Low coverage by itself is not a violation, and neither is the absence of tests f
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/testing/choose-tests-by-risk.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/testing/choose-tests-by-risk.md)
 
 **Declared license:** MIT
 

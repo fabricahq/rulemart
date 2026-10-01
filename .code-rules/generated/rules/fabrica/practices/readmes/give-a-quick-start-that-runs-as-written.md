@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/readmes/give-a-quick-start-that-runs-as-written`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing install or getting-started instructions in a README, such as install commands, version numbers, setup steps, example commands, and sample output, or before a release that changes any of them.
 
 **Impact:** MEDIUM-HIGH
@@ -88,7 +90,7 @@ A pinned version is not a violation when the step's purpose is pinning and the v
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/readmes/give-a-quick-start-that-runs-as-written.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/readmes/give-a-quick-start-that-runs-as-written.md)
 
 **Declared license:** MIT
 

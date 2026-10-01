@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/keep-tests-independent`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, debugging, or reviewing automated tests that share data, global state, or services, such as tests against a shared database, browser tests that run in parallel workers, tests that change configuration or the clock, or tests that call external services.
 
 **Impact:** MEDIUM-HIGH
@@ -122,7 +124,7 @@ Sharing a read-only fixture is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/testing/keep-tests-independent.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/testing/keep-tests-independent.md)
 
 **Declared license:** MIT
 

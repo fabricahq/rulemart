@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/code-design/organize-code-by-feature`
 
+Version: 1.0.0
+
 **When to read:** Before planning, writing, moving, or reviewing where files live in a project, such as adding a feature, creating shared components or utilities, or choosing import paths.
 
 **Impact:** MEDIUM
@@ -70,7 +72,7 @@ A small project with a few files in one folder is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/code-design/organize-code-by-feature.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/code-design/organize-code-by-feature.md)
 
 **Attribution:** [Adapted from mkosir TypeScript Style Guide guidance \(organize-projects-by-feature, colocate-code-by-feature, use-relative-imports-within-feature; MIT, notice retained in NOTICE.md\): merged the colocation, feature-organization, and relative-import rules, moved them to code design, restructured to the rule template, and replaced the long example trees with one comparison.](<https://github.com/mkosir/typescript-style-guide/blob/86bebd58a987e23277dba02028c0ee2d6ffb5073/website/src/pages/index.mdx>)
 

@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/readmes/keep-the-readme-an-entry-point`
 
+Version: 1.0.0
+
 **When to read:** Before adding or reviewing detailed material in a README, such as configuration tables, command references, FAQs, file formats, architecture notes, or build and contribution instructions, or when a README grows well past its quick start.
 
 **Impact:** MEDIUM
@@ -85,7 +87,7 @@ A short table that compares approaches or lists a few generated files a user mus
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/practices/readmes/keep-the-readme-an-entry-point.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/readmes/keep-the-readme-an-entry-point.md)
 
 **Declared license:** MIT
 

@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:techs/go/comments-package-doc-vs-file-header`
 
+Version: 1.0.0
+
 **When to read:** Before writing, changing, or reviewing a comment at the top of a Go file, above the package clause, or a package's doc.go.
 
 **Impact:** LOW
@@ -78,7 +80,7 @@ A file header separated from `package` by a blank line is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/ed9e72c7c424129b3dfc7176ec58b2de3f61e3ea/techs/go/comments-package-doc-vs-file-header.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comments-package-doc-vs-file-header.md)
 
 **Declared license:** MIT
 

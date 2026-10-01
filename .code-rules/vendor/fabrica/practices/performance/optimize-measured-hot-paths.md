@@ -58,12 +58,17 @@ For 1,000 orders and 1,000 users, this can compare up to a million pairs.
 
 ```ts
 function attachUsers(orders: ReadonlyArray<Order>, users: ReadonlyArray<User>) {
-  const userById = new Map(users.map((user) => [user.id, user]));
+  const userById = new Map<User['id'], User>();
+  for (const user of users) {
+    if (!userById.has(user.id)) {
+      userById.set(user.id, user);
+    }
+  }
   return orders.map((order) => ({ ...order, user: userById.get(order.userId) }));
 }
 ```
 
-Building the map takes one pass, and each lookup is constant time.
+Building the map takes one pass, and each lookup is constant time. Keeping the first user for each ID preserves what `find` returned when IDs repeat.
 
 #### Application: Sorting to find one value
 
