@@ -151,7 +151,7 @@ func NewDatabase(t *testing.T) (*database.DB, string) {
 }
 
 // NewWebDatabase returns a DB for the test database at connString that connects as testdb.WebRole, as the web
-// function does, so it has only the access migrations grant that role. It closes the DB when the test ends.
+// function does, so it has only the access migrations grant testdb.CatalogReaderRole, its group. It closes the DB when the test ends.
 func NewWebDatabase(t *testing.T, connString string) *database.DB {
 	t.Helper()
 	version, err := migrate.RequiredVersion()

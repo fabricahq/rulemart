@@ -3,7 +3,8 @@
 .PHONY: dist check generate check-generated db db-stop migrate ingest web clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
-# rulemart database and the rulemart_web role that migrations grant access to.
+# rulemart database and the roles infrastructure creates in production: rulemart_catalog_reader, the NOLOGIN group
+# role that migrations grant access to, and rulemart_web, the web function's login role and its member.
 LOCAL_DB_IMAGE := postgres:18
 LOCAL_DB_CONTAINER := rulemart-postgres
 # IPv4, because make db publishes the port only on IPv4 loopback; localhost can resolve to ::1 first on macOS.
@@ -11,8 +12,8 @@ LOCAL_DB_HOST := 127.0.0.1
 LOCAL_DB_PORT := 55432
 # The rulemart database as its owner, which migrates it and ingests libraries into it.
 LOCAL_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
-# The web function's role, which may only read the catalog. Infrastructure creates it in production; locally its
-# password is a test value, which internal/testdb also uses.
+# The web function's login role, which may only read the catalog, through its membership in rulemart_catalog_reader.
+# Infrastructure creates it in production; locally its password is a test value, which internal/testdb also uses.
 LOCAL_WEB_ROLE_PASSWORD := rulemart-web-local
 # The rulemart database as rulemart_web, as the deployed web function connects.
 LOCAL_WEB_DATABASE_URL ?= postgres://rulemart_web:$(LOCAL_WEB_ROLE_PASSWORD)@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
@@ -80,9 +81,11 @@ db:
 	@until docker exec $(LOCAL_DB_CONTAINER) pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
 		|| docker exec $(LOCAL_DB_CONTAINER) createdb -U postgres rulemart
+	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_catalog_reader'" | grep -q 1 \
+		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_catalog_reader NOLOGIN"
 	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'rulemart_web'" | grep -q 1 \
-		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)'"
-	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database and the rulemart_web role for local development"
+		|| docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -qc "CREATE ROLE rulemart_web LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)' IN ROLE rulemart_catalog_reader"
+	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database, and rulemart_web as a member of rulemart_catalog_reader for local development"
 
 db-stop:
 	docker rm -f $(LOCAL_DB_CONTAINER)

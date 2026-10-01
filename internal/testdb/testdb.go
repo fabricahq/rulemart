@@ -6,10 +6,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,7 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ServerEnv names the variable holding a connection string for a Postgres server where tests may create databases.
@@ -38,8 +37,13 @@ func Server(t *testing.T) string {
 	return ""
 }
 
-// WebRole is the role the web function connects as. Infrastructure creates it in production; tests and local
-// development create it with webRolePassword, a test value.
+// CatalogReaderRole is the group role migrations grant catalog reads to. It can't log in; WebRole is its member.
+// Infrastructure creates it in production; tests and local development create it too.
+const CatalogReaderRole = "rulemart_catalog_reader"
+
+// WebRole is the login role the web function connects as. It has no grants of its own, and reads the catalog through
+// its membership in CatalogReaderRole. Infrastructure creates it in production; tests and local development create it
+// with webRolePassword, a test value.
 const WebRole = "rulemart_web"
 
 // webRolePassword is the role's local password, the Makefile's LOCAL_WEB_ROLE_PASSWORD, so tests and make db agree
@@ -47,11 +51,11 @@ const WebRole = "rulemart_web"
 const webRolePassword = "rulemart-web-local"
 
 // New creates an empty database for t and returns a connection string for it, as the server's user. It first
-// makes sure the server has WebRole, which migrations grant access to.
+// makes sure the server has CatalogReaderRole, which migrations grant access to, and WebRole, its member.
 func New(t *testing.T) string {
 	t.Helper()
 	server := Server(t)
-	createWebRole(t, server)
+	createRoles(t, server)
 	name := "rulemart_test_" + RandomHex(t, 8)
 	exec(t, server, "CREATE DATABASE "+pgx.Identifier{name}.Sanitize())
 	t.Cleanup(func() { exec(t, server, "DROP DATABASE IF EXISTS "+pgx.Identifier{name}.Sanitize()+" WITH (FORCE)") })
@@ -64,37 +68,69 @@ func AsWebRole(t *testing.T, connString string) string {
 	return WithUser(t, connString, WebRole, webRolePassword)
 }
 
-// createWebRole creates WebRole on server unless it exists, and fails t unless the role is a plain LOGIN role
-// that signs in with webRolePassword. Roles span the server, and tests in several packages create it at once, so
-// losing that race to another test isn't an error.
-func createWebRole(t *testing.T, server string) {
+// rolesLock is the advisory lock key that serializes creating the shared roles.
+const rolesLock = 7_392_614_028
+
+// createRoles creates CatalogReaderRole and WebRole on server unless they exist, as infrastructure creates them: a
+// NOLOGIN group role, and a LOGIN role that signs in with webRolePassword and is a member of it. It fails t unless
+// both have that shape. Roles span the server, and tests in several packages create them at once, so one transaction
+// at a time creates them, under an advisory lock.
+func createRoles(t *testing.T, server string) {
 	t.Helper()
 	ctx := context.Background()
 	conn := connect(t, server)
-	_, err := conn.Exec(ctx, "CREATE ROLE "+pgx.Identifier{WebRole}.Sanitize()+" LOGIN PASSWORD '"+webRolePassword+"'")
-	var pgErr *pgconn.PgError
-	if err != nil && !(errors.As(err, &pgErr) && (pgErr.Code == "42710" || pgErr.Code == "23505")) { // duplicate_object, unique_violation
-		t.Fatalf("create role %s: %v", WebRole, err)
+	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", rolesLock); err != nil {
+			return fmt.Errorf("lock the shared roles: %v", err)
+		}
+		exists := func(role string) (bool, error) {
+			var found bool
+			err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_roles WHERE rolname = $1)", role).Scan(&found)
+			return found, err
+		}
+		reader, web := pgx.Identifier{CatalogReaderRole}.Sanitize(), pgx.Identifier{WebRole}.Sanitize()
+		found, err := exists(CatalogReaderRole)
+		if err == nil && !found {
+			_, err = tx.Exec(ctx, "CREATE ROLE "+reader+" NOLOGIN")
+		}
+		if err != nil {
+			return fmt.Errorf("create role %s: %v", CatalogReaderRole, err)
+		}
+		found, err = exists(WebRole)
+		if err == nil && !found {
+			_, err = tx.Exec(ctx, "CREATE ROLE "+web+" LOGIN PASSWORD '"+webRolePassword+"' IN ROLE "+reader)
+		}
+		if err != nil {
+			return fmt.Errorf("create role %s: %v", WebRole, err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err := checkRole(ctx, conn, WebRole); err != nil {
+	if err := checkRole(ctx, conn, CatalogReaderRole, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkRole(ctx, conn, WebRole, true, CatalogReaderRole); err != nil {
 		t.Fatal(err)
 	}
 	web, err := pgx.Connect(ctx, AsWebRole(t, server))
 	if err != nil {
-		t.Fatalf("sign in as %s with the test password: %v; %s", WebRole, err, resetWebRole)
+		t.Fatalf("sign in as %s with the test password: %v; %s", WebRole, err, resetRoles)
 	}
 	_ = web.Close(ctx)
 }
 
-// resetWebRole tells a developer how to replace a test server's rulemart_web that tests can't use. Tests never
-// change or drop the shared role themselves.
-const resetWebRole = "recreate the test server with make db-stop and make db, or drop the role (DROP OWNED BY " +
-	WebRole + " in each database, then DROP ROLE " + WebRole + ") so the tests create it again"
+// resetRoles tells a developer how to replace a test server's shared roles that tests can't use. Tests never change
+// or drop the shared roles themselves.
+const resetRoles = "recreate the test server with make db-stop and make db, or drop the roles (DROP OWNED BY " +
+	WebRole + ", " + CatalogReaderRole + " in each database, then DROP ROLE " + WebRole + ", " + CatalogReaderRole +
+	") so the tests create them again"
 
-// checkRole returns an error unless role is a plain LOGIN role, as infrastructure creates rulemart_web: it can log
-// in, and it has no other attribute and belongs to no role.
-func checkRole(ctx context.Context, conn *pgx.Conn, role string) error {
-	var login bool
+// checkRole returns an error unless role has the shape infrastructure gives it: it can log in only if login is true,
+// has no other attribute, and is a member of exactly memberOf.
+func checkRole(ctx context.Context, conn *pgx.Conn, role string, login bool, memberOf ...string) error {
+	var canLogin bool
 	var extra, memberships []string
 	err := conn.QueryRow(ctx, `
 		SELECT r.rolcanlogin,
@@ -106,25 +142,41 @@ func checkRole(ctx context.Context, conn *pgx.Conn, role string) error {
 		           CASE WHEN r.rolreplication THEN 'REPLICATION' END], NULL),
 		       ARRAY(SELECT g.rolname FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid
 		             WHERE m.member = r.oid ORDER BY g.rolname)
-		FROM pg_roles r WHERE r.rolname = $1`, role).Scan(&login, &extra, &memberships)
+		FROM pg_roles r WHERE r.rolname = $1`, role).Scan(&canLogin, &extra, &memberships)
 	if err != nil {
 		return fmt.Errorf("read role %s: %v", role, err)
 	}
 	var problems []string
-	if !login {
+	switch {
+	case login && !canLogin:
 		problems = append(problems, "it can't log in")
+	case !login && canLogin:
+		problems = append(problems, "it can log in")
 	}
 	if len(extra) > 0 {
 		problems = append(problems, "it has "+strings.Join(extra, ", "))
 	}
-	if len(memberships) > 0 {
-		problems = append(problems, "it's a member of "+strings.Join(memberships, ", "))
+	if want := slices.Sorted(slices.Values(memberOf)); !slices.Equal(memberships, want) {
+		only := ""
+		if len(want) > 0 {
+			only = "only "
+		}
+		problems = append(problems, "it's a member of "+roleList(memberships)+", but should be a member of "+only+
+			roleList(want))
 	}
 	if len(problems) > 0 {
-		return fmt.Errorf("role %s on the test server isn't a plain LOGIN role like production's: %s; %s", role,
-			strings.Join(problems, "; "), resetWebRole)
+		return fmt.Errorf("role %s on the test server isn't shaped like production's: %s; %s", role,
+			strings.Join(problems, "; "), resetRoles)
 	}
 	return nil
+}
+
+// roleList names roles for an error message.
+func roleList(roles []string) string {
+	if len(roles) == 0 {
+		return "no role"
+	}
+	return strings.Join(roles, ", ")
 }
 
 // connect opens a connection to connString for t, closed when t ends.

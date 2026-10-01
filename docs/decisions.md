@@ -29,11 +29,13 @@ than adding history.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
   release records with Code Rules' own parser: a copy in `third_party/coderules` until Code Rules publishes a public
   parsing package.
-- **The web function connects as `rulemart_web`, a role that can only read what the pages show.** Infrastructure
-  creates it with SQL, as a plain LOGIN role, because a role made through Neon's API or console joins
-  `neon_superuser`, which can read and write every table and create roles and databases. Migrations grant it what
-  each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
-  ingestion connect as the database's owner.
+- **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
+  membership in `rulemart_catalog_reader`.** Infrastructure owns the roles: it creates `rulemart_catalog_reader`
+  with SQL, as a NOLOGIN group role, creates the login, and makes the login a member, because a role made through
+  Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
+  databases. Migrations own the grants: they grant the group role what each table needs, never grant to a login,
+  and never create roles, so a release can't migrate before infrastructure has, and a login can be replaced or
+  rotated without a migration. Migrations and ingestion connect as the database's owner.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by
