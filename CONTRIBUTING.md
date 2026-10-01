@@ -27,8 +27,9 @@ make web
 
 The [Makefile](Makefile) names the local database's connections. `make migrate` and `make ingest` connect as the
 database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they
-never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection
-string in `DATABASE_URL`, so with only `DATABASE_URL_PARAMETER` set it stops and says so. `make web` connects with
+never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection:
+it refuses a pooled `DATABASE_URL`, and from `DATABASE_URL_PARAMETER` it reads Neon's pooled connection string, as
+the functions do, and derives the direct one. `make web` connects with
 `LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog through its membership in
 `rulemart_catalog_reader`, as the deployed function does. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as
 does `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
@@ -76,8 +77,8 @@ one they no longer generate, such as a file under an old name.
 
 - `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server, and acknowledges the schedule's
   event. `cmd/worker` consumes the job queue, which has no jobs yet. Both run on Lambda.
-- `cmd/migrate-database` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's
-  machine, never on Lambda.
+- `cmd/migrate-database` applies schema migrations, in each release or on an operator's machine, and `cmd/ingest`
+  ingests a library, on an operator's machine. Neither runs on Lambda.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [_internal/decisions.md](_internal/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
@@ -120,25 +121,47 @@ go tool goose -dir db/migrations -s create add_libraries sql
   it.
 
 The functions never change the schema. When they first connect, they check that goose has applied the newest
-migration in their release, and refuse to use an older database. So apply migrations before deploying a release
-that needs them:
+migration in their release, and refuse to use an older database. Each release applies its migrations to production
+before it's published, as [Release](#release) describes, so a published release always has its schema.
+
+To apply migrations yourself, to a local database or a Neon branch, run:
 
 ```sh
-DATABASE_URL='<Neon direct connection string>' make migrate
+DATABASE_URL='<direct connection string>' make migrate
 ```
 
 Use Neon's direct connection string, not the pooled one: the migration lock needs a session that the pooler
-doesn't keep, so `migrate` refuses a pooled host. To try a migration on real data first, run it against a Neon
-branch.
+doesn't keep, so `migrate-database` refuses a pooled host. To try a migration on real data first, run it against a
+Neon branch.
 
 ## Release
 
-`make dist` builds each Lambda function for `provided.al2023` on arm64 and writes `dist/<function>.zip`,
-`SHA256SUMS`, and `manifest.json`. The ZIPs are reproducible.
+[Release Planner](https://release-planner.fabricahq.com) publishes releases: ask an agent to make one, and it opens
+a pull request that adds the release's notes under `_releases/`. Merging the pull request approves the release.
+[.release-planner/policy.md](.release-planner/policy.md) says how to choose a version. Nothing else tags or
+publishes a release.
 
-CI runs `make check` and builds the same assets on every push. Pushing a `v*` tag on a commit merged into `main`
-publishes them as a GitHub release. A deployment pins each release's SHA-256 values in Fabrica's infrastructure
-repository, so publishing a release doesn't deploy it.
+Each release is the pair of Lambda functions, built from the release commit:
+
+1. **On the release pull request,** [build-release.yml](.github/workflows/build-release.yml) builds `web.zip` and
+   `worker.zip` for `provided.al2023` on arm64 with [lambda-build](https://github.com/fabricahq/lambda-build), as
+   [lambda-build.toml](lambda-build.toml) says, plus `SHA256SUMS` and `manifest.json`. It builds twice in a pinned
+   container and requires identical ZIPs. Release Planner attests the files.
+2. **After the merge,** [migrate-database.yml](.github/workflows/migrate-database.yml), "Migrate the database", applies
+   the release commit's migrations to production. Its job runs in the `production` GitHub environment, which only
+   `main` can use, and assumes an AWS role that trusts only that environment, through GitHub's OIDC token, so no
+   AWS key is stored in GitHub. It reads Neon's pooled connection string from SSM and derives the direct one.
+3. **If the migrations succeed,** Release Planner tags the release commit and publishes the files as a GitHub
+   release. If they fail, nothing is published: fix the cause, then re-run the failed jobs, or withdraw the release
+   as Release Planner's [pre-publish docs](https://release-planner.fabricahq.com/customize/pre-publish/#if-it-fails)
+   describe.
+
+Publishing doesn't deploy. A deployment pins a release's tag and its ZIPs' SHA-256 values in Fabrica's
+infrastructure repository, so production may still run an older release when the next one migrates.
+
+CI runs `make check`, and builds the release files the same way, on every push and pull request. The build doesn't
+depend on the release's version, so CI's files for a commit are byte for byte the ones a release of it publishes.
+`make dist` builds them locally into `dist/`, from `HEAD`'s committed tree, with Docker.
 
 ## Engineering rules
 
