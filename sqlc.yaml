@@ -1,0 +1,12 @@
+# sqlc generates typed Go for each feature's queries against the schema in db/migrations. Run make generate after
+# changing a query or the schema.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations
+    queries: internal/ingest/query.sql
+    gen:
+      go:
+        package: ingestdb
+        out: internal/ingest/ingestdb
+        sql_package: pgx/v5

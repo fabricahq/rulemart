@@ -1,0 +1,261 @@
+// Render a rule's Markdown body as the HTML its Rulemart page shows.
+
+package ingest
+
+import (
+	"bytes"
+	"fmt"
+	"html"
+	"net/url"
+	"path"
+	"strings"
+
+	"github.com/alecthomas/chroma/v2"
+	"github.com/alecthomas/chroma/v2/lexers"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
+)
+
+// rulePage is where a rule's Markdown came from, which its relative links and images resolve against.
+type rulePage struct {
+	// repository is the library's GitHub repository, as owner/name.
+	repository string
+	// path is the rule's file, such as practices/testing/verify-retry-limits.md.
+	path string
+	// title is the rule's title, which the page shows above the body.
+	title string
+	// tag published the rule's version, and latestTag is the library's latest release. Files the rule's version
+	// covers, its Markdown and its own assets, link to tag; library-wide files link to latestTag.
+	tag, latestTag string
+}
+
+// pageKey carries the rulePage being rendered to rewriteLinks.
+var pageKey = parser.NewContextKey()
+
+// markdown renders rule bodies: CommonMark with GitHub's extensions, with raw HTML shown as text rather than
+// interpreted, since rule content comes from repositories Rulemart doesn't control.
+var markdown = goldmark.New(
+	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithParserOptions(
+		parser.WithAutoHeadingID(),
+		parser.WithASTTransformers(util.Prioritized(pageTransformer{}, 100)),
+	),
+	goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(ruleNodeRenderer{}, 100))),
+)
+
+// renderRule returns the HTML for a rule's Markdown body. It drops a leading heading that repeats the title,
+// points relative links and images at the files on GitHub at the release that holds them, highlights fenced code,
+// and escapes raw HTML. goldmark's renderer already drops links with dangerous schemes, such as javascript:.
+func renderRule(body string, page rulePage) (string, error) {
+	context := parser.NewContext()
+	context.Set(pageKey, page)
+	var out bytes.Buffer
+	if err := markdown.Convert([]byte(body), &out, parser.WithContext(context)); err != nil {
+		return "", fmt.Errorf("render Markdown: %v", err)
+	}
+	return out.String(), nil
+}
+
+// pageTransformer adapts a parsed rule body to its page, using the rulePage in the parser context.
+type pageTransformer struct{}
+
+func (pageTransformer) Transform(document *ast.Document, reader text.Reader, context parser.Context) {
+	page := context.Get(pageKey).(rulePage)
+	source := reader.Source()
+	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.title) {
+		document.RemoveChild(document, heading)
+	}
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := node.(type) {
+		case *ast.Link:
+			node.Destination = []byte(page.linkURL(string(node.Destination)))
+		case *ast.Image:
+			node.Destination = []byte(page.imageURL(string(node.Destination)))
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
+// linkURL returns where a link in the rule leads: a relative destination opens the file on GitHub, and anything
+// else, such as an absolute URL or a fragment, stays as written.
+func (p rulePage) linkURL(destination string) string {
+	file, suffix, ok := p.resolve(destination)
+	if !ok {
+		return destination
+	}
+	if file == "" {
+		return "https://github.com/" + p.repository + "/tree/" + p.tagFor(file) + suffix
+	}
+	return "https://github.com/" + p.repository + "/blob/" + p.tagFor(file) + "/" + escapePath(file) + suffix
+}
+
+// imageURL returns where an image in the rule loads from: a relative source loads the file from GitHub, and an
+// absolute one stays as written.
+func (p rulePage) imageURL(source string) string {
+	file, suffix, ok := p.resolve(source)
+	if !ok || file == "" {
+		return source
+	}
+	return "https://raw.githubusercontent.com/" + p.repository + "/refs/tags/" + p.tagFor(file) + "/" + escapePath(file) + suffix
+}
+
+// resolve returns the repository file a relative destination names, resolved against the rule's directory, and
+// the query and fragment to keep after it. file is empty for the repository root, including for destinations that
+// climb above it. ok is false for a destination that isn't a relative path: one with a scheme or host, or only a
+// query or fragment.
+func (p rulePage) resolve(destination string) (file, suffix string, ok bool) {
+	u, err := url.Parse(destination)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.Opaque != "" || u.Path == "" {
+		return "", "", false
+	}
+	if u.RawQuery != "" {
+		suffix += "?" + u.RawQuery
+	}
+	if u.Fragment != "" {
+		suffix += "#" + u.EscapedFragment()
+	}
+	file = path.Clean(u.Path)
+	if !strings.HasPrefix(u.Path, "/") {
+		file = path.Join(path.Dir(p.path), u.Path)
+	}
+	file = strings.TrimPrefix(file, "/")
+	if file == "." || file == ".." || strings.HasPrefix(file, "../") {
+		file = ""
+	}
+	return file, suffix, true
+}
+
+// tagFor returns the release whose tree holds file as the rule shows it: the rule's own release for its Markdown
+// and its asset directory, assets/<rule name>/ beside it, and the latest release for everything else.
+func (p rulePage) tagFor(file string) string {
+	dir, name := path.Split(strings.TrimSuffix(p.path, ".md"))
+	if file == p.path || strings.HasPrefix(file, dir+"assets/"+name+"/") {
+		return p.tag
+	}
+	return p.latestTag
+}
+
+// escapePath percent-encodes each segment of a repository path for a URL.
+func escapePath(file string) string {
+	segments := strings.Split(file, "/")
+	for i, segment := range segments {
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/")
+}
+
+// ruleNodeRenderer renders the nodes Rulemart shows differently from goldmark: raw HTML as escaped text, and fenced
+// code with syntax highlighting.
+type ruleNodeRenderer struct{}
+
+func (ruleNodeRenderer) RegisterFuncs(registerer renderer.NodeRendererFuncRegisterer) {
+	registerer.Register(ast.KindHTMLBlock, renderHTMLBlock)
+	registerer.Register(ast.KindRawHTML, renderRawHTML)
+	registerer.Register(ast.KindFencedCodeBlock, renderFencedCode)
+}
+
+// renderHTMLBlock shows a block of raw HTML as preformatted text.
+func renderHTMLBlock(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	block := node.(*ast.HTMLBlock)
+	_, _ = w.WriteString("<pre><code>")
+	lines := block.Lines()
+	for i := range lines.Len() {
+		line := lines.At(i)
+		_, _ = w.WriteString(html.EscapeString(string(line.Value(source))))
+	}
+	if block.HasClosure() {
+		_, _ = w.WriteString(html.EscapeString(string(block.ClosureLine.Value(source))))
+	}
+	_, _ = w.WriteString("</code></pre>\n")
+	return ast.WalkSkipChildren, nil
+}
+
+// renderRawHTML shows inline raw HTML, such as <br>, as text.
+func renderRawHTML(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkSkipChildren, nil
+	}
+	segments := node.(*ast.RawHTML).Segments
+	for i := range segments.Len() {
+		segment := segments.At(i)
+		_, _ = w.WriteString(html.EscapeString(string(segment.Value(source))))
+	}
+	return ast.WalkSkipChildren, nil
+}
+
+// renderFencedCode writes a fenced code block, with the tokens of a language chroma knows wrapped in highlight
+// classes. The page's styles color the classes for light and dark themes.
+func renderFencedCode(w util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	block := node.(*ast.FencedCodeBlock)
+	var code strings.Builder
+	lines := block.Lines()
+	for i := range lines.Len() {
+		line := lines.At(i)
+		code.Write(line.Value(source))
+	}
+	language := string(block.Language(source))
+	_, _ = w.WriteString("<pre><code")
+	if language != "" {
+		_, _ = w.WriteString(` class="language-` + html.EscapeString(language) + `"`)
+	}
+	_, _ = w.WriteString(">")
+	writeHighlighted(w, language, code.String())
+	_, _ = w.WriteString("</code></pre>\n")
+	return ast.WalkSkipChildren, nil
+}
+
+// writeHighlighted writes code as escaped HTML, wrapping tokens in highlight classes when chroma has a lexer for
+// language.
+func writeHighlighted(w util.BufWriter, language, code string) {
+	lexer := lexers.Get(language)
+	if language == "" || lexer == nil {
+		_, _ = w.WriteString(html.EscapeString(code))
+		return
+	}
+	tokens, err := chroma.Coalesce(lexer).Tokenise(nil, code)
+	if err != nil {
+		_, _ = w.WriteString(html.EscapeString(code))
+		return
+	}
+	for token := tokens(); token != chroma.EOF; token = tokens() {
+		class := highlightClass(token.Type)
+		if class == "" {
+			_, _ = w.WriteString(html.EscapeString(token.Value))
+			continue
+		}
+		_, _ = w.WriteString(`<span class="` + class + `">` + html.EscapeString(token.Value) + "</span>")
+	}
+}
+
+// highlightClass maps a chroma token to one of the five colors Code Rules' documentation uses for code, or to none.
+func highlightClass(token chroma.TokenType) string {
+	switch {
+	case token == chroma.KeywordConstant, token == chroma.Literal, token.InSubCategory(chroma.LiteralNumber),
+		token == chroma.NameConstant, token == chroma.NameAttribute:
+		return "hl-constant"
+	case token == chroma.KeywordType, token.InSubCategory(chroma.NameFunction), token.InSubCategory(chroma.NameBuiltin),
+		token == chroma.NameClass, token == chroma.NameTag, token == chroma.GenericHeading, token == chroma.GenericSubheading:
+		return "hl-function"
+	case token.InCategory(chroma.Keyword):
+		return "hl-keyword"
+	case token.InSubCategory(chroma.LiteralString):
+		return "hl-string"
+	case token.InCategory(chroma.Comment):
+		return "hl-comment"
+	}
+	return ""
+}
