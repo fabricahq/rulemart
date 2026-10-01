@@ -1,6 +1,6 @@
 // Render a rule's Markdown body as the HTML its Rulemart page shows.
 
-package ingest
+package app
 
 import (
 	"bytes"

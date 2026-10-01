@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
@@ -14,10 +14,10 @@ import (
 // while a page reads mustn't show in the page's later queries.
 func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	ctx := context.Background()
-	_, connString := ingesttest.NewDatabase(t)
+	_, connString := databasetest.New(t)
 	postgrestest.Exec(t, connString, `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
 		VALUES ('github', '7', 'example', 'rules', 'Before ingestion.', '')`)
-	store := NewStore(ingesttest.NewWebDatabase(t, connString), []catalog.Library{{Host: catalog.GitHub, RepositoryID: "7"}})
+	store := NewStore(databasetest.AsWebRole(t, connString), []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}})
 
 	err := store.read(ctx, func(q *sitedb.Queries) error {
 		before, err := q.ListLibraries(ctx, store.vetted)

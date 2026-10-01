@@ -1,6 +1,6 @@
-// Identify a library's GitHub repository: parse its URL, and look it up in GitHub's REST API.
-
-package ingest
+// Package github identifies a library's GitHub repository: it parses the repository's URL, and looks the
+// repository up in GitHub's REST API.
+package github
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/fabricahq/rulemart/catalog"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // githubName matches a GitHub owner or repository name.
@@ -34,8 +34,8 @@ func ParseRepositoryURL(raw string) (owner, name string, err error) {
 	return parts[0], parts[1], nil
 }
 
-// GitHub looks up repositories in GitHub's REST API.
-type GitHub struct {
+// Client looks up repositories in GitHub's REST API.
+type Client struct {
 	Client *http.Client
 	// BaseURL is the API's root: https://api.github.com, unless a test serves its own.
 	BaseURL string
@@ -62,11 +62,11 @@ const avatarHost = "https://avatars.githubusercontent.com/"
 
 // Repository returns the public repository owner/name as GitHub describes it now, with its current spelling after
 // a rename or transfer.
-func (g GitHub) Repository(ctx context.Context, owner, name string) (Repository, error) {
+func (g Client) Repository(ctx context.Context, owner, name string) (domain.Repository, error) {
 	endpoint := g.BaseURL + "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return Repository{}, fmt.Errorf("look up repository=%q on GitHub: %v", owner+"/"+name, err)
+		return domain.Repository{}, fmt.Errorf("look up repository=%q on GitHub: %v", owner+"/"+name, err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
@@ -75,10 +75,10 @@ func (g GitHub) Repository(ctx context.Context, owner, name string) (Repository,
 	}
 	found, err := g.get(req)
 	if err != nil {
-		return Repository{}, fmt.Errorf("look up repository=%q on GitHub: %v", owner+"/"+name, err)
+		return domain.Repository{}, fmt.Errorf("look up repository=%q on GitHub: %v", owner+"/"+name, err)
 	}
-	repo := Repository{
-		Host: catalog.GitHub, ID: strconv.FormatInt(found.ID, 10), Owner: found.Owner.Login, Name: found.Name,
+	repo := domain.Repository{
+		Host: domain.GitHub, ID: strconv.FormatInt(found.ID, 10), Owner: found.Owner.Login, Name: found.Name,
 		CloneURL: found.CloneURL,
 	}
 	if found.Description != nil {
@@ -91,7 +91,7 @@ func (g GitHub) Repository(ctx context.Context, owner, name string) (Repository,
 }
 
 // get sends req and decodes the public repository it returns.
-func (g GitHub) get(req *http.Request) (githubRepository, error) {
+func (g Client) get(req *http.Request) (githubRepository, error) {
 	resp, err := g.Client.Do(req)
 	if err != nil {
 		return githubRepository{}, err

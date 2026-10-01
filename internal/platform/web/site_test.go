@@ -15,15 +15,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"golang.org/x/net/html"
 
-	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/ingest"
-	"github.com/fabricahq/rulemart/internal/ingest/ingesttest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/platform/database"
+	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
 // vetted lists the library with GitHub repository ID vettedID.
-var vetted = []catalog.Library{{Host: catalog.GitHub, RepositoryID: "7"}}
+var vetted = []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}}
 
 const (
 	vettedID   = 7
@@ -39,10 +40,10 @@ const hostileHTML = "<script>alert(1)</script>\n\nPress <img src=x onerror=alert
 // newSite ingests a vetted library with three releases, and an unvetted one, and returns the pages' handler.
 func newSite(t *testing.T) http.Handler {
 	t.Helper()
-	db, connString := ingesttest.NewDatabase(t)
-	store := ingest.NewStore(db)
+	db, connString := databasetest.New(t)
+	store := app.NewStore(db)
 
-	lib := ingesttest.NewLibrary(t)
+	lib := gittest.NewLibrary(t)
 	lib.Group("practices/testing", "Testing")
 	lib.Group("techs/go", "Go")
 	lib.Group("practices/legacy", "Legacy")
@@ -89,17 +90,17 @@ retired:
   practices/legacy/old-habit: {lastVersion: 1.0.0, summaries: [Drop the legacy group.]}
   practices/testing/check-retry-backoff: {lastVersion: 1.0.0, summaries: [Merge into verify-retry-limits.]}
 `)
-	if _, err := ingest.Ingest(context.Background(), store, lib.Repository(vettedID)); err != nil {
+	if _, err := app.Ingest(context.Background(), store, lib.Repository(vettedID)); err != nil {
 		t.Fatal(err)
 	}
 	unvetted := lib.Repository(unvettedID)
 	unvetted.Owner, unvetted.Name = "stranger", "unvetted-rules"
-	if _, err := ingest.Ingest(context.Background(), store, unvetted); err != nil {
+	if _, err := app.Ingest(context.Background(), store, unvetted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Pages read as the web function's role, so a table the migrations don't grant it fails these tests.
-	webDB := ingesttest.NewWebDatabase(t, connString)
+	webDB := databasetest.AsWebRole(t, connString)
 	handler, err := web.New(web.NewStore(webDB, vetted), web.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		t.Fatal(err)

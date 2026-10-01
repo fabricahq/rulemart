@@ -1,6 +1,6 @@
 // Fetch a library's release tags into memory with go-git, and read their records and the files they tag.
 
-package ingest
+package app
 
 import (
 	"context"

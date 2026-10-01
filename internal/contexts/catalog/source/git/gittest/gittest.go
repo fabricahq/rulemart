@@ -1,9 +1,7 @@
-// Package ingesttest builds Code Rules library repositories and catalog databases for tests of ingestion and the
-// pages that show what it stored.
-package ingesttest
+// Package gittest builds Code Rules library repositories on disk for tests that fetch and ingest them.
+package gittest
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,11 +12,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 
-	"github.com/fabricahq/rulemart/catalog"
-	"github.com/fabricahq/rulemart/internal/ingest"
-	"github.com/fabricahq/rulemart/internal/platform/database"
-	"github.com/fabricahq/rulemart/internal/platform/migrate"
-	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // FirstTagged is when a fixture's first tag is made; each later tag is a day after the one before.
@@ -122,43 +116,13 @@ func (l *Library) Tag(name string, commit *object.Commit, message string) {
 }
 
 // Repository describes the library as GitHub would: example/rules, with GitHub repository ID id.
-func (l *Library) Repository(id int64) ingest.Repository {
-	return ingest.Repository{
-		Host: catalog.GitHub, ID: strconv.FormatInt(id, 10), Owner: "example", Name: "rules", Description: "Example rules for tests.",
+func (l *Library) Repository(id int64) domain.Repository {
+	return domain.Repository{
+		Host: domain.GitHub, ID: strconv.FormatInt(id, 10), Owner: "example", Name: "rules", Description: "Example rules for tests.",
 		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", CloneURL: l.dir,
 	}
 }
 
 func signature(when time.Time) *object.Signature {
 	return &object.Signature{Name: "Library Author", Email: "author@example.com", When: when}
-}
-
-// NewDatabase returns a DB for a new, migrated test database, and its connection string. It closes the DB when
-// the test ends.
-func NewDatabase(t *testing.T) (*database.DB, string) {
-	t.Helper()
-	connString := postgrestest.New(t)
-	if err := migrate.Up(context.Background(), connString); err != nil {
-		t.Fatal(err)
-	}
-	version, err := migrate.RequiredVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := database.New(postgrestest.Parameter(connString), "test-database", version)
-	t.Cleanup(db.Close)
-	return db, connString
-}
-
-// NewWebDatabase returns a DB for the test database at connString that connects as postgrestest.WebRole, as the web
-// function does, so it has only the access migrations grant that role. It closes the DB when the test ends.
-func NewWebDatabase(t *testing.T, connString string) *database.DB {
-	t.Helper()
-	version, err := migrate.RequiredVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := database.New(postgrestest.Parameter(postgrestest.AsWebRole(t, connString)), "test-web-database", version)
-	t.Cleanup(db.Close)
-	return db
 }

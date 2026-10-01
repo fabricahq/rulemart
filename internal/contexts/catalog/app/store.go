@@ -1,6 +1,6 @@
 // Write a library's catalog rows in one transaction.
 
-package ingest
+package app
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/fabricahq/rulemart/internal/ingest/ingestdb"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app/ingestdb"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 )
 

@@ -9,25 +9,15 @@ import (
 	"regexp"
 
 	"go.yaml.in/yaml/v4"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 //go:embed vetted.yaml
 var vettedYAML []byte
 
-// GitHub is the only code host Rulemart reads libraries from, as the catalog names it. Page URLs name no host,
-// so they're GitHub's.
-const GitHub = "github"
-
-// Library identifies a library by its code host and the host's repository ID, as the catalog stores it.
-type Library struct {
-	// Host is the code host; github is the only one.
-	Host string
-	// RepositoryID is the host's ID for the repository. GitHub's is its numeric repository ID, in decimal.
-	RepositoryID string
-}
-
 // Vetted returns the libraries vetted.yaml lists, in file order.
-func Vetted() ([]Library, error) {
+func Vetted() ([]domain.LibraryKey, error) {
 	return parseVetted(vettedYAML)
 }
 
@@ -46,7 +36,7 @@ var gitHubRepositoryID = regexp.MustCompile(`^[1-9][0-9]*$`)
 
 // parseVetted reads a vetted list, rejecting unknown fields, hosts other than github, repository IDs that aren't
 // GitHub's, libraries listed twice, and entries without a repository name.
-func parseVetted(input []byte) ([]Library, error) {
+func parseVetted(input []byte) ([]domain.LibraryKey, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	decoder.KnownFields(true)
 	var file vettedFile
@@ -56,12 +46,12 @@ func parseVetted(input []byte) ([]Library, error) {
 	if file.Libraries == nil {
 		return nil, errors.New("read vetted libraries: expected a libraries list")
 	}
-	libraries := make([]Library, 0, len(file.Libraries))
-	seen := map[Library]bool{}
+	libraries := make([]domain.LibraryKey, 0, len(file.Libraries))
+	seen := map[domain.LibraryKey]bool{}
 	for i, entry := range file.Libraries {
-		library := Library{Host: entry.Host, RepositoryID: entry.RepositoryID}
+		library := domain.LibraryKey{Host: entry.Host, RepositoryID: entry.RepositoryID}
 		switch {
-		case entry.Host != GitHub:
+		case entry.Host != domain.GitHub:
 			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected host github, the only code host Rulemart reads", i)
 		case !gitHubRepositoryID.MatchString(entry.RepositoryID):
 			return nil, fmt.Errorf("read vetted libraries: libraries[%d]: expected GitHub's numeric repository ID in repositoryID", i)

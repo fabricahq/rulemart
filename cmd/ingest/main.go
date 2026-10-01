@@ -20,7 +20,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/ingest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/migrate"
 )
@@ -42,12 +44,12 @@ func main() {
 
 // run ingests the library at repositoryURL and reports the result.
 func run(ctx context.Context, repositoryURL string) error {
-	owner, name, err := ingest.ParseRepositoryURL(repositoryURL)
+	owner, name, err := github.ParseRepositoryURL(repositoryURL)
 	if err != nil {
 		return err
 	}
-	github := ingest.GitHub{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")}
-	repo, err := github.Repository(ctx, owner, name)
+	gitHub := github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")}
+	repo, err := gitHub.Repository(ctx, owner, name)
 	if err != nil {
 		return err
 	}
@@ -61,7 +63,7 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
-	result, err := ingest.Ingest(ctx, ingest.NewStore(db), repo)
+	result, err := app.Ingest(ctx, app.NewStore(db), repo)
 	if err != nil {
 		return err
 	}
@@ -70,7 +72,7 @@ func run(ctx context.Context, repositoryURL string) error {
 }
 
 // summary describes what ingesting repo did.
-func summary(repo ingest.Repository, result ingest.Result) string {
+func summary(repo domain.Repository, result app.Result) string {
 	return fmt.Sprintf("ingested %s (%s repository %s): %s, %s, %s", repo.FullName(), repo.Host, repo.ID,
 		count(int64(result.Releases), "library release", "library releases"),
 		count(int64(result.Rules), "current rule", "current rules"),

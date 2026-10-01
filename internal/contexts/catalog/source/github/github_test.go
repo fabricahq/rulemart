@@ -1,4 +1,4 @@
-package ingest_test
+package github_test
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/fabricahq/rulemart/internal/ingest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 )
 
 func TestParseRepositoryURLAcceptsGitHubRepositoryURLs(t *testing.T) {
@@ -15,7 +16,7 @@ func TestParseRepositoryURLAcceptsGitHubRepositoryURLs(t *testing.T) {
 		"https://github.com/fabricahq/code-rules-test-library/",
 		"https://github.com/fabricahq/code-rules-test-library.git",
 	} {
-		owner, name, err := ingest.ParseRepositoryURL(raw)
+		owner, name, err := github.ParseRepositoryURL(raw)
 		if err != nil || owner != "fabricahq" || name != "code-rules-test-library" {
 			t.Errorf("%s: got %q, %q, %v", raw, owner, name, err)
 		}
@@ -31,23 +32,23 @@ func TestParseRepositoryURLRejectsOtherURLs(t *testing.T) {
 		"https://github.com/fabricahq/code-rules-test-library/tree/main",
 		"https://github.com/fabricahq/code-rules-test-library?tab=readme",
 	} {
-		if _, _, err := ingest.ParseRepositoryURL(raw); err == nil {
+		if _, _, err := github.ParseRepositoryURL(raw); err == nil {
 			t.Errorf("accepted %s", raw)
 		}
 	}
 }
 
 func TestGitHubRepositoryReturnsTheRepositoryAsGitHubSpellsIt(t *testing.T) {
-	server := github(t, http.StatusOK, `{"id": 1234, "name": "Code-Rules", "private": false, "description": null,
+	server := serve(t, http.StatusOK, `{"id": 1234, "name": "Code-Rules", "private": false, "description": null,
 		"clone_url": "https://github.com/FabricaHQ/Code-Rules.git",
 		"owner": {"login": "FabricaHQ", "avatar_url": "https://avatars.githubusercontent.com/u/9?v=4"}}`)
 
-	repo, err := ingest.GitHub{Client: server.Client(), BaseURL: server.URL}.Repository(context.Background(), "fabricahq", "code-rules")
+	repo, err := github.Client{Client: server.Client(), BaseURL: server.URL}.Repository(context.Background(), "fabricahq", "code-rules")
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := ingest.Repository{Host: "github", ID: "1234", Owner: "FabricaHQ", Name: "Code-Rules",
+	want := domain.Repository{Host: "github", ID: "1234", Owner: "FabricaHQ", Name: "Code-Rules",
 		OwnerAvatarURL: "https://avatars.githubusercontent.com/u/9?v=4", CloneURL: "https://github.com/FabricaHQ/Code-Rules.git"}
 	if repo != want {
 		t.Fatalf("got %+v, want %+v", repo, want)
@@ -64,9 +65,9 @@ func TestGitHubRepositoryRejectsRepositoriesRulemartCantList(t *testing.T) {
 		"elsewhere": {http.StatusOK, `{"id": 1, "name": "r", "clone_url": "https://example.com/o/r.git", "owner": {"login": "o"}}`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			server := github(t, tc.status, tc.body)
+			server := serve(t, tc.status, tc.body)
 
-			_, err := ingest.GitHub{Client: server.Client(), BaseURL: server.URL}.Repository(context.Background(), "o", "r")
+			_, err := github.Client{Client: server.Client(), BaseURL: server.URL}.Repository(context.Background(), "o", "r")
 
 			if err == nil {
 				t.Fatal("accepted the repository")
@@ -75,8 +76,8 @@ func TestGitHubRepositoryRejectsRepositoriesRulemartCantList(t *testing.T) {
 	}
 }
 
-// github serves body with status for any request.
-func github(t *testing.T, status int, body string) *httptest.Server {
+// serve serves body with status for any request.
+func serve(t *testing.T, status int, body string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)

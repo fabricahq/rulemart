@@ -1,6 +1,6 @@
 // Bound the memory a fetch can use: an in-memory repository that checks the packfile before inflating anything.
 
-package ingest
+package app
 
 import (
 	"bytes"

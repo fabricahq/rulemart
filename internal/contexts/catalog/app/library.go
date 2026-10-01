@@ -1,6 +1,6 @@
 // Read what a library's releases published: its license, its groups, and each current rule's content.
 
-package ingest
+package app
 
 import (
 	"errors"
@@ -9,12 +9,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // library is everything the catalog stores about one library.
 type library struct {
-	repo Repository
+	repo domain.Repository
 	// licenseExpression and licenseFile are what rule-library.yaml declares at the latest release; each is empty
 	// when it declares none.
 	licenseExpression, licenseFile string
@@ -51,7 +52,7 @@ type content struct {
 // readLibrary reads the files releases publish for repo: rule-library.yaml at the latest release, each group's
 // _group.yaml at the latest release that has it, and each current rule's file at the release that published its
 // current version.
-func readLibrary(repo Repository, releases []release, histories []ruleHistory, contentBytes int64) (library, error) {
+func readLibrary(repo domain.Repository, releases []release, histories []ruleHistory, contentBytes int64) (library, error) {
 	latest := releases[len(releases)-1]
 	lib := library{repo: repo, releases: releases}
 	var err error
@@ -127,7 +128,7 @@ func readLicense(r release, source string) (expression, file string, err error) 
 
 // readRule returns history's rule, reading a current rule's file at the release that published its current
 // version.
-func readRule(repo Repository, releases []release, history ruleHistory, budget *contentBudget) (rule, error) {
+func readRule(repo domain.Repository, releases []release, history ruleHistory, budget *contentBudget) (rule, error) {
 	path := history.id + ".md"
 	groupID, err := coderules.GroupFromPath(path, path)
 	if err != nil {

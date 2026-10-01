@@ -1,6 +1,6 @@
 // Build each rule's version history from a library's release records, checking that the records agree.
 
-package ingest
+package app
 
 import (
 	"fmt"

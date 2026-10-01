@@ -1,4 +1,4 @@
-package ingest
+package app
 
 import (
 	"strconv"

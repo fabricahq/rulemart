@@ -1,31 +1,16 @@
-// Package ingest builds the catalog from a Code Rules library's release/<number> tags. It fetches a library's
-// repository into memory, reads every release record and the files the releases published, and replaces what the
-// catalog stores about the library in one transaction: its releases, groups, rules, and every rule version, with
-// the current version's content rendered for the web.
-package ingest
+// Package app holds the catalog's operations. Ingest builds the catalog from a Code Rules library's release/<number>
+// tags: it fetches a library's repository into memory, reads every release record and the files the releases
+// published, and replaces what the catalog stores about the library in one transaction: its releases, groups,
+// rules, and every rule version, with the current version's content rendered for the web.
+package app
 
 import (
 	"context"
 	"fmt"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
-
-// Repository is a library's repository, as its code host describes it.
-type Repository struct {
-	// Host is the code host, such as GitHub, and ID the host's ID for the repository, which identifies the library
-	// across renames and transfers. GitHub's is its numeric repository ID, in decimal.
-	Host, ID    string
-	Owner, Name string
-	Description string
-	// OwnerAvatarURL is the owner's avatar on the host's avatar host; empty when unknown.
-	OwnerAvatarURL string
-	// CloneURL is where ingestion fetches the release tags, such as https://github.com/owner/name.git.
-	CloneURL string
-}
-
-// FullName returns the repository's owner/name.
-func (r Repository) FullName() string { return r.Owner + "/" + r.Name }
 
 // Result summarizes one ingestion.
 type Result struct {
@@ -39,7 +24,7 @@ type Result struct {
 // Ingest makes the catalog's rows for repo's library match its release tags. It writes nothing when a tag, its
 // record, the history the records describe, or a file a release published is invalid; errors name the tag and file.
 // Running it again on unchanged tags changes nothing.
-func Ingest(ctx context.Context, store *Store, repo Repository) (Result, error) {
+func Ingest(ctx context.Context, store *Store, repo domain.Repository) (Result, error) {
 	return ingest(ctx, store, repo, defaultLimits)
 }
 
@@ -55,7 +40,7 @@ type limits struct {
 var defaultLimits = limits{fetch: defaultFetchLimits, contentBytes: 256 << 20}
 
 // ingest is Ingest within limits.
-func ingest(ctx context.Context, store *Store, repo Repository, limits limits) (Result, error) {
+func ingest(ctx context.Context, store *Store, repo domain.Repository, limits limits) (Result, error) {
 	lib, err := load(ctx, repo, limits)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
@@ -74,7 +59,7 @@ func ingest(ctx context.Context, store *Store, repo Repository, limits limits) (
 }
 
 // load fetches repo's release tags and reads the library they publish, within limits.
-func load(ctx context.Context, repo Repository, limits limits) (library, error) {
+func load(ctx context.Context, repo domain.Repository, limits limits) (library, error) {
 	git, err := fetchReleaseTags(ctx, repo.CloneURL, limits.fetch)
 	if err != nil {
 		return library{}, err

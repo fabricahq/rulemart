@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/fabricahq/rulemart/catalog"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/web/sitedb"
 )
@@ -27,7 +27,7 @@ type Store struct {
 }
 
 // NewStore returns a Store that reads through db and finds only the libraries in vetted.
-func NewStore(db *database.DB, vetted []catalog.Library) *Store {
+func NewStore(db *database.DB, vetted []domain.LibraryKey) *Store {
 	keys := make([]string, len(vetted))
 	for i, library := range vetted {
 		keys[i] = library.Host + ":" + library.RepositoryID
@@ -142,7 +142,7 @@ func (s *Store) rulePage(ctx context.Context, owner, name, ruleID string) (libra
 
 // library returns the vetted library owner/name, or pgx.ErrNoRows when there's none.
 func (s *Store) library(ctx context.Context, q *sitedb.Queries, owner, name string) (library, error) {
-	row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Host: catalog.GitHub, Owner: owner, Name: name, Vetted: s.vetted})
+	row, err := q.GetLibrary(ctx, sitedb.GetLibraryParams{Host: domain.GitHub, Owner: owner, Name: name, Vetted: s.vetted})
 	if err != nil {
 		return library{}, err
 	}
