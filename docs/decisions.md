@@ -35,9 +35,10 @@ than adding history.
   each table needs and never create it, so a release can't migrate before infrastructure has. Migrations and
   ingestion connect as the database's owner.
 - **Build in thin vertical slices**, each deployed and checked end to end.
-- **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** Libraries are stored by host and the
-  host's repository ID, so a second host only needs its own URLs: it would add the host to them, such as
-  `/gitlab/{group}/{repo}`, and GitHub would keep the short form.
+- **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
+  host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by
+  host and the host's repository ID, but the schema's host check, the vetting parser, and ingestion allow only
+  github, so a second host also needs changes there.
 
 ## Infrastructure and delivery
 
