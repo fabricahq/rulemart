@@ -37,8 +37,8 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   page, and each vetted library and its current rules**, by their canonical addresses, with `lastmod` from the release
   that last changed each library or rule. Never an unvetted library, a search, a comparison, or a group that isn't
   canonical, which has no page of its own. One snapshot read, at most 45,000 rules, which leaves room in the
-  protocol's 50,000 addresses, and at most 5 MiB, under the 6 MB a Lambda function's response holds, which long rule
-  IDs reach first, at around 25,000 rules. Past either it lists what fits and logs `sitemap truncated`, which alarms,
+  protocol's 50,000 addresses, and at most 5 MiB, under the 6 MB a Lambda function's response holds, which rules with
+  long IDs can reach first. Past either it lists what fits and logs `sitemap truncated`, which alarms,
   and the next step is a sitemap index. Retired rules' pages stay out: they're for people following an old link.
 - **Proposed: without `RULEMART_BASE_URL` there's no sitemap**, since its addresses must be absolute, and pages name no
   canonical address either (**Existing**).
