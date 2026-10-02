@@ -77,11 +77,11 @@ func TestStateOfAListingPrefersVettedThenIngested(t *testing.T) {
 	}
 }
 
-func TestFailureKeepsAShortReasonAndCutsALongOneAtACharacter(t *testing.T) {
-	if got := Failure(errors.New("  the repository has no release tags \n")); got != "the repository has no release tags" {
+func TestFailureKeepsAShortReasonAsASentenceAndCutsALongOneAtACharacter(t *testing.T) {
+	if got := Failure("  the repository has no release tags \n"); got != "The repository has no release tags" {
 		t.Errorf("got %q", got)
 	}
-	long := Failure(errors.New(strings.Repeat("é", MaxFailureLength)))
+	long := Failure(strings.Repeat("é", MaxFailureLength))
 	if len(long) > MaxFailureLength || !utf8.ValidString(long) || !strings.HasSuffix(long, "…") {
 		t.Errorf("got %d bytes, valid %v: %q", len(long), utf8.ValidString(long), long[len(long)-10:])
 	}

@@ -398,8 +398,8 @@ func TestListPageSaysWhyARepositoryCantBeListed(t *testing.T) {
 		"vetted": {"example/rules", &app.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
 			"Rulemart has vetted this library already. See example/rules", []string{""}},
 		"listed": {"stranger/rules", &app.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
-			"Someone has listed this repository already. See stranger/rules", []string{"nofollow"}},
-		"listed, not checked yet": {"someone/new", &app.ListingConflict{}, "Someone has listed this repository already.", nil},
+			"This repository is listed already. See stranger/rules", []string{"nofollow"}},
+		"listed, not checked yet": {"someone/new", &app.ListingConflict{}, "This repository is listed already.", nil},
 		"at the account's limit":  {"someone/new", app.ErrAccountListingLimit, "You have 5 unvetted listings, as many as an account may.", nil},
 		"full":                    {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
 	} {
@@ -480,7 +480,7 @@ func TestListingRefusesARequestAnotherSiteStarted(t *testing.T) {
 func listingsFor(site listingSite, requested time.Time) {
 	site.listings.byAccount[1] = []views.AccountListing{
 		{ID: 4, Owner: "someone", Name: "new", State: domain.ListingChecking, ListedAt: requested, RequestedAt: requested},
-		{ID: 3, Owner: "someone", Name: "broken", RepositoryID: "99", State: domain.ListingFailed, Failure: "the repository has no release/<number> tags",
+		{ID: 3, Owner: "someone", Name: "broken", RepositoryID: "99", State: domain.ListingFailed, Failure: "The repository has no release/<number> tags",
 			ListedAt: day(3), RequestedAt: day(3), CheckedAt: day(3)},
 		{ID: 2, Owner: "stranger", Name: "rules", RepositoryID: "23", State: domain.ListingListed,
 			Library: views.LibraryRef{Owner: "stranger", Name: "rules"}, ListedAt: day(2), RequestedAt: day(2), CheckedAt: day(3)},
@@ -502,9 +502,9 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	}
 	page := body(t, resp)
 	assertShows(t, page,
-		"Your listings Libraries you listed. 3 unvetted listings of 5.",
+		"Your listings Libraries you listed. You have 3 unvetted listings, of the 5 an account may hold.",
 		"someone/new Checking Listed", "Checking the repository on GitHub…",
-		"someone/broken Failed Listed 3 Sep 2026 · GitHub repository 99 Rulemart couldn't list it the repository has no release/<number> tags",
+		"someone/broken Failed Listed 3 Sep 2026 · GitHub repository 99 Rulemart couldn't list it The repository has no release/<number> tags",
 		"stranger/rules Listed, unvetted", "example/rules Vetted")
 	if got := rels(t, page, "/stranger/rules"); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("links the listed library with rel %q, want nofollow", got)

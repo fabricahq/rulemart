@@ -3,6 +3,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -145,7 +146,12 @@ type ListingCheck struct {
 
 // LibraryError is an ingestion's failure that the library's repository caused, such as a missing release tag, an
 // invalid record, or more content than ingestion's limits allow, rather than Rulemart or its database.
-type LibraryError struct{ Err error }
+type LibraryError struct {
+	Err error
+	// Reason says what went wrong in words the listing's lister can act on: Err's text without where it happened, or a
+	// sentence of its own.
+	Reason string
+}
 
 func (e *LibraryError) Error() string { return e.Err.Error() }
 func (e *LibraryError) Unwrap() error { return e.Err }
@@ -163,7 +169,7 @@ func (in Ingester) CheckListing(ctx context.Context, vetted []domain.LibraryKey,
 	check, err := in.checkListing(ctx, vetted, id)
 	var libraryErr *LibraryError
 	if errors.As(err, &libraryErr) {
-		check.Outcome, check.Failure = ListingRefused, domain.Failure(libraryErr)
+		check.Outcome, check.Failure = ListingRefused, domain.Failure(cmp.Or(libraryErr.Reason, libraryErr.Error()))
 		err = in.recordCheck(ctx, id, check.Failure)
 	} else if err == nil && check.Listing.ID != 0 {
 		err = in.recordCheck(ctx, id, "")
@@ -184,12 +190,14 @@ func (in Ingester) checkListing(ctx context.Context, vetted []domain.LibraryKey,
 	if !listing.Resolved() {
 		found, err := in.Repositories.Repository(ctx, listing.Owner, listing.Name)
 		if err != nil {
-			return check, libraryError(err, domain.ErrNoPublicRepository)
+			return check, libraryError(err, domain.ErrNoPublicRepository,
+				"GitHub has no public repository by this name. Check its owner and name, and that it's public.")
 		}
 		library := domain.LibraryKey{Host: found.Host, RepositoryID: found.ID}
 		err = in.Store.ResolveListing(ctx, id, library)
 		if errors.Is(err, store.ErrAlreadyListed) {
-			err = &LibraryError{Err: fmt.Errorf("another listing names this repository, %s on GitHub", found.FullName())}
+			reason := fmt.Sprintf("Another listing names this repository, which GitHub calls %s now.", found.FullName())
+			err = &LibraryError{Err: fmt.Errorf("resolve listing id=%d: %v", id, err), Reason: reason}
 		}
 		if err != nil {
 			return check, err
@@ -209,10 +217,11 @@ func (in Ingester) checkListing(ctx context.Context, vetted []domain.LibraryKey,
 	return check, err
 }
 
-// libraryError returns err as a *LibraryError when it's target, which the repository caused, and as it is otherwise.
-func libraryError(err, target error) error {
+// libraryError returns err as a *LibraryError for reason when it's target, which the repository caused, and as it is
+// otherwise.
+func libraryError(err, target error, reason string) error {
 	if errors.Is(err, target) {
-		return &LibraryError{Err: err}
+		return &LibraryError{Err: err, Reason: reason}
 	}
 	return err
 }

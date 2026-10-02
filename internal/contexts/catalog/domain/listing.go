@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // MaxAccountListings is how many unvetted listings one account may hold, so one account can't fill the unvetted
@@ -101,10 +103,13 @@ func ParseListedRepository(text string) (owner, name string, err error) {
 	return owner, name, nil
 }
 
-// Failure returns err's message as a listing stores why its check failed: within MaxFailureLength bytes, cut at a
-// character's boundary.
-func Failure(err error) string {
-	text := strings.TrimSpace(err.Error())
+// Failure returns text as a listing stores why its check failed: trimmed, starting with a capital letter, and within
+// MaxFailureLength bytes, cut at a character's boundary.
+func Failure(text string) string {
+	text = strings.TrimSpace(text)
+	if first, size := utf8.DecodeRuneInString(text); size > 0 {
+		text = string(unicode.ToUpper(first)) + text[size:]
+	}
 	if text == "" {
 		return "the check failed"
 	}
@@ -112,11 +117,8 @@ func Failure(err error) string {
 		return text
 	}
 	cut := MaxFailureLength - len("…")
-	for cut > 0 && !utf8Start(text[cut]) {
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
 		cut--
 	}
 	return text[:cut] + "…"
 }
-
-// utf8Start reports whether b starts a UTF-8 encoded character, rather than continuing one.
-func utf8Start(b byte) bool { return b&0xC0 != 0x80 }

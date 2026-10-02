@@ -159,7 +159,7 @@ templ listingsPage(c chrome, v listingsView) {
 			<div class="mt-2 mb-[22px] flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
 				<div>
 					<h1 class="title-xl">Your listings</h1>
-					<p class="mt-1.5 text-muted">Libraries you listed. { plural(v.unvetted, "unvetted listing", "unvetted listings") } of { strconv.Itoa(domain.MaxAccountListings) }.</p>
+					<p class="mt-1.5 text-muted">Libraries you listed. You have { plural(v.unvetted, "unvetted listing", "unvetted listings") }, of the { strconv.Itoa(domain.MaxAccountListings) } an account may hold.</p>
 				</div>
 				@smallButton(listHref) {
 					List a library
@@ -180,9 +180,10 @@ templ listingsPage(c chrome, v listingsView) {
 	}
 }
 
-// listingRow is one listing on the listings page.
+// listingRow is one listing on the listings page: its repository and state, why its last check failed, if it did, and
+// what its lister can do with it.
 templ listingRow(l listingView) {
-	<div class="grid gap-3 px-4 py-4">
+	<div class="px-4 py-4">
 		<div class="flex min-w-0 items-start gap-3">
 			if l.library != nil {
 				@avatar(l.library.avatar, l.library.owner, avatarMD)
@@ -197,7 +198,7 @@ templ listingRow(l listingView) {
 				<p class="mt-0.5 text-[13px] text-muted">
 					Listed { l.listed }
 					if l.repositoryID != "" {
-						· GitHub repository <span class="font-mono text-[.9em]">{ l.repositoryID }</span>
+						<span class="whitespace-nowrap">· GitHub repository <span class="font-mono text-[.9em]">{ l.repositoryID }</span></span>
 					}
 				</p>
 				switch {
@@ -206,37 +207,39 @@ templ listingRow(l listingView) {
 					case l.state == domain.ListingChecking:
 						<p class="mt-1.5 text-[13.5px] text-ink" role="status">Checking the repository on GitHub…</p>
 				}
-				if l.failure != "" {
-					<div class="mt-2 rounded-[10px] border border-border bg-surface px-3 py-2 text-[13px]">
-						if l.state == domain.ListingFailed {
-							<p class="font-medium text-ink">Rulemart couldn't list it</p>
-						} else {
-							<p class="font-medium text-ink">The last check failed, so its pages show the last release Rulemart read</p>
-						}
-						<p class="mt-0.5 font-mono text-[12px] text-muted [overflow-wrap:anywhere]">{ l.failure }</p>
-					</div>
-				}
 			</div>
 		</div>
-		<div class="flex flex-wrap items-center gap-2 pl-[52px] max-narrow:pl-0">
-			if l.library != nil {
-				if l.library.unvetted {
-					<a class="inline-flex min-h-9 items-center px-1 text-[13.5px]" href={ templ.SafeURL(l.library.href) } rel="nofollow">View its page</a>
+		<div class="pl-[52px] max-narrow:pl-0">
+			if l.failure != "" {
+				<div class="mt-3 rounded-[10px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px]">
+					if l.state == domain.ListingFailed {
+						<p class="font-medium text-ink">Rulemart couldn't list it</p>
+					} else {
+						<p class="font-medium text-ink">The last check failed, so its pages show the last release Rulemart read</p>
+					}
+					<p class="mt-0.5 text-muted [overflow-wrap:anywhere]">{ l.failure }</p>
+				</div>
+			}
+			<div class="mt-3 flex flex-wrap items-center gap-2">
+				if l.library != nil {
+					if l.library.unvetted {
+						<a class="inline-flex min-h-9 items-center text-[13.5px]" href={ templ.SafeURL(l.library.href) } rel="nofollow">View its page</a>
+					} else {
+						<a class="inline-flex min-h-9 items-center text-[13.5px]" href={ templ.SafeURL(l.library.href) }>View its page</a>
+					}
 				} else {
-					<a class="inline-flex min-h-9 items-center px-1 text-[13.5px]" href={ templ.SafeURL(l.library.href) }>View its page</a>
+					<a class="inline-flex min-h-9 items-center text-[13.5px]" href={ templ.SafeURL(l.repositoryURL) } rel="nofollow">View on GitHub</a>
 				}
-			} else {
-				<a class="inline-flex min-h-9 items-center px-1 text-[13.5px]" href={ templ.SafeURL(l.repositoryURL) } rel="nofollow">View on GitHub</a>
-			}
-			<span class="flex-1"></span>
-			if l.retry != "" {
-				<form method="post" action={ templ.SafeURL(l.retry) }>
-					<button class={ smallActionStyle } type="submit">Try again</button>
+				<span class="flex-1"></span>
+				if l.retry != "" {
+					<form method="post" action={ templ.SafeURL(l.retry) }>
+						<button class={ smallActionStyle } type="submit">Try again</button>
+					</form>
+				}
+				<form method="post" action={ templ.SafeURL(l.remove) }>
+					<button class={ smallActionStyle } type="submit" aria-label={ "Remove listing " + l.fullName }>Remove</button>
 				</form>
-			}
-			<form method="post" action={ templ.SafeURL(l.remove) }>
-				<button class={ smallActionStyle } type="submit" aria-label={ "Remove listing " + l.fullName }>Remove</button>
-			</form>
+			</div>
 		</div>
 	</div>
 }

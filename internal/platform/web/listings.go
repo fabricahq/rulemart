@@ -128,7 +128,7 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *li
 		view.problem = "Rulemart has vetted this library already."
 		view.existing = existingLibrary(conflict.Library, false)
 	case errors.As(err, &conflict):
-		view.problem = "Someone has listed this repository already."
+		view.problem = "This repository is listed already."
 		view.existing = existingLibrary(conflict.Library, true)
 	case errors.Is(err, app.ErrAccountListingLimit):
 		view.problem = "You have " + strconv.Itoa(domain.MaxAccountListings) +

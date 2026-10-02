@@ -54,7 +54,8 @@ func (in Ingester) updateFrom(ctx context.Context, library domain.LibraryKey, re
 	if repo == nil {
 		found, err := in.Repositories.RepositoryByID(ctx, library.RepositoryID)
 		if err != nil {
-			return Update{ListTime: listTime}, libraryError(err, domain.ErrNoPublicRepository)
+			return Update{ListTime: listTime}, libraryError(err, domain.ErrNoPublicRepository,
+				"GitHub has no public repository with this one's ID any more: it was deleted, or made private.")
 		}
 		repo = &found
 	}
@@ -77,7 +78,7 @@ func (in Ingester) current(ctx context.Context, library domain.LibraryKey) (bool
 	listed, err := in.List(ctx, checkpoint.CloneURL, in.Limits.Fetch)
 	listTime := time.Since(started)
 	if err != nil {
-		return false, listTime, &LibraryError{Err: fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err)}
+		return false, listTime, &LibraryError{Err: fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err), Reason: err.Error()}
 	}
 	return checkpoint.Current(listed), listTime, nil
 }

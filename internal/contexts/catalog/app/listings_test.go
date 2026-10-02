@@ -189,17 +189,17 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 			func(_ *testing.T, l *listing) {
 				l.hosted.err = fmt.Errorf("look up repository=%q on GitHub: GitHub has %w", "example/rules", domain.ErrNoPublicRepository)
 			},
-			"GitHub has no such public repository",
+			"GitHub has no public repository by this name.",
 		},
 		"a repository without releases": {
 			func(t *testing.T, l *listing) { l.hosted.repo = gittest.NewLibrary(t).Repository(42) },
-			"the repository has no release/<number> tags",
+			"The repository has no release/<number> tags",
 		},
 		"a repository another listing names": {
 			func(t *testing.T, l *listing) {
 				postgrestest.Exec(t, l.connString, "INSERT INTO listings (host, owner, name, host_repository_id) VALUES ('github', 'old', 'name', '42')")
 			},
-			"another listing names this repository, example/rules on GitHub",
+			"Another listing names this repository, which GitHub calls example/rules now.",
 		},
 		"an invalid release": {
 			func(t *testing.T, l *listing) {
@@ -207,7 +207,7 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 				lib.Release(1, "formatVersion: 1\nrelease: 2\n")
 				l.hosted.repo = lib.Repository(42)
 			},
-			"release/1",
+			"release/1: invalid release record",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
