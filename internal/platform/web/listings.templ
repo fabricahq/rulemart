@@ -198,14 +198,12 @@ templ listingRow(l listingView) {
 				<p class="mt-0.5 text-[13px] text-muted">
 					Listed { l.listed }
 					if l.repositoryID != "" {
-						<span class="whitespace-nowrap">· GitHub repository <span class="font-mono text-[.9em]">{ l.repositoryID }</span></span>
+						<span class="max-narrow:hidden">·</span>
+						<span class="whitespace-nowrap max-narrow:block">GitHub repository <span class="font-mono text-[.9em]">{ l.repositoryID }</span></span>
 					}
 				</p>
-				switch {
-					case l.state == domain.ListingChecking && l.waiting:
-						<p class="mt-1.5 text-[13.5px] text-ink">Rulemart checks it within the hour.</p>
-					case l.state == domain.ListingChecking:
-						<p class="mt-1.5 text-[13.5px] text-ink" role="status">Checking the repository on GitHub…</p>
+				if l.state == domain.ListingChecking && l.waiting {
+					<p class="mt-1.5 text-[13.5px] text-ink">Rulemart checks it within the hour.</p>
 				}
 			</div>
 		</div>

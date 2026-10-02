@@ -503,7 +503,7 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	page := body(t, resp)
 	assertShows(t, page,
 		"Your listings Libraries you listed. You have 3 unvetted listings, of the 5 an account may hold.",
-		"someone/new Checking Listed", "Checking the repository on GitHub…",
+		"someone/new Checking Listed",
 		"someone/broken Failed Listed 3 Sep 2026 · GitHub repository 99 Rulemart couldn't list it The repository has no release/<number> tags",
 		"stranger/rules Listed, unvetted", "example/rules Vetted")
 	if got := rels(t, page, "/stranger/rules"); !slices.Equal(got, []string{"nofollow"}) {
