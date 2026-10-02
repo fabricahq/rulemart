@@ -56,7 +56,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cards := newLibraryCards(page.Libraries, false)
-	view := newHomeView(cards, newGroupIndexView(page.Groups, s.assets.iconURL), s.listYourLibraryHref(r))
+	view := newHomeView(cards, newGroupIndexView(page.Groups, false, s.assets.iconURL), s.listYourLibraryHref(r))
 	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), view))
 }
 

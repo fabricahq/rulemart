@@ -160,45 +160,6 @@ func (p Pages) summarize(groups []views.LibraryGroup) []views.GroupSummary {
 	return append(canonical, others...)
 }
 
-// GroupPage returns the canonical group id, matched without regard to case, with its current rules in every vetted
-// library that holds it, or ErrNotFound when id isn't on the canonical group list: any other group stands alone, on
-// its library's page. The page's Path is the list's spelling of the ID.
-func (p Pages) GroupPage(ctx context.Context, id string) (views.GroupPage, error) {
-	g, ok := p.Groups.FindIgnoringCase(id)
-	if !ok {
-		return views.GroupPage{}, fmt.Errorf("load group: %w", ErrNotFound)
-	}
-	libraries, err := p.Store.GroupRules(ctx, p.Vetted, g.ID)
-	if err != nil {
-		return views.GroupPage{}, err
-	}
-	return views.GroupPage{Path: g.ID, Canonical: *p.canonical(g.ID), Libraries: libraries}, nil
-}
-
-// Search returns page, counted from 1, of the vetted libraries' current rules that best match query, SearchPageSize
-// to a page, with how many matched in all. An empty query matches nothing, and one longer than
-// domain.MaxSearchQueryLength fails with ErrSearchQueryTooLong; neither reads the catalog. A page past the last
-// holds no results, and page must be from 1 to MaxSearchPage.
-func (p Pages) Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error) {
-	if page < 1 || page > MaxSearchPage {
-		return views.SearchResults{}, fmt.Errorf("search: page %d is outside 1 to %d", page, MaxSearchPage)
-	}
-	if query.IsZero() {
-		return views.SearchResults{}, nil
-	}
-	if query.TooLong() {
-		return views.SearchResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
-	}
-	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, SearchPageSize, (page-1)*SearchPageSize)
-	if err != nil {
-		return views.SearchResults{}, err
-	}
-	for i, r := range results.Results {
-		results.Results[i].CanonicalGroup = p.canonical(r.Rule.Group)
-	}
-	return results, nil
-}
-
 // MaxGroupRules is the most rules a group's page lists, which bounds the page a group shared by many libraries makes.
 const MaxGroupRules = 500
 

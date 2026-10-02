@@ -117,11 +117,12 @@ type Catalog interface {
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
 	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
-	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
-	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
-	// Search returns page, from 1 to app.MaxSearchPage, of what query finds. It fails with
-	// app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
-	Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error)
+	// Group returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
+	// and no library holds it.
+	Group(ctx context.Context, id string, choices domain.ListChoices) (views.GroupList, error)
+	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
+	// query, that choices keep. It fails with app.ErrSearchQueryTooLong for a query it won't run.
+	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error)
 	// Sitemap returns the vetted libraries, with their current rules, and the canonical groups that hold them.
 	Sitemap(ctx context.Context) (views.Sitemap, error)
 }
@@ -169,8 +170,8 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
-			copyScript:  assets.url("copy.js"), toastScript: assets.url("toast.js"),
-			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
+			copyScript:  assets.url("copy.js"), toastScript: assets.url("toast.js"), filtersScript: assets.url("filters.js"),
+			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
@@ -377,84 +378,19 @@ func withoutTrailingSlash(next http.Handler) http.Handler {
 	})
 }
 
+// libraries lists the vetted libraries, and the libraries listings name too when its address asks.
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
-	libraries, err := s.catalog.Libraries(r.Context(), false)
+	choices, ok := s.listChoices(w, r, domain.LibraryListPage, librariesHref)
+	if !ok {
+		return
+	}
+	libraries, err := s.catalog.Libraries(r.Context(), choices.Unvetted)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	cards := newLibraryCards(libraries, false)
-	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
-}
-
-// group shows the page of the canonical group of kind that the path names, and redirects another spelling of its
-// name to its own.
-func (s *server) group(kind groupKind) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := string(kind) + "/" + r.PathValue("name")
-		page, err := s.catalog.GroupPage(r.Context(), id)
-		if errors.Is(err, app.ErrNotFound) {
-			s.notFound(w, r)
-			return
-		}
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		view := newGroupPageView(page, s.assets.iconURL)
-		if page.Path != id {
-			redirect(w, r, withQuery(view.href, r))
-			return
-		}
-		if s.withoutCartPrompt(w, r) {
-			return
-		}
-		// Every library a group's page shows is vetted.
-		for i, lib := range view.libraries {
-			item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
-			view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
-				"the group "+view.label.name+" of "+lib.library.fullName())
-			view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
-			if view.libraries[i].cart.prompt {
-				view.offer = &view.libraries[i].cart
-			}
-		}
-		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
-	}
-}
-
-// search shows a page of the results of the query in the q parameter, the page the page parameter numbers, from 1.
-// Its page names no canonical address and asks search engines not to index it, since each query would otherwise be a
-// page of its own. A page number that isn't one, the first page's number, and a page number without a query redirect
-// to the address without it, another spelling of a page's number, such as 02, to its own, and a page past the last
-// is missing.
-func (s *server) search(w http.ResponseWriter, r *http.Request) {
-	params := r.URL.Query()
-	query := domain.ParseSearchQuery(params.Get("q"))
-	page, spelled := searchPageNumber(params)
-	if query.IsZero() {
-		page = 1
-	}
-	if !spelled || (query.IsZero() && params.Has("page")) {
-		redirect(w, r, searchHrefFor(params.Get("q"), page))
-		return
-	}
-	var results views.SearchResults
-	var err error
-	if page <= app.MaxSearchPage {
-		results, err = s.catalog.Search(r.Context(), query, page)
-	}
-	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
-	if err != nil && !tooLong {
-		s.fail(w, r, err)
-		return
-	}
-	view := newSearchView(query, tooLong, results, page, s.assets.iconURL)
-	status := http.StatusOK
-	if view.pageMissing() {
-		status = http.StatusNotFound
-	}
-	s.render(w, r, status, searchPage(s.chrome, view))
+	cards := newLibraryCards(libraries, choices.Unvetted)
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, choices.Unvetted, s.listingAvailable()))
 }
 
 // searchPageNumber returns the page params number, and whether they spell it as its address does: the first page

@@ -24,7 +24,7 @@ func TestOwnerPageShowsTheOwnersVettedLibraries(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "example github.com/example Libraries 2",
-		"rules Example rules for tests. example/rules · 2 rules", "web-rules Rules for the web. example/web-rules · 4 rules")
+		"rules Vetted by Rulemart Example rules for tests. example/rules · 2 rules", "web-rules Rules for the web. example/web-rules · 4 rules")
 	if !strings.Contains(page, "<title>example · Rulemart</title>") {
 		t.Error("the title doesn't name the owner")
 	}

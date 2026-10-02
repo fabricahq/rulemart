@@ -194,21 +194,9 @@ type Reader interface {
 	// names too, once for each library that holds it, in path order and then the library's owner and name, without
 	// regard to case.
 	Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error)
-	// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in
-	// owner and name order, and each library's in title order. It's empty when no vetted library holds the group.
-	GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error)
-	// Search returns one page of the vetted libraries' current rules that match query, best first: at most limit of
-	// them, which must be at least 1, after the best skip, with how many matched in all. A rule matches when it holds
-	// at least one of the query's terms to find and none of those to leave out, by its title, reading guidance,
-	// impact description, body, library name, and group's name: the name groups gives a canonical group, and the name
-	// part of any group's ID. A term that joins words with -, /, or : also matches the rule's ID, its group's, and its
-	// library's owner and name. Rules that hold more of the terms, in more telling places, come first. It leaves each
-	// result's CanonicalGroup nil.
-	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error)
 	// Rules returns one page of the list of rules list describes, after its filters and in its order: at most limit
 	// rules, which must be at least 1, after the first skip. Its libraries are the vetted ones, and with list.Unvetted,
-	// the ones listings name too. A list with a query holds the rules that match it, as Search matches them, current
-	// and retired; one without holds every current rule, and with list.Retired, every retired one too. Every order puts
+	// the ones listings name too. A list with a query holds the rules that match it, current and retired; one without holds every current rule, and with list.Retired, every retired one too. Every order puts
 	// the rules that hold every word to find first, and a retired rule after the current ones it ties with, and each
 	// group's rules together, in the order of the group's first. Each rule's stars are counted as Stars counts them;
 	// a retired rule's, or one of a library that isn't vetted, are 0. The results also count the rules that pass the

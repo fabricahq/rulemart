@@ -43,6 +43,8 @@ const (
 	// tileRow is a browse page's row icon, the prototype's medium tile.
 	tileRow tileSize = "size-9 rounded-[9px] text-[14px]"
 	tileLG tileSize = "size-14 rounded-[14px] text-[22px]"
+	// tileTitle stands beside a group page's title, the prototype's large tile.
+	tileTitle tileSize = "size-12 rounded-[12px] text-[20px]"
 )
 
 // groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
@@ -206,20 +208,29 @@ templ rowItem() {
 	</li>
 }
 
-// libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, its name, its
-// description, and its repository with its rule count, leading to its page. The library's name is a heading of level
-// 2, or 3 when headed is true, under a heading of the page's own. A link to an unvetted library's page carries
+// libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, with the check
+// mark when Rulemart vets the library, its name, the Unvetted chip on an unvetted library in a list of vetted ones,
+// its description, and its repository with its rule count, leading to its page. The library's name is a heading of
+// level 2, or 3 when headed is true, under a heading of the page's own. A link to an unvetted library's page carries
 // nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
-	@rowLink(lib.href, lib.unvetted, rowBeside) {
+	@rowLink(lib.href, !lib.vetted, rowBeside) {
 		<div class="flex min-w-0 items-start gap-[14px]">
-			@avatar(lib.avatar, lib.owner, avatarMD)
+			@libraryAvatar(lib.avatar, lib.owner, avatarMD, lib.vetted)
 			<div class="min-w-0">
-				if headed {
-					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
-				} else {
-					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
-				}
+				<div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+					if headed {
+						<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
+					} else {
+						<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
+					}
+					if lib.vetted {
+						<span class="sr-only">{ vettedTitle }</span>
+					}
+					if lib.tagged {
+						@unvettedBadge()
+					}
+				</div>
 				if lib.description != "" {
 					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
 				}
@@ -236,36 +247,131 @@ templ libraryRow(lib libraryCard, headed bool) {
 	}
 }
 
-// ruleCards lists rule cards, each a ruleCardLink.
-templ ruleCards() {
+// vettedTitle is what the check mark on a vetted library says.
+const vettedTitle = "Vetted by Rulemart"
+
+// checkSize is the check mark's box for an avatar's size: its size, offset, and border.
+func checkSize(size avatarSize) string {
+	switch size {
+	case avatarXS:
+		return "-right-[3px] -bottom-[3px] size-2.5 border-[1.5px] [&>svg]:size-[7px]"
+	case avatarLG, avatarXL:
+		return "-right-1 -bottom-1 size-5 border-2 [&>svg]:size-3"
+	}
+	return "-right-[3px] -bottom-[3px] size-4 border-2 [&>svg]:size-2.5"
+}
+
+// libraryAvatar is a library's owner's avatar, carrying the prototype's check mark when vetted is true, which says
+// "Vetted by Rulemart" on hover. Screen readers hear it where the library's name says it, as libraryRow's does.
+templ libraryAvatar(src, owner string, size avatarSize, vetted bool) {
+	if vetted {
+		<span class="relative inline-flex flex-none" title={ vettedTitle }>
+			@avatar(src, owner, size)
+			<span class={ "absolute grid place-items-center rounded-full border-paper bg-vetted", checkSize(size) } data-vetted>
+				<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.2 6.2 5.1 8l3.7-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+			</span>
+		</span>
+	} else {
+		@avatar(src, owner, size)
+	}
+}
+
+// ruleRows lists rule rows, each a ruleRow.
+templ ruleRows() {
 	<ul class="grid gap-2.5">
 		{ children... }
 	</ul>
 }
 
-// cardTitle is a rule's title on its card, with its impact after the last word, so the impact sits on the title's
-// last line however the title wraps.
-templ cardTitle(title, level string) {
-	<div class="text-[15.5px] leading-[1.35] font-semibold">
-		<h3 class="mr-2 inline font-semibold">{ title }</h3>
-		@impact(level)
-	</div>
-}
-
-// ruleCardLink is a rule's card in ruleCards, leading to its page, under a heading of level 2.
-templ ruleCardLink(r ruleCard) {
+// ruleRow is a rule in any list of rules on the site, the prototype's ruleResult, leading to the rule's page: its title
+// and impact, with the Retired and Unvetted chips when they apply, the rule that replaced a retired one, the words of
+// a search it lacks, the retired rule the visitor starred in its place, and then its library's mark and name, its
+// group in a list that names it, and its stars. A retired rule is drawn grayed out, the same in every list, which
+// data-retired marks. Its title is a heading of level 3, under a heading of the list's own.
+templ ruleRow(r ruleRowView) {
 	<li>
-		<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
-			@cardTitle(r.title, r.impact)
-			<div class="mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1 text-[13px] text-muted">
-				<span class="mono" title="Latest version">{ r.version }</span>
-				<span class="mono min-w-0 text-faint max-narrow:basis-full">
-					@breakable(r.id)
+		<a
+			class={ "block rounded-card border px-4 py-[14px] no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface", templ.KV("border-border text-ink", !r.retired), templ.KV("border-border-subtle text-muted", r.retired) }
+			href={ templ.SafeURL(r.href) }
+			if r.unvetted {
+				rel="nofollow"
+			}
+			if r.retired {
+				data-retired
+			}
+		>
+			<div class="text-[15.5px] leading-[1.35] font-semibold">
+				<h3 class={ "mr-2 inline font-semibold", templ.KV("text-muted", r.retired) }>{ r.title }</h3>
+				<span class="inline-flex flex-wrap items-center gap-1.5 align-[1px]">
+					@impact(r.impact)
+					if r.retired {
+						@retiredBadge()
+					}
+					if r.unvetted {
+						@unvettedBadge()
+					}
+				</span>
+			</div>
+			if r.retired && r.renamed {
+				<p class="mt-1 text-[12.5px] text-faint">
+					Renamed to{ " " }<span class="mono text-muted">
+						@breakable(r.replacedBy)
+					</span>
+				</p>
+			} else if r.retired && r.replacedBy != "" {
+				<p class="mt-1 text-[12.5px] text-faint">Replaced by <span class="text-muted">{ r.replacedBy }</span></p>
+			}
+			if len(r.missing) > 0 {
+				<p class="mt-1 text-[12.5px] text-muted">
+					Missing:
+					for _, word := range r.missing {
+						{ " " }<s>{ word }</s>
+					}
+				</p>
+			}
+			if r.starredAs != "" {
+				<p class="mt-1 text-[12.5px] text-muted">
+					You starred{ " " }<span class="mono">
+						@breakable(r.starredAs)
+					</span>, which this rule replaced.
+				</p>
+			}
+			<div class={ "mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
+				<span class={ "flex min-w-0 items-center gap-[7px]", templ.KV("[&>:first-child]:opacity-60", r.retired) }>
+					@libraryMark(r.library, r.fabrica)
+					<span class="min-w-0 [overflow-wrap:anywhere]">
+						{ r.library.fullName() }
+						if r.group != nil {
+							{ " · " }{ r.group.display() }
+						}
+					</span>
 				</span>
 				@starCount(r.stars, true, "")
 			</div>
 		</a>
 	</li>
+}
+
+// libraryMark is a library's small mark in a quiet row, the prototype's libMark: Fabrica's logo on a dark tile for a
+// library of Fabrica's, and otherwise its owner's avatar.
+templ libraryMark(lib libraryRefView, fabrica bool) {
+	if fabrica {
+		<span class="inline-grid size-[18px] flex-none place-items-center rounded-[4px] bg-primary text-on-primary" title="Published by Fabrica">
+			@fabricaMark("size-3")
+		</span>
+	} else {
+		@avatar(lib.avatar, lib.owner, avatarXS)
+	}
+}
+
+// unvettedBadge marks a library Rulemart doesn't vet, or one of its rules, in the one amber the palette has.
+templ unvettedBadge() {
+	<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
+}
+
+// retiredBadge marks a retired rule in a list.
+templ retiredBadge() {
+	<span class="inline-flex items-center rounded-full border border-border px-2 text-[11.5px] leading-[18px] font-medium text-muted">Retired</span>
 }
 
 // pageFocus is the attributes of a control the page focuses after the visitor's click, such as the star button after
@@ -367,50 +473,4 @@ templ license(lib libraryView) {
 	} else {
 		<span class="text-faint">Not declared</span>
 	}
-}
-
-// ruleResult is a rule in a list across libraries, the prototype's ruleResult: its title and impact, its reading
-// guidance, if any, the words of a search it lacks, if any, the retired rule the visitor starred in its place, if any,
-// then its library, group, version, and stars, leading to its page.
-templ ruleResult(r ruleResultView) {
-	<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
-		@cardTitle(r.rule.title, r.rule.impact)
-		if r.whenToRead != "" {
-			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
-		}
-		if len(r.missing) > 0 {
-			<p class="mt-1 text-[12.5px] text-muted">
-				Missing:
-				for _, word := range r.missing {
-					{ " " }<s>{ word }</s>
-				}
-			</p>
-		}
-		if r.starredAs != "" {
-			<p class="mt-1 text-[12.5px] text-muted">
-				You starred{ " " }<span class="mono">
-					@breakable(r.starredAs)
-				</span>, which this rule replaced.
-			</p>
-		}
-		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
-			<span class="flex min-w-0 items-start gap-1.5 max-narrow:basis-full">
-				@avatar(r.library.avatar, r.library.owner, avatarXS)
-				<span class="mono min-w-0 text-muted">
-					@breakable(r.sourceID)
-				</span>
-			</span>
-			<span class="flex items-center gap-1.5">
-				@groupTile(r.group, r.icon, tileXS)
-				if r.group.canonical {
-					<span>{ r.group.name }</span>
-				} else {
-					<span class="mono">{ r.group.id }</span>
-					@notCanonical(flagSM)
-				}
-			</span>
-			<span class="mono" title="Latest version">{ r.rule.version }</span>
-			@starCount(r.rule.stars, true, "")
-		</div>
-	</a>
 }

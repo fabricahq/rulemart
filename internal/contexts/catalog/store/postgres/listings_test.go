@@ -128,12 +128,12 @@ func TestAListedLibraryHasUnvettedPagesAndStaysOutOfBrowsingAndSearch(t *testing
 			t.Errorf("groups name the listed library: %+v", g)
 		}
 	}
-	goRules, err := c.web.GroupRules(ctx, vettedBoth, "techs/go")
+	goRules, err := c.web.Rules(ctx, vettedBoth, canonicalGroups, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Order: domain.MostStarred}}, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, lib := range goRules {
-		if lib.Library == strangerRef {
+	for _, r := range goRules.Rows {
+		if r.Library == strangerRef {
 			t.Errorf("a group's rules name the listed library")
 		}
 	}

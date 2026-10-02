@@ -8,10 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
@@ -21,7 +19,7 @@ const (
 	librariesHref = "/libraries"
 	// browsePrefix starts the browse pages, one per kind of group, such as /browse/techs.
 	browsePrefix = "/browse/"
-	// groupPrefix starts a canonical group's page, such as /g/techs/go.
+	// groupPrefix starts a group's page, such as /g/techs/go.
 	groupPrefix = "/g/"
 	// legacyGroupsHref is the groups page's old address, which redirects to the technologies' browse page, and under
 	// which each group's old address redirects to its page.
@@ -94,22 +92,7 @@ func (k groupKind) exampleGroup() string {
 // order is the kind's place in groupKinds, by which pages list technologies before practices.
 func (k groupKind) order() int { return slices.Index(groupKinds, k) }
 
-// searchHrefFor is the address of page of the search for query, which leaves out the first page's number.
-func searchHrefFor(query string, page int) string {
-	params := url.Values{}
-	if query != "" {
-		params.Set("q", query)
-	}
-	if page > 1 {
-		params.Set("page", strconv.Itoa(page))
-	}
-	if len(params) == 0 {
-		return searchHref
-	}
-	return searchHref + "?" + params.Encode()
-}
-
-// groupHref is the path of a canonical group's page, such as /g/techs/go.
+// groupHref is the path of a group's page, such as /g/techs/go.
 func groupHref(id string) string {
 	kind, name, _ := strings.Cut(id, "/")
 	return groupPrefix + url.PathEscape(kind) + "/" + url.PathEscape(name)
@@ -131,7 +114,7 @@ func (l libraryRefView) fullName() string { return l.owner + "/" + l.name }
 type groupSummaryView struct {
 	label groupLabel
 	icon  groupIcon
-	// href is a canonical group's page, or for any other group, its section on its library's All rules tab.
+	// href is the group's page, including unvetted libraries when the list it's in does.
 	href string
 	// blurb says which rules belong in a canonical group, from the canonical list. A group that isn't canonical has
 	// no description every library shares, so it has none.
@@ -139,6 +122,8 @@ type groupSummaryView struct {
 	rules int
 	// libraries hold the group, in owner and name order.
 	libraries []libraryRefView
+	// unvetted marks a group only unvetted libraries hold, in a list that includes them, which its row tags.
+	unvetted bool
 }
 
 // groupIndexView is every group that holds current rules in a vetted library, by kind.
@@ -146,21 +131,26 @@ type groupIndexView struct {
 	techs, practices []groupSummaryView
 }
 
-func newGroupIndexView(index views.GroupIndex, iconURL func(file string) string) groupIndexView {
-	return groupIndexView{techs: newGroupSummaryViews(index.Techs, iconURL), practices: newGroupSummaryViews(index.Practices, iconURL)}
+// newGroupIndexView describes index, whose groups' links include unvetted libraries when unvetted is true, as the
+// index does. iconURL returns where the site serves an icon file.
+func newGroupIndexView(index views.GroupIndex, unvetted bool, iconURL func(file string) string) groupIndexView {
+	return groupIndexView{
+		techs: newGroupSummaryViews(index.Techs, unvetted, iconURL), practices: newGroupSummaryViews(index.Practices, unvetted, iconURL),
+	}
 }
 
-func newGroupSummaryViews(groups []views.GroupSummary, iconURL func(file string) string) []groupSummaryView {
+func newGroupSummaryViews(groups []views.GroupSummary, unvetted bool, iconURL func(file string) string) []groupSummaryView {
 	summaries := make([]groupSummaryView, len(groups))
 	for i, g := range groups {
-		v := groupSummaryView{label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), rules: g.Rules}
+		v := groupSummaryView{
+			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), rules: g.Rules,
+			href: withUnvetted(groupHref(g.Path), unvetted), unvetted: !g.Vetted,
+		}
 		for _, lib := range g.Libraries {
 			v.libraries = append(v.libraries, newLibraryRefView(lib))
 		}
-		if g.Canonical == nil {
-			v.href = v.libraries[0].href + "?tab=rules#" + groupAnchor(g.Path)
-		} else {
-			v.href, v.blurb = groupHref(g.Path), g.Canonical.Description
+		if g.Canonical != nil {
+			v.blurb = g.Canonical.Description
 		}
 		summaries[i] = v
 	}
@@ -210,12 +200,13 @@ func othersOnly(groups []groupSummaryView) []groupSummaryView {
 	return others
 }
 
-// browseView is what a kind's browse page shows: its canonical groups that hold current rules in a vetted library,
-// by rule count, and how many other groups its other page lists.
+// browseView is what a kind's browse page shows: its canonical groups that hold current rules in a vetted library, or
+// with unvetted, in a library a listing names too, by rule count, and how many other groups its other page lists.
 type browseView struct {
-	kind   groupKind
-	groups []groupSummaryView
-	others int
+	kind     groupKind
+	groups   []groupSummaryView
+	others   int
+	unvetted bool
 }
 
 // described reports whether g's row shows its description: a practice's says which rules belong in it, while a
@@ -224,52 +215,70 @@ func (v browseView) described(g groupSummaryView) bool {
 	return v.kind == practicesKind && g.blurb != ""
 }
 
-func newBrowseView(kind groupKind, index groupIndexView) browseView {
+func newBrowseView(kind groupKind, index groupIndexView, unvetted bool) browseView {
 	groups := index.ofKind(kind)
-	return browseView{kind: kind, groups: byRuleCount(canonicalOnly(groups)), others: len(othersOnly(groups))}
+	return browseView{kind: kind, groups: byRuleCount(canonicalOnly(groups)), others: len(othersOnly(groups)), unvetted: unvetted}
 }
 
-// otherGroupsView is what a kind's other-groups page shows: one row per library and group ID that isn't canonical.
+// othersHref is the kind's other-groups page, including unvetted libraries when this page does.
+func (v browseView) othersHref() string { return withUnvetted(v.kind.othersHref(), v.unvetted) }
+
+// otherGroupsView is what a kind's other-groups page shows: one row per group ID that isn't canonical.
 type otherGroupsView struct {
-	kind   groupKind
-	groups []groupSummaryView
+	kind     groupKind
+	groups   []groupSummaryView
+	unvetted bool
 }
 
-func newOtherGroupsView(kind groupKind, index groupIndexView) otherGroupsView {
-	return otherGroupsView{kind: kind, groups: othersOnly(index.ofKind(kind))}
+func newOtherGroupsView(kind groupKind, index groupIndexView, unvetted bool) otherGroupsView {
+	return otherGroupsView{kind: kind, groups: othersOnly(index.ofKind(kind)), unvetted: unvetted}
 }
 
-// browse shows the browse page of kind.
+// libraryNames names the libraries that hold g, a group that isn't canonical, as its row lists them.
+func libraryNames(g groupSummaryView) string {
+	names := make([]string, len(g.libraries))
+	for i, lib := range g.libraries {
+		names[i] = lib.fullName()
+	}
+	return strings.Join(names, ", ")
+}
+
+// browse shows the browse page of kind, including unvetted libraries when its address asks.
 func (s *server) browse(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		index, ok := s.browseIndex(w, r)
+		index, unvetted, ok := s.browseIndex(w, r, kind.href())
 		if !ok {
 			return
 		}
-		s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
+		s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index, unvetted)))
 	}
 }
 
-// otherGroups shows the groups of kind that aren't canonical.
+// otherGroups shows the groups of kind that aren't canonical, including unvetted libraries when its address asks.
 func (s *server) otherGroups(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		index, ok := s.browseIndex(w, r)
+		index, unvetted, ok := s.browseIndex(w, r, kind.othersHref())
 		if !ok {
 			return
 		}
-		s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
+		s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index, unvetted)))
 	}
 }
 
-// browseIndex reads the groups a browse page shows, and reports whether it did. It answers a failed read with a
-// failure.
-func (s *server) browseIndex(w http.ResponseWriter, r *http.Request) (groupIndexView, bool) {
-	index, err := s.catalog.GroupIndex(r.Context(), false)
+// browseIndex reads the groups the browse page at path shows, including unvetted libraries when its address asks, and
+// reports whether it did. It answers an address that spells the choice another way with a redirect, and a failed read
+// with a failure.
+func (s *server) browseIndex(w http.ResponseWriter, r *http.Request, path string) (groupIndexView, bool, bool) {
+	choices, ok := s.listChoices(w, r, domain.LibraryListPage, path)
+	if !ok {
+		return groupIndexView{}, false, false
+	}
+	index, err := s.catalog.GroupIndex(r.Context(), choices.Unvetted)
 	if err != nil {
 		s.fail(w, r, err)
-		return groupIndexView{}, false
+		return groupIndexView{}, false, false
 	}
-	return newGroupIndexView(index, s.assets.iconURL), true
+	return newGroupIndexView(index, choices.Unvetted, s.assets.iconURL), choices.Unvetted, true
 }
 
 // redirectToTechs redirects /browse, which names no kind, and the groups page's old address to the technologies'
@@ -284,116 +293,3 @@ func (s *server) legacyGroup(kind groupKind) http.HandlerFunc {
 		redirect(w, r, withQuery(groupHref(string(kind)+"/"+r.PathValue("name")), r))
 	}
 }
-
-// groupPageView is what a canonical group's page shows.
-type groupPageView struct {
-	href        string
-	label       groupLabel
-	icon        groupIcon
-	description string
-	rules       int
-	libraries   []groupLibraryView
-	// notice is what the page says after adding, or signing in to add, one library's group, if any, and offer the
-	// control its notice offers to add after signing in, or nil.
-	notice string
-	offer  *cartControl
-}
-
-// groupLibraryView is one library's rules on a group's page.
-type groupLibraryView struct {
-	library libraryRefView
-	// section is the group's section on the library's All rules tab.
-	section string
-	rules   []ruleCard
-	// cart is the control that adds the library's group to the cart.
-	cart cartControl
-}
-
-func newGroupPageView(page views.GroupPage, iconURL func(file string) string) groupPageView {
-	v := groupPageView{
-		href: groupHref(page.Path), label: newGroupLabel(page.Path, &page.Canonical),
-		icon: newGroupIcon(&page.Canonical, iconURL), description: page.Canonical.Description,
-	}
-	for _, lib := range page.Libraries {
-		ref := newLibraryRefView(lib.Library)
-		section := groupLibraryView{library: ref, section: ref.href + "?tab=rules#" + groupAnchor(page.Path)}
-		for _, r := range lib.Rules {
-			section.rules = append(section.rules, newRuleCard(ref.href, r))
-		}
-		v.rules += len(section.rules)
-		v.libraries = append(v.libraries, section)
-	}
-	return v
-}
-
-// newRuleCard describes rule r of the library whose page is at libraryHref.
-func newRuleCard(libraryHref string, r views.RuleCard) ruleCard {
-	return ruleCard{href: libraryHref + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String(), stars: r.Stars}
-}
-
-// searchView is what the search page shows.
-type searchView struct {
-	// query is what the visitor searched for, cleaned; it's empty before a search.
-	query string
-	// tooLong marks a query search didn't run, because it holds more than domain.MaxSearchQueryLength characters.
-	tooLong bool
-	// total counts every rule that matched, of which results holds the best, and complete those that hold every word
-	// to find.
-	total, complete int
-	// noWords marks a query with no word to find, such as only "the", which matches nothing.
-	noWords bool
-	// page numbers the page of results shown, from 1, of pages, which stops at app.MaxSearchPage, the last page a search
-	// reads.
-	page, pages int
-	results     []ruleResultView
-}
-
-func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
-	v := searchView{
-		query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords,
-		page: page, pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
-	}
-	for _, r := range results.Results {
-		result := newRuleResult(r.Library, r.Rule, r.CanonicalGroup, iconURL)
-		result.whenToRead, result.missing = plainText(r.WhenToRead, r.WhenToReadHTML), r.Missing
-		v.results = append(v.results, result)
-	}
-	return v
-}
-
-// searched reports whether the page shows a search's outcome: results, none, or a query too long to run.
-func (v searchView) searched() bool { return v.query != "" }
-
-// title is the search page's document title, which names the query.
-func (v searchView) title() string {
-	if v.query == "" {
-		return "Search · Rulemart"
-	}
-	return "“" + v.query + "” · Search · Rulemart"
-}
-
-// completeResults returns the page's results that hold every word to find, which search ranks first.
-func (v searchView) completeResults() []ruleResultView {
-	return v.results[:v.partialStart()]
-}
-
-// partialResults returns the page's results that lack some of the words to find, which follow those that hold them all.
-func (v searchView) partialResults() []ruleResultView {
-	return v.results[v.partialStart():]
-}
-
-// partialStart returns the index of the page's first result that lacks a word, or the number of results when none does.
-func (v searchView) partialStart() int {
-	for i, r := range v.results {
-		if len(r.missing) > 0 {
-			return i
-		}
-	}
-	return len(v.results)
-}
-
-// pageMissing reports a page past the last of a search's results.
-func (v searchView) pageMissing() bool { return v.page > 1 && len(v.results) == 0 }
-
-// pageHref is the address of page n of the search's results.
-func (v searchView) pageHref(n int) string { return searchHrefFor(v.query, n) }

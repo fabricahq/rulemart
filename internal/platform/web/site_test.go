@@ -46,13 +46,16 @@ type catalog struct {
 	releaseComparisons map[string]views.ReleaseComparison
 	ruleComparisons    map[string]views.RuleComparison
 	index              views.GroupIndex
-	// groups are the canonical groups' pages, keyed by ID.
-	groups map[string]views.GroupPage
-	// results are keyed by the query that finds them, followed for pages after the first by " page " and the page's
-	// number; any other query or page finds nothing.
-	results map[string]views.SearchResults
-	// searched records each query searched, when it isn't nil.
+	// unvettedIndex is the index with unvetted libraries, which GroupIndex answers when asked for them.
+	unvettedIndex views.GroupIndex
+	// groups are the groups' pages, keyed by ID in lowercase; Group answers the same page whatever the choices.
+	groups map[string]views.GroupList
+	// results are keyed by the query that finds them, empty for every rule, followed for pages after the first by
+	// " page " and the page's number; any other query or page finds nothing, whatever the choices.
+	results map[string]views.RuleResults
+	// searched records each query searched, and chosen the choices of every list read, when they aren't nil.
 	searched *[]string
+	chosen   *[]domain.ListChoices
 	// sitemap is what the sitemap lists.
 	sitemap views.Sitemap
 	// err, when set, fails every read.
@@ -63,7 +66,11 @@ func (c catalog) HomePage(context.Context) (views.HomePage, error) {
 	return views.HomePage{Libraries: c.libraries, Groups: c.index}, c.err
 }
 
-func (c catalog) Libraries(context.Context, bool) ([]views.LibraryCard, error) {
+// Libraries answers the vetted libraries, and the unvetted ones after them when asked, as app.Pages orders neither.
+func (c catalog) Libraries(_ context.Context, unvetted bool) ([]views.LibraryCard, error) {
+	if unvetted {
+		return append(slices.Clone(c.libraries), c.unvetted...), c.err
+	}
 	return c.libraries, c.err
 }
 
@@ -71,7 +78,12 @@ func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error)
 	return c.unvetted, c.err
 }
 
-func (c catalog) GroupIndex(context.Context, bool) (views.GroupIndex, error) { return c.index, c.err }
+func (c catalog) GroupIndex(_ context.Context, unvetted bool) (views.GroupIndex, error) {
+	if unvetted {
+		return c.unvettedIndex, c.err
+	}
+	return c.index, c.err
+}
 
 // OwnerPage finds the owner among the vetted libraries, without regard to case, as app.Pages does.
 func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, error) {
@@ -90,8 +102,11 @@ func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, er
 
 func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
-// GroupPage matches id without regard to case, as app.Pages does.
-func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error) {
+// Group matches id without regard to case, and records the choices.
+func (c catalog) Group(_ context.Context, id string, choices domain.ListChoices) (views.GroupList, error) {
+	if c.chosen != nil {
+		*c.chosen = append(*c.chosen, choices)
+	}
 	page, ok := c.groups[strings.ToLower(id)]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load group: %w", app.ErrNotFound)
@@ -99,16 +114,20 @@ func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error
 	return page, c.err
 }
 
-// Search answers as app.Pages does: nothing for the zero query, and app.ErrSearchQueryTooLong for a long one.
-func (c catalog) Search(_ context.Context, query domain.SearchQuery, page int) (views.SearchResults, error) {
-	if c.err != nil || query.IsZero() {
-		return views.SearchResults{}, c.err
+// SearchRules answers as app.Pages does for a long query, app.ErrSearchQueryTooLong, and records the query and the
+// choices.
+func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error) {
+	if c.err != nil {
+		return views.RuleResults{}, c.err
 	}
 	if query.TooLong() {
-		return views.SearchResults{}, fmt.Errorf("search: %w", app.ErrSearchQueryTooLong)
+		return views.RuleResults{}, fmt.Errorf("search: %w", app.ErrSearchQueryTooLong)
 	}
 	if c.searched != nil {
 		*c.searched = append(*c.searched, query.String())
+	}
+	if c.chosen != nil {
+		*c.chosen = append(*c.chosen, choices)
 	}
 	if page > 1 {
 		return c.results[fmt.Sprintf("%s page %d", query, page)], nil
@@ -226,7 +245,7 @@ func newCatalog() catalog {
 	return catalog{
 		libraries: []views.LibraryCard{{
 			Owner: "example", Name: "rules", Description: "Example rules for tests.",
-			OwnerAvatarURL: exampleRules.OwnerAvatarURL, Rules: 2,
+			OwnerAvatarURL: exampleRules.OwnerAvatarURL, Rules: 2, Vetted: true,
 		}},
 		pages: map[string]views.LibraryPage{"example/rules": {
 			Library: exampleRules,
@@ -277,7 +296,7 @@ func visibleText(t *testing.T, body string) string {
 	var text strings.Builder
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && (n.Data == "head" || n.Data == "script") {
+		if n.Type == html.ElementNode && (n.Data == "head" || n.Data == "script" || n.Data == "noscript") {
 			return
 		}
 		writeText(&text, n)
@@ -343,8 +362,8 @@ func TestLibraryRulesTabListsCurrentRulesByGroup(t *testing.T) {
 	resp := get(t, handler, library+"?tab=rules")
 
 	assertShows(t, resp.Body.String(),
-		"Go techs/go Return errors with context HIGH 2.0.0 techs/go/return-errors",
-		"Testing practices/testing Verify retry limits HIGH 1.1.0 practices/testing/verify-retry-limits",
+		"Go techs/go Return errors with context HIGH example/rules",
+		"Testing practices/testing Verify retry limits HIGH example/rules",
 	)
 }
 
@@ -379,8 +398,7 @@ func TestRulePageSaysWhatItsImpactMeans(t *testing.T) {
 }
 
 // Reading guidance is Markdown, rendered at ingestion as the body is: the page shows its markup, and places that show
-// text, such as the page's description and search results, show its text. Guidance a release stored without HTML
-// shows as written.
+// text, such as the page's description, show its text. Guidance a release stored without HTML shows as written.
 func TestReadingGuidanceShowsAsRenderedMarkdownOrAsText(t *testing.T) {
 	c := newBrowsingCatalog()
 	key := "example/rules/techs/go/return-errors"
@@ -388,9 +406,6 @@ func TestReadingGuidanceShowsAsRenderedMarkdownOrAsText(t *testing.T) {
 	page.Rule.WhenToRead = "When JSX renders with `&&` and <b>a number</b>."
 	page.Rule.WhenToReadHTML = "<p>When JSX renders with <code>&amp;&amp;</code> and &lt;b&gt;a number&lt;/b&gt;.</p>\n"
 	c.rules[key] = page
-	results := c.results["errors"]
-	results.Results[0].WhenToRead, results.Results[0].WhenToReadHTML = page.Rule.WhenToRead, page.Rule.WhenToReadHTML
-	c.results["errors"] = results
 	handler := newSite(t, c)
 
 	body := get(t, handler, errorsRule).Body.String()
@@ -400,11 +415,6 @@ func TestReadingGuidanceShowsAsRenderedMarkdownOrAsText(t *testing.T) {
 	}
 	if !strings.Contains(body, `<meta name="description" content="When JSX renders with &amp;&amp; and &lt;b&gt;a number&lt;/b&gt;.">`) {
 		t.Error("the page's description isn't the guidance's text")
-	}
-	search := get(t, handler, "/search?q=errors").Body.String()
-	assertShows(t, search, "When JSX renders with && and <b>a number</b>. example/rules")
-	if strings.Contains(search, "`") || strings.Contains(search, "<code>&amp;") {
-		t.Error("the search result shows the guidance's Markdown or markup")
 	}
 
 	page.Rule.WhenToReadHTML = ""
@@ -812,7 +822,7 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
 		// its library.
 		"Technologies · 3 Go techs/go The Go language. Go rules in every library › 1 rule ›",
-		"techs/golang not canonical More Go rules. 1 rule ›",
+		"techs/golang not canonical More Go rules. techs/golang rules in every library › 1 rule ›",
 		"Goose techs/goose Goose rules in every library › 1 rule ›",
 		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 	)
@@ -839,8 +849,8 @@ func TestLibraryRulesTabShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *t
 	page := get(t, handler, mixed+"?tab=rules").Body.String()
 
 	assertShows(t, page,
-		"Go techs/go Return errors HIGH 1.0.0 techs/go/return-errors",
-		"techs/golang not canonical Pass context first HIGH 1.0.0 techs/golang/pass-context-first",
+		"Go techs/go Return errors HIGH E example/mixed",
+		"techs/golang not canonical Pass context first HIGH E example/mixed",
 		"Goose techs/goose One change per migration",
 		"Testing practices/testing Verify retry limits",
 	)
@@ -855,25 +865,25 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 
 	assertShows(t, canonical, "mixed › Go techs/go Go rules in every library ›")
 	assertFlagsExplainThemselves(t, canonical, 0)
-	assertShows(t, other, "mixed › techs/golang not canonical")
+	assertShows(t, other, "mixed › techs/golang not canonical techs/golang rules in every library ›")
 	assertFlagsExplainThemselves(t, other, 1)
-	// A canonical group's rules in every library are a page of their own; any other group stands alone.
+	// Every group's rules in every library that holds it are a page of their own.
 	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
-	if got := links(t, other, "rules in every library"); len(got) != 0 {
+	if got := links(t, other, "rules in every library"); !slices.Equal(got, []string{"/g/techs/golang"}) {
 		t.Errorf("a group that isn't canonical links %q across libraries", got)
 	}
 }
 
-// A library's canonical groups lead to their rules in the library, and to their page across libraries.
-func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
+// A library's groups lead to their rules in the library, and to their page across libraries, canonical or not.
+func TestLibraryPageLinksGroupsAcrossLibraries(t *testing.T) {
 	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
 
-	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/goose", "/g/practices/testing"}) {
+	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/golang", "/g/techs/goose", "/g/practices/testing"}) {
 		t.Errorf("the groups link %q across libraries", got)
 	}
-	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {
+	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang", "/g/techs/golang"}) {
 		t.Errorf("techs/golang links %q", got)
 	}
 }

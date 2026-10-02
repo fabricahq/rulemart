@@ -78,7 +78,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 	for path, want := range map[string]string{
 		"/":                          "example/rules · 1 rule",
 		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
-		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
+		library + "?tab=rules":       "Return errors HIGH example/rules",
 		errorsRule:                   "Wrap every returned error.",
 		errorsRule + "?tab=versions": "1.0.0 Latest release/1 1 Sep 2026 Add the rule.",
 	} {
@@ -187,10 +187,12 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. techs/golang rules in every library › 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},
+		// A group that isn't canonical has a page of its own, which says so.
+		"/g/techs/golang": {"techs/golang Not canonical", "1 rule in 1 library Most starred Newest Pass context first HIGH example/rules"},
 	} {
 		page := get(t, handler, path).Body.String()
 		assertShows(t, page, want...)
@@ -270,9 +272,12 @@ func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
 	for path, want := range map[string]string{
 		"/":               "Popular Go Testing Technologies Browse all → Go 2 rules · 2 libraries Practices Browse all → Testing 1 rule · 1 library",
 		"/browse/techs":   "Go 2 rules 2 libraries",
-		"/g/techs/go":     "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
-		"/search?q=retry": "2 rules match “retry” Verify retry limits",
-		"/search?q=go":    "2 rules match “go”",
+		"/g/techs/go":     "2 rules from 2 libraries · The Go programming language and its standard tooling.",
+		"/search?q=retry": "Rules matching “retry”",
+		"/search?q=go":    "Rules matching “go”",
+		// The filters and orders read the catalog: a library alone, and every rule, newest first.
+		"/g/techs/go?libs=acme%2Fgo-rules&sort=new": "1 rule in 1 library Most starred Newest Close response bodies HIGH acme/go-rules",
+		"/search?sort=new":                          "All rules",
 	} {
 		resp := get(t, handler, path)
 		if resp.Code != http.StatusOK {
@@ -281,7 +286,9 @@ func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
 		assertShows(t, resp.Body.String(), want)
 	}
 	assertShows(t, get(t, handler, "/search?q=retry").Body.String(),
-		"example/rules:practices/testing/verify-retry-limits", "acme/go-rules:techs/go/close-bodies")
+		"2 rules in 2 libraries", "Verify retry limits HIGH example/rules", "Close response bodies HIGH acme/go-rules")
+	assertShows(t, get(t, handler, "/g/techs/go").Body.String(),
+		"2 rules in 2 libraries", "Close response bodies HIGH acme/go-rules")
 }
 
 // Whatever a visitor types, search answers with a page, never a failure: Postgres refuses NUL bytes and invalid

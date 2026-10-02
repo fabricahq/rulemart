@@ -3,7 +3,6 @@ package web_test
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
@@ -25,38 +23,54 @@ var (
 	otherRef   = views.LibraryRef{Owner: "other", Name: "go-rules", OwnerAvatarURL: "https://avatars.githubusercontent.com/u/2?v=4"}
 )
 
+// Rules the browsing catalog lists: example's return-errors, starred, other's close-bodies, name-packages, and
+// wrap-errors, whose group, techs/golang, isn't canonical.
+var (
+	returnErrorsRow = views.RuleRow{Library: exampleRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go",
+		Title: "Return errors with context", Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}, Stars: 3}, CanonicalGroup: goGroup, GroupRules: 3}
+	closeBodiesRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/close-bodies", Group: "techs/go",
+		Title: "Close response bodies", Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}}, CanonicalGroup: goGroup, GroupRules: 3}
+	namePackagesRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/name-packages", Group: "techs/go",
+		Title: "Name packages plainly", Impact: "LOW", Version: coderules.RuleVersion{Major: 1, Minor: 2}}, CanonicalGroup: goGroup, GroupRules: 3}
+	wrapErrorsRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/golang/wrap-errors", Group: "techs/golang",
+		Title: "Wrap errors", Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}}, GroupRules: 1}
+	// browsingCounts are the libraries of the Go group's rules, as its sidebar counts them.
+	browsingCounts = []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 2}}
+)
+
 // newBrowsingCatalog returns newCatalog's library, with the groups of two libraries: Go, which both hold, Testing,
-// which one holds, and techs/golang, which isn't canonical. It finds two rules for "errors".
+// which one holds, and techs/golang, which isn't canonical. It finds two rules for "errors", and lists four as every
+// rule.
 func newBrowsingCatalog() catalog {
 	c := newCatalog()
 	c.index = views.GroupIndex{
 		Techs: []views.GroupSummary{
-			{Path: "techs/go", Canonical: goGroup, Rules: 3, Libraries: []views.LibraryRef{exampleRef, otherRef}},
-			{Path: "techs/golang", Rules: 1, Libraries: []views.LibraryRef{otherRef}},
+			{Path: "techs/go", Canonical: goGroup, Rules: 3, Libraries: []views.LibraryRef{exampleRef, otherRef}, Vetted: true},
+			{Path: "techs/golang", Rules: 1, Libraries: []views.LibraryRef{otherRef}, Vetted: true},
 		},
 		Practices: []views.GroupSummary{
 			{Path: "practices/testing", Canonical: &views.CanonicalGroup{Name: "Testing", Description: "What to test and how.", Icon: testingGroup.Icon},
-				Rules: 1, Libraries: []views.LibraryRef{exampleRef}},
+				Rules: 1, Libraries: []views.LibraryRef{exampleRef}, Vetted: true},
 		},
 	}
-	c.groups = map[string]views.GroupPage{
-		"techs/go": {Path: "techs/go", Canonical: views.CanonicalGroup{Name: "Go", Description: "The Go language.", Icon: goGroup.Icon},
-			Libraries: []views.GroupLibrary{
-				{Library: exampleRef, Rules: []views.RuleCard{{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context",
-					Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}}}},
-				{Library: otherRef, Rules: []views.RuleCard{
-					{Path: "techs/go/close-bodies", Group: "techs/go", Title: "Close response bodies", Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}},
-					{Path: "techs/go/name-packages", Group: "techs/go", Title: "Name packages plainly", Impact: "LOW", Version: coderules.RuleVersion{Major: 1, Minor: 2}},
-				}},
-			}},
-		"practices/accessibility": {Path: "practices/accessibility", Canonical: views.CanonicalGroup{Name: "Accessibility"}},
+	c.unvettedIndex = c.index
+	c.groups = map[string]views.GroupList{
+		"techs/go": {Path: "techs/go", Canonical: goGroup, Rules: views.RuleResults{
+			Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow}, Total: 3, Libraries: 2, Unfiltered: 3,
+			LibraryCounts: browsingCounts,
+		}},
+		"techs/golang": {Path: "techs/golang", Rules: views.RuleResults{
+			Rows: []views.RuleRow{wrapErrorsRow}, Total: 1, Libraries: 1, Unfiltered: 1,
+			LibraryCounts: []views.LibraryCount{{Library: otherRef, Vetted: true, Rules: 1}},
+		}},
+		"practices/accessibility": {Path: "practices/accessibility", Canonical: &views.CanonicalGroup{Name: "Accessibility"}},
 	}
-	c.results = map[string]views.SearchResults{"errors": {Total: 2, Complete: 2, Results: []views.SearchResult{
-		{Library: exampleRef, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context",
-			Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}}, CanonicalGroup: goGroup, WhenToRead: "When a function fails."},
-		{Library: otherRef, Rule: views.RuleCard{Path: "techs/golang/wrap-errors", Group: "techs/golang", Title: "Wrap errors",
-			Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}}, WhenToRead: "When returning an error."},
-	}}}
+	c.results = map[string]views.RuleResults{
+		"errors": {Rows: []views.RuleRow{returnErrorsRow, wrapErrorsRow}, Total: 2, Complete: 2, Libraries: 2, Unfiltered: 2,
+			LibraryCounts: []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 1}}},
+		"": {Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow, wrapErrorsRow}, Total: 4, Complete: 4,
+			Libraries: 2, Unfiltered: 4, LibraryCounts: browsingCounts},
+	}
 	return c
 }
 
@@ -124,16 +138,17 @@ func TestPagesLetFormsSubmitOnlyToRulemart(t *testing.T) {
 	}
 }
 
-// Every page but the search page has search in its header; the search page holds its own field.
-func TestHeaderSearchesFromEveryPageButSearch(t *testing.T) {
+// Every page has search in its header, which holds the search page's query; the search page holds its own field too,
+// for a phone, whose header has none.
+func TestHeaderSearchesFromEveryPage(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/", "/browse/techs", "/g/techs/go", library, errorsRule} {
+	for _, path := range []string{"/", "/browse/techs", "/g/techs/go", library, errorsRule, "/search"} {
 		assertSearchForm(t, get(t, handler, path).Body.String(), "header-search", "")
 	}
-	if page := get(t, handler, "/search").Body.String(); strings.Contains(page, `id="header-search"`) {
-		t.Fatal("the search page repeats search in its header")
-	}
+	page := get(t, handler, "/search?q=errors").Body.String()
+	assertSearchForm(t, page, "header-search", "errors")
+	assertSearchForm(t, page, "search", "errors")
 }
 
 // A keyboard's first stop on every page skips the header to the page's content.
@@ -161,7 +176,7 @@ func TestBrowsePagesListEachKindsCanonicalGroupsAcrossLibraries(t *testing.T) {
 	}
 	page := resp.Body.String()
 	// A technology's row names it; its description is in its name. The other groups stand apart.
-	assertShows(t, page, "Browse Technologies Technologies Practices Go 3 rules 2 libraries", "View other technology groups (1) →")
+	assertShows(t, page, "Browse Technologies Technologies Practices Include unvetted libraries Go 3 rules 2 libraries", "View other technology groups (1) →")
 	if strings.Contains(visibleText(t, page), "golang") || strings.Contains(visibleText(t, page), "The Go language.") {
 		t.Error("the technologies page lists a group that isn't canonical, or a technology's description")
 	}
@@ -197,8 +212,8 @@ func TestBrowsePagesSayWhenNoLibraryHasAGroupOfTheKind(t *testing.T) {
 	assertShows(t, get(t, handler, "/browse/practices/other").Body.String(), "Other practice groups", "None right now.")
 }
 
-// The other-groups page lists each group a library declared that isn't canonical, one row per library and group,
-// leading to the group's section on its library's All rules tab.
+// The other-groups page lists each group libraries declared that isn't canonical, one row per ID with its libraries,
+// leading to the group's page.
 func TestOtherGroupsPageListsEachLibrarysOwnGroups(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
@@ -216,7 +231,7 @@ func TestOtherGroupsPageListsEachLibrarysOwnGroups(t *testing.T) {
 	if strings.Contains(visibleText(t, page), "techs/go 3 rules") {
 		t.Error("the other groups page lists a canonical group")
 	}
-	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{"/other/go-rules?tab=rules#group-techs-golang"}) {
+	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{"/g/techs/golang"}) {
 		t.Errorf("techs/golang links %q", got)
 	}
 	if got := links(t, page, "Technologies"); !slices.Contains(got, "/browse/techs") {
@@ -244,59 +259,6 @@ func TestOldGroupAddressesRedirectToTheNewOnes(t *testing.T) {
 		resp := get(t, handler, path)
 		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
 			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
-		}
-	}
-}
-
-// A canonical group's page names each library its rules come from, in the order the catalog gives, and leads to each
-// library and its section for the group.
-func TestGroupPageShowsEachLibrarysRules(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-
-	resp := get(t, handler, "/g/techs/go")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	page := resp.Body.String()
-	assertShows(t, page,
-		"Technologies › techs/go Go techs/go The Go language. Rules 3 in 2 libraries",
-		"example/rules 1 rule View in library › Return errors with context HIGH 2.0.0 techs/go/return-errors "+
-			"other/go-rules 2 rules View in library › Close response bodies MEDIUM 1.0.0 techs/go/close-bodies "+
-			"Name packages plainly LOW 1.2.0 techs/go/name-packages",
-	)
-	for text, want := range map[string]string{
-		"Technologies":               "/browse/techs",
-		"other/go-rules":             "/other/go-rules",
-		"Close response bodies":      "/other/go-rules/techs/go/close-bodies",
-		"Return errors with context": errorsRule,
-	} {
-		if got := links(t, page, text); !slices.Contains(got, want) {
-			t.Errorf("%s links %q, want %s", text, got, want)
-		}
-	}
-	if got := links(t, page, "View in library"); !slices.Equal(got, []string{
-		library + "?tab=rules#group-techs-go", "/other/go-rules?tab=rules#group-techs-go",
-	}) {
-		t.Errorf("the libraries' sections are %q", got)
-	}
-}
-
-func TestGroupPageSaysWhenNoLibraryHoldsTheGroup(t *testing.T) {
-	resp := get(t, newSite(t, newBrowsingCatalog()), "/g/practices/accessibility")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	assertShows(t, resp.Body.String(), "Rules 0", "No vetted library has Accessibility rules yet.")
-}
-
-func TestGroupPageAnswersNotFoundForAGroupThatIsntCanonical(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-
-	for _, path := range []string{"/g/techs/golang", "/g/Techs/Golang", "/g/techs", "/browse/tools", "/browse/techs/golang", "/browse/tools/other"} {
-		if resp, hops := follow(t, handler, path); resp.Code != http.StatusNotFound {
-			t.Errorf("%s: reached %d at %q", path, resp.Code, hops)
 		}
 	}
 }
@@ -329,218 +291,6 @@ func TestBrowsePagesNameTheirAddressAsCanonical(t *testing.T) {
 	}
 }
 
-// Each result names its rule's library, by avatar and source-qualified ID, and its group, as other pages do.
-func TestSearchPageShowsEachResultWithItsLibraryAndGroup(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-
-	resp := get(t, handler, "/search?q=errors")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	page := resp.Body.String()
-	assertShows(t, page,
-		"2 rules match “errors”",
-		"Return errors with context HIGH When a function fails. example/rules:techs/go/return-errors Go 2.0.0",
-		"Wrap errors MEDIUM When returning an error. other/go-rules:techs/golang/wrap-errors techs/golang not canonical 1.0.0",
-	)
-	assertFlagsExplainThemselves(t, page, 1)
-	assertSearchForm(t, page, "search", "errors")
-	if got := links(t, page, "Wrap errors"); !slices.Equal(got, []string{"/other/go-rules/techs/golang/wrap-errors"}) {
-		t.Errorf("the result links %q", got)
-	}
-	if !strings.Contains(page, "<title>“errors” · Search · Rulemart</title>") {
-		t.Error("the title doesn't name the query")
-	}
-}
-
-func TestSearchPageSaysHowManyOfTheMatchesItShows(t *testing.T) {
-	c := newBrowsingCatalog()
-	results := c.results["errors"]
-	results.Total, results.Complete = 87, 87
-	c.results["errors"] = results
-
-	page := get(t, newSite(t, c), "/search?q=errors").Body.String()
-
-	assertShows(t, page, "87 rules match “errors” · Page 1 of 5")
-}
-
-// A search that matches more rules than a page holds links the pages before and after the one shown.
-func TestSearchPageLinksThePagesBeforeAndAfterIt(t *testing.T) {
-	c := newBrowsingCatalog()
-	first := c.results["errors"]
-	first.Total, first.Complete = 45, 45
-	c.results["errors"] = first
-	c.results["errors page 2"], c.results["errors page 3"] = first, first
-	handler := newSite(t, c)
-
-	for path, want := range map[string]struct {
-		summary        string
-		previous, next []string
-	}{
-		"/search?q=errors":        {"45 rules match “errors” · Page 1 of 3", nil, []string{"/search?page=2&q=errors"}},
-		"/search?q=errors&page=2": {"45 rules match “errors” · Page 2 of 3", []string{"/search?q=errors"}, []string{"/search?page=3&q=errors"}},
-		"/search?q=errors&page=3": {"45 rules match “errors” · Page 3 of 3", []string{"/search?page=2&q=errors"}, nil},
-	} {
-		resp := get(t, handler, path)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("%s: got %d", path, resp.Code)
-		}
-		page := resp.Body.String()
-		assertShows(t, page, want.summary)
-		if got := links(t, page, "Previous"); !slices.Equal(got, want.previous) {
-			t.Errorf("%s: Previous links %q, want %q", path, got, want.previous)
-		}
-		if got := links(t, page, "Next"); !slices.Equal(got, want.next) {
-			t.Errorf("%s: Next links %q, want %q", path, got, want.next)
-		}
-	}
-	// One page needs no links between pages.
-	if page := get(t, newSite(t, newBrowsingCatalog()), "/search?q=errors").Body.String(); strings.Contains(page, "Page 1 of") {
-		t.Error("a single page numbers itself")
-	}
-}
-
-// Paging stops at the last page a search reads, however many rules match, so no link leads past it.
-func TestSearchPagingStopsAtTheLastPageASearchReads(t *testing.T) {
-	c := newBrowsingCatalog()
-	results := c.results["errors"]
-	results.Total, results.Complete = app.MaxSearchPage*app.SearchPageSize+1, app.MaxSearchPage*app.SearchPageSize+1
-	last := fmt.Sprintf("errors page %d", app.MaxSearchPage)
-	c.results["errors"], c.results[last] = results, results
-
-	resp := get(t, newSite(t, c), fmt.Sprintf("/search?q=errors&page=%d", app.MaxSearchPage))
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	page := resp.Body.String()
-	assertShows(t, page, fmt.Sprintf("Page %d of %d", app.MaxSearchPage, app.MaxSearchPage))
-	if got := links(t, page, "Next"); got != nil {
-		t.Errorf("the last page a search reads links Next to %q", got)
-	}
-}
-
-// A page number has one spelling: the first page's address names none, and a number that isn't a page's leads there.
-// A page past the last is missing, and says so on a search page.
-func TestSearchPageNumbersRedirectToTheirAddressOrAreMissing(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-
-	for path, location := range map[string]string{
-		"/search?q=errors&page=1":   "/search?q=errors",
-		"/search?q=errors&page=0":   "/search?q=errors",
-		"/search?q=errors&page=-2":  "/search?q=errors",
-		"/search?q=errors&page=two": "/search?q=errors",
-		"/search?q=errors&page=":    "/search?q=errors",
-		"/search?q=errors&page=1e3": "/search?q=errors",
-		"/search?page=2":            "/search",
-		"/search?q=a+b&page=1":      "/search?q=a+b",
-	} {
-		resp := get(t, handler, path)
-		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
-			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
-		}
-	}
-	for _, path := range []string{"/search?q=errors&page=2", "/search?q=errors&page=201", "/search?q=errors&page=99999999999999999999", "/search?q=nothing&page=3"} {
-		resp := get(t, handler, path)
-		if resp.Code != http.StatusNotFound {
-			t.Errorf("%s: got %d, want 404", path, resp.Code)
-			continue
-		}
-		page := resp.Body.String()
-		assertShows(t, page, "The results for “", "” don't reach this page.", "Go to the first page")
-		// The page names no number, which the visitor may have typed past what an int holds.
-		if strings.Contains(visibleText(t, page), "201") {
-			t.Error("the page names a page number")
-		}
-		assertSearchForm(t, page, "search", strings.Split(strings.TrimPrefix(path, "/search?q="), "&")[0])
-	}
-}
-
-// A search of several words finds rules that hold only some of them, after those that hold every one, and each such
-// result names the words it lacks.
-func TestSearchPageNamesTheWordsEachResultLacks(t *testing.T) {
-	c := newBrowsingCatalog()
-	results := c.results["errors"]
-	results.Complete = 1
-	results.Results[1].Missing = []string{"handling", `"error chain"`}
-	c.results["error handling \"error chain\""] = results
-	c.results["errors"] = views.SearchResults{Total: 1, Complete: 0, Results: results.Results[1:]}
-	handler := newSite(t, c)
-
-	page := get(t, handler, "/search?q="+url.QueryEscape(`error handling "error chain"`)).Body.String()
-
-	assertShows(t, page,
-		// The quoted query is a node of its own, which visible text separates from the punctuation after it.
-		`1 rule matches every word of “error handling "error chain"” , and 1 more match some of them`,
-		"Return errors with context HIGH When a function fails. example/rules",
-		// Rules that lack a word follow those that hold every word, under a heading of their own.
-		`Rules that match some of your words Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
-	)
-	if !strings.Contains(page, "<s>handling</s>") {
-		t.Error("the missing words aren't struck through")
-	}
-	if got := listItems(t, page, "ol"); !slices.Equal(got, []int{1, 1}) {
-		t.Errorf("the results' lists hold %v items, want the complete one and then the partial one", got)
-	}
-	// With no rule holding every word, the summary says so, and no heading divides the results.
-	none := get(t, handler, "/search?q=errors").Body.String()
-	assertShows(t, none, "No rule matches every word of “errors” ; 1 rule matches some of them")
-	if strings.Contains(none, "Rules that match some of your words") {
-		t.Error("a search without complete matches divides its results")
-	}
-}
-
-// A query of only words search skips, or words to leave out, says why it finds nothing.
-func TestSearchPageExplainsAQueryWithNoWordToFind(t *testing.T) {
-	c := newBrowsingCatalog()
-	c.results["the -errors"] = views.SearchResults{NoWords: true}
-
-	page := get(t, newSite(t, c), "/search?q=the+-errors").Body.String()
-
-	assertShows(t, page, "Nothing to search for in “the -errors”.", "Search skips common words, such as “the”")
-	if strings.Contains(visibleText(t, page), "No rules match") {
-		t.Error("the page says no rules match")
-	}
-}
-
-func TestSearchPageStatesBeforeAndWithoutResults(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-	long := strings.Repeat("retry ", 100)
-
-	for name, tc := range map[string]struct {
-		path        string
-		shows       []string
-		doesntShow  string
-		field       string
-		wantFocused bool
-	}{
-		"before a search": {"/search", []string{"Search Find rules in every vetted library"}, "match", "", true},
-		"a blank query":   {"/search?q=+%00+", []string{"Search Find rules"}, "match", "", true},
-		"no match": {"/search?q=nothing+here", []string{"No rules match “nothing here”.", "Try other words, or browse rules by group"},
-			"Search holds", "nothing here", false},
-		"a query too long": {"/search?q=" + url.QueryEscape(long), []string{"Search holds up to 200 characters. Shorten yours and search again."},
-			"No rules match", strings.TrimSpace(long), false},
-	} {
-		t.Run(name, func(t *testing.T) {
-			resp := get(t, handler, tc.path)
-
-			if resp.Code != http.StatusOK {
-				t.Fatalf("got %d", resp.Code)
-			}
-			page := resp.Body.String()
-			assertShows(t, page, tc.shows...)
-			if strings.Contains(visibleText(t, page), tc.doesntShow) {
-				t.Errorf("the page shows %q", tc.doesntShow)
-			}
-			assertSearchForm(t, page, "search", tc.field)
-			if focused := strings.Contains(page, " autofocus"); focused != tc.wantFocused {
-				t.Errorf("the field is focused: %v, want %v", focused, tc.wantFocused)
-			}
-		})
-	}
-}
-
 // What a visitor types reaches the page as text, and the catalog as a cleaned query.
 func TestSearchPageShowsTheQueryAsTextAndSearchesItCleaned(t *testing.T) {
 	var searched []string
@@ -550,7 +300,7 @@ func TestSearchPageShowsTheQueryAsTextAndSearchesItCleaned(t *testing.T) {
 
 	page := get(t, handler, "/search?q="+url.QueryEscape("<script>alert(1)</script>\x00\xff \"x")).Body.String()
 
-	assertShows(t, page, "No rules match “<script>alert(1)</script> \"x”.")
+	assertShows(t, page, "Rules matching “<script>alert(1)</script> \"x”", "No rules match.")
 	if strings.Contains(page, "<script>alert") {
 		t.Fatal("the page holds the query as markup")
 	}
@@ -686,7 +436,7 @@ func TestLibrariesPageListsTheVettedLibraries(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "Libraries Libraries Rulemart has vetted Anyone can list a public library. It shows, with a warning, under unvetted libraries", "rules Example rules for tests. example/rules · 2 rules")
+	assertShows(t, page, "Libraries Libraries Rulemart has vetted Anyone can list a public library. It shows, with a warning, under unvetted libraries", "rules Vetted by Rulemart Example rules for tests. example/rules · 2 rules")
 	if got := links(t, page, "Example rules for tests."); !slices.Equal(got, []string{library}) {
 		t.Errorf("the library links %q", got)
 	}
@@ -728,7 +478,7 @@ func TestPagesRedirectOtherSpellingsOfTheirAddress(t *testing.T) {
 	for path, location := range map[string]string{
 		"/g/Techs/GO":                            "/g/techs/GO",
 		"/g/techs/GO":                            "/g/techs/go",
-		"/g/techs/Go?ref=x":                      "/g/techs/go?ref=x",
+		"/g/techs/Go?sort=new":                   "/g/techs/go?sort=new",
 		"/browse/":                               "/browse",
 		"/browse/techs/":                         "/browse/techs",
 		"/browse/Techs":                          "/browse/techs",
@@ -795,30 +545,4 @@ func listItems(t *testing.T, body, kind string) []int {
 		}
 	}
 	return counts
-}
-
-// Assistive technology moves by headings and lists: a group's page heads each library's section, and lists its rules;
-// search results are an ordered list under a heading that counts them.
-func TestBrowsePagesStructureSectionsAsHeadingsAndLists(t *testing.T) {
-	handler := newSite(t, newBrowsingCatalog())
-
-	group := get(t, handler, "/g/techs/go").Body.String()
-	if got := headings(t, group, "h2"); !slices.Equal(got, []string{"example/rules", "other/go-rules"}) {
-		t.Errorf("the group page's sections are headed %q", got)
-	}
-	if got := headings(t, group, "h3"); !slices.Equal(got, []string{"Return errors with context", "Close response bodies", "Name packages plainly"}) {
-		t.Errorf("the group page's rules are headed %q", got)
-	}
-	if got := listItems(t, group, "ul"); !slices.Equal(got, []int{1, 2}) {
-		t.Errorf("the group page's lists hold %v items", got)
-	}
-
-	search := get(t, handler, "/search?q=errors").Body.String()
-	if got := headings(t, search, "h2"); !slices.Equal(got, []string{"2 rules match “errors”"}) {
-		t.Errorf("the results are headed %q", got)
-	}
-	if got := listItems(t, search, "ol"); !slices.Equal(got, []int{2}) {
-		t.Errorf("the search page's ordered lists hold %v items", got)
-	}
-
 }

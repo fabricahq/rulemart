@@ -85,7 +85,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		"example/rules Listed, unvetted")
 	for _, path := range []string{library, errorsRule, "/unvetted"} {
 		page := body(t, send(t, handler, request{method: http.MethodGet, target: path}))
-		if !strings.Contains(page, "not been vetted. Tread carefully.") {
+		if !strings.Contains(page, "not been vetted. Be sure to review") {
 			t.Errorf("%s doesn't warn", path)
 		}
 	}

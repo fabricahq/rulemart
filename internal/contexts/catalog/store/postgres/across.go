@@ -1,4 +1,4 @@
-// Read what pages across libraries show: the vetted libraries' groups, one group's rules in each library, and search.
+// Read what pages across libraries show: the libraries' groups, and lists of rules, a group's or a search's.
 
 package postgres
 
@@ -40,93 +40,6 @@ func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.Li
 		}
 	}
 	return groups, nil
-}
-
-// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in owner
-// and name order, and each library's in title order.
-func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error) {
-	var rows []catalogdb.ListGroupRulesRow
-	var stars map[int64]int
-	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		var err error
-		if rows, err = q.ListGroupRules(ctx, catalogdb.ListGroupRulesParams{Path: path, Vetted: vettedKeys(vetted)}); err != nil {
-			return err
-		}
-		stars, err = ruleStars(ctx, q, ruleIDs(rows, func(r catalogdb.ListGroupRulesRow) int64 { return r.ID }))
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list rules of group %s: %v", path, err)
-	}
-	var libraries []views.GroupLibrary
-	for _, row := range rows {
-		ref := libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl)
-		if len(libraries) == 0 || libraries[len(libraries)-1].Library != ref {
-			libraries = append(libraries, views.GroupLibrary{Library: ref})
-		}
-		last := &libraries[len(libraries)-1]
-		last.Rules = append(last.Rules, views.RuleCard{
-			Path: row.Path, Group: path, Title: row.Title, Impact: row.Impact, Version: version(row.Major, row.Minor, row.Patch),
-			Stars: stars[row.ID],
-		})
-	}
-	return libraries, nil
-}
-
-// Search returns one page of the vetted libraries' current rules that match query, best first, as store.Reader's
-// Search does, matching groups by the names groups gives them. Its errors never include the query, which comes from a
-// visitor.
-func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error) {
-	if limit < 1 || skip < 0 {
-		return views.SearchResults{}, fmt.Errorf("search rules: limit %d is below 1 or skip %d below 0", limit, skip)
-	}
-	find, exclude := query.Terms()
-	if len(find) == 0 {
-		return views.SearchResults{NoWords: true}, nil
-	}
-	params := catalogdb.SearchRulesParams{
-		Vetted: vettedKeys(vetted), MaxResults: int32(limit), Skip: int32(skip),
-		CanonicalIds: make([]string, len(groups)), CanonicalNames: make([]string, len(groups)),
-	}
-	params.FindTerms, params.FindIdentifierTerms = termParams(find)
-	params.ExcludeTerms, params.ExcludeIdentifierTerms = termParams(exclude)
-	for i, g := range groups {
-		params.CanonicalIds[i], params.CanonicalNames[i] = g.ID, g.Name
-	}
-	var rows []catalogdb.SearchRulesRow
-	var searchable int64
-	var stars map[int64]int
-	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		var err error
-		if rows, err = q.SearchRules(ctx, params); err != nil {
-			return err
-		}
-		if len(rows) == 0 {
-			searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
-			return err
-		}
-		stars, err = ruleStars(ctx, q, ruleIDs(rows, func(r catalogdb.SearchRulesRow) int64 { return r.ID }))
-		return err
-	})
-	if err != nil {
-		return views.SearchResults{}, fmt.Errorf("search rules: %v", err)
-	}
-	results := views.SearchResults{Results: make([]views.SearchResult, len(rows)), NoWords: len(rows) == 0 && searchable == 0}
-	for i, row := range rows {
-		results.Total, results.Complete = int(row.Total), int(row.Complete)
-		results.Results[i] = views.SearchResult{
-			Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl),
-			Rule: views.RuleCard{
-				Path: row.Path, Group: row.GroupPath, Title: row.Title, Impact: row.Impact,
-				Version: version(row.Major, row.Minor, row.Patch), Stars: stars[row.ID],
-			},
-			WhenToRead: row.WhenToRead, WhenToReadHTML: row.WhenToReadHtml,
-		}
-		for _, ordinal := range row.Missing {
-			results.Results[i].Missing = append(results.Results[i].Missing, find[ordinal-1].Text)
-		}
-	}
-	return results, nil
 }
 
 // Rules returns one page of the list of rules list describes, as store.Reader's Rules does, matching groups by the

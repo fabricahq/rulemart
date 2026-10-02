@@ -1,6 +1,6 @@
 // Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
 // groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
-// between two of them, the groups across libraries, one group's rules in every library, search results, the sitemap,
+// between two of them, the groups across libraries, lists of rules across libraries, a group's or a search's, the sitemap,
 // and an account's listings, starred rules, and cart. They're plain values, read from one state of the catalog,
 // with nothing of how it's stored.
 package views
@@ -347,21 +347,6 @@ type GroupSummary struct {
 	Vetted bool
 }
 
-// GroupPage is a canonical group's current rules in every vetted library that holds it.
-type GroupPage struct {
-	// Path is the group's ID, such as techs/go.
-	Path      string
-	Canonical CanonicalGroup
-	// Libraries hold the group's rules, in owner and name order; it's empty when no vetted library has the group.
-	Libraries []GroupLibrary
-}
-
-// GroupLibrary is one library's current rules in a group, in title order.
-type GroupLibrary struct {
-	Library LibraryRef
-	Rules   []RuleCard
-}
-
 // GroupList is a group's page: the group, and its rules across libraries.
 type GroupList struct {
 	// Path is the group's ID, such as techs/go.
@@ -383,7 +368,8 @@ type RuleResults struct {
 	// Fabrica's first, then by owner and name, each with how many of them it holds.
 	Unfiltered    int
 	LibraryCounts []LibraryCount
-	// NoWords reports a search with no word to find, which matches nothing, as SearchResults' does.
+	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
+	// search ignores, such as "the", or punctuation.
 	NoWords bool
 }
 
@@ -413,29 +399,6 @@ type RuleRow struct {
 	Missing []string
 	// GroupRules counts the rules of the rule's group that pass the list's filters, on this page and others.
 	GroupRules int
-}
-
-// SearchResults are one page of the current rules of vetted libraries that match a search, best first.
-type SearchResults struct {
-	Results []SearchResult
-	// Total counts every rule that matched, and Complete those of them that hold every term the search finds.
-	Total, Complete int
-	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
-	// search ignores, such as "the", or punctuation.
-	NoWords bool
-}
-
-// SearchResult is a rule that matched a search, with its library.
-type SearchResult struct {
-	Library LibraryRef
-	Rule    RuleCard
-	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
-	CanonicalGroup *CanonicalGroup
-	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty, as Rule's is.
-	WhenToRead, WhenToReadHTML string
-	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
-	// holds every one.
-	Missing []string
 }
 
 // ReleasesPage is one page of a library's releases, newest first, each with what it published.

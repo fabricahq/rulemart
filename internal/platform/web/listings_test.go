@@ -27,7 +27,7 @@ import (
 const (
 	// unvettedLibrary is the library unvettedCatalog lists without vetting it.
 	unvettedLibrary = "/stranger/rules"
-	unvettedWarning = "This library has not been vetted. Tread carefully."
+	unvettedWarning = "This library has not been vetted. Be sure to review these rules carefully."
 )
 
 // strangerRules is exampleRules, listed as stranger/rules and not vetted.
@@ -192,7 +192,7 @@ func TestUnvettedLibrariesAreReachedFromTheLibrariesPage(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "These libraries have not been vetted. Tread carefully.", "rules Stranger's rules. stranger/rules · 2 rules ›")
+	assertShows(t, page, "These libraries have not been vetted. Be sure to review their rules carefully.", "rules Stranger's rules. stranger/rules · 2 rules ›")
 	if got := rels(t, page, unvettedLibrary); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("the unvetted page links the library with rel %q, want nofollow", got)
 	}
@@ -212,7 +212,7 @@ func TestUnvettedPageSaysWhenThereAreNone(t *testing.T) {
 	page := get(t, newSite(t, newCatalog()), "/unvetted").Body.String()
 
 	assertShows(t, page, "No unvetted libraries yet.")
-	if strings.Contains(page, "Tread carefully") {
+	if strings.Contains(page, "have not been vetted") {
 		t.Error("the empty page warns about libraries it doesn't show")
 	}
 }

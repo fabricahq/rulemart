@@ -16,7 +16,7 @@ func TestBrowseViewListsCanonicalGroupsByRuleCountThenName(t *testing.T) {
 		named("techs/tanstack-router", "TanStack Router", 10), {label: groupLabel{id: "techs/golang"}, rules: 50},
 	}}
 
-	v := newBrowseView(techsKind, index)
+	v := newBrowseView(techsKind, index, false)
 
 	if want := []string{"techs/react", "techs/tanstack-router", "techs/zustand", "techs/go"}; !slices.Equal(tileIDs(v.groups), want) {
 		t.Errorf("groups = %q, want %q", tileIDs(v.groups), want)

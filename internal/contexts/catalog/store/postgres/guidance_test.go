@@ -27,10 +27,6 @@ func TestReadingGuidanceHTMLShowsOnlyWhileItWasRenderedFromTheGuidance(t *testin
 		if err != nil {
 			t.Fatal(err)
 		}
-		results, err := reader.Search(ctx, vetted, nil, domain.ParseSearchQuery("return errors"), 1, 0)
-		if err != nil || len(results.Results) != 1 || results.Results[0].WhenToReadHTML != page.Rule.WhenToReadHTML {
-			t.Fatalf("search found %+v, %v; want the rule with the page's guidance", results.Results, err)
-		}
 		checkpoint, _, err := s.Checkpoint(ctx, key)
 		if err != nil {
 			t.Fatal(err)

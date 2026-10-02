@@ -54,12 +54,12 @@ func unvettedWarning(plural bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if plural {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">These libraries have not been vetted. Tread carefully.</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed these. Their rules are instructions your coding agent follows, so read each rule before you adopt it.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">These libraries have not been vetted. Be sure to review their rules carefully.</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed these. Their rules are instructions your coding agent follows.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">This library has not been vetted. Tread carefully.</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed this one. Its rules are instructions your coding agent follows, so read each rule before you adopt it.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">This library has not been vetted. Be sure to review these rules carefully.</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed this one. Its rules are instructions your coding agent follows.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -196,7 +196,7 @@ func unvettedPage(c chrome, libraries []libraryCard, canList bool) templ.Compone
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div><p class=\"mt-1.5 mb-[22px] max-w-[46rem] text-muted\">Libraries people listed that Rulemart hasn't vetted. Search and browsing leave them out.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div><p class=\"mt-1.5 mb-[22px] max-w-[46rem] text-muted\">Libraries people listed that Rulemart hasn't vetted. Search and browsing leave them out unless you include unvetted libraries.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -538,7 +538,7 @@ func listPage(c chrome, v listView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						if v.existing != nil && v.existing.unvetted {
+						if v.existing != nil && !v.existing.vetted {
 							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<a href=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -674,7 +674,7 @@ func listPage(c chrome, v listView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</p><ul class=\"mt-3 grid list-disc gap-1.5 pl-5 text-[14px] text-muted marker:text-faint\"><li>Rulemart checks the repository on GitHub, and reads its <span class=\"font-mono text-[.9em]\">release/&lt;number&gt;</span> tags, which takes a few seconds.</li><li>Its pages say it hasn't been vetted, and search and browsing leave it out, until Rulemart vets it.</li><li>It takes one of your ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</p><ul class=\"mt-3 grid list-disc gap-1.5 pl-5 text-[14px] text-muted marker:text-faint\"><li>Rulemart checks the repository on GitHub, and reads its <span class=\"font-mono text-[.9em]\">release/&lt;number&gt;</span> tags, which takes a few seconds.</li><li>Its pages say it hasn't been vetted, and search and browsing show it only to visitors who include unvetted libraries, until Rulemart vets it.</li><li>It takes one of your ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1197,7 +1197,7 @@ func listingRow(l listingView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if l.library != nil {
-			if l.library.unvetted {
+			if !l.library.vetted {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "<a class=\"inline-flex min-h-9 items-center text-[13.5px]\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

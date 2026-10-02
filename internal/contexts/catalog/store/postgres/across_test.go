@@ -86,18 +86,18 @@ func newLibraries(t *testing.T) *postgres.Store {
 }
 
 // sourceIDs returns each result's source-qualified rule ID, owner/name:rule ID.
-func sourceIDs(results views.SearchResults) []string {
+func sourceIDs(results views.RuleResults) []string {
 	ids := []string{}
-	for _, r := range results.Results {
+	for _, r := range results.Rows {
 		ids = append(ids, r.Library.FullName()+":"+r.Rule.Path)
 	}
 	return ids
 }
 
 // completeIDs returns the source-qualified IDs of the results that hold every term to find.
-func completeIDs(results views.SearchResults) []string {
+func completeIDs(results views.RuleResults) []string {
 	ids := []string{}
-	for _, r := range results.Results {
+	for _, r := range results.Rows {
 		if len(r.Missing) == 0 {
 			ids = append(ids, r.Library.FullName()+":"+r.Rule.Path)
 		}
@@ -105,14 +105,19 @@ func completeIDs(results views.SearchResults) []string {
 	return ids
 }
 
-// search runs query against reader with canonicalGroups, returning at most 50 results.
-func search(t *testing.T, reader *postgres.Store, query string) views.SearchResults {
+// search runs query against reader with canonicalGroups, best match first, returning at most 50 results.
+func search(t *testing.T, reader *postgres.Store, query string) views.RuleResults {
 	t.Helper()
-	results, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery(query), 50, 0)
+	results, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList(query), 50, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return results
+}
+
+// searchList is the list of the rules query matches, best first.
+func searchList(query string) domain.RuleList {
+	return domain.RuleList{Query: domain.ParseSearchQuery(query), ListChoices: domain.ListChoices{Order: domain.BestMatch}}
 }
 
 // A title says what a rule is about, its reading guidance and impact when it applies, and its body how: a match ranks
@@ -130,12 +135,13 @@ func TestSearchRanksTitleMatchesThenSummaryMatchesThenBodyMatches(t *testing.T) 
 	if !slices.Equal(sourceIDs(got), want) || got.Total != 3 {
 		t.Fatalf("got %q of %d, want %q of 3", sourceIDs(got), got.Total, want)
 	}
-	first := got.Results[0]
-	wantFirst := views.SearchResult{
+	first := got.Rows[0]
+	wantFirst := views.RuleRow{
 		Library: views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL},
+		Vetted:  true,
 		Rule: views.RuleCard{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Title: "Verify retry limits",
 			Impact: "HIGH", Version: v(1, 0, 0)},
-		WhenToRead: "When code calls a service.", WhenToReadHTML: "<p>When code calls a service.</p>\n",
+		GroupRules: 2,
 	}
 	if !reflect.DeepEqual(first, wantFirst) {
 		t.Fatalf("the first result is %+v, want %+v", first, wantFirst)
@@ -201,7 +207,7 @@ func TestSearchReturnsTheBestMatchesUpToItsLimitAndCountsThemAll(t *testing.T) {
 		{2, 2, []string{"Beta/rules:techs/go/name-packages-plainly"}},
 		{1, 3, []string{}},
 	} {
-		got, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), tc.limit, tc.skip)
+		got, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList("retry"), tc.limit, tc.skip)
 
 		if err != nil {
 			t.Fatal(err)
@@ -223,15 +229,15 @@ func TestSearchRefusesALimitBelowOneOrANegativeSkip(t *testing.T) {
 	reader := newLibraries(t)
 
 	for _, tc := range []struct{ limit, skip int }{{0, 0}, {-1, 0}, {1, -1}} {
-		if _, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), tc.limit, tc.skip); err == nil {
+		if _, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList("retry"), tc.limit, tc.skip); err == nil {
 			t.Errorf("searched with limit %d after %d", tc.limit, tc.skip)
 		}
 	}
 }
 
 // A visitor copies the IDs pages show: a rule's ID or part of it, its group's ID, its library's owner and name, and
-// its source-qualified ID. Each finds what it names, and a group's ID never finds a group whose ID only starts the
-// same.
+// its source-qualified ID. Each finds what it names, retired rules too, and a group's ID never finds a group whose ID
+// only starts the same.
 func TestSearchFindsRulesByTheIDsPagesShow(t *testing.T) {
 	reader := newLibraries(t)
 
@@ -240,15 +246,16 @@ func TestSearchFindsRulesByTheIDsPagesShow(t *testing.T) {
 	acmeGo := "acme/backend:techs/go/return-errors"
 	betaGo := "Beta/rules:techs/go/name-packages-plainly"
 	golang := "acme/backend:techs/golang/pass-context-first"
+	retired := "acme/backend:practices/testing/retry-forever"
 	for query, want := range map[string][]string{
 		"verify-retry-limits":     {retryLimits},
 		"retry-limits":            {retryLimits},
-		"practices/testing":       {boundaries, retryLimits},
+		"practices/testing":       {boundaries, retryLimits, retired},
 		"techs/go":                {acmeGo, betaGo},
 		"techs/golang":            {golang},
-		"acme/backend":            {boundaries, retryLimits, acmeGo, golang},
+		"acme/backend":            {boundaries, retryLimits, acmeGo, golang, retired},
 		"Beta/rules":              {betaGo},
-		"backend":                 {boundaries, retryLimits, acmeGo, golang},
+		"backend":                 {boundaries, retryLimits, acmeGo, golang, retired},
 		"Beta/rules:techs/go":     {betaGo},
 		retryLimits:               {retryLimits},
 		"acme/backend:techs":      {acmeGo, golang},
@@ -285,7 +292,7 @@ func TestSearchReportsAQueryWithNoWordToFind(t *testing.T) {
 		if got.NoWords != noWords {
 			t.Errorf("%q: NoWords is %v, want %v", query, got.NoWords, noWords)
 		}
-		if noWords && (len(got.Results) > 0 || got.Total > 0) {
+		if noWords && (len(got.Rows) > 0 || got.Total > 0) {
 			t.Errorf("%q found %q", query, sourceIDs(got))
 		}
 	}
@@ -309,45 +316,5 @@ func TestGroupsListEachVettedLibrarysGroupsWithCurrentRules(t *testing.T) {
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
-	}
-}
-
-func TestGroupRulesListEveryVettedLibrarysRulesInTheGroup(t *testing.T) {
-	reader := newLibraries(t)
-
-	got, err := reader.GroupRules(context.Background(), vettedBoth, "techs/go")
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []views.GroupLibrary{
-		{
-			Library: views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL},
-			Rules: []views.RuleCard{{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context",
-				Impact: "HIGH", Version: v(1, 0, 0)}},
-		},
-		{
-			Library: views.LibraryRef{Owner: "Beta", Name: "rules", OwnerAvatarURL: beta.Repository.OwnerAvatarURL},
-			Rules: []views.RuleCard{{Path: "techs/go/name-packages-plainly", Group: "techs/go", Title: "Name packages plainly",
-				Impact: "HIGH", Version: v(1, 0, 0)}},
-		},
-	}
-	if len(got) != len(want) {
-		t.Fatalf("got %+v, want %+v", got, want)
-	}
-	for i := range want {
-		if got[i].Library != want[i].Library || !slices.Equal(got[i].Rules, want[i].Rules) {
-			t.Errorf("library %d is %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-func TestGroupRulesAreEmptyForAGroupNoVettedLibraryHolds(t *testing.T) {
-	reader := newLibraries(t)
-
-	got, err := reader.GroupRules(context.Background(), vettedBoth, "techs/rust")
-
-	if err != nil || len(got) != 0 {
-		t.Fatalf("got %+v, %v; want nothing", got, err)
 	}
 }

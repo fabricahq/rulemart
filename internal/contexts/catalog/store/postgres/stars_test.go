@@ -117,11 +117,11 @@ func TestAnAccountStarsACurrentRuleOnce(t *testing.T) {
 	if err != nil || page.Rule.Stars != 2 {
 		t.Errorf("the rule's page counts %d, %v; want 2", page.Rule.Stars, err)
 	}
-	groups, err := c.web.GroupRules(ctx, vettedBoth, "techs/go")
-	if err != nil || len(groups) == 0 || groups[0].Rules[0].Path != acmeErrors || groups[0].Rules[0].Stars != 2 {
+	groups, err := c.web.Rules(ctx, vettedBoth, canonicalGroups, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Order: domain.MostStarred}}, 10, 0)
+	if err != nil || len(groups.Rows) == 0 || groups.Rows[0].Rule.Path != acmeErrors || groups.Rows[0].Rule.Stars != 2 {
 		t.Errorf("the group's page lists %+v, %v; want acme's return-errors with two stars", groups, err)
 	}
-	for _, r := range search(t, c.web, "errors").Results {
+	for _, r := range search(t, c.web, "errors").Rows {
 		if want := map[bool]int{true: 2, false: 0}[r.Rule.Path == acmeErrors]; r.Rule.Stars != want {
 			t.Errorf("search counts %d stars on %s, want %d", r.Rule.Stars, r.Rule.Path, want)
 		}

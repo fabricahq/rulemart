@@ -57,7 +57,7 @@ func summarized(r domain.Rule, impactDescription string) domain.Rule {
 
 // searchPublicRules stores publicRules in a new database and returns a function that searches it as the web
 // function's role.
-func searchPublicRules(t *testing.T) func(query string) views.SearchResults {
+func searchPublicRules(t *testing.T) func(query string) views.RuleResults {
 	t.Helper()
 	db, connString := databasetest.New(t)
 	if _, err := postgres.New(db).ReplaceLibrary(context.Background(), publicRules); err != nil {
@@ -65,9 +65,9 @@ func searchPublicRules(t *testing.T) func(query string) views.SearchResults {
 	}
 	reader := postgres.New(databasetest.AsWebRole(t, connString))
 	vetted := []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "31"}}
-	return func(query string) views.SearchResults {
+	return func(query string) views.RuleResults {
 		t.Helper()
-		results, err := reader.Search(context.Background(), vetted, publicRulesGroups, domain.ParseSearchQuery(query), 50, 0)
+		results, err := reader.Rules(context.Background(), vetted, publicRulesGroups, searchList(query), 50, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,9 +76,9 @@ func searchPublicRules(t *testing.T) func(query string) views.SearchResults {
 }
 
 // paths returns each result's rule ID.
-func paths(results views.SearchResults) []string {
+func paths(results views.RuleResults) []string {
 	ids := []string{}
-	for _, r := range results.Results {
+	for _, r := range results.Rows {
 		ids = append(ids, r.Rule.Path)
 	}
 	return ids
@@ -115,7 +115,7 @@ func TestSearchRanksRulesHoldingEveryWordFirstAndNamesTheTermsOthersLack(t *test
 	if !slices.Equal(paths(got), want) || got.Total != 5 || got.Complete != 3 {
 		t.Fatalf("got %q of %d, %d complete; want %q of 5, 3 complete", paths(got), got.Total, got.Complete, want)
 	}
-	for _, r := range got.Results {
+	for _, r := range got.Rows {
 		var wantMissing []string
 		if r.Rule.Path == contractErrors.Path || r.Rule.Path == errorBoundaries.Path {
 			wantMissing = []string{"handling"}
@@ -158,7 +158,7 @@ func TestSearchNeverRanksARuleLackingAWordAboveOneHoldingEvery(t *testing.T) {
 	for _, query := range []string{"error handling", "retry go", "typescript testing", "react errors", "goose go migration", "tests retries"} {
 		got := search(query)
 		seenPartial, complete := false, 0
-		for _, r := range got.Results {
+		for _, r := range got.Rows {
 			if len(r.Missing) > 0 {
 				seenPartial = true
 				continue

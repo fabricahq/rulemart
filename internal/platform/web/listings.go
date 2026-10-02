@@ -62,7 +62,7 @@ func (s *server) unvetted(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, unvettedPage(s.chrome, newLibraryCards(libraries, true), s.listingAvailable()))
+	s.render(w, r, http.StatusOK, unvettedPage(s.chrome, newLibraryCards(libraries, false), s.listingAvailable()))
 }
 
 // listPage shows the listing form, and with a repository in the repository parameter, whether the visitor may list it
@@ -172,7 +172,7 @@ func existingLibrary(lib views.LibraryRef, unvetted bool) *libraryCard {
 	if lib.Owner == "" {
 		return nil
 	}
-	return &libraryCard{href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, unvetted: unvetted}
+	return &libraryCard{href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, vetted: !unvetted}
 }
 
 // listingsPage shows the signed-in visitor's listings, or sends anyone else to sign in first.
@@ -353,7 +353,7 @@ func newListingsView(listings []views.AccountListing, now time.Time) listingsVie
 		if l.Library.Owner != "" {
 			item.library = &libraryCard{
 				href: libraryHref(l.Library.Owner, l.Library.Name), owner: l.Library.Owner, name: l.Library.Name,
-				avatar: l.Library.OwnerAvatarURL, unvetted: l.State != domain.ListingVetted,
+				avatar: l.Library.OwnerAvatarURL, vetted: l.State == domain.ListingVetted,
 			}
 			item.repositoryURL = domain.RepositoryURL(l.Library.FullName())
 		}

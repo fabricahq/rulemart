@@ -142,18 +142,18 @@ func newStarCatalog() catalog {
 		}
 	}
 	withStars(c.pages["example/rules"].Rules)
-	for _, lib := range c.groups["techs/go"].Libraries {
-		if lib.Library.Owner == "example" {
-			withStars(lib.Rules)
-		} else {
-			lib.Rules[0].Stars = 1
+	withRowStars := func(rows []views.RuleRow) {
+		for i, r := range rows {
+			switch r.Rule.Path {
+			case "techs/go/return-errors":
+				rows[i].Rule.Stars = returnErrorsStars
+			case "techs/go/close-bodies":
+				rows[i].Rule.Stars = 1
+			}
 		}
 	}
-	for i, r := range c.results["errors"].Results {
-		if r.Library.Owner == "example" {
-			c.results["errors"].Results[i].Rule.Stars = returnErrorsStars
-		}
-	}
+	withRowStars(c.groups["techs/go"].Rules.Rows)
+	withRowStars(c.results["errors"].Rows)
 	retired := c.rules["example/rules/"+retryRuleID]
 	retired.Rule.Path, retired.Rule.Title = "practices/testing/check-retry-backoff", "Check retry backoff"
 	retired.Rule.Retirement = &views.Retirement{Release: 3, RetiredAt: day(3), Summaries: []string{"Merge it."}}
@@ -612,13 +612,13 @@ func TestRuleListsShowEachRulesStars(t *testing.T) {
 	site := newStarSite(t)
 
 	for path, want := range map[string][]string{
-		library + "?tab=rules": {"Return errors with context HIGH 2.0.0 techs/go/return-errors 1,234 1,234 stars"},
-		"/g/techs/go":          {"techs/go/return-errors 1,234 1,234 stars", "techs/go/close-bodies 1 1 star"},
-		"/search?q=errors":     {"Go 2.0.0 1,234 1,234 stars"},
+		library + "?tab=rules": {"Return errors with context HIGH example/rules 1,234 1,234 stars"},
+		"/g/techs/go":          {"Return errors with context HIGH example/rules 1,234 1,234 stars", "Close response bodies MEDIUM other/go-rules 1 1 star"},
+		"/search?q=errors":     {"Return errors with context HIGH example/rules 1,234 1,234 stars"},
 	} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path}))
 		assertShows(t, page, want...)
-		if path == library+"?tab=rules" && strings.Contains(visibleText(t, page), "practices/testing/verify-retry-limits 0") {
+		if path == library+"?tab=rules" && strings.Contains(visibleText(t, page), "Verify retry limits HIGH example/rules 0") {
 			t.Errorf("%s shows a count of 0", path)
 		}
 	}
@@ -660,9 +660,9 @@ func TestStarredRulesListTheVisitorsRules(t *testing.T) {
 	}
 	page := body(t, resp)
 	assertShows(t, page, "Starred rules Rules you starred, most recent first.",
-		"Return errors with context HIGH E example/rules:techs/go/return-errors Go 2.0.0 1,234 1,234 stars "+
+		"Return errors with context HIGH E example/rules · Go 1,234 1,234 stars "+
 			"Verify retry limits HIGH You starred practices/testing/check-retry-backoff , which this rule replaced. "+
-			"E example/rules:practices/testing/verify-retry-limits Testing 1.1.0 1 1 star")
+			"E example/rules · Testing 1 1 star")
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
 	}
