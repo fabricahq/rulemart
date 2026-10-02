@@ -32,8 +32,8 @@ type Reader interface {
 	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)
 	// LibraryPage returns the vetted library owner/name, matched without regard to case, or ErrNotFound.
 	LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error)
-	// RulePage returns the current rule at rulePath in the vetted library owner/name, matched as LibraryPage
-	// matches it, or ErrNotFound.
+	// RulePage returns the current rule at rulePath in the vetted library owner/name, both matched without regard to
+	// case, as LibraryPage matches the library, or ErrNotFound. The page's Rule.Path is the library's spelling.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
 	// Groups returns each group that holds current rules in a vetted library, once for each library that holds it,
 	// in path order and then the library's owner and name, without regard to case.

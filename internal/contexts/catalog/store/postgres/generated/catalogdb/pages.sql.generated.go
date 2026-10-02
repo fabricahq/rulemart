@@ -87,7 +87,9 @@ FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
 JOIN library_releases published ON published.id = v.release_id
-WHERE r.library_id = $1 AND r.path = $2
+WHERE r.library_id = $1 AND lower(r.path) = lower($2)
+ORDER BY r.path = $2 DESC, r.path
+LIMIT 1
 `
 
 type GetRuleParams struct {
@@ -111,8 +113,9 @@ type GetRuleRow struct {
 	PublishedAt    pgtype.Timestamptz
 }
 
-// GetRule returns a library's current rule. when_to_read_html is empty unless it was rendered from the reading
-// guidance the version holds now, since a release that didn't render it may have changed it since.
+// GetRule returns a library's current rule at path, matched without regard to case, preferring the rule spelled
+// exactly so. when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since
+// a release that didn't render it may have changed it since.
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
 	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow

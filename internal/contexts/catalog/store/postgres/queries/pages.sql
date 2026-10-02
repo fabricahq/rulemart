@@ -34,8 +34,9 @@ JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
 WHERE r.library_id = @library_id
 ORDER BY g.path, lower(v.title), r.path;
 
--- GetRule returns a library's current rule. when_to_read_html is empty unless it was rendered from the reading
--- guidance the version holds now, since a release that didn't render it may have changed it since.
+-- GetRule returns a library's current rule at path, matched without regard to case, preferring the rule spelled
+-- exactly so. when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since
+-- a release that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact,
        v.when_to_read::text AS when_to_read,
@@ -46,7 +47,9 @@ FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
 JOIN library_releases published ON published.id = v.release_id
-WHERE r.library_id = @library_id AND r.path = @path;
+WHERE r.library_id = @library_id AND lower(r.path) = lower(@path)
+ORDER BY r.path = @path DESC, r.path
+LIMIT 1;
 
 -- name: ListVersions :many
 SELECT v.major, v.minor, v.patch, published.number AS release, v.change, v.summaries, published.tagged_at AS published_at

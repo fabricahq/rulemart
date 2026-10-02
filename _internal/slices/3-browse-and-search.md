@@ -99,8 +99,10 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   URLs (**Existing**: the routing decision for a second host).
 - **One address per page. Proposed.** No page's address ends with a slash, so a path with one, such as `/groups/`,
   `/search/?q=retry`, or `/fabricahq/public-rules/`, redirects permanently to the path without it, keeping the query.
-  A group's ID matches without regard to case, as a library's owner and name already do, and `/groups/Techs/GO`
-  redirects to the canonical list's spelling, `/groups/techs/go`. A path that starts with two slashes never redirects
+  A group's ID and a rule's ID match without regard to case, as a library's owner and name already do, and redirect
+  to their own spelling: `/groups/Techs/GO` to the canonical list's, `/groups/techs/go`, and a rule to its library's.
+  So do the site's sections: `/Groups`, `/LIBRARIES`, and `/Search` redirect to lowercase, but `/Libraries/{repo}`
+  stays a library's page, since `libraries` is a GitHub account. A path that starts with two slashes never redirects
   off the site: Go's router cleans it first.
 - **Only canonical groups have a page across libraries. Proposed.** The canonical list names the groups libraries
   share; a group whose ID isn't on it stands alone (**Existing**). So `/groups/techs/golang` is a missing page, and

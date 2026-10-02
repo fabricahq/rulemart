@@ -91,8 +91,14 @@ func (c catalog) LibraryPage(_ context.Context, owner, name string) (views.Libra
 	return page, c.err
 }
 
+// RulePage matches the rule's ID without regard to case, as the store does.
 func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (views.RulePage, error) {
 	page, ok := c.rules[strings.ToLower(owner+"/"+name)+"/"+rulePath]
+	for key, p := range c.rules {
+		if !ok && strings.EqualFold(key, strings.ToLower(owner+"/"+name)+"/"+rulePath) {
+			page, ok = p, true
+		}
+	}
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load rule %s/%s/%s: %w", owner, name, rulePath, app.ErrNotFound)
 	}
@@ -390,6 +396,33 @@ func TestPagesRedirectToTheLibrarysSpelling(t *testing.T) {
 
 	if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != errorsRule+"?tab=versions" {
 		t.Fatalf("got %d to %q", resp.Code, resp.Header().Get("Location"))
+	}
+}
+
+// A rule's ID may be spelled in any case too, and the site's own sections, and each redirects to its own spelling in
+// one step, keeping the query.
+func TestPagesRedirectOtherCasesToTheirSpelling(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, location := range map[string]string{
+		"/Example/Rules/Techs/Go/Return-Errors?tab=versions": errorsRule + "?tab=versions",
+		"/example/rules/techs/go/RETURN-errors":              errorsRule,
+		"/Groups":                                            "/groups",
+		"/GROUPS/techs/go":                                   "/groups/techs/go",
+		"/LIBRARIES":                                         "/libraries",
+		"/Search?q=retry&page=2":                             "/search?q=retry&page=2",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
+		}
+	}
+	// A library owned by an account named like a section keeps its address: GitHub has one named libraries.
+	if resp := get(t, handler, "/Libraries/rules"); resp.Code != http.StatusNotFound {
+		t.Errorf("/Libraries/rules: got %d to %q, want the library's own missing page", resp.Code, resp.Header().Get("Location"))
+	}
+	if resp := get(t, handler, "/Search/x"); resp.Code != http.StatusNotFound {
+		t.Errorf("/Search/x: got %d to %q, want a missing page", resp.Code, resp.Header().Get("Location"))
 	}
 }
 
