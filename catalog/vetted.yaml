@@ -7,3 +7,6 @@ libraries:
   - host: github
     repositoryID: 1398540739
     repository: fabricahq/code-rules-test-library
+  - host: github
+    repositoryID: 1382078543
+    repository: fabricahq/public-rules
