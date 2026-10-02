@@ -15,9 +15,9 @@ Tests create their own databases on that server and drop them afterward. `make d
 ## Run the site locally
 
 `make db` also creates a `rulemart` database for local development, and the roles infrastructure creates in
-production: `rulemart_catalog_reader`, a group role that can't log in, and `rulemart_web`, the login role the web
-function connects as, which is a member of it. Migrate the database and ingest a library as its owner, then serve the pages at
-<http://127.0.0.1:8080>:
+production: two group roles that can't log in, `rulemart_catalog_reader` and `rulemart_catalog_writer`, and the
+functions' login roles that are their members, `rulemart_web` and `rulemart_worker`. Migrate the database as its
+owner, ingest a library as `rulemart_worker`, then serve the pages at <http://127.0.0.1:8080>:
 
 ```sh
 make migrate
@@ -25,13 +25,15 @@ make ingest URL=https://github.com/fabricahq/code-rules-test-library
 make web
 ```
 
-The [Makefile](Makefile) names the local database's connections. `make migrate` and `make ingest` connect as the
-database's owner, with `LOCAL_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they
-never fall back to the local database. `make ingest` reads either one. `make migrate` needs a direct connection
+The [Makefile](Makefile) names the local database's connections. `make migrate` connects as the database's owner,
+with `LOCAL_DATABASE_URL`, and `make ingest` and `make worker` as `rulemart_worker`, with
+`LOCAL_WORKER_DATABASE_URL`, unless you set `DATABASE_URL` or `DATABASE_URL_PARAMETER`; then they never fall back
+to the local database. `make ingest` and `make worker` read either one. `make migrate` needs a direct connection
 string in `DATABASE_URL`, so with only `DATABASE_URL_PARAMETER` set it stops and says so. `make web` connects with
-`LOCAL_WEB_DATABASE_URL` as `rulemart_web`, which may only read the catalog through its membership in
-`rulemart_catalog_reader`, as the deployed function does. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as
-does `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
+`LOCAL_WEB_DATABASE_URL` as `rulemart_web`. Each login may only do what its group role's grants allow, as the
+deployed functions do: `rulemart_web` reads the catalog, and `rulemart_worker` writes it. Each starts from
+`LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does `RULEMART_TEST_DATABASE_URL`, the server where tests create their
+databases.
 
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID. To see another library locally, ingest it and add it there, as a vetting pull request would.
@@ -41,12 +43,17 @@ one transaction; running it again on unchanged tags changes nothing. It fetches 
 memory, and refuses a library that passes any of the limits that
 [internal/contexts/catalog/domain/limits.go](internal/contexts/catalog/domain/limits.go) documents: release tags,
 the size of a tag, of the fetched packfile, of each object and of all of them, the number of objects, the size of
-each file it reads, and the content it holds until the library is stored.
+each file it reads, and the content it holds until the library is stored. It ingests any public library, vetted or
+not, so use it to backfill one.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
-`DATABASE_URL_PARAMETER` to the SSM parameter holding the connection string instead of `DATABASE_URL`, as the
-functions do. Ingestion parses records with the copy of Code Rules' parser in
-[internal/lib/coderules](internal/lib/coderules), so it reads only libraries released with a Code Rules version that
-writes the same record format.
+`DATABASE_URL_PARAMETER` to the SSM parameter holding the worker's connection string,
+`/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses records with
+the copy of Code Rules' parser in [internal/lib/coderules](internal/lib/coderules), so it reads only libraries
+released with a Code Rules version that writes the same record format.
+
+`make worker` runs what the deployed worker does every ten minutes, once: for each library `catalog/vetted.yaml`
+lists, it lists the release tags without fetching them, and ingests the library when they aren't the ones the
+catalog stored. A queue in memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
 
 ## Generated files
 
@@ -74,8 +81,9 @@ one they no longer generate, such as a file under an old name.
 
 ## Layout
 
-- `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server, and acknowledges the schedule's
-  event. `cmd/worker` consumes the job queue, which has no jobs yet. Both run on Lambda.
+- `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server. `cmd/worker` keeps the vetted
+  libraries current: the schedule invokes it to queue one job per vetted library, and the job queue invokes it to
+  run each job. Both run on Lambda.
 - `cmd/migrate-database` applies schema migrations, and `cmd/ingest` ingests a library. They run on an operator's
   machine, never on Lambda.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
@@ -84,9 +92,10 @@ one they no longer generate, such as a file under an old name.
     snapshots within the content budget, addresses such as tags and GitHub URLs, and every ingestion limit.
   - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
     function, so only ingestion links goldmark and chroma, and the web function doesn't.
-  - `app` holds the operations: `Ingester` ingests a library, and `Pages` reads what the pages show.
-  - `source/git` fetches release snapshots with go-git, which nothing else uses outside its test fixture
-    `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.
+  - `app` holds the operations: `Ingester` ingests a library, or updates one whose release tags changed, and `Pages`
+    reads what the pages show.
+  - `source/git` fetches release snapshots, or lists release tags, with go-git, which nothing else uses outside its
+    test fixture `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.
   - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
     and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
@@ -111,10 +120,11 @@ go tool goose -dir db/migrations -s create add_libraries sql
 - Give each catalog table an `id` primary key and keep its natural key, such as a library and a rule's path, as
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_catalog_reader` what the web function needs from each new table, usually `SELECT` on what the
-  pages read, and nothing on tables the pages don't read. Never grant to `rulemart_web` or another login role:
-  infrastructure owns the logins and their memberships, and migrations own the grants, so a login can be replaced
-  or rotated without a migration. The site's tests read as `rulemart_web`, through its membership, so a missing
-  grant fails them.
+  pages read, and nothing on tables the pages don't read. Grant `rulemart_catalog_writer` what ingestion writes,
+  and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
+  the logins and their memberships, and migrations own the grants, so a login can be replaced or rotated without a
+  migration. The site's tests read as `rulemart_web` and ingest as `rulemart_worker`, through their memberships, so
+  a missing grant fails them.
 - A migration must work with the release that's still running, because the schema changes before the functions
   do. Make a breaking change in two releases: add the new shape first, and remove the old one after nothing uses
   it.
