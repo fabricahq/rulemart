@@ -38,6 +38,21 @@ than adding history.
   reputation in search engines. Their robots tag says `noindex, nofollow`, which covers every link on them, the
   repository's own included, and they name no canonical address.
 
+## Search engines, sharing, and reports
+
+- **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
+  lists the site's own pages, each canonical group's page, and each vetted library and its current rules, by their
+  canonical addresses on `RULEMART_BASE_URL`, in one file of at most 45,000 rules; without a base URL there's none.
+  `/robots.txt` disallows account pages, sign-in, listing, search, the unvetted area, and comparisons, which also say
+  `noindex`. [Slice 9](slices/9-launch-readiness.md) explains the choices.
+- **A page with a canonical address describes itself to social sites**, with Open Graph tags and one image of
+  Rulemart's; a page without one, such as an unvetted library's, shows no card.
+- **Reports and requests to vet a library are GitHub issues** in Rulemart's public repository, through issue forms,
+  so Rulemart stores nothing new. Each library's page links a report with the library filled in.
+- **`/about` and `/privacy` say what Rulemart is and what it keeps.** The privacy notice states only what the code
+  and infrastructure do, and changes with them: a change to what Rulemart keeps, logs, or shares updates it in the
+  same pull request.
+
 ## Stars
 
 - **Anyone signed in can star a vetted library, and only a vetted one.** A star is an account's mark on a library,
@@ -211,6 +226,17 @@ than adding history.
   Cloudflare Single Redirect that infra-live manages in code with its DNS records, so the redirect is reviewed and
   can't drift from the domain it points at. It stays temporary while the main domain may still change, because
   browsers cache a permanent redirect indefinitely.
+- **The web function sends every response's security headers**: the content security policy, HSTS for a year without
+  `preload`, a permissions policy that denies features Rulemart never uses, `Cross-Origin-Opener-Policy`,
+  `nosniff`, and the referrer policy. Sending them from the function, rather than a CloudFront response headers
+  policy, keeps them in one place that tests cover.
+- **Cloudflare Web Analytics counts page views, only once its site token is set**, as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`.
+  It sets no cookie. Without the token, pages load no other site's script, and the content security policy allows
+  none; with it, the policy adds Cloudflare's beacon and its reports, and the privacy notice says so.
+- **Static files share one CloudFront copy**: `/_static/*` and `/favicon.ico` have a cache behavior whose key holds no
+  cookie or query string, so a signed-in visitor doesn't cache them per session.
+- **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
+  write itself. Infrastructure turns it on if abuse appears.
 - **Pages name their address on `RULEMART_BASE_URL` as canonical.** CloudFront's own `cloudfront.net` domain serves
   the same pages, so each page links its address on the public origin, without a tab's query string, and search
   engines index that one. Infrastructure sets the variable; unset, as in local development, pages name none, and a
@@ -245,10 +271,12 @@ than adding history.
     `{owner}`.
   - The rest of an error message is kept, even when it names an internal address such as the database host, because
     diagnosing the failure needs it.
+- **Alarms cover what the function answers anyway.** Besides Lambda's errors and throttles, the URL's 5xx responses,
+  and the jobs queue, the web function alarms on the lines it logs for a failed GitHub sign-in, a listing it couldn't
+  queue, and a sitemap that left out rules.
 - **CloudFront's logs are kept for 6 months, and the functions' for 30 days.** S3 deletes each access log file 180
   days after delivery, and CloudWatch Logs deletes function lines after 30 days. IP addresses are personal data, so
-  the privacy notice says what CloudFront logs, why, and for how long, and lowering the retention is how Rulemart
-  keeps less.
+  `/privacy` says what CloudFront logs, why, and for how long, and lowering the retention is how Rulemart keeps less.
 - **Every command logs JSON lines through `internal/platform/logging`**, at the level `LOG_LEVEL` names, info by
   default, and each line names the release that wrote it, from `RULEMART_RELEASE`. An unknown level stops the command
   at start, rather than logging at a level nobody chose.

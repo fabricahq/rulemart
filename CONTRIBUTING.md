@@ -54,6 +54,12 @@ login may only do what its group roles' grants allow, as the deployed functions 
 catalog and writes accounts, sessions, listings, stars, and carts, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
+Pages name no canonical address locally, so there's no sitemap and no social card; to see them, run
+`RULEMART_BASE_URL=https://rulemart.example make web`, then open <http://127.0.0.1:8080/sitemap.xml>. To try Cloudflare
+Web Analytics, set `CLOUDFLARE_WEB_ANALYTICS_TOKEN` to a site's token: pages then load its beacon, and the content
+security policy allows it. `/about` and `/privacy` describe Rulemart and what it keeps; when a change alters what
+Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/about.templ` with it.
+
 Pages show the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID, and on their own pages, under a warning, the ones a listing names. To see another library locally,
 list it: sign in with `make web-dev`, list its repository at <http://127.0.0.1:8080/list>, and run `make worker`,
@@ -141,12 +147,15 @@ one they no longer generate, such as a file under an old name.
   and `store/postgres` keep accounts and sessions, with sqlc's output in `generated/accountsdb`.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
-  `RULEMART_BASE_URL`, sign-in, sign-out, the account page, listing, stars, and the cart, `queue` sends to the jobs queue, `secret`
+  `RULEMART_BASE_URL`, robots.txt and the sitemap, the about and privacy pages, the security headers and optional
+  analytics, sign-in, sign-out, the account page, listing, stars, and the cart, `queue` sends to the jobs queue, `secret`
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser, and `internal/lib/textdiff` compares two
   versions' text for the comparison pages, within bounded work.
 - `db/migrations` holds the schema as numbered SQL files.
+- `.github/ISSUE_TEMPLATE` holds the issue forms that pages link to report a library, ask to vet one, or report a
+  problem, by file name and field ID, so renaming either breaks those links.
 - `catalog` holds the data each release ships: `vetted.yaml`, the vetted libraries; `canonical-groups.yaml`, Code
   Rules' canonical group list, copied unchanged at a pinned commit; and `group-icons.yaml`, the icon for each
   canonical group, which `internal/platform/web/static/icons` vendors with its license.
