@@ -17,16 +17,18 @@ func TestEveryImpactLevelHasAnExplanation(t *testing.T) {
 	}
 }
 
-// A long ID wraps after its separators, and shows every character it holds, escaped, in order.
-func TestBreakableLetsAnIDWrapAfterItsSeparators(t *testing.T) {
+// A long ID wraps after a / or : first, keeping the parts between them whole when they fit, and shows every character
+// it holds, escaped, in order.
+func TestBreakableLetsAnIDWrapAtItsParts(t *testing.T) {
+	part := func(text string) string { return `<span class="inline-block">` + text + "</span>" }
 	for text, want := range map[string]string{
-		"fabricahq/public-rules:techs/go": "fabricahq/<wbr>public-<wbr>rules:<wbr>techs/<wbr>go",
-		"use-template.md":                 "use-<wbr>template.<wbr>md",
-		"plain":                           "plain",
-		"trailing-":                       "trailing-",
-		"-/x":                             "-<wbr>/<wbr>x",
-		"<b>&-x":                          "&lt;b&gt;&amp;-<wbr>x",
-		"":                                "",
+		"fabricahq/public-rules:techs/go": part("fabricahq/") + "<wbr>" + part("public-rules:") + "<wbr>" + part("techs/") + "<wbr>" + part("go"),
+		"use_template.md":                 part("use_<wbr>template.<wbr>md"),
+		"plain":                           part("plain"),
+		"trailing/":                       part("trailing/"),
+		"/x":                              part("/") + "<wbr>" + part("x"),
+		"<b>&/x":                          part("&lt;b&gt;&amp;/") + "<wbr>" + part("x"),
+		"":                                part(""),
 	} {
 		var out strings.Builder
 		if err := breakable(text).Render(context.Background(), &out); err != nil || out.String() != want {

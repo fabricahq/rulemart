@@ -292,31 +292,35 @@ func plainText(text, rendered string) string {
 // inlineElements are the elements Markdown renders within a line of text, which separate no words.
 var inlineElements = map[string]bool{"a": true, "code": true, "em": true, "strong": true, "del": true, "img": true, "span": true}
 
-// breakable shows text, such as an ID or a file name, letting a line break after each /, :, -, _, or . in it, so it
-// wraps at its parts rather than anywhere. It writes the parts escaped, with a <wbr> between each, and no space, which
-// a templ template would add between them.
+// breakable shows text, such as an ID or a file name, so it wraps at its parts: each part up to a / or : stays whole
+// on a line unless it's longer than the line, and then breaks after a hyphen, _, or ., as words do. It writes the parts
+// escaped, with no space between them, which a templ template would add.
 func breakable(text string) templ.Component {
 	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
-		for i, part := range breakParts(text) {
+		var out strings.Builder
+		for i, part := range breakParts(text, "/:") {
 			if i > 0 {
-				if _, err := io.WriteString(w, "<wbr>"); err != nil {
-					return err
+				out.WriteString("<wbr>")
+			}
+			out.WriteString(`<span class="inline-block">`)
+			for j, piece := range breakParts(part, "_.") {
+				if j > 0 {
+					out.WriteString("<wbr>")
 				}
+				out.WriteString(templ.EscapeString(piece))
 			}
-			if _, err := io.WriteString(w, templ.EscapeString(part)); err != nil {
-				return err
-			}
+			out.WriteString("</span>")
 		}
-		return nil
+		_, err := io.WriteString(w, out.String())
+		return err
 	})
 }
 
-// breakParts splits text after each /, :, -, _, and ., where a line may break inside an ID or a file name. Joined,
-// the parts are text.
-func breakParts(text string) []string {
+// breakParts splits text after each of separators, except at its end. Joined, the parts are text.
+func breakParts(text, separators string) []string {
 	var parts []string
 	for len(text) > 0 {
-		i := strings.IndexAny(text, "/:-_.")
+		i := strings.IndexAny(text, separators)
 		if i < 0 || i == len(text)-1 {
 			break
 		}

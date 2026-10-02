@@ -160,17 +160,25 @@ templ ruleCards() {
 	</ul>
 }
 
+// cardTitle is a rule's title on its card, with its impact after the last word, so the impact sits on the title's
+// last line however the title wraps.
+templ cardTitle(title, level string) {
+	<div class="text-[15.5px] leading-[1.35] font-semibold">
+		<h3 class="mr-2 inline font-semibold">{ title }</h3>
+		@impact(level)
+	</div>
+}
+
 // ruleCardLink is a rule's card in ruleCards, leading to its page, under a heading of level 2.
 templ ruleCardLink(r ruleCard) {
 	<li>
 		<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
-			<div class="mb-1.5 flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
-				<h3 class="font-semibold">{ r.title }</h3>
-				@impact(r.impact)
-			</div>
-			<div class="flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
+			@cardTitle(r.title, r.impact)
+			<div class="mt-1.5 flex flex-wrap items-baseline gap-x-[14px] gap-y-1 text-[13px] text-muted">
 				<span class="mono" title="Latest version">{ r.version }</span>
-				<span class="mono text-faint">{ r.id }</span>
+				<span class="mono min-w-0 text-faint max-narrow:basis-full">
+					@breakable(r.id)
+				</span>
 			</div>
 		</a>
 	</li>

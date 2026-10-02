@@ -96,10 +96,7 @@ templ searchPages(v searchView) {
 // searchResult is a rule that matched, with its library and group, leading to its page.
 templ searchResult(r searchResultView) {
 	<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
-		<div class="flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
-			<h3 class="font-semibold">{ r.rule.title }</h3>
-			@impact(r.rule.impact)
-		</div>
+		@cardTitle(r.rule.title, r.rule.impact)
 		if r.whenToRead != "" {
 			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
 		}
@@ -112,9 +109,11 @@ templ searchResult(r searchResultView) {
 			</p>
 		}
 		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
-			<span class="flex min-w-0 items-start gap-1.5">
+			<span class="flex min-w-0 items-start gap-1.5 max-narrow:basis-full">
 				@avatar(r.library.avatar, r.library.owner, avatarXS)
-				<span class="mono min-w-0 [overflow-wrap:anywhere] text-muted">{ r.sourceID }</span>
+				<span class="mono min-w-0 text-muted">
+					@breakable(r.sourceID)
+				</span>
 			</span>
 			<span class="flex items-center gap-1.5">
 				@groupTile(r.group, r.icon, tileXS)

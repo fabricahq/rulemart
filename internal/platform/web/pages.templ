@@ -76,7 +76,7 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 }
 
 templ libraryRow(lib libraryCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-x-[18px] gap-y-3 px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
 		<div class="flex items-start gap-[14px]">
 			@avatar(lib.avatar, lib.owner, avatarMD)
 			<div>
@@ -84,10 +84,12 @@ templ libraryRow(lib libraryCard) {
 				if lib.description != "" {
 					<div class="mt-0.5 text-[13px] text-muted">{ lib.description }</div>
 				}
-				<div class="mt-1 text-[12.5px] text-faint"><span class="mono">{ lib.owner }/{ lib.name }</span> · { plural(lib.rules, "rule", "rules") }</div>
+				<div class="mono mt-1 text-[12.5px] text-faint">
+					@breakable(lib.owner + "/" + lib.name)
+				</div>
 			</div>
 		</div>
-		<span></span>
+		<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-1 max-narrow:row-start-2 max-narrow:-mt-3 max-narrow:pl-[54px]">{ plural(lib.rules, "rule", "rules") }</span>
 		@chevron()
 	</a>
 }
@@ -127,7 +129,7 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab 
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
 				@avatar(lib.avatar, lib.owner, avatarLG)
 				<div>
-					<h1 class="title-xl"><span class="text-faint">{ lib.owner } /</span> { lib.name }</h1>
+					<h1 class="title-xl"><span class="text-faint">{ lib.owner } /</span> <span class="inline-block">{ lib.name }</span></h1>
 					if lib.description != "" {
 						<p class="mt-1.5 mb-2.5 text-muted">{ lib.description }</p>
 					}

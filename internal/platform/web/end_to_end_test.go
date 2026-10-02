@@ -76,7 +76,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 	handler := newIngestedSite(t)
 
 	for path, want := range map[string]string{
-		"/":                          "example/rules · 1 rule",
+		"/":                          "example/rules 1 rule",
 		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
 		errorsRule:                   "Wrap every returned error.",

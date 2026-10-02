@@ -517,7 +517,7 @@ func TestLibrariesPageListsTheVettedLibraries(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "Libraries Each library is a set of rules", "rules Example rules for tests. example/rules · 2 rules")
+	assertShows(t, page, "Libraries Each library is a set of rules", "rules Example rules for tests. example/rules 2 rules")
 	if got := links(t, page, "Example rules for tests."); !slices.Equal(got, []string{library}) {
 		t.Errorf("the library links %q", got)
 	}
