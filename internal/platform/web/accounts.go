@@ -48,6 +48,12 @@ const (
 	sessionCookie = "__Host-rulemart-session"
 	// signInCookie holds a sign-in in progress: its OAuth state, its PKCE verifier, and where to return.
 	signInCookie = "__Host-rulemart-sign-in"
+	// noticeCookie names a notice for the next page to show once, such as that the visitor signed out, by a key of
+	// notices. Its value is never shown. CloudFront keys its cache on it, and the page that shows it clears it, which
+	// keeps that one response out of every cache, so pages for everyone stay cached.
+	noticeCookie = "__Host-rulemart-notice"
+	// noticeLifetime is how long a notice waits for the page that shows it: the redirect to it.
+	noticeLifetime = time.Minute
 	// signInLifetime is how long a visitor has to authorize Rulemart on GitHub.
 	signInLifetime = 10 * time.Minute
 	// maxReturnLength bounds where a sign-in may return, well within a cookie's 4 KiB.
@@ -79,8 +85,26 @@ type visitor struct {
 	token accounts.SessionToken
 	// signIn is the sign-in page's address with this page to return to, or empty when sign-in isn't available.
 	signIn string
+	// withGitHub is true when signing in is with GitHub, rather than only as a local build's test users.
+	withGitHub bool
 	// signOut is where the sign-out form posts, with this page to return to.
 	signOut string
+	// onAccountPage is true on the account page, which the menu marks as current.
+	onAccountPage bool
+	// notice is a notice for this page to show once, from noticeCookie, or empty.
+	notice string
+}
+
+// notices are what a notice cookie may name, by key, and what each says.
+var notices = map[string]string{
+	"signed-out":            "You're signed out.",
+	"signed-out-everywhere": "You're signed out of every browser.",
+	"account-deleted":       "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
+}
+
+// setNotice has the next page show the notice notices names by key, once.
+func setNotice(w http.ResponseWriter, key string) {
+	setCookie(w, noticeCookie, key, noticeLifetime)
 }
 
 type visitorKey struct{}
@@ -101,10 +125,17 @@ func (s *server) signInAvailable() bool {
 // page as if they weren't.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		v := visitor{}
+		v := visitor{onAccountPage: r.URL.Path == accountHref}
 		back := returnPath(r.URL.RequestURI())
 		if s.signInAvailable() {
 			v.signIn = s.absolute(signInPageHref(back))
+			v.withGitHub = s.GitHub != nil
+		}
+		if cookie, err := r.Cookie(noticeCookie); err == nil {
+			// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
+			if v.notice = notices[cookie.Value]; v.notice == "" {
+				clearCookie(w, noticeCookie)
+			}
 		}
 		if s.Accounts != nil {
 			if token, ok := sessionToken(r); ok {
@@ -117,7 +148,7 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 					return
 				default:
 					v.account, v.token = &account, token
-					v.signOut = signOutHref + returnQuery(back)
+					v.signOut = signOutHref + returnQuery(publicPath(back))
 				}
 			} else if hasCookie(r, sessionCookie) {
 				clearCookie(w, sessionCookie)
@@ -166,7 +197,8 @@ func returnQuery(back string) string {
 
 // returnPath returns target as a path on this site to return to after signing in or out, or / when it isn't one: an
 // absolute URL, a path another host could take, such as //evil.example or /\evil.example, one with a backslash or a
-// control character anywhere, one too long for the sign-in cookie, or a page of the sign-in flow itself.
+// control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, or anything
+// under /account/, which holds the flow's callback and actions that take POST. The account page itself is one.
 func returnPath(target string) string {
 	if target == "" || len(target) > maxReturnLength || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") ||
 		strings.ContainsFunc(target, func(r rune) bool { return r == '\\' || r < 0x20 || r == 0x7f }) {
@@ -176,22 +208,34 @@ func returnPath(target string) string {
 	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
 		return "/"
 	}
-	switch u.Path {
-	case signInHref, signOutHref, gitHubCallbackHref:
+	if u.Path == signInHref || u.Path == signOutHref || strings.HasPrefix(u.Path, accountHref+"/") {
 		return "/"
 	}
 	u.Fragment, u.RawFragment = "", ""
 	return u.String()
 }
 
+// publicPath returns back, a return path, or / when back is the account page, which a signed-out visitor can't see.
+func publicPath(back string) string {
+	if path, _, _ := strings.Cut(back, "?"); path == accountHref {
+		return "/"
+	}
+	return back
+}
+
 // signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says.
 func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
-	if visitorOf(r.Context()).account != nil {
+	switch {
+	case visitorOf(r.Context()).account != nil:
 		seeOther(w, r, back)
-		return
+	case !s.signInAvailable():
+		s.renderSignIn(w, r, http.StatusNotFound, back, "")
+	case publicPath(back) != back:
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your account.")
+	default:
+		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}
-	s.renderSignIn(w, r, http.StatusOK, back, "")
 }
 
 // renderSignIn shows the sign-in page with status and notice, which says why the last attempt failed, if it did. It
@@ -304,7 +348,8 @@ func (s *server) signOut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	clearCookie(w, sessionCookie)
-	seeOther(w, r, returnPath(r.URL.Query().Get("return")))
+	setNotice(w, "signed-out")
+	seeOther(w, r, publicPath(returnPath(r.URL.Query().Get("return"))))
 }
 
 // accountPage shows the signed-in visitor's account, or sends anyone else to sign in first.
@@ -316,43 +361,61 @@ func (s *server) accountPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPrivate(w, r, http.StatusOK, accountPage(s.chrome, newAccountView(account)))
 }
 
-// signOutEverywhere ends every session of the signed-in account, this browser's too.
+// signOutEverywhere ends every session of the signed-in account, this browser's too, and returns home saying so. A
+// visitor already signed out, such as from a tab left open after signing out elsewhere, goes home told they're
+// signed out.
 func (s *server) signOutEverywhere(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.signedIn(w, r); !ok {
+	v := visitorOf(r.Context())
+	if v.account == nil {
+		s.signedOutAlready(w, r)
 		return
 	}
-	err := s.Accounts.SignOutEverywhere(r.Context(), visitorOf(r.Context()).token)
-	if err != nil && !errors.Is(err, accountsapp.ErrSignedOut) {
-		s.fail(w, r, err)
-		return
-	}
-	clearCookie(w, sessionCookie)
-	seeOther(w, r, "/")
-}
-
-// deleteAccount deletes the signed-in account and ends its sessions, then says so.
-func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r)
-	if !ok {
-		return
-	}
-	err := s.Accounts.DeleteAccount(r.Context(), visitorOf(r.Context()).token)
+	err := s.Accounts.SignOutEverywhere(r.Context(), v.token)
 	if errors.Is(err, accountsapp.ErrSignedOut) {
-		// The session ended after this request began, so it may no longer act for the account.
-		clearCookie(w, sessionCookie)
-		seeOther(w, r, s.absolute(signInPageHref(accountHref)))
+		s.signedOutAlready(w, r)
 		return
 	}
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	s.Log.InfoContext(r.Context(), "deleted account", "route", s.route(r), "requestID", s.requestID(r), "accountID", account.ID)
 	clearCookie(w, sessionCookie)
-	// The page shows the visitor signed out, as they now are.
-	r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, visitor{signIn: visitorOf(r.Context()).signIn}))
-	s.renderPrivate(w, r, http.StatusOK, messagePage(s.chrome, "Account deleted",
-		"Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account."))
+	setNotice(w, "signed-out-everywhere")
+	seeOther(w, r, "/")
+}
+
+// signedOutAlready answers an account action from a visitor whose session has ended: it clears the cookie, if any,
+// and returns home, saying they're signed out.
+func (s *server) signedOutAlready(w http.ResponseWriter, r *http.Request) {
+	if hasCookie(r, sessionCookie) {
+		clearCookie(w, sessionCookie)
+	}
+	setNotice(w, "signed-out")
+	seeOther(w, r, "/")
+}
+
+// deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. A visitor whose
+// session has ended, even after this request began, may no longer act for the account, and goes home told they're
+// signed out.
+func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	v := visitorOf(r.Context())
+	if v.account == nil {
+		s.signedOutAlready(w, r)
+		return
+	}
+	err := s.Accounts.DeleteAccount(r.Context(), v.token)
+	if errors.Is(err, accountsapp.ErrSignedOut) {
+		s.signedOutAlready(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.Log.InfoContext(r.Context(), "deleted account", "route", s.route(r), "requestID", s.requestID(r), "accountID", v.account.ID)
+	clearCookie(w, sessionCookie)
+	setNotice(w, "account-deleted")
+	seeOther(w, r, "/")
 }
 
 // signedIn returns the signed-in account, or sends the visitor to sign in and return here, and returns false.
@@ -436,11 +499,14 @@ type testUserView struct {
 // accountView is what the account page shows of the signed-in account.
 type accountView struct {
 	login, avatar, profileURL, gitHubUserID, since string
+	// testUser is true for a local build's test user, which isn't a GitHub user, so the page links no profile.
+	testUser bool
 }
 
 func newAccountView(account accounts.Account) accountView {
 	return accountView{
 		login: account.Login, avatar: account.AvatarURL, profileURL: account.ProfileURL(),
 		gitHubUserID: strconv.FormatInt(account.GitHubUserID, 10), since: date(account.CreatedAt),
+		testUser: isTestUser(account.GitHubUserID),
 	}
 }

@@ -25,6 +25,9 @@ import (
 const (
 	sessionCookie = "__Host-rulemart-session"
 	signInCookie  = "__Host-rulemart-sign-in"
+	noticeCookie  = "__Host-rulemart-notice"
+	// gitHubMarkPath starts the outline of GitHub's mark.
+	gitHubMarkPath = "M8 0C3.58 0"
 )
 
 // fakeAccounts keeps accounts and sessions in memory, as accounts/app.Sessions does in Postgres.
@@ -456,6 +459,8 @@ func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 		"/sign-in":                      "/",
 		"/sign-out?return=/":            "/",
 		"/account/github/callback?x=1":  "/",
+		"/account/delete":               "/",
+		"/account/sign-out-everywhere":  "/",
 		"/" + strings.Repeat("a", 2000): "/",
 	} {
 		t.Run(target, func(t *testing.T) {
@@ -719,6 +724,7 @@ func TestSignOutEverywhereEndsEverySessionOfTheAccount(t *testing.T) {
 	if cleared := cookie(resp, sessionCookie); cleared == nil || cleared.MaxAge >= 0 {
 		t.Error("the session cookie wasn't cleared")
 	}
+	assertShows(t, followNotice(t, site, resp, "/"), "You're signed out of every browser.")
 }
 
 func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
@@ -728,17 +734,134 @@ func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
 	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/account/delete"})
 	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/delete", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
-	if signedOut.StatusCode != http.StatusSeeOther {
-		t.Errorf("signed out, deleting answered %d", signedOut.StatusCode)
+	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/" {
+		t.Errorf("signed out, deleting answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
 	}
-	if resp.StatusCode != http.StatusOK || len(site.accounts.deleted) != 1 || site.accounts.deleted[0] != 1 {
-		t.Fatalf("answered %d, deleting %v", resp.StatusCode, site.accounts.deleted)
+	// Post, redirect, get: the page that says so is an ordinary page, which reloads and goes back like one.
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/" || len(site.accounts.deleted) != 1 || site.accounts.deleted[0] != 1 {
+		t.Fatalf("answered %d to %q, deleting %v", resp.StatusCode, resp.Header.Get("Location"), site.accounts.deleted)
 	}
-	page := body(t, resp)
-	assertShows(t, page, "Account deleted", "Sign in")
+	page := followNotice(t, site, resp, "/")
+	assertShows(t, page, "Rulemart deleted your account and signed you out everywhere.", "Sign in")
 	if strings.Contains(visibleText(t, page), "Signed in as") {
 		t.Error("the page still shows the deleted account signed in")
 	}
+}
+
+// followNotice follows resp's redirect to target as a browser would, holding the cookies resp set, checks that the
+// page clears the notice it shows and can't be cached, and returns the page.
+func followNotice(t *testing.T, site accountsSite, resp *http.Response, target string) string {
+	t.Helper()
+	notice := cookie(resp, noticeCookie)
+	if notice == nil || notice.MaxAge <= 0 || notice.MaxAge > 60 || !notice.Secure || !notice.HttpOnly {
+		t.Fatalf("the redirect sets the notice cookie as %v", notice)
+	}
+	page := send(t, site.handler, request{method: http.MethodGet, target: target, cookies: []*http.Cookie{notice}})
+	if cleared := cookie(page, noticeCookie); cleared == nil || cleared.MaxAge >= 0 {
+		t.Error("the page that showed the notice didn't clear it")
+	}
+	if got := page.Header.Get("Cache-Control"); got != "private, no-store" {
+		t.Errorf("the page with the notice has Cache-Control %q", got)
+	}
+	return body(t, page)
+}
+
+func TestSignOutSaysSoOnThePageItReturnsTo(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fgroups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	page := followNotice(t, site, resp, "/groups")
+	assertShows(t, page, "You're signed out.")
+	// The notice shows once.
+	again := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups"}))
+	if strings.Contains(visibleText(t, again), "signed out") {
+		t.Error("a page without the notice cookie shows the notice")
+	}
+}
+
+// A notice cookie only names a notice; anything else shows nothing, and is cleared.
+func TestANoticeCookieShowsOnlyRulemartsOwnNotices(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/groups", cookies: []*http.Cookie{{Name: noticeCookie, Value: "<script>alert(1)</script>"}}})
+
+	if page := body(t, resp); strings.Contains(page, "alert(1)") || strings.Contains(visibleText(t, page), "signed out") {
+		t.Error("the page shows the cookie's value or a notice")
+	}
+	if cleared := cookie(resp, noticeCookie); cleared == nil || cleared.MaxAge >= 0 {
+		t.Error("an unknown notice wasn't cleared")
+	}
+}
+
+// Signing out from a page only a signed-in visitor can see, such as the account page, returns home rather than to a
+// sign-in page.
+func TestSigningOutFromTheAccountPageReturnsHome(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	for _, target := range []string{"/sign-out?return=%2Faccount", "/sign-out?return=%2Faccount%3Ftab%3Dx"} {
+		token := site.accounts.signedIn(t, octocat)
+		resp := send(t, site.handler, request{method: http.MethodPost, target: target, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+		if got := resp.Header.Get("Location"); got != "/" {
+			t.Errorf("POST %s returned to %q, want /", target, got)
+		}
+	}
+	// A stale tab's sign-out everywhere, after its session ended elsewhere, also goes home, saying the visitor is
+	// signed out.
+	stale := send(t, site.handler, request{method: http.MethodPost, target: "/account/sign-out-everywhere"})
+	if stale.StatusCode != http.StatusSeeOther || stale.Header.Get("Location") != "/" {
+		t.Errorf("a stale sign-out everywhere answered %d to %q", stale.StatusCode, stale.Header.Get("Location"))
+	}
+	assertShows(t, followNotice(t, site, stale, "/"), "You're signed out.")
+}
+
+// Sent to sign in from the account page, a visitor is told why.
+func TestTheSignInPageSaysWhySignInIsNeededForTheAccount(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Faccount"}))
+	assertShows(t, page, "Sign in to see your account.")
+}
+
+// On the account page, the menu marks Account as the current page.
+func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	for path, want := range map[string]string{"/account": "page", "/groups": ""} {
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+		doc, err := html.Parse(strings.NewReader(page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		link := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/account" })
+		if link == nil || attribute(link, "aria-current") != want {
+			t.Errorf("%s: the menu's Account link is %v, want aria-current %q", path, link, want)
+		}
+	}
+}
+
+// The header's sign-in link shows GitHub's mark only when it leads to signing in with GitHub.
+func TestTheHeaderShowsGitHubsMarkOnlyForGitHubSignIn(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups"}))
+	if !signInLinkHasMark(t, page) {
+		t.Error("with GitHub, the Sign in link has no GitHub mark")
+	}
+}
+
+// signInLinkHasMark reports whether page's Sign in link holds GitHub's mark.
+func signInLinkHasMark(t *testing.T, page string) bool {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := find(doc, func(n *html.Node) bool { return n.Data == "a" && strings.TrimSpace(visibleTextOf(n)) == "Sign in" })
+	if link == nil {
+		t.Fatal("no Sign in link")
+	}
+	return find(link, func(n *html.Node) bool {
+		return n.Data == "path" && strings.HasPrefix(attribute(n, "d"), gitHubMarkPath)
+	}) != nil
 }
 
 func TestASignedInVisitorIsSentOnFromTheSignInPage(t *testing.T) {
@@ -788,6 +911,13 @@ func TestPagesOfferNoSignInThatIsNotAvailable(t *testing.T) {
 			}
 			if resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-in"}); resp.StatusCode != http.StatusNotFound {
 				t.Errorf("POST /sign-in answered %d", resp.StatusCode)
+			}
+			// Without accounts there's no sign-in page at all; without GitHub, it says sign-in isn't available.
+			signIn := send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"})
+			text := visibleText(t, body(t, signIn))
+			wantText := map[string]string{"accounts": "Rulemart has no page here", "GitHub": "Sign-in isn't available yet"}[name]
+			if signIn.StatusCode != http.StatusNotFound || !strings.Contains(text, wantText) || strings.Contains(text, "Continue with GitHub") {
+				t.Errorf("GET /sign-in answered %d: %s", signIn.StatusCode, text)
 			}
 		})
 	}

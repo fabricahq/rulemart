@@ -62,6 +62,13 @@ func TestNewIdentityDropsAnAvatarOffGitHubsAvatarHost(t *testing.T) {
 	}
 }
 
+// Enterprise Managed Users' logins end with an underscore and their enterprise's short code, such as octocat_acme.
+func TestNewIdentityAcceptsAnEnterpriseManagedUsersLogin(t *testing.T) {
+	if _, err := NewIdentity(1, "octocat_acme", ""); err != nil {
+		t.Error(err)
+	}
+}
+
 func TestNewSessionTokensAreDistinctAndParseBack(t *testing.T) {
 	seen := map[SessionToken]bool{}
 	for range 100 {

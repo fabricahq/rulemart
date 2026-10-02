@@ -20,9 +20,10 @@ type Identity struct {
 	AvatarURL string
 }
 
-// githubLogin matches what GitHub allows in a login: letters, digits, and hyphens, at most 39 of them. Older logins
-// may have hyphens where new ones can't, so it doesn't check where they fall.
-var githubLogin = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
+// githubLogin matches what GitHub allows in a login: letters, digits, and hyphens, and the underscore that joins an
+// Enterprise Managed User's handle to its enterprise's short code, at most 39 of them. Older logins may have hyphens
+// where new ones can't, so it doesn't check where they fall.
+var githubLogin = regexp.MustCompile(`^[A-Za-z0-9_-]{1,39}$`)
 
 // githubAvatarHost is the only host an avatar may be on: the pages' content security policy allows images from it.
 const githubAvatarHost = "https://avatars.githubusercontent.com/"

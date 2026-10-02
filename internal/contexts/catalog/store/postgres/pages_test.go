@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -193,7 +194,7 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", LastVersion: v(1, 0, 0), RetiredIn: 3,
 			ReplacedBy: "practices/testing/verify-retry-limits"},
 	}
-	if !slices.Equal(page.Retired, wantRetired) {
+	if !reflect.DeepEqual(page.Retired, wantRetired) {
 		t.Errorf("retired rules are %+v, want %+v", page.Retired, wantRetired)
 	}
 }

@@ -263,7 +263,7 @@ func TestReleaseComparisonShowsDiffsWhileTheyFit(t *testing.T) {
 	if resp.Code != http.StatusOK || resp.Body.Len() > 4<<20 {
 		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
 	}
-	shown := strings.Count(resp.Body.String(), `<section class="mt-3 scroll-mt-20 overflow-hidden`)
+	shown := strings.Count(resp.Body.String(), `<section class="anchor-card mt-3 scroll-mt-20 overflow-hidden`)
 	if shown == 0 || shown >= 4000 {
 		t.Fatalf("showed %d diffs, want some, not all", shown)
 	}
@@ -306,7 +306,8 @@ func TestReleaseComparisonShowsWhatChangedAndTheText(t *testing.T) {
 		"<script>alert(1)</script>",
 	)
 	for _, want := range []string{
-		`<del>every</del><ins>each</ins>`,
+		// Only a mark right after another stands apart from it; one after a space keeps the space alone.
+		`<del>every</del><ins class="g">each</ins>`,
 		`&lt;script&gt;alert(1)&lt;/script&gt;`,
 		`<meta name="robots" content="noindex">`,
 	} {
@@ -431,7 +432,7 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 		Rule: views.Rule{
 			Path: "practices/testing/check-retry-backoff", Group: "practices/testing", CanonicalGroup: testingGroup,
 			Title: "Check retry backoff", Impact: "HIGH", Version: v110, Release: 2, PublishedAt: day(2),
-			HTML: "<p>Wait longer after each attempt.</p>\n",
+			HTML: "<h2 id=\"rule\">Rule</h2>\n<p>Wait longer after each attempt.</p>\n<h3 id=\"why\">Why</h3>\n",
 			Retirement: &views.Retirement{Release: 3, RetiredAt: day(3), Summaries: []string{"Merge it."},
 				Replacements: []views.RuleRef{
 					{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 3},
@@ -454,11 +455,17 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 		"Check retry backoff Retired Last version 1.1.0 Retired in release/3 · 3 Sep 2026 Merge it. "+
 			"Replaced by Verify retries , itself replaced by Verify retry limits .",
 		// It shows its last version's text, and links that file at the release that published it.
-		"Its last version, 1.1.0 View check-retry-backoff.md on GitHub Wait longer after each attempt.",
+		"Text of version 1.1.0 View on GitHub Rule Wait longer after each attempt. Why",
 		"Versions · 2 1.1.0 release/2 2 Sep 2026 Wait longer. Compare with 1.0.0",
 	)
 	if strings.Contains(visibleText(t, page), "Latest") || strings.Contains(visibleText(t, page), "Rule Versions") {
 		t.Error("a retired rule's page marks a latest version or shows tabs")
+	}
+	// The text's headings sit under the section's heading, a level below it.
+	for _, want := range []string{`<h3 id="rule">Rule</h3>`, `<h4 id="why">Why</h4>`, `aria-label="check-retry-backoff.md at 1.1.0 on GitHub"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page doesn't have %s", want)
+		}
 	}
 	assertLinks(t, page, "/example/rules?tab=releases#release-3", retryRule, "/example/rules/practices/testing/verify-retries",
 		"https://github.com/example/rules/blob/release/2/practices/testing/check-retry-backoff.md")
@@ -468,12 +475,15 @@ func TestAllRulesTabListsRetiredRules(t *testing.T) {
 	c := newCatalog()
 	lib := c.pages["example/rules"]
 	lib.Retired = []views.RetiredRuleCard{{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff",
-		LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retry-limits"}}
+		LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retries", Replacements: []views.RuleRef{
+			{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 4},
+			{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"},
+		}}}
 	c.pages["example/rules"] = lib
 
 	page := get(t, newSite(t, c), library+"?tab=rules").Body.String()
 
-	assertShows(t, page, "Retired Check retry backoff practices/testing/check-retry-backoff · last version 1.0.0 · retired in release/3 · replaced by practices/testing/verify-retry-limits")
+	assertShows(t, page, "Retired Check retry backoff practices/testing/check-retry-backoff · last version 1.0.0 · retired in release/3 · replaced by practices/testing/verify-retries , itself replaced by practices/testing/verify-retry-limits ›")
 }
 
 // A comparison's releases or versions come from its URL, so one that isn't a release number or version, or that the
@@ -518,10 +528,17 @@ func TestReleasesShowARenameAsOneChange(t *testing.T) {
 	releases := get(t, handler, library+"?tab=releases").Body.String()
 	compared := get(t, handler, library+"?tab=releases&from=1&to=3").Body.String()
 
+	// The rename names the new rule's version, not the old and new rules' as a change from one to the other.
 	assertShows(t, releases, "1 new, 1 renamed, 1 major, and 1 retired",
-		"Renamed rules Name tests after behavior techs/go/name-tests-by-behavior 1.0.0 → 1.0.0 Renamed from techs/go/name-tests . Rename it.")
+		"Renamed rules Name tests after behavior techs/go/name-tests-by-behavior 1.0.0 Renamed from techs/go/name-tests . Compare the text Rename it.")
 	assertLinks(t, releases, "/example/rules?from=2&tab=releases&to=3#diff-techs_go_name-tests-by-behavior")
-	assertShows(t, compared, "Name tests after behavior techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 → 1.0.0")
+	assertShows(t, compared, "Name tests after behavior techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 +1 −1 View at 1.0.0")
+
+	// A rename that kept the text says so.
+	comparison.Changes[len(comparison.Changes)-1].Text.New = "Name tests.\n"
+	c.releaseComparisons["example/rules 1...3"] = comparison
+	unchanged := get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String()
+	assertShows(t, unchanged, "techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 View at 1.0.0 The text is the same; only the rule's ID changed.")
 	assertLinks(t, compared, "#diff-techs_go_name-tests-by-behavior", "https://github.com/example/rules/blob/release/3/techs/go/name-tests-by-behavior.md")
 }
 
@@ -535,7 +552,8 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 	c.rules["example/rules/techs/go/return-errors"] = page
 	lib := c.pages["example/rules"]
 	lib.Retired = []views.RetiredRuleCard{
-		{Path: "techs/go/wrap-errors", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors", Renamed: true},
+		{Path: "techs/go/wrap-errors", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors", Renamed: true,
+			Replacements: []views.RuleRef{{Path: "techs/go/return-errors", Title: "Return errors"}}},
 		{Path: "practices/testing/a-old", Title: "A old", LastVersion: v100, RetiredIn: 2},
 	}
 	c.pages["example/rules"] = lib
@@ -550,16 +568,23 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 		"Retired Wrap errors techs/go/wrap-errors · last version 1.0.0 · retired in release/3 · renamed to techs/go/return-errors › A old")
 }
 
-// A comparison says when a release in its range changed shared files, and offers words or lines only for a diff.
+// A comparison names the releases in its range that changed shared files, and offers words or lines only for a diff.
 func TestReleaseComparisonNotesSharedFilesAndOffersViewsOnlyForDiffs(t *testing.T) {
 	c := historyCatalog()
-	c.releaseComparisons["example/rules 2...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 2, To: 3, SharedFiles: true}
+	c.releaseComparisons["example/rules 2...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 2, To: 3, SharedFiles: []int{3}}
+	c.releaseComparisons["example/rules 1...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3, SharedFiles: []int{2, 3}}
 	handler := newSite(t, c)
 
 	page := get(t, handler, library+"?tab=releases&from=2&to=3").Body.String()
 	same := get(t, handler, library+"?tab=releases&from=3&to=3").Body.String()
 
-	assertShows(t, page, "No rules changed between release/2 and release/3. Library releases after release/2, up to release/3, update shared files")
+	assertShows(t, page, "No rules changed between release/2 and release/3. release/3 updates shared files, such as group descriptions or shared assets.")
+	assertShows(t, get(t, handler, library+"?tab=releases&from=1&to=3").Body.String(),
+		"release/2 and release/3 update shared files, such as group descriptions or shared assets.")
+	// A long range counts them.
+	c.releaseComparisons["example/rules 1...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3, SharedFiles: []int{2, 3, 4, 5}}
+	assertShows(t, get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String(),
+		"4 library releases after release/1, up to release/3, update shared files")
 	for name, body := range map[string]string{"no changes": page, "the same release": same} {
 		if strings.Contains(body, `aria-label="Show changes as"`) {
 			t.Errorf("%s: the page offers words or lines with no diff", name)
@@ -578,7 +603,7 @@ func TestReleasesFoldALongListOfChanges(t *testing.T) {
 
 	page := get(t, newSite(t, c), library+"?tab=releases").Body.String()
 
-	assertShows(t, page, "Library release 1 publishes 127 rules.", "techs/go/rule-009 1.0.0 Show 117 more new rules Hide 117 more new rules A rule techs/go/rule-010")
+	assertShows(t, page, "Library release 1 publishes 127 rules.", "techs/go/rule-009 1.0.0 Show 117 more new rules Show fewer A rule techs/go/rule-010")
 }
 
 // A Major mark says what a major change means without hovering, and leads to how versions work.

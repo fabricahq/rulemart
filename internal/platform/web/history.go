@@ -154,8 +154,10 @@ type changeItem struct {
 	notes []versionNote
 	// replacedBy is the rule that replaced a retired one, then the one that replaced that one, and so on.
 	replacedBy []ruleLink
-	// renamedFrom is the ID a renamed rule had before, or nil.
+	// renamedFrom is the ID a renamed rule had before, or nil, and textHref leads to the old rule's last text compared
+	// with the new rule's.
 	renamedFrom *ruleLink
+	textHref    string
 }
 
 // versionNote is one version's change summaries; version is empty when the list needs no label, and major marks a
@@ -213,6 +215,19 @@ func chainSteps(links []ruleLink, renamed bool) []chainStep {
 	}
 	if n := len(steps); n > 0 {
 		steps[n-1].suffix = "."
+	}
+	return steps
+}
+
+// rowChainSteps words a chain of replacements by the rules' IDs, within a line that names a retired rule: "replaced
+// by a, itself replaced by b", or "renamed to a", with no period, collapsed as chainSteps collapses a long chain.
+func rowChainSteps(links []ruleLink, renamed bool) []chainStep {
+	steps := chainSteps(links, renamed)
+	for i := range steps {
+		steps[i].id, steps[i].suffix = steps[i].link.id, ""
+	}
+	if len(steps) > 0 {
+		steps[0].prefix = strings.ToLower(steps[0].prefix)
 	}
 	return steps
 }
@@ -307,6 +322,11 @@ func countPhrase(changes []views.RuleChange) string {
 			parts = append(parts, strconv.Itoa(n)+" "+kind.word)
 		}
 	}
+	return joinAnd(parts)
+}
+
+// joinAnd joins parts as a list in a sentence: "a", "a and b", or "a, b, and c".
+func joinAnd(parts []string) string {
 	switch len(parts) {
 	case 0:
 		return ""
@@ -359,11 +379,11 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 		item.versions = c.To.String()
 	case views.ChangeRenamed:
 		from := newRuleLink(lib, *c.RenamedFrom)
-		item.renamedFrom = &from
-		item.versions = c.From.String() + " → " + c.To.String()
-		item.compareHref = "#" + diffAnchor(c.Rule.Path)
+		// The old rule's version and the new rule's belong to different rules, so the item names only the new one's.
+		item.renamedFrom, item.versions = &from, c.To.String()
+		item.textHref = "#" + diffAnchor(c.Rule.Path)
 		if release != 0 {
-			item.compareHref = releaseComparisonHref(lib, release-1, release, diffWords) + item.compareHref
+			item.textHref = releaseComparisonHref(lib, release-1, release, diffWords) + item.textHref
 		}
 	default:
 		item.versions = c.From.String() + " → " + c.To.String()
@@ -386,6 +406,11 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 // Code Rules ID never holds, so IDs that differ in where a slash or hyphen is, such as techs/go-a/b and techs/go/a-b,
 // stay apart.
 func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "_") }
+
+// adjacentMark reports whether segment i of list is a change right after another, with no text between them.
+func adjacentMark(list []textdiff.Segment, i int) bool {
+	return i > 0 && list[i].Op != textdiff.Equal && list[i-1].Op != textdiff.Equal
+}
 
 // hunkHeader writes a hunk's header as git does, such as "@@ -6,14 +6,16 @@".
 func hunkHeader(h textdiff.Hunk) string {
@@ -493,7 +518,7 @@ type releaseComparisonView struct {
 	diffs    []diffView
 	// omitted counts the changed rules whose diffs didn't fit the page.
 	omitted int
-	// sharedFiles says that a release between them changed library-wide files.
+	// sharedFiles names the releases between them that changed library-wide files, or counts more than three.
 	sharedFiles string
 	// backHref leads to the Library releases tab, and wordsHref and linesHref show this comparison each way.
 	backHref, wordsHref, linesHref string
@@ -516,9 +541,18 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 		v.summary = plural(len(comparison.Changes), "rule", "rules") + " changed between " + v.fromTag + " and " + v.toTag +
 			": " + countPhrase(comparison.Changes) + "."
 	}
-	if comparison.SharedFiles {
-		v.sharedFiles = "Library releases after " + v.fromTag + ", up to " + v.toTag +
-			", update shared files, such as group descriptions or shared assets."
+	if n := len(comparison.SharedFiles); n > 0 {
+		tags := make([]string, n)
+		for i, release := range comparison.SharedFiles {
+			tags[i] = domain.ReleaseTag(release)
+		}
+		releases, verb := joinAnd(tags), " update "
+		if n == 1 {
+			verb = " updates "
+		} else if n > 3 {
+			releases = plural(n, "", "library releases") + " after " + v.fromTag + ", up to " + v.toTag + ","
+		}
+		v.sharedFiles = releases + verb + "shared files, such as group descriptions or shared assets."
 	}
 	budget := newDiffBudget()
 	for _, c := range comparison.Changes {
@@ -652,6 +686,18 @@ type diffView struct {
 	words          []textdiff.Part
 	lines          textdiff.LineDiff
 }
+
+// versions names the versions compared, "1.0.0 → 1.1.0", or one version when both are the same, such as a rule
+// renamed without a new version number, whose header shows the move between files instead.
+func (d diffView) versions() string {
+	if d.from == d.to {
+		return d.to
+	}
+	return d.from + " → " + d.to
+}
+
+// renamed reports that the diff compares two rules' files: a rule's last text before a rename with its new ID's.
+func (d diffView) renamed() bool { return d.oldPath != d.path }
 
 // newDiffView compares version from of rule oldPath, which is rulePath unless the rule was renamed, with version to of
 // rule rulePath in lib, whose text is text, as mode says, spending budget on what it renders. A diff that needs more

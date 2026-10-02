@@ -94,7 +94,8 @@ than adding history.
   and an account keeps at most 20.
 - **A page for a signed-in visitor is never cached.** Any response to a request with the session cookie, or that sets
   a cookie, is `private, no-store`; CloudFront keys its cache on the session cookie too; and other pages vary with
-  `Cookie` in browsers. Pages for everyone stay public and identical, so signed-out traffic keeps the cache.
+  `Cookie` in browsers. Pages for everyone stay public and identical, so signed-out traffic keeps the cache. A notice
+  after signing out comes from a one-time cookie, which CloudFront also keys on, so it never needs a query string.
 - **Writes are POSTs with empty bodies, refused when another site starts them**, by `Sec-Fetch-Site` or `Origin`.
   CloudFront can't forward a body a browser didn't hash for origin access control, so forms carry their input in the
   action's query string, and there's no CSRF token.

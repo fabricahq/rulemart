@@ -37,9 +37,10 @@ $$;
 CREATE TABLE accounts (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     github_user_id bigint NOT NULL UNIQUE CHECK (github_user_id > 0),
-    -- The login GitHub gave at the account's latest sign-in. Logins aren't unique here: a renamed user's old login can
-    -- belong to someone else by the time either signs in again.
-    github_login text NOT NULL CHECK (github_login ~ '^[A-Za-z0-9-]{1,39}$'),
+    -- The login GitHub gave at the account's latest sign-in: letters, digits, hyphens, and an Enterprise Managed
+    -- User's underscore. Logins aren't unique here: a renamed user's old login can belong to someone else by the time
+    -- either signs in again.
+    github_login text NOT NULL CHECK (github_login ~ '^[A-Za-z0-9_-]{1,39}$'),
     -- The avatar GitHub gave at the latest sign-in, on GitHub's avatar host, or empty to show the login's initial.
     avatar_url text NOT NULL CHECK (avatar_url = '' OR avatar_url LIKE 'https://avatars.githubusercontent.com/%'),
     created_at timestamptz NOT NULL DEFAULT now(),

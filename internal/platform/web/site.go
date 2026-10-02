@@ -578,6 +578,10 @@ func (s *server) renderWith(w http.ResponseWriter, r *http.Request, status int, 
 			return
 		}
 	}
+	// The page shows its notice, if any, so the next page mustn't again.
+	if visitorOf(r.Context()).notice != "" {
+		clearCookie(w, noticeCookie)
+	}
 	write(w, r, status, cache, body.Bytes())
 }
 

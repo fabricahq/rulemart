@@ -70,6 +70,8 @@ type RetiredRuleCard struct {
 	RetiredIn int
 	// ReplacedBy is the ID of the rule that replaced it, or empty when its retirement named none.
 	ReplacedBy string
+	// Replacements are that rule, then while it's retired, the rule that replaced it, and so on, to a rule current now.
+	Replacements []RuleRef
 	// Renamed reports that the replacement is the same rule under a new ID: added by the release that retired this
 	// one, under its title.
 	Renamed bool
@@ -395,8 +397,8 @@ type ReleaseComparison struct {
 	From, To int
 	// Changes are in rule path order.
 	Changes []RuleChange
-	// SharedFiles reports that a release after From, up to To, changed library-wide files.
-	SharedFiles bool
+	// SharedFiles are the numbers of the releases after From, up to To, that changed library-wide files, in order.
+	SharedFiles []int
 }
 
 // ChangeRenamed is how a rule changed when a release retired it and added it under a new ID, with the same title.

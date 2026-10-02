@@ -332,9 +332,9 @@ changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Wrap 
 	lines := get(t, handler, errorsRule+"?tab=versions&from=1.0.0&to=1.0.1&view=lines").Body.String()
 
 	for name, tc := range map[string]struct{ page, want string }{
-		"words: the indentation and call": {words, "if err != nil {\n<del>    </del><ins>\t</ins>return <del>err</del><ins>fmt.Errorf(&#34;read config: %w&#34;, err)</ins>"},
+		"words: the indentation and call": {words, "if err != nil {\n<del>    </del><ins class=\"g\">\t</ins>return <del>err</del><ins class=\"g\">fmt.Errorf(&#34;read config: %w&#34;, err)</ins>"},
 		// A URL is one word, which changes whole.
-		"words: the long line":     {words, "<del>https://example.com/a/very/long/path/that/never/breaks/" + strings.Repeat("abcdefghijklmnopqrstuvwxyz0123456789", 2) + "</del><ins>"},
+		"words: the long line":     {words, "<del>https://example.com/a/very/long/path/that/never/breaks/" + strings.Repeat("abcdefghijklmnopqrstuvwxyz0123456789", 2) + "</del><ins class=\"g\">"},
 		"lines: the old code line": {lines, "<td><del>    </del>return <del>err</del></td>"},
 		"lines: the new code line": {lines, "<td><ins>\t</ins>return <ins>fmt.Errorf(&#34;read config: %w&#34;, err)</ins></td>"},
 	} {

@@ -14,3 +14,6 @@ func (s *server) registerDevSignIn(func(pattern string, handler http.HandlerFunc
 
 // testUserViews returns no test users: a release build has none.
 func testUserViews(string) []testUserView { return nil }
+
+// isTestUser reports that no one is a test user: a release build has none.
+func isTestUser(int64) bool { return false }

@@ -20,11 +20,12 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   GitHub, takes too long, or comes back in another browser gets the sign-in page again, saying what happened.
 - **See they're signed in.** The header shows their GitHub avatar, or their initial, which opens a menu with their
   login, Account, and Sign out.
-- **Sign out.** Sign out ends the session in the database and clears the cookie, then returns to the page.
+- **Sign out.** Sign out ends the session in the database and clears the cookie, then returns to the page, or home
+  from a page only a signed-in visitor can see, such as the account page, and says "You're signed out."
 - **See what Rulemart keeps.** `/account` shows their GitHub user ID, login, avatar, and when the account was made,
   and says that's all.
-- **Sign out everywhere, or delete the account.** Both end every session; deleting also removes the account, behind
-  a "What deleting does" disclosure, so it takes two deliberate clicks.
+- **Sign out everywhere, or delete the account.** Both end every session, return home, and say so; deleting also
+  removes the account, behind a "What deleting does" disclosure, so it takes two deliberate clicks.
 
 ## Decisions
 
@@ -38,7 +39,7 @@ and was marked public would be served to everyone. Three layers keep that from h
    sets a cookie, is `Cache-Control: private, no-store`, set in one middleware after the handler runs, so no page can
    forget it. Static files are the exception, only as the static route serves them: the same for everyone, and they set no
    cookie. A missing page under `/_static/` is a page like any other.
-2. **CloudFront.** The cache policy adds the session cookie to the cache key. A signed-in request then never matches
+2. **CloudFront.** The cache policy adds the session cookie, and the one-time notice cookie, to the cache key. A signed-in request then never matches
    the shared signed-out copy, and CloudFront never collapses two visitors' requests into one origin request. Its
    responses are never stored anyway, so each signed-in visitor's key holds nothing. CloudFront also caches
    `Set-Cookie` with an object when cookies are in the key, which the first layer rules out.
@@ -114,12 +115,26 @@ endpoint can come later without changing the session model.
   Forms carry what they need in their action's query string, which holds nothing secret, such as where to return.
 - **Proposed: return paths are paths on this site only.** A return parameter must start with one `/`, have no
   backslash or control character, parse with no scheme or host, fit in 2,000 bytes, and not be a sign-in page;
-  anything else returns to `/`. `//evil.example`, `/\evil.example`, and `https://evil.example` all go home.
+  anything else returns to `/`. `//evil.example`, `/\evil.example`, and `https://evil.example` all go home. Nothing
+  under `/account/` is a return target either: it holds the callback and actions that take POST. Signing out doesn't
+  return to the account page, which a signed-out visitor can't see, but home. A URL's `#fragment` never reaches the
+  server, so a visitor returns to the page without it; keeping it would need a script.
+- **Proposed: after signing out, signing out everywhere, or deleting an account, the next page says so, once.** The
+  action's redirect sets `__Host-rulemart-notice` for a minute, naming one of Rulemart's notices, never text to show.
+  The page that renders it clears it, so that one response sets a cookie and is private, and the next is cached as
+  usual. CloudFront keys its cache on this cookie too, so a cached page never hides the notice. A query parameter would
+  have kept the response cacheable, but would stay in the address bar, history, and shared links. Deleting an account
+  redirects home with its notice rather than answering the POST with a page, so reloading or going back doesn't post
+  again.
+- **Known: Back right after signing in does nothing visible.** The history holds the sign-in page, which sends a
+  signed-in visitor on to where they were going, as GitHub's authorization page does once they've authorized Rulemart.
+  Skipping it would need a script to replace the history entry.
 
 ### Accounts
 
 - **Decided: accounts are keyed by GitHub's numeric user ID.** Logins change, and a freed login can belong to someone
-  else. `accounts.github_user_id` is unique; `github_login` isn't.
+  else. `accounts.github_user_id` is unique; `github_login` isn't. A login may have an underscore, as an Enterprise
+  Managed User's does, such as `octocat_acme`.
 - **Proposed: an account keeps only the GitHub user ID, the login, and the avatar's address**, the last two refreshed
   at each sign-in, plus when it was made and last signed in. No name, email, or token. An avatar that isn't on
   `avatars.githubusercontent.com`, the only image host the pages' content security policy allows, isn't kept.
@@ -147,17 +162,27 @@ endpoint can come later without changing the session model.
 ### Local development
 
 - **Decided: a dev sign-in that production builds can't include.** Built with the `rulemartdev` tag, as `make web-dev`
-  does, the sign-in page offers two test users, `rulemart-tester` and `rulemart-tester-2`, which `POST
+  does, the sign-in page offers two test users, `test_user` and `test_user_2`, which `POST
   /account/dev-sign-in` signs in through the same code as GitHub's callback. Their IDs, 9,000,000,001 and
-  9,000,000,002, are far past GitHub's, and they have no avatar. **Proposed** guards:
+  9,000,000,002, are far past GitHub's, no personal GitHub account can have an underscore in its login, and they have
+  no avatar. Their account page calls them local test users and links no GitHub profile. **Proposed** guards:
   - The code lives in `internal/platform/web/dev_sign_in.go`, which only the tag compiles;
     `dev_sign_in_off.go` stands in otherwise.
   - `cmd/web`'s tests build the web function with `lambda-build.toml`'s own tags and check that its binary lacks the
     dev sign-in's route, while a `rulemartdev` build has it, so the check would see a regression.
   - A `rulemartdev` build refuses to start on Lambda.
   - `make check` vets and tests both builds.
-- **Proposed: without `GITHUB_CLIENT_ID`, pages offer no sign-in**, outside a dev build. A release with this slice can
-  deploy before the OAuth app exists, and sign-in appears once infrastructure sets the variables.
+- **Proposed: without `GITHUB_CLIENT_ID`, pages offer no sign-in**, outside a dev build: no header link, and
+  `/sign-in` answers 404, saying sign-in isn't available yet. A release with this slice can deploy before the OAuth app
+  exists, and sign-in appears once infrastructure sets the variables. The header's Sign in shows GitHub's mark only
+  when it leads to GitHub.
+
+### Header
+
+- **Proposed: the account slot is as wide as its widest content at each width**, the Sign in button, a phone's Sign in
+  link, or a narrow phone's icon, so signing in or out never moves Libraries, Groups, or search.
+- **Proposed: below 384 pixels, the header drops Fabrica's mark and shows Sign in as a labeled person icon**, so it
+  fits down to 320 pixels; between 384 and 720 it keeps the mark, without Fabrica's name, and a Sign in link.
 
 ### Logging and abuse
 
@@ -193,7 +218,7 @@ Nothing is applied. Two pull requests carry the changes:
 - **fabricahq/infra-live:** the `accounts_writer_role` unit, `rulemart_web`'s membership in it, the
   `/rulemart/prod/github-client-secret` parameter, the web function's `GITHUB_CLIENT_ID` and
   `GITHUB_CLIENT_SECRET_PARAMETER` with permission to read it, and CloudFront accepting every method, with the session
-  cookie in its cache key.
+  and notice cookies in its cache key.
 
 ### What Josh creates
 

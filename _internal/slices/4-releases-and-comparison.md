@@ -85,19 +85,24 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A release names each rule by the title it published then. Proposed.** A rule renamed later keeps its old title in
   the releases before the rename, and a retired rule shows its last title.
 - **A retired rule's replacement is followed to a current rule. Proposed.** When the rule that replaced a retired one
-  was retired too by the end of what a page shows, the page names the chain: "Replaced by Verify retries, itself
-  replaced by Verify retry limits". A release's card follows it to that release, a comparison to its later release,
-  and a retired rule's page to now, each rule named by its title then. Following stops at a rule it already named,
-  so a cycle in a library's records can't loop, and after 20 rules; a chain of more than three names its first two
-  rules and its last, and counts the ones between, so a library that retires a rule every release can't make a page's
-  work grow with the square of its rules.
+  was retired too, every page that names the replacement names the chain to the rule current now: "Replaced by Verify
+  retries, itself replaced by Verify retry limits". A retired rule's page, its row on the All rules tab, a release's
+  card, and a comparison all follow it the same way, so the reader always reaches the rule that holds the guidance
+  today. A release's card and a comparison name the first replacement by its title then. Following stops at a rule it
+  already named, so a cycle in a library's records can't loop, and after 20 rules; a chain of more than three names its
+  first two rules and its last, and counts the ones between, so a library that retires a rule every release can't make a
+  page's work grow with the square of its rules.
 - **A rename shows once, as a rename. Proposed.** Code Rules records a rename as a retired rule replaced by a new one.
   When the release that retired a rule added its replacement under the retired rule's last title, Rulemart shows one
   change, under Renamed rules: the new ID, "Renamed from" the old one, and the old rule's last text compared with the
-  new rule's. Pages say "renamed to" and "renamed from" rather than "replaced by". A replacement under another title
-  stays a retirement and a new rule.
+  new rule's. The change names only the new rule's version, since the old one's belongs to another rule, and links
+  "Compare the text"; when the text didn't change, the diff says so rather than calling the two files the same. Pages
+  say "renamed to" and "renamed from" rather than "replaced by". A replacement under another title stays a retirement
+  and a new rule.
+- **A linked release or diff stands out. Proposed.** Following a link to a release's card or a rule's diff outlines
+  that card, and a page leaves room below its last cards, so the target scrolls to the top even at the page's end.
 - **Long lists of changes fold. Proposed.** A section of more than 20 rules shows 10 and folds the rest behind a
-  disclosure that counts them, such as public-rules' first release, which adds 127.
+  disclosure that counts them, such as public-rules' first release, which adds 127; open, it reads "Show fewer".
 - **Each release links its comparison with the release before it, and its tag links its card. Proposed.**
 - **"Latest library release" links to the Library releases tab. Proposed.** Each card still links to the release's
   GitHub Release page, which is only its announcement.
@@ -113,8 +118,8 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   the form to choose again, and a link back to the list, with status 404 and `noindex`. A library or rule that doesn't
   exist answers the site's missing page (**Existing**).
 - **A comparison says when shared files changed, and offers words or lines only for a diff. Proposed.** Code Rules
-  records that a release changed library-wide files, without which ones, so a comparison says a release in its range
-  did.
+  records that a release changed library-wide files, without which ones, so a comparison names the releases in its
+  range that did, "release/5 updates shared files", or counts them when there are more than three.
 - **Comparisons carry `noindex` and name no canonical address. Proposed.** As with search (**Existing**), every pair
   would otherwise be a page of its own to a search engine. The tabs themselves name their page's address
   (**Existing**).
@@ -149,7 +154,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   deletion and the insertion that replaces it stand apart. In code, a change of indentation is marked after the line
   break, which stays unmarked.
 - **The lines view folds the unchanged lines between hunks. Proposed.** A reader can show them, as the words view
-  shows unchanged blocks.
+  shows unchanged blocks; once shown, the next hunk drops its "@@" header, which would otherwise sit mid-run.
 - **Rule text in a diff is text. Existing rule.** A diff shows a rule's Markdown escaped, as segments the template
   escapes, never as HTML Rulemart assembles, so markup in a rule can't run or load.
 - **Diff colors are the first colors in the palette. Proposed.** Green and red, after GitHub's diff colors, as tokens
@@ -164,8 +169,9 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A retired rule has a page. Proposed.** Releases and comparisons name retired rules, so they need somewhere to
   lead. The page shows the rule's last title and version, the release that retired it and why, what replaced or
   renamed it, its last version's text with a link to that file on GitHub, and its versions, which compare as a current
-  rule's do. The All rules tab lists retired rules after the current ones, in the same order: technologies first, by
-  group, then by title.
+  rule's do. The text's headings sit a level below the section that holds it, so "Rule" and "Evidence" nest under
+  "Text of version 1.0.0". The All rules tab lists retired rules after the current ones, in the same order:
+  technologies first, by group, then by title.
 - **Retired rules stay out of search. Proposed.** Search finds rules to adopt (**Existing**: it reads current rules
   only); a retired rule is reached from its library's pages and from the releases and rules that name it.
 - **A retirement's reason names what the library wrote.** In the test library, release/5 retired verify-timeouts
