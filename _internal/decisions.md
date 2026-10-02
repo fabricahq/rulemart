@@ -46,8 +46,9 @@ than adding history.
   libraries list show how many accounts starred it, up to a minute old for visitors who aren't signed in, as every
   cached page is. Libraries stay listed by owner and name, so inflating a count wins no place.
 - **Starring is a POST to `/account/stars`, and unstarring to `/account/stars/remove`**, each naming the library in
-  its query string and returning to the page; repeating either changes nothing. A visitor who isn't signed in gets a
-  link that signs them in and returns them. `/account/stars` lists a visitor's stars, newest first.
+  its query string and returning to the page, which says what it did and focuses the button; repeating either changes
+  nothing. A visitor who isn't signed in gets a link that signs them in and returns them, prompted once to star the
+  library. `/account/stars` lists a visitor's stars, newest first.
 - **Deleting an account removes its stars**, so they stop counting.
 
 ## Groups
@@ -121,6 +122,8 @@ than adding history.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
   and an account keeps at most 20.
+- **Public pages are `public, max-age=0, s-maxage=60`**: CloudFront keeps them a minute, and browsers ask it again
+  each time, so a browser that signs in or out never shows a page it kept from before.
 - **A page for a signed-in visitor is never cached.** Any response to a request with the session cookie, or that sets
   a cookie, is `private, no-store`; CloudFront keys its cache on the session cookie too; and other pages vary with
   `Cookie` in browsers. Pages for everyone stay public and identical, so signed-out traffic keeps the cache. A notice
