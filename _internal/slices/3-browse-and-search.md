@@ -22,7 +22,7 @@ accepted them. **Existing** ones are already in [decisions.md](../decisions.md) 
   then practices. The home page shows the canonical ones as a grid of tiles, with a link to `/groups`.
 - **See one group across libraries.** `/groups/techs/go` shows every vetted library's current Go rules, under each
   library's name, avatar, and a link to its page. A rule page's breadcrumb and a library page's group rows link a canonical group's page,
-  as "Go rules in all libraries" and "All libraries", beside their link to the group's rules in that library.
+  as "Go rules in every library", beside their link to the group's rules in that library.
 - **Search.** `/search?q=retry limits` lists the best-matching current rules of vetted libraries, best first. Each
   result names its rule, its library, and its group.
 

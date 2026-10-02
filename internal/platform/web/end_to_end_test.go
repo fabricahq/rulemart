@@ -77,7 +77,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 
 	for path, want := range map[string]string{
 		"/":                          "example/rules 1 rule",
-		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. 1 rule ›",
+		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
 		errorsRule:                   "Wrap every returned error.",
 		errorsRule + "?tab=versions": "1.0.0 Latest release/1 1 Sep 2026 Add the rule.",
@@ -144,7 +144,7 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. 1 rule › All libraries techs/golang not canonical Go rules. 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},

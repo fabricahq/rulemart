@@ -256,8 +256,8 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	assertShows(t, resp.Body.String(),
 		"example / rules Example rules for tests.",
 		"Groups 2", "All rules 2",
-		"Technologies · 1 Go techs/go The Go language. 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
 	)
 	if !strings.Contains(resp.Body.String(), `href="https://github.com/example/rules/releases/tag/release/3"`) {
@@ -695,10 +695,10 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 	assertShows(t, page,
 		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
 		// its library.
-		"Technologies · 3 Go techs/go The Go language. 1 rule ›",
+		"Technologies · 3 Go techs/go The Go language. Go rules in every library › 1 rule ›",
 		"techs/golang not canonical More Go rules. 1 rule ›",
-		"Goose techs/goose 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Goose techs/goose Goose rules in every library › 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 	)
 	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") {
 		t.Error("the page shows a group's reading guidance")
@@ -737,15 +737,15 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	canonical := get(t, handler, returnErrorsGo).Body.String()
 	other := get(t, handler, passContext).Body.String()
 
-	assertShows(t, canonical, "mixed › Go techs/go Go rules in all libraries ›")
+	assertShows(t, canonical, "mixed › Go techs/go Go rules in every library ›")
 	assertFlagsExplainThemselves(t, canonical, 0)
 	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
 	// A canonical group's rules in every library are a page of their own; any other group stands alone.
-	if got := links(t, canonical, "rules in all libraries"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
-	if got := links(t, other, "rules in all libraries"); len(got) != 0 {
+	if got := links(t, other, "rules in every library"); len(got) != 0 {
 		t.Errorf("a group that isn't canonical links %q across libraries", got)
 	}
 }
@@ -754,7 +754,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
 
-	if got := links(t, page, "All libraries"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
+	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
 		t.Errorf("the groups link %q across libraries", got)
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {
