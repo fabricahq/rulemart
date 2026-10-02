@@ -51,7 +51,7 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
-		"/": false, "/libraries": false, "/groups/techs/go": false, "/example/rules": false, "/example/rules?tab=releases": false,
+		"/": false, "/libraries": false, "/g/techs/go": false, "/browse/techs": false, "/faq": false, "/example/rules": false, "/example/rules?tab=releases": false,
 		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
 		"/sign-in-kit/rules": false, "/accountant/rules": false,
 	} {
@@ -137,11 +137,16 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	want := []string{
 		"https://rulemart.example/",
 		"https://rulemart.example/libraries",
-		"https://rulemart.example/groups",
+		"https://rulemart.example/browse/techs",
+		"https://rulemart.example/browse/techs/other",
+		"https://rulemart.example/browse/practices",
+		"https://rulemart.example/browse/practices/other",
 		"https://rulemart.example/about",
 		"https://rulemart.example/privacy",
-		"https://rulemart.example/groups/practices/testing",
-		"https://rulemart.example/groups/techs/go",
+		"https://rulemart.example/faq",
+		"https://rulemart.example/feedback",
+		"https://rulemart.example/g/practices/testing",
+		"https://rulemart.example/g/techs/go",
 		"https://rulemart.example/example/rules",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
 		"https://rulemart.example/example/rules/techs/go/return-errors",
@@ -154,7 +159,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/example/rules":                                       "2026-09-03",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits": "2026-09-02",
 		"https://rulemart.example/other/go.rules":                                      "2026-09-04",
-		"https://rulemart.example/groups":                                              "",
+		"https://rulemart.example/browse/techs":                                        "",
 	} {
 		if lastMod[loc] != date {
 			t.Errorf("%s: lastmod %q, want %q", loc, lastMod[loc], date)

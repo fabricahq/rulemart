@@ -46,7 +46,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 				<div class="wrap">
 					<div class="mb-[18px] flex items-baseline justify-between gap-4">
 						<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Browse by group</h2>
-						<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(groupsHref) }>All groups ›</a>
+						<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(techsKind.href()) }>All groups ›</a>
 					</div>
 					@groupTiles("Technologies", canonicalOnly(groups.techs))
 					@groupTiles("Practices", canonicalOnly(groups.practices))

@@ -88,7 +88,7 @@ func TestHomeLeadsWithSearchAndBrowsesCanonicalGroups(t *testing.T) {
 	page := get(t, newSite(t, newBrowsingCatalog()), "/").Body.String()
 
 	assertShows(t, page, "Browse by group All groups ›", "Technologies Go 3 rules", "Practices Testing 1 rule")
-	if got := links(t, page, "Go 3 rules"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+	if got := links(t, page, "Go 3 rules"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("Go's tile links %q", got)
 	}
 	// A group that isn't canonical stands alone, so the home page's tiles, which lead across libraries, leave it out.
@@ -141,7 +141,7 @@ func TestPagesLetFormsSubmitOnlyToRulemart(t *testing.T) {
 func TestHeaderSearchesFromEveryPageButSearch(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/", "/groups", "/groups/techs/go", library, errorsRule} {
+	for _, path := range []string{"/", "/browse/techs", "/g/techs/go", library, errorsRule} {
 		assertSearchForm(t, get(t, handler, path).Body.String(), "header-search", "")
 	}
 	if page := get(t, handler, "/search").Body.String(); strings.Contains(page, `id="header-search"`) {
@@ -153,7 +153,7 @@ func TestHeaderSearchesFromEveryPageButSearch(t *testing.T) {
 func TestPagesLetKeyboardsSkipToTheirContent(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/", "/libraries", "/groups", "/groups/techs/go", "/search?q=errors", library, errorsRule, "/missing/page/here"} {
+	for _, path := range []string{"/", "/libraries", "/browse/techs", "/g/techs/go", "/search?q=errors", library, errorsRule, "/missing/page/here"} {
 		page := get(t, handler, path).Body.String()
 		if got := links(t, page, "Skip to content"); !slices.Equal(got, []string{"#main"}) || !strings.Contains(page, `<main id="main"`) {
 			t.Errorf("%s: the skip link leads to %q", path, got)
@@ -164,36 +164,97 @@ func TestPagesLetKeyboardsSkipToTheirContent(t *testing.T) {
 	}
 }
 
-func TestGroupsPageListsTechnologiesThenPracticesAcrossLibraries(t *testing.T) {
+func TestBrowsePagesListEachKindsCanonicalGroupsAcrossLibraries(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	resp := get(t, handler, "/groups")
+	resp := get(t, handler, "/browse/techs")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d", resp.Code)
+	}
+	page := resp.Body.String()
+	// A technology's row names it and its ID; its description is in its name. The other groups stand apart.
+	assertShows(t, page, "Browse Technologies Technologies Practices Go techs/go 3 rules 2 libraries", "View other technology groups (1) →")
+	if strings.Contains(visibleText(t, page), "golang") || strings.Contains(visibleText(t, page), "The Go language.") {
+		t.Error("the technologies page lists a group that isn't canonical, or a technology's description")
+	}
+	if got := links(t, page, "Go techs/go"); !slices.Equal(got, []string{"/g/techs/go"}) {
+		t.Errorf("Go links %q", got)
+	}
+	if got := links(t, page, "View other technology groups"); !slices.Equal(got, []string{"/browse/techs/other"}) {
+		t.Errorf("the other groups link %q", got)
+	}
+	if !strings.Contains(page, "<title>Technologies · Rulemart</title>") {
+		t.Error("the title doesn't name the kind")
+	}
+
+	practices := get(t, handler, "/browse/practices").Body.String()
+	// A practice's row says which rules belong in it, and with no other practice group, nothing leads to them.
+	assertShows(t, practices, "Browse Practices", "Testing practices/testing · What to test and how. 1 rule 1 library")
+	if strings.Contains(practices, "View other practice groups") {
+		t.Error("the practices page leads to other groups when there are none")
+	}
+	if got := links(t, practices, "Practices"); !slices.Contains(got, "/browse/practices") {
+		t.Errorf("the tabs link %q", got)
+	}
+}
+
+func TestBrowsePagesSayWhenNoLibraryHasAGroupOfTheKind(t *testing.T) {
+	handler := newSite(t, newCatalog())
+
+	assertShows(t, get(t, handler, "/browse/techs").Body.String(), "No technology groups yet.")
+	assertShows(t, get(t, handler, "/browse/practices/other").Body.String(), "Other practice groups", "None right now.")
+}
+
+// The other-groups page lists each group a library declared that isn't canonical, one row per library and group,
+// leading to the group's section on its library's All rules tab.
+func TestOtherGroupsPageListsEachLibrarysOwnGroups(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	resp := get(t, handler, "/browse/techs/other")
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"Technologies · 2 Go techs/go The Go language. 3 rules · 2 libraries › techs/golang not canonical in other/go-rules 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. 1 rule · 1 library ›",
+		"Technologies › Other groups Other technology groups",
+		"Rulemart defines canonical “rule groups” like techs/go",
+		"techs/golang other/go-rules 1 rule",
 	)
-	assertFlagsExplainThemselves(t, page, 1)
-	// A canonical group leads to its page across libraries; any other group to its section in its one library.
-	if got := links(t, page, "techs/go "); !slices.Equal(got, []string{"/groups/techs/go"}) {
-		t.Errorf("Go links %q", got)
+	if strings.Contains(visibleText(t, page), "techs/go 3 rules") {
+		t.Error("the other groups page lists a canonical group")
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{"/other/go-rules?tab=rules#group-techs-golang"}) {
 		t.Errorf("techs/golang links %q", got)
 	}
-	if strings.Contains(page, `href="/groups/techs/golang"`) {
-		t.Error("a group that isn't canonical links a page across libraries")
+	if got := links(t, page, "Technologies"); !slices.Contains(got, "/browse/techs") {
+		t.Errorf("the crumb links %q", got)
+	}
+	if !strings.Contains(page, "<title>Other technology groups · Rulemart</title>") {
+		t.Error("the title doesn't name the page")
 	}
 }
 
-func TestGroupsPageSaysWhenNoLibraryHasAGroup(t *testing.T) {
-	page := get(t, newSite(t, newCatalog()), "/groups").Body.String()
+// The groups page's old addresses redirect to the prototype's, keeping the query.
+func TestOldGroupAddressesRedirectToTheNewOnes(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
 
-	assertShows(t, page, "No groups yet.")
+	for path, location := range map[string]string{
+		"/groups":                "/browse/techs",
+		"/groups?x=1":            "/browse/techs?x=1",
+		"/groups/techs/go":       "/g/techs/go",
+		"/groups/techs/go?ref=x": "/g/techs/go?ref=x",
+		"/groups/Techs/Go":       "/g/Techs/Go",
+		"/Groups/techs/go":       "/groups/techs/go",
+		"/groups/techs/missing":  "/g/techs/missing",
+		"/browse":                "/browse/techs",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
+		}
+	}
 }
 
 // A canonical group's page names each library its rules come from, in the order the catalog gives, and leads to each
@@ -201,20 +262,20 @@ func TestGroupsPageSaysWhenNoLibraryHasAGroup(t *testing.T) {
 func TestGroupPageShowsEachLibrarysRules(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	resp := get(t, handler, "/groups/techs/go")
+	resp := get(t, handler, "/g/techs/go")
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"Groups › Technologies Go techs/go The Go language. Rules 3 in 2 libraries",
+		"Technologies › techs/go Go techs/go The Go language. Rules 3 in 2 libraries",
 		"example/rules 1 rule View in library › Return errors with context HIGH 2.0.0 techs/go/return-errors "+
 			"other/go-rules 2 rules View in library › Close response bodies MEDIUM 1.0.0 techs/go/close-bodies "+
 			"Name packages plainly LOW 1.2.0 techs/go/name-packages",
 	)
 	for text, want := range map[string]string{
-		"Technologies":               "/groups#technologies",
+		"Technologies":               "/browse/techs",
 		"other/go-rules":             "/other/go-rules",
 		"Close response bodies":      "/other/go-rules/techs/go/close-bodies",
 		"Return errors with context": errorsRule,
@@ -231,7 +292,7 @@ func TestGroupPageShowsEachLibrarysRules(t *testing.T) {
 }
 
 func TestGroupPageSaysWhenNoLibraryHoldsTheGroup(t *testing.T) {
-	resp := get(t, newSite(t, newBrowsingCatalog()), "/groups/practices/accessibility")
+	resp := get(t, newSite(t, newBrowsingCatalog()), "/g/practices/accessibility")
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d", resp.Code)
@@ -242,7 +303,7 @@ func TestGroupPageSaysWhenNoLibraryHoldsTheGroup(t *testing.T) {
 func TestGroupPageAnswersNotFoundForAGroupThatIsntCanonical(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/groups/techs/golang", "/groups/Techs/Golang", "/groups/techs"} {
+	for _, path := range []string{"/g/techs/golang", "/g/Techs/Golang", "/g/techs", "/browse/tools", "/browse/techs/golang", "/browse/tools/other"} {
 		if resp := get(t, handler, path); resp.Code != http.StatusNotFound {
 			t.Errorf("%s: got %d", path, resp.Code)
 		}
@@ -260,9 +321,11 @@ func TestBrowsePagesNameTheirAddressAsCanonical(t *testing.T) {
 	}
 
 	for path, want := range map[string]string{
-		"/groups":            "https://rulemart.example/groups",
-		"/groups/techs/go":   "https://rulemart.example/groups/techs/go",
-		"/groups/%74echs/go": "https://rulemart.example/groups/techs/go",
+		"/browse/techs":       "https://rulemart.example/browse/techs",
+		"/browse/practices":   "https://rulemart.example/browse/practices",
+		"/browse/techs/other": "https://rulemart.example/browse/techs/other",
+		"/g/techs/go":         "https://rulemart.example/g/techs/go",
+		"/g/%74echs/go":       "https://rulemart.example/g/techs/go",
 	} {
 		if got := canonicalLinks(t, get(t, handler, path).Body.String()); !slices.Equal(got, []string{want}) {
 			t.Errorf("%s names %q, want %s", path, got, want)
@@ -508,23 +571,26 @@ func TestSearchPageShowsTheQueryAsTextAndSearchesItCleaned(t *testing.T) {
 func TestBrowsePagesAreCacheableForAMinute(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/groups", "/groups/techs/go", "/search", "/search?q=errors", "/search?q=nothing"} {
+	for _, path := range []string{"/browse/techs", "/browse/techs/other", "/g/techs/go", "/search", "/search?q=errors", "/search?q=nothing"} {
 		if got := get(t, handler, path).Header().Get("Cache-Control"); got != "public, max-age=0, s-maxage=60" {
 			t.Errorf("%s: Cache-Control is %q", path, got)
 		}
 	}
 }
 
-// The header links the libraries and the groups from every page, and marks the part of the site a page belongs to.
+// The header links techs, practices, the libraries, and the FAQ from every page, and marks the part of the site a
+// page belongs to.
 func TestHeaderMarksThePartOfTheSiteAPageBelongsTo(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for path, current := range map[string]string{
 		"/libraries": "/libraries", library: "/libraries", errorsRule: "/libraries",
-		"/groups": "/groups", "/groups/techs/go": "/groups", "/": "", "/search": "",
+		"/browse/techs": "/browse/techs", "/browse/techs/other": "/browse/techs", "/g/techs/go": "/browse/techs",
+		"/browse/practices": "/browse/practices", "/g/practices/accessibility": "/browse/practices",
+		"/faq": "/faq", "/": "", "/search": "", "/feedback": "",
 	} {
 		page := get(t, handler, path).Body.String()
-		for _, href := range []string{"/libraries", "/groups"} {
+		for _, href := range []string{"/browse/techs", "/browse/practices", "/libraries", "/faq"} {
 			if !strings.Contains(page, `href="`+href+`"`) {
 				t.Errorf("%s: the header doesn't link %s", path, href)
 			}
@@ -592,14 +658,20 @@ func TestPagesRedirectOtherSpellingsOfTheirAddress(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for path, location := range map[string]string{
-		"/groups/Techs/GO":                       "/groups/techs/go",
-		"/groups/techs/Go?ref=x":                 "/groups/techs/go?ref=x",
-		"/groups/":                               "/groups",
+		"/g/Techs/GO":                            "/g/techs/go",
+		"/g/techs/Go?ref=x":                      "/g/techs/go?ref=x",
+		"/browse/":                               "/browse",
+		"/browse/techs/":                         "/browse/techs",
+		"/browse/Techs":                          "/browse/techs",
+		"/browse/PRACTICES/other?x=1":            "/browse/practices/other?x=1",
+		"/G/techs/go":                            "/g/techs/go",
+		"/FAQ":                                   "/faq",
+		"/Feedback?x=1":                          "/feedback?x=1",
 		"/search/?q=errors&page=2":               "/search?q=errors&page=2",
 		"/example/rules/":                        "/example/rules",
 		"/example/rules/?tab=rules":              "/example/rules?tab=rules",
 		"/example/rules/techs/go/return-errors/": "/example/rules/techs/go/return-errors",
-		"/groups/techs/go///":                    "/groups/techs/go",
+		"/g/techs/go///":                         "/g/techs/go",
 	} {
 		resp := get(t, handler, path)
 		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
@@ -661,7 +733,7 @@ func listItems(t *testing.T, body, kind string) []int {
 func TestBrowsePagesStructureSectionsAsHeadingsAndLists(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	group := get(t, handler, "/groups/techs/go").Body.String()
+	group := get(t, handler, "/g/techs/go").Body.String()
 	if got := headings(t, group, "h2"); !slices.Equal(got, []string{"example/rules", "other/go-rules"}) {
 		t.Errorf("the group page's sections are headed %q", got)
 	}
@@ -680,8 +752,4 @@ func TestBrowsePagesStructureSectionsAsHeadingsAndLists(t *testing.T) {
 		t.Errorf("the search page's ordered lists hold %v items", got)
 	}
 
-	index := get(t, handler, "/groups").Body.String()
-	if got := headings(t, index, "h2"); !slices.Equal(got, []string{"Technologies · 2", "Practices · 1"}) {
-		t.Errorf("the groups page's sections are headed %q", got)
-	}
 }

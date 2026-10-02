@@ -268,11 +268,11 @@ func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
 	handler := newTwoLibrarySite(t)
 
 	for path, want := range map[string]string{
-		"/":                "Technologies Go 2 rules Practices Testing 1 rule",
-		"/groups":          "Go techs/go The Go programming language and its standard tooling. 2 rules · 2 libraries ›",
-		"/groups/techs/go": "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
-		"/search?q=retry":  "2 rules match “retry” Verify retry limits",
-		"/search?q=go":     "2 rules match “go”",
+		"/":               "Technologies Go 2 rules Practices Testing 1 rule",
+		"/browse/techs":   "Go techs/go 2 rules 2 libraries",
+		"/g/techs/go":     "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
+		"/search?q=retry": "2 rules match “retry” Verify retry limits",
+		"/search?q=go":    "2 rules match “go”",
 	} {
 		resp := get(t, handler, path)
 		if resp.Code != http.StatusOK {

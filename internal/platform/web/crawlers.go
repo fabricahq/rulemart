@@ -70,7 +70,11 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 		return true
 	}
 	complete := func() bool {
-		for _, href := range []string{"/", librariesHref, groupsHref, aboutHref, privacyHref} {
+		pages := []string{"/", librariesHref}
+		for _, kind := range groupKinds {
+			pages = append(pages, kind.href(), kind.othersHref())
+		}
+		for _, href := range append(pages, aboutHref, privacyHref, faqHref, feedbackHref) {
 			if !add(href, time.Time{}) {
 				return false
 			}

@@ -290,7 +290,7 @@ func callback(t *testing.T, site accountsSite, query url.Values, cookies ...*htt
 func TestSignInSendsTheVisitorToGitHubWithStateAndAChallenge(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	flow, location := startSignIn(t, site, "/groups")
+	flow, location := startSignIn(t, site, "/browse/techs")
 
 	if location.Host != "github.com" || location.Query().Get("state") == "" || location.Query().Get("code_challenge") == "" {
 		t.Fatalf("sent the visitor to %s", location)
@@ -311,11 +311,11 @@ func TestSignInSendsTheVisitorToGitHubWithStateAndAChallenge(t *testing.T) {
 
 func TestSignInWithGitHubSignsTheVisitorInAndReturnsThemWhereTheyStarted(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	flow, location := startSignIn(t, site, "/groups?tab=all")
+	flow, location := startSignIn(t, site, "/browse/techs?tab=all")
 
 	resp := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow)
 
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups?tab=all" {
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/browse/techs?tab=all" {
 		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	session := cookie(resp, sessionCookie)
@@ -406,7 +406,7 @@ func TestSignInCallbackRefusesWhatThisBrowserDidNotStart(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			site := newAccountsSite(t, nil)
 			site.gitHub.err = tc.gitHubErr
-			flow, location := startSignIn(t, site, "/groups")
+			flow, location := startSignIn(t, site, "/browse/techs")
 			if tc.flow != nil {
 				flow = tc.flow(flow)
 			}
@@ -447,16 +447,16 @@ func TestASignedInVisitorPastAFailedCallbackGoesOnSignedIn(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 	session := &http.Cookie{Name: sessionCookie, Value: string(token)}
-	flow, location := startSignIn(t, site, "/groups", session)
+	flow, location := startSignIn(t, site, "/browse/techs", session)
 	for name, tc := range map[string]struct {
 		query   url.Values
 		cookies []*http.Cookie
 		want    string
 	}{
 		"without a sign-in in progress": {url.Values{"code": {"x"}, "state": {"y"}}, []*http.Cookie{session}, "/"},
-		"with another state":            {url.Values{"code": {"x"}, "state": {"y"}}, []*http.Cookie{session, flow}, "/groups"},
-		"after canceling on GitHub":     {url.Values{"error": {"access_denied"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/groups"},
-		"with a code GitHub refuses":    {url.Values{"code": {"x"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/groups"},
+		"with another state":            {url.Values{"code": {"x"}, "state": {"y"}}, []*http.Cookie{session, flow}, "/browse/techs"},
+		"after canceling on GitHub":     {url.Values{"error": {"access_denied"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/browse/techs"},
+		"with a code GitHub refuses":    {url.Values{"code": {"x"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/browse/techs"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			resp := callback(t, site, tc.query, tc.cookies...)
@@ -473,16 +473,16 @@ func TestASignedInVisitorPastAFailedCallbackGoesOnSignedIn(t *testing.T) {
 // Where to return comes from the visitor's URL, so it may only be a path on this site.
 func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 	for target, want := range map[string]string{
-		"/groups":                       "/groups",
+		"/browse/techs":                 "/browse/techs",
 		"/search?q=retry&page=2":        "/search?q=retry&page=2",
 		"/example/rules?tab=releases":   "/example/rules?tab=releases",
-		"/groups#techs":                 "/groups",
+		"/browse/techs#techs":           "/browse/techs",
 		"":                              "/",
 		"https://evil.example/":         "/",
 		"//evil.example/":               "/",
 		"///evil.example/":              "/",
 		`/\evil.example/`:               "/",
-		`/groups\..\evil`:               "/",
+		`/browse/techs\..\evil`:         "/",
 		"/%09/evil.example":             "/%09/evil.example",
 		"/\t/evil.example":              "/",
 		"/\n/evil.example":              "/",
@@ -514,7 +514,7 @@ func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 // A flow cookie is the browser's to change, so the return path it holds is checked again when it comes back.
 func TestSignInChecksTheReturnPathItsCookieHoldsAgain(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	flow, location := startSignIn(t, site, "/groups")
+	flow, location := startSignIn(t, site, "/browse/techs")
 	parts := strings.Split(flow.Value, ".")
 	flow.Value = parts[0] + "." + parts[1] + "." + "Ly9ldmlsLmV4YW1wbGU" // base64url of //evil.example
 
@@ -530,9 +530,9 @@ func TestSignOutEndsTheSessionAndClearsItsCookie(t *testing.T) {
 	token := site.accounts.signedIn(t, octocat)
 	held := &http.Cookie{Name: sessionCookie, Value: string(token)}
 
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fgroups", cookies: []*http.Cookie{held}})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fbrowse%2Ftechs", cookies: []*http.Cookie{held}})
 
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups" {
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/browse/techs" {
 		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	if cleared := cookie(resp, sessionCookie); cleared == nil || cleared.MaxAge >= 0 || !cleared.Secure {
@@ -588,7 +588,7 @@ func TestOnlyPagesForEveryoneCanBeCached(t *testing.T) {
 	ended := &http.Cookie{Name: sessionCookie, Value: string(accounts.NewSessionToken())}
 	malformed := &http.Cookie{Name: sessionCookie, Value: "not-a-token"}
 	// /_static/missing and /_static/v1 aren't static files: the missing page answers them, for its visitor.
-	for _, path := range []string{"/", library, retryRule, "/groups", "/search?q=retry", "/example/missing", "/libraries/", "/_static/missing", "/_static/v1/"} {
+	for _, path := range []string{"/", library, retryRule, "/browse/techs", "/search?q=retry", "/example/missing", "/libraries/", "/_static/missing", "/_static/v1/"} {
 		for name, tc := range map[string]struct {
 			cookie *http.Cookie
 			want   string
@@ -685,10 +685,10 @@ func TestSignInLinksAndGitHubsCallbackAreOnTheBaseURL(t *testing.T) {
 	}
 	site := newAccountsSite(t, func(o *web.Options) { o.BaseURL = baseURL })
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "https://d111111abcdef8.cloudfront.net/groups"}))
-	_, location := startSignIn(t, site, "/groups")
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "https://d111111abcdef8.cloudfront.net/browse/techs"}))
+	_, location := startSignIn(t, site, "/browse/techs")
 
-	if link := findLink(t, page, "Sign in"); link != "https://rulemart.example/sign-in?return=%2Fgroups" {
+	if link := findLink(t, page, "Sign in"); link != "https://rulemart.example/sign-in?return=%2Fbrowse%2Ftechs" {
 		t.Errorf("Sign in leads to %q", link)
 	}
 	if got := location.Query().Get("redirect_uri"); got != "https://rulemart.example/account/github/callback" {
@@ -700,7 +700,7 @@ func TestTheHeaderShowsTheSignedInVisitorsMenu(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 
 	assertShows(t, page, "Signed in as octocat", "Account", "Sign out")
 	if strings.Contains(visibleText(t, page), "Sign in ") {
@@ -711,7 +711,7 @@ func TestTheHeaderShowsTheSignedInVisitorsMenu(t *testing.T) {
 		t.Fatal(err)
 	}
 	form := find(doc, func(n *html.Node) bool { return n.Data == "form" && attribute(n, "method") == "post" })
-	if form == nil || attribute(form, "action") != "/sign-out?return=%2Fgroups" {
+	if form == nil || attribute(form, "action") != "/sign-out?return=%2Fbrowse%2Ftechs" {
 		t.Errorf("the sign-out form is %v", form)
 	}
 	if find(form, func(n *html.Node) bool { return n.Data == "input" }) != nil {
@@ -802,12 +802,12 @@ func TestSignOutSaysSoOnThePageItReturnsTo(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fgroups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fbrowse%2Ftechs", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
-	page := followNotice(t, site, resp, "/groups")
+	page := followNotice(t, site, resp, "/browse/techs")
 	assertShows(t, page, "You're signed out.")
 	// The notice shows once.
-	again := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups"}))
+	again := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs"}))
 	if strings.Contains(visibleText(t, again), "signed out") {
 		t.Error("a page without the notice cookie shows the notice")
 	}
@@ -817,7 +817,7 @@ func TestSignOutSaysSoOnThePageItReturnsTo(t *testing.T) {
 func TestANoticeCookieShowsOnlyRulemartsOwnNotices(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	resp := send(t, site.handler, request{method: http.MethodGet, target: "/groups", cookies: []*http.Cookie{{Name: noticeCookie, Value: "<script>alert(1)</script>"}}})
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{{Name: noticeCookie, Value: "<script>alert(1)</script>"}}})
 
 	if page := body(t, resp); strings.Contains(page, "alert(1)") || strings.Contains(visibleText(t, page), "signed out") {
 		t.Error("the page shows the cookie's value or a notice")
@@ -858,7 +858,7 @@ func TestTheSignInPageSaysWhySignInIsNeededForTheAccount(t *testing.T) {
 func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
-	for path, want := range map[string]string{"/account": "page", "/groups": ""} {
+	for path, want := range map[string]string{"/account": "page", "/browse/techs": ""} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 		doc, err := html.Parse(strings.NewReader(page))
 		if err != nil {
@@ -874,7 +874,7 @@ func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
 // The sign-in page keeps the header's account slot, empty, so the links beside it stay where every page has them.
 func TestTheSignInPageKeepsTheHeadersAccountSlot(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	for _, path := range []string{"/groups", "/sign-in"} {
+	for _, path := range []string{"/browse/techs", "/sign-in"} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path}))
 		if !strings.Contains(page, accountSlotClass) {
 			t.Errorf("%s has no account slot", path)
@@ -885,7 +885,7 @@ func TestTheSignInPageKeepsTheHeadersAccountSlot(t *testing.T) {
 // The header's sign-in link shows GitHub's mark only when it leads to signing in with GitHub.
 func TestTheHeaderShowsGitHubsMarkOnlyForGitHubSignIn(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs"}))
 	if !signInLinkHasMark(t, page) {
 		t.Error("with GitHub, the Sign in link has no GitHub mark")
 	}
@@ -911,9 +911,9 @@ func TestASignedInVisitorIsSentOnFromTheSignInPage(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 
-	resp := send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fgroups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fbrowse%2Ftechs", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups" {
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/browse/techs" {
 		t.Errorf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 }
@@ -921,7 +921,7 @@ func TestASignedInVisitorIsSentOnFromTheSignInPage(t *testing.T) {
 func TestTheSignInPageSaysWhatRulemartReadsFromGitHub(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fgroups"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fbrowse%2Ftechs"}))
 
 	assertShows(t, page, "Sign in to Rulemart", "Continue with GitHub", "your GitHub user ID, username, and avatar")
 	doc, err := html.Parse(strings.NewReader(page))
@@ -929,10 +929,10 @@ func TestTheSignInPageSaysWhatRulemartReadsFromGitHub(t *testing.T) {
 		t.Fatal(err)
 	}
 	form := find(doc, func(n *html.Node) bool {
-		return n.Data == "form" && attribute(n, "action") == "/sign-in?return=%2Fgroups"
+		return n.Data == "form" && attribute(n, "action") == "/sign-in?return=%2Fbrowse%2Ftechs"
 	})
 	if form == nil || attribute(form, "method") != "post" {
-		t.Error("the GitHub button doesn't post to start signing in, returning to /groups")
+		t.Error("the GitHub button doesn't post to start signing in, returning to /browse/techs")
 	}
 }
 
@@ -1007,7 +1007,7 @@ func TestOnlyTheSignInPageMayRedirectAFormToGitHubsAuthorization(t *testing.T) {
 		"/sign-in":                 "'self' https://github.com/login/oauth/authorize",
 		"/account/github/callback": "'self' https://github.com/login/oauth/authorize",
 		"/":                        "'self'",
-		"/groups":                  "'self'",
+		"/browse/techs":            "'self'",
 	} {
 		resp := send(t, site.handler, request{method: http.MethodGet, target: path})
 		var formAction string

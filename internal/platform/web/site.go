@@ -1,8 +1,8 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
-// current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
-// each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
-// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library;
-// starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page reads, which
+// current version and version history, comparisons of two releases or two rule versions, the groups across libraries
+// by kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
+// pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account;
+// listing a library; starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page reads, which
 // app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars from
 // catalog/app.Stars, and carts from catalog/app.Cart.
 package web
@@ -178,11 +178,15 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET "+privacyHref, s.privacy)
 	handle("GET "+faqHref, s.faq)
 	handle("GET "+feedbackHref, s.feedback)
-	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
-	// segment, so it can't either, though GitHub has an account named libraries.
+	// One segment can't hide a library's page, though GitHub has accounts named libraries, browse, and g, and
+	// a group's page and a browse page have three segments, where a rule's page has at least four.
 	handle("GET /libraries", s.libraries)
-	handle("GET /groups", s.groups)
-	handle("GET /groups/{kind}/{name}", s.group)
+	handle("GET "+strings.TrimSuffix(browsePrefix, "/"), s.legacyGroups)
+	handle("GET "+browsePrefix+"{kind}", s.browse)
+	handle("GET "+browsePrefix+"{kind}/other", s.otherGroups)
+	handle("GET "+groupPrefix+"{kind}/{name}", s.group)
+	handle("GET "+legacyGroupsHref, s.legacyGroups)
+	handle("GET "+legacyGroupsHref+"/{kind}/{name}", s.legacyGroup)
 	handle("GET /search", s.search)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
@@ -225,12 +229,13 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
 }
 
-// siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
-// path under it, and libraries, search, unvetted, list, about, privacy, faq, and feedback as a whole path, since
-// GitHub has an account named libraries, whose libraries' pages are /libraries/{repo}, and may have others.
+// siteSections are the first segments of the site's own pages, which no library owner shadows: browse, g, and the
+// old groups for every path under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback as a
+// whole path, since GitHub has an account named libraries, whose libraries' pages are /libraries/{repo}, and may have
+// others.
 var siteSections = map[string]bool{
-	"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false,
-	"faq": false, "feedback": false,
+	"browse": true, "g": true, "groups": true,
+	"libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false, "faq": false, "feedback": false,
 }
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
@@ -249,10 +254,7 @@ func withSiteSectionsInLowercase(next http.Handler) http.Handler {
 		if nested {
 			target += "/" + rest
 		}
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		redirect(w, r, target)
+		redirect(w, r, withQuery(target, r))
 	})
 }
 
@@ -270,11 +272,7 @@ func withoutTrailingSlash(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		target := trimmed
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		redirect(w, r, target)
+		redirect(w, r, withQuery(trimmed, r))
 	})
 }
 
@@ -306,13 +304,61 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
-func (s *server) groups(w http.ResponseWriter, r *http.Request) {
+// browse shows the browse page of the kind the path names, techs or practices, and is missing for any other.
+func (s *server) browse(w http.ResponseWriter, r *http.Request) {
+	kind, index, ok := s.browseIndex(w, r, groupKind.href)
+	if !ok {
+		return
+	}
+	s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
+}
+
+// otherGroups shows the groups of the kind the path names that aren't canonical.
+func (s *server) otherGroups(w http.ResponseWriter, r *http.Request) {
+	kind, index, ok := s.browseIndex(w, r, groupKind.othersHref)
+	if !ok {
+		return
+	}
+	s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
+}
+
+// browseIndex reads the groups a browse page shows, for the kind r's path names, and reports whether it did. It
+// answers a kind that isn't one with the missing page, another spelling of the kind with a redirect to the page's
+// address, which href gives, and a failed read with a failure.
+func (s *server) browseIndex(w http.ResponseWriter, r *http.Request, href func(groupKind) string) (groupKind, groupIndexView, bool) {
+	kind, ok := parseGroupKind(r.PathValue("kind"))
+	if !ok {
+		s.notFound(w, r)
+		return "", groupIndexView{}, false
+	}
+	if r.PathValue("kind") != string(kind) {
+		redirect(w, r, withQuery(href(kind), r))
+		return "", groupIndexView{}, false
+	}
 	index, err := s.catalog.GroupIndex(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
-		return
+		return "", groupIndexView{}, false
 	}
-	s.render(w, r, http.StatusOK, groupsPage(s.pageChrome(groupsHref), newGroupIndexView(index, s.assets.iconURL)))
+	return kind, newGroupIndexView(index, s.assets.iconURL), true
+}
+
+// legacyGroups redirects the groups page's old address, and /browse without a kind, to the technologies' browse page,
+// and legacyGroup a group's old address to its page, keeping the query.
+func (s *server) legacyGroups(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(techsKind.href(), r))
+}
+
+func (s *server) legacyGroup(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(groupHref(r.PathValue("kind")+"/"+r.PathValue("name")), r))
+}
+
+// withQuery returns target with r's query, if any.
+func withQuery(target string, r *http.Request) string {
+	if r.URL.RawQuery != "" {
+		return target + "?" + r.URL.RawQuery
+	}
+	return target
 }
 
 func (s *server) group(w http.ResponseWriter, r *http.Request) {
@@ -328,11 +374,7 @@ func (s *server) group(w http.ResponseWriter, r *http.Request) {
 	}
 	view := newGroupPageView(page, s.assets.iconURL)
 	if page.Path != id {
-		target := view.href
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		redirect(w, r, target)
+		redirect(w, r, withQuery(view.href, r))
 		return
 	}
 	if s.withoutCartPrompt(w, r) {

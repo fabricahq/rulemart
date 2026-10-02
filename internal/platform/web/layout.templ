@@ -38,7 +38,8 @@ type head struct {
 	// unvetted marks a page about a library that isn't vetted, which asks search engines neither to index it nor to
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
-	// section is the header's link to the part of the site the page belongs to, librariesHref or groupsHref, or empty.
+	// section is the header's link to the part of the site the page belongs to: a kind's browse page, librariesHref,
+	// or faqHref, or empty.
 	section string
 	// searchPage leaves the header's search field out, keeping its space, since the page holds its own.
 	searchPage bool
@@ -161,8 +162,10 @@ templ header(h head) {
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
 			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1 max-tiny:gap-0" aria-label="Rulemart">
+				@navLink(techsKind.href(), "Techs", h.section)
+				@navLink(practicesKind.href(), "Practices", h.section)
 				@navLink(librariesHref, "Libraries", h.section)
-				@navLink(groupsHref, "Groups", h.section)
+				@navLink(faqHref, "FAQ", h.section)
 				if h.searchPage {
 					// The page holds its own search field; the space keeps the links where every other page has them.
 					<div class="w-[15rem] max-narrow:hidden" aria-hidden="true"></div>

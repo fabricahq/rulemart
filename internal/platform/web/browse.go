@@ -1,4 +1,4 @@
-// Shape what the pages across libraries read, the groups and search, into what they show.
+// Shape what the pages across libraries read, the browse pages, a group's page, and search, into what they show.
 
 package web
 
@@ -15,11 +15,67 @@ import (
 const (
 	// librariesHref is the path of the libraries page.
 	librariesHref = "/libraries"
-	// groupsHref is the path of the groups page.
-	groupsHref = "/groups"
+	// browsePrefix starts the browse pages, one per kind of group, such as /browse/techs.
+	browsePrefix = "/browse/"
+	// groupPrefix starts a canonical group's page, such as /g/techs/go.
+	groupPrefix = "/g/"
+	// legacyGroupsHref is the groups page's old address, which redirects to the technologies' browse page, and under
+	// which each group's old address redirects to its page.
+	legacyGroupsHref = "/groups"
 	// searchHref is the path of the search page, which takes the query in its q parameter.
 	searchHref = "/search"
 )
+
+// groupKind is a kind of group, techs or practices, which the browse pages take as their address's segment.
+type groupKind string
+
+const (
+	techsKind     groupKind = "techs"
+	practicesKind groupKind = "practices"
+)
+
+// groupKinds are the kinds, as the browse pages' tabs order them.
+var groupKinds = []groupKind{techsKind, practicesKind}
+
+// parseGroupKind returns the kind that segment names, matched without regard to case, or false when it names none.
+func parseGroupKind(segment string) (groupKind, bool) {
+	for _, kind := range groupKinds {
+		if strings.EqualFold(segment, string(kind)) {
+			return kind, true
+		}
+	}
+	return "", false
+}
+
+// kindOf returns the kind of the group or rule whose ID is id, such as techs/go.
+func kindOf(id string) groupKind {
+	if strings.HasPrefix(id, "practices/") {
+		return practicesKind
+	}
+	return techsKind
+}
+
+// name names the kind as pages head it: Technologies or Practices.
+func (k groupKind) name() string {
+	if k == practicesKind {
+		return "Practices"
+	}
+	return "Technologies"
+}
+
+// noun names one group of the kind, as in "other technology groups".
+func (k groupKind) noun() string {
+	if k == practicesKind {
+		return "practice"
+	}
+	return "technology"
+}
+
+// href is the kind's browse page.
+func (k groupKind) href() string { return browsePrefix + string(k) }
+
+// othersHref is the page of the kind's groups that aren't canonical.
+func (k groupKind) othersHref() string { return k.href() + "/other" }
 
 // searchHrefFor is the address of page of the search for query, which leaves out the first page's number.
 func searchHrefFor(query string, page int) string {
@@ -36,23 +92,10 @@ func searchHrefFor(query string, page int) string {
 	return searchHref + "?" + params.Encode()
 }
 
-// groupHref is the path of a canonical group's page, such as /groups/techs/go.
+// groupHref is the path of a canonical group's page, such as /g/techs/go.
 func groupHref(id string) string {
 	kind, name, _ := strings.Cut(id, "/")
-	return groupsHref + "/" + url.PathEscape(kind) + "/" + url.PathEscape(name)
-}
-
-// kindName names a group's kind as the groups page heads it: Technologies or Practices.
-func kindName(id string) string {
-	if strings.HasPrefix(id, "practices/") {
-		return "Practices"
-	}
-	return "Technologies"
-}
-
-// kindAnchor is the fragment of a kind's section on the groups page.
-func kindAnchor(id string) string {
-	return strings.ToLower(kindName(id))
+	return groupPrefix + url.PathEscape(kind) + "/" + url.PathEscape(name)
 }
 
 // libraryRefView is a library named on a page about something else: a group, or a search.
@@ -67,7 +110,7 @@ func newLibraryRefView(lib views.LibraryRef) libraryRefView {
 // fullName returns the library's repository as owner/name.
 func (l libraryRefView) fullName() string { return l.owner + "/" + l.name }
 
-// groupSummaryView is a group's row on the groups page, and its tile on the home page.
+// groupSummaryView is a group's row on a browse page, and its tile on the home page.
 type groupSummaryView struct {
 	label groupLabel
 	icon  groupIcon
@@ -110,6 +153,14 @@ func newGroupSummaryViews(groups []views.GroupSummary, iconURL func(file string)
 // empty reports whether no vetted library holds a group.
 func (v groupIndexView) empty() bool { return len(v.techs) == 0 && len(v.practices) == 0 }
 
+// ofKind returns the index's groups of kind, canonical ones first.
+func (v groupIndexView) ofKind(kind groupKind) []groupSummaryView {
+	if kind == practicesKind {
+		return v.practices
+	}
+	return v.techs
+}
+
 // canonicalOnly returns the canonical groups of groups, which the home page shows as tiles.
 func canonicalOnly(groups []groupSummaryView) []groupSummaryView {
 	var canonical []groupSummaryView
@@ -119,6 +170,48 @@ func canonicalOnly(groups []groupSummaryView) []groupSummaryView {
 		}
 	}
 	return canonical
+}
+
+// othersOnly returns the groups of groups that aren't canonical, each one library's.
+func othersOnly(groups []groupSummaryView) []groupSummaryView {
+	var others []groupSummaryView
+	for _, g := range groups {
+		if !g.label.canonical {
+			others = append(others, g)
+		}
+	}
+	return others
+}
+
+// browseView is what a kind's browse page shows: its canonical groups that hold current rules in a vetted library,
+// and how many other groups its other page lists.
+type browseView struct {
+	kind   groupKind
+	groups []groupSummaryView
+	others int
+}
+
+func newBrowseView(kind groupKind, index groupIndexView) browseView {
+	groups := index.ofKind(kind)
+	return browseView{kind: kind, groups: canonicalOnly(groups), others: len(othersOnly(groups))}
+}
+
+// otherGroupsView is what a kind's other-groups page shows: one row per library and group ID that isn't canonical.
+type otherGroupsView struct {
+	kind   groupKind
+	groups []groupSummaryView
+}
+
+func newOtherGroupsView(kind groupKind, index groupIndexView) otherGroupsView {
+	return otherGroupsView{kind: kind, groups: othersOnly(index.ofKind(kind))}
+}
+
+// example is a canonical group ID of the kind, which the page names to show what one looks like.
+func (v otherGroupsView) example() string {
+	if v.kind == practicesKind {
+		return "practices/testing"
+	}
+	return "techs/go"
 }
 
 // groupPageView is what a canonical group's page shows.

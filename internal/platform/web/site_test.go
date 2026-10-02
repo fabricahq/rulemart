@@ -480,8 +480,8 @@ func TestPagesRedirectOtherCasesToTheirSpelling(t *testing.T) {
 	for path, location := range map[string]string{
 		"/Example/Rules/Techs/Go/Return-Errors?tab=versions": errorsRule + "?tab=versions",
 		"/example/rules/techs/go/RETURN-errors":              errorsRule,
-		"/Groups":                                            "/groups",
-		"/GROUPS/techs/go":                                   "/groups/techs/go",
+		"/Browse/techs":                                      "/browse/techs",
+		"/G/techs/go":                                        "/g/techs/go",
 		"/LIBRARIES":                                         "/libraries",
 		"/Search?q=retry&page=2":                             "/search?q=retry&page=2",
 	} {
@@ -848,7 +848,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
 	// A canonical group's rules in every library are a page of their own; any other group stands alone.
-	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
 	if got := links(t, other, "rules in every library"); len(got) != 0 {
@@ -860,7 +860,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
 
-	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
+	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/goose", "/g/practices/testing"}) {
 		t.Errorf("the groups link %q across libraries", got)
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {

@@ -52,7 +52,7 @@ func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 		"Cross-Origin-Opener-Policy": "same-origin",
 	}
 
-	for _, path := range []string{"/", library, stylesheet[1], "/example/missing", "/groups/"} {
+	for _, path := range []string{"/", library, stylesheet[1], "/example/missing", "/browse/techs/"} {
 		resp := get(t, handler, path)
 		for name, value := range want {
 			if got := resp.Header().Get(name); got != value {

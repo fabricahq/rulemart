@@ -1,0 +1,94 @@
+// The browse pages: each kind's canonical groups that hold current rules in a vetted library, and the page of its
+// groups that aren't canonical.
+
+package web
+
+import "strconv"
+
+// browsePage lists a kind's canonical groups, one row each, with tabs between the kinds, and leads to the kind's
+// other groups when any library declares one.
+templ browsePage(c chrome, v browseView) {
+	@layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse Code Rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href()}) {
+		<div class="page wrap">
+			@label("") {
+				Browse
+			}
+			<h1 class="title-xl mt-2">{ v.kind.name() }</h1>
+			@tabs([]tab{
+				{name: techsKind.name(), href: techsKind.href(), count: -1, on: v.kind == techsKind},
+				{name: practicesKind.name(), href: practicesKind.href(), count: -1, on: v.kind == practicesKind},
+			})
+			if len(v.groups) == 0 {
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No { v.kind.noun() } groups yet.</div>
+			} else {
+				@rowList() {
+					for _, g := range v.groups {
+						@rowItem() {
+							@rowLink(g.href, false) {
+								<div class="flex min-w-0 items-center gap-[14px]">
+									@groupTile(g.label, g.icon, tileMD)
+									<div class="min-w-0">
+										<div class="leading-[1.35] font-semibold">{ g.label.name }</div>
+										<div class="mt-0.5 text-[12.5px] text-faint">
+											{ g.label.id }
+											if v.kind == practicesKind && g.blurb != "" {
+												{ " · " + g.blurb }
+											}
+										</div>
+									</div>
+								</div>
+								<div class="flex flex-wrap items-center justify-end gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
+									<span class="whitespace-nowrap">{ plural(g.rules, "rule", "rules") }</span>
+									<span class="whitespace-nowrap">{ plural(len(g.libraries), "library", "libraries") }</span>
+								</div>
+							}
+						}
+					}
+				}
+			}
+			if v.others > 0 {
+				<p class="mt-6 text-[13px]"><a class="text-faint no-underline hover:text-ink hover:underline" href={ templ.SafeURL(v.kind.othersHref()) }>View other { v.kind.noun() } groups ({ strconv.Itoa(v.others) }) →</a></p>
+			}
+		</div>
+	}
+}
+
+// otherGroupsPage lists a kind's groups that aren't canonical, one row per library and group ID, each leading to the
+// group's section on its library's All rules tab, and says why they stand apart.
+templ otherGroupsPage(c chrome, v otherGroupsView) {
+	@layout(c, head{title: "Other " + v.kind.noun() + " groups · Rulemart", description: "The " + v.kind.noun() + " groups vetted libraries declare that aren't on Code Rules' canonical list, each its library's own.", section: v.kind.href()}) {
+		<div class="page wrap">
+			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(v.kind.href()) }>{ v.kind.name() }</a>
+				<span>›</span>
+				<span>Other groups</span>
+			</div>
+			<h1 class="title-xl">Other { v.kind.noun() } groups</h1>
+			<div class="mt-2.5 mb-[22px] max-w-[46rem] text-muted">
+				<p class="mb-2.5">Rulemart defines canonical “rule groups” like <code>{ v.example() }</code> so that all rules from many user libraries can be aggregated in one place.</p>
+				<p>All other groups that are not canonical are shown here. Their rules are searchable and appear on each library's page, but they aren't combined with rules from other libraries.</p>
+			</div>
+			if len(v.groups) == 0 {
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">None right now.</div>
+			} else {
+				@rowList() {
+					for _, g := range v.groups {
+						@rowItem() {
+							@rowLink(g.href, false) {
+								<div class="min-w-0">
+									<div class="mono leading-[1.35] font-medium">
+										@breakable(g.label.id)
+									</div>
+									<div class="mt-0.5 text-[12.5px] text-faint">
+										@breakable(g.libraries[0].fullName())
+									</div>
+								</div>
+								<span class="text-[13px] whitespace-nowrap text-muted">{ plural(g.rules, "rule", "rules") }</span>
+							}
+						}
+					}
+				}
+			}
+		</div>
+	}
+}

@@ -78,7 +78,7 @@ func TestTextPostgresCantHoldIsRefusedNotFailed(t *testing.T) {
 			{http.MethodGet, "/example" + bad + "/rules", http.StatusNotFound},
 			{http.MethodGet, "/example/rules/techs/go/return-errors" + bad, http.StatusNotFound},
 			{http.MethodGet, "/example/rules/techs/go" + bad + "/return-errors?tab=versions&from=1.0.0&to=1.0.0", http.StatusNotFound},
-			{http.MethodGet, "/groups/techs/go" + bad, http.StatusNotFound},
+			{http.MethodGet, "/g/techs/go" + bad, http.StatusNotFound},
 			{http.MethodGet, "/example/rules?tab=rules" + bad, 0},
 			{http.MethodGet, "/example/rules?tab=releases&release=1" + bad, 0},
 			{http.MethodGet, "/example/rules?tab=releases&from=1&to=1" + bad, 0},
