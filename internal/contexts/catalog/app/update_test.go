@@ -139,7 +139,7 @@ func TestUpdateIngestsARewrittenReleaseTag(t *testing.T) {
 	}
 }
 
-// The check is what keeps a poll every ten minutes cheap: unchanged tags cost one listing, with no lookup on the code
+// The check is what keeps an hourly poll cheap: unchanged tags cost one listing, with no lookup on the code
 // host and no fetch, and change nothing.
 func TestUpdateStopsAtTheCheckWhenTheTagsAreUnchanged(t *testing.T) {
 	lib := firstRelease(t)

@@ -2,7 +2,7 @@
 
 ## Goal
 
-When a vetted library publishes a release, Rulemart shows it within about ten minutes, without an operator. The
+When a vetted library publishes a release, Rulemart shows it within about an hour, without an operator. The
 worker function checks each vetted library on a schedule, and ingests the ones whose release tags changed. It
 connects as a login that can only write the catalog, so production ingestion no longer needs the database's owner.
 
@@ -11,13 +11,17 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 
 ## Scope
 
-**Trigger.** **Proposed:** the existing EventBridge schedule, `rate(10 minutes)`, invokes the worker function
-instead of the web function, with the same `{"source": "schedule"}` event. The worker sends one job per library in
-the vetted list its release embeds to the existing jobs queue, and returns. Why:
+**Trigger.** **Proposed:** the existing EventBridge schedule invokes the worker function instead of the web
+function, with the same `{"source": "schedule"}` event. **Decided:** it runs hourly, `rate(1 hour)`, instead of
+every 10 minutes. The worker sends one job per library in the vetted list its release embeds to the existing jobs
+queue, and returns. Why:
 
 - The schedule, the queue, its dead-letter queue, and their alarms already exist.
 - The web function stays a page reader: it links no go-git (**Existing**), and loses its queue permission.
-- Ten minutes is the schedule's current rate. A release shows within about ten minutes, plus ingestion.
+- Hourly, as Josh decided: each job reads the stored tags from Postgres, which wakes Neon's compute from scale to
+  zero. Every 10 minutes kept it awake about half the time, about $12 a month; hourly costs about $3. A release
+  shows within about an hour, plus ingestion. If updates need to be faster, the check can compare the listed tags
+  with a fingerprint kept outside Postgres, so an unchanged library never wakes the database.
 
 **Jobs.** **Proposed:** a job names one library by its code host and the host's repository ID, the key vetting
 uses (**Existing**): `{"host": "github", "repositoryID": "1398540739"}`. The worker refuses a job with unknown
@@ -60,8 +64,9 @@ invocation, at most two at once.
   the message as failed, SQS retries it after the visibility timeout of 720 seconds, six times the function's
   timeout as the module requires, and moves it to the dead-letter queue after five attempts (**Existing**). The
   dead-letter queue's alarm emails (**Existing**). The oldest-message alarm rises from 600 to 1,800 seconds, so one
-  retried job doesn't set it off. A library that stays broken fails again every ten minutes, and keeps the
-  dead-letter alarm on until it's fixed or no longer vetted.
+  retried job doesn't set it off. Both alarms follow the visibility timeout, not the poll's rate. Scheduler retries a
+  throttled poll for up to 50 minutes, so a busy moment doesn't skip an hour. A library that stays broken fails
+  again every hour, and keeps the dead-letter alarm on until it's fixed or no longer vetted.
 
 **Database access.** **Proposed**, following the split between infrastructure and migrations (**Existing**):
 
@@ -131,12 +136,13 @@ queue in memory in place of SQS, through the same handler as on Lambda.
   the second finds nothing to do. `make ingest` ingests `fabricahq/public-rules`, release 1 with 127 rules, as
   `rulemart_worker`. Vetting public-rules is a separate decision, so this slice doesn't add it to
   `catalog/vetted.yaml`.
-- **After deployment:** the worker's logs show a check of each vetted library every ten minutes, and the dead-letter
-  queue stays empty. Publishing a release of the test library shows it on its page within about ten minutes.
+- **After deployment:** the worker's logs show a check of each vetted library every hour, and the dead-letter
+  queue stays empty. Publishing a release of the test library shows it on its page within about an hour.
 
 ## Not in this slice
 
-A GitHub token for the worker, and webhooks instead of polling. Refreshing a library's description, avatar, or
+A GitHub token for the worker, and webhooks instead of polling. Checks faster than hourly, through a tag
+fingerprint kept outside Postgres. Refreshing a library's description, avatar, or
 name between releases. Backing off from a library that keeps failing. Ingesting libraries that aren't vetted,
 which waits for the unvetted area. Dropping `hello_messages`, in the next release. Browsing by technology or
 practice, search, and more than one library (slice 3). The Library releases tab and version comparison (slice 4).
