@@ -344,8 +344,10 @@ templ ruleRow(r ruleRowView) {
 					</span>, which this rule replaced.
 				</p>
 			}
-			<div class={ "mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
-				<span class={ "flex min-w-0 items-center gap-[7px]", templ.KV("[&>:first-child]:opacity-75", r.retired) }>
+			// The stars stay on the first line, beside the library, whose name wraps on a narrow screen; the mark and the
+			// stars sit in the middle of that line.
+			<div class={ "mt-1.5 flex items-start gap-x-[14px] text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
+				<span class={ "flex min-w-0 items-start gap-[7px] [&>:first-child]:mt-[calc((1.65em-18px)/2)]", templ.KV("[&>:first-child]:opacity-75", r.retired) }>
 					@libraryMark(r.library)
 					<span class="min-w-0 [overflow-wrap:anywhere]">
 						{ r.library.fullName() }
@@ -354,7 +356,9 @@ templ ruleRow(r ruleRowView) {
 						}
 					</span>
 				</span>
-				@starCount(r.stars, true, "")
+				<span class="flex h-[1.65em] flex-none items-center empty:hidden">
+					@starCount(r.stars, true, "")
+				</span>
 			</div>
 		</a>
 	</li>
