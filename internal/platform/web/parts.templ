@@ -116,7 +116,7 @@ templ bigSearch(id string) {
 	<form class="relative mx-auto mt-8 max-w-[560px] text-left" action={ templ.SafeURL(searchHref) } method="get" role="search">
 		<label class="sr-only" for={ id }>Search rules</label>
 		@searchIcon("pointer-events-none absolute top-1/2 left-[18px] size-[17px] -translate-y-1/2 text-faint")
-		<input id={ id } class="w-full rounded-full border border-border-strong bg-paper py-[14px] pr-5 pl-[46px] text-[16px] text-ink placeholder:text-faint focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" type="search" name="q" placeholder="Try React effects, logging, testing" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
+		<input id={ id } class="w-full rounded-full border border-border-strong bg-paper py-[14px] pr-5 pl-[46px] text-[16px] text-ink placeholder:text-faint focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Try React effects, logging, testing" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
 	</form>
 }
 
@@ -284,7 +284,7 @@ templ searchForm(id, query string, autofocus bool) {
 	<form class="flex w-full items-center gap-2 rounded-full border border-border-strong bg-paper py-1 pr-1 pl-4 has-[input:focus-visible]:border-(--focus) has-[input:focus-visible]:shadow-[0_0_0_1px_var(--focus)]" action={ templ.SafeURL(searchHref) } method="get" role="search">
 		@searchIcon("size-[18px] flex-none text-faint")
 		<label class="sr-only" for={ id }>Search rules</label>
-		<input id={ id } class="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-ink placeholder:text-faint focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" type="search" name="q" value={ query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off" autofocus?={ autofocus }/>
+		<input id={ id } class="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-ink placeholder:text-faint focus-visible:outline-none" type="search" name="q" value={ query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off" autofocus?={ autofocus }/>
 		<button class="min-h-10 flex-none cursor-pointer rounded-full bg-primary px-5 text-[14px] font-medium text-on-primary transition-opacity hover:opacity-85" type="submit">Search</button>
 	</form>
 }
