@@ -238,10 +238,12 @@ func TestStarsOnRetiredRulesCountTowardTheirReplacement(t *testing.T) {
 }
 
 // A star counts toward the current rule its chain reaches within domain.MaxReplacements rules, as pages follow a
-// chain, and no further.
+// chain, and no further: it reads as starred, lists, and is unstarred from the current rule only within that bound,
+// and beyond it stays stored.
 func TestAStarCountsOnlyWithinTheReplacementsPagesFollow(t *testing.T) {
 	c := newListingCatalog(t)
-	if _, err := c.worker.ReplaceLibrary(context.Background(), chainLibrary("24", "chain", domain.MaxReplacements+2)); err != nil {
+	ctx := context.Background()
+	if _, err := c.worker.ReplaceLibrary(ctx, chainLibrary("24", "chain", domain.MaxReplacements+2)); err != nil {
 		t.Fatal(err)
 	}
 	vetted := append([]domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "24"}}, vettedBoth...)
@@ -258,6 +260,27 @@ func TestAStarCountsOnlyWithinTheReplacementsPagesFollow(t *testing.T) {
 	}
 	if got := c.starredRules(t, vetted, beyond); len(got) != 0 {
 		t.Errorf("the star beyond reach lists %q", got)
+	}
+	for account, want := range map[int64]bool{within: true, beyond: false} {
+		if starred, err := c.web.Starred(ctx, account, "chain", "rules", current); err != nil || starred != want {
+			t.Errorf("account %d: starred %v, %v; want %v", account, starred, err, want)
+		}
+	}
+
+	for _, account := range []int64{within, beyond} {
+		if err := c.web.Unstar(ctx, vetted, account, "chain", "rules", current); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := c.ruleStars(t, vetted, "chain", "rules"); got[current] != 0 {
+		t.Errorf("after unstarring, the current rule counts %d stars, want none", got[current])
+	}
+	for account, want := range map[int64]int{within: 0, beyond: 1} {
+		var stored int
+		postgrestest.QueryRow(t, c.connString, fmt.Sprintf(`SELECT count(*) FROM rule_stars WHERE account_id = %d`, account), &stored)
+		if stored != want {
+			t.Errorf("after unstarring, account %d keeps %d stars, want %d", account, stored, want)
+		}
 	}
 }
 

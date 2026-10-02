@@ -54,12 +54,17 @@ a decision under "Decided while building" says otherwise and why.
 ### Decided while building
 
 - **Proposed: counts are read by one query in each read's snapshot, rather than a join inside each read's query.**
-  `CountRuleStars` takes the rule IDs a read found and follows each rule's line, the rule and every retired rule
-  whose chain of replacements reaches it, with a recursive query, so the chain rule has one owner instead of a copy
-  in `GetLibrary`, `ListGroupRules`, `SearchRules`, and the rule's read. It runs in the same read-only snapshot as
-  the read, one more round trip. Measured locally on both real libraries with 3,914 stars spread over public-rules'
-  127 rules: 1.2 ms for every current rule at once. An index on `rules (library_id, replaced_by)` keeps the walk
-  backwards an index lookup.
+  `CountRuleStars` takes the rule IDs a read found and follows each rule's line, the rule and every retired rule whose
+  chain of replacements reaches it, with a recursive query, so counting has one statement instead of a copy in
+  `GetLibrary`, `ListGroupRules`, `SearchRules`, and the rule's read. The chain walk itself has no single owner:
+  `UnstarRule`, `IsRuleStarred`, and `CountRuleStars` walk a line backward, `ListAccountRuleStars` walks forward to the
+  current rule, and `app/links.go` walks forward in Go for the rule pages' replacement chains. `domain.MaxReplacements`
+  bounds all five, and tests at both layers hold them to it: the store's
+  `TestAStarCountsOnlyWithinTheReplacementsPagesFollow` counts, lists, reads, and unstars a star on each side of the
+  bound, and the app's `TestReplacementsFollowABoundedChain` stops a page's chain at it. It runs in the same read-only
+  snapshot as the read, one more round trip. Measured locally on both real libraries with 3,914 stars spread over
+  public-rules' 127 rules: 1.2 ms for every current rule at once. An index on `rules (library_id, replaced_by)` keeps
+  the walk backwards an index lookup.
 - **Proposed: an account counts once toward a rule**, however many rules of its line it starred: a count is the
   accounts whose stars count toward the rule, so starring a rule before and after its rename doesn't count twice.
 - **Proposed: a rule reads Starred when any of the visitor's stars counts toward it, and unstarring removes them
