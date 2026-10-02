@@ -131,7 +131,7 @@ and dark.
 ### R3. Stars on rules
 
 Migration: drop `stars`, add `rule_stars (account_id, rule_id, created_at)` with the same grants. The Star control in
-the rule page head and the count on every rule row and card; `/me?tab=stars` as a minimal Starred rules list until
+the rule page head and the count on every rule row and card; `/account/stars` as a minimal Starred rules list until
 R7 builds the dashboard. The star routes move to `/stars` and `/stars/remove`, named by rule.
 
 ### R4. Discovery

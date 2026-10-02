@@ -2,7 +2,7 @@
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
-// a library; starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page
+// a library; starring rules; and collecting rules in a cart and checking it out. It reads the catalog from its page
 // reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
 // from catalog/app.Stars, and carts from catalog/app.Cart.
 package web
@@ -59,8 +59,8 @@ type Options struct {
 	GitHub GitHub
 	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
 	Listings Listings
-	// Stars stars vetted libraries for signed-in visitors, and pages count their stars. Nil leaves stars out; without a
-	// way to sign in, pages only count them.
+	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
+	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
 	// Cart keeps signed-in visitors' carts. Nil, or without a way to sign in, leaves carts out.
 	Cart Cart
@@ -168,7 +168,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
-			copyScript:  assets.url("copy.js"),
+			copyScript:  assets.url("copy.js"), toastScript: assets.url("toast.js"),
 			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -233,9 +233,10 @@ func (s *server) handler() http.Handler {
 			handle("POST "+retryListingHref, s.retryListing)
 		}
 		if s.Stars != nil {
-			handle("GET "+starsHref, s.starsPage)
-			handle("POST "+starsHref, s.starLibrary)
-			handle("POST "+unstarHref, s.unstarLibrary)
+			handle("GET "+starredHref, s.starredPage)
+			// Reserved as signInSections lists, so an owner named stars would have their page under /o/.
+			handle("POST "+starsHref, s.starRule)
+			handle("POST "+unstarHref, s.unstarRule)
 		}
 		if s.Cart != nil {
 			handle("GET "+cartHref, s.cartPage)
@@ -271,7 +272,7 @@ var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true,
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
 // old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
-// the account pages, they're the logins whose owner pages are under /o/.
+// signInSections, they're the logins whose owner pages are under /o/.
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
 // pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
@@ -282,23 +283,26 @@ var siteSections = []string{
 	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
 }
 
-// accountSections are the first segments of the account pages, reserved like siteSections, which the account routes
-// take only when sign-in is available.
-var accountSections = []string{strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/")}
+// signInSections are the first segments of the routes that exist only when sign-in is available: the account pages,
+// signing in and out, and starring rules. They're reserved like siteSections whether sign-in is available or not.
+var signInSections = []string{
+	strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/"),
+	strings.TrimPrefix(starsHref, "/"),
+}
 
 // reservedOwner reports whether login, in any case, is the first segment of one of the site's own pages, so its
 // owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
 func reservedOwner(login string) bool {
 	lower := strings.ToLower(login)
-	return slices.Contains(siteSections, lower) || slices.Contains(accountSections, lower)
+	return slices.Contains(siteSections, lower) || slices.Contains(signInSections, lower)
 }
 
 // libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in
 // any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The account
-// pages take account/{name} too, but GitHub has no account named account.
+// pages take account/{name} too, and starring takes stars/remove, but GitHub has no account named account.
 func libraryPageTaken(owner, name string) bool {
 	switch strings.ToLower(owner) {
-	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"):
+	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(starsHref, "/"):
 		return true
 	case strings.Trim(browsePrefix, "/"):
 		_, kind := parseGroupKind(name)
@@ -378,11 +382,7 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	cards, err := s.vettedCards(r, libraries)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	cards := newLibraryCards(libraries, false)
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
@@ -480,6 +480,23 @@ func redirect(w http.ResponseWriter, r *http.Request, target string) {
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
+// withoutParam returns the address u names without its query's param parameters, which a page takes off by
+// redirecting. The rest of the query keeps its order, and the path the spelling the visitor's browser sent, which
+// RawPath holds when it differs from Path's, so the address is the one the visitor left. Each name is compared
+// decoded, as Query reads it, so a parameter whose name is encoded, such as %73tar, comes off too, and the redirect
+// can't lead back to itself.
+func withoutParam(u *url.URL, param string) string {
+	var kept []string
+	for pair := range strings.SplitSeq(u.RawQuery, "&") {
+		name, _, _ := strings.Cut(pair, "=")
+		if decoded, err := url.QueryUnescape(name); err != nil || decoded != param {
+			kept = append(kept, pair)
+		}
+	}
+	target := url.URL{Path: u.Path, RawPath: u.RawPath, RawQuery: strings.Join(kept, "&")}
+	return target.String()
+}
+
 // withQuery returns target with r's query, if any.
 func withQuery(target string, r *http.Request) string {
 	if r.URL.RawQuery != "" {
@@ -490,10 +507,9 @@ func withQuery(target string, r *http.Request) string {
 
 // library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
 // starting at the release the until parameter names, if any. With releases to compare in the from and to
-// parameters, the releases tab compares them. Returning from signing in to star the library, it prompts once to star
-// it.
+// parameters, the releases tab compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	if s.withoutStarPrompt(w, r) || s.withoutCartPrompt(w, r) {
+	if s.withoutCartPrompt(w, r) {
 		return
 	}
 	query := r.URL.Query()
@@ -603,7 +619,11 @@ func (s *server) ruleComparisonNotFound(w http.ResponseWriter, r *http.Request) 
 	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
-	view := newRuleView(newLibraryView(page.Library), page)
+	view, err := s.ruleView(r, page)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	from, to := versionPicker(page.Versions)
 	s.render(w, r, http.StatusNotFound, ruleComparisonNotFoundPage(s.chrome, view, from, to,
 		"This rule has no such version to compare."))
@@ -619,8 +639,12 @@ func parseReleaseNumber(text string) (int, error) {
 }
 
 // rule shows a rule's page, or its Versions tab when the tab parameter names it. With versions to compare in the
-// from and to parameters, the Versions tab compares them.
+// from and to parameters, the Versions tab compares them. Returning from signing in to star the rule, it prompts once
+// to star it.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
+	if s.withoutStarPrompt(w, r) {
+		return
+	}
 	query := r.URL.Query()
 	tab := ruleTab(query.Get("tab"))
 	if tab == versionsTab && (query.Has("from") || query.Has("to")) {
@@ -637,7 +661,11 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if tab != versionsTab {
 		tab = contentTab
 	}
-	view := newRuleView(newLibraryView(page.Library), page)
+	view, err := s.ruleView(r, page)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	item := domain.CartItem{Owner: page.Library.Owner, Name: page.Library.Name, Kind: domain.CartRule, Path: page.Rule.Path}
 	view.cart = s.newCartControl(r, page.Library.Vetted, view.retired != nil, item, "Add to cart", "the rule "+view.title)
 	view.library.cartNotice = view.cart.notice
@@ -665,18 +693,27 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, comparison.Page.Library, comparison.Page.Rule.Path, err) {
 		return
 	}
-	view := newRuleView(newLibraryView(comparison.Page.Library), comparison.Page)
+	view, err := s.ruleView(r, comparison.Page)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusOK, ruleComparisonPage(s.chrome, view, newRuleComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
-// libraryView describes lib for the page r asks for, with the controls a library's pages show for the visitor: its
-// star, and the cart's control that adds the whole library.
+// ruleView describes the rule on page for the page r asks for, with its star control for the visitor.
+func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error) {
+	view := newRuleView(newLibraryView(page.Library), page)
+	var err error
+	if view.star, err = s.starControl(r, view, page.Rule.Stars); err != nil {
+		return ruleView{}, err
+	}
+	return view, nil
+}
+
+// libraryView describes lib for the page r asks for, with the cart's control that adds the whole library.
 func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
 	view := newLibraryView(lib)
-	var err error
-	if view.star, err = s.starControl(r, lib, view.href); err != nil {
-		return libraryView{}, err
-	}
 	whole := domain.CartItem{Owner: lib.Owner, Name: lib.Name, Kind: domain.CartLibrary}
 	view.cart = s.newCartControl(r, lib.Vetted, false, whole, "Add library to cart", "every group of "+lib.FullName())
 	view.cartNotice = view.cart.notice

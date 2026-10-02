@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
+	"strings"
 	"testing"
 
 	shipped "github.com/fabricahq/rulemart/catalog"
@@ -21,10 +23,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
-// Two visitors sign in and star a vetted library, as the web function's role, so a missing grant fails this test.
-// Pages count both stars for everyone, each visitor's stars page lists only theirs, and deleting one's account takes
-// its star away.
-func TestVisitorsStarALibraryAndDeletingAnAccountRemovesItsStar(t *testing.T) {
+// Two visitors sign in and star a rule of a vetted library, as the web function's role, so a missing grant fails this
+// test. Pages count both stars for everyone, on the rule's page and wherever it's listed, each visitor's Starred rules
+// list only theirs, and deleting one's account takes its star away.
+func TestVisitorsStarARuleAndDeletingAnAccountRemovesItsStar(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
@@ -50,7 +52,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString))},
 		GitHub:   gitHub,
-		Stars:    app.Stars{Store: webStore, Vetted: vetted},
+		Stars:    app.Stars{Store: webStore, Vetted: vetted, Groups: groups},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -59,30 +61,40 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	signIn := func(user int64, login string) []*http.Cookie {
 		t.Helper()
 		gitHub.identity.GitHubUserID, gitHub.identity.Login = user, login
-		flow, location := startSignIn(t, site, library)
+		flow, location := startSignIn(t, site, errorsRule)
 		return []*http.Cookie{cookie(callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow), sessionCookie)}
 	}
 	first, second := signIn(1, "first"), signIn(2, "second")
+	get := func(path string, cookies []*http.Cookie) string {
+		t.Helper()
+		return body(t, send(t, handler, request{method: http.MethodGet, target: path, cookies: cookies}))
+	}
 
 	for _, cookies := range [][]*http.Cookie{first, second} {
 		if resp := send(t, handler, request{method: http.MethodPost, target: starPath, cookies: cookies}); resp.StatusCode != http.StatusSeeOther {
 			t.Fatalf("starring answered %d", resp.StatusCode)
 		}
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 2 stars")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/libraries"})), "2 stars")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library, cookies: first})), "Star example/rules, 2 stars")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/stars", cookies: second})),
-		"example/rules · Starred")
+	if got := accessibleNames(t, get(errorsRule, nil), "/sign-in"); !slices.Contains(got, "Sign in to star Return errors, 2 stars") {
+		t.Errorf("the rule's page names its star link %q, want two stars", got)
+	}
+	for _, path := range []string{library + "?tab=rules", "/g/techs/go", "/search?q=errors"} {
+		assertShows(t, get(path, nil), "2 2 stars")
+	}
+	assertShows(t, get(errorsRule, first), "Starred 2")
+	assertShows(t, get("/account/stars", second), "Return errors", "example/rules:techs/go/return-errors")
 
 	if resp := send(t, handler, request{method: http.MethodPost, target: "/account/delete", cookies: first}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("deleting the account answered %d", resp.StatusCode)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 1 star")
+	if got := accessibleNames(t, get(errorsRule, nil), "/sign-in"); !slices.Contains(got, "Sign in to star Return errors, 1 star") {
+		t.Errorf("after deleting an account, the star link is named %q, want one star", got)
+	}
 	if resp := send(t, handler, request{method: http.MethodPost, target: unstarPath, cookies: second}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("unstarring answered %d", resp.StatusCode)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/stars", cookies: second})),
-		"No stars yet.")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 0 stars")
+	assertShows(t, get("/account/stars", second), "You haven't starred any rules yet.")
+	if page := get(library+"?tab=rules", nil); strings.Contains(visibleText(t, page), "star") {
+		t.Error("the library's rules show stars once none are left")
+	}
 }

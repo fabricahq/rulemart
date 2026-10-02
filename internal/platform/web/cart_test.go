@@ -318,7 +318,10 @@ func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
 		if got := strings.Count(page, " autofocus"); got != 1 || !strings.Contains(page, `id="`+c.id+`"`) {
 			t.Errorf("adding %v: the page has %d autofocused controls, and wants one, %s", c.item, got, c.id)
 		}
-		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(visibleText(t, again), "Added") {
+		if got := strings.Count(page, " data-autofocused"); got != 1 {
+			t.Errorf("adding %v: the page marks %d controls as focused by the page, and wants one", c.item, got)
+		}
+		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(again, " data-autofocused") || strings.Contains(visibleText(t, again), "Added") {
 			t.Errorf("adding %v: the page says so again on the next visit", c.item)
 		}
 	}
@@ -439,6 +442,10 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 	if strings.Count(page, " autofocus") != 1 || !strings.Contains(page, "ring-ink") {
 		t.Error("the offer doesn't focus its button, and outline the control")
 	}
+	// A toast can't hold the button, so the offer stays a banner where scripts run.
+	if kind := noticeToast(t, page); kind != "" {
+		t.Errorf("the offer is a %q toast, want a banner", kind)
+	}
 	action := cartPath("/account/cart", clone(errorsItem), errorsRule)
 	if got := formActions(t, page); countOf(got, action) != 2 {
 		t.Errorf("the notice holds no button that adds the rule: %q", got)
@@ -447,8 +454,12 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 		t.Fatalf("signing in added %q", got)
 	}
 	site.signedInPost(t, cartPath("/account/cart", clone(errorsItem), ""))
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}})),
-		"You're signed in. Your cart has the rule Return errors with context already.")
+	page = body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}}))
+	assertShows(t, page, "You're signed in. Your cart has the rule Return errors with context already.")
+	// With nothing to offer, it only reports, as a toast.
+	if kind := noticeToast(t, page); kind != "status" {
+		t.Errorf("the notice is a %q toast, want a status toast", kind)
+	}
 	// An offer for an item the page doesn't show says nothing at all.
 	away := site.signedInGet(t, cartPath(library, url.Values{"add": {"example/rules|rule|techs/go/return-errors"}}, ""))
 	if page := body(t, send(t, site.handler, request{method: http.MethodGet, target: library, cookies: []*http.Cookie{site.session, cookie(away, noticeCookie)}})); strings.Contains(visibleText(t, page), "signed in.") {
@@ -463,6 +474,23 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 		if c := cookie(resp, noticeCookie); c != nil && c.Value != "" && resp.StatusCode == http.StatusSeeOther && strings.Contains(c.Value, "script") {
 			t.Errorf("%s: the offer names %q", bad, c.Value)
 		}
+	}
+}
+
+// A page's address with the cart's offer redirects once to the same address without it, however the parameter's name
+// is encoded, keeping the rest of the query in order and the path as the visitor's browser spelled it, so the redirect
+// leads to the page.
+func TestTheCartOfferRedirectsOnceToTheAddressWithoutIt(t *testing.T) {
+	site := newCartSite(t)
+	add := url.QueryEscape("example/rules|rule|techs/go/return-errors")
+
+	for target, want := range map[string]string{
+		errorsRule + "?%61dd=" + add:                         errorsRule,
+		errorsRule + "?a=1&add=" + add + "&b=2":              errorsRule + "?a=1&b=2",
+		"/%65xample/rules/techs/go/return-errors?add=" + add: "/%65xample/rules/techs/go/return-errors",
+		"/%65xample/rules?tab=rules&add=" + add:              "/%65xample/rules?tab=rules",
+	} {
+		assertRedirectsToPage(t, site.handler, target, want)
 	}
 }
 

@@ -877,7 +877,7 @@ func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 }
 
 // accessibleNames returns the name a screen reader gives each link in body that leads to an address starting with
-// prefix: its text nodes joined as they are, outside anything hidden from screen readers, with whitespace collapsed.
+// prefix, as accessibleName reads it.
 func accessibleNames(t *testing.T, body, prefix string) []string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -886,26 +886,31 @@ func accessibleNames(t *testing.T, body, prefix string) []string {
 	}
 	var names []string
 	for n := range doc.Descendants() {
-		if n.Type != html.ElementNode || n.Data != "a" || !strings.HasPrefix(attribute(n, "href"), prefix) {
-			continue
+		if n.Type == html.ElementNode && n.Data == "a" && strings.HasPrefix(attribute(n, "href"), prefix) {
+			names = append(names, accessibleName(n))
 		}
-		var text strings.Builder
-		var walk func(*html.Node)
-		walk = func(n *html.Node) {
-			if n.Type == html.TextNode {
-				text.WriteString(n.Data)
-			}
-			if attribute(n, "aria-hidden") == "true" {
-				return
-			}
-			for child := n.FirstChild; child != nil; child = child.NextSibling {
-				walk(child)
-			}
-		}
-		walk(n)
-		names = append(names, strings.Join(strings.Fields(text.String()), " "))
 	}
 	return names
+}
+
+// accessibleName returns the name a screen reader gives the link or button n: its text nodes joined as they are,
+// outside anything hidden from screen readers, with whitespace collapsed.
+func accessibleName(n *html.Node) string {
+	var text strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			text.WriteString(n.Data)
+		}
+		if attribute(n, "aria-hidden") == "true" {
+			return
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(n)
+	return strings.Join(strings.Fields(text.String()), " ")
 }
 
 // A tab's name says its count apart from its label, as "Groups, 2", rather than running them together.
@@ -920,5 +925,27 @@ func TestTabsNameTheirCountsApart(t *testing.T) {
 	}
 	if got := accessibleNames(t, get(t, handler, errorsRule).Body.String(), errorsRule+"?tab=versions"); !slices.Equal(got, []string{"Versions, 2"}) {
 		t.Errorf("the rule's Versions tab is named %q", got)
+	}
+}
+
+// assertRedirectsToPage fails t unless target, requested signed out, redirects permanently to want, and following
+// redirects from there, as a browser would, leads to a page.
+func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want string) {
+	t.Helper()
+	resp := send(t, handler, request{method: http.MethodGet, target: target})
+	location := resp.Header.Get("Location")
+	if resp.StatusCode != http.StatusMovedPermanently || location != want {
+		t.Errorf("%s answered %d to %q, want a redirect to %q", target, resp.StatusCode, location, want)
+	}
+	seen := map[string]bool{target: true}
+	for location != "" && !seen[location] {
+		seen[location] = true
+		resp = send(t, handler, request{method: http.MethodGet, target: location})
+		location = resp.Header.Get("Location")
+	}
+	if location != "" {
+		t.Errorf("%s redirects in a circle through %s", target, location)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Errorf("%s leads to a %d, want the page", target, resp.StatusCode)
 	}
 }

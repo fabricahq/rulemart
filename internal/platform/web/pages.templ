@@ -58,7 +58,7 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, current l
 	}
 }
 
-// libraryFrame is every page about a library: its name, its stars when it's vetted, its tabs with current on, and the
+// libraryFrame is every page about a library: its name, its tabs with current on, and the
 // tab's content, beside the library's facts when withFacts, under the warning when the library isn't vetted.
 templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
 	@layout(c, libraryHead(h, lib)) {
@@ -77,9 +77,6 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
 					if lib.cart.shown {
 						@cartButton(lib.cart)
-					}
-					if lib.star.shown {
-						@starControl(lib.star)
 					}
 					@smallButton(lib.githubURL) {
 						@githubMark("size-[15px] flex-none")
@@ -242,10 +239,11 @@ templ rulePage(c chrome, r ruleView, current ruleTab) {
 	}
 }
 
-// ruleFrame is every page about a rule: where it is in its library, its title, its tabs with current on while it's
-// current, and the tab's content, under the warning when the library isn't vetted.
+// ruleFrame is every page about a rule: where it is in its library, its title, its star control while it's a current
+// rule of a vetted library, its tabs with current on while it's current, and the tab's content, under the warning when
+// the library isn't vetted.
 templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
-	@layout(c, libraryHead(h, r.library)) {
+	@layout(c, ruleHead(h, r)) {
 		<div class="page wrap">
 			if !r.library.vetted {
 				@unvettedWarning(false)
@@ -277,6 +275,12 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 							<span class="mono" title="Latest version">{ r.version }</span>
 						}
 					</div>
+					if r.star.shown {
+						// The prototype's engage row, which will hold Discuss beside Star too.
+						<div class="mt-[14px] flex flex-wrap items-center gap-2">
+							@starControl(r.star)
+						</div>
+					}
 				</div>
 				if r.cart.shown {
 					@cartButton(r.cart)

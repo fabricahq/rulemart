@@ -806,6 +806,10 @@ func TestSignOutSaysSoOnThePageItReturnsTo(t *testing.T) {
 
 	page := followNotice(t, site, resp, "/browse/techs")
 	assertShows(t, page, "You're signed out.")
+	// Where scripts run, it's a toast that only reports, rather than a banner that moves the page.
+	if kind := noticeToast(t, page); kind != "status" {
+		t.Errorf("the notice is a %q toast, want a status toast", kind)
+	}
 	// The notice shows once.
 	again := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs"}))
 	if strings.Contains(visibleText(t, again), "signed out") {

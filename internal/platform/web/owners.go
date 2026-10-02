@@ -73,11 +73,7 @@ func (s *server) ownerPage(w http.ResponseWriter, r *http.Request, login string)
 		redirect(w, r, withQuery(ownerHref(page.Login), r))
 		return
 	}
-	cards, err := s.vettedCards(r, page.Libraries)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	cards := newLibraryCards(page.Libraries, false)
 	view := newOwnerView(page, cards)
 	s.render(w, r, http.StatusOK, ownerPage(s.pageChrome(view.href), view))
 }

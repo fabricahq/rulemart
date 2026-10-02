@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
@@ -212,7 +213,7 @@ func TestReplacementsFollowABoundedChain(t *testing.T) {
 
 	page, err := app.Pages{Store: &histories{history: h, links: links}}.RulePage(context.Background(), "o", "n", "r000")
 
-	if err != nil || len(page.Rule.Retirement.Replacements) != app.MaxReplacements {
-		t.Fatalf("followed %d replacements, %v; want %d", len(page.Rule.Retirement.Replacements), err, app.MaxReplacements)
+	if err != nil || len(page.Rule.Retirement.Replacements) != domain.MaxReplacements {
+		t.Fatalf("followed %d replacements, %v; want %d", len(page.Rule.Retirement.Replacements), err, domain.MaxReplacements)
 	}
 }

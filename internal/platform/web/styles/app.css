@@ -142,6 +142,10 @@
   code, .font-mono { font-family: var(--font-mono); }
   code { font-size: .86em; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+  /* A control the page focused after a click wears a quiet ring until the visitor presses a key, see pageFocus, or
+     none when the star button's prompt rings it already. */
+  [data-autofocused]:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 2px; }
+  [data-autofocused][data-prompt]:focus-visible { outline: none; }
   :where(p, h1, h2, h3, h4, li, td) { overflow-wrap: anywhere; }
   h1, h2, h3, h4 { font-weight: 500; color: var(--ink); }
   /* Search fields draw no browser clear button, which would show in the browser's own color. */
@@ -257,3 +261,29 @@
   .hl-function { color: var(--code-function); }
   .hl-comment { color: var(--code-comment); }
 }
+
+/* A notice that only reports, a banner the layout marks data-toast, shows as the prototype's toast where scripts run:
+   a pill at the viewport's bottom right that never moves the page, which fades after --toast-hold, which toast.js
+   sets by its length, and pauses while hovered or focused. Without scripts it stays a banner. These rules sit outside
+   the layers so they override the banner's utilities. */
+@media (scripting: enabled) {
+  [data-toast] {
+    position: fixed; z-index: 60; right: 24px; bottom: 24px; max-width: min(26rem, calc(100vw - 32px));
+    border: 0; border-radius: 18px; background: var(--primary); color: var(--on-primary);
+    box-shadow: 0 14px 40px -12px rgb(0 0 0 / .4);
+    animation: toast-in .2s ease-out both, toast-out .3s ease-in var(--toast-hold, 2.2s) forwards;
+  }
+  [data-toast]:hover, [data-toast]:focus-within { animation-play-state: paused; }
+  [data-toast] > div { max-width: none; margin: 0; padding: 10px 18px; flex-wrap: nowrap; align-items: flex-start; font-size: 13.5px; line-height: 1.5; color: inherit; }
+  [data-toast] a { color: inherit; }
+  [data-toast] :focus-visible { outline-color: var(--on-primary); }
+  @media (width < 45rem) {
+    [data-toast] { right: 16px; bottom: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-toast] { animation-name: toast-fade-in, toast-out; }
+  }
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes toast-fade-in { from { opacity: 0; } }
+@keyframes toast-out { to { opacity: 0; visibility: hidden; } }

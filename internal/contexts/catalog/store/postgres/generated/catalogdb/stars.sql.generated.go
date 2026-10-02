@@ -11,85 +11,174 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const isStarred = `-- name: IsStarred :one
+const countRuleStars = `-- name: CountRuleStars :many
+WITH RECURSIVE line AS (
+    SELECT r.id AS rule_id, r.id, r.library_id, r.path, 0 AS steps FROM rules r WHERE r.id = ANY ($1::bigint[])
+    UNION ALL
+    SELECT line.rule_id, p.id, p.library_id, p.path, line.steps + 1
+    FROM line JOIN rules p ON p.library_id = line.library_id AND p.replaced_by = line.path
+    WHERE line.steps < $2::integer
+)
+SELECT line.rule_id::bigint AS rule_id, count(DISTINCT s.account_id) AS stars
+FROM line JOIN rule_stars s ON s.rule_id = line.id
+GROUP BY line.rule_id
+`
+
+type CountRuleStarsParams struct {
+	RuleIds         []int64
+	MaxReplacements int32
+}
+
+type CountRuleStarsRow struct {
+	RuleID int64
+	Stars  int64
+}
+
+// CountRuleStars counts, for each of the rules rule_ids names, the accounts whose stars count toward it: those that
+// starred a rule of its line. It returns a row only for a rule with a star.
+func (q *Queries) CountRuleStars(ctx context.Context, arg CountRuleStarsParams) ([]CountRuleStarsRow, error) {
+	rows, err := q.db.Query(ctx, countRuleStars, arg.RuleIds, arg.MaxReplacements)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountRuleStarsRow
+	for rows.Next() {
+		var i CountRuleStarsRow
+		if err := rows.Scan(&i.RuleID, &i.Stars); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const isRuleStarred = `-- name: IsRuleStarred :one
+WITH RECURSIVE target AS (
+    SELECT r.id, r.library_id, r.path FROM rules r JOIN libraries l ON l.id = r.library_id
+    WHERE l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+      AND lower(r.path) = lower($5) AND r.retired_in_release_id IS NULL
+    ORDER BY r.path = $5 DESC, r.path
+    LIMIT 1
+),
+line AS (
+    SELECT t.id, t.library_id, t.path, 0 AS steps FROM target t
+    UNION ALL
+    SELECT p.id, p.library_id, p.path, line.steps + 1
+    FROM line JOIN rules p ON p.library_id = line.library_id AND p.replaced_by = line.path
+    WHERE line.steps < $6::integer
+)
 SELECT EXISTS (
-    SELECT 1 FROM stars s JOIN libraries l ON l.id = s.library_id
-    WHERE s.account_id = $1::bigint
-      AND l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+    SELECT 1 FROM rule_stars s JOIN line ON line.id = s.rule_id WHERE s.account_id = $1::bigint
 )::boolean AS starred
 `
 
-type IsStarredParams struct {
-	AccountID int64
-	Host      string
-	Owner     string
-	Name      string
+type IsRuleStarredParams struct {
+	AccountID       int64
+	Host            string
+	Owner           string
+	Name            string
+	Path            string
+	MaxReplacements int32
 }
 
-// IsStarred reports whether the account starred the library owner/name, matched without regard to case.
-func (q *Queries) IsStarred(ctx context.Context, arg IsStarredParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isStarred,
+// IsRuleStarred reports whether one of the account's stars counts toward the current rule at path in the library
+// owner/name, both matched as StarRule matches them: whether it starred a rule of the rule's line.
+func (q *Queries) IsRuleStarred(ctx context.Context, arg IsRuleStarredParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isRuleStarred,
 		arg.AccountID,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
+		arg.Path,
+		arg.MaxReplacements,
 	)
 	var starred bool
 	err := row.Scan(&starred)
 	return starred, err
 }
 
-const listAccountStars = `-- name: ListAccountStars :many
-SELECT l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
-       (SELECT count(*) FROM stars a WHERE a.library_id = l.id) AS star_count,
-       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
-       EXISTS (SELECT 1 FROM listings g WHERE g.host = l.host AND g.host_repository_id = l.host_repository_id)::boolean
-           AS listed,
-       s.created_at AS starred_at
-FROM stars s
-JOIN libraries l ON l.id = s.library_id
-WHERE s.account_id = $2::bigint
-ORDER BY s.created_at DESC, lower(l.owner), lower(l.name)
+const listAccountRuleStars = `-- name: ListAccountRuleStars :many
+WITH RECURSIVE heirs AS (
+    SELECT s.rule_id AS starred_id, s.created_at, r.id, r.library_id, r.replaced_by, r.retired_in_release_id, 0 AS steps
+    FROM rule_stars s JOIN rules r ON r.id = s.rule_id
+    WHERE s.account_id = $2::bigint
+    UNION ALL
+    SELECT h.starred_id, h.created_at, n.id, n.library_id, n.replaced_by, n.retired_in_release_id, h.steps + 1
+    FROM heirs h JOIN rules n ON n.library_id = h.library_id AND n.path = h.replaced_by
+    WHERE h.retired_in_release_id IS NOT NULL AND h.steps < $3::integer
+),
+counted AS (
+    SELECT h.id AS rule_id, max(h.created_at) AS starred_at, bool_or(h.starred_id = h.id) AS direct,
+           (array_agg(h.starred_id ORDER BY h.created_at DESC, h.starred_id))[1] AS last_starred_id
+    FROM heirs h
+    WHERE h.retired_in_release_id IS NULL
+    GROUP BY h.id
+)
+SELECT l.owner, l.name, l.owner_avatar_url, r.id, r.path, g.path AS group_path, v.title::text AS title,
+       v.impact::text AS impact, v.major, v.minor, v.patch,
+       (CASE WHEN c.direct THEN '' ELSE starred.path END)::text AS starred_as, c.starred_at::timestamptz AS starred_at
+FROM counted c
+JOIN rules r ON r.id = c.rule_id
+JOIN rules starred ON starred.id = c.last_starred_id
+JOIN library_groups g ON g.id = r.group_id
+JOIN libraries l ON l.id = r.library_id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
+ORDER BY c.starred_at DESC, lower(l.owner), lower(l.name), r.path
 `
 
-type ListAccountStarsParams struct {
-	Vetted    []string
-	AccountID int64
+type ListAccountRuleStarsParams struct {
+	Vetted          []string
+	AccountID       int64
+	MaxReplacements int32
 }
 
-type ListAccountStarsRow struct {
+type ListAccountRuleStarsRow struct {
 	Owner          string
 	Name           string
-	Description    string
 	OwnerAvatarUrl string
-	RuleCount      int64
-	StarCount      int64
-	Vetted         bool
-	Listed         bool
+	ID             int64
+	Path           string
+	GroupPath      string
+	Title          string
+	Impact         string
+	Major          int32
+	Minor          int32
+	Patch          int32
+	StarredAs      string
 	StarredAt      pgtype.Timestamptz
 }
 
-// ListAccountStars returns the libraries the account starred, most recently starred first, each as the libraries'
-// list shows it, with whether vetted holds it, and whether a listing names it.
-func (q *Queries) ListAccountStars(ctx context.Context, arg ListAccountStarsParams) ([]ListAccountStarsRow, error) {
-	rows, err := q.db.Query(ctx, listAccountStars, arg.Vetted, arg.AccountID)
+// ListAccountRuleStars returns each current rule of a library vetted holds that the account's stars count toward,
+// once, most recently starred first: when the account last starred it or a rule of its line. starred_as is the ID of
+// the retired rule of its line the account starred most recently, or empty when the account starred the rule itself.
+// A star that counts toward no such rule, such as one on a rule retired without a replacement, isn't listed.
+func (q *Queries) ListAccountRuleStars(ctx context.Context, arg ListAccountRuleStarsParams) ([]ListAccountRuleStarsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountRuleStars, arg.Vetted, arg.AccountID, arg.MaxReplacements)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAccountStarsRow
+	var items []ListAccountRuleStarsRow
 	for rows.Next() {
-		var i ListAccountStarsRow
+		var i ListAccountRuleStarsRow
 		if err := rows.Scan(
 			&i.Owner,
 			&i.Name,
-			&i.Description,
 			&i.OwnerAvatarUrl,
-			&i.RuleCount,
-			&i.StarCount,
-			&i.Vetted,
-			&i.Listed,
+			&i.ID,
+			&i.Path,
+			&i.GroupPath,
+			&i.Title,
+			&i.Impact,
+			&i.Major,
+			&i.Minor,
+			&i.Patch,
+			&i.StarredAs,
 			&i.StarredAt,
 		); err != nil {
 			return nil, err
@@ -102,77 +191,112 @@ func (q *Queries) ListAccountStars(ctx context.Context, arg ListAccountStarsPara
 	return items, nil
 }
 
-const starLibrary = `-- name: StarLibrary :one
+const starRule = `-- name: StarRule :one
 
-WITH library AS (
-    SELECT l.id, l.owner, l.name, l.owner_avatar_url FROM libraries l
-    WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
-      AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
+WITH target AS (
+    SELECT r.id FROM rules r JOIN libraries l ON l.id = r.library_id
+    WHERE l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+      AND l.host || ':' || l.host_repository_id = ANY ($5::text[])
+      AND lower(r.path) = lower($6) AND r.retired_in_release_id IS NULL
+    ORDER BY r.path = $6 DESC, r.path
+    LIMIT 1
 ),
 starred AS (
-    INSERT INTO stars (account_id, library_id) SELECT $5::bigint, b.id FROM library b
-    ON CONFLICT (account_id, library_id) DO NOTHING
+    INSERT INTO rule_stars (account_id, rule_id) SELECT $1::bigint, t.id FROM target t
+    ON CONFLICT (account_id, rule_id) DO NOTHING
+    RETURNING rule_id
 )
-SELECT b.owner, b.name, b.owner_avatar_url FROM library b
+SELECT t.id,
+    (EXISTS (SELECT 1 FROM starred)
+        AND NOT EXISTS (SELECT 1 FROM rule_stars s WHERE s.account_id = $1::bigint))::boolean AS first
+FROM target t
 `
 
-type StarLibraryParams struct {
+type StarRuleParams struct {
+	AccountID int64
 	Host      string
 	Owner     string
 	Name      string
 	Vetted    []string
-	AccountID int64
+	Path      string
 }
 
-type StarLibraryRow struct {
-	Owner          string
-	Name           string
-	OwnerAvatarUrl string
+type StarRuleRow struct {
+	ID    int64
+	First bool
 }
 
-// Stars: the web function stars and unstars libraries for accounts, and lists an account's stars. A library is vetted
-// when vetted, the release's vetted keys as host:repository ID, holds its key.
-// StarLibrary stars the library owner/name for the account, matched without regard to case, when vetted holds it, and
-// returns it as the host spells it now, or no row when vetted holds no library by that name. A library the account
-// starred already keeps its star.
-func (q *Queries) StarLibrary(ctx context.Context, arg StarLibraryParams) (StarLibraryRow, error) {
-	row := q.db.QueryRow(ctx, starLibrary,
+// Stars: the web function stars and unstars rules for accounts, lists the rules an account's stars count toward, and
+// counts each rule's stars for the pages that show it. A library is vetted when vetted, the release's vetted keys as
+// host:repository ID, holds its key.
+//
+// A star stays on the rule it was given to. While the rule is current, it counts toward the rule; once the rule is
+// retired, toward the current rule its chain of replacements reaches, in the same library: the rule its retirement
+// named, then while that one is retired, the rule that replaced it, and so on, for at most max_replacements rules, as
+// pages follow the chain. A rule's line is the rule and every retired rule whose chain reaches it: the retired rules
+// whose retirement named it, the ones that named those, and so on. Each rule names at most one replacement, so a line
+// is a tree, and no rule in it repeats.
+// StarRule stars the current rule at path, matched without regard to case and preferring the rule spelled exactly so,
+// in the library owner/name that vetted holds, matched without regard to case, for the account, and returns the
+// rule's id, and first, true when this star is the account's only one: it had none, and now has this one. It returns no
+// row when there's no such rule. A rule the account starred already keeps its star, and isn't first.
+// The statement's own reads see rule_stars as it was before the insert.
+func (q *Queries) StarRule(ctx context.Context, arg StarRuleParams) (StarRuleRow, error) {
+	row := q.db.QueryRow(ctx, starRule,
+		arg.AccountID,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
 		arg.Vetted,
-		arg.AccountID,
+		arg.Path,
 	)
-	var i StarLibraryRow
-	err := row.Scan(&i.Owner, &i.Name, &i.OwnerAvatarUrl)
+	var i StarRuleRow
+	err := row.Scan(&i.ID, &i.First)
 	return i, err
 }
 
-const unstarLibrary = `-- name: UnstarLibrary :one
-WITH library AS (
-    SELECT l.id FROM libraries l
+const unstarRule = `-- name: UnstarRule :one
+WITH RECURSIVE target AS (
+    SELECT r.id, r.library_id, r.path FROM rules r JOIN libraries l ON l.id = r.library_id
     WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
+      AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
+      AND lower(r.path) = lower($5) AND r.retired_in_release_id IS NULL
+    ORDER BY r.path = $5 DESC, r.path
+    LIMIT 1
+),
+line AS (
+    SELECT t.id, t.library_id, t.path, 0 AS steps FROM target t
+    UNION ALL
+    SELECT p.id, p.library_id, p.path, line.steps + 1
+    FROM line JOIN rules p ON p.library_id = line.library_id AND p.replaced_by = line.path
+    WHERE line.steps < $6::integer
 ),
 unstarred AS (
-    DELETE FROM stars s USING library b WHERE s.library_id = b.id AND s.account_id = $4::bigint
+    DELETE FROM rule_stars s USING line WHERE s.rule_id = line.id AND s.account_id = $7::bigint
 )
-SELECT count(*) FROM library
+SELECT count(*) FROM target
 `
 
-type UnstarLibraryParams struct {
-	Host      string
-	Owner     string
-	Name      string
-	AccountID int64
+type UnstarRuleParams struct {
+	Host            string
+	Owner           string
+	Name            string
+	Vetted          []string
+	Path            string
+	MaxReplacements int32
+	AccountID       int64
 }
 
-// UnstarLibrary removes the account's star from the library owner/name, matched without regard to case, and
-// returns how many libraries have that name: none when the catalog has no such library.
-func (q *Queries) UnstarLibrary(ctx context.Context, arg UnstarLibraryParams) (int64, error) {
-	row := q.db.QueryRow(ctx, unstarLibrary,
+// UnstarRule removes the account's stars from the line of the current rule StarRule finds, so none of them counts
+// toward it any more, and returns how many rules it found: none when there's no such rule.
+func (q *Queries) UnstarRule(ctx context.Context, arg UnstarRuleParams) (int64, error) {
+	row := q.db.QueryRow(ctx, unstarRule,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
+		arg.Vetted,
+		arg.Path,
+		arg.MaxReplacements,
 		arg.AccountID,
 	)
 	var count int64

@@ -314,7 +314,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<p>No. You can browse and read rules without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>A cart</b>, to collect rules and check out with one prompt for your coding agent</li><li><b>Stars</b> to save libraries and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<p>No. You can browse and read rules without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>A cart</b>, to collect rules and check out with one prompt for your coding agent</li><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

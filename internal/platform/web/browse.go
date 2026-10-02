@@ -328,7 +328,7 @@ func newGroupPageView(page views.GroupPage, iconURL func(file string) string) gr
 
 // newRuleCard describes rule r of the library whose page is at libraryHref.
 func newRuleCard(libraryHref string, r views.RuleCard) ruleCard {
-	return ruleCard{href: libraryHref + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String()}
+	return ruleCard{href: libraryHref + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String(), stars: r.Stars}
 }
 
 // searchView is what the search page shows.
@@ -345,21 +345,7 @@ type searchView struct {
 	// page numbers the page of results shown, from 1, of pages, which stops at app.MaxSearchPage, the last page a search
 	// reads.
 	page, pages int
-	results     []searchResultView
-}
-
-// searchResultView is one rule that matched a search.
-type searchResultView struct {
-	rule       ruleCard
-	whenToRead string
-	// sourceID is the rule's source-qualified ID, owner/name:rule ID, Code Rules' source:rule form with the library's
-	// repository as its source.
-	sourceID string
-	library  libraryRefView
-	group    groupLabel
-	icon     groupIcon
-	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
-	missing []string
+	results     []ruleResultView
 }
 
 func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
@@ -368,12 +354,9 @@ func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchR
 		page: page, pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
 	}
 	for _, r := range results.Results {
-		lib := newLibraryRefView(r.Library)
-		v.results = append(v.results, searchResultView{
-			rule: newRuleCard(lib.href, r.Rule), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), sourceID: lib.fullName() + ":" + r.Rule.Path,
-			library: lib, group: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
-			missing: r.Missing,
-		})
+		result := newRuleResult(r.Library, r.Rule, r.CanonicalGroup, iconURL)
+		result.whenToRead, result.missing = plainText(r.WhenToRead, r.WhenToReadHTML), r.Missing
+		v.results = append(v.results, result)
 	}
 	return v
 }
@@ -390,12 +373,12 @@ func (v searchView) title() string {
 }
 
 // completeResults returns the page's results that hold every word to find, which search ranks first.
-func (v searchView) completeResults() []searchResultView {
+func (v searchView) completeResults() []ruleResultView {
 	return v.results[:v.partialStart()]
 }
 
 // partialResults returns the page's results that lack some of the words to find, which follow those that hold them all.
-func (v searchView) partialResults() []searchResultView {
+func (v searchView) partialResults() []ruleResultView {
 	return v.results[v.partialStart():]
 }
 

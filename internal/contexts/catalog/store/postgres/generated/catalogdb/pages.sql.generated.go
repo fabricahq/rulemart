@@ -28,8 +28,7 @@ func (q *Queries) CountSearchableTerms(ctx context.Context, terms []string) (int
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
-       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
-       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted
 FROM libraries l
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
@@ -65,11 +64,10 @@ type GetLibraryRow struct {
 	RuleCount         int64
 	GroupCount        int64
 	Vetted            bool
-	StarCount         int64
 }
 
 // GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
-// latest release, how many current rules it holds and in how many groups, and how many accounts starred it.
+// latest release, and how many current rules it holds and in how many groups.
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
 	row := q.db.QueryRow(ctx, getLibrary,
 		arg.Vetted,
@@ -91,7 +89,6 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 		&i.RuleCount,
 		&i.GroupCount,
 		&i.Vetted,
-		&i.StarCount,
 	)
 	return i, err
 }
@@ -170,7 +167,7 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 }
 
 const listCurrentRules = `-- name: ListCurrentRules :many
-SELECT r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact, v.major, v.minor, v.patch
+SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact, v.major, v.minor, v.patch
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
@@ -179,6 +176,7 @@ ORDER BY g.path, lower(v.title), r.path
 `
 
 type ListCurrentRulesRow struct {
+	ID        int64
 	Path      string
 	GroupPath string
 	Title     string
@@ -198,6 +196,7 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 	for rows.Next() {
 		var i ListCurrentRulesRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Path,
 			&i.GroupPath,
 			&i.Title,
@@ -217,7 +216,7 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 }
 
 const listGroupRules = `-- name: ListGroupRules :many
-SELECT l.owner, l.name, l.owner_avatar_url, r.path, v.title::text AS title, v.impact::text AS impact,
+SELECT l.owner, l.name, l.owner_avatar_url, r.id, r.path, v.title::text AS title, v.impact::text AS impact,
        v.major, v.minor, v.patch
 FROM library_groups g
 JOIN libraries l ON l.id = g.library_id
@@ -236,6 +235,7 @@ type ListGroupRulesRow struct {
 	Owner          string
 	Name           string
 	OwnerAvatarUrl string
+	ID             int64
 	Path           string
 	Title          string
 	Impact         string
@@ -259,6 +259,7 @@ func (q *Queries) ListGroupRules(ctx context.Context, arg ListGroupRulesParams) 
 			&i.Owner,
 			&i.Name,
 			&i.OwnerAvatarUrl,
+			&i.ID,
 			&i.Path,
 			&i.Title,
 			&i.Impact,
@@ -322,8 +323,7 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 
 const listLibraries = `-- name: ListLibraries :many
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
-       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
 FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
 ORDER BY lower(l.owner), lower(l.name)
@@ -336,11 +336,9 @@ type ListLibrariesRow struct {
 	Description    string
 	OwnerAvatarUrl string
 	RuleCount      int64
-	StarCount      int64
 }
 
-// ListLibraries returns the libraries vetted holds, each with how many current rules it holds and how many accounts
-// starred it.
+// ListLibraries returns the libraries vetted holds, each with how many current rules it holds.
 func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLibrariesRow, error) {
 	rows, err := q.db.Query(ctx, listLibraries, vetted)
 	if err != nil {
@@ -357,7 +355,6 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLib
 			&i.Description,
 			&i.OwnerAvatarUrl,
 			&i.RuleCount,
-			&i.StarCount,
 		); err != nil {
 			return nil, err
 		}
@@ -401,8 +398,7 @@ func (q *Queries) ListMarkdown(ctx context.Context, ids []int64) ([]ListMarkdown
 
 const listOwnerLibraries = `-- name: ListOwnerLibraries :many
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
-       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
 FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[]) AND lower(l.owner) = lower($2)
 ORDER BY lower(l.owner), lower(l.name)
@@ -420,7 +416,6 @@ type ListOwnerLibrariesRow struct {
 	Description    string
 	OwnerAvatarUrl string
 	RuleCount      int64
-	StarCount      int64
 }
 
 // ListOwnerLibraries returns the libraries vetted holds whose owner is login, matched without regard to case, as
@@ -441,7 +436,6 @@ func (q *Queries) ListOwnerLibraries(ctx context.Context, arg ListOwnerLibraries
 			&i.Description,
 			&i.OwnerAvatarUrl,
 			&i.RuleCount,
-			&i.StarCount,
 		); err != nil {
 			return nil, err
 		}
@@ -880,7 +874,7 @@ ranked AS (
     CROSS JOIN search
     WHERE cardinality(s.missing) < search.terms
 )
-SELECT l.owner, l.name, l.owner_avatar_url, r.path, g.path AS group_path, v.title::text AS title,
+SELECT l.owner, l.name, l.owner_avatar_url, r.id, r.path, g.path AS group_path, v.title::text AS title,
        v.impact::text AS impact, v.when_to_read::text AS when_to_read,
        coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text AS when_to_read_html,
        v.major, v.minor, v.patch, ranked.missing, count(*) OVER () AS total,
@@ -910,6 +904,7 @@ type SearchRulesRow struct {
 	Owner          string
 	Name           string
 	OwnerAvatarUrl string
+	ID             int64
 	Path           string
 	GroupPath      string
 	Title          string
@@ -964,6 +959,7 @@ func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]Sea
 			&i.Owner,
 			&i.Name,
 			&i.OwnerAvatarUrl,
+			&i.ID,
 			&i.Path,
 			&i.GroupPath,
 			&i.Title,

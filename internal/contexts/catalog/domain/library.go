@@ -74,6 +74,12 @@ type Rule struct {
 	HTML, WhenToReadHTML string
 }
 
+// MaxReplacements bounds how far a chain of replacements is followed: a retired rule's replacement, then while that
+// one is retired, the rule that replaced it, and so on. A library that retired a rule a release, each replaced by the
+// next, could otherwise make every retired rule's chain as long as its history, and a page of them grow with the
+// square of its rules. A star on a retired rule counts toward the current rule its chain reaches within the bound.
+const MaxReplacements = 20
+
 // IsCurrent reports whether the rule is current: no library release has retired it.
 func (r Rule) IsCurrent() bool { return r.RetiredIn == 0 }
 
