@@ -20,7 +20,7 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
 
    If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, leaving out any rule whose group it selects already, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
 4. Run `code-rules project sync`, then `code-rules project check`. If either fails, show me its error rather than working around it.
-5. Check that the generated rules include what I picked, by these source-qualified rule IDs, with your source names if you changed them:
+5. Check that the generated rules include what I picked, by these source-qualified rule IDs, with your source names if you changed them, and without any library I didn't approve:
    - every rule of group `practices/testing` of `fabricahq/public-rules`, whose IDs start with `public-rules:practices/testing/`
    - `public-rules:techs/go/comment-non-obvious-struct-fields`
    - `public-rules:techs/go/errors-include-useful-diagnostic-data`
