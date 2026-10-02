@@ -134,9 +134,10 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusNotFound, messagePage(s.chrome, "Not found", "Rulemart has no page here."))
 }
 
-// fail logs err with the request's route and ID, and answers with a page that reveals nothing about the failure.
+// fail logs err with the request's route pattern and ID, and answers with a page that reveals nothing about the
+// failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
-	s.Log.ErrorContext(r.Context(), "request failed", "route", r.URL.Path, "method", r.Method, "requestID", s.requestID(r),
+	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
 		"status", http.StatusServiceUnavailable, "error", err.Error())
 	var page bytes.Buffer
 	_ = messagePage(s.chrome, "Unavailable", "Rulemart can't show this page right now. Try again in a minute.").Render(r.Context(), &page)

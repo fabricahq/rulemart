@@ -370,8 +370,8 @@ func TestStaticFilesAreCachedForAYearUnderTheirVersion(t *testing.T) {
 
 const internalDetail = "AccessDeniedException: arn:aws:sts::123456789012:assumed-role/rulemart-web is not authorized to perform ssm:GetParameter on /rulemart/database-url"
 
-// A catalog failure is logged with the request's route and ID, and visitors get a fixed message that can't be
-// cached.
+// A catalog failure is logged with the request's route pattern, as the access log records it, and ID, and visitors
+// get a fixed message that can't be cached.
 func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	var logs bytes.Buffer
 	handler, err := web.New(catalog{err: errors.New(internalDetail)}, web.Options{
@@ -393,10 +393,13 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 		}
 	}
 	assertShows(t, resp.Body.String(), "Rulemart can't show this page right now.")
-	for _, want := range []string{internalDetail, `"route":"/example/rules"`, `"requestID":"request-123"`} {
+	for _, want := range []string{internalDetail, `"route":"/{owner}/{repo}"`, `"requestID":"request-123"`} {
 		if !strings.Contains(logs.String(), want) {
 			t.Fatalf("the logs %s don't include %s", logs.String(), want)
 		}
+	}
+	if strings.Contains(logs.String(), library) {
+		t.Fatalf("the logs %s hold the path", logs.String())
 	}
 }
 
