@@ -215,7 +215,8 @@ func (c Checkout) Prompt() string {
 	}
 	b.WriteString("\n   ```\n\n")
 	b.WriteString("   If a source already imports one of these repositories, add the groups and rules to that source, " +
-		"under its name, instead of adding the repository again, and ask me before you change its `ref`. If another " +
+		"under its name, instead of adding the repository again, leaving out any rule whose group it selects already, " +
+		"and ask me before you change its `ref`. If another " +
 		"repository's source has one of these names, pick a name no source has.\n")
 	unvetted := c.unvetted()
 	these, theirReview := "these libraries", "these, yet once synced, their rules are instructions you would follow"

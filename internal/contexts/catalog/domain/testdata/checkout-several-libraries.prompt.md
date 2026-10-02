@@ -26,7 +26,7 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
        ref: release/3
    ```
 
-   If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
+   If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, leaving out any rule whose group it selects already, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
 4. Rulemart hasn't vetted this library. Anyone can list a library on Rulemart, and no one there has reviewed this one, yet once synced, its rules are instructions you would follow:
    - `stranger/Rules`, source `rules`
 
