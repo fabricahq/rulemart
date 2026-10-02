@@ -828,7 +828,13 @@ type checkoutView struct {
 	// unvetted is true when a library checkout imports isn't vetted, which the prompt names, and unvettedSources are
 	// where their files land, such as .code-rules/vendor/rules/.
 	unvetted        bool
-	unvettedSources []string
+	unvettedReviews []unvettedReview
+}
+
+// unvettedReview is how a reader reviews an unvetted library's rules before adding its source: which, and the command
+// that fetches them outside the project.
+type unvettedReview struct {
+	library, source, scope, command string
 }
 
 // unbrokenWords writes text, escaped, with each run of characters without a space that holds a hyphen, slash, or
@@ -857,22 +863,20 @@ func unbrokenWords(text string) templ.Component {
 	})
 }
 
-// joinCode writes each of texts in code type, joined by commas and and.
-func joinCode(texts []string) templ.Component {
-	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
-		var out strings.Builder
-		for i, text := range texts {
-			switch {
-			case i > 0 && i == len(texts)-1:
-				out.WriteString(" and ")
-			case i > 0:
-				out.WriteString(", ")
-			}
-			out.WriteString("<code>" + templ.EscapeString(text) + "</code>")
-		}
-		_, err := io.WriteString(w, out.String())
-		return err
-	})
+// reviewScope says, in plain words, which of its library's rules source imports: every rule, or its groups' and its
+// single rules' files.
+func reviewScope(source domain.CheckoutSource) string {
+	if source.All {
+		return "every rule"
+	}
+	var parts []string
+	for _, g := range source.Groups {
+		parts = append(parts, "every rule in "+g+"/")
+	}
+	for _, r := range source.Rules {
+		parts = append(parts, r+".md")
+	}
+	return strings.Join(parts, ", ")
 }
 
 // checkoutSourceView is one library a checkout imports.
@@ -907,7 +911,10 @@ func newCheckoutView(cart views.Cart) checkoutView {
 		})
 		if !s.Library.Vetted {
 			view.unvetted = true
-			view.unvettedSources = append(view.unvettedSources, ".code-rules/vendor/"+s.Name+"/")
+			view.unvettedReviews = append(view.unvettedReviews, unvettedReview{
+				library: s.Library.FullName(), source: s.Name, scope: reviewScope(s),
+				command: "git clone --depth 1 --branch " + domain.ReleaseTag(s.Library.Release) + " " + s.Library.Repository(),
+			})
 		}
 	}
 	return view

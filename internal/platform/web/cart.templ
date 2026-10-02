@@ -461,6 +461,12 @@ templ checkoutPage(c chrome, view checkoutView) {
 							<p>From your repository's root, create the configuration, unless <code>.code-rules/config.yaml</code> exists already:</p>
 							@codeBlock("init-command", "Command that creates the configuration", initCommand)
 						</li>
+						for _, review := range view.unvettedReviews {
+							<li>
+								<p>Rulemart hasn't vetted <span class="font-mono text-[.86em]">{ review.library }</span>. Before you add it, read { review.scope } in a clone outside your repository, made with this command, and leave its source, <code>{ review.source }</code>, out of the next step unless you approve them:</p>
+								@codeBlock("review-"+review.source, "Command that fetches "+review.library+" to review", review.command)
+							</li>
+						}
 						<li>
 							<p>In <code>.code-rules/config.yaml</code>, replace <code>sources: {"{}"}</code> with these sources. If it lists sources already, add these under its <code>sources</code> instead, keeping the ones it has; for a repository it imports already, add the groups and rules to that source, leaving out any rule whose group it selects already. If that source names another <code>ref</code>, decide before changing it: a new <code>ref</code> moves every rule the source imports to that release.</p>
 							@codeBlock("config", "Configuration", view.config)
@@ -469,25 +475,6 @@ templ checkoutPage(c chrome, view checkoutView) {
 							<p>Import the rules, and check the generated files:</p>
 							@codeBlock("sync-commands", "Commands that import and check the rules", syncCommands)
 						</li>
-						if len(view.unvettedSources) > 0 {
-							<li>
-								Read every rule in{ " " }
-								@joinCode(view.unvettedSources)
-								{ " " }before your agent follows any:
-								if len(view.unvettedSources) == 1 {
-									Rulemart hasn't vetted that library.
-								} else {
-									Rulemart hasn't vetted those libraries.
-								}
-								{ " " }Go on to the next step only if you approve them. If you don't, remove
-								if len(view.unvettedSources) == 1 {
-									{ " " }its source
-								} else {
-									{ " " }their sources
-								}
-								{ " " }from <code>.code-rules/config.yaml</code> and run the step 4 commands again.
-							</li>
-						}
 						<li>Have your coding agent read the rules: add the section that <code>.code-rules/README.md</code> gives under "Connect your coding agent" to <code>AGENTS.md</code>, or the instruction file your agent reads.</li>
 					</ol>
 					<p class="mt-5 text-[14px] text-muted">To upgrade a library later, change its <code>ref</code> to a later release's tag and run <code>code-rules project sync</code>, or delete <code>ref</code> and run <code>code-rules project sync</code>, then <code>code-rules project update</code>, to follow each rule's newest version.</p>
