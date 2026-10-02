@@ -1,8 +1,8 @@
-// Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its groups and rules, its
-// releases and what changed between two of them, a rule with its versions and what changed between two of them, the
-// groups across libraries, one group's rules in every library, search results, the sitemap, and an account's
-// listings, starred libraries, and cart. They're plain values, read from one state of the catalog, with nothing of how
-// it's stored.
+// Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
+// groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
+// between two of them, the groups across libraries, one group's rules in every library, search results, the sitemap,
+// and an account's listings, starred libraries, and cart. They're plain values, read from one state of the catalog,
+// with nothing of how it's stored.
 package views
 
 import (

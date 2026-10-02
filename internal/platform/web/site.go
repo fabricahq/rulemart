@@ -1,10 +1,10 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
-// current version and version history, comparisons of two releases or two rule versions, the groups across libraries
-// by kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
-// pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account;
-// listing a library; starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page reads, which
-// app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars from
-// catalog/app.Stars, and carts from catalog/app.Cart.
+// current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
+// kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
+// pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
+// a library; starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page
+// reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
+// from catalog/app.Stars, and carts from catalog/app.Cart.
 package web
 
 import (
