@@ -2,20 +2,21 @@
 
 ## Goal
 
-Give Rulemart its own mark, from the brand package in `brand/`, everywhere the site shows one: the header, the
-browser tab, a phone's home screen, links shared on social sites, and the README. One pull request, reviewed from
-its before-and-after screenshots, so the look is judged on its own. [realignment.md](../realignment.md) explains
-why it is a slice of its own.
+Give Rulemart its own mark, from the brand package in `brand/`, everywhere the site shows one: the home page's
+hero, the browser tab, a phone's home screen, links shared on social sites, and the README. One pull request,
+reviewed from its before-and-after screenshots, so the look is judged on its own.
+[realignment.md](../realignment.md) explains why it is a slice of its own.
 
-Decisions marked **Proposed** are new in this slice and wait for review. **Existing** ones describe what the site
-already does.
+Decisions marked **Proposed** are new in this slice and wait for review. **Decided** ones are Josh's. **Existing**
+ones describe what the site already does.
 
 ## What a visitor sees
 
-- **The header** reads Fabrica's cube and name, a slash, then Rulemart's symbol (three stacked planes) and name.
-  The symbol is drawn in the current text color, so it follows the theme, and is centered on the name's line, as
-  Josh's local edit placed it: its drawing is about 16 pixels tall, a little taller than the name's capitals, so it
-  reaches just above them and just below the baseline. It is 24 pixels at 720 pixels wide and up, 20 on a phone.
+- **The header** is unchanged: Fabrica's cube and name, a slash, then "Rulemart" in text, as Code Rules' header reads
+  "Fabrica / Code Rules".
+- **The home page's hero** opens with Rulemart's horizontal logo, symbol and wordmark, centered where the "Fabrica /
+  Rulemart" eyebrow was, as Code Rules' home page opens with its own: the ink logo in the light theme and the white
+  one in the dark, 56 pixels tall, 48 on a phone. The heading, lede, search, and Popular chips below it are unchanged.
 - **The browser tab** shows the package's adaptive favicon, whose stroke is dark in the browser's light theme and
   light in its dark theme, with the ICO, the symbol on a dark tile, for browsers that take no SVG.
 - **A phone's home screen** shows the package's apple-touch-icon, the symbol on a dark tile.
@@ -26,17 +27,16 @@ already does.
 
 ## Decisions
 
-- **Proposed: the symbol goes before Rulemart's name in the header, 24 pixels tall, with the heavier stroke**
-  (3.5 in the symbol's 64-unit box, against the logos' 3), as his local edit drew it; the brand guide gives the
-  site's small sizes the heavier stroke. The header draws the package's own path, from `brand/source/rulemart.svg`,
-  which is the path his edit used.
-- **Proposed: the header keeps Fabrica's cube** before Fabrica's name, as the prototype does.
-- **Proposed: on a phone, below 720 pixels, the symbol is 20 pixels and the header's parts sit closer**: 6 pixels
-  rather than 8 between Fabrica's name, the slash, and Rulemart's, and 8 rather than 12 between the name and the
-  buttons. At 24 pixels the Sign in button, or a signed-in visitor's account menu, crossed the right gutter by up to
-  12 pixels between 384 and 400 pixels wide, where Fabrica's cube and name still show; now the header ends on the
-  gutter at every width from 320 up. Below 384 pixels, where Fabrica's name already hides (**Existing**), the symbol
-  stays.
+- **Decided (Josh): the header keeps its brand as text, and the logo goes in the home page's hero**, modeled on
+  [Code Rules' site](https://code-rules.fabricahq.com/): the header reads Fabrica's cube, "Fabrica", a slash, and
+  "Rulemart", exactly as before this slice, and the hero's eyebrow becomes the horizontal logo lockup, centered, 56
+  pixels tall at desktop and 48 on phones.
+- **Proposed: the hero shows two `<img>` elements, one per theme**, `rulemart-horizontal-dark.svg` and
+  `rulemart-horizontal-white.svg`, copied unchanged from `brand/logos/` into the static files and served under their
+  hashed names, each with its width and height and `alt="Rulemart"`. A new `dark:` variant in the stylesheet shows
+  one and hides the other by the same rule as the color tokens: dark when the visitor chose dark in the footer, or
+  chose nothing and their system prefers dark. A `<picture>` with a `prefers-color-scheme` source would ignore the
+  footer's choice. The hidden image isn't rendered, so screen readers read Rulemart once.
 - **Proposed: the favicons and touch icon are the package's files, copied unchanged** into
   `internal/platform/web/static/` under the names the pages and the `/favicon.ico` route already use (**Existing**):
   `favicon.svg` (adaptive), `favicon.ico`, and `apple-touch-icon.png`. Static files are served under hashed names
