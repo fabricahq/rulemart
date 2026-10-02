@@ -116,16 +116,16 @@ a decision under "Decided while building" says otherwise and why.
   center, 24 pixels in, or 16 on a phone, for every toast alike. It holds about as long as reading it takes, at least
   2.2 seconds (50 ms a character after the first 1.2 s, so a long cart notice holds about 6), then fades, and pauses
   while hovered or focused. The first star's notice, which links Starred rules, is an info toast: an info icon, a
-  close button, and at least 6 seconds. **Decided (Josh):** an info toast is a friendly neutral blue rather than the
-  primary color, from the `--info` and `--on-info` tokens: `#2563eb` with white text in the light theme, and the
-  lighter `#3b82f6` with `#151515` text in the dark theme, since white on that blue fails WCAG AA. Its text, link,
-  underline, focus ring, and close button use `--on-info`; the text and link contrast 5.17:1 in light and 4.97:1 in
-  dark, and status toasts keep the primary color. A notice that asks the visitor to act stays a banner in the page's
-  flow, since a toast can't hold a control: the cart's offer after signing in, with its button, and the star's prompt
-  after signing in, which highlights the button. The server renders every notice as before, a `role="status"` banner,
-  marked `data-toast` when it can be a toast; the stylesheet draws it as a toast under `@media (scripting: enabled)`
-  before the page paints, so nothing moves, and `toast.js` sets how long it holds, shows the close button, and takes
-  it off the page when it fades. Without JavaScript the banner stays, as the accessible fallback.
+  close button, and at least 6 seconds. **Decided (Josh):** an info toast is a soft light blue note with dark text
+  rather than the primary color, the same in both themes, so on the dark page it reads as a friendly light pill:
+  `--info` `#dbeafe` behind, `--on-info` `#1e3a8a` for its text, link, underline, icon, focus ring, and close button,
+  and a 1-pixel `--info-border` `#bfdbfe`. The text and link contrast 8.49:1, and status toasts keep the primary
+  color. A notice that asks the visitor to act stays a banner in the page's flow, since a toast can't hold a control:
+  the cart's offer after signing in, with its button, and the star's prompt after signing in, which highlights the
+  button. The server renders every notice as before, a `role="status"` banner, marked `data-toast` when it can be a
+  toast; the stylesheet draws it as a toast under `@media (scripting: enabled)` before the page paints, so nothing
+  moves, and `toast.js` sets how long it holds, shows the close button, and takes it off the page when it fades.
+  Without JavaScript the banner stays, as the accessible fallback.
 
 ## Not in this slice
 
