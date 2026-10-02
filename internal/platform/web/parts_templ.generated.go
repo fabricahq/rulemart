@@ -1828,9 +1828,9 @@ func libraryFacts(lib libraryView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var86 templ.SafeURL
-				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(lib.ownerURL))
+				templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(lib.ownerHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 337, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 337, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 				if templ_7745c5c3_Err != nil {
@@ -1843,7 +1843,7 @@ func libraryFacts(lib libraryView) templ.Component {
 				var templ_7745c5c3_Var87 string
 				templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(lib.owner)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 337, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `parts.templ`, Line: 337, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 				if templ_7745c5c3_Err != nil {

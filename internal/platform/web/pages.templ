@@ -20,7 +20,7 @@ templ librariesPage(c chrome, libraries []libraryCard, canList bool) {
 				} else {
 					Anyone can list a public library.
 				}
-				It shows, with a warning, under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a> until Rulemart reviews and vets it. Check the owner line to see who stands behind each one.
+				It shows, with a warning, under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a> until Rulemart reviews and vets it. Each library shows its owner and repository, so you can see who stands behind it.
 			</p>
 			if len(libraries) == 0 {
 				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>

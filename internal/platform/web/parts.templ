@@ -334,7 +334,7 @@ templ factLink(href, text, title string) {
 templ libraryFacts(lib libraryView) {
 	@aboutPanel(reportLibrary(lib)) {
 		@fact("Owner") {
-			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
+			<a href={ templ.SafeURL(lib.ownerHref) }>{ lib.owner }</a>
 		}
 		@fact("Repository") {
 			@factLink(lib.githubURL, lib.name, "github.com/"+lib.owner+"/"+lib.name)

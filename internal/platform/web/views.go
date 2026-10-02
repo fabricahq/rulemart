@@ -29,8 +29,11 @@ type libraryView struct {
 	// and nofollow, and names no canonical address.
 	vetted                                 bool
 	href, owner, name, description, avatar string
-	// githubURL is the repository, and ownerURL its owner, on GitHub.
-	githubURL, ownerURL string
+	// githubURL is the repository on GitHub.
+	githubURL string
+	// ownerHref leads to the library's owner: their page on Rulemart for a vetted library, or, since an owner has a
+	// page only with a vetted library, their profile on GitHub for any other.
+	ownerHref string
 	// license is the declared SPDX expression, and licenseFile the declared license file, which licenseURL links;
 	// each is empty when the library declares none.
 	license, licenseFile, licenseURL string
@@ -104,11 +107,16 @@ func newLibraryView(lib views.Library) libraryView {
 	v := libraryView{
 		vetted: lib.Vetted, href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
 		avatar: lib.OwnerAvatarURL, githubURL: domain.RepositoryURL(lib.FullName()),
-		ownerURL: domain.OwnerURL(lib.Owner), latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
+		latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
 		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
 		groups: lib.Groups, rules: lib.Rules, releases: lib.LatestRelease,
 	}
 	v.latestHref = releaseHref(v, lib.LatestRelease)
+	if lib.Vetted {
+		v.ownerHref = ownerHref(lib.Owner)
+	} else {
+		v.ownerHref = domain.OwnerURL(lib.Owner)
+	}
 	if lib.LicenseFile != "" {
 		v.licenseURL = domain.BlobURL(lib.FullName(), v.latestTag, lib.LicenseFile)
 	}

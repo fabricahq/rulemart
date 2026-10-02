@@ -70,6 +70,10 @@ decision.
   shows the login, the avatar the catalog stores, and the owner's vetted libraries. The owner's display name, kind
   (organization or person), and bio wait for a slice that stores them, since the catalog keeps only what ingestion
   reads from the repository.
+- **Proposed: a library's About panel leads to its owner's page**, as the prototype's does, and its Repository row to
+  GitHub. An unvetted library's owner has no page, so its Owner row leads to the owner on GitHub instead. The
+  libraries page's lede says each library shows its owner and repository, rather than the prototype's "owner line",
+  which no row has.
 
 ### Home
 

@@ -116,7 +116,7 @@ func librariesPage(c chrome, libraries []libraryCard, canList bool) templ.Compon
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" rel=\"nofollow\">unvetted libraries</a> until Rulemart reviews and vets it. Check the owner line to see who stands behind each one.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" rel=\"nofollow\">unvetted libraries</a> until Rulemart reviews and vets it. Each library shows its owner and repository, so you can see who stands behind it.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

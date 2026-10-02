@@ -114,3 +114,24 @@ func TestOwnerPageFailureLeavesTheLoginOutOfTheLogs(t *testing.T) {
 		t.Fatalf("the logs are %s", logs)
 	}
 }
+
+// A vetted library's About panel leads to its owner's page, and its repository to GitHub. An unvetted library's
+// owner has no page, so its owner leads to GitHub instead.
+func TestLibraryPageLeadsToItsOwner(t *testing.T) {
+	handler := newSite(t, unvettedCatalog())
+
+	for path, want := range map[string]string{
+		"/example/rules":  "/example",
+		"/stranger/rules": "https://github.com/stranger",
+	} {
+		page := get(t, handler, path).Body.String()
+		owner := strings.TrimPrefix(path, "/")
+		owner = owner[:strings.Index(owner, "/")]
+		if got := links(t, page, owner); !slices.Contains(got, want) {
+			t.Errorf("%s: the owner links %q, want %s", path, got, want)
+		}
+		if got := links(t, page, "rules"); !slices.Contains(got, "https://github.com"+path) {
+			t.Errorf("%s: the repository links %q, want GitHub's", path, got)
+		}
+	}
+}
