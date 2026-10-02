@@ -283,34 +283,6 @@ func withoutTrailingSlash(next http.Handler) http.Handler {
 	})
 }
 
-func (s *server) home(w http.ResponseWriter, r *http.Request) {
-	page, err := s.catalog.HomePage(r.Context())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	cards, err := s.vettedCards(r, page.Libraries)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	view := newHomeView(cards, newGroupIndexView(page.Groups, s.assets.iconURL), s.listYourLibraryHref(r))
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), view))
-}
-
-// listYourLibraryHref returns where the home page's List your library leads: the page that lists a library for a
-// signed-in visitor, sign-in returning to it for anyone else, and, where listing isn't available, how to get a
-// library vetted.
-func (s *server) listYourLibraryHref(r *http.Request) string {
-	if !s.listingAvailable() {
-		return aboutHref + "#get-vetted"
-	}
-	if visitorOf(r.Context()).account == nil {
-		return s.absolute(signInPageHref(listHref))
-	}
-	return listHref
-}
-
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	libraries, err := s.catalog.Libraries(r.Context())
 	if err != nil {

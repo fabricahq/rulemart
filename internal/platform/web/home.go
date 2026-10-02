@@ -1,9 +1,11 @@
-// Shape what the home page reads into what it shows: the popular groups, each kind's tiles, and the first libraries.
+// The home page, and how it shapes what it reads into what it shows: the popular groups, each kind's tiles, the first
+// libraries, and where List your library leads.
 
 package web
 
 import (
 	"cmp"
+	"net/http"
 	"slices"
 )
 
@@ -53,3 +55,31 @@ func firstOf[T any](items []T, n int) []T {
 
 // empty reports whether no vetted library holds a canonical group, so the home page has no tiles to show.
 func (v homeView) empty() bool { return len(v.techs) == 0 && len(v.practices) == 0 }
+
+func (s *server) home(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.HomePage(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	cards, err := s.vettedCards(r, page.Libraries)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	view := newHomeView(cards, newGroupIndexView(page.Groups, s.assets.iconURL), s.listYourLibraryHref(r))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), view))
+}
+
+// listYourLibraryHref returns where the home page's List your library leads: the page that lists a library for a
+// signed-in visitor, sign-in returning to it for anyone else, and, where listing isn't available, how to get a
+// library vetted.
+func (s *server) listYourLibraryHref(r *http.Request) string {
+	if !s.listingAvailable() {
+		return aboutHref + "#get-vetted"
+	}
+	if visitorOf(r.Context()).account == nil {
+		return s.absolute(signInPageHref(listHref))
+	}
+	return listHref
+}

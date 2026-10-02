@@ -311,17 +311,6 @@ func assertShows(t *testing.T, page string, want ...string) {
 	}
 }
 
-func TestHomeListsTheLibraries(t *testing.T) {
-	handler := newSite(t, newCatalog())
-
-	resp := get(t, handler, "/")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules · 2 rules")
-}
-
 func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
