@@ -161,6 +161,66 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 	return items, nil
 }
 
+const listGroupRules = `-- name: ListGroupRules :many
+SELECT l.owner, l.name, l.owner_avatar_url, r.path, v.title::text AS title, v.impact::text AS impact,
+       v.major, v.minor, v.patch
+FROM library_groups g
+JOIN libraries l ON l.id = g.library_id
+JOIN rules r ON r.group_id = g.id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+WHERE g.path = $1 AND l.host || ':' || l.host_repository_id = ANY ($2::text[])
+ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path
+`
+
+type ListGroupRulesParams struct {
+	Path   string
+	Vetted []string
+}
+
+type ListGroupRulesRow struct {
+	Owner          string
+	Name           string
+	OwnerAvatarUrl string
+	Path           string
+	Title          string
+	Impact         string
+	Major          int32
+	Minor          int32
+	Patch          int32
+}
+
+// ListGroupRules returns the current rules of the group at path in every vetted library that has it, in the library's
+// owner and name order, then title order.
+func (q *Queries) ListGroupRules(ctx context.Context, arg ListGroupRulesParams) ([]ListGroupRulesRow, error) {
+	rows, err := q.db.Query(ctx, listGroupRules, arg.Path, arg.Vetted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupRulesRow
+	for rows.Next() {
+		var i ListGroupRulesRow
+		if err := rows.Scan(
+			&i.Owner,
+			&i.Name,
+			&i.OwnerAvatarUrl,
+			&i.Path,
+			&i.Title,
+			&i.Impact,
+			&i.Major,
+			&i.Minor,
+			&i.Patch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGroups = `-- name: ListGroups :many
 SELECT g.path, g.description, g.when_to_read, current.rule_count
 FROM library_groups g
@@ -284,6 +344,160 @@ func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersion
 			&i.Change,
 			&i.Summaries,
 			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVettedGroups = `-- name: ListVettedGroups :many
+SELECT g.path, l.owner, l.name, l.owner_avatar_url, count(*) AS rule_count
+FROM library_groups g
+JOIN libraries l ON l.id = g.library_id
+JOIN rules r ON r.group_id = g.id AND r.retired_in_release_id IS NULL
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
+GROUP BY g.path, l.id
+ORDER BY g.path, lower(l.owner), lower(l.name)
+`
+
+type ListVettedGroupsRow struct {
+	Path           string
+	Owner          string
+	Name           string
+	OwnerAvatarUrl string
+	RuleCount      int64
+}
+
+// ListVettedGroups returns each group that holds current rules in a vetted library, with the library and how many of
+// its current rules the group holds, in group path order and then the library's owner and name.
+func (q *Queries) ListVettedGroups(ctx context.Context, vetted []string) ([]ListVettedGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listVettedGroups, vetted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVettedGroupsRow
+	for rows.Next() {
+		var i ListVettedGroupsRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.Owner,
+			&i.Name,
+			&i.OwnerAvatarUrl,
+			&i.RuleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchRules = `-- name: SearchRules :many
+WITH search AS (
+    SELECT websearch_to_tsquery('english', $2::text) AS query
+),
+named_groups AS (
+    SELECT g.id,
+           setweight(to_tsvector('english',
+               coalesce(($3::text[])[array_position($4::text[], g.path)], '') || ' ' ||
+               split_part(g.path, '/', 2)), 'B') AS names
+    FROM library_groups g
+    JOIN libraries l ON l.id = g.library_id
+    WHERE l.host || ':' || l.host_repository_id = ANY ($5::text[])
+),
+matched AS (
+    SELECT v.id
+    FROM rule_versions v, search
+    WHERE v.html IS NOT NULL AND v.search_document @@ search.query
+    UNION
+    SELECT v.id
+    FROM named_groups g
+    JOIN rules r ON r.group_id = g.id
+    JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+    CROSS JOIN search
+    WHERE g.names @@ search.query
+)
+SELECT l.owner, l.name, l.owner_avatar_url, r.path, g.path AS group_path, v.title::text AS title,
+       v.impact::text AS impact, v.when_to_read::text AS when_to_read, v.major, v.minor, v.patch,
+       count(*) OVER () AS total
+FROM matched m
+JOIN rule_versions v ON v.id = m.id
+JOIN rules r ON r.id = v.rule_id
+JOIN library_groups g ON g.id = r.group_id
+JOIN named_groups ng ON ng.id = g.id
+JOIN libraries l ON l.id = r.library_id
+CROSS JOIN search
+ORDER BY ts_rank(v.search_document || ng.names, search.query) DESC, lower(v.title), lower(l.owner), lower(l.name),
+         r.path
+LIMIT $1
+`
+
+type SearchRulesParams struct {
+	MaxResults     int32
+	Query          string
+	CanonicalNames []string
+	CanonicalIds   []string
+	Vetted         []string
+}
+
+type SearchRulesRow struct {
+	Owner          string
+	Name           string
+	OwnerAvatarUrl string
+	Path           string
+	GroupPath      string
+	Title          string
+	Impact         string
+	WhenToRead     string
+	Major          int32
+	Minor          int32
+	Patch          int32
+	Total          int64
+}
+
+// SearchRules returns the vetted libraries' current rules that match query, best first, at most max_results of them,
+// each with how many matched in all. query is what a visitor typed, in websearch_to_tsquery's syntax, which accepts any
+// text. A rule matches through its search document or through its group's names: a canonical group's name on the list,
+// whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID, but never
+// what its library calls the group. It matches by text and by group name separately, so the first can use the search
+// documents' index. Equal ranks keep a stable order: by title, the library's owner and name, then rule ID.
+func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]SearchRulesRow, error) {
+	rows, err := q.db.Query(ctx, searchRules,
+		arg.MaxResults,
+		arg.Query,
+		arg.CanonicalNames,
+		arg.CanonicalIds,
+		arg.Vetted,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchRulesRow
+	for rows.Next() {
+		var i SearchRulesRow
+		if err := rows.Scan(
+			&i.Owner,
+			&i.Name,
+			&i.OwnerAvatarUrl,
+			&i.Path,
+			&i.GroupPath,
+			&i.Title,
+			&i.Impact,
+			&i.WhenToRead,
+			&i.Major,
+			&i.Minor,
+			&i.Patch,
+			&i.Total,
 		); err != nil {
 			return nil, err
 		}

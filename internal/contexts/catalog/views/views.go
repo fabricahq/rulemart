@@ -1,6 +1,6 @@
 // Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and current
-// rules, and a current rule with its versions. They're plain values, read from one state of the catalog, with
-// nothing of how it's stored.
+// rules, a current rule with its versions, the groups across libraries, one group's rules in every library, and
+// search results. They're plain values, read from one state of the catalog, with nothing of how it's stored.
 package views
 
 import (
@@ -60,6 +60,8 @@ type Group struct {
 // group by its ID, flagged as not canonical.
 type CanonicalGroup struct {
 	Name string
+	// Description is the list's one line saying which rules belong in the group.
+	Description string
 	// Icon is zero when Rulemart has no icon for the group.
 	Icon GroupIcon
 }
@@ -111,4 +113,73 @@ type Version struct {
 	PublishedAt time.Time
 	Change      coderules.Change
 	Summaries   []string
+}
+
+// LibraryRef names the library a rule or group comes from, on a page that shows more than one library.
+type LibraryRef struct {
+	// Owner and Name are spelled as the code host spells them now.
+	Owner, Name string
+	// OwnerAvatarURL is empty when the host reported none.
+	OwnerAvatarURL string
+}
+
+// FullName returns the library's repository as owner/name.
+func (l LibraryRef) FullName() string { return l.Owner + "/" + l.Name }
+
+// LibraryGroup is a group as one vetted library holds it.
+type LibraryGroup struct {
+	// Path is the group's ID, such as techs/go.
+	Path    string
+	Library LibraryRef
+	// Rules counts the library's current rules in the group.
+	Rules int
+}
+
+// GroupIndex is every group that holds current rules in a vetted library, technologies and practices apart.
+type GroupIndex struct {
+	Techs, Practices []GroupSummary
+}
+
+// GroupSummary is a group in the index. A canonical group combines every vetted library that holds it; any other
+// group stands alone, so it's one library's.
+type GroupSummary struct {
+	// Path is the group's ID, such as techs/go.
+	Path string
+	// Canonical is nil when Path isn't on Code Rules' canonical group list.
+	Canonical *CanonicalGroup
+	// Rules counts the current rules the group holds in Libraries.
+	Rules int
+	// Libraries hold the group, in owner and name order. A group that isn't canonical has exactly one.
+	Libraries []LibraryRef
+}
+
+// GroupPage is a canonical group's current rules in every vetted library that holds it.
+type GroupPage struct {
+	// Path is the group's ID, such as techs/go.
+	Path      string
+	Canonical CanonicalGroup
+	// Libraries hold the group's rules, in owner and name order; it's empty when no vetted library has the group.
+	Libraries []GroupLibrary
+}
+
+// GroupLibrary is one library's current rules in a group, in title order.
+type GroupLibrary struct {
+	Library LibraryRef
+	Rules   []RuleCard
+}
+
+// SearchResults are the current rules of vetted libraries that match a search, best first.
+type SearchResults struct {
+	Results []SearchResult
+	// Total counts every rule that matched, of which Results holds the best.
+	Total int
+}
+
+// SearchResult is a rule that matched a search, with its library.
+type SearchResult struct {
+	Library LibraryRef
+	Rule    RuleCard
+	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
+	CanonicalGroup *CanonicalGroup
+	WhenToRead     string
 }

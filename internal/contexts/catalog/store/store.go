@@ -32,6 +32,17 @@ type Reader interface {
 	// RulePage returns the current rule at rulePath in the vetted library owner/name, matched as LibraryPage
 	// matches it, or ErrNotFound.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
+	// Groups returns each group that holds current rules in a vetted library, once for each library that holds it,
+	// in path order and then the library's owner and name, without regard to case.
+	Groups(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryGroup, error)
+	// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in
+	// owner and name order, and each library's in title order. It's empty when no vetted library holds the group.
+	GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error)
+	// Search returns the vetted libraries' current rules that match query, best first, at most limit of them, with
+	// how many matched in all. A rule matches by its title, reading guidance, impact description, and body, and by
+	// its group's name: the name groups gives a canonical group, and the name part of any group's ID. It leaves each
+	// result's CanonicalGroup nil.
+	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error)
 }
 
 // ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired.
