@@ -154,8 +154,10 @@ type changeItem struct {
 	notes []versionNote
 	// replacedBy is the rule that replaced a retired one, then the one that replaced that one, and so on.
 	replacedBy []ruleLink
-	// renamedFrom is the ID a renamed rule had before, or nil.
+	// renamedFrom is the ID a renamed rule had before, or nil, and textHref leads to the old rule's last text compared
+	// with the new rule's.
 	renamedFrom *ruleLink
+	textHref    string
 }
 
 // versionNote is one version's change summaries; version is empty when the list needs no label, and major marks a
@@ -372,11 +374,11 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 		item.versions = c.To.String()
 	case views.ChangeRenamed:
 		from := newRuleLink(lib, *c.RenamedFrom)
-		item.renamedFrom = &from
-		item.versions = c.From.String() + " → " + c.To.String()
-		item.compareHref = "#" + diffAnchor(c.Rule.Path)
+		// The old rule's version and the new rule's belong to different rules, so the item names only the new one's.
+		item.renamedFrom, item.versions = &from, c.To.String()
+		item.textHref = "#" + diffAnchor(c.Rule.Path)
 		if release != 0 {
-			item.compareHref = releaseComparisonHref(lib, release-1, release, diffWords) + item.compareHref
+			item.textHref = releaseComparisonHref(lib, release-1, release, diffWords) + item.textHref
 		}
 	default:
 		item.versions = c.From.String() + " → " + c.To.String()
@@ -665,6 +667,18 @@ type diffView struct {
 	words          []textdiff.Part
 	lines          textdiff.LineDiff
 }
+
+// versions names the versions compared, "1.0.0 → 1.1.0", or one version when both are the same, such as a rule
+// renamed without a new version number, whose header shows the move between files instead.
+func (d diffView) versions() string {
+	if d.from == d.to {
+		return d.to
+	}
+	return d.from + " → " + d.to
+}
+
+// renamed reports that the diff compares two rules' files: a rule's last text before a rename with its new ID's.
+func (d diffView) renamed() bool { return d.oldPath != d.path }
 
 // newDiffView compares version from of rule oldPath, which is rulePath unless the rule was renamed, with version to of
 // rule rulePath in lib, whose text is text, as mode says, spending budget on what it renders. A diff that needs more

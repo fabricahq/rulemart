@@ -95,8 +95,12 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A rename shows once, as a rename. Proposed.** Code Rules records a rename as a retired rule replaced by a new one.
   When the release that retired a rule added its replacement under the retired rule's last title, Rulemart shows one
   change, under Renamed rules: the new ID, "Renamed from" the old one, and the old rule's last text compared with the
-  new rule's. Pages say "renamed to" and "renamed from" rather than "replaced by". A replacement under another title
-  stays a retirement and a new rule.
+  new rule's. The change names only the new rule's version, since the old one's belongs to another rule, and links
+  "Compare the text"; when the text didn't change, the diff says so rather than calling the two files the same. Pages
+  say "renamed to" and "renamed from" rather than "replaced by". A replacement under another title stays a retirement
+  and a new rule.
+- **A linked release or diff stands out. Proposed.** Following a link to a release's card or a rule's diff outlines
+  that card, and a page leaves room below its last cards, so the target scrolls to the top even at the page's end.
 - **Long lists of changes fold. Proposed.** A section of more than 20 rules shows 10 and folds the rest behind a
   disclosure that counts them, such as public-rules' first release, which adds 127.
 - **Each release links its comparison with the release before it, and its tag links its card. Proposed.**

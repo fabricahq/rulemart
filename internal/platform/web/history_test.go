@@ -263,7 +263,7 @@ func TestReleaseComparisonShowsDiffsWhileTheyFit(t *testing.T) {
 	if resp.Code != http.StatusOK || resp.Body.Len() > 4<<20 {
 		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
 	}
-	shown := strings.Count(resp.Body.String(), `<section class="mt-3 scroll-mt-20 overflow-hidden`)
+	shown := strings.Count(resp.Body.String(), `<section class="anchor-card mt-3 scroll-mt-20 overflow-hidden`)
 	if shown == 0 || shown >= 4000 {
 		t.Fatalf("showed %d diffs, want some, not all", shown)
 	}
@@ -527,10 +527,17 @@ func TestReleasesShowARenameAsOneChange(t *testing.T) {
 	releases := get(t, handler, library+"?tab=releases").Body.String()
 	compared := get(t, handler, library+"?tab=releases&from=1&to=3").Body.String()
 
+	// The rename names the new rule's version, not the old and new rules' as a change from one to the other.
 	assertShows(t, releases, "1 new, 1 renamed, 1 major, and 1 retired",
-		"Renamed rules Name tests after behavior techs/go/name-tests-by-behavior 1.0.0 → 1.0.0 Renamed from techs/go/name-tests . Rename it.")
+		"Renamed rules Name tests after behavior techs/go/name-tests-by-behavior 1.0.0 Renamed from techs/go/name-tests . Compare the text Rename it.")
 	assertLinks(t, releases, "/example/rules?from=2&tab=releases&to=3#diff-techs_go_name-tests-by-behavior")
-	assertShows(t, compared, "Name tests after behavior techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 → 1.0.0")
+	assertShows(t, compared, "Name tests after behavior techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 +1 −1 View at 1.0.0")
+
+	// A rename that kept the text says so.
+	comparison.Changes[len(comparison.Changes)-1].Text.New = "Name tests.\n"
+	c.releaseComparisons["example/rules 1...3"] = comparison
+	unchanged := get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String()
+	assertShows(t, unchanged, "techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 View at 1.0.0 The text is the same; only the rule's ID changed.")
 	assertLinks(t, compared, "#diff-techs_go_name-tests-by-behavior", "https://github.com/example/rules/blob/release/3/techs/go/name-tests-by-behavior.md")
 }
 

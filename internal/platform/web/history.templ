@@ -23,9 +23,11 @@ templ releasesPage(c chrome, lib libraryView, v releasesView) {
 		if v.newerHref != "" {
 			<p class="mb-4 text-[13px]"><a href={ templ.SafeURL(v.newerHref) }>← Newer library releases</a></p>
 		}
-		for _, card := range v.cards {
-			@releaseCardView(card)
-		}
+		<div class="anchor-cards">
+			for _, card := range v.cards {
+				@releaseCardView(card)
+			}
+		</div>
 		if v.olderHref != "" {
 			<p class="text-[13px]"><a href={ templ.SafeURL(v.olderHref) }>Older library releases →</a></p>
 		}
@@ -35,7 +37,7 @@ templ releasesPage(c chrome, lib libraryView, v releasesView) {
 // releaseCardView is one release, laid out like its generated release notes, with links to compare it with the
 // release before and to its notes on GitHub.
 templ releaseCardView(card releaseCard) {
-	<section class="mb-4 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ card.anchor } aria-labelledby={ card.anchor + "-title" }>
+	<section class="anchor-card mb-4 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ card.anchor } aria-labelledby={ card.anchor + "-title" }>
 		<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-surface-header px-5 py-3 max-narrow:px-4">
 			<h2 class="font-mono text-[15px] font-semibold" id={ card.anchor + "-title" }>
 				<a class="text-ink no-underline hover:underline hover:decoration-border-strong hover:underline-offset-3" href={ templ.SafeURL("#" + card.anchor) }>{ card.tag }</a>
@@ -139,7 +141,7 @@ templ changeItemView(item changeItem) {
 			<span class="v">{ item.versions }</span>
 		}
 		if item.renamedFrom != nil {
-			<div>Renamed from <span class="id ml-0">{ item.renamedFrom.id }</span>.</div>
+			<div>Renamed from <span class="id ml-0">{ item.renamedFrom.id }</span>. <a href={ templ.SafeURL(item.textHref) }>Compare the text</a></div>
 		}
 		for _, note := range item.notes {
 			for i, summary := range note.summaries {
@@ -249,9 +251,11 @@ templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) 
 			if len(v.diffs) > 0 {
 				<h2 class="mt-[22px] text-[12px] font-medium tracking-[.12em] text-muted uppercase">Changed text</h2>
 				<p class="mt-1 text-[13px] text-faint">The text of { plural(len(v.diffs), "rule", "rules") } that changed between { v.fromTag } and { v.toTag }.</p>
-				for _, d := range v.diffs {
-					@diffFile(d)
-				}
+				<div class="anchor-cards">
+					for _, d := range v.diffs {
+						@diffFile(d)
+					}
+				</div>
 				if v.omitted > 0 {
 					<p class="mt-3 text-[13px] text-muted">The text of { plural(v.omitted, "more rule", "more rules") } is more than one page shows. Compare each one's versions from its link above.</p>
 				}
@@ -366,19 +370,19 @@ templ emptyNote() {
 // diffFile is one rule file's changes under a heading: its path, how many lines changed, and the changes in words or
 // lines, or why the page can't show them.
 templ diffFile(d diffView) {
-	<section class="mt-3 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ d.anchor } aria-labelledby={ d.anchor + "-title" }>
+	<section class="anchor-card mt-3 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ d.anchor } aria-labelledby={ d.anchor + "-title" }>
 		<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border bg-surface-header px-4 py-2.5">
 			<h3 class="contents" id={ d.anchor + "-title" }>
 				if d.title != "" {
 					<a class="text-[14px] font-semibold decoration-border-strong underline-offset-3" href={ templ.SafeURL(d.href) }>{ d.title }</a>
 				}
-				if d.oldPath != d.path {
+				if d.renamed() {
 					<span class="font-mono text-[12.5px] [overflow-wrap:anywhere]">{ d.oldPath } → { d.path }</span>
 				} else {
 					<span class="font-mono text-[12.5px] [overflow-wrap:anywhere]">{ d.path }</span>
 				}
 			</h3>
-			<span class="font-mono text-[12px] whitespace-nowrap text-faint">{ d.from } → { d.to }</span>
+			<span class="font-mono text-[12px] whitespace-nowrap text-faint">{ d.versions() }</span>
 			if d.state == views.TextShown && !d.unchanged {
 				<span class="font-mono text-[12px] whitespace-nowrap"><span class="text-add-ink">+{ strconv.Itoa(d.added) }</span> <span class="text-del-ink">−{ strconv.Itoa(d.removed) }</span></span>
 			}
@@ -392,6 +396,8 @@ templ diffFile(d diffView) {
 				@diffUnavailable(d, "Rulemart doesn't have the text of these versions yet. It reads them the next time it updates the library.")
 			case d.state == views.TextTooLarge:
 				@diffUnavailable(d, "These changes are too large to show here.")
+			case d.unchanged && d.renamed():
+				<p class="px-4 py-3.5 text-[13px] text-muted">The text is the same; only the rule's ID changed.</p>
 			case d.unchanged:
 				<p class="px-4 py-3.5 text-[13px] text-muted">The rule's file is the same in both versions.</p>
 			case d.mode == diffLines:
