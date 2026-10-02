@@ -27,7 +27,9 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 ### Search engines
 
 - **Proposed: `robots.txt` disallows `/account/`, `/sign-in`, `/list`, `/search`, `/unvetted`, and `/*from=`**, the
-  query parameter only comparisons use, and names the sitemap on `RULEMART_BASE_URL`. Each of those pages already
+  query parameter only comparisons use, and names the sitemap on `RULEMART_BASE_URL`. Each one-segment page is
+  disallowed alone and with a query, as `/list$` and `/list?`, since a rule matches every path it starts: `/list`
+  alone would also keep crawlers off `/listr/rules`, a library's page. Each of those pages already
   says `noindex` (**Existing**), for crawlers that ignore `robots.txt`; disallowing them saves crawling search's and
   comparisons' endless addresses. An unvetted library's own pages can't be disallowed by path, since they share
   `/{owner}/{repo}` with vetted ones; they keep `noindex, nofollow` (**Existing**).

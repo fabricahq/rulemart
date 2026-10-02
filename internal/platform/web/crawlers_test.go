@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -33,19 +34,45 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		t.Fatalf("answered %d, %q", resp.Code, resp.Header().Get("Content-Type"))
 	}
 	lines := strings.Split(resp.Body.String(), "\n")
-	for _, want := range []string{
-		"User-agent: *", "Disallow: /account/", "Disallow: /sign-in", "Disallow: /list", "Disallow: /search",
-		"Disallow: /unvetted", "Disallow: /*from=", "Sitemap: https://rulemart.example/sitemap.xml",
-	} {
+	for _, want := range []string{"User-agent: *", "Sitemap: https://rulemart.example/sitemap.xml"} {
 		if !slices.Contains(lines, want) {
 			t.Errorf("robots.txt lacks %q:\n%s", want, resp.Body)
 		}
 	}
+	var rules []string
 	for _, line := range lines {
-		if line == "Disallow: /" {
-			t.Error("robots.txt keeps crawlers off the whole site")
+		if rule, ok := strings.CutPrefix(line, "Disallow: "); ok {
+			rules = append(rules, rule)
 		}
 	}
+	for path, want := range map[string]bool{
+		"/account": false, "/account/cart": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
+		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
+		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
+		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
+		"/": false, "/libraries": false, "/groups/techs/go": false, "/example/rules": false, "/example/rules?tab=releases": false,
+		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
+		"/sign-in-kit/rules": false, "/accountant/rules": false,
+	} {
+		if got := disallows(rules, path); got != want {
+			t.Errorf("robots.txt disallows %s: %v, want %v", path, got, want)
+		}
+	}
+}
+
+// disallows reports whether any of rules, robots.txt Disallow values, matches path, as Google and Bing read them: a
+// prefix of the path and query, where * matches any characters and a final $ the end.
+func disallows(rules []string, path string) bool {
+	for _, rule := range rules {
+		pattern := "^" + strings.ReplaceAll(regexp.QuoteMeta(strings.TrimSuffix(rule, "$")), `\*`, ".*")
+		if strings.HasSuffix(rule, "$") {
+			pattern += "$"
+		}
+		if regexp.MustCompile(pattern).MatchString(path) {
+			return true
+		}
+	}
+	return false
 }
 
 // Without a public origin, as locally, robots.txt names no sitemap, and there's none: its addresses must be absolute.
