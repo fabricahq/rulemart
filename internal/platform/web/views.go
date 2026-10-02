@@ -211,6 +211,34 @@ type ruleCard struct {
 	stars int
 }
 
+// ruleResultView is a rule in a list of rules across libraries, such as one that matched a search, or one the visitor
+// starred.
+type ruleResultView struct {
+	rule       ruleCard
+	whenToRead string
+	// sourceID is the rule's source-qualified ID, owner/name:rule ID, Code Rules' source:rule form with the library's
+	// repository as its source.
+	sourceID string
+	library  libraryRefView
+	group    groupLabel
+	icon     groupIcon
+	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
+	missing []string
+	// starredAs is the ID of the retired rule the visitor starred, which this one replaced, or empty.
+	starredAs string
+}
+
+// newRuleResult describes rule, a rule of lib, as a rule result with what every list of results shows, and leaves the
+// fields only one list shows to that list. canonical is the rule's canonical group, or nil when its group isn't
+// canonical, and iconURL returns where the site serves an icon file.
+func newRuleResult(lib views.LibraryRef, rule views.RuleCard, canonical *views.CanonicalGroup, iconURL func(file string) string) ruleResultView {
+	ref := newLibraryRefView(lib)
+	return ruleResultView{
+		rule: newRuleCard(ref.href, rule), sourceID: ref.fullName() + ":" + rule.Path, library: ref,
+		group: newGroupLabel(rule.Group, canonical), icon: newGroupIcon(canonical, iconURL),
+	}
+}
+
 // libraryContents is a library's groups, split by kind, each with its rules in title order, and its retired rules.
 type libraryContents struct {
 	techs, practices []groupView

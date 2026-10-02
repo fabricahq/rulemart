@@ -348,35 +348,15 @@ type searchView struct {
 	results     []ruleResultView
 }
 
-// ruleResultView is a rule in a list of rules across libraries, such as one that matched a search, or one the visitor
-// starred.
-type ruleResultView struct {
-	rule       ruleCard
-	whenToRead string
-	// sourceID is the rule's source-qualified ID, owner/name:rule ID, Code Rules' source:rule form with the library's
-	// repository as its source.
-	sourceID string
-	library  libraryRefView
-	group    groupLabel
-	icon     groupIcon
-	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
-	missing []string
-	// starredAs is the ID of the retired rule the visitor starred, which this one replaced, or empty.
-	starredAs string
-}
-
 func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
 	v := searchView{
 		query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords,
 		page: page, pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
 	}
 	for _, r := range results.Results {
-		lib := newLibraryRefView(r.Library)
-		v.results = append(v.results, ruleResultView{
-			rule: newRuleCard(lib.href, r.Rule), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), sourceID: lib.fullName() + ":" + r.Rule.Path,
-			library: lib, group: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
-			missing: r.Missing,
-		})
+		result := newRuleResult(r.Library, r.Rule, r.CanonicalGroup, iconURL)
+		result.whenToRead, result.missing = plainText(r.WhenToRead, r.WhenToReadHTML), r.Missing
+		v.results = append(v.results, result)
 	}
 	return v
 }

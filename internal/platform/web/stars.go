@@ -220,12 +220,8 @@ func (s *server) starredPage(w http.ResponseWriter, r *http.Request) {
 func newStarredViews(starred []views.StarredRule, iconURL func(file string) string) []ruleResultView {
 	results := make([]ruleResultView, len(starred))
 	for i, s := range starred {
-		lib := newLibraryRefView(s.Library)
-		results[i] = ruleResultView{
-			rule: newRuleCard(lib.href, s.Rule), sourceID: lib.fullName() + ":" + s.Rule.Path, library: lib,
-			group: newGroupLabel(s.Rule.Group, s.CanonicalGroup), icon: newGroupIcon(s.CanonicalGroup, iconURL),
-			starredAs: s.StarredAs,
-		}
+		results[i] = newRuleResult(s.Library, s.Rule, s.CanonicalGroup, iconURL)
+		results[i].starredAs = s.StarredAs
 	}
 	return results
 }
