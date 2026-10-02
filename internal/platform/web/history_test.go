@@ -54,7 +54,7 @@ var exampleReleases = []views.Release{{Number: 1, TaggedAt: day(1)}, {Number: 2,
 func historyCatalog() catalog {
 	c := newCatalog()
 	all := changes(false)
-	c.releases["example/rules"] = views.ReleasesPage{Library: exampleRules, Releases: []views.ReleaseNotes{
+	c.releases["example/rules"] = views.ReleasesPage{Library: exampleRules, AllReleases: exampleReleases, Releases: []views.ReleaseNotes{
 		{Release: exampleReleases[2], Changes: []views.RuleChange{all[0], all[2], all[3]}, Versions: []views.RuleVersionRef{
 			{Path: "practices/testing/verify-retry-limits", Version: v110}, {Path: "techs/go/close-bodies", Version: v100},
 			{Path: "techs/go/return-errors", Version: v200},
@@ -156,6 +156,64 @@ func TestReleasesTabChoosesReleasesToCompare(t *testing.T) {
 	}
 }
 
+// A page of releases leads to the next, older page, and a page of older releases back to the newest; a release
+// elsewhere links to the page that starts with it.
+func TestReleasesTabPagesThroughOlderReleases(t *testing.T) {
+	c := historyCatalog()
+	newest := c.releases["example/rules"]
+	newest.Releases, newest.Older = newest.Releases[:1], 2
+	c.releases["example/rules"] = newest
+	older := views.ReleasesPage{Library: exampleRules, AllReleases: exampleReleases, Releases: historyCatalog().releases["example/rules"].Releases[1:]}
+	c.releases["example/rules until=2"] = older
+	handler := newSite(t, c)
+
+	first := get(t, handler, library+"?tab=releases").Body.String()
+	second := get(t, handler, library+"?tab=releases&until=2")
+
+	assertShows(t, first, "Older library releases →")
+	assertLinks(t, first, "/example/rules?tab=releases&until=2")
+	if second.Code != http.StatusOK {
+		t.Fatalf("got %d", second.Code)
+	}
+	assertShows(t, second.Body.String(), "← Newest library releases", "release/2", "release/1")
+	assertLinks(t, second.Body.String(), "/example/rules?tab=releases")
+	if strings.Contains(second.Body.String(), `id="release-3"`) || strings.Contains(visibleText(t, second.Body.String()), "Older library releases") {
+		t.Error("the page of older releases shows release/3, or a page past release/1")
+	}
+	versions := get(t, handler, errorsRule+"?tab=versions").Body.String()
+	assertLinks(t, versions, "/example/rules?tab=releases#release-3", "/example/rules?tab=releases&until=1#release-1")
+	for _, until := range []string{"0", "x", "02"} {
+		if resp := get(t, handler, library+"?tab=releases&until="+until); resp.Code != http.StatusNotFound {
+			t.Errorf("until=%s: got %d", until, resp.Code)
+		}
+	}
+}
+
+// One release can hold as many rules as Code Rules allows a library, 10,000, and a page shows a release whole, so its
+// card must stay well within what one response can hold: its changes take short markup, and its table of every
+// rule's version leads to GitHub instead.
+func TestReleasesTabShowsTheLargestReleaseWithinAResponse(t *testing.T) {
+	c := newCatalog()
+	notes := views.ReleaseNotes{Release: views.Release{Number: 1, TaggedAt: day(1)}}
+	for i := range 10000 {
+		path := fmt.Sprintf("practices/a-long-group-name/a-long-rule-id-of-sixty-or-so-characters-%05d", i)
+		notes.Changes = append(notes.Changes, views.RuleChange{
+			Rule: views.RuleRef{Path: path, Title: "A rule title of ordinary length for a rule"}, Change: coderules.ChangeNew, To: v100,
+			Versions: []views.Version{{Version: v100, Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}},
+		})
+		notes.Versions = append(notes.Versions, views.RuleVersionRef{Path: path, Version: v100})
+	}
+	c.releases["example/rules"] = views.ReleasesPage{Library: exampleRules, AllReleases: exampleReleases[:1], Releases: []views.ReleaseNotes{notes}}
+
+	resp := get(t, newSite(t, c), library+"?tab=releases")
+
+	if resp.Code != http.StatusOK || resp.Body.Len() > 4<<20 {
+		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
+	}
+	assertShows(t, resp.Body.String(), "Library release 1 publishes 10000 rules.",
+		"This library release holds 10000 rules. Its GitHub Release page lists every rule's version.")
+}
+
 // Comparing releases lists every change between them, then each changed rule's text with the changed words marked,
 // as text, or says why it can't show it.
 func TestReleaseComparisonShowsWhatChangedAndTheText(t *testing.T) {
@@ -221,7 +279,7 @@ func TestRuleVersionsTabLeadsToComparisonsAndReleases(t *testing.T) {
 
 	assertLinks(t, page,
 		"/example/rules/techs/go/return-errors?from=1.0.0&tab=versions&to=2.0.0",
-		"/example/rules?tab=releases#release-3", "/example/rules?tab=releases#release-1",
+		"/example/rules?tab=releases#release-3", "/example/rules?tab=releases&until=1#release-1",
 	)
 }
 

@@ -33,7 +33,8 @@ const (
 // catalog serves the pages' reads from memory, matching libraries without regard to case as the store does.
 type catalog struct {
 	libraries []views.LibraryCard
-	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>.
+	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
+	// page of releases that doesn't start at the latest adds " until=<n>" to its key.
 	pages    map[string]views.LibraryPage
 	releases map[string]views.ReleasesPage
 	rules    map[string]views.RulePage
@@ -96,8 +97,13 @@ func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (view
 	return page, c.err
 }
 
-func (c catalog) ReleasesPage(_ context.Context, owner, name string) (views.ReleasesPage, error) {
-	page, ok := c.releases[strings.ToLower(owner+"/"+name)]
+// ReleasesPage finds a page that starts at a release other than the latest under the library's key, then " until=<n>".
+func (c catalog) ReleasesPage(_ context.Context, owner, name string, until int) (views.ReleasesPage, error) {
+	key := strings.ToLower(owner + "/" + name)
+	if until != 0 {
+		key += fmt.Sprintf(" until=%d", until)
+	}
+	page, ok := c.releases[key]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load library history %s/%s: %w", owner, name, app.ErrNotFound)
 	}

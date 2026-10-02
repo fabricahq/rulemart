@@ -120,7 +120,7 @@ func describeChanges(changes []views.RuleChange) []string {
 func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 	pages := app.Pages{Store: &histories{history: fourReleases}}
 
-	page, err := pages.ReleasesPage(context.Background(), "example", "rules")
+	page, err := pages.ReleasesPage(context.Background(), "example", "rules", 0)
 
 	if err != nil {
 		t.Fatal(err)
@@ -129,8 +129,8 @@ func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 	for _, r := range page.Releases {
 		numbers = append(numbers, r.Release.Number)
 	}
-	if !slices.Equal(numbers, []int{4, 3, 2, 1}) || page.Library.Owner != "example" {
-		t.Fatalf("releases are %v of %+v, want newest first", numbers, page.Library)
+	if !slices.Equal(numbers, []int{4, 3, 2, 1}) || page.Library.Owner != "example" || page.Older != 0 || len(page.AllReleases) != 4 {
+		t.Fatalf("releases are %v of %+v, older from %d, want newest first, all of them", numbers, page.Library, page.Older)
 	}
 	want := map[int][]string{
 		4: {
@@ -163,6 +163,59 @@ func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 	}
 	if got := page.Releases[0].Versions; !slices.Equal(got, wantVersions) {
 		t.Errorf("release/4's versions are %+v, want %+v", got, wantVersions)
+	}
+}
+
+// manyReleases returns a library of releases releases and rules rules, all added by release 1 and unchanged since.
+func manyReleases(releases, rules int) views.LibraryHistory {
+	h := views.LibraryHistory{Library: views.Library{Owner: "example", Name: "rules", LatestRelease: releases}}
+	for n := 1; n <= releases; n++ {
+		h.Releases = append(h.Releases, views.Release{Number: n, TaggedAt: day(1)})
+	}
+	for i := range rules {
+		h.Rules = append(h.Rules, views.RuleHistory{Path: fmt.Sprintf("techs/go/rule-%05d", i), Title: "Rule",
+			Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew, "Add the rule.")}})
+	}
+	return h
+}
+
+// A page shows whole releases, newest first, while their changes and versions fit app.MaxReleaseRows, and at least
+// one, and says where the older ones start; a later page starts at the release it's asked for.
+func TestReleasesPageShowsAsManyReleasesAsFitAPage(t *testing.T) {
+	// Each release lists 400 rules' versions, so five fit a page; release 1 also lists them as new rules.
+	pages := app.Pages{Store: &histories{history: manyReleases(12, 400)}}
+	ctx := context.Background()
+	for name, tc := range map[string]struct {
+		until, older int
+		want         []int
+	}{
+		"the newest":                 {0, 7, []int{12, 11, 10, 9, 8}},
+		"a page from release 7":      {7, 2, []int{7, 6, 5, 4, 3}},
+		"the oldest, larger than it": {2, 0, []int{2, 1}},
+		"the first alone":            {1, 0, []int{1}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			page, err := pages.ReleasesPage(ctx, "example", "rules", tc.until)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			var numbers []int
+			for _, r := range page.Releases {
+				numbers = append(numbers, r.Release.Number)
+			}
+			if !slices.Equal(numbers, tc.want) || page.Older != tc.older {
+				t.Fatalf("got %v, older from %d; want %v, older from %d", numbers, page.Older, tc.want, tc.older)
+			}
+		})
+	}
+}
+
+func TestReleasesPageRefusesAReleaseTheLibraryDoesntHave(t *testing.T) {
+	_, err := app.Pages{Store: &histories{history: fourReleases}}.ReleasesPage(context.Background(), "example", "rules", 5)
+
+	if !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("got %v, want app.ErrNotFound", err)
 	}
 }
 

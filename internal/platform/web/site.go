@@ -77,7 +77,9 @@ type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
 	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
-	ReleasesPage(ctx context.Context, owner, name string) (views.ReleasesPage, error)
+	// ReleasesPage starts at release until, or at the latest when until is 0, and fails with app.ErrNotFound when
+	// there's no such release either.
+	ReleasesPage(ctx context.Context, owner, name string, until int) (views.ReleasesPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
@@ -180,8 +182,9 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, searchPage(s.chrome, newSearchView(query, tooLong, results, s.assets.iconURL)))
 }
 
-// library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases. With
-// releases to compare in the from and to parameters, the releases tab compares them.
+// library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
+// starting at the release the until parameter names, if any. With releases to compare in the from and to
+// parameters, the releases tab compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
@@ -189,18 +192,20 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	case tab == releasesTab && (query.Has("from") || query.Has("to")):
 		s.releaseComparison(w, r, owner, name)
 	case tab == releasesTab:
-		page, err := s.catalog.ReleasesPage(r.Context(), owner, name)
+		until := 0
+		if query.Has("until") {
+			var err error
+			if until, err = parseReleaseNumber(query.Get("until")); err != nil {
+				s.notFound(w, r)
+				return
+			}
+		}
+		page, err := s.catalog.ReleasesPage(r.Context(), owner, name, until)
 		if !s.found(w, r, page.Library, err) {
 			return
 		}
 		view := newLibraryView(page.Library)
-		// The page lists releases newest first, and the picker takes them in number order.
-		releases := make([]views.Release, len(page.Releases))
-		for i, notes := range page.Releases {
-			releases[len(releases)-1-i] = notes.Release
-		}
-		from, to := releasePicker(releases)
-		s.render(w, r, http.StatusOK, releasesPage(s.pageChrome(view.href), view, newReleaseCards(view, page), from, to))
+		s.render(w, r, http.StatusOK, releasesPage(s.pageChrome(view.href), view, newReleasesView(view, page)))
 	default:
 		page, err := s.catalog.LibraryPage(r.Context(), owner, name)
 		if !s.found(w, r, page.Library, err) {

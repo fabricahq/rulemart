@@ -10,17 +10,24 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/textdiff"
 )
 
-// releasesPage is a library's Library releases tab: each release, newest first, as its release notes describe it.
-templ releasesPage(c chrome, lib libraryView, cards []releaseCard, from, to []releaseOption) {
+// releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
+// describe it, with links to newer and older pages.
+templ releasesPage(c chrome, lib libraryView, v releasesView) {
 	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}, lib, releasesTab, true) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
-			if len(cards) > 1 {
-				@compareForm(lib.href, "releases", from, to, diffWords, "Older library release", "Newer library release")
+			if len(v.from) > 1 {
+				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")
 			}
 		</div>
-		for _, card := range cards {
+		if v.newerHref != "" {
+			<p class="mb-4 text-[13px]"><a href={ templ.SafeURL(v.newerHref) }>← Newest library releases</a></p>
+		}
+		for _, card := range v.cards {
 			@releaseCardView(lib, card)
+		}
+		if v.olderHref != "" {
+			<p class="text-[13px]"><a href={ templ.SafeURL(v.olderHref) }>Older library releases →</a></p>
 		}
 	}
 }
@@ -50,22 +57,18 @@ templ releaseCardView(lib libraryView, card releaseCard) {
 			if card.sharedFiles {
 				<p class="mt-3 text-[13px] text-muted">{ sharedFilesNote }</p>
 			}
-			if len(card.versions) > 0 {
+			if len(card.versions) > maxVersionRows {
+				<p class="mt-3.5 text-[13px] text-muted">This library release holds { plural(len(card.versions), "rule", "rules") }. Its <a href={ templ.SafeURL(card.notesURL) }>GitHub Release page</a> lists every rule's version.</p>
+			} else if len(card.versions) > 0 {
 				<details class="group mt-3.5 text-[13px]">
 					<summary class="cursor-pointer text-muted marker:text-faint hover:text-ink">All rule versions in this library release</summary>
-					<table class="mt-2 w-full border-collapse">
+					<table class="rule-versions">
 						<thead>
-							<tr>
-								<th class="border-b border-border px-2.5 py-2 text-left text-[11px] font-medium tracking-[.08em] text-faint uppercase">Rule</th>
-								<th class="border-b border-border px-2.5 py-2 text-left text-[11px] font-medium tracking-[.08em] text-faint uppercase">Version</th>
-							</tr>
+							<tr><th>Rule</th><th>Version</th></tr>
 						</thead>
 						<tbody>
 							for _, v := range card.versions {
-								<tr>
-									<td class="border-b border-border-subtle px-2.5 py-1.5 font-mono text-[12.5px] [overflow-wrap:anywhere]"><a class="decoration-border-strong underline-offset-3" href={ templ.SafeURL(v.href) }>{ v.id }</a></td>
-									<td class="border-b border-border-subtle px-2.5 py-1.5 font-mono text-[12.5px] whitespace-nowrap">{ v.version }</td>
-								</tr>
+								<tr><td><a href={ templ.SafeURL(v.href) }>{ v.id }</a></td><td>{ v.version }</td></tr>
 							}
 						</tbody>
 					</table>
@@ -82,7 +85,7 @@ templ changeSections(sections []changeSection) {
 		if section.warning {
 			<p class="mb-1.5 text-[13px] text-muted">{ majorWarning }</p>
 		}
-		<ul class="list-disc pl-[18px] text-[13.5px] marker:text-faint">
+		<ul class="rule-changes">
 			for _, item := range section.items {
 				@changeItemView(item)
 			}
@@ -90,30 +93,31 @@ templ changeSections(sections []changeSection) {
 	}
 }
 
-// changeItemView is one changed rule: its title, ID, and versions, and the summary of each change.
+// changeItemView is one changed rule: its title, ID, and versions, and the summary of each change. A release can list
+// thousands of rules, so items take short markup that the stylesheet's rule-changes rules style.
 templ changeItemView(item changeItem) {
-	<li class="my-1.5">
-		<a class="font-semibold decoration-border-strong underline-offset-3 hover:decoration-ink" href={ templ.SafeURL(item.href) }>{ item.title }</a>
-		<span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere]">{ item.id }</span>
+	<li>
+		<a class="t" href={ templ.SafeURL(item.href) }>{ item.title }</a>
+		<span class="id">{ item.id }</span>
 		if item.compareHref != "" {
-			<a class="ml-1 font-mono text-[12px] whitespace-nowrap decoration-border-strong underline-offset-3 hover:decoration-ink" href={ templ.SafeURL(item.compareHref) } title="Compare these versions">{ item.versions }</a>
+			<a class="v" href={ templ.SafeURL(item.compareHref) } title="Compare these versions">{ item.versions }</a>
 		} else {
-			<span class="ml-1 font-mono text-[12px] whitespace-nowrap">{ item.versions }</span>
+			<span class="v">{ item.versions }</span>
 		}
 		for _, note := range item.notes {
 			for i, summary := range note.summaries {
-				<div class="text-[13px] text-muted">
+				<div>
 					if note.version != "" && i == 0 {
-						<span class="mr-1.5 font-mono text-[12px] text-faint">{ note.version }</span>
+						<span class="n">{ note.version }</span>
 					} else if note.version != "" {
-						<span class="invisible mr-1.5 font-mono text-[12px]" aria-hidden="true">{ note.version }</span>
+						<span class="n invisible" aria-hidden="true">{ note.version }</span>
 					}
 					{ summary }
 				</div>
 			}
 		}
 		if item.replacedBy != nil {
-			<div class="text-[13px] text-muted">Replaced by <a href={ templ.SafeURL(item.replacedBy.href) }>{ item.replacedBy.title }</a>.</div>
+			<div>Replaced by <a href={ templ.SafeURL(item.replacedBy.href) }>{ item.replacedBy.title }</a>.</div>
 		}
 	</li>
 }

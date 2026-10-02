@@ -16,20 +16,40 @@ import (
 // rules are, while leaving room for dozens of ordinary rules.
 const MaxComparedBytes = 512 << 10
 
-// ReleasesPage returns the vetted library owner/name, matched without regard to case, with its releases, newest
-// first, each with what it changed since the release before it, or ErrNotFound.
-func (p Pages) ReleasesPage(ctx context.Context, owner, name string) (views.ReleasesPage, error) {
+// MaxReleaseRows bounds what one page of a library's releases lists: each release's changes and the version of every
+// rule after it. A library's releases list every rule's version again and again, so their notes grow with rules times
+// releases; a page of at most this many rows stays well within what one response can hold.
+const MaxReleaseRows = 2000
+
+// ReleasesPage returns the vetted library owner/name, matched without regard to case, with its releases from release
+// until back, newest first, each with what it changed since the release before it: whole releases while their rows
+// fit MaxReleaseRows, and at least one. until 0 starts at the latest release. It fails with ErrNotFound when there's no
+// such library or release.
+func (p Pages) ReleasesPage(ctx context.Context, owner, name string, until int) (views.ReleasesPage, error) {
 	history, err := p.Store.LibraryHistory(ctx, p.Vetted, owner, name)
 	if err != nil {
 		return views.ReleasesPage{}, err
 	}
-	page := views.ReleasesPage{Library: history.Library}
-	for _, release := range slices.Backward(history.Releases) {
-		page.Releases = append(page.Releases, views.ReleaseNotes{
-			Release:  release,
-			Changes:  changes(history, release.Number-1, release.Number, nil),
-			Versions: versionsAt(history, release.Number),
-		})
+	if until == 0 {
+		until = len(history.Releases)
+	}
+	if until < 1 || until > len(history.Releases) {
+		return views.ReleasesPage{}, fmt.Errorf("load releases of library %s/%s: release/%d: %w", owner, name, until, ErrNotFound)
+	}
+	page := views.ReleasesPage{Library: history.Library, AllReleases: history.Releases}
+	rows := 0
+	for n := until; n >= 1; n-- {
+		notes := views.ReleaseNotes{
+			Release:  history.Releases[n-1],
+			Changes:  changes(history, n-1, n, nil),
+			Versions: versionsAt(history, n),
+		}
+		rows += len(notes.Changes) + len(notes.Versions)
+		if len(page.Releases) > 0 && rows > MaxReleaseRows {
+			page.Older = n
+			break
+		}
+		page.Releases = append(page.Releases, notes)
 	}
 	return page, nil
 }

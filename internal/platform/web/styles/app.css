@@ -82,11 +82,7 @@
   --color-icon-tile: var(--icon-tile);
   --color-on-primary: var(--on-primary);
   --color-white: #ffffff;
-  --color-add-line: var(--add-line);
-  --color-add-word: var(--add-word);
   --color-add-ink: var(--add-ink);
-  --color-del-line: var(--del-line);
-  --color-del-word: var(--del-word);
   --color-del-ink: var(--del-ink);
 }
 
@@ -154,6 +150,26 @@
   .prose th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   .prose td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
   .prose > :first-child { margin-top: 0; }
+
+  /* The rules a release changed, and its table of every rule's version, which list up to every rule a library holds:
+     short markup, styled here, keeps a page of releases small. */
+  .rule-changes { list-style: disc; padding-left: 18px; font-size: 13.5px; }
+  .rule-changes li { margin: 6px 0; }
+  .rule-changes li::marker { color: var(--faint); }
+  .rule-changes a { text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+  .rule-changes a:hover { text-decoration-color: var(--ink); }
+  .rule-changes .t { font-weight: 600; }
+  .rule-changes .id { margin-left: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+  .rule-changes .v { margin-left: 4px; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+  .rule-changes div { font-size: 13px; color: var(--muted); }
+  .rule-changes div a { color: var(--ink); }
+  .rule-changes .n { margin-right: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+  .rule-versions { width: 100%; margin-top: 8px; border-collapse: collapse; }
+  .rule-versions th { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: 11px; font-weight: 500; letter-spacing: .08em; color: var(--faint); text-transform: uppercase; }
+  .rule-versions td { padding: 6px 10px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 12.5px; }
+  .rule-versions td:first-child { overflow-wrap: anywhere; }
+  .rule-versions td:last-child { white-space: nowrap; }
+  .rule-versions a { text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
 
   /* A diff, which repeats its rows and marks for every changed line or word: short markup, styled here, keeps a
      comparison's page small. */

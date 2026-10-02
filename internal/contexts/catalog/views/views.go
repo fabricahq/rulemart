@@ -317,10 +317,14 @@ type SearchResult struct {
 	WhenToRead     string
 }
 
-// ReleasesPage is a library's releases, newest first, each with what it published.
+// ReleasesPage is one page of a library's releases, newest first, each with what it published.
 type ReleasesPage struct {
 	Library  Library
 	Releases []ReleaseNotes
+	// Older is the newest release the next page starts with, or 0 when this page ends with release 1.
+	Older int
+	// AllReleases are every release of the library, in number order, to compare.
+	AllReleases []Release
 }
 
 // ReleaseNotes is what one library release published, as Code Rules' release notes describe it: how each rule changed

@@ -50,10 +50,22 @@ func parseDiffMode(text string) diffMode {
 	return diffWords
 }
 
-// releasesHref is the path of a library's Library releases tab, and releaseHref of one release on it.
+// releasesHref is the path of a library's Library releases tab, which starts at its latest release.
 func releasesHref(lib libraryView) string { return lib.href + "?tab=releases" }
 
-func releaseHref(lib libraryView, n int) string { return releasesHref(lib) + "#" + releaseAnchor(n) }
+// releasesFromHref is the path of the page of a library's releases that starts at release n.
+func releasesFromHref(lib libraryView, n int) string {
+	if n == lib.releases {
+		return releasesHref(lib)
+	}
+	return releasesHref(lib) + "&until=" + strconv.Itoa(n)
+}
+
+// releaseHref is the path of release n on a library's Library releases tab: on the page that starts with it, unless
+// that's the latest release's page.
+func releaseHref(lib libraryView, n int) string {
+	return releasesFromHref(lib, n) + "#" + releaseAnchor(n)
+}
 
 // releaseAnchor is the fragment of a release's card on the Library releases tab.
 func releaseAnchor(n int) string { return "release-" + strconv.Itoa(n) }
@@ -78,6 +90,10 @@ func ruleComparisonHref(lib libraryView, rulePath string, from, to coderules.Rul
 	}
 	return ruleHref(lib, rulePath) + "?" + q.Encode()
 }
+
+// maxVersionRows bounds the table of every rule's version that a release's card holds. A larger release's table, as
+// long as its library, leads to its GitHub Release page instead, which lists them all.
+const maxVersionRows = 1000
 
 // releaseCard is one release on a library's Library releases tab, laid out like its generated release notes.
 type releaseCard struct {
@@ -138,6 +154,29 @@ func titleOrID(title, id string) string {
 		return id
 	}
 	return title
+}
+
+// releasesView is one page of a library's releases.
+type releasesView struct {
+	cards []releaseCard
+	// newerHref leads to the page of the newest releases, and olderHref to the next page; each is empty when there's
+	// none.
+	newerHref, olderHref string
+	// from and to choose two releases to compare: the latest and the one before it.
+	from, to []releaseOption
+}
+
+// newReleasesView describes page, a page of lib's releases.
+func newReleasesView(lib libraryView, page views.ReleasesPage) releasesView {
+	v := releasesView{cards: newReleaseCards(lib, page)}
+	v.from, v.to = releasePicker(page.AllReleases)
+	if len(page.Releases) > 0 && page.Releases[0].Release.Number != lib.releases {
+		v.newerHref = releasesHref(lib)
+	}
+	if page.Older != 0 {
+		v.olderHref = releasesFromHref(lib, page.Older)
+	}
+	return v
 }
 
 // newReleaseCards describes each release of page, in its order.
