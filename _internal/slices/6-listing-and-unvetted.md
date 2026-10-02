@@ -19,7 +19,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   repository and what listing it does, or why it can't be listed, and a button that lists it.
 - **Watch it being checked.** Listing leads to `/account/listings`, which shows each of the visitor's listings:
   checking, listed with a link to its page, vetted, or failed with the reason. A listing being checked says when it
-  was asked for, and offers Check again.
+  was asked for, and offers Refresh status.
 - **Try again, or remove a listing.** A failed listing can be tried again. Any listing can be removed, after a page
   that says what removing it does: a listed library leaves Rulemart at once.
 - **Browse unvetted libraries.** "View unvetted libraries" at the bottom of `/libraries` leads to `/unvetted`, which
@@ -65,8 +65,9 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   library has that name. It takes `owner/name`, or an address: `https://` or `http://`, `github.com/` or
   `www.github.com/`, or a page inside the repository, such as `.../tree/main`, whose owner and name it takes. One
   trailing `.git` is dropped from every form, since GitHub refuses a repository name ending in `.git`, so
-  `owner/name.git` can't slip past the duplicate check; a name still ending in `.git` is refused, as are owner names
-  GitHub refuses, such as one starting or ending with a hyphen. It never
+  `owner/name.git` can't slip past the duplicate check, in any case; a name still ending in `.git` is refused, as are
+  owner names GitHub refuses, starting or ending with a hyphen or holding two in a row, and the first segments GitHub
+  keeps for its own pages, such as `settings` or `orgs`, from a short list in the domain. It never
   calls GitHub: unauthenticated, GitHub allows 60 API requests an hour from an IP address that Lambda functions
   share, and the web function would need its own token. The worker looks the repository up, which also catches a
   missing or private one, and ingests it, which catches one that isn't a Code Rules library.
@@ -82,9 +83,10 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   repository ID, so a renamed repository can't be listed twice under two names: the second fails as already listed.
 - **Proposed: a failed listing doesn't reserve its repository.** When another account lists a repository whose only
   listing failed before its library ever ingested, listing it removes the failed one, which only its lister could
-  see. Otherwise one bad first check, or one account listing a name early, would keep everyone else out. A refusal
-  says whose listing stands in the way: the visitor's own, with a link to their listings; another's being checked
-  right now; or another's that's listed, with a link to its page, `nofollow`.
+  see. Otherwise one bad first check, or one account listing a name early, would keep everyone else out. A failed
+  listing says so on its lister's page, rather than vanishing unexplained. A refusal says whose listing stands in the
+  way: the visitor's own, with a link to their listings; another's being checked, how long ago by the same three
+  minutes the lister's page uses; or another's that's listed, with a link to its page, `nofollow`.
 - **Proposed: what a lister sees.** Checking, while the worker hasn't finished; Listed, with a link, once ingested;
   Vetted, once the release's `vetted.yaml` names it; Failed, with the reason, when it never ingested; and Listed with
   the last check's failure when a later check failed, while its pages keep the last release ingested, as a vetted
@@ -94,7 +96,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   error, which only the worker's log has. Raw repository IDs aren't shown.
 - **Proposed: the listings page never reloads itself.** QA found a five-second reload reset keyboard focus and scroll,
   which is hostile to keyboard and screen reader users. A listing being checked says when it was asked for, from
-  `requested_at`, which a retry sets, and offers Check again, a link that reloads the page. Three minutes after it was
+  `requested_at`, which a retry sets, and offers Refresh status, a link that reloads the page. Three minutes after it was
   asked for, it says the check is taking longer than usual and Rulemart checks it again within the hour: once queued,
   a check takes seconds, so by then it waits for the poll.
 
@@ -108,7 +110,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   listed library takes its pages away, so `/account/listings/remove?listing=N` asks first, by state: a listed library
   leaves Rulemart; a vetted one stays, and only the listing goes; a failed or unchecked one is forgotten. Its button
   posts to the same address with an empty body. Retrying a listing that isn't failing, from a page left open, says
-  there's nothing to try again. Signed out, removing or retrying leads to sign-in, as listing does. It deletes the row; the library leaves the unvetted
+  there's nothing to try again. The notice after removing says what removing did, by the listing's state. Signed out, removing or retrying leads to sign-in, as listing does. It deletes the row; the library leaves the unvetted
   area, and the worker stops checking it. Its catalog rows stay, since neither function can delete a library, and a
   later listing reuses them without ingesting again. Removing a vetted library's listing changes nothing visible.
 - **Proposed: deleting an account removes its listings**, which reverses slice 5's proposal that a listed library

@@ -76,7 +76,7 @@ const vettedListURL = "https://github.com/fabricahq/rulemart/blob/main/catalog/v
 // repository, then says why they can't list it, or what listing does, with a button that lists it. It asks anyone
 // else to sign in first. A refusal takes the field's focus, which names it.
 templ listPage(c chrome, v listView) {
-	@layout(c, head{title: "List a library · Rulemart", noindex: true, section: librariesHref, narrow: true}) {
+	@layout(c, head{title: "List a library · Rulemart", noindex: true, section: librariesHref, narrow: true, caret: v.problem != ""}) {
 		<div class={ "page wrap", narrowPage }>
 			<h1 class="title-xl">List a library</h1>
 			<p class="mt-2 text-muted">List a public GitHub repository that publishes a <a href="https://code-rules.fabricahq.com">Code Rules</a> library: one with <span class="font-mono text-[.9em]">release/&lt;number&gt;</span> tags, which Code Rules makes each time it releases the library.</p>
@@ -169,7 +169,8 @@ templ errorIcon(class string) {
 
 // listingsPage shows a signed-in visitor's listings, newest first, each with its state, and ways to look at it, try a
 // failed one again, or remove one. A listing being checked says when it was asked for, and offers to check again, by
-// reloading the page, rather than reloading itself, which would move a reader's focus and place.
+// reloading the page, as Refresh status does, rather than reloading itself, which would move a reader's focus and
+// place.
 templ listingsPage(c chrome, v listingsView) {
 	@layout(c, head{title: "Your listings · Rulemart", noindex: true, narrow: true}) {
 		<div class={ "page wrap", narrowPage }>
@@ -224,7 +225,7 @@ templ listingRow(l listingView) {
 						<p class="font-medium text-ink">Rulemart is checking the repository on GitHub</p>
 						<p class="mt-0.5 text-muted">It usually takes a few seconds. You asked { l.requested }.</p>
 					}
-					<a class="mt-1 inline-flex min-h-9 items-center" href={ templ.SafeURL(listingsHref) }>Check again</a>
+					<a class="mt-1 inline-flex min-h-9 items-center" href={ templ.SafeURL(listingsHref) }>Refresh status</a>
 				</div>
 			}
 			if l.failure != "" {
@@ -235,6 +236,9 @@ templ listingRow(l listingView) {
 						<p class="font-medium text-ink">The last check failed, so its pages show the last release Rulemart read</p>
 					}
 					<p class="mt-0.5 text-muted [overflow-wrap:anywhere]">{ l.failure }</p>
+					if l.state == domain.ListingFailed {
+						<p class="mt-1.5 text-muted">Until it lists, another account can list this repository, which replaces your listing.</p>
+					}
 				</div>
 			}
 			<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">

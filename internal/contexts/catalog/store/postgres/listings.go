@@ -122,7 +122,7 @@ func listingConflict(found catalogdb.FindListingConflictRow, accountID int64) *s
 	case found.Held:
 		return &store.ListingConflict{Library: library}
 	case found.Named && !found.NamedFailed:
-		return &store.ListingConflict{Checking: true}
+		return &store.ListingConflict{Checking: true, RequestedAt: found.NamedRequestedAt.Time}
 	}
 	return nil
 }

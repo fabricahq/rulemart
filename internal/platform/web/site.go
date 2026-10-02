@@ -147,6 +147,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
+			caretScript: assets.url("caret.js"),
 			icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},

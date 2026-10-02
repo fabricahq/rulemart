@@ -234,18 +234,19 @@ func TestLinksInAnUnvettedRuleAreMarkedAsItsAuthors(t *testing.T) {
 	}
 }
 
-// A refusal marks the field invalid, describes it with the refusal, and takes the focus, so it's read first.
+// A refusal marks the field invalid, describes it with the refusal, and takes the focus, so it's read first, with the
+// caret at the end of what the visitor typed, which caret.js puts there.
 func TestListPageFocusesTheFieldARefusalDescribes(t *testing.T) {
 	site := newListingSite(t)
 
 	page := body(t, site.signedInGet(t, "/list?repository=example"))
 
-	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="repository-problem"`, "autofocus", `role="alert"`} {
+	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="repository-problem"`, "autofocus", `role="alert"`, "/caret.js"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page has no %s", want)
 		}
 	}
-	if page := body(t, site.signedInGet(t, "/list?repository=example%2Fnew")); strings.Contains(page, `aria-invalid="true"`) || strings.Contains(page, " autofocus") {
+	if page := body(t, site.signedInGet(t, "/list?repository=example%2Fnew")); strings.Contains(page, `aria-invalid="true"`) || strings.Contains(page, " autofocus") || strings.Contains(page, "/caret.js") {
 		t.Error("the page marks a repository it accepted invalid")
 	}
 }
@@ -456,8 +457,10 @@ func TestListPageSaysWhyARepositoryCantBeListed(t *testing.T) {
 		"listed by the visitor": {"stranger/rules", &app.ListingConflict{Own: true, Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
 			"You listed this repository already. See stranger/rules Your listings", []string{"nofollow"}},
 		"listed by the visitor, not checked yet": {"someone/new", &app.ListingConflict{Own: true}, "You listed this repository already. Your listings", nil},
-		"listed by someone else a moment ago": {"someone/new", &app.ListingConflict{Checking: true},
+		"listed by someone else a moment ago": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now()},
 			"Someone listed this repository a moment ago, and Rulemart is checking it.", nil},
+		"listed by someone else, checked for long": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now().Add(-10 * time.Minute)},
+			"Someone listed this repository, and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour.", nil},
 		"at the account's limit": {"someone/new", app.ErrAccountListingLimit,
 			"You have 5 listings Rulemart hasn't vetted, as many as an account may. Remove one, such as one that failed, to list another. Your listings", nil},
 		"full":      {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
@@ -565,8 +568,9 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	page := body(t, resp)
 	assertShows(t, page,
 		"Your listings List a library Each listing takes one of your 5 places until Rulemart vets its library, failed ones too. You're using 3.",
-		"someone/new Checking Listed", "Rulemart is checking the repository on GitHub It usually takes a few seconds. You asked 1 minute ago. Check again",
-		"someone/broken Failed Listed 3 Sep 2026 Rulemart couldn't list it The repository has no release/<number> tags",
+		"someone/new Checking Listed", "Rulemart is checking the repository on GitHub It usually takes a few seconds. You asked 1 minute ago. Refresh status",
+		"someone/broken Failed Listed 3 Sep 2026 Rulemart couldn't list it The repository has no release/<number> tags "+
+			"Until it lists, another account can list this repository, which replaces your listing.",
 		"stranger/rules Listed, unvetted", "example/rules Vetted")
 	if strings.Contains(page, `http-equiv="refresh"`) {
 		t.Error("the page reloads itself")
@@ -597,7 +601,7 @@ func TestListingsPageSaysWhenACheckIsTakingLonger(t *testing.T) {
 	listingsFor(site, time.Now().Add(-5*time.Minute))
 
 	assertShows(t, body(t, site.signedInGet(t, "/account/listings")),
-		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Check again")
+		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Refresh status")
 }
 
 func TestListingsPageSaysWhenThereAreNone(t *testing.T) {
@@ -657,7 +661,10 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	listingsFor(site, time.Now())
 
 	for _, test := range []struct{ target, notice string }{
-		{"/account/listings/remove?listing=2", "listing-removed"},
+		{"/account/listings/remove?listing=2", "listing-removed-listed"},
+		{"/account/listings/remove?listing=1", "listing-removed-vetted"},
+		{"/account/listings/remove?listing=4", "listing-removed-checking"},
+		{"/account/listings/remove?listing=3", "listing-removed"},
 		{"/account/listings/retry?listing=3", "listing-retried"},
 		{"/account/listings/retry?listing=4", "listing-not-failed"},
 	} {
@@ -669,7 +676,7 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 			t.Errorf("%s set the notice %v, want %s", test.target, got, test.notice)
 		}
 	}
-	if !slices.Equal(site.listings.removed, []int64{2}) || !slices.Equal(site.listings.retried, []int64{3}) {
+	if !slices.Equal(site.listings.removed, []int64{2, 1, 4, 3}) || !slices.Equal(site.listings.retried, []int64{3}) {
 		t.Fatalf("removed %v and retried %v", site.listings.removed, site.listings.retried)
 	}
 	for _, target := range []string{
@@ -688,7 +695,7 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 			t.Errorf("%s signed out answered %d to %q, want sign-in", target, signedOut.StatusCode, signedOut.Header.Get("Location"))
 		}
 	}
-	if len(site.listings.removed) != 1 || len(site.listings.retried) != 1 {
+	if len(site.listings.removed) != 4 || len(site.listings.retried) != 1 {
 		t.Fatalf("signed out, removed %v and retried %v", site.listings.removed, site.listings.retried)
 	}
 }

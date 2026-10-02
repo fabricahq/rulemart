@@ -132,6 +132,9 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *li
 		view.problem = "You listed this repository already."
 		view.existing = existingLibrary(conflict.Library, true)
 		view.yourListings = true
+	case errors.As(err, &conflict) && conflict.Checking && time.Since(conflict.RequestedAt) > checkingLonger:
+		view.problem = "Someone listed this repository, and Rulemart's check of it is taking longer than usual. " +
+			"Rulemart checks it again within the hour."
 	case errors.As(err, &conflict) && conflict.Checking:
 		view.problem = "Someone listed this repository a moment ago, and Rulemart is checking it. If it's a Code Rules " +
 			"library, it shows with the unvetted libraries within a minute."
@@ -217,7 +220,27 @@ func (s *server) noSuchListing(w http.ResponseWriter, r *http.Request) {
 // listings, saying so.
 func (s *server) removeListing(w http.ResponseWriter, r *http.Request) {
 	notice := "listing-removed"
-	s.changeListing(w, r, &notice, s.Listings.Remove)
+	s.changeListing(w, r, &notice, func(ctx context.Context, accountID, id int64) error {
+		// The notice says what removing did, which depends on the listing's state.
+		listings, err := s.Listings.AccountListings(ctx, accountID)
+		if err != nil {
+			return err
+		}
+		for _, l := range listings {
+			if l.ID == id {
+				notice = removedNotices[l.State]
+			}
+		}
+		return s.Listings.Remove(ctx, accountID, id)
+	})
+}
+
+// removedNotices are what the listings page says once a listing in each state is removed.
+var removedNotices = map[domain.ListingState]string{
+	domain.ListingChecking: "listing-removed-checking",
+	domain.ListingListed:   "listing-removed-listed",
+	domain.ListingVetted:   "listing-removed-vetted",
+	domain.ListingFailed:   "listing-removed",
 }
 
 // retryListing asks the worker to check the signed-in visitor's failed listing that the listing parameter names

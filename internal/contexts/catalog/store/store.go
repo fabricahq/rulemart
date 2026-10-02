@@ -83,8 +83,10 @@ type ListingConflict struct {
 	Vetted bool
 	// Own is true when the listing is the account's own.
 	Own bool
-	// Checking is true when another account's listing names it, and the worker hasn't checked it yet.
-	Checking bool
+	// Checking is true when another account's listing names it, and the worker hasn't checked it yet, which that
+	// listing asked for at RequestedAt.
+	Checking    bool
+	RequestedAt time.Time
 	// Library is the library already in the catalog under that name, or the zero LibraryRef when the catalog doesn't
 	// store it yet.
 	Library views.LibraryRef
