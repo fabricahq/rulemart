@@ -191,9 +191,9 @@
   .diff del { background: var(--del-word); text-decoration: line-through; text-decoration-color: var(--del-ink); border-radius: 2px; }
   .diff-words .b { white-space: pre-wrap; overflow-wrap: anywhere; }
   /* In the words view, an insertion is underlined, as a deletion is struck through, so neither relies on color, and
-     a deletion and the insertion that replaces it stand apart. */
+     a deletion and the insertion right after it, class g, stand apart. A mark after a space keeps only the space. */
   .diff-words ins { text-decoration: underline; text-decoration-color: var(--add-ink); text-underline-offset: 3px; }
-  .diff-words del + ins, .diff-words ins + del { margin-left: .35em; }
+  .diff-words .g { margin-left: .35em; }
   .diff-lines { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
   .diff-lines col.n { width: 3.4em; }
   .diff-lines col.s { width: 1.6em; }

@@ -402,6 +402,11 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 // stay apart.
 func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "_") }
 
+// adjacentMark reports whether segment i of list is a change right after another, with no text between them.
+func adjacentMark(list []textdiff.Segment, i int) bool {
+	return i > 0 && list[i].Op != textdiff.Equal && list[i-1].Op != textdiff.Equal
+}
+
 // hunkHeader writes a hunk's header as git does, such as "@@ -6,14 +6,16 @@".
 func hunkHeader(h textdiff.Hunk) string {
 	return "@@ -" + strconv.Itoa(h.OldStart) + "," + strconv.Itoa(h.OldLines) + " +" + strconv.Itoa(h.NewStart) + "," +

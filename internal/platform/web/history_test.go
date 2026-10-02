@@ -306,7 +306,8 @@ func TestReleaseComparisonShowsWhatChangedAndTheText(t *testing.T) {
 		"<script>alert(1)</script>",
 	)
 	for _, want := range []string{
-		`<del>every</del><ins>each</ins>`,
+		// Only a mark right after another stands apart from it; one after a space keeps the space alone.
+		`<del>every</del><ins class="g">each</ins>`,
 		`&lt;script&gt;alert(1)&lt;/script&gt;`,
 		`<meta name="robots" content="noindex">`,
 	} {

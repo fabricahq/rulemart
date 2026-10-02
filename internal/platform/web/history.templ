@@ -444,14 +444,23 @@ templ wordDiff(parts []textdiff.Part) {
 	</div>
 }
 
-// segments shows text with deleted words struck through and inserted words marked.
+// segments shows text with deleted words struck through and inserted words marked. A mark right after another, such
+// as the words that replace deleted ones, has class g, which sets it apart.
 templ segments(list []textdiff.Segment) {
-	for _, s := range list {
+	for i, s := range list {
 		switch s.Op {
 			case textdiff.Delete:
-				<del>{ s.Text }</del>
+				if adjacentMark(list, i) {
+					<del class="g">{ s.Text }</del>
+				} else {
+					<del>{ s.Text }</del>
+				}
 			case textdiff.Insert:
-				<ins>{ s.Text }</ins>
+				if adjacentMark(list, i) {
+					<ins class="g">{ s.Text }</ins>
+				} else {
+					<ins>{ s.Text }</ins>
+				}
 			default:
 				{ s.Text }
 		}
