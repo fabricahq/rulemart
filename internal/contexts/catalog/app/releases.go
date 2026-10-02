@@ -114,6 +114,7 @@ func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string,
 // before its first release, which holds no rules.
 func changes(history views.LibraryHistory, from, to int, texts map[string]views.ComparedText) []views.RuleChange {
 	links := historyLinks(history)
+	index := ruleIndex(history)
 	renames := renamesBetween(history, links, from, to)
 	renamedOld := map[int]bool{}
 	for _, old := range renames {
@@ -133,7 +134,7 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		case !inTo:
 			change.Rule.Title = titleAt(r, old)
 			change.Change, change.From = coderules.ChangeRetired, r.Versions[old].Version
-			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, links.replacements(r.Path, to)
+			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, titledAt(history, index, links.replacements(r.Path, to), to)
 			result = append(result, change)
 			continue
 		case !inFrom:
@@ -164,10 +165,7 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 // index of the old one, which a release after from retired and replaced by the new one, which that release added
 // under the old one's title, and which is still current after to.
 func renamesBetween(history views.LibraryHistory, links ruleLinks, from, to int) map[int]int {
-	index := make(map[string]int, len(history.Rules))
-	for i, r := range history.Rules {
-		index[r.Path] = i
-	}
+	index := ruleIndex(history)
 	renames := map[int]int{}
 	for i, r := range history.Rules {
 		_, inFrom := r.VersionAt(from)
@@ -203,6 +201,31 @@ func comparedPairs(history views.LibraryHistory, from, to int) []views.VersionPa
 		}
 	}
 	return pairs
+}
+
+// titledAt names each rule of refs by the title it had after release n, which a page about that release shows, rather
+// than its newest, and keeps the newest for a rule retired by then.
+// index is ruleIndex's of history.
+func titledAt(history views.LibraryHistory, index map[string]int, refs []views.RuleRef, n int) []views.RuleRef {
+	for i, ref := range refs {
+		r, ok := index[ref.Path]
+		if !ok {
+			continue
+		}
+		if v, ok := history.Rules[r].VersionAt(n); ok {
+			refs[i].Title = titleAt(history.Rules[r], v)
+		}
+	}
+	return refs
+}
+
+// ruleIndex returns the index of each rule of history by its path.
+func ruleIndex(history views.LibraryHistory) map[string]int {
+	index := make(map[string]int, len(history.Rules))
+	for i, r := range history.Rules {
+		index[r.Path] = i
+	}
+	return index
 }
 
 // titleAt returns the title rule r had at its version i, or its newest title when the catalog doesn't have that

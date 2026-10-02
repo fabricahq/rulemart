@@ -192,7 +192,8 @@ type chainStep struct {
 	id string
 }
 
-// chainSteps words a chain of replacements: "Replaced by A, itself replaced by B.", or "Renamed to A." for a rename.
+// chainSteps words a chain of replacements: "Replaced by A, itself replaced by B.", or "Renamed to A." for a rename. A
+// chain of more than three names its first two rules and its last, and counts those between.
 func chainSteps(links []ruleLink, renamed bool) []chainStep {
 	steps := make([]chainStep, len(links))
 	for i, link := range links {
@@ -203,6 +204,12 @@ func chainSteps(links []ruleLink, renamed bool) []chainStep {
 				steps[i].prefix, steps[i].id = "Renamed to ", link.id
 			}
 		}
+	}
+	// A long chain names its first two rules and its last, and counts the ones between.
+	if n := len(steps); n > 3 {
+		last := steps[n-1]
+		last.prefix = ", and after " + strconv.Itoa(n-3) + " more, by "
+		steps = append(steps[:2:2], last)
 	}
 	if n := len(steps); n > 0 {
 		steps[n-1].suffix = "."
@@ -375,8 +382,10 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 	return item
 }
 
-// diffAnchor is the fragment of a rule's diff on a comparison of releases.
-func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "-") }
+// diffAnchor is the fragment of a rule's diff on a comparison of releases. Its slashes become underscores, which a
+// Code Rules ID never holds, so IDs that differ in where a slash or hyphen is, such as techs/go-a/b and techs/go/a-b,
+// stay apart.
+func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "_") }
 
 // hunkHeader writes a hunk's header as git does, such as "@@ -6,14 +6,16 @@".
 func hunkHeader(h textdiff.Hunk) string {

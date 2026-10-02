@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -165,5 +166,46 @@ func TestReplacementsStopAtACycle(t *testing.T) {
 
 	if err != nil || len(page.Rule.Retirement.Replacements) != 1 {
 		t.Fatalf("got %+v, %v", page.Rule.Retirement, err)
+	}
+}
+
+// A release's card names a replacement by the title it had then, though it was renamed in a later release.
+func TestChangesNameAReplacementByItsTitleThen(t *testing.T) {
+	history := views.LibraryHistory{
+		Library:  views.Library{LatestRelease: 3},
+		Releases: []views.Release{{Number: 1}, {Number: 2}, {Number: 3}},
+		Rules: []views.RuleHistory{
+			{Path: "a/b/new", Title: "Verify retry limits", Versions: []views.Version{
+				titled(published("1.0.0", 1, coderules.ChangeNew), "Verify retries"),
+				titled(published("1.1.0", 3, coderules.ChangeMinor), "Verify retry limits"),
+			}},
+			{Path: "a/b/old", Title: "Old", RetiredIn: 2, ReplacedBy: "a/b/new",
+				Versions: []views.Version{titled(published("1.0.0", 1, coderules.ChangeNew), "Old")}},
+		},
+	}
+
+	page, err := app.Pages{Store: &histories{history: history}}.ReleasesPage(context.Background(), "o", "n", 0)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := describeChanges(page.Releases[1].Changes); !slices.Equal(got, []string{`a/b/old "Old" retired 1.0.0->0.0.0 [] [] by a/b/new "Verify retries"`}) {
+		t.Errorf("release/2 changes %q", got)
+	}
+}
+
+// A long chain of replacements is followed only so far, so a library that retires a rule a release for hundreds of
+// releases can't make a page's work grow with the square of its rules.
+func TestReplacementsFollowABoundedChain(t *testing.T) {
+	var links []views.RuleLink
+	for i := range 300 {
+		links = append(links, views.RuleLink{Path: fmt.Sprintf("r%03d", i), RetiredIn: i + 2, ReplacedBy: fmt.Sprintf("r%03d", i+1), FirstRelease: 1})
+	}
+	h := views.LibraryHistory{Rules: []views.RuleHistory{{Path: "r000", RetiredIn: 2, Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew)}}}}
+
+	page, err := app.Pages{Store: &histories{history: h, links: links}}.RulePage(context.Background(), "o", "n", "r000")
+
+	if err != nil || len(page.Rule.Retirement.Replacements) != app.MaxReplacements {
+		t.Fatalf("followed %d replacements, %v; want %d", len(page.Rule.Retirement.Replacements), err, app.MaxReplacements)
 	}
 }

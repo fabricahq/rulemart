@@ -3,6 +3,7 @@ package web_test
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -367,7 +368,7 @@ func TestRuleComparisonShowsWhatChangedAndTheText(t *testing.T) {
 			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. Changed text Between release/1 and release/3. "+
 			"techs/go/return-errors.md 1.0.0 → 2.0.0 +4 −2 View at 2.0.0",
 	)
-	for _, want := range []string{`<h2 class="text-[12px] font-medium tracking-[.12em] text-muted uppercase">What changed</h2>`, `<h3 class="mono font-semibold">2.0.0</h3>`, `id="diff-techs-go-return-errors-title"`} {
+	for _, want := range []string{`<h2 class="text-[12px] font-medium tracking-[.12em] text-muted uppercase">What changed</h2>`, `<h3 class="mono font-semibold">2.0.0</h3>`, `id="diff-techs_go_return-errors-title"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %s", want)
 		}
@@ -519,9 +520,9 @@ func TestReleasesShowARenameAsOneChange(t *testing.T) {
 
 	assertShows(t, releases, "1 new, 1 renamed, 1 major, and 1 retired",
 		"Renamed rules Name tests after behavior techs/go/name-tests-by-behavior 1.0.0 → 1.0.0 Renamed from techs/go/name-tests . Rename it.")
-	assertLinks(t, releases, "/example/rules?from=2&tab=releases&to=3#diff-techs-go-name-tests-by-behavior")
+	assertLinks(t, releases, "/example/rules?from=2&tab=releases&to=3#diff-techs_go_name-tests-by-behavior")
 	assertShows(t, compared, "Name tests after behavior techs/go/name-tests.md → techs/go/name-tests-by-behavior.md 1.0.0 → 1.0.0")
-	assertLinks(t, compared, "#diff-techs-go-name-tests-by-behavior", "https://github.com/example/rules/blob/release/3/techs/go/name-tests-by-behavior.md")
+	assertLinks(t, compared, "#diff-techs_go_name-tests-by-behavior", "https://github.com/example/rules/blob/release/3/techs/go/name-tests-by-behavior.md")
 }
 
 // A rule's Rule tab names what it replaced or renamed, as its Versions tab does, and the All rules tab tells a
@@ -608,4 +609,43 @@ func TestLineDiffShowsHiddenLinesOnRequest(t *testing.T) {
 	page := get(t, newSite(t, c), errorsRule+"?tab=versions&from=1.0.0&to=2.0.0&view=lines").Body.String()
 
 	assertShows(t, page, "⋯ Show Hide 12 unchanged lines 1 1 line 0", "@@ -13,7 +13,7 @@", "⋯ Show Hide 1 unchanged line 20 20 line 19")
+}
+
+// A long chain of replacements names the first replacement and the last, and counts the ones between.
+func TestReplacementChainsNameTheirEnds(t *testing.T) {
+	c := historyCatalog()
+	comparison := c.releaseComparisons["example/rules 1...3"]
+	var chain []views.RuleRef
+	for i := range 20 {
+		chain = append(chain, views.RuleRef{Path: fmt.Sprintf("techs/go/r%02d", i), Title: fmt.Sprintf("Rule %02d", i)})
+	}
+	comparison.Changes = slices.Clone(comparison.Changes)
+	comparison.Changes[0].Replacements = chain
+	c.releaseComparisons["example/rules 1...3"] = comparison
+
+	page := get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String()
+
+	assertShows(t, page, "Replaced by Rule 00 , itself replaced by Rule 01 , and after 17 more, by Rule 19 .")
+	if strings.Contains(visibleText(t, page), "Rule 02") {
+		t.Error("the page names a replacement in the middle of the chain")
+	}
+}
+
+// Diffs' fragments tell apart rule IDs that differ only in where a slash or hyphen is.
+func TestDiffFragmentsAreDistinct(t *testing.T) {
+	c := historyCatalog()
+	comparison := c.releaseComparisons["example/rules 1...3"]
+	text := views.ComparedText{Old: "a\n", New: "b\n", OldRelease: 1, NewRelease: 3}
+	comparison.Changes = []views.RuleChange{
+		{Rule: views.RuleRef{Path: "techs/go-a/b", Title: "One"}, Change: coderules.ChangeMinor, From: v100, To: v110, Text: text},
+		{Rule: views.RuleRef{Path: "techs/go/a-b", Title: "Two"}, Change: coderules.ChangeMinor, From: v100, To: v110, Text: text},
+	}
+	c.releaseComparisons["example/rules 1...3"] = comparison
+
+	page := get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String()
+
+	ids := regexp.MustCompile(`<section[^>]* id="(diff-[^"]+)"`).FindAllStringSubmatch(page, -1)
+	if len(ids) != 2 || ids[0][1] == ids[1][1] {
+		t.Fatalf("diff fragments are %q", ids)
+	}
 }
