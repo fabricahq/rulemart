@@ -29,7 +29,7 @@ const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 
 
 // Options configures the handler.
 type Options struct {
-	// Log receives the details of failures that pages leave out.
+	// Log receives one line for each request, and the details of failures that pages leave out.
 	Log *slog.Logger
 	// RequestID returns an identifier for a request that the logs record, such as the Lambda request ID. It may
 	// be nil.
@@ -49,6 +49,8 @@ type server struct {
 	catalog Catalog
 	assets  *assets
 	chrome  chrome
+	// routes holds every pattern the mux routes by, the only values route logs.
+	routes map[string]bool
 	Options
 }
 
@@ -59,19 +61,23 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		return nil, err
 	}
 	s := &server{
-		catalog: catalog, assets: assets, Options: options,
+		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", s.home)
-	mux.HandleFunc("GET /_static/{version}/{file...}", assets.serve)
-	mux.HandleFunc("GET /{owner}/{repo}", s.library)
-	mux.HandleFunc("GET /{owner}/{repo}/{rule...}", s.rule)
-	mux.HandleFunc("/", s.notFound)
-	return withSecurityHeaders(mux), nil
+	handle := func(pattern string, handler http.HandlerFunc) {
+		mux.HandleFunc(pattern, handler)
+		s.routes[pattern] = true
+	}
+	handle("GET /{$}", s.home)
+	handle("GET /_static/{version}/{file...}", assets.serve)
+	handle("GET /{owner}/{repo}", s.library)
+	handle("GET /{owner}/{repo}/{rule...}", s.rule)
+	handle("/", s.notFound)
+	return s.logRequests(withSecurityHeaders(mux)), nil
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request) {
@@ -130,11 +136,7 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 
 // fail logs err with the request's route and ID, and answers with a page that reveals nothing about the failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
-	requestID := ""
-	if s.RequestID != nil {
-		requestID = s.RequestID(r)
-	}
-	s.Log.ErrorContext(r.Context(), "request failed", "route", r.URL.Path, "method", r.Method, "requestID", requestID,
+	s.Log.ErrorContext(r.Context(), "request failed", "route", r.URL.Path, "method", r.Method, "requestID", s.requestID(r),
 		"status", http.StatusServiceUnavailable, "error", err.Error())
 	var page bytes.Buffer
 	_ = messagePage(s.chrome, "Unavailable", "Rulemart can't show this page right now. Try again in a minute.").Render(r.Context(), &page)
