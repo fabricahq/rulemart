@@ -9,17 +9,16 @@
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, such as the
 // worker's, whose login can write the catalog and nothing else. GITHUB_TOKEN, when set, authenticates the GitHub
-// lookup.
+// lookup. LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
 package main
 
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -30,26 +29,38 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/logging"
 )
 
 func main() {
-	log.SetFlags(0)
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: ingest https://github.com/<owner>/<repository>")
 		os.Exit(2)
 	}
+	logger, err := logging.New(os.Stdout, os.Getenv)
+	if err != nil {
+		logging.StartupFailed(logger, err)
+		os.Exit(1)
+	}
+	// The log package then writes JSON lines through logger too.
+	slog.SetDefault(logger)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	if err := run(ctx, os.Args[1]); err != nil {
-		log.Fatal(err)
+	result, err := run(ctx, os.Args[1])
+	if err != nil {
+		logger.Error("ingest failed", "error", err.Error())
+		os.Exit(1)
 	}
+	repo := result.Repository
+	logger.Info("ingested", "library", repo.FullName(), "host", repo.Host, "repository", repo.ID,
+		"releases", result.Releases, "rules", result.Rules, "changed", result.Changed)
 }
 
-// run ingests the library at repositoryURL and reports the result. It checks the URL and looks the repository up
+// run ingests the library at repositoryURL and returns what it did. It checks the URL and looks the repository up
 // on GitHub before it reads the database settings, so a mistyped URL is reported as one.
-func run(ctx context.Context, repositoryURL string) error {
+func run(ctx context.Context, repositoryURL string) (app.Result, error) {
 	ingester := app.Ingester{
 		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
 		Fetch:        git.Fetch,
@@ -58,40 +69,18 @@ func run(ctx context.Context, repositoryURL string) error {
 	}
 	repo, err := ingester.Resolve(ctx, repositoryURL)
 	if err != nil {
-		return err
+		return app.Result{}, err
 	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
 	if err != nil {
-		return err
+		return app.Result{}, err
 	}
 	schemaVersion, err := migrate.RequiredVersion()
 	if err != nil {
-		return err
+		return app.Result{}, err
 	}
 	db := source.Open(schemaVersion)
 	defer db.Close()
 	ingester.Store = postgres.New(db)
-	result, err := ingester.IngestRepository(ctx, repo)
-	if err != nil {
-		return err
-	}
-	log.Print(summary(result))
-	return nil
-}
-
-// summary describes what an ingestion did.
-func summary(result app.Result) string {
-	repo := result.Repository
-	return fmt.Sprintf("ingested %s (%s repository %s): %s, %s, %s", repo.FullName(), repo.Host, repo.ID,
-		count(int64(result.Releases), "library release", "library releases"),
-		count(int64(result.Rules), "current rule", "current rules"),
-		count(result.Changed, "row changed", "rows changed"))
-}
-
-// count writes n with the noun phrase that agrees with it, such as "1 current rule" or "2 current rules".
-func count(n int64, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return strconv.FormatInt(n, 10) + " " + many
+	return ingester.IngestRepository(ctx, repo)
 }

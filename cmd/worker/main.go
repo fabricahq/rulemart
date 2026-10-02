@@ -13,7 +13,8 @@
 // exits, failing when a job failed.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
-// GITHUB_TOKEN, when set, authenticates GitHub lookups.
+// GITHUB_TOKEN, when set, authenticates GitHub lookups. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
+// internal/platform/logging describes.
 package main
 
 import (
@@ -23,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -47,32 +47,52 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/logging"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	start := time.Now()
+	logger, err := logging.New(os.Stdout, os.Getenv)
+	if err != nil {
+		exit(logger, err)
+	}
+	// The log package then writes JSON lines through logger too.
+	slog.SetDefault(logger)
+	schemaVersion, err := migrate.RequiredVersion()
+	if err != nil {
+		exit(logger, err)
+	}
 	ctx := context.Background()
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
 		queue, err := newSQSQueue(ctx, os.Getenv("QUEUE_URL"))
 		if err != nil {
-			log.Fatal(err)
+			exit(logger, err)
 		}
-		w, err := newWorker(ctx, logger, queue)
+		w, err := newWorker(ctx, logger, queue, schemaVersion)
 		if err != nil {
-			log.Fatal(err)
+			exit(logger, err)
 		}
+		logging.Ready(logger, schemaVersion, time.Since(start))
 		lambda.Start(w.handle)
 		return
 	}
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt)
 	defer stop()
-	w, err := newWorker(ctx, logger, nil)
+	w, err := newWorker(ctx, logger, nil, schemaVersion)
 	if err != nil {
-		log.Fatal(err)
+		exit(logger, err)
 	}
+	logging.Ready(logger, schemaVersion, time.Since(start))
 	if _, err := w.runOnce(ctx); err != nil {
-		log.Fatal(err)
+		logger.Error("poll failed", "error", err.Error())
+		os.Exit(1)
 	}
+}
+
+// exit reports that the function couldn't start, and stops it.
+func exit(logger *slog.Logger, err error) {
+	logging.StartupFailed(logger, err)
+	os.Exit(1)
 }
 
 // updater updates one library, as app.Ingester does.
@@ -95,18 +115,15 @@ type worker struct {
 	log   *slog.Logger
 }
 
-// newWorker returns a worker that updates the vetted libraries in the database the environment names, and sends
-// jobs to queue. It connects on the first job, so the schedule's invocations never touch the database.
-func newWorker(ctx context.Context, logger *slog.Logger, queue sender) (*worker, error) {
+// newWorker returns a worker that updates the vetted libraries in the database the environment names, which must be
+// at schemaVersion, and sends jobs to queue. It connects on the first job, so the schedule's invocations never touch
+// the database.
+func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVersion int64) (*worker, error) {
 	vetted, err := catalog.Vetted()
 	if err != nil {
 		return nil, err
 	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
-	if err != nil {
-		return nil, err
-	}
-	schemaVersion, err := migrate.RequiredVersion()
 	if err != nil {
 		return nil, err
 	}

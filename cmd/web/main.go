@@ -2,6 +2,7 @@
 // it serves HTTP at ADDR, 127.0.0.1:8080 by default.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
+// LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
 package main
 
 import (
@@ -10,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,15 +26,27 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/logging"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	handler, err := newHandler(context.Background(), logger)
+	start := time.Now()
+	logger, err := logging.New(os.Stdout, os.Getenv)
 	if err != nil {
-		log.Fatal(err)
+		exit(logger, err)
 	}
+	// The log package then writes JSON lines through logger too.
+	slog.SetDefault(logger)
+	schemaVersion, err := migrate.RequiredVersion()
+	if err != nil {
+		exit(logger, err)
+	}
+	handler, err := newHandler(context.Background(), logger, schemaVersion)
+	if err != nil {
+		exit(logger, err)
+	}
+	logging.Ready(logger, schemaVersion, time.Since(start))
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
 		lambda.Start(newFunction(handler).handle)
 		return
@@ -42,17 +54,22 @@ func main() {
 	addr := cmp.Or(os.Getenv("ADDR"), "127.0.0.1:8080")
 	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	logger.Info("serving Rulemart", "url", "http://"+addr)
-	log.Fatal(server.ListenAndServe())
+	err = server.ListenAndServe()
+	logger.Error("server stopped", "error", err.Error())
+	os.Exit(1)
 }
 
-// newHandler returns the pages' handler, reading the catalog from the database the environment names. It
-// connects on the first request, so a misconfigured database fails requests rather than the function's start.
-func newHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) {
+// exit reports that the function couldn't start, and stops it.
+func exit(logger *slog.Logger, err error) {
+	logging.StartupFailed(logger, err)
+	os.Exit(1)
+}
+
+// newHandler returns the pages' handler, reading the catalog from the database the environment names, which must
+// be at schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
+// the function's start.
+func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (http.Handler, error) {
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
-	if err != nil {
-		return nil, err
-	}
-	schemaVersion, err := migrate.RequiredVersion()
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +123,9 @@ func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error)
 	var request events.APIGatewayV2HTTPRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		return nil, fmt.Errorf("decode Function URL request: %v", err)
+	}
+	if !convertible(request) {
+		return rejectUnconvertible(ctx, request), nil
 	}
 	return f.adapter.ProxyWithContext(ctx, request)
 }

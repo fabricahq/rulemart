@@ -16,7 +16,7 @@ func env(vars map[string]string) func(string) string {
 
 func TestSourceFromEnvConnectsWithDatabaseURL(t *testing.T) {
 	connString := postgrestest.New(t)
-	if err := migrate.Up(context.Background(), connString); err != nil {
+	if _, err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatal(err)
 	}
 	version, err := migrate.RequiredVersion()

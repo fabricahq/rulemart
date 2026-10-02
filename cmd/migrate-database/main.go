@@ -7,13 +7,14 @@
 //   - DATABASE_URL_PARAMETER: the SSM parameter holding Neon's pooled connection string, which the functions use.
 //     migrate-database reads it with the ambient AWS credentials and derives the direct connection string.
 //
-// Migrations need a direct connection: their lock needs a session that Neon's pooler doesn't keep.
+// Migrations need a direct connection: their lock needs a session that Neon's pooler doesn't keep. LOG_LEVEL and
+// RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
 package main
 
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -22,23 +23,42 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
+	"github.com/fabricahq/rulemart/internal/platform/logging"
 )
 
 func main() {
+	logger, err := logging.New(os.Stdout, os.Getenv)
+	if err != nil {
+		logging.StartupFailed(logger, err)
+		os.Exit(1)
+	}
+	// The log package then writes JSON lines through logger too.
+	slog.SetDefault(logger)
+	if err := run(logger); err != nil {
+		logger.Error("migration failed", "error", err.Error())
+		os.Exit(1)
+	}
+}
+
+// run applies the pending migrations to the database the environment names, and logs each one it applied and the
+// schema version the database reached. When a migration fails, it logs those applied before it.
+func run(logger *slog.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	connString, err := directConnString(ctx, os.Getenv)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	if err := migrate.Up(ctx, connString); err != nil {
-		log.Fatal(err)
+	result, err := migrate.Up(ctx, connString)
+	for _, migration := range result.Applied {
+		logger.Info("applied migration", "version", migration.Version, "file", migration.File,
+			"duration_ms", logging.Milliseconds(migration.Duration))
 	}
-	version, err := migrate.RequiredVersion()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	log.Printf("database schema is at version %d", version)
+	logger.Info("migrated", "schema", result.Version, "applied", len(result.Applied))
+	return nil
 }
 
 // directConnString returns the direct connection string to migrate, from the source getenv names, as

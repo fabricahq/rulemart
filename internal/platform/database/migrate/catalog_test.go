@@ -16,7 +16,7 @@ import (
 func TestCatalogRefusesReferencesAcrossLibraries(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
-	if err := Up(ctx, connString); err != nil {
+	if _, err := Up(ctx, connString); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := pgx.Connect(ctx, connString)

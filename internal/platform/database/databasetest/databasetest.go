@@ -16,7 +16,7 @@ import (
 func New(t *testing.T) (*database.DB, string) {
 	t.Helper()
 	connString := postgrestest.New(t)
-	if err := migrate.Up(context.Background(), connString); err != nil {
+	if _, err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatal(err)
 	}
 	return open(t, connString, "test-database"), connString
