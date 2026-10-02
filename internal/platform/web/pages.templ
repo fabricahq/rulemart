@@ -32,7 +32,9 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 				} else {
 					@rowList() {
 						for _, lib := range libraries {
-							@libraryRow(lib)
+							@rowItem() {
+								@libraryRow(lib)
+							}
 						}
 					}
 				}
@@ -56,7 +58,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 // groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page.
 templ groupTiles(kind string, groups []groupSummaryView) {
 	if len(groups) > 0 {
-		@label("mt-[22px] mb-2 first:mt-0") {
+		@labelSubheading("mt-[22px] mb-2 first:mt-0") {
 			{ kind }
 		}
 		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2">
@@ -74,7 +76,7 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 }
 
 templ libraryRow(lib libraryCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] border-t border-border-subtle px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
 		<div class="flex items-start gap-[14px]">
 			@avatar(lib.avatar, lib.owner, avatarMD)
 			<div>
@@ -107,7 +109,9 @@ templ librariesPage(c chrome, libraries []libraryCard) {
 				} else {
 					@rowList() {
 						for _, lib := range libraries {
-							@libraryRow(lib)
+							@rowItem() {
+								@libraryRow(lib)
+							}
 						}
 					}
 				}
@@ -160,39 +164,41 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab 
 // its page across libraries. The row's main link covers the row, and the second link sits above it.
 templ groupList(kind string, lib libraryView, groups []groupView) {
 	if len(groups) > 0 {
-		@label("mt-[22px] mb-2 first:mt-0") {
+		@labelHeading("mt-[22px] mb-2 first:mt-0") {
 			{ kind } · { strconv.Itoa(len(groups)) }
 		}
 		@rowList() {
 			for _, g := range groups {
-				<div class="relative grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 transition-colors duration-[120ms] first:border-t-0 hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]">
-					<div class="flex min-w-0 items-center gap-3">
-						@groupTile(g.label, g.icon, tileMD)
-						<div class="min-w-0">
-							<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+				@rowItem() {
+					<div class="relative grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]">
+						<div class="flex min-w-0 items-center gap-3">
+							@groupTile(g.label, g.icon, tileMD)
+							<div class="min-w-0">
+								<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+									if g.label.canonical {
+										{ g.label.name }
+									} else {
+										{ g.label.id }
+									}
+								</a>
 								if g.label.canonical {
-									{ g.label.name }
+									<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
 								} else {
-									{ g.label.id }
+									<span class="block leading-[20px]">
+										@notCanonical(flagMD)
+									</span>
 								}
-							</a>
-							if g.label.canonical {
-								<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
-							} else {
-								<span class="block leading-[20px]">
-									@notCanonical(flagMD)
-								</span>
+							</div>
+						</div>
+						<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
+						<div class="grid justify-items-end gap-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
+							<span>{ plural(len(g.rules), "rule", "rules") } ›</span>
+							if g.acrossHref != "" {
+								<a class="relative z-10 text-muted underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
 							}
 						</div>
 					</div>
-					<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-					<div class="grid justify-items-end gap-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-						<span>{ plural(len(g.rules), "rule", "rules") } ›</span>
-						if g.acrossHref != "" {
-							<a class="relative z-10 text-muted underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
-						}
-					</div>
-				</div>
+				}
 			}
 		}
 	}
@@ -201,7 +207,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {
-		<div class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
+		<h2 class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
 			@groupTile(g.label, g.icon, tileXS)
 			if g.label.canonical {
 				<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
@@ -209,9 +215,11 @@ templ allRules(contents libraryContents) {
 				<span class="mono tracking-normal normal-case">{ g.label.id }</span>
 				@notCanonical(flagSM)
 			}
-		</div>
-		for _, r := range g.rules {
-			@ruleCardLink(r)
+		</h2>
+		@ruleCards() {
+			for _, r := range g.rules {
+				@ruleCardLink(r)
+			}
 		}
 	}
 }
@@ -304,34 +312,36 @@ templ versions(r ruleView) {
 	</p>
 	@rowList() {
 		for _, v := range r.versions {
-			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle px-[18px] py-[14px] first:border-t-0 max-narrow:grid-cols-1 max-narrow:gap-2">
-				<div>
-					<div class="flex flex-wrap items-center gap-2.5">
-						<b class="mono">{ v.version }</b>
-						if v.latest {
-							@chip() {
-								Latest
+			@rowItem() {
+				<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-[18px] py-[14px] max-narrow:grid-cols-1 max-narrow:gap-2">
+					<div>
+						<div class="flex flex-wrap items-center gap-2.5">
+							<b class="mono">{ v.version }</b>
+							if v.latest {
+								@chip() {
+									Latest
+								}
 							}
-						}
-						if v.major {
-							<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
-						}
-						<span class="font-mono text-[13px] text-faint">{ v.tag }</span>
-						<span class="text-[13px] text-faint">{ v.date }</span>
+							if v.major {
+								<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
+							}
+							<span class="font-mono text-[13px] text-faint">{ v.tag }</span>
+							<span class="text-[13px] text-faint">{ v.date }</span>
+						</div>
+						<div class="mt-1">
+							for _, summary := range v.summaries {
+								<div class="text-[13px] text-muted">{ summary }</div>
+							}
+						</div>
 					</div>
-					<div class="mt-1">
-						for _, summary := range v.summaries {
-							<div class="text-[13px] text-muted">{ summary }</div>
-						}
+					<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
+						<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
+							@githubMark("size-3")
+							Release notes
+						</a>
 					</div>
 				</div>
-				<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
-					<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
-						@githubMark("size-3")
-						Release notes
-					</a>
-				</div>
-			</div>
+			}
 		}
 	}
 }

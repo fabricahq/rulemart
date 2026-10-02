@@ -35,43 +35,45 @@ templ groupsPage(c chrome, index groupIndexView) {
 templ groupIndexList(kind string, groups []groupSummaryView) {
 	if len(groups) > 0 {
 		<section class="mt-[30px] scroll-mt-20 first:mt-0" id={ strings.ToLower(kind) }>
-			@label("mb-2") {
+			@labelHeading("mb-2") {
 				{ kind } · { strconv.Itoa(len(groups)) }
 			}
 			@rowList() {
 				for _, g := range groups {
-					<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(g.href) }>
-						<div class="flex min-w-0 items-center gap-3">
-							@groupTile(g.label, g.icon, tileMD)
-							<div class="min-w-0">
-								if g.label.canonical {
-									<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
-									<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
-								} else {
-									<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
-									<span class="block leading-[20px]">
-										@notCanonical(flagMD)
-									</span>
-								}
+					@rowItem() {
+						<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(g.href) }>
+							<div class="flex min-w-0 items-center gap-3">
+								@groupTile(g.label, g.icon, tileMD)
+								<div class="min-w-0">
+									if g.label.canonical {
+										<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
+										<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
+									} else {
+										<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
+										<span class="block leading-[20px]">
+											@notCanonical(flagMD)
+										</span>
+									}
+								</div>
 							</div>
-						</div>
-						if g.label.canonical {
-							<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-						} else {
-							<p class="flex min-w-0 items-center gap-1.5 text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10">
-								<span>in</span>
-								@avatar(g.libraries[0].avatar, g.libraries[0].owner, avatarXS)
-								<span class="mono min-w-0 [overflow-wrap:anywhere]">{ g.libraries[0].fullName() }</span>
-							</p>
-						}
-						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-							{ plural(g.rules, "rule", "rules") }
 							if g.label.canonical {
-								<span class="max-narrow:hidden"> · { plural(len(g.libraries), "library", "libraries") }</span>
+								<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
+							} else {
+								<p class="flex min-w-0 items-center gap-1.5 text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10">
+									<span>in</span>
+									@avatar(g.libraries[0].avatar, g.libraries[0].owner, avatarXS)
+									<span class="mono min-w-0 [overflow-wrap:anywhere]">{ g.libraries[0].fullName() }</span>
+								</p>
 							}
-							›
-						</span>
-					</a>
+							<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
+								{ plural(g.rules, "rule", "rules") }
+								if g.label.canonical {
+									<span class="max-narrow:hidden">· { plural(len(g.libraries), "library", "libraries") }</span>
+								}
+								›
+							</span>
+						</a>
+					}
 				}
 			}
 		</section>
@@ -98,7 +100,7 @@ templ groupPage(c chrome, g groupPageView) {
 			<div class="mt-[26px] mb-[22px] border-b border-border pb-[11px] text-[14px] font-medium">
 				Rules<span class="ml-[5px] text-faint">{ strconv.Itoa(g.rules) }</span>
 				if len(g.libraries) > 0 {
-					<span class="font-normal text-muted"> in { plural(len(g.libraries), "library", "libraries") }</span>
+					<span class="font-normal text-muted">in { plural(len(g.libraries), "library", "libraries") }</span>
 				}
 			</div>
 			if len(g.libraries) == 0 {
@@ -108,12 +110,14 @@ templ groupPage(c chrome, g groupPageView) {
 				<section class="mt-8 first:mt-0">
 					<div class="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 px-0.5">
 						@avatar(lib.library.avatar, lib.library.owner, avatarSM)
-						<a class="font-semibold no-underline hover:underline hover:underline-offset-3" href={ templ.SafeURL(lib.library.href) }>{ lib.library.fullName() }</a>
+						<h2 class="text-[15px] font-semibold"><a class="no-underline hover:underline hover:underline-offset-3" href={ templ.SafeURL(lib.library.href) }>{ lib.library.fullName() }</a></h2>
 						<span class="text-[13px] text-faint">{ plural(len(lib.rules), "rule", "rules") }</span>
 						<a class="ml-auto text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.section) }>View in library ›</a>
 					</div>
-					for _, r := range lib.rules {
-						@ruleCardLink(r)
+					@ruleCards() {
+						for _, r := range lib.rules {
+							@ruleCardLink(r)
+						}
 					}
 				</section>
 			}

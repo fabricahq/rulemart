@@ -42,12 +42,16 @@ templ searchPage(c chrome, v searchView) {
 							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(groupsHref) }>browse rules by group</a>.</p>
 						</div>
 					} else {
-						<p class="mb-3 border-b border-border pb-[11px] text-[14px] text-muted">
+						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">
 							@searchSummary(v)
-						</p>
-						for _, r := range v.results {
-							@searchResult(r)
-						}
+						</h2>
+						<ol class="grid gap-2.5">
+							for _, r := range v.results {
+								<li>
+									@searchResult(r)
+								</li>
+							}
+						</ol>
 						@searchPages(v)
 					}
 				</div>
@@ -91,9 +95,9 @@ templ searchPages(v searchView) {
 
 // searchResult is a rule that matched, with its library and group, leading to its page.
 templ searchResult(r searchResultView) {
-	<a class="mb-2.5 block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
+	<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
 		<div class="flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
-			<span>{ r.rule.title }</span>
+			<h3 class="font-semibold">{ r.rule.title }</h3>
 			@impact(r.rule.impact)
 		</div>
 		if r.whenToRead != "" {

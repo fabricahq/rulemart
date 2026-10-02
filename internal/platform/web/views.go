@@ -320,3 +320,6 @@ func breakParts(text string) []string {
 	}
 	return append(parts, text)
 }
+
+// labelStyle is the type of a label: small, uppercase, and spaced.
+const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercase"

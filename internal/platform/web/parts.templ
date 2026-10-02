@@ -70,11 +70,24 @@ templ notCanonical(size flagSize) {
 	<span class={ "inline-block flex-none rounded-[4px] border border-dashed border-border-strong px-1.5 align-middle font-mono font-normal tracking-normal whitespace-nowrap text-faint normal-case", string(size) } title={ notCanonicalExplanation }>not canonical</span>
 }
 
-// label is a small uppercase heading, such as a list's or a panel's.
+// label is small uppercase text that names what follows, such as a page's eyebrow.
 templ label(class string) {
-	<p class={ "text-[12px] font-medium tracking-[.12em] text-muted uppercase", class }>
+	<p class={ labelStyle, class }>
 		{ children... }
 	</p>
+}
+
+// labelHeading is a section's heading in a label's style, at level 2, and labelSubheading at level 3.
+templ labelHeading(class string) {
+	<h2 class={ labelStyle, class }>
+		{ children... }
+	</h2>
+}
+
+templ labelSubheading(class string) {
+	<h3 class={ labelStyle, class }>
+		{ children... }
+	</h3>
 }
 
 // impact shows a rule's declared impact, explained on hover.
@@ -126,25 +139,41 @@ templ tabCount(count int) {
 	}
 }
 
-// rowList frames rows that are each one full-width target.
+// rowList frames rows that are each one full-width target, as a list whose items rowItem makes, divided by lines.
 templ rowList() {
-	<div class="overflow-hidden rounded-card border border-border bg-paper">
+	<ul class="divide-y divide-border-subtle overflow-hidden rounded-card border border-border bg-paper">
 		{ children... }
-	</div>
+	</ul>
 }
 
-// ruleCardLink is a rule's card in a list of rules, leading to its page.
+// rowItem is one row of a rowList.
+templ rowItem() {
+	<li>
+		{ children... }
+	</li>
+}
+
+// ruleCards lists rule cards, each a ruleCardLink.
+templ ruleCards() {
+	<ul class="grid gap-2.5">
+		{ children... }
+	</ul>
+}
+
+// ruleCardLink is a rule's card in ruleCards, leading to its page, under a heading of level 2.
 templ ruleCardLink(r ruleCard) {
-	<a class="mb-2.5 block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
-		<div class="mb-1.5 flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
-			<span>{ r.title }</span>
-			@impact(r.impact)
-		</div>
-		<div class="flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
-			<span class="mono" title="Latest version">{ r.version }</span>
-			<span class="mono text-faint">{ r.id }</span>
-		</div>
-	</a>
+	<li>
+		<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
+			<div class="mb-1.5 flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
+				<h3 class="font-semibold">{ r.title }</h3>
+				@impact(r.impact)
+			</div>
+			<div class="flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
+				<span class="mono" title="Latest version">{ r.version }</span>
+				<span class="mono text-faint">{ r.id }</span>
+			</div>
+		</a>
+	</li>
 }
 
 // searchForm is a search field with its button, which searches the rules of every vetted library. query fills the
