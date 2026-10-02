@@ -46,31 +46,31 @@ func (s *server) starsAvailable() bool {
 	return s.Stars != nil && s.signInAvailable()
 }
 
-// libraryView describes lib for the page r asks for, with the star control a vetted library's pages show: for a
-// signed-in visitor, whether they starred it, which it reads.
-func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
-	view := newLibraryView(lib)
+// starControl returns the star control a vetted library's pages show of lib, for the page r asks for: for a
+// signed-in visitor, whether they starred it, which it reads. It's the zero starView, which shows nothing, for a
+// library that isn't vetted, or without stars.
+func (s *server) starControl(r *http.Request, lib views.Library, href string) (starView, error) {
 	if !lib.Vetted || s.Stars == nil {
-		return view, nil
+		return starView{}, nil
 	}
 	v := visitorOf(r.Context())
-	view.star = starView{shown: true, count: lib.Stars}
+	star := starView{shown: true, count: lib.Stars}
 	if v.account == nil {
 		if v.signIn != "" {
-			view.star.signIn = s.starSignIn(v.here)
+			star.signIn = s.starSignIn(v.here)
 		}
-		return view, nil
+		return star, nil
 	}
 	starred, err := s.Stars.Starred(r.Context(), v.account.ID, lib.Owner, lib.Name)
 	if err != nil {
-		return libraryView{}, err
+		return starView{}, err
 	}
-	view.star.starred = starred
-	view.star.action = starAction(starsHref, lib.FullName(), v.here, view.href)
+	star.starred = starred
+	star.action = starAction(starsHref, lib.FullName(), v.here, href)
 	if starred {
-		view.star.action = starAction(unstarHref, lib.FullName(), v.here, view.href)
+		star.action = starAction(unstarHref, lib.FullName(), v.here, href)
 	}
-	return view, nil
+	return star, nil
 }
 
 // vettedCards describes vetted libraries for a list of them, with their stars only when Rulemart has stars, as their

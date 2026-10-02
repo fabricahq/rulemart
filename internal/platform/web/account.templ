@@ -10,6 +10,9 @@ templ accountControl(v visitor) {
 	if v.account != nil || v.signIn != "" {
 		<div class={ accountSlotStyle }>
 			if v.account != nil {
+				if v.cart {
+					@cartLink(v)
+				}
 				@accountMenu(v)
 			} else if !v.onSignInPage {
 				@signInLink(v)
@@ -20,7 +23,7 @@ templ accountControl(v visitor) {
 
 // accountSlotStyle sizes the header's account slot to its widest content at each width: the Sign in button, then
 // the Sign in link of a phone's header, then a narrow phone's icon.
-const accountSlotStyle = "flex shrink-0 justify-end w-[6.25rem] max-narrow:w-14 max-tiny:w-11"
+const accountSlotStyle = "flex shrink-0 items-center justify-end gap-1 w-[6.25rem] max-narrow:w-14 max-tiny:w-11"
 
 // signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, a link
 // like the others beside it in a phone's header, and an icon with a label in a narrow phone's.
@@ -43,14 +46,20 @@ templ personIcon(class string) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account,
-// their stars, their listings, and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
+// their cart, their stars, their listings, and to sign out. On a phone, whose header has no room for the cart's link,
+// the avatar shows the cart's count. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
 // button's shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar,
 // just inside its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves
 // it.
 templ accountMenu(v visitor) {
 	<details class="group relative shrink-0" data-menu>
-		<summary class="-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span]:outline-2 [&:focus-visible>span]:-outline-offset-2 [&:focus-visible>span]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
+		<summary class="relative -mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span:first-child]:outline-2 [&:focus-visible>span:first-child]:-outline-offset-2 [&:focus-visible>span:first-child]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ accountMenuName(v) } title={ "Signed in as " + v.account.Login }>
 			@avatar(v.account.AvatarURL, v.account.Login, avatarSM)
+			if v.cart && v.cartItems > 0 {
+				<span class="narrow:hidden">
+					@cartBadge(v.cartItems, "top-px -right-[3px]")
+				</span>
+			}
 		</summary>
 		<div class="absolute top-[calc(100%+6px)] right-[7px] z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
 			<div class="mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5">
@@ -64,6 +73,20 @@ templ accountMenu(v visitor) {
 					aria-current="page"
 				}
 			>Account</a>
+			if v.cart {
+				<a
+					class={ menuItemStyle, "justify-between gap-3 no-underline", templ.KV("font-medium text-ink", v.onCartPage), templ.KV("text-muted", !v.onCartPage) }
+					href={ templ.SafeURL(cartHref) }
+					if v.onCartPage {
+						aria-current="page"
+					}
+				>
+					Your cart
+					if v.cartItems > 0 {
+						<span class="text-[12.5px] text-faint tabular-nums">{ plural(v.cartItems, "item", "items") }</span>
+					}
+				</a>
+			}
 			if v.stars {
 				<a
 					class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onStarsPage), templ.KV("text-muted", !v.onStarsPage) }
@@ -194,6 +217,9 @@ templ accountPage(c chrome, account accountView) {
 				if visitorOf(ctx).stars {
 					<p class="mt-2 text-[13.5px] text-muted">Rulemart also keeps which libraries you star, and when, and shows others only how many stars each library has. <a href={ templ.SafeURL(starsHref) }>Your stars</a></p>
 				}
+				if visitorOf(ctx).cart {
+					<p class="mt-2 text-[13.5px] text-muted">It keeps what you put in your cart until you remove it, and shows it to no one else. <a href={ templ.SafeURL(cartHref) }>Your cart</a></p>
+				}
 				if visitorOf(ctx).listings {
 					<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you list, and when you listed or retried them, and shows no one else who listed them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
 				}
@@ -224,7 +250,7 @@ templ accountPage(c chrome, account accountView) {
 						<span class="underline underline-offset-4">What deleting does</span>
 					</summary>
 					<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
-						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars and your listings, so libraries you listed that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
+						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your cart, and your listings, so libraries you listed that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
 						<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
 							<button class={ dangerButtonStyle } type="submit">Delete my account</button>
 						</form>

@@ -184,6 +184,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 					}
 				</div>
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
+					if lib.cart.shown {
+						@cartButton(lib.cart, "Add library to cart")
+					}
 					if lib.star.shown {
 						@starControl(lib.star)
 					}
@@ -224,7 +227,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		@rowList() {
 			for _, g := range groups {
 				@rowItem() {
-					<div class="relative grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]">
+					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]", templ.KV("grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]", !g.cart.shown), templ.KV("grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto_auto]", g.cart.shown) }>
 						<div class="flex min-w-0 items-center gap-3">
 							@groupTile(g.label, g.icon, tileMD)
 							<div class="min-w-0">
@@ -253,6 +256,12 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 							}
 						</div>
 						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
+						if g.cart.shown {
+							// As wide as In cart, so every row's count lines up whichever its control reads.
+							<div class="relative z-10 flex justify-end narrow:min-w-[5.25rem] max-narrow:col-span-full max-narrow:row-start-3 max-narrow:justify-start max-narrow:pl-10">
+								@cartButton(g.cart, "Add")
+							</div>
+						}
 					</div>
 				}
 			}
@@ -358,7 +367,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in every library ›</a>
 				}
 			</div>
-			<div class="flex flex-wrap items-start justify-between gap-6">
+			<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
 				<div>
 					<h1 class="title-xl max-w-[44rem]">{ r.title }</h1>
 					<div class="mt-2.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
@@ -371,6 +380,9 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 						}
 					</div>
 				</div>
+				if r.cart.shown {
+					@cartButton(r.cart, "Add to cart")
+				}
 			</div>
 			if r.retired == nil {
 				@tabs([]tab{

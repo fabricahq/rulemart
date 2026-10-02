@@ -18,6 +18,7 @@ import (
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
@@ -92,16 +93,28 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onAccountPage, onListingsPage, and onStarsPage are true on the account page, the listings page, and the stars
-	// page, which the menu marks as current.
-	onAccountPage, onListingsPage, onStarsPage bool
-	// listings and stars are true when visitors can list and star libraries, so the menu links the listings and the
-	// stars pages.
-	listings, stars bool
+	// onAccountPage, onListingsPage, onStarsPage, and onCartPage are true on the account page, the listings page, the
+	// stars page, and the cart, which the menu marks as current.
+	onAccountPage, onListingsPage, onStarsPage, onCartPage bool
+	// listings, stars, and cart are true when visitors can list and star libraries, and collect rules in a cart, so the
+	// menu links the listings and the stars pages, and the cart.
+	listings, stars, cart bool
+	// cartItems counts the items in a signed-in visitor's cart, which the header shows.
+	cartItems int
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty.
 	notice string
+}
+
+// accountMenuName is what screen readers hear of the header's account menu: who is signed in, and how many items
+// their cart holds, which a phone's header shows on the avatar.
+func accountMenuName(v visitor) string {
+	name := "Account menu, signed in as " + v.account.Login
+	if v.cart && v.cartItems > 0 {
+		name += ", " + plural(v.cartItems, "item", "items") + " in your cart"
+	}
+	return name
 }
 
 // notices are what a notice cookie may name, by key, and what each says.
@@ -116,6 +129,9 @@ var notices = map[string]string{
 	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
 	"listing-retried":          "Rulemart is checking the repository again.",
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
+	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or add " +
+		"a whole group instead of its rules.",
+	"cart-emptied": "Your cart is empty.",
 }
 
 // setNotice has the next page show the notice notices names by key, once.
@@ -144,7 +160,8 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 		back := returnPath(r.URL.RequestURI())
 		v := visitor{
 			here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
-			onStarsPage: r.URL.Path == starsHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+			onStarsPage: r.URL.Path == starsHref, onCartPage: r.URL.Path == cartHref,
+			listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
 		}
 		if s.signInAvailable() {
 			v.signIn = s.absolute(signInPageHref(back))
@@ -168,6 +185,13 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 				default:
 					v.account, v.token = &account, token
 					v.signOut = signOutHref + returnQuery(publicPath(back))
+				}
+				if v.account != nil && v.cart {
+					// The header shows the count, so a failure to read it fails the page, as a failed session read does.
+					if v.cartItems, err = s.Cart.Count(r.Context(), account.ID); err != nil {
+						s.fail(w, r, err)
+						return
+					}
 				}
 			} else if hasCookie(r, sessionCookie) {
 				clearCookie(w, sessionCookie)
@@ -238,8 +262,11 @@ func returnPath(target string) string {
 // accountPages are the pages under /account/ that only a signed-in visitor can see, which signing in may return to,
 // and what the sign-in page says to a visitor on their way to each.
 var accountPages = map[string]string{
-	listingsHref: "Sign in to see your listings.",
-	starsHref:    "Sign in to see your stars.",
+	listingsHref:    "Sign in to see your listings.",
+	starsHref:       "Sign in to see your stars.",
+	cartHref:        "Sign in to see your cart.",
+	checkoutHref:    "Sign in to check out your cart.",
+	confirmCartHref: "Sign in to add to your cart.",
 }
 
 // publicPath returns back, a return path, or / when back is the account page or one of accountPages, which a
@@ -265,6 +292,8 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
 	case r.URL.Query().Get("to") == starPurpose:
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries. You'll come back to this one.")
+	case r.URL.Query().Get("to") == cartPurpose:
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to collect rules in your cart. You'll come back to this page.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

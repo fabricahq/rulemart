@@ -391,7 +391,7 @@ func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 	if got := links(t, body(t, site.signedInGet(t, "/")), "Your stars"); !slices.Equal(got, []string{"/account/stars"}) {
 		t.Errorf("the menu's Your stars leads to %q", got)
 	}
-	assertShows(t, body(t, site.signedInGet(t, "/account")), "which libraries you star", "It removes your stars and your listings")
+	assertShows(t, body(t, site.signedInGet(t, "/account")), "which libraries you star", "It removes your stars, your cart, and your listings")
 	signedOut := site.signedInPost(t, "/sign-out?return=%2Faccount%2Fstars")
 	if signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signing out of the stars page returns to %q, want home", signedOut.Header.Get("Location"))
