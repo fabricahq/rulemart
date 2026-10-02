@@ -40,10 +40,10 @@ From 1.0.0:
 
 ## Order of the release notes
 
-1. Breaking changes, with what the infrastructure repository must change before deploying
-2. New features
-3. Improvements
-4. Bug fixes
+1. New features
+2. Improvements
+3. Bug fixes
+4. Breaking changes, with what the infrastructure repository must change before deploying
 
 ## Always and never
 
