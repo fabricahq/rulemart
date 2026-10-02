@@ -24,6 +24,9 @@ import (
 
 // libraryView is what every page about a library shows of it.
 type libraryView struct {
+	// vetted is false for a library that's only listed: each of its pages warns that it isn't vetted, carries noindex
+	// and nofollow, and names no canonical address.
+	vetted                                 bool
 	href, owner, name, description, avatar string
 	// githubURL is the repository, and ownerURL its owner, on GitHub.
 	githubURL, ownerURL string
@@ -47,7 +50,7 @@ func (l libraryView) fileAtVersionURL(file string, n int) string {
 // newLibraryView describes lib.
 func newLibraryView(lib views.Library) libraryView {
 	v := libraryView{
-		href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
+		vetted: lib.Vetted, href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
 		avatar: lib.OwnerAvatarURL, githubURL: domain.RepositoryURL(lib.FullName()),
 		ownerURL: domain.OwnerURL(lib.Owner), latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
 		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
@@ -64,14 +67,17 @@ func newLibraryView(lib views.Library) libraryView {
 type libraryCard struct {
 	href, owner, name, description, avatar string
 	rules                                  int
+	// unvetted marks a library that's only listed, whose link carries nofollow.
+	unvetted bool
 }
 
-func newLibraryCards(libraries []views.LibraryCard) []libraryCard {
+// newLibraryCards describes libraries, which are unvetted when unvetted is true.
+func newLibraryCards(libraries []views.LibraryCard, unvetted bool) []libraryCard {
 	cards := make([]libraryCard, len(libraries))
 	for i, lib := range libraries {
 		cards[i] = libraryCard{
 			href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
-			avatar: lib.OwnerAvatarURL, rules: lib.Rules,
+			avatar: lib.OwnerAvatarURL, rules: lib.Rules, unvetted: unvetted,
 		}
 	}
 	return cards

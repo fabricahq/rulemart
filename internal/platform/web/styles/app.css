@@ -31,6 +31,7 @@
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
   --icon-tile: #ffffff; --icon-ink: none;
   --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #116329; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #a40e26;
+  --warn-surface: #fff8e5; --warn-border: #d4a72c; --warn-ink: #6b4500;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -41,6 +42,7 @@
   --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
   --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
   --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
+  --warn-surface: rgb(187 128 9 / .14); --warn-border: #9e6a03; --warn-ink: #e3b341;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -52,12 +54,14 @@
     --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
     --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
     --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
+    --warn-surface: rgb(187 128 9 / .14); --warn-border: #9e6a03; --warn-ink: #e3b341;
     color-scheme: dark;
   }
 }
 
 /* Only the tokens are colors, so markup can't drift from the palette. The palette is grays, except the green and red
-   that mark text a comparison adds and deletes, GitHub's diff colors. */
+   that mark text a comparison adds and deletes, GitHub's diff colors, and the amber of the warning on every unvetted
+   library's page. */
 @theme {
   --color-*: initial;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -85,6 +89,9 @@
   --color-white: #ffffff;
   --color-add-ink: var(--add-ink);
   --color-del-ink: var(--del-ink);
+  --color-warn-surface: var(--warn-surface);
+  --color-warn-border: var(--warn-border);
+  --color-warn-ink: var(--warn-ink);
 }
 
 /* The prototype's layout primitives. */

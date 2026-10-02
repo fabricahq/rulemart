@@ -10,6 +10,9 @@
 // secret, or GITHUB_CLIENT_SECRET_PARAMETER names the SSM parameter holding it, as on Lambda. Unset, visitors can't
 // sign in with GitHub, and pages offer no sign-in, except in a build with the rulemartdev tag, which offers test
 // users instead; such a build refuses to start on Lambda.
+//
+// Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
+// sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
 package main
 
 import (
@@ -37,6 +40,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
+	"github.com/fabricahq/rulemart/internal/platform/queue"
 	"github.com/fabricahq/rulemart/internal/platform/secret"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
@@ -108,10 +112,20 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		return nil, err
 	}
 	db := source.Open(schemaVersion)
-	pages := app.Pages{Store: postgres.New(db), Vetted: vetted, Groups: groups}
+	catalogStore := postgres.New(db)
+	pages := app.Pages{Store: catalogStore, Vetted: vetted, Groups: groups}
+	listings := app.Listings{Store: catalogStore, Vetted: vetted}
+	if url := os.Getenv("QUEUE_URL"); url != "" {
+		jobsQueue, err := queue.New(ctx, url)
+		if err != nil {
+			return nil, err
+		}
+		listings.Queue = jobsQueue
+	}
 	options := web.Options{
 		Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL,
 		Accounts: accountsapp.Sessions{Store: accountspostgres.New(db)},
+		Listings: listings,
 	}
 	if gitHub != nil {
 		options.GitHub = gitHub

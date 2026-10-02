@@ -77,9 +77,16 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 }
 
 // libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
-// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own.
+// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A link to an
+// unvetted library's page carries nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
-	<a class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+	<a
+		class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
+		href={ templ.SafeURL(lib.href) }
+		if lib.unvetted {
+			rel="nofollow"
+		}
+	>
 		<div class="flex min-w-0 items-start gap-3">
 			@avatar(lib.avatar, lib.owner, avatarMD)
 			<div class="min-w-0">
@@ -101,12 +108,13 @@ templ libraryRow(lib libraryCard, headed bool) {
 }
 
 
-// librariesPage lists every vetted library.
-templ librariesPage(c chrome, libraries []libraryCard) {
+// librariesPage lists every vetted library, then leads to the unvetted ones, and, when canList is true, to listing a
+// library.
+templ librariesPage(c chrome, libraries []libraryCard, canList bool) {
 	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref}) {
 		<div class="page wrap">
 			<h1 class="title-xl">Libraries</h1>
-			<p class="mt-1.5 max-w-[46rem] text-muted">Each library is a set of rules a team publishes for coding agents to follow. Rulemart lists only the libraries it has vetted.</p>
+			<p class="mt-1.5 max-w-[46rem] text-muted">Each library is a set of rules a team publishes for coding agents to follow. Rulemart lists here only the libraries it has vetted.</p>
 			<div class="mt-[26px]">
 				if len(libraries) == 0 {
 					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
@@ -119,6 +127,15 @@ templ librariesPage(c chrome, libraries []libraryCard) {
 						}
 					}
 				}
+			</div>
+			<div class="mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border-subtle pt-6 text-[14px]">
+				<p class="max-w-[40rem] text-muted">Anyone signed in can list a library. Rulemart hasn't reviewed the ones it hasn't vetted.</p>
+				<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+					if canList {
+						<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(listHref) }>List a library ›</a>
+					}
+					<a class="text-ink no-underline hover:underline" href={ templ.SafeURL(unvettedHref) } rel="nofollow">View unvetted libraries ›</a>
+				</div>
 			</div>
 		</div>
 	}
@@ -146,10 +163,13 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, current l
 }
 
 // libraryFrame is every page about a library: its name, its tabs with current on, and the tab's content, beside the
-// library's facts when withFacts.
+// library's facts when withFacts, under the warning when the library isn't vetted.
 templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
-	@layout(c, h) {
+	@layout(c, libraryHead(h, lib)) {
 		<div class="page wrap">
+			if !lib.vetted {
+				@unvettedWarning(false)
+			}
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
 				@avatar(lib.avatar, lib.owner, avatarLG)
 				<div>
@@ -308,10 +328,13 @@ templ rulePage(c chrome, r ruleView, current ruleTab) {
 }
 
 // ruleFrame is every page about a rule: where it is in its library, its title, its tabs with current on while it's
-// current, and the tab's content.
+// current, and the tab's content, under the warning when the library isn't vetted.
 templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
-	@layout(c, h) {
+	@layout(c, libraryHead(h, r.library)) {
 		<div class="page wrap">
+			if !r.library.vetted {
+				@unvettedWarning(false)
+			}
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				@avatar(r.library.avatar, r.library.owner, avatarSM)
 				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
