@@ -146,21 +146,25 @@ templ socialCard(c chrome, h head) {
 	<meta name="twitter:card" content="summary_large_image"/>
 }
 
-// header is the bar atop every page, laid out as the prototype's: Rulemart's name, a search field, which a phone's
-// narrow header replaces with a link to the search page, then links to the techs, the practices, the libraries, and
-// the FAQ, which a menu takes the place of below the wide breakpoint, the cart, and the visitor's account menu or a
-// link to sign in.
+// header is the bar atop every page, laid out as the prototype's: Fabrica's mark and name, Rulemart's symbol and
+// name, a search field, which a phone's narrow header replaces with a link to the search page, then links to the
+// techs, the practices, the libraries, and the FAQ, which a menu takes the place of below the wide breakpoint, the
+// cart, and the visitor's account menu or a link to sign in.
 templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
-		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3 max-tiny:gap-2">
-			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
-				// A narrow phone's header has room for Rulemart's name alone.
+		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-2">
+			<div class="inline-flex items-baseline gap-2 text-[1.05rem] max-narrow:gap-1.5 font-[650] tracking-[-.04em] whitespace-nowrap">
+				// A phone's header draws Rulemart's symbol smaller and sets the parts closer, so Fabrica's mark and name still fit
+				// at 384 pixels; a narrow phone's has room for Rulemart's symbol and name alone.
 				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-tiny:hidden" href="https://fabricahq.com">
 					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
 					Fabrica
 				</a>
 				<span class="font-normal text-muted max-tiny:hidden">/</span>
-				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
+				<a class="relative inline-block pl-[27px] text-ink no-underline max-narrow:pl-[22px]" href="/" aria-label="Rulemart home">
+					@rulemartMark("absolute top-1/2 left-0 size-6 -translate-y-1/2 max-narrow:size-5")
+					Rulemart
+				</a>
 			</div>
 			if !h.searchPage {
 				<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
@@ -363,6 +367,14 @@ templ fabricaMark(class string) {
 			<path d="m2.75 7.1 9.25 5.35 9.25-5.35M12 12.45v9.9"></path>
 			<path d="m7.375 4.425 9.25 5.35M7.375 9.775v9.9M12 17.4l9.25-5.35"></path>
 		</g>
+	</svg>
+}
+
+// rulemartMark is Rulemart's symbol, three stacked planes, drawn in the current text color. Its path is
+// brand/source/rulemart.svg's, with the heavier stroke the brand guide gives the site's small sizes.
+templ rulemartMark(class string) {
+	<svg class={ class } viewBox="0 0 64 64" fill="none" aria-hidden="true">
+		<path d="m12 22 20-12 20 12-20 12Z M12 32l20 12 20-12 M12 42l20 12 20-12" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></path>
 	</svg>
 }
 
