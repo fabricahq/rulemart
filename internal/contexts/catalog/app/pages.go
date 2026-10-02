@@ -4,14 +4,25 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired.
+// ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired, or a group that
+// isn't canonical.
 var ErrNotFound = store.ErrNotFound
+
+// ErrSearchQueryTooLong reports a query of more than domain.MaxSearchQueryLength characters, which search won't run.
+var ErrSearchQueryTooLong = errors.New("search query too long")
+
+// MaxSearchResults is the most results a search returns: the best matches.
+const MaxSearchResults = 50
 
 // Pages reads what the catalog's pages show. It finds only the libraries in Vetted, and reads each page from one
 // state of the catalog.
@@ -52,13 +63,89 @@ func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (view
 	return page, nil
 }
 
+// GroupIndex returns every group that holds current rules in a vetted library. A canonical group combines every
+// library that holds it; any other group stands alone, so each library's is listed apart. Each kind lists its
+// canonical groups first, by name without regard to case, then the others by ID and library.
+func (p Pages) GroupIndex(ctx context.Context) (views.GroupIndex, error) {
+	groups, err := p.Store.Groups(ctx, p.Vetted)
+	if err != nil {
+		return views.GroupIndex{}, err
+	}
+	var index views.GroupIndex
+	for _, summary := range p.summarize(groups) {
+		if strings.HasPrefix(summary.Path, "practices/") {
+			index.Practices = append(index.Practices, summary)
+		} else {
+			index.Techs = append(index.Techs, summary)
+		}
+	}
+	return index, nil
+}
+
+// summarize turns each library's groups, in path order and then library order, into the index's entries, in its
+// order.
+func (p Pages) summarize(groups []views.LibraryGroup) []views.GroupSummary {
+	var canonical, others []views.GroupSummary
+	for _, g := range groups {
+		c := p.canonical(g.Path)
+		if c == nil {
+			others = append(others, views.GroupSummary{Path: g.Path, Rules: g.Rules, Libraries: []views.LibraryRef{g.Library}})
+			continue
+		}
+		if n := len(canonical); n > 0 && canonical[n-1].Path == g.Path {
+			canonical[n-1].Rules += g.Rules
+			canonical[n-1].Libraries = append(canonical[n-1].Libraries, g.Library)
+			continue
+		}
+		canonical = append(canonical, views.GroupSummary{Path: g.Path, Canonical: c, Rules: g.Rules, Libraries: []views.LibraryRef{g.Library}})
+	}
+	slices.SortStableFunc(canonical, func(a, b views.GroupSummary) int {
+		return strings.Compare(strings.ToLower(a.Canonical.Name), strings.ToLower(b.Canonical.Name))
+	})
+	return append(canonical, others...)
+}
+
+// GroupPage returns the canonical group id with its current rules in every vetted library that holds it, or
+// ErrNotFound when id isn't on the canonical group list: any other group stands alone, on its library's page.
+func (p Pages) GroupPage(ctx context.Context, id string) (views.GroupPage, error) {
+	c := p.canonical(id)
+	if c == nil {
+		return views.GroupPage{}, fmt.Errorf("load group: %w", ErrNotFound)
+	}
+	libraries, err := p.Store.GroupRules(ctx, p.Vetted, id)
+	if err != nil {
+		return views.GroupPage{}, err
+	}
+	return views.GroupPage{Path: id, Canonical: *c, Libraries: libraries}, nil
+}
+
+// Search returns the vetted libraries' current rules that best match query, at most MaxSearchResults of them, with
+// how many matched in all. An empty query matches nothing, and one longer than domain.MaxSearchQueryLength fails with
+// ErrSearchQueryTooLong; neither reads the catalog.
+func (p Pages) Search(ctx context.Context, query domain.SearchQuery) (views.SearchResults, error) {
+	if query.IsZero() {
+		return views.SearchResults{}, nil
+	}
+	if query.TooLong() {
+		return views.SearchResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
+	}
+	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, MaxSearchResults)
+	if err != nil {
+		return views.SearchResults{}, err
+	}
+	for i, r := range results.Results {
+		results.Results[i].CanonicalGroup = p.canonical(r.Rule.Group)
+	}
+	return results, nil
+}
+
 // canonical returns how pages show the group at path when it's on the canonical group list, or nil when it isn't.
 func (p Pages) canonical(path string) *views.CanonicalGroup {
 	g, ok := p.Groups.Find(path)
 	if !ok {
 		return nil
 	}
-	return &views.CanonicalGroup{Name: g.Name, Icon: views.GroupIcon{
+	return &views.CanonicalGroup{Name: g.Name, Description: g.Description, Icon: views.GroupIcon{
 		File: g.Icon.File, Monochrome: g.Icon.Monochrome, Narrow: g.Icon.Narrow,
 	}}
 }
