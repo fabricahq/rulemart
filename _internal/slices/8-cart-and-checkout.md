@@ -19,7 +19,7 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   adds the item and returns to the page, which names what it added, "Added the group Go to your cart.", and shows the
   control as In cart, focused, leading to the cart. Signed out, each control leads to the sign-in page, which says
   "Sign in to collect rules in your cart. You'll come back to this page.", and returns there, offering once to add
-  that item: "You're signed in. Add the rule … to your cart?", with its control focused and outlined.
+  that item in its notice: "You're signed in. Add the rule … to your cart?", beside an Add to cart button, focused.
 - **See how the cart holds an item.** A rule's page says In cart, "Included with its group (in cart)", "Included with
   the library (in cart)", "In cart, needs confirming", which leads to the confirmation, or on a retired rule's page,
   "In cart, left out of checkout because it's retired". A group's control says the same of a group.
@@ -49,7 +49,9 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
 - **Proposed: signed-out controls are links to sign in, as stars' are** (**Existing** pattern), so public pages stay
   identical for everyone. A POST without a session, such as from a tab whose session ended, does the same and changes
   nothing.
-- **Proposed: signing in to add offers that item once, and never adds by itself**, as stars do since slice 7's QA. The
+- **Proposed: signing in to add offers that item once, in the notice, and never adds by itself**, as stars do since
+  slice 7's QA. The notice holds its own Add to cart button, focused, so the question and its answer are on screen
+  together, however far down the item's control is; a page that doesn't show the item says nothing. The
   sign-in link returns to the page with `add=` naming the item; the page takes it off with a redirect that sets the
   notice cookie, so the offer shows once, and reloading or sharing the page doesn't repeat it. The page names the item
   from its own data, never the address's text, and the offer's text comes only from the cookie, which only Rulemart
@@ -120,6 +122,10 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   The prompt says to use the project's own source name when it imports the repository already.
 - **Proposed: the prompt holds no text a library wrote**: only IDs, which Code Rules' format restricts, GitHub
   addresses, and Rulemart's own words. A rule's title could otherwise write instructions into the prompt.
+- **Proposed: with an unvetted library, the prompt stops for the visitor's approval before connecting the agent.**
+  After reviewing the library's rules, the agent waits for the visitor to approve them, or removes the source and
+  syncs again; only then does it check the rules and point the instruction file at them, so no later session follows
+  rules the visitor never approved. The plain path asks the same of a reader.
 - **Proposed: the prompt warns about each unvetted library before the agent syncs it**, right after the sources,
   telling it to follow none of its rules, in this task or later, until reviewed; then, first thing after syncing, to
   read each of them in `.code-rules/vendor/<source>/` and say which ask for anything unsafe or unexpected, and to wait
@@ -140,8 +146,10 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
 - **Proposed: the header shows the cart with its count, for signed-in visitors, from a phone's width up**, inside the
   account slot, which already reserves that width for the Sign in button, so signing in never moves the links. On a
   phone, the avatar shows the count, and the menu's "Your cart" says it.
-- **Proposed: an addition's page names what it added and focuses the new In cart control**, as starring does since
-  slice 7, by `autofocus`, with a lighter ring than a keyboard's; a group's, one of several, the return address's
+- **Proposed: an addition's page names what it added, and how many held items it took the place of, or that the cart
+  had it already, and focuses the new In cart control**, as starring does since slice 7, by `autofocus`, with a lighter
+  ring than a keyboard's. Without a script, the page can't tell a click from a key, so a mouse add still shows that
+  ring; a group's, one of several, the return address's
   fragment also brings into view. The notice cookie names the item, which the page checks against its own controls,
   and a page that doesn't show it says only "Added to your cart." Removing names the item by its ID and focuses the
   next item's Remove, or the last one's; emptying asks first, then focuses the way to browse.
