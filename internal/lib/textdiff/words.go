@@ -201,25 +201,42 @@ func compareWords(a, b []word) (oldMarks, newMarks, both []Segment) {
 		c.text.WriteString(w.text)
 		c.exact = c.exact || w.exact
 	}
-	// marked reports whether a run of changed text shows as a change: whitespace alone only where it's exact.
-	marked := func(c *changed) bool {
+	// split returns a run of changed text as the whitespace before it, what changed, and the whitespace after it. A
+	// run with exact whitespace changes whole; any other leaves the whitespace around its words unmarked, since that
+	// isn't what changed, and changes nothing when it's whitespace alone.
+	split := func(c *changed) (lead, core, trail string) {
 		text := c.text.String()
-		return text != "" && (c.exact || strings.TrimSpace(text) != "")
+		if c.exact {
+			return "", text, ""
+		}
+		core = strings.TrimFunc(text, unicode.IsSpace)
+		if core == "" {
+			return text, "", ""
+		}
+		start := strings.Index(text, core)
+		return text[:start], core, text[start+len(core):]
 	}
 	flush := func() {
-		if text := deleted.text.String(); marked(&deleted) {
-			o.add(Delete, text)
-			t.add(Delete, text)
-		} else {
-			o.add(Equal, text)
+		dLead, dCore, dTrail := split(&deleted)
+		iLead, iCore, iTrail := split(&inserted)
+		o.add(Equal, dLead)
+		o.add(Delete, dCore)
+		o.add(Equal, dTrail)
+		n.add(Equal, iLead)
+		n.add(Insert, iCore)
+		n.add(Equal, iTrail)
+		// Together, the text reads with the new text's whitespace, or the old's where the new has no words.
+		lead, trail := iLead, iTrail
+		if iCore == "" {
+			lead, trail = dLead, dTrail
+			if dCore == "" {
+				lead, trail = iLead, ""
+			}
 		}
-		if text := inserted.text.String(); marked(&inserted) {
-			n.add(Insert, text)
-			t.add(Insert, text)
-		} else {
-			n.add(Equal, text)
-			t.add(Equal, text)
-		}
+		t.add(Equal, lead)
+		t.add(Delete, dCore)
+		t.add(Insert, iCore)
+		t.add(Equal, trail)
 		deleted, inserted = changed{}, changed{}
 	}
 	for k, e := range edits {
