@@ -480,6 +480,23 @@ func redirect(w http.ResponseWriter, r *http.Request, target string) {
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
+// withoutParam returns the address u names without its query's param parameters, which a page takes off by
+// redirecting. The rest of the query keeps its order, and the path the spelling the visitor's browser sent, which
+// RawPath holds when it differs from Path's, so the address is the one the visitor left. Each name is compared
+// decoded, as Query reads it, so a parameter whose name is encoded, such as %73tar, comes off too, and the redirect
+// can't lead back to itself.
+func withoutParam(u *url.URL, param string) string {
+	var kept []string
+	for pair := range strings.SplitSeq(u.RawQuery, "&") {
+		name, _, _ := strings.Cut(pair, "=")
+		if decoded, err := url.QueryUnescape(name); err != nil || decoded != param {
+			kept = append(kept, pair)
+		}
+	}
+	target := url.URL{Path: u.Path, RawPath: u.RawPath, RawQuery: strings.Join(kept, "&")}
+	return target.String()
+}
+
 // withQuery returns target with r's query, if any.
 func withQuery(target string, r *http.Request) string {
 	if r.URL.RawQuery != "" {

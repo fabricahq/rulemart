@@ -170,20 +170,14 @@ func (s *server) withoutCartPrompt(w http.ResponseWriter, r *http.Request) bool 
 	if !r.URL.Query().Has(cartPromptParam) {
 		return false
 	}
-	var kept []string
-	for pair := range strings.SplitSeq(r.URL.RawQuery, "&") {
-		if name, _, _ := strings.Cut(pair, "="); name != cartPromptParam {
-			kept = append(kept, pair)
-		}
-	}
-	target := url.URL{Path: r.URL.EscapedPath(), RawQuery: strings.Join(kept, "&")}
+	target := withoutParam(r.URL, cartPromptParam)
 	item, ok := parseCartNoticeSubject(r.URL.Query().Get(cartPromptParam))
 	if visitorOf(r.Context()).account == nil || !ok || !s.cartAvailable() {
-		redirect(w, r, target.String())
+		redirect(w, r, target)
 		return true
 	}
 	setSubjectNotice(w, cartPromptKey, cartNoticeSubject(item))
-	seeOther(w, r, target.String())
+	seeOther(w, r, target)
 	return true
 }
 

@@ -466,6 +466,23 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 	}
 }
 
+// A page's address with the cart's offer redirects once to the same address without it, however the parameter's name
+// is encoded, keeping the rest of the query in order and the path as the visitor's browser spelled it, so the redirect
+// leads to the page.
+func TestTheCartOfferRedirectsOnceToTheAddressWithoutIt(t *testing.T) {
+	site := newCartSite(t)
+	add := url.QueryEscape("example/rules|rule|techs/go/return-errors")
+
+	for target, want := range map[string]string{
+		errorsRule + "?%61dd=" + add:                         errorsRule,
+		errorsRule + "?a=1&add=" + add + "&b=2":              errorsRule + "?a=1&b=2",
+		"/%65xample/rules/techs/go/return-errors?add=" + add: "/%65xample/rules/techs/go/return-errors",
+		"/%65xample/rules?tab=rules&add=" + add:              "/%65xample/rules?tab=rules",
+	} {
+		assertRedirectsToPage(t, site.handler, target, want)
+	}
+}
+
 // Removing an item says which, and focuses the next item's Remove, or the last one's after removing the last item;
 // emptying asks first.
 func TestRemovingFocusesTheNextItem(t *testing.T) {
