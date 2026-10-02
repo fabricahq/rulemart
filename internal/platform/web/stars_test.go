@@ -295,6 +295,28 @@ func TestAnotherSiteCantStarForAVisitor(t *testing.T) {
 	}
 }
 
+// The page that refuses another site's request has the header every page has, with the visitor's account slot, so
+// nothing in the header moves.
+func TestTheRefusedPageHasTheStandardHeader(t *testing.T) {
+	site := newStarSite(t)
+	crossSite := http.Header{"Sec-Fetch-Site": {"cross-site"}}
+
+	signedIn := send(t, site.handler, request{method: http.MethodPost, target: starPath, cookies: []*http.Cookie{site.session}, header: crossSite})
+	page := body(t, signedIn)
+	if signedIn.StatusCode != http.StatusForbidden || !strings.Contains(page, `aria-label="Account menu, signed in as octocat"`) {
+		t.Errorf("signed in: got %d, and the page has no account menu", signedIn.StatusCode)
+	}
+	signedOut := send(t, site.handler, request{method: http.MethodPost, target: starPath, header: crossSite})
+	page = body(t, signedOut)
+	if signedOut.StatusCode != http.StatusForbidden || !strings.Contains(page, accountSlotClass) || len(links(t, page, "Sign in")) != 1 {
+		t.Errorf("signed out: got %d, and the page has no Sign in in its account slot", signedOut.StatusCode)
+	}
+	assertShows(t, page, "Rulemart refused this request because another site sent it.")
+	if signedOut.Header.Get("Cache-Control") != "private, no-store" {
+		t.Errorf("the refusal is cached as %q", signedOut.Header.Get("Cache-Control"))
+	}
+}
+
 // Only a vetted library can be starred: an unvetted library's pages show no stars, and starring one, or a library
 // Rulemart doesn't have, is missing.
 func TestOnlyAVettedLibraryCanBeStarredFromItsPage(t *testing.T) {

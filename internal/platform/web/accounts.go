@@ -138,50 +138,58 @@ func (s *server) signInAvailable() bool {
 }
 
 // withVisitor finds who r is from, by its session cookie, before next shows a page. A path that holds text Postgres
-// can't, which names nothing Rulemart has, is missing before next sees it; parameters are each handler's to read. A cookie that no longer signs
-// anyone in is cleared. A failure to read the session fails the request, rather than showing a signed-in visitor a
-// page as if they weren't.
+// can't, which names nothing Rulemart has, is missing before next sees it; parameters are each handler's to read.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		back := returnPath(r.URL.RequestURI())
-		v := visitor{
-			here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
-			onStarsPage: r.URL.Path == starsHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+		r, ok := s.visit(w, r)
+		if !ok {
+			return
 		}
-		if s.signInAvailable() {
-			v.signIn = s.absolute(signInPageHref(back))
-			v.withGitHub = s.GitHub != nil
-		}
-		if cookie, err := r.Cookie(noticeCookie); err == nil {
-			// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
-			if v.notice = notices[cookie.Value]; v.notice == "" {
-				clearCookie(w, noticeCookie)
-			}
-		}
-		if s.Accounts != nil {
-			if token, ok := sessionToken(r); ok {
-				account, err := s.Accounts.Account(r.Context(), token)
-				switch {
-				case errors.Is(err, accountsapp.ErrSignedOut):
-					clearCookie(w, sessionCookie)
-				case err != nil:
-					s.fail(w, r, err)
-					return
-				default:
-					v.account, v.token = &account, token
-					v.signOut = signOutHref + returnQuery(publicPath(back))
-				}
-			} else if hasCookie(r, sessionCookie) {
-				clearCookie(w, sessionCookie)
-			}
-		}
-		r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, v))
 		if !domain.Storable(r.URL.Path) {
 			s.notFound(w, r)
 			return
 		}
 		next(w, r)
 	}
+}
+
+// visit returns r with who it's from in its context, by its session cookie, which visitorOf reads, so its page's
+// header shows them. A cookie that no longer signs anyone in is cleared. A failure to read the session fails the
+// request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
+func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	back := returnPath(r.URL.RequestURI())
+	v := visitor{
+		here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
+		onStarsPage: r.URL.Path == starsHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+	}
+	if s.signInAvailable() {
+		v.signIn = s.absolute(signInPageHref(back))
+		v.withGitHub = s.GitHub != nil
+	}
+	if cookie, err := r.Cookie(noticeCookie); err == nil {
+		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
+		if v.notice = notices[cookie.Value]; v.notice == "" {
+			clearCookie(w, noticeCookie)
+		}
+	}
+	if s.Accounts != nil {
+		if token, ok := sessionToken(r); ok {
+			account, err := s.Accounts.Account(r.Context(), token)
+			switch {
+			case errors.Is(err, accountsapp.ErrSignedOut):
+				clearCookie(w, sessionCookie)
+			case err != nil:
+				s.fail(w, r, err)
+				return r, false
+			default:
+				v.account, v.token = &account, token
+				v.signOut = signOutHref + returnQuery(publicPath(back))
+			}
+		} else if hasCookie(r, sessionCookie) {
+			clearCookie(w, sessionCookie)
+		}
+	}
+	return r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)), true
 }
 
 // sessionToken returns r's session token, or false when it has none or the cookie can't hold one.
