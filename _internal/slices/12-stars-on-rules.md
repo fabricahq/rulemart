@@ -83,10 +83,13 @@ a decision under "Decided while building" says otherwise and why.
 - **Proposed: `stars` is reserved like the account pages.** A one-segment route takes an owner's page, so an owner
   named stars would have theirs under `/o/`, and the sitemap leaves out `stars/remove` as a library's page, as the
   routes' tests require of every route.
-- **Proposed: one `starBadge` part draws every star**: the button's face, Star or Starred with the count, and a row's
-  "★ N", with the count in words for screen readers, and nothing at 0. The button is the prototype's small ghost
-  button: a quiet outline, and once starred, ink on the surface color, rather than slice 7's filled primary button,
-  and it no longer keeps the width of "Starred", which left a gap after "Star".
+- **Proposed: two parts draw every star, rather than one `starBadge` part**: `starFace`, the button's face, Star or
+  Starred with the count, and `starCount`, a row's "★ N" with the count in words for screen readers, and nothing at 0.
+  The star (`starIcon`), the count's formatting (`formatCount`), and its words (`starCountText`) each have one owner the
+  two parts share, and both leave the count out at 0, so the filled star, the formatting, and the hidden-at-zero rule
+  look the same everywhere without one part that a label and a class switch between the two. The button is the
+  prototype's small ghost button: a quiet outline, and once starred, ink on the surface color, rather than slice 7's
+  filled primary button, and it no longer keeps the width of "Starred", which left a gap after "Star".
 - **Proposed: without sign-in, or without stars, a rule's page shows its count alone**, with nothing to click, and
   only when it has stars; rows always show the counts the catalog reads.
 - **Proposed: Starred rules is as wide as search's results**, which list rules the same way, so a row's library,

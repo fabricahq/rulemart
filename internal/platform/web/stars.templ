@@ -24,16 +24,16 @@ templ starControl(star starView) {
 				}
 			>
 				<span class="sr-only">Star { star.title }, { starCountText(star.count) }</span>
-				@starBadge(star.count, star.starred, starLabel(star.starred), "")
+				@starFace(star.count, star.starred, starLabel(star.starred))
 			</button>
 		</form>
 	} else if star.signIn != "" {
 		<a class={ starButtonStyle, unstarredStyle, "no-underline" } href={ templ.SafeURL(star.signIn) } title={ "Sign in to star this rule. " + starExplanation }>
 			<span class="sr-only">Sign in to star { star.title }, { starCountText(star.count) }</span>
-			@starBadge(star.count, false, "Star", "")
+			@starFace(star.count, false, "Star")
 		</a>
 	} else {
-		@starBadge(star.count, false, "", "text-[13px] text-muted")
+		@starCount(star.count, false, "text-[13px] text-muted")
 	}
 }
 
@@ -63,20 +63,26 @@ const (
 	promptStyle     = "border-ink text-ink ring-2 ring-ink ring-offset-2 ring-offset-paper hover:bg-surface"
 )
 
-// starBadge is a rule's stars, wherever a page shows them, so they look and read alike: a star, filled when filled is
-// true; then label, if any; then the count, with commas, such as 1,234, unless it's 0. Without a label, it shows
-// nothing at 0, so a row stays quiet until its rule has stars, and screen readers hear the count in words; with one,
-// it's the face of a control that names itself to them. class places it.
-templ starBadge(count int, filled bool, label, class string) {
-	if label != "" {
-		<span class={ "inline-flex items-center gap-2", class } aria-hidden="true">
-			@starIcon("size-[15px] flex-none", filled)
-			<span>{ label }</span>
-			if count > 0 {
-				<span class="font-normal text-faint tabular-nums">{ formatCount(count) }</span>
-			}
-		</span>
-	} else if count > 0 {
+// A rule's stars look and read alike wherever a page shows them: starFace and starCount share the star, starIcon,
+// the count's formatting, formatCount, such as 1,234, and its words, starCountText.
+
+// starFace is the face of a rule's star button or sign-in link: a star, filled once starred, then label, then the
+// count unless it's 0. Screen readers skip it, since the control names itself to them.
+templ starFace(count int, starred bool, label string) {
+	<span class="inline-flex items-center gap-2" aria-hidden="true">
+		@starIcon("size-[15px] flex-none", starred)
+		<span>{ label }</span>
+		if count > 0 {
+			<span class="font-normal text-faint tabular-nums">{ formatCount(count) }</span>
+		}
+	</span>
+}
+
+// starCount is a rule's stars without a control, in a row or on a page where no one can star the rule: a star, filled
+// when filled is true, and the count, which screen readers hear in words. It shows nothing at 0, so a row stays quiet
+// until its rule has stars. class places it.
+templ starCount(count int, filled bool, class string) {
+	if count > 0 {
 		<span class={ "inline-flex items-center gap-1 leading-none whitespace-nowrap tabular-nums", class } title={ starCountText(count) }>
 			@starIcon("size-3 flex-none", filled)
 			<span aria-hidden="true">{ formatCount(count) }</span>

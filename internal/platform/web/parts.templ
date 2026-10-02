@@ -261,7 +261,7 @@ templ ruleCardLink(r ruleCard) {
 				<span class="mono min-w-0 text-faint max-narrow:basis-full">
 					@breakable(r.id)
 				</span>
-				@starBadge(r.stars, true, "", "")
+				@starCount(r.stars, true, "")
 			</div>
 		</a>
 	</li>
@@ -398,7 +398,7 @@ templ ruleResult(r ruleResultView) {
 				}
 			</span>
 			<span class="mono" title="Latest version">{ r.rule.version }</span>
-			@starBadge(r.rule.stars, true, "", "")
+			@starCount(r.rule.stars, true, "")
 		</div>
 	</a>
 }

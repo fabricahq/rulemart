@@ -1381,7 +1381,7 @@ func ruleCardLink(r ruleCard) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = starBadge(r.stars, true, "", "").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = starCount(r.stars, true, "").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2239,7 +2239,7 @@ func ruleResult(r ruleResultView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = starBadge(r.rule.stars, true, "", "").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = starCount(r.rule.stars, true, "").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
