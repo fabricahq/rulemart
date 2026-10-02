@@ -329,6 +329,10 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
 		t.Fatal("the latest release doesn't link to it on the Library releases tab")
 	}
+	// A narrow phone wraps a group's ID after its slash, rather than inside a word.
+	if !strings.Contains(resp.Body.String(), `<span class="id-part">practices/</span><wbr><span class="id-part">testing</span>`) {
+		t.Error("a group's ID doesn't wrap at its slash")
+	}
 }
 
 func TestLibraryRulesTabListsCurrentRulesByGroup(t *testing.T) {

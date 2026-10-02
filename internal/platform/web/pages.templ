@@ -126,11 +126,13 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 									if g.label.canonical {
 										{ g.label.name }
 									} else {
-										{ g.label.id }
+										@breakable(g.label.id)
 									}
 								</a>
 								if g.label.canonical {
-									<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
+									<span class="block font-mono text-[12px] leading-[20px] text-faint">
+										@breakable(g.label.id)
+									</span>
 								} else {
 									<span class="block leading-[20px]">
 										@notCanonical(flagMD)
