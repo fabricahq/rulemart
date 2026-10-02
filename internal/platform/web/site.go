@@ -393,24 +393,6 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, choices.Unvetted, s.listingAvailable()))
 }
 
-// searchPageNumber returns the page params number, and whether they spell it as its address does: the first page
-// by no number, and any other in digits without a sign or leading zeros. A number that isn't a page's is 1, and a
-// number too large to hold is past app.MaxSearchPage.
-func searchPageNumber(params url.Values) (page int, spelled bool) {
-	if !params.Has("page") {
-		return 1, true
-	}
-	text := params.Get("page")
-	page, err := strconv.Atoi(text)
-	switch {
-	case errors.Is(err, strconv.ErrRange) && text[0] >= '1' && text[0] <= '9':
-		return app.MaxSearchPage + 1, strings.Trim(text, "0123456789") == ""
-	case err != nil || page < 1:
-		return 1, false
-	}
-	return page, page > 1 && text == strconv.Itoa(page)
-}
-
 // redirect answers with a permanent redirect to target, cacheable as pages are.
 func redirect(w http.ResponseWriter, r *http.Request, target string) {
 	w.Header().Set("Cache-Control", pageCache)
