@@ -142,7 +142,7 @@ web Lambda -> SQS, one job per new listing
   - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
     function, so only ingestion links goldmark and chroma, and the web function doesn't.
   - `app` holds the operations: `Ingester` ingests a library, updates one whose release tags changed, or checks a
-    listing; `Listings` lists libraries for accounts; `Stars` stars them; `Cart` keeps carts and checks them out;
+    listing; `Listings` lists libraries for accounts; `Stars` stars rules; `Cart` keeps carts and checks them out;
     and `Pages` reads what the pages show.
   - `jobs` encodes and decodes the jobs queue's messages.
   - `source/git` fetches release snapshots, or lists release tags, with go-git, which nothing else uses outside its
