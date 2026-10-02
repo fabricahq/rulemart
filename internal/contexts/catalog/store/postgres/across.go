@@ -67,43 +67,64 @@ func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path
 	return libraries, nil
 }
 
-// Search returns the vetted libraries' current rules that match query, best first, at most limit of them, with how
-// many matched in all, matching groups by the names groups gives them. limit must be at least 1, since the total
-// comes with the results. Its errors never include the query, which
-// comes from a visitor.
-func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error) {
-	if limit < 1 {
-		return views.SearchResults{}, fmt.Errorf("search rules: limit %d is below 1", limit)
+// Search returns one page of the vetted libraries' current rules that match query, best first, as store.Reader's
+// Search does, matching groups by the names groups gives them. Its errors never include the query, which comes from a
+// visitor.
+func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error) {
+	if limit < 1 || skip < 0 {
+		return views.SearchResults{}, fmt.Errorf("search rules: limit %d is below 1 or skip %d below 0", limit, skip)
+	}
+	find, exclude := query.Terms()
+	if len(find) == 0 {
+		return views.SearchResults{NoWords: true}, nil
 	}
 	params := catalogdb.SearchRulesParams{
-		Query: query.String(), Vetted: vettedKeys(vetted), MaxResults: int32(limit),
+		Vetted: vettedKeys(vetted), MaxResults: int32(limit), Skip: int32(skip),
 		CanonicalIds: make([]string, len(groups)), CanonicalNames: make([]string, len(groups)),
 	}
+	params.FindTerms, params.FindIdentifiers = termParams(find)
+	params.ExcludeTerms, params.ExcludeIdentifiers = termParams(exclude)
 	for i, g := range groups {
 		params.CanonicalIds[i], params.CanonicalNames[i] = g.ID, g.Name
 	}
 	var rows []catalogdb.SearchRulesRow
+	var searchable int64
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		rows, err = q.SearchRules(ctx, params)
+		if rows, err = q.SearchRules(ctx, params); err != nil || len(rows) > 0 {
+			return err
+		}
+		searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
 		return err
 	})
 	if err != nil {
 		return views.SearchResults{}, fmt.Errorf("search rules: %v", err)
 	}
-	results := views.SearchResults{Results: make([]views.SearchResult, len(rows))}
+	results := views.SearchResults{Results: make([]views.SearchResult, len(rows)), NoWords: len(rows) == 0 && searchable == 0}
 	for i, row := range rows {
-		results.Total = int(row.Total)
+		results.Total, results.Complete = int(row.Total), int(row.Complete)
 		results.Results[i] = views.SearchResult{
 			Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl),
 			Rule: views.RuleCard{
 				Path: row.Path, Group: row.GroupPath, Title: row.Title, Impact: row.Impact,
 				Version: version(row.Major, row.Minor, row.Patch),
 			},
-			WhenToRead: row.WhenToRead,
+			WhenToRead: row.WhenToRead, WhenToReadHTML: row.WhenToReadHtml,
+		}
+		for _, ordinal := range row.Missing {
+			results.Results[i].Missing = append(results.Results[i].Missing, find[ordinal-1].Text)
 		}
 	}
 	return results, nil
+}
+
+// termParams returns terms' queries and identifier flags, in step, as search's parameters.
+func termParams(terms []domain.SearchTerm) (queries []string, identifiers []bool) {
+	queries, identifiers = make([]string, len(terms)), make([]bool, len(terms))
+	for i, t := range terms {
+		queries[i], identifiers[i] = t.Query, t.Identifier
+	}
+	return queries, identifiers
 }
 
 func libraryRef(owner, name, avatarURL string) views.LibraryRef {

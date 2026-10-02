@@ -59,7 +59,10 @@ func (s *Store) Checkpoint(ctx context.Context, library domain.LibraryKey) (doma
 	if len(rows) == 0 {
 		return domain.Checkpoint{}, false, nil
 	}
-	checkpoint := domain.Checkpoint{CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}, MissingContent: rows[0].MissingContent}
+	checkpoint := domain.Checkpoint{
+		CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}, MissingContent: rows[0].MissingContent,
+		Unrendered: rows[0].Unrendered,
+	}
 	for _, row := range rows {
 		if row.Number.Valid {
 			checkpoint.Tags[int(row.Number.Int32)] = row.TagObjectID.String
@@ -253,7 +256,8 @@ func (w *writer) writeVersions(r domain.Rule) {
 			WhenToRead: present(c.WhenToRead), Markdown: present(c.Markdown),
 		}
 		if r.IsCurrent() && i == len(r.Versions)-1 {
-			params.Html = present(r.HTML)
+			params.Html, params.WhenToReadHtml = present(r.HTML), present(r.WhenToReadHTML)
+			params.RenderedWhenToRead = present(c.WhenToRead)
 		}
 		w.exec(fmt.Sprintf("upsert %s %s", r.Path, v.Number), func() (int64, error) { return w.q.UpsertVersion(w.ctx, params) })
 	}

@@ -4,18 +4,37 @@ package web
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
 const (
+	// librariesHref is the path of the libraries page.
+	librariesHref = "/libraries"
 	// groupsHref is the path of the groups page.
 	groupsHref = "/groups"
 	// searchHref is the path of the search page, which takes the query in its q parameter.
 	searchHref = "/search"
 )
+
+// searchHrefFor is the address of page of the search for query, which leaves out the first page's number.
+func searchHrefFor(query string, page int) string {
+	params := url.Values{}
+	if query != "" {
+		params.Set("q", query)
+	}
+	if page > 1 {
+		params.Set("page", strconv.Itoa(page))
+	}
+	if len(params) == 0 {
+		return searchHref
+	}
+	return searchHref + "?" + params.Encode()
+}
 
 // groupHref is the path of a canonical group's page, such as /groups/techs/go.
 func groupHref(id string) string {
@@ -54,8 +73,8 @@ type groupSummaryView struct {
 	icon  groupIcon
 	// href is a canonical group's page, or for any other group, its section on its library's All rules tab.
 	href string
-	// blurb says which rules belong in a canonical practice, from the canonical list. Technology names explain
-	// themselves, and a group that isn't canonical has no description every library shares, so neither has one.
+	// blurb says which rules belong in a canonical group, from the canonical list. A group that isn't canonical has
+	// no description every library shares, so it has none.
 	blurb string
 	rules int
 	// libraries hold the group, in owner and name order.
@@ -78,13 +97,10 @@ func newGroupSummaryViews(groups []views.GroupSummary, iconURL func(file string)
 		for _, lib := range g.Libraries {
 			v.libraries = append(v.libraries, newLibraryRefView(lib))
 		}
-		switch {
-		case g.Canonical == nil:
+		if g.Canonical == nil {
 			v.href = v.libraries[0].href + "?tab=rules#" + groupAnchor(g.Path)
-		case strings.HasPrefix(g.Path, "practices/"):
+		} else {
 			v.href, v.blurb = groupHref(g.Path), g.Canonical.Description
-		default:
-			v.href = groupHref(g.Path)
 		}
 		summaries[i] = v
 	}
@@ -151,9 +167,14 @@ type searchView struct {
 	query string
 	// tooLong marks a query search didn't run, because it holds more than domain.MaxSearchQueryLength characters.
 	tooLong bool
-	// total counts every rule that matched, of which results holds the best.
-	total   int
-	results []searchResultView
+	// total counts every rule that matched, of which results holds the best, and complete those that hold every word
+	// to find.
+	total, complete int
+	// noWords marks a query with no word to find, such as only "the", which matches nothing.
+	noWords bool
+	// page numbers the page of results shown, from 1, of pages.
+	page, pages int
+	results     []searchResultView
 }
 
 // searchResultView is one rule that matched a search.
@@ -166,15 +187,21 @@ type searchResultView struct {
 	library  libraryRefView
 	group    groupLabel
 	icon     groupIcon
+	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
+	missing []string
 }
 
-func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, iconURL func(file string) string) searchView {
-	v := searchView{query: query.String(), tooLong: tooLong, total: results.Total}
+func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
+	v := searchView{
+		query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords,
+		page: page, pages: (results.Total + app.SearchPageSize - 1) / app.SearchPageSize,
+	}
 	for _, r := range results.Results {
 		lib := newLibraryRefView(r.Library)
 		v.results = append(v.results, searchResultView{
-			rule: newRuleCard(lib.href, r.Rule), whenToRead: r.WhenToRead, sourceID: lib.fullName() + ":" + r.Rule.Path,
+			rule: newRuleCard(lib.href, r.Rule), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), sourceID: lib.fullName() + ":" + r.Rule.Path,
 			library: lib, group: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
+			missing: r.Missing,
 		})
 	}
 	return v
@@ -191,12 +218,8 @@ func (v searchView) title() string {
 	return "“" + v.query + "” · Search · Rulemart"
 }
 
-// summary says how many rules matched, and how many of them the page shows.
-func (v searchView) summary() string {
-	switch {
-	case v.total == len(v.results):
-		return plural(v.total, "rule matches", "rules match")
-	default:
-		return "The " + plural(len(v.results), "best", "best") + " of " + plural(v.total, "rule", "rules") + " that match"
-	}
-}
+// pageMissing reports a page past the last of a search's results.
+func (v searchView) pageMissing() bool { return v.page > 1 && len(v.results) == 0 }
+
+// pageHref is the address of page n of the search's results.
+func (v searchView) pageHref(n int) string { return searchHrefFor(v.query, n) }

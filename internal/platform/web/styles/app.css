@@ -26,7 +26,7 @@
    whenever they chose dark. */
 :root {
   --paper: #ffffff; --surface: #f6f6f6; --surface-header: #e9e9e9; --ink: #1c1c1c; --muted: #626262;
-  --faint: #8d8d8d; --border: #d5d5d5; --border-subtle: #e8e8e8; --border-strong: #626262;
+  --faint: #6e6e6e; --border: #d5d5d5; --border-subtle: #e8e8e8; --border-strong: #626262;
   --primary: #1c1c1c; --on-primary: #ffffff; --focus: #333333;
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
   --icon-tile: #ffffff; --icon-ink: none;
@@ -150,6 +150,9 @@
   .prose th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   .prose td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
   .prose > :first-child { margin-top: 0; }
+  /* A rule's reading guidance, rendered as its body is, in the smaller type of the box it sits in. */
+  .prose .when-to-apply p, .prose .when-to-apply li { color: inherit; }
+  .prose .when-to-apply > :last-child { margin-bottom: 0; }
 
   /* The rules a release changed, and its table of every rule's version, which list up to every rule a library holds:
      short markup, styled here, keeps a page of releases small. */

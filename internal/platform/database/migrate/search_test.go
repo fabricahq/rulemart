@@ -130,3 +130,34 @@ func TestSearchDocumentOfARuleTooLongToSearchInFullStillStores(t *testing.T) {
 		t.Fatalf("the start of the rule isn't searchable: %v, %v", found, err)
 	}
 }
+
+// The release that's still running stores reading guidance without its HTML, before and after the migration that adds
+// it: its rows keep working, and hold no HTML that could disagree with their guidance.
+func TestReadingGuidanceHTMLMigrationKeepsTheRunningReleasesWritesWorking(t *testing.T) {
+	ctx := context.Background()
+	connString := postgrestest.New(t)
+	if _, err := up(ctx, connString, migrationsThrough(t, 6)); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	version := insertCurrentRule(t, ctx, conn, "Return errors", "When `err` is set.", "Wrap every returned error.")
+
+	if _, err := Up(ctx, connString); err != nil {
+		t.Fatal(err)
+	}
+	// The running release's upsert names only the columns it knows.
+	if _, err := conn.Exec(ctx, `UPDATE rule_versions SET when_to_read = 'When failing.' WHERE id = $1`, version); err != nil {
+		t.Fatal(err)
+	}
+
+	var rendered bool
+	err = conn.QueryRow(ctx, `SELECT when_to_read_html IS NOT NULL OR rendered_when_to_read IS NOT NULL FROM rule_versions WHERE id = $1`,
+		version).Scan(&rendered)
+	if err != nil || rendered {
+		t.Fatalf("the row holds rendered guidance: %v, %v", rendered, err)
+	}
+}

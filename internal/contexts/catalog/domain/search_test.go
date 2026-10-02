@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -47,5 +48,53 @@ func TestSearchQueryIsTooLongPastItsLimitInCharacters(t *testing.T) {
 				t.Fatalf("TooLong() = %v, want %v", got, tc.tooLong)
 			}
 		})
+	}
+}
+
+func TestSearchQueryTermsReadWordsPhrasesAlternativesAndExclusions(t *testing.T) {
+	word := func(text string) SearchTerm { return SearchTerm{Text: text, Query: text} }
+	for text, want := range map[string]struct{ find, exclude []SearchTerm }{
+		"retry limits": {find: []SearchTerm{word("retry"), word("limits")}},
+		`"retry limits" jitter`: {find: []SearchTerm{
+			{Text: `"retry limits"`, Query: `"retry limits"`}, word("jitter"),
+		}},
+		// An unclosed quote runs to the end, as websearch_to_tsquery reads it.
+		`jitter "retry limits`: {find: []SearchTerm{word("jitter"), {Text: `"retry limits"`, Query: `"retry limits"`}}},
+		// A word that joins words with -, /, or : is a phrase of them that also matches the IDs pages show.
+		"keep-tests-independent": {find: []SearchTerm{
+			{Text: "keep-tests-independent", Query: `"keep tests independent"`, Identifier: true},
+		}},
+		"fabricahq/public-rules:practices/testing/keep-tests-independent": {find: []SearchTerm{{
+			Text:       "fabricahq/public-rules:practices/testing/keep-tests-independent",
+			Query:      `"fabricahq public rules practices testing keep tests independent"`,
+			Identifier: true,
+		}}},
+		`"techs/go errors"`: {find: []SearchTerm{{Text: `"techs/go errors"`, Query: `"techs go errors"`, Identifier: true}}},
+		// A hyphen leaves a word out only at the start of a word.
+		"testing -react": {find: []SearchTerm{word("testing")}, exclude: []SearchTerm{word("react")}},
+		`retry -"error boundary" --techs/react`: {
+			find: []SearchTerm{word("retry")},
+			exclude: []SearchTerm{
+				{Text: `"error boundary"`, Query: `"error boundary"`},
+				{Text: "techs/react", Query: `"techs react"`, Identifier: true},
+			},
+		},
+		`retry"jitter"`: {find: []SearchTerm{word("retry"), {Text: `"jitter"`, Query: `"jitter"`}}},
+		`"a"-b`:         {find: []SearchTerm{{Text: `"a"`, Query: `"a"`}, word("b")}},
+		// or joins the terms on either side into one that either satisfies.
+		"retry or jitter limits": {find: []SearchTerm{{Text: "retry or jitter", Query: "retry or jitter"}, word("limits")}},
+		"a OR b or public-rules": {find: []SearchTerm{{Text: "a or b or public-rules", Query: `a or b or "public rules"`, Identifier: true}}},
+		// or with nothing to join on one side is a word, which search ignores as it does "the".
+		"or retry":    {find: []SearchTerm{word("or"), word("retry")}},
+		"retry or":    {find: []SearchTerm{word("retry"), word("or")}},
+		"retry or -x": {find: []SearchTerm{word("retry"), word("or")}, exclude: []SearchTerm{word("x")}},
+		// Separators and hyphens on their own, and empty phrases, hold no word.
+		`- -- / : "" -""`: {},
+		"":                {},
+	} {
+		find, exclude := ParseSearchQuery(text).Terms()
+		if !slices.Equal(find, want.find) || !slices.Equal(exclude, want.exclude) {
+			t.Errorf("Terms of %q = %+v, %+v; want %+v, %+v", text, find, exclude, want.find, want.exclude)
+		}
 	}
 }

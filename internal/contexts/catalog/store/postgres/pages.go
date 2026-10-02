@@ -41,6 +41,20 @@ func vettedKeys(vetted []domain.LibraryKey) []string {
 	return keys
 }
 
+// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
+func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
+	var cards []views.LibraryCard
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		cards, err = libraries(ctx, q, vetted)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load libraries: %v", err)
+	}
+	return cards, nil
+}
+
 // HomePage returns the vetted libraries, ordered by owner and name, and each group that holds current rules in them,
 // as Groups returns them.
 func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
@@ -205,7 +219,8 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	}
 	page := views.RulePage{Library: lib, Rule: views.Rule{
 		Path: r.Path, Group: r.GroupPath, Title: r.Title.String, Impact: r.Impact.String,
-		WhenToRead: r.WhenToRead.String, HTML: r.Html.String, Version: version(r.Major, r.Minor, r.Patch),
+		WhenToRead: r.WhenToRead.String, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html.String,
+		Version: version(r.Major, r.Minor, r.Patch),
 		Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
 	}}
 	if r.RetiredIn.Valid {

@@ -13,7 +13,7 @@ import (
 // releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
 // describe it, with links to newer and older pages.
 templ releasesPage(c chrome, lib libraryView, v releasesView) {
-	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}, lib, releasesTab, true) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}, lib, releasesTab, true) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
 			if len(v.from) > 1 {
@@ -175,7 +175,7 @@ templ modeLink(name, href string, on bool) {
 
 // releaseComparisonPage is what changed in a library between two releases, and the changed rules' text.
 templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) {
-	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, false) {
+	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, section: librariesHref}, lib, releasesTab, false) {
 		@compareBar(v.backHref, "All library releases", diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(lib.href, "releases", v.fromOptions, v.toOptions, diffMode(v.mode), "Older library release", "Newer library release")
 		}
@@ -206,7 +206,7 @@ templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) 
 
 // ruleComparisonPage is what changed between two versions of a rule, and its text.
 templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
-	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true}, r, versionsTab) {
+	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, section: librariesHref}, r, versionsTab) {
 		@compareBar(v.backHref, "All versions", diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(r.href, "versions", v.fromOptions, v.toOptions, diffMode(v.mode), "Older version", "Newer version")
 		}

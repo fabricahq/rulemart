@@ -48,7 +48,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   without content now counts the same way. Production fills in older versions on the first hourly poll after the
   release deploys, and needs no operator backfill or infrastructure change. Until then, a comparison says it doesn't
   have the text yet.
-- **Migration 00007 only relaxes a check. Existing rule, Proposed content.** It replaces 00002's check that a version
+- **Migration 00008 only relaxes a check. Existing rule, Proposed content.** It replaces 00002's check that a version
   has all of its content or none, together with its HTML, by two checks: a version has all of its content or none of
   it, and HTML only beside Markdown. The release still running writes rows that pass both, and rows it stored keep
   passing. Generated search documents now cover older versions too; search still reads only current ones
@@ -136,7 +136,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **Ingestion tests:** every version's content read at the release that published it, a release missing an older
   version's file, the budget spent on older versions, and an update that ingests a library stored without its
   versions' content once.
-- **Migration tests:** rows the previous release stores still fit, before and after 00007, while partial content or
+- **Migration tests:** rows the previous release stores still fit, before and after 00008, while partial content or
   HTML without Markdown doesn't.
 - **Store tests**, as `rulemart_web`: retired rules and their replacements, every version's text, texts within the
   limit in path order, a version without text, and unvetted libraries not found.

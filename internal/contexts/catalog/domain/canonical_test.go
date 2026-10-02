@@ -101,3 +101,19 @@ func TestFindReportsNoGroupWhenTheListIsEmpty(t *testing.T) {
 		}
 	}
 }
+
+// An address may spell a group's ID in any case, and names the group the list spells that way.
+func TestFindIgnoringCaseReturnsTheListsSpelling(t *testing.T) {
+	groups := newCanonicalGroups(t)
+
+	for id, want := range map[string]string{"techs/go": "techs/go", "Techs/GO": "techs/go", "PRACTICES/Testing": "practices/testing"} {
+		if g, ok := groups.FindIgnoringCase(id); !ok || g.ID != want {
+			t.Errorf("FindIgnoringCase(%q) = %q, %v; want %q", id, g.ID, ok, want)
+		}
+	}
+	for _, id := range []string{"techs/golang", "techs/go/", "techs", ""} {
+		if g, ok := groups.FindIgnoringCase(id); ok {
+			t.Errorf("FindIgnoringCase(%q) found %q", id, g.ID)
+		}
+	}
+}

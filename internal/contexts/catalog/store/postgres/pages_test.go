@@ -39,7 +39,7 @@ func withContent(r domain.Rule, title string) domain.Rule {
 		r.Versions[i].Content = content(title, version.Number)
 	}
 	if r.IsCurrent() {
-		r.HTML = "<p>" + title + ".</p>\n"
+		r.HTML, r.WhenToReadHTML = "<p>"+title+".</p>\n", "<p>When changing <code>"+title+"</code>.</p>\n"
 	}
 	return r
 }
@@ -124,6 +124,21 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	}
 }
 
+// The libraries index lists the vetted libraries as the home page does, and no other.
+func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
+	reader := newCatalog(t)
+
+	got, err := reader.Libraries(context.Background(), vetted)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
 // all retired, its current rules, and apart from them, its retired rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
@@ -185,7 +200,8 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	r.PublishedAt = day(3)
 	want := views.Rule{
 		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
-		WhenToRead: "When changing Return errors.", HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
+		WhenToRead: "When changing Return errors.", WhenToReadHTML: "<p>When changing <code>Return errors</code>.</p>\n",
+		HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
 	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {
 		t.Errorf("rule is %+v, want %+v", page.Rule, want)

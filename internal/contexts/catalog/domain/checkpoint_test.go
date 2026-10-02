@@ -19,6 +19,8 @@ func TestCheckpointIsCurrentOnlyWhenTheListedTagsMatchWhatWasStored(t *testing.T
 		"nothing stored or listed": {Checkpoint{CloneURL: stored.CloneURL}, ReleaseTags{}, false},
 		// A release before every version's content was stored left the older versions without it.
 		"versions stored without content": {Checkpoint{CloneURL: stored.CloneURL, Tags: stored.Tags, MissingContent: true}, ReleaseTags{1: "aaa", 2: "bbb"}, false},
+		"a reading guidance without HTML": {Checkpoint{CloneURL: stored.CloneURL, Tags: stored.Tags, Unrendered: true},
+			ReleaseTags{1: "aaa", 2: "bbb"}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := tc.checkpoint.Current(tc.listed); got != tc.want {

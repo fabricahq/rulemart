@@ -16,7 +16,7 @@ import (
 func TestEveryVersionMayKeepItsContentAndRowsWithoutItStillFit(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
-	if _, err := up(ctx, connString, migrationsThrough(t, 6)); err != nil {
+	if _, err := up(ctx, connString, migrationsThrough(t, 7)); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := pgx.Connect(ctx, connString)

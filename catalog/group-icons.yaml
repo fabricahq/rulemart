@@ -9,7 +9,8 @@
 # file is the icon's path under icons/. monochrome: true marks an icon drawn in black or one dark color, which dark
 # themes invert so it stays visible; other icons keep their colors in both themes. narrow: true marks an icon whose
 # drawing is much narrower than its square, such as Go's gopher, which pages draw larger so it looks as big as square
-# logos. Keep entries sorted by group ID.
+# logos. lightTile: true marks a colored icon drawn mostly in dark colors, such as Zustand's bear, which pages show on a
+# light tile in dark themes too, rather than inverting its colors. Keep entries sorted by group ID.
 practices/accessibility:
   file: lucide/accessibility.svg
   monochrome: true
@@ -178,3 +179,4 @@ techs/zig:
   file: devicon/zig-original.svg
 techs/zustand:
   file: devicon/zustand-original.svg
+  lightTile: true

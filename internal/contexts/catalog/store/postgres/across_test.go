@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func rule(path, title, whenToRead, body string) domain.Rule {
 	c.WhenToRead = whenToRead
 	c.Markdown = "---\ntitle: " + title + "\n---\n\n" + body + "\n"
 	group := path[:strings.LastIndex(path, "/")]
-	return domain.Rule{Path: path, Group: group, HTML: "<p>" + title + ".</p>\n", Versions: []domain.Version{
+	return domain.Rule{Path: path, Group: group, HTML: "<p>" + title + ".</p>\n", WhenToReadHTML: "<p>" + whenToRead + "</p>\n", Versions: []domain.Version{
 		{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}, Content: c},
 	}}
 }
@@ -93,10 +94,21 @@ func sourceIDs(results views.SearchResults) []string {
 	return ids
 }
 
+// completeIDs returns the source-qualified IDs of the results that hold every term to find.
+func completeIDs(results views.SearchResults) []string {
+	ids := []string{}
+	for _, r := range results.Results {
+		if len(r.Missing) == 0 {
+			ids = append(ids, r.Library.FullName()+":"+r.Rule.Path)
+		}
+	}
+	return ids
+}
+
 // search runs query against reader with canonicalGroups, returning at most 50 results.
 func search(t *testing.T, reader *postgres.Store, query string) views.SearchResults {
 	t.Helper()
-	results, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery(query), 50)
+	results, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery(query), 50, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,9 +135,9 @@ func TestSearchRanksTitleMatchesThenSummaryMatchesThenBodyMatches(t *testing.T) 
 		Library: views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL},
 		Rule: views.RuleCard{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Title: "Verify retry limits",
 			Impact: "HIGH", Version: v(1, 0, 0)},
-		WhenToRead: "When code calls a service.",
+		WhenToRead: "When code calls a service.", WhenToReadHTML: "<p>When code calls a service.</p>\n",
 	}
-	if first != wantFirst {
+	if !reflect.DeepEqual(first, wantFirst) {
 		t.Fatalf("the first result is %+v, want %+v", first, wantFirst)
 	}
 }
@@ -148,7 +160,7 @@ func TestSearchMatchesGroupsByTheirCanonicalNameOrIDOnly(t *testing.T) {
 		"retry go":                {"Beta/rules:techs/go/name-packages-plainly"},
 		`"retry" golang -context`: {},
 	} {
-		if got := sourceIDs(search(t, reader, query)); !slices.Equal(got, want) {
+		if got := completeIDs(search(t, reader, query)); !slices.Equal(got, want) {
 			t.Errorf("%q found %q, want %q", query, got, want)
 		}
 	}
@@ -181,27 +193,97 @@ func TestSearchReadsTheVisitorsSyntaxAndStemsWords(t *testing.T) {
 func TestSearchReturnsTheBestMatchesUpToItsLimitAndCountsThemAll(t *testing.T) {
 	reader := newLibraries(t)
 
-	got, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), 2)
+	for _, tc := range []struct {
+		limit, skip int
+		want        []string
+	}{
+		{2, 0, []string{"acme/backend:practices/testing/verify-retry-limits", "acme/backend:practices/testing/cover-boundary-cases"}},
+		{2, 2, []string{"Beta/rules:techs/go/name-packages-plainly"}},
+		{1, 3, []string{}},
+	} {
+		got, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), tc.limit, tc.skip)
 
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"acme/backend:practices/testing/verify-retry-limits", "acme/backend:practices/testing/cover-boundary-cases"}
-	if !slices.Equal(sourceIDs(got), want) || got.Total != 3 {
-		t.Fatalf("got %q of %d, want %q of 3", sourceIDs(got), got.Total, want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantTotal := 3
+		if len(tc.want) == 0 {
+			wantTotal = 0 // a page past the last counts nothing
+		}
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != wantTotal || got.NoWords {
+			t.Errorf("limit %d after %d: got %q of %d (no words %v), want %q of %d", tc.limit, tc.skip, sourceIDs(got), got.Total,
+				got.NoWords, tc.want, wantTotal)
+		}
 	}
 }
 
-// Every vetted library's groups are listed, each with the library that holds it, in path order and then the
-// library's owner and name without regard to case. A group whose rules are all retired, and an unvetted library's
-// groups, aren't.
-// The limit bounds the results a page shows, so a search for none is a mistake, not an empty page with a total.
-func TestSearchRefusesALimitBelowOne(t *testing.T) {
+// The limit bounds the results a page shows, so a search for none is a mistake, not an empty page with a total, and
+// so is skipping fewer than none.
+func TestSearchRefusesALimitBelowOneOrANegativeSkip(t *testing.T) {
 	reader := newLibraries(t)
 
-	for _, limit := range []int{0, -1} {
-		if _, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), limit); err == nil {
-			t.Errorf("searched with limit %d", limit)
+	for _, tc := range []struct{ limit, skip int }{{0, 0}, {-1, 0}, {1, -1}} {
+		if _, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), tc.limit, tc.skip); err == nil {
+			t.Errorf("searched with limit %d after %d", tc.limit, tc.skip)
+		}
+	}
+}
+
+// A visitor copies the IDs pages show: a rule's ID or part of it, its group's ID, its library's owner and name, and
+// its source-qualified ID. Each finds what it names, and a group's ID never finds a group whose ID only starts the
+// same.
+func TestSearchFindsRulesByTheIDsPagesShow(t *testing.T) {
+	reader := newLibraries(t)
+
+	retryLimits := "acme/backend:practices/testing/verify-retry-limits"
+	boundaries := "acme/backend:practices/testing/cover-boundary-cases"
+	acmeGo := "acme/backend:techs/go/return-errors"
+	betaGo := "Beta/rules:techs/go/name-packages-plainly"
+	golang := "acme/backend:techs/golang/pass-context-first"
+	for query, want := range map[string][]string{
+		"verify-retry-limits":     {retryLimits},
+		"retry-limits":            {retryLimits},
+		"practices/testing":       {boundaries, retryLimits},
+		"techs/go":                {acmeGo, betaGo},
+		"techs/golang":            {golang},
+		"acme/backend":            {boundaries, retryLimits, acmeGo, golang},
+		"Beta/rules":              {betaGo},
+		"backend":                 {boundaries, retryLimits, acmeGo, golang},
+		"Beta/rules:techs/go":     {betaGo},
+		retryLimits:               {retryLimits},
+		"acme/backend:techs":      {acmeGo, golang},
+		"stranger/rules":          {},
+		"techs/go -return-errors": {betaGo},
+	} {
+		got := sourceIDs(search(t, reader, query))
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%q found %q, want %q", query, got, want)
+		}
+	}
+}
+
+// A search with nothing to look for matches nothing, and says so, so the page can explain why.
+func TestSearchReportsAQueryWithNoWordToFind(t *testing.T) {
+	reader := newLibraries(t)
+
+	for query, noWords := range map[string]bool{
+		"the":                        true,
+		"the of and":                 true,
+		"-retry":                     true,
+		"!!! &&| :*":                 true,
+		`""`:                         true,
+		"zebra":                      false,
+		"the retry":                  false,
+		"retry -verify -cover -name": false,
+	} {
+		got := search(t, reader, query)
+		if got.NoWords != noWords {
+			t.Errorf("%q: NoWords is %v, want %v", query, got.NoWords, noWords)
+		}
+		if noWords && (len(got.Results) > 0 || got.Total > 0) {
+			t.Errorf("%q found %q", query, sourceIDs(got))
 		}
 	}
 }

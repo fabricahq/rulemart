@@ -123,7 +123,7 @@ func TestReleasesTabListsWhatEachReleaseChanged(t *testing.T) {
 			"Verify retry limits practices/testing/verify-retry-limits 1.0.0 → 1.1.0 Count timeouts as attempts. "+
 			"This library release also updates shared files, such as group descriptions or shared assets.",
 		// A first release adds every rule, and its notes don't repeat "Add the rule." for each.
-		"release/1 1 Sep 2026 GitHub Release page Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner",
+		"release/1 1 Sep 2026 GitHub Release page Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 About",
 	)
 	if strings.Index(page, `id="release-3"`) > strings.Index(page, `id="release-2"`) {
 		t.Error("release/2 comes before release/3")

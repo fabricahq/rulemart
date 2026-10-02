@@ -150,7 +150,7 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that
-// published the version. While the rule is current, it also renders the current version's body.
+// published the version. While the rule is current, it also renders the current version's body and reading guidance.
 func (a *assembly) readRule(history Rule) (Rule, error) {
 	path := RuleFile(history.Path)
 	group, err := coderules.GroupFromPath(path, path)
@@ -174,7 +174,7 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 		if !r.IsCurrent() || i < len(r.Versions)-1 {
 			continue
 		}
-		if r.HTML, err = a.renderRule(published, path, parsed); err != nil {
+		if r.HTML, r.WhenToReadHTML, err = a.renderRule(published, path, parsed); err != nil {
 			return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
 		}
 	}
@@ -199,16 +199,25 @@ func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, 
 	return parsed, nil
 }
 
-// renderRule renders the body of parsed, the rule file at path in release r, for the rule's page.
-func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.Rule) (string, error) {
+// renderRule renders the body and the reading guidance of parsed, the rule file at path in release r, for the rule's
+// page.
+func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.Rule) (html, whenToReadHTML string, err error) {
 	document, err := coderules.SplitDocument(parsed.Document, path)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return a.render(document.Body, RulePage{
+	page := RulePage{
 		Repository: a.repo.FullName(), Path: path, Title: parsed.Title,
 		Tag: r.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
-	})
+	}
+	if html, err = a.render(document.Body, page); err != nil {
+		return "", "", err
+	}
+	// The reading guidance is Markdown too, whose links resolve against the rule's file as the body's do.
+	if whenToReadHTML, err = a.render(strings.TrimSpace(parsed.WhenToRead), page); err != nil {
+		return "", "", fmt.Errorf("reading guidance: %v", err)
+	}
+	return html, whenToReadHTML, nil
 }
 
 // render renders a rule's body within what's left of the budget, and spends what it used.

@@ -98,6 +98,8 @@ type GroupIcon struct {
 	Monochrome bool
 	// Narrow marks an icon whose drawing is much narrower than its square, which pages draw larger.
 	Narrow bool
+	// LightTile marks a colored icon drawn mostly in dark colors, which pages show on a light tile in every theme.
+	LightTile bool
 }
 
 // RuleCard is a current rule in a library's list of rules.
@@ -126,6 +128,9 @@ type Rule struct {
 	// Title, Impact, and WhenToRead are the version's, and empty for a retired rule whose last version's content the
 	// catalog doesn't have yet.
 	Title, Impact, WhenToRead string
+	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty when the catalog holds no HTML rendered from it, or
+	// the rule is retired, so the page shows WhenToRead as text.
+	WhenToReadHTML string
 	// HTML is the current version's body; empty when the rule is retired.
 	HTML    string
 	Version coderules.RuleVersion
@@ -301,11 +306,14 @@ type GroupLibrary struct {
 	Rules   []RuleCard
 }
 
-// SearchResults are the current rules of vetted libraries that match a search, best first.
+// SearchResults are one page of the current rules of vetted libraries that match a search, best first.
 type SearchResults struct {
 	Results []SearchResult
-	// Total counts every rule that matched, of which Results holds the best.
-	Total int
+	// Total counts every rule that matched, and Complete those of them that hold every term the search finds.
+	Total, Complete int
+	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
+	// search ignores, such as "the", or punctuation.
+	NoWords bool
 }
 
 // SearchResult is a rule that matched a search, with its library.
@@ -314,7 +322,11 @@ type SearchResult struct {
 	Rule    RuleCard
 	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
-	WhenToRead     string
+	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty, as Rule's is.
+	WhenToRead, WhenToReadHTML string
+	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
+	// holds every one.
+	Missing []string
 }
 
 // ReleasesPage is one page of a library's releases, newest first, each with what it published.
