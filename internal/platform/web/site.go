@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -138,8 +139,22 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 // failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
-		"status", http.StatusServiceUnavailable, "error", err.Error())
+		"status", http.StatusServiceUnavailable, "error", withoutPath(err.Error(), r))
 	s.unavailable(w, r)
+}
+
+// withoutPath returns text with the library or rule that r's path names replaced by the route's wildcards. Page reads
+// name what they failed to read as owner/repo or owner/repo/rule, and those come from the visitor, so the logs keep
+// only the route, as the access log does.
+func withoutPath(text string, r *http.Request) string {
+	owner, repo, rule := r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule")
+	if owner == "" || repo == "" {
+		return text
+	}
+	if rule != "" {
+		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")
+	}
+	return strings.ReplaceAll(text, owner+"/"+repo, "{owner}/{repo}")
 }
 
 // unavailable answers with a page that says Rulemart can't show this one right now, and that can't be cached.

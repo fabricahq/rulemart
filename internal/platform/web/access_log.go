@@ -5,6 +5,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -28,7 +29,8 @@ func (s *server) logRequests(next http.Handler) http.Handler {
 }
 
 // serveRecovering serves r with next. If next panics, it logs the panic once, with its stack, and answers with the
-// page any other failure gets, unless next already started the response.
+// page any other failure gets, unless next already started the response. It logs a runtime error's text, which the
+// runtime writes, but only the type of any other value, which could hold anything, such as a connection string.
 func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http.Handler) {
 	defer func() {
 		recovered := recover()
@@ -36,12 +38,20 @@ func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http
 			return
 		}
 		s.Log.ErrorContext(r.Context(), "panic", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
-			"panic", fmt.Sprint(recovered), "stack", string(debug.Stack()))
+			"panic", panicDescription(recovered), "stack", string(debug.Stack()))
 		if w.status == 0 {
 			s.unavailable(w, r)
 		}
 	}()
 	next.ServeHTTP(w, r)
+}
+
+// panicDescription returns a runtime error's text, or the type of any other value.
+func panicDescription(recovered any) string {
+	if err, ok := recovered.(runtime.Error); ok {
+		return err.Error()
+	}
+	return fmt.Sprintf("%T", recovered)
 }
 
 // unmatchedRoute is the route logged for a request that matched no registered pattern, such as one the mux

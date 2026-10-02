@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -158,17 +159,42 @@ func TestAccessLogLeavesOutHeadersAndQueryStrings(t *testing.T) {
 	}
 }
 
-// panicking is a catalog whose list of libraries panics, as a bug in a page's read would.
-type panicking struct{ catalog }
+// panicking is a catalog whose list of libraries panics with a runtime error, as a bug in a page's read would, and
+// whose library pages panic with value.
+type panicking struct {
+	catalog
+	value any
+}
 
 func (panicking) Libraries(context.Context) ([]views.LibraryCard, error) {
-	panic("index out of range [3] with length 3")
+	var cards []views.LibraryCard
+	return cards[:len(cards)+3], nil
+}
+
+func (p panicking) LibraryPage(context.Context, string, string) (views.LibraryPage, error) {
+	panic(p.value)
+}
+
+// errorLines returns the error level lines in logs.
+func errorLines(t *testing.T, logs *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for line := range strings.Lines(logs.String()) {
+		var fields map[string]any
+		if err := json.Unmarshal([]byte(line), &fields); err != nil {
+			t.Fatal(err)
+		}
+		if fields["level"] == "ERROR" {
+			found = append(found, fields)
+		}
+	}
+	return found
 }
 
 // A panic fails only its own request: it's logged once, with what finding the bug needs, and the visitor gets the
 // page any other failure gets, which can't be cached.
 func TestPagesRecoverFromAPanicWithTheUnavailablePage(t *testing.T) {
-	handler, logs := loggedSite(t, panicking{newCatalog()})
+	handler, logs := loggedSite(t, panicking{catalog: newCatalog()})
 
 	resp, access := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, "/", nil))
 
@@ -176,33 +202,90 @@ func TestPagesRecoverFromAPanicWithTheUnavailablePage(t *testing.T) {
 		t.Fatalf("answered %d with Cache-Control %q", resp.Code, resp.Header().Get("Cache-Control"))
 	}
 	assertShows(t, resp.Body.String(), "Rulemart can't show this page right now.")
-	if strings.Contains(resp.Body.String(), "index out of range") {
+	if strings.Contains(resp.Body.String(), "out of range") {
 		t.Fatal("the response exposes the panic")
 	}
 	if access["status"] != float64(http.StatusServiceUnavailable) || access["cache"] != "no-store" {
 		t.Fatalf("the access log recorded %v", access)
 	}
-	var errorLines []map[string]any
-	for line := range strings.Lines(logs.String()) {
-		var fields map[string]any
-		if err := json.Unmarshal([]byte(line), &fields); err != nil {
-			t.Fatal(err)
-		}
-		if fields["level"] == "ERROR" {
-			errorLines = append(errorLines, fields)
-		}
+	logged := errorLines(t, logs)
+	if len(logged) != 1 {
+		t.Fatalf("logged %d error lines, want 1:\n%s", len(logged), logs)
 	}
-	if len(errorLines) != 1 {
-		t.Fatalf("logged %d error lines, want 1:\n%s", len(errorLines), logs)
-	}
-	panicLine := errorLines[0]
+	panicLine := logged[0]
 	stack, _ := panicLine["stack"].(string)
 	if panicLine["msg"] != "panic" || panicLine["route"] != "/{$}" || panicLine["requestID"] != "request-123" ||
-		panicLine["panic"] != "index out of range [3] with length 3" || !strings.Contains(stack, "panicking.Libraries") {
+		!strings.HasPrefix(panicLine["panic"].(string), "runtime error: slice bounds out of range") ||
+		!strings.Contains(stack, "panicking.Libraries") {
 		t.Fatalf("logged %v", panicLine)
 	}
 
-	if next := get(t, handler, library); next.Code != http.StatusOK {
+	if next := get(t, handler, errorsRule); next.Code != http.StatusOK {
 		t.Fatalf("the next request got %d", next.Code)
+	}
+}
+
+// A panic's value can be anything, such as an error that holds a connection string, so only a runtime error's own
+// text is logged, and any other value only by its type.
+func TestPanicLogLeavesOutValuesThatAreNotRuntimeErrors(t *testing.T) {
+	const secret = "postgres://rulemart:hunter2@db.example/rulemart"
+	for name, value := range map[string]any{
+		"a string": "could not connect to " + secret,
+		"an error": fmt.Errorf("connect %s: refused", secret),
+	} {
+		t.Run(name, func(t *testing.T) {
+			handler, logs := loggedSite(t, panicking{catalog: newCatalog(), value: value})
+
+			resp, _ := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, library, nil))
+
+			if resp.Code != http.StatusServiceUnavailable {
+				t.Fatalf("answered %d", resp.Code)
+			}
+			if strings.Contains(logs.String(), "hunter2") {
+				t.Fatalf("the logs hold the panic's value:\n%s", logs)
+			}
+			if logged := errorLines(t, logs); len(logged) != 1 || logged[0]["panic"] != fmt.Sprintf("%T", value) {
+				t.Fatalf("logged %v, want the value's type", logged)
+			}
+		})
+	}
+}
+
+// failingPages fails every page read with an error that names what it read by the request's path, as the store's
+// errors do.
+type failingPages struct{ catalog }
+
+func (failingPages) LibraryPage(_ context.Context, owner, name string) (views.LibraryPage, error) {
+	return views.LibraryPage{}, fmt.Errorf("load library %s/%s: connection refused", owner, name)
+}
+
+func (failingPages) RulePage(_ context.Context, owner, name, rulePath string) (views.RulePage, error) {
+	return views.RulePage{}, fmt.Errorf("load rule %s/%s/%s: connection refused", owner, name, rulePath)
+}
+
+// A failure's error names the library or rule it couldn't read, which the request's path chose, so the failure log
+// replaces those names with the route's, as the access log does.
+func TestFailureLogLeavesOutThePathTheErrorNames(t *testing.T) {
+	for path, want := range map[string]string{
+		"/alice@example.test/reset-token-s3cr3t":              "load library {owner}/{repo}: connection refused",
+		"/alice@example.test/reset-token-s3cr3t/techs/go/x-y": "load rule {owner}/{repo}/{rule...}: connection refused",
+	} {
+		t.Run(path, func(t *testing.T) {
+			handler, logs := loggedSite(t, failingPages{newCatalog()})
+
+			resp, _ := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, path, nil))
+
+			if resp.Code != http.StatusServiceUnavailable {
+				t.Fatalf("answered %d", resp.Code)
+			}
+			for _, leak := range []string{"alice", "reset-token", "s3cr3t", "techs/go"} {
+				if strings.Contains(logs.String(), leak) {
+					t.Fatalf("the logs hold %q:\n%s", leak, logs)
+				}
+			}
+			if logged := errorLines(t, logs); len(logged) != 1 || logged[0]["error"] != want {
+				t.Fatalf("logged %v, want the error %q", logged, want)
+			}
+		})
 	}
 }
