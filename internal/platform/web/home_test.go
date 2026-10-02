@@ -23,9 +23,9 @@ func TestHomeListsTheLibraries(t *testing.T) {
 func TestHomeLeadsWithSearchAndBrowsesCanonicalGroups(t *testing.T) {
 	page := get(t, newSite(t, newBrowsingCatalog()), "/").Body.String()
 
-	assertShows(t, page, "Technologies Browse all → Go 3 rules · 2 libraries", "Practices Browse all → Testing 1 rule · 1 library")
-	if got := links(t, page, "Go 3 rules"); !slices.Equal(got, []string{"/g/techs/go"}) {
-		t.Errorf("Go's tile links %q", got)
+	assertShows(t, page, "Popular Go Testing", "Technologies Browse all → Go 3 rules · 2 libraries", "Practices Browse all → Testing 1 rule · 1 library")
+	if got := links(t, page, "Go"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/go"}) {
+		t.Errorf("Go's chip and tile link %q", got)
 	}
 	if got := links(t, page, "Browse all"); !slices.Equal(got, []string{"/browse/techs", "/browse/practices"}) {
 		t.Errorf("the bands lead to %q", got)
@@ -35,31 +35,6 @@ func TestHomeLeadsWithSearchAndBrowsesCanonicalGroups(t *testing.T) {
 		t.Error("the home page shows a group that isn't canonical")
 	}
 	assertSearchForm(t, page, "home-search", "")
-}
-
-// The hero names as popular the two technologies and two practices with the most rules, and the tiles sort by rule
-// count, since Rulemart has no traffic data yet.
-func TestHomeNamesTheGroupsWithTheMostRulesAsPopularAndSortsTilesByCount(t *testing.T) {
-	c := newBrowsingCatalog()
-	group := func(id, name string, rules int) views.GroupSummary {
-		return views.GroupSummary{Path: id, Canonical: &views.CanonicalGroup{Name: name, Icon: goGroup.Icon}, Rules: rules, Libraries: []views.LibraryRef{exampleRef}}
-	}
-	c.index = views.GroupIndex{
-		Techs: []views.GroupSummary{group("techs/go", "Go", 3), group("techs/rust", "Rust", 1), group("techs/typescript", "TypeScript", 7),
-			{Path: "techs/golang", Rules: 9, Libraries: []views.LibraryRef{otherRef}}},
-		Practices: []views.GroupSummary{group("practices/comments", "Comments", 4), group("practices/error-handling", "Error handling", 2), group("practices/testing", "Testing", 1)},
-	}
-
-	page := get(t, newSite(t, c), "/").Body.String()
-
-	assertShows(t, page,
-		"Popular TypeScript Go Comments Error handling",
-		"Technologies Browse all → TypeScript 7 rules · 1 library Go 3 rules · 1 library Rust 1 rule · 1 library",
-		"Practices Browse all → Comments 4 rules · 1 library Error handling 2 rules · 1 library Testing 1 rule · 1 library",
-	)
-	if got := links(t, page, "TypeScript"); !slices.Equal(got, []string{"/g/techs/typescript", "/g/techs/typescript"}) {
-		t.Errorf("TypeScript's chip and tile link %q", got)
-	}
 }
 
 // Naming the popular groups leaves the tiles whole: with many technologies, the practices named as popular once

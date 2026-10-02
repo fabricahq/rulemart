@@ -47,10 +47,11 @@ func byRuleCount(groups []groupSummaryView) []groupSummaryView {
 	return sorted
 }
 
-// firstOf returns at most n of items, the first ones, sharing items' array: appending to the result would write
-// into items.
+// firstOf returns at most n of items, the first ones. The result shares items' array but ends its capacity with
+// them, so appending to it copies rather than writing into items.
 func firstOf[T any](items []T, n int) []T {
-	return items[:min(n, len(items))]
+	k := min(n, len(items))
+	return items[:k:k]
 }
 
 // empty reports whether no vetted library holds a canonical group, so the home page has no tiles to show.
