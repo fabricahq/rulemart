@@ -21,7 +21,7 @@ ones describe what the site already does.
   light in its dark theme, with an ICO of the package's dark favicon artwork for browsers that take no SVG.
 - **A phone's home screen** shows the package's apple-touch-icon, the symbol on a dark tile.
 - **A link shared** on a social site shows a 1200x630 image of the dark horizontal logo, symbol and wordmark, over
-  the tagline "Agent coding best practices, off the shelf", centered on the surface color.
+  the tagline "Agent coding best practices, off the shelf" in two gray lines, centered on the surface color.
 - **The README** opens with the horizontal logo, dark or white with the reader's theme, through a `<picture>`
   element.
 
@@ -59,15 +59,17 @@ ones describe what the site already does.
   `shasum -a 256 -c SHA256SUMS` still passes and records what was copied. `brand/README.md` says what the package
   is, which site files come from it, and how to regenerate them.
 - **Decided (Josh): the social image carries the tagline.** It is the dark horizontal logo, 520 pixels wide, over
-  "Agent coding best practices, off the shelf" in Inter Regular at 34 pixels in the ink color (#1C1C1C), 36 pixels
-  below it, the two centered as one block on the surface color (#F6F6F6). The logo stays dominant, keeps 340 pixels
-  of margin on each side, and fits inside the middle 630-pixel square that some apps crop a wide image to; the
-  tagline, 684 pixels wide, is clipped at its ends by such a crop. The alt text is "Rulemart: agent coding best
-  practices, off the shelf", as it was.
-- **Proposed: `brand/assets.py` makes the social image and `favicon.ico`**, beside the package's `build.py`, with `rsvg-convert` for
-  the logo and Pillow for the tagline, which reads the package's `source/inter-latin.woff2` directly and sets its
-  Regular instance, so it can be regenerated when the brand changes and gives the same bytes on every run. It
-  centers the logo by what it draws rather than its padding, and the tagline by its capitals and baseline.
+  "Agent coding best practices, off the shelf" in the hero's two lines, the two centered as one block on the surface
+  color (#F6F6F6). The alt text is "Rulemart: agent coding best practices, off the shelf", as it was.
+- **Proposed: the tagline is no wider than the logo, in the muted gray, and as far below it as the wordmark is from
+  the symbol.** Inter Regular at 38 pixels in #626262 keeps its longer line at 518 pixels, so the logo stays
+  dominant, and both stay inside the middle 630-pixel square that some apps crop a wide image to. The gap is
+  measured from the logo itself, the widest empty run of columns in its drawing, 49 pixels, so the logo still
+  reads as one unit.
+- **Proposed: `brand/assets.py` makes the social image and `favicon.ico`**, beside the package's `build.py`, with
+  `rsvg-convert` for the logo and Pillow for the rest. Pillow reads the package's `source/inter-latin.woff2`
+  directly and sets its Regular instance. It centers the logo by what it draws rather than its padding, and the
+  tagline by its capitals and baseline, and it gives the same bytes on every run.
 - **Proposed: the README's logo is 240 pixels wide, above the plain `# Rulemart` title**, with the README's text
   unchanged. The guide asks for the horizontal logo at 120 pixels or wider; the README is secondary (**Existing**), so
   the logo is left-aligned rather than a centered title block. It names the SVGs in `brand/logos/` by relative path,
