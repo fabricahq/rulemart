@@ -107,11 +107,13 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 	return body.Bytes(), complete
 }
 
-// owners returns each owner of libraries once, in the libraries' order.
+// owners returns each owner of libraries once, in the libraries' order, spelled as the first of their libraries
+// spells them. Libraries ingested at different times may spell one owner in different cases; the owner's page
+// matches without regard to case and redirects every other spelling to the first, so the sitemap names that one.
 func owners(libraries []views.SitemapLibrary) []string {
 	var logins []string
 	for _, lib := range libraries {
-		if n := len(logins); n == 0 || logins[n-1] != lib.Owner {
+		if n := len(logins); n == 0 || !strings.EqualFold(logins[n-1], lib.Owner) {
 			logins = append(logins, lib.Owner)
 		}
 	}

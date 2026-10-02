@@ -285,3 +285,32 @@ func TestSitemapStaysWithinAResponsesSize(t *testing.T) {
 		t.Errorf("logged %s", logs.String())
 	}
 }
+
+func TestSitemapNamesAnOwnerOnceWhateverCaseTheirLibrariesSpell(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
+		{Owner: "Acme", Name: "a-rules", Updated: day(3)},
+		{Owner: "acme", Name: "b-rules", Updated: day(3)},
+		{Owner: "zed", Name: "rules", Updated: day(3)},
+	}}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got urlset
+	if err := xml.Unmarshal(get(t, handler, "/sitemap.xml").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var owners []string
+	for _, u := range got.URLs {
+		if path := strings.TrimPrefix(u.Loc, "https://rulemart.example"); strings.Count(path, "/") == 1 && (path == "/Acme" || path == "/acme" || path == "/zed") {
+			owners = append(owners, path)
+		}
+	}
+	if want := []string{"/Acme", "/zed"}; !slices.Equal(owners, want) {
+		t.Errorf("owner pages %v, want %v: one page per owner, spelled as the first library spells it", owners, want)
+	}
+}
