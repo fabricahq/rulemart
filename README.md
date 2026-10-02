@@ -40,7 +40,7 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 | Write every rule yourself | Pick rules other teams proved |
 | Agent skills bundle many practices in one file | Each rule is one practice, so you adopt exactly what fits |
 | Skills change under you, with no versions | Each rule is versioned, and updates show what changed |
-| Skills live in one project or one person's folder | Libraries are shared across projects and teams, with their source recorded |
+| Skills tell an agent how to do a task | Rules say what good code looks like, so agents apply them while writing and reviewing |
 
 ## Quick start
 
