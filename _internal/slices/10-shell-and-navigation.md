@@ -92,6 +92,10 @@ decision.
   on the library's All rules tab until slice R4 gives every group a page. The prototype's "similar to" note needs a
   list of near-canonical names Rulemart doesn't keep, so there is none.
 - **Proposed: the counts count current rules in vetted libraries**, as the groups page did.
+- **Proposed: on a phone, a row's counts drop under its text**, in line with it, rather than stand beside it as the
+  prototype's do, since beside it, "10 rules" and "2 libraries" squeezed a practice's description into a column about
+  120 pixels wide at 390 pixels and broke names mid-word at 320. Names and IDs wrap only between words and after a
+  slash.
 
 ### Header, footer, FAQ, feedback
 

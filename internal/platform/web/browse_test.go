@@ -167,6 +167,10 @@ func TestBrowsePagesListEachKindsCanonicalGroupsAcrossLibraries(t *testing.T) {
 	if got := links(t, page, "Go techs/go"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("Go links %q", got)
 	}
+	// A narrow phone wraps an ID after its slash, rather than inside a word.
+	if !strings.Contains(page, `<span class="id-part">techs/</span><wbr><span class="id-part">go</span>`) {
+		t.Error("Go's ID doesn't wrap at its slash")
+	}
 	if got := links(t, page, "View other technology groups"); !slices.Equal(got, []string{"/browse/techs/other"}) {
 		t.Errorf("the other groups link %q", got)
 	}

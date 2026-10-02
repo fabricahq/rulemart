@@ -118,7 +118,7 @@ templ feedbackPage(c chrome) {
 
 // feedbackRow is one topic of the feedback page, leading to GitHub.
 templ feedbackRow(href, label, example string) {
-	@rowLink(href, false) {
+	@rowLink(href, false, rowBeside) {
 		<div class="min-w-0">
 			<div class="leading-[1.35] font-semibold">{ label }</div>
 			<div class="mt-0.5 text-[12.5px] text-faint">{ example }</div>

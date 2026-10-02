@@ -24,20 +24,21 @@ templ browsePage(c chrome, v browseView) {
 				@rowList() {
 					for _, g := range v.groups {
 						@rowItem() {
-							@rowLink(g.href, false) {
+							@rowLink(g.href, false, rowStacked) {
 								<div class="flex min-w-0 items-center gap-[14px]">
 									@groupTile(g.label, g.icon, tileRow)
 									<div class="min-w-0">
 										<div class="leading-[1.35] font-semibold">{ g.label.name }</div>
 										<div class="mt-0.5 text-[12.5px] text-faint">
-											{ g.label.id }
+											@breakable(g.label.id)
 											if v.kind == practicesKind && g.blurb != "" {
 												{ " · " + g.blurb }
 											}
 										</div>
 									</div>
 								</div>
-								<div class="flex flex-wrap items-center justify-end gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
+								// On a phone, the counts line up under the text, past the tile and the gap beside it.
+								<div class={ "flex flex-wrap items-center justify-end gap-x-[14px] gap-y-1.5 text-[13px] text-muted", stackedMeta("max-narrow:pl-[50px]") }>
 									<span class="whitespace-nowrap">{ plural(g.rules, "rule", "rules") }</span>
 									<span class="whitespace-nowrap">{ plural(len(g.libraries), "library", "libraries") }</span>
 								</div>
@@ -74,7 +75,7 @@ templ otherGroupsPage(c chrome, v otherGroupsView) {
 				@rowList() {
 					for _, g := range v.groups {
 						@rowItem() {
-							@rowLink(g.href, false) {
+							@rowLink(g.href, false, rowBeside) {
 								<div class="min-w-0">
 									<div class="mono leading-[1.35] font-medium">
 										@breakable(g.label.id)

@@ -167,12 +167,30 @@ templ rowList() {
 	</ul>
 }
 
+// rowLayout is where a rowLink's column of metadata sits on a phone.
+type rowLayout string
+
+const (
+	// rowBeside keeps the metadata beside the content at every width, for metadata as short as one count.
+	rowBeside rowLayout = ""
+	// rowStacked drops the metadata under the content on a phone, where beside it, metadata as wide as two counts
+	// would squeeze the content into a narrow column. The metadata places itself there, with stackedMeta.
+	rowStacked rowLayout = "max-narrow:grid-cols-[minmax(0,1fr)_14px] max-narrow:gap-y-1"
+)
+
+// stackedMeta places a rowStacked row's metadata under its content on a phone, indented by indent, a padding class,
+// to line up with the content's text.
+func stackedMeta(indent string) string {
+	return "max-narrow:col-start-1 max-narrow:row-start-2 max-narrow:justify-start " + indent
+}
+
 // rowLink is a row of a rowList that is one full-width link, laid out as the prototype's rowlink: its content, a
-// column of metadata on the right, and a chevron that shows on hover. nofollow marks a link to an unvetted
-// library's page.
-templ rowLink(href string, nofollow bool) {
+// column of metadata on the right, or under the content on a phone when layout says so, and a chevron that shows on
+// hover. nofollow marks a link to an unvetted library's page. Its text wraps between words, breaking a word only
+// when the word is wider than the whole line.
+templ rowLink(href string, nofollow bool, layout rowLayout) {
 	<a
-		class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
+		class={ "group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline [overflow-wrap:break-word] transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]", string(layout) }
 		href={ templ.SafeURL(href) }
 		if nofollow {
 			rel="nofollow"
@@ -200,7 +218,7 @@ templ rowItem() {
 // any. The library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A
 // link to an unvetted library's page carries nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
-	@rowLink(lib.href, lib.unvetted) {
+	@rowLink(lib.href, lib.unvetted, rowBeside) {
 		<div class="flex min-w-0 items-start gap-[14px]">
 			@avatar(lib.avatar, lib.owner, avatarMD)
 			<div class="min-w-0">
