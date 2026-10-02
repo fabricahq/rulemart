@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -113,6 +116,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 		return nil, fmt.Errorf("list tags: %v", err)
 	}
 	var releases []domain.ReleaseSnapshot
+	shared := &trees{storer: repo.Storer, decoded: map[plumbing.Hash]*object.Tree{}}
 	err = refs.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
 		if _, err := coderules.ParseReleaseTag(name); err != nil {
@@ -122,7 +126,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		r, err := readRelease(repo, name, ref.Hash(), limits)
+		r, err := readRelease(repo, shared, name, ref.Hash(), limits)
 		if err != nil {
 			return fmt.Errorf("read %s: %v", name, err)
 		}
@@ -140,7 +144,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 }
 
 // readRelease reads the annotated tag object hash, which the tag named name points to.
-func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
+func readRelease(repo *gogit.Repository, shared *trees, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
 	encoded, err := repo.Storer.EncodedObject(plumbing.AnyObject, hash)
 	if err != nil {
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load tag object: %v", err)
@@ -173,7 +177,7 @@ func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits
 	return domain.ReleaseSnapshot{
 		Number: record.Release, Tag: name, TagID: hash.String(), TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(),
 		Record: record,
-		Files:  &files{commit: commit},
+		Files:  files{root: commit.TreeHash, trees: shared},
 	}, nil
 }
 
@@ -193,28 +197,66 @@ func readObject(encoded plumbing.EncodedObject) ([]byte, error) {
 
 // files reads a tagged commit's files from the fetched objects in memory.
 type files struct {
-	commit *object.Commit
-	// tree is the commit's tree, once a file was opened.
-	tree *object.Tree
+	// root is the commit's tree.
+	root  plumbing.Hash
+	trees *trees
 }
 
 // Open returns the file at path in the commit, or domain.ErrFileMissing when there's none.
-func (f *files) Open(path string) (domain.File, error) {
-	if f.tree == nil {
-		tree, err := f.commit.Tree()
+func (f files) Open(path string) (domain.File, error) {
+	tree, err := f.trees.get(f.root)
+	if err != nil {
+		return nil, fmt.Errorf("load tree: %v", err)
+	}
+	segments := strings.Split(path, "/")
+	for i, segment := range segments {
+		entry, err := tree.FindEntry(segment)
+		if errors.Is(err, object.ErrEntryNotFound) || errors.Is(err, object.ErrDirectoryNotFound) {
+			return nil, domain.ErrFileMissing
+		}
 		if err != nil {
+			return nil, fmt.Errorf("find file: %v", err)
+		}
+		if i == len(segments)-1 {
+			if !entry.Mode.IsFile() {
+				return nil, domain.ErrFileMissing
+			}
+			found, err := tree.TreeEntryFile(entry)
+			if err != nil {
+				return nil, fmt.Errorf("find file: %v", err)
+			}
+			return file{found}, nil
+		}
+		if entry.Mode != filemode.Dir {
+			return nil, domain.ErrFileMissing
+		}
+		if tree, err = f.trees.get(entry.Hash); err != nil {
 			return nil, fmt.Errorf("load tree: %v", err)
 		}
-		f.tree = tree
 	}
-	found, err := f.tree.File(path)
-	if errors.Is(err, object.ErrFileNotFound) || errors.Is(err, object.ErrDirectoryNotFound) || errors.Is(err, object.ErrEntryNotFound) {
-		return nil, domain.ErrFileMissing
+	return nil, domain.ErrFileMissing
+}
+
+// trees decodes each tree object of one fetch once, however many releases or paths reach it. Releases share most of
+// their trees, so decoding them per release would hold a large shared directory once for every release that reads
+// it. The objects a fetch holds are bounded, so the trees decoded from them are too. It isn't safe for concurrent
+// use.
+type trees struct {
+	storer  storer.EncodedObjectStorer
+	decoded map[plumbing.Hash]*object.Tree
+}
+
+// get returns the tree object hash, decoding it the first time it's asked for.
+func (t *trees) get(hash plumbing.Hash) (*object.Tree, error) {
+	if tree, ok := t.decoded[hash]; ok {
+		return tree, nil
 	}
+	tree, err := object.GetTree(t.storer, hash)
 	if err != nil {
-		return nil, fmt.Errorf("find file: %v", err)
+		return nil, err
 	}
-	return file{found}, nil
+	t.decoded[hash] = tree
+	return tree, nil
 }
 
 // file is one file of a commit, read only when asked.
