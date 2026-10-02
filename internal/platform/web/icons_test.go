@@ -13,12 +13,12 @@ import (
 	"testing"
 )
 
-// Pages show group icons with <img>, which runs nothing, but a visitor can open an icon's URL, where an SVG is a
-// document on Rulemart's origin. So a vendored icon may hold only drawing: no scripts, event handlers, embedded
-// documents, or references outside itself.
-func TestVendoredIconsHoldOnlyDrawing(t *testing.T) {
+// Pages show group icons and the favicon with <img> and <link>, which run nothing, but a visitor can open a static
+// SVG's URL, where it is a document on Rulemart's origin. So a static SVG, vendored or Rulemart's own, may hold only
+// drawing: no scripts, event handlers, embedded documents, or references outside itself.
+func TestStaticSVGsHoldOnlyDrawing(t *testing.T) {
 	count := 0
-	err := fs.WalkDir(embedded, "static/icons", func(name string, entry fs.DirEntry, err error) error {
+	err := fs.WalkDir(embedded, "static", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || path.Ext(name) != ".svg" {
 			return err
 		}
@@ -36,7 +36,7 @@ func TestVendoredIconsHoldOnlyDrawing(t *testing.T) {
 		t.Fatal(err)
 	}
 	if count == 0 {
-		t.Fatal("found no vendored icons")
+		t.Fatal("found no static SVGs")
 	}
 }
 
@@ -70,10 +70,15 @@ func TestVendoredPNGIconsAreSmallPNGs(t *testing.T) {
 }
 
 func TestActiveSVGContentFindsWhatCouldRunOrLoad(t *testing.T) {
-	const drawing = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><path id="a" d="M0 0h24"/></defs>` +
-		`<use href="#a" fill="url(#a)" style="stroke:url( '#a')"/></svg>`
-	if problem := activeSVGContent([]byte(drawing)); problem != "" {
-		t.Fatalf("a plain drawing was rejected: %s", problem)
+	for name, drawing := range map[string]string{
+		"a plain drawing": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><path id="a" d="M0 0h24"/></defs>` +
+			`<use href="#a" fill="url(#a)" style="stroke:url( '#a')"/></svg>`,
+		"a stylesheet that adapts to the theme": `<svg><style>path{stroke:#1c1c1c}@media(prefers-color-scheme:dark)` +
+			`{path{stroke:#f2f2f2;fill:url(#a)}}</style><path d="M0 0"/></svg>`,
+	} {
+		if problem := activeSVGContent([]byte(drawing)); problem != "" {
+			t.Errorf("%s was rejected: %s", name, problem)
+		}
 	}
 	for name, svg := range map[string]string{
 		"a script":               `<svg><script>alert(1)</script></svg>`,
@@ -84,7 +89,11 @@ func TestActiveSVGContentFindsWhatCouldRunOrLoad(t *testing.T) {
 		"a script URL":           `<svg><use href="javascript:alert(1)"/></svg>`,
 		"a style loading a URL":  `<svg><path style="fill:url(https://example.com/x)" d="M0 0"/></svg>`,
 		"a URL after a fragment": `<svg><path style="fill:url(#a);stroke:url('https://example.com/x')" d="M0 0"/></svg>`,
-		"a stylesheet":           `<svg><style>@import url(https://example.com/x.css);</style></svg>`,
+		"a stylesheet import":    `<svg><style>@import url(https://example.com/x.css);</style></svg>`,
+		"a bare import":          `<svg><style>@IMPORT "x.css";</style></svg>`,
+		"a stylesheet URL":       `<svg><style>path{fill:url(https://example.com/x)}</style></svg>`,
+		"an escaped stylesheet":  `<svg><style>path{fill:u\72l(https://example.com/x)}</style></svg>`,
+		"an element in a style":  `<svg><style><script>alert(1)</script></style></svg>`,
 		"an entity declaration":  `<!DOCTYPE svg [<!ENTITY x "y">]><svg></svg>`,
 		"malformed XML":          `<svg><path></svg>`,
 	} {
@@ -113,8 +122,13 @@ func activeSVGContent(svg []byte) string {
 			return "a directive, such as a DOCTYPE"
 		case xml.StartElement:
 			switch t.Name.Local {
-			case "script", "foreignObject", "style", "a", "iframe", "embed", "object", "image", "feImage":
+			case "script", "foreignObject", "a", "iframe", "embed", "object", "image", "feImage":
 				return "a <" + t.Name.Local + "> element"
+			case "style":
+				if problem := activeStyle(decoder); problem != "" {
+					return problem
+				}
+				continue
 			}
 			for _, attr := range t.Attr {
 				name, value := strings.ToLower(attr.Name.Local), strings.TrimSpace(attr.Value)
@@ -127,6 +141,36 @@ func activeSVGContent(svg []byte) string {
 					return "a URL in " + attr.Name.Local
 				}
 			}
+		}
+	}
+}
+
+// activeStyle reads a <style> element's content from decoder, just past its start, and returns what in it could load
+// anything, or "" when it only styles the drawing, as a theme's colors do. It takes no escapes, which could spell an
+// import or a URL the checks don't see.
+func activeStyle(decoder *xml.Decoder) string {
+	var css strings.Builder
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			return "malformed XML: " + err.Error()
+		}
+		switch t := token.(type) {
+		case xml.CharData:
+			css.Write(t)
+		case xml.StartElement:
+			return "a <" + t.Name.Local + "> element in a <style>"
+		case xml.EndElement:
+			text := css.String()
+			switch {
+			case strings.Contains(text, `\`):
+				return "an escape in a <style>"
+			case strings.Contains(strings.ToLower(text), "@import"):
+				return "an @import in a <style>"
+			case externalURL.MatchString(text):
+				return "a URL in a <style>"
+			}
+			return ""
 		}
 	}
 }
