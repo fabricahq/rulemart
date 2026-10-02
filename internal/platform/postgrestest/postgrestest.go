@@ -41,9 +41,9 @@ func Server(t *testing.T) string {
 // Infrastructure creates it in production; tests and local development create it too.
 const CatalogReaderRole = "rulemart_catalog_reader"
 
-// AccountsWriterRole is the group role migrations grant what signing in and out writes: accounts and sessions. It
-// can't log in; WebRole is its member. Infrastructure creates it in production; tests and local development create it
-// too.
+// AccountsWriterRole is the group role migrations grant what signing in and out, and listing, write: accounts,
+// sessions, and listings. It can't log in; WebRole is its member. Infrastructure creates it in production; tests and
+// local development create it too.
 const AccountsWriterRole = "rulemart_accounts_writer"
 
 // WebRole is the login role the web function connects as. It has no grants of its own: it reads the catalog through
