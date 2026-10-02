@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/logos/rulemart-horizontal-white.svg">
+  <source media="(prefers-color-scheme: light)" srcset="brand/logos/rulemart-horizontal-dark.svg">
+  <img alt="Rulemart" src="brand/logos/rulemart-horizontal-dark.svg" width="240">
+</picture>
+
 # Rulemart
 
 Rulemart helps you find and adopt [Code Rules](https://code-rules.fabricahq.com) libraries: the engineering rules

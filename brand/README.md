@@ -13,7 +13,8 @@ Run `shasum -a 256 -c SHA256SUMS` in this directory to check them.
 
 The site's `favicon.svg`, `favicon.ico`, and `apple-touch-icon.png` in `internal/platform/web/static/` are copied
 from `favicons/` unchanged. The header draws the symbol's path from `source/rulemart.svg` inline, in the text's color,
-with the heavier stroke `guide.html` gives the site's small sizes.
+with the heavier stroke `guide.html` gives the site's small sizes. The repository's README shows the horizontal logos
+from `logos/`, dark or white with the reader's theme.
 
 `static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo centered on the
 surface color, made by `social.py`. Run it after changing the logo, with Pillow and `rsvg-convert` installed:
