@@ -287,8 +287,9 @@ at `/list` and run `make worker`, or keep it vetted in a local, uncommitted chan
 Planner, which has no migration, pin it, and apply `web_lambda` and `worker_lambda` as in step 5.
 
 Afterwards its pages answer 404 unless someone lists it, when they show under the unvetted warning; search, groups,
-and the sitemap leave it out; carts holding its rules say it's no longer on Rulemart, and checkout leaves them out;
-its stars stop showing. The worker stops checking it. Nothing is deleted.
+and the sitemap leave it out; carts holding its rules say it's no longer on Rulemart, or, if it's listed, that they
+need confirming as unvetted, and checkout leaves them out until then; its stars stop showing. The worker stops
+checking it unless it's listed. Nothing is deleted.
 
 ## 8. Later
 
