@@ -351,7 +351,7 @@ func (s *server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	view := signInView{notice: notice, available: s.signInAvailable()}
 	if s.GitHub != nil {
 		view.gitHub = signInHref + returnQuery(back)
-		w.Header().Set("Content-Security-Policy", signInContentSecurityPolicy)
+		w.Header().Set("Content-Security-Policy", s.policies.signIn)
 	}
 	if s.Accounts != nil {
 		view.testUsers = testUserViews(back)

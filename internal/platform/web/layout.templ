@@ -20,6 +20,9 @@ type chrome struct {
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
+	// beacon is the data Cloudflare's analytics beacon reads, naming the site's token, or empty when analytics are
+	// off.
+	beacon string
 }
 
 // head is a page's title and description, and how its frame differs from other pages'.
@@ -97,6 +100,10 @@ templ layout(c chrome, h head) {
 				{ children... }
 			</main>
 			@footer()
+			if c.beacon != "" {
+				// Cloudflare's snippet goes before the body's end; it sets no cookie.
+				<script defer src={ analyticsScript } data-cf-beacon={ c.beacon }></script>
+			}
 		</body>
 	</html>
 }

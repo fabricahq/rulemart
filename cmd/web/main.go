@@ -13,6 +13,9 @@
 //
 // Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
 // sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
+//
+// CLOUDFLARE_WEB_ANALYTICS_TOKEN is the site token of a Cloudflare Web Analytics site, which turns on its beacon in
+// every page; unset, pages load no analytics. The token is public: every page shows it.
 package main
 
 import (
@@ -128,6 +131,8 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		Listings: listings,
 		Stars:    app.Stars{Store: catalogStore, Vetted: vetted},
 		Cart:     app.Cart{Store: catalogStore, Vetted: vetted, Groups: groups},
+		// Not a secret: Cloudflare's beacon sends it from every page.
+		AnalyticsToken: os.Getenv("CLOUDFLARE_WEB_ANALYTICS_TOKEN"),
 	}
 	if gitHub != nil {
 		options.GitHub = gitHub

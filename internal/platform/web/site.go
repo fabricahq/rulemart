@@ -40,19 +40,6 @@ const pageCache = "public, max-age=0, s-maxage=60"
 // privateCache keeps a response out of every cache: one that depends on who asked, or that sets a cookie.
 const privateCache = "private, no-store"
 
-// contentSecurityPolicy allows only Rulemart's own files, plus images from GitHub's avatar and raw file hosts,
-// which rules and library owners use, and forms that submit to Rulemart, such as search. Rule content comes from
-// repositories Rulemart doesn't control, so nothing else may load or run.
-const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; " +
-	"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; " +
-	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
-
-// signInContentSecurityPolicy is contentSecurityPolicy for the sign-in page, whose GitHub form posts here to be
-// redirected to GitHub's authorization page. Browsers check a form's redirects against form-action too, so it
-// allows that one page as well, and only on the page that needs it.
-var signInContentSecurityPolicy = strings.Replace(contentSecurityPolicy, "form-action 'self';",
-	"form-action 'self' https://github.com/login/oauth/authorize;", 1)
-
 // Options configures the handler.
 type Options struct {
 	// Log receives one line for each request, and the details of failures that pages leave out.
@@ -75,6 +62,10 @@ type Options struct {
 	Stars Stars
 	// Cart keeps signed-in visitors' carts. Nil, or without a way to sign in, leaves carts out.
 	Cart Cart
+	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
+	// beacon with, and the content security policy allows. Empty leaves analytics out: no page loads another site's
+	// script. New refuses one that can't be a token.
+	AnalyticsToken string
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -134,6 +125,8 @@ type server struct {
 	chrome  chrome
 	// routes holds every pattern the mux routes by, the only values route logs.
 	routes map[string]bool
+	// policies are the content security policies the site sends, with analytics when Options.AnalyticsToken is set.
+	policies policies
 	Options
 }
 
@@ -144,13 +137,18 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			return nil, fmt.Errorf("serve pages at base URL %q: %v", options.BaseURL, err)
 		}
 	}
+	beacon, err := analyticsBeacon(options.AnalyticsToken)
+	if err != nil {
+		return nil, fmt.Errorf("serve pages with analytics: %v", err)
+	}
 	assets, err := newAssets()
 	if err != nil {
 		return nil, err
 	}
 	s := &server{
-		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
+		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{}, policies: newPolicies(beacon != ""),
 		chrome: chrome{
+			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
 			copyScript:  assets.url("copy.js"),
@@ -210,7 +208,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
+	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
 }
 
 // siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
@@ -705,15 +703,4 @@ func write(w http.ResponseWriter, r *http.Request, status int, cache string, bod
 	if r.Method != http.MethodHead {
 		_, _ = w.Write(body)
 	}
-}
-
-// withSecurityHeaders adds the headers every response carries.
-func withSecurityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := w.Header()
-		header.Set("Content-Security-Policy", contentSecurityPolicy)
-		header.Set("X-Content-Type-Options", "nosniff")
-		header.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		next.ServeHTTP(w, r)
-	})
 }
