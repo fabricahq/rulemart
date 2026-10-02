@@ -19,6 +19,7 @@ import (
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
@@ -99,7 +100,9 @@ type visitor struct {
 	// listings, stars, and cart are true when visitors can list and star libraries, and collect rules in a cart, so the
 	// menu links the listings and the stars pages, and the cart.
 	listings, stars, cart bool
-	// cartItems counts the items in a signed-in visitor's cart, which the header shows.
+	// held are the items in a signed-in visitor's cart, which the header counts, and pages that offer to add an item
+	// read; cartItems counts them.
+	held      []views.HeldCartItem
 	cartItems int
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
@@ -134,20 +137,23 @@ var notices = map[string]string{
 	"starred":                  "You starred this library. It's on Your stars.",
 	"unstarred":                "You unstarred this library.",
 	// A library's page says what follows signing in to star it, naming the library, as starPromptNotice does.
-	starPromptKey:           "You're signed in.",
-	"added-library-to-cart": "Added to your cart.",
-	"added-group-to-cart":   "Added to your cart.",
-	"added-rule-to-cart":    "Added to your cart.",
-	"removed-from-cart":     "Removed from your cart.",
-	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or add " +
-		"a whole group instead of its rules.",
-	"cart-emptied": "Your cart is empty.",
+	starPromptKey: "You're signed in.",
+	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or " +
+		"add a whole group, which takes the place of its rules in your cart.",
+	"cart-emptied": "You emptied your cart.",
 }
 
 // subjectNotices are the notices that name a library, which their page shows itself, rather than as notices' text:
 // that the visitor starred or unstarred it on their stars page. The library comes from the cookie, which only this
 // site sets, never from the address, so no link can make a page say it.
-var subjectNotices = map[string]bool{starredHereKey: true, unstarredHereKey: true}
+//
+// The cart's subject notices name an item instead, as cartNoticeSubject encodes it: one added, removed, or offered
+// after signing in to add it. The page that shows the item names it, from its own data; any other page says what
+// cartSubjectNotices gives.
+var subjectNotices = map[string]func(string) bool{
+	starredHereKey: namesLibrary, unstarredHereKey: namesLibrary,
+	addedToCartKey: namesCartItem, removedFromCartKey: namesCartItem, cartPromptKey: namesCartItem,
+}
 
 // setNotice has the next page show the notice notices names by key, once.
 func setNotice(w http.ResponseWriter, key string) {
@@ -207,8 +213,8 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
 		key, subject, named := strings.Cut(cookie.Value, ":")
 		switch {
-		case named && subjectNotices[key] && namesLibrary(subject):
-			v.noticeKey, v.noticeSubject = key, subject
+		case named && subjectNotices[key] != nil && subjectNotices[key](subject):
+			v.noticeKey, v.noticeSubject, v.notice = key, subject, cartSubjectNotices[key]
 		case !named && notices[key] != "":
 			v.notice, v.noticeKey = notices[key], key
 		default:
@@ -230,10 +236,11 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 			}
 			if v.account != nil && v.cart {
 				// The header shows the count, so a failure to read it fails the page, as a failed session read does.
-				if v.cartItems, err = s.Cart.Count(r.Context(), account.ID); err != nil {
+				if v.held, err = s.Cart.Held(r.Context(), account.ID); err != nil {
 					s.fail(w, r, err)
 					return r, false
 				}
+				v.cartItems = len(v.held)
 			}
 		} else if hasCookie(r, sessionCookie) {
 			clearCookie(w, sessionCookie)

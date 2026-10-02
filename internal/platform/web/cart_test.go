@@ -28,8 +28,8 @@ type fakeCart struct {
 	items map[int64]map[string]bool
 	// contents is what Contents returns for each account.
 	contents map[int64]views.Cart
-	// err fails every call, countErr only Count, and writeErr only Add and Remove.
-	err, countErr, writeErr error
+	// err fails every call, heldErr only Held, and writeErr only Add and Remove.
+	err, heldErr, writeErr error
 }
 
 func newFakeCart(c catalog) *fakeCart {
@@ -90,24 +90,18 @@ func (f *fakeCart) Empty(_ context.Context, accountID int64) error {
 	return f.err
 }
 
-func (f *fakeCart) Count(_ context.Context, accountID int64) (int, error) {
+func (f *fakeCart) Held(_ context.Context, accountID int64) ([]views.HeldCartItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return len(f.items[accountID]), errors.Join(f.err, f.countErr)
-}
-
-func (f *fakeCart) LibraryItems(_ context.Context, accountID int64, owner, name string) ([]domain.CartItem, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var items []domain.CartItem
-	for held := range f.items[accountID] {
+	var items []views.HeldCartItem
+	for held, confirmed := range f.items[accountID] {
 		parts := strings.SplitN(held, " ", 3)
 		o, n, _ := strings.Cut(parts[0], "/")
-		if strings.EqualFold(o, owner) && strings.EqualFold(n, name) {
-			items = append(items, domain.CartItem{Owner: o, Name: n, Kind: domain.CartItemKind(parts[1]), Path: parts[2]})
-		}
+		items = append(items, views.HeldCartItem{
+			Item: domain.CartItem{Owner: o, Name: n, Kind: domain.CartItemKind(parts[1]), Path: parts[2]}, Confirmed: confirmed,
+		})
 	}
-	return items, f.err
+	return items, errors.Join(f.err, f.heldErr)
 }
 
 func (f *fakeCart) Contents(_ context.Context, accountID int64) (views.Cart, error) {
@@ -150,6 +144,10 @@ func newCartSite(t *testing.T) cartSite {
 func newCartSiteWith(t *testing.T, adjust func(*web.Options)) cartSite {
 	t.Helper()
 	c := unvettedCatalog()
+	// Tests add group pages through the fake's catalog, whose maps are the site's.
+	if c.groups == nil {
+		c.groups = map[string]views.GroupPage{}
+	}
 	cart := newFakeCart(c)
 	accounts := newFakeAccounts()
 	site := accountsSite{accounts: accounts, gitHub: &fakeGitHub{identity: octocat}, logs: &bytes.Buffer{}}
@@ -211,10 +209,19 @@ func TestPagesOfferAVisitorWhoIsntSignedInToSignInAndAddToTheirCart(t *testing.T
 			t.Fatalf("%s: got %d, cached as %q; want a public page", path, resp.StatusCode, resp.Header.Get("Cache-Control"))
 		}
 		page := body(t, resp)
-		want := "/sign-in?" + url.Values{"return": {path}, "to": {"cart"}}.Encode()
 		for _, label := range labels {
-			if got := links(t, page, label); len(got) == 0 || slices.ContainsFunc(got, func(href string) bool { return href != want }) {
-				t.Errorf("%s: %s leads to %q, want %q", path, label, got, want)
+			got := links(t, page, label)
+			if len(got) == 0 {
+				t.Errorf("%s: no link reads %s", path, label)
+			}
+			for _, href := range got {
+				// Each leads to sign in, returning to the page, which then offers to add its item.
+				target, err := url.Parse(href)
+				back, _ := url.Parse(target.Query().Get("return"))
+				if err != nil || target.Path != "/sign-in" || target.Query().Get("to") != "cart" || back.Path != strings.Split(path, "?")[0] ||
+					!back.Query().Has("add") {
+					t.Errorf("%s: %s leads to %q", path, label, href)
+				}
 			}
 		}
 		if actions := formActions(t, page); slices.ContainsFunc(actions, func(a string) bool { return strings.HasPrefix(a, "/account/cart") }) {
@@ -248,7 +255,7 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 		}
 	}
 	added := site.signedInPost(t, cartPath("/account/cart", clone(goGroupItem), library))
-	if added.StatusCode != http.StatusSeeOther || added.Header.Get("Location") != library+"#cart-group-techs-go" || added.Header.Get("Cache-Control") != "private, no-store" {
+	if added.StatusCode != http.StatusSeeOther || added.Header.Get("Location") != library+"#cart-example-rules-group-techs-go" || added.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("adding answered %d to %q, cached as %q", added.StatusCode, added.Header.Get("Location"), added.Header.Get("Cache-Control"))
 	}
 	ruleForm := cartPath("/account/cart", clone(retryItem), retryRule)
@@ -263,11 +270,10 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 		t.Fatalf("the cart holds %q", got)
 	}
 
-	for _, path := range []string{retryRule, errorsRule} {
+	for path, text := range map[string]string{retryRule: "In cart", errorsRule: "Included with its group (in cart)"} {
 		page := body(t, site.signedInGet(t, path))
-		assertShows(t, page, "In your cart. See your cart")
-		if got := links(t, page, "In cart"); !slices.Equal(got, []string{"/account/cart"}) {
-			t.Errorf("%s: In cart leads to %q", path, got)
+		if got := links(t, page, text); !slices.Equal(got, []string{"/account/cart"}) {
+			t.Errorf("%s: %s leads to %q", path, text, got)
 		}
 	}
 	page := body(t, site.signedInGet(t, library))
@@ -276,40 +282,39 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 	}
 }
 
-// The page an addition returns to says so, once, and focuses the control that says the cart holds it, so keyboard
-// and screen reader users land where they were: a rule's or the whole library's by autofocus, and a group's, one of
-// several on the page, by the address's fragment.
+// The page an addition returns to says what it added, once, and focuses the control that says the cart holds it, so
+// keyboard and screen reader users land where they were; a group's, one of several on the page, the address's
+// fragment also brings into view.
 func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
 	site := newCartSite(t)
 
 	for _, c := range []struct {
-		item              url.Values
-		back, location    string
-		autofocusedOnPage bool
+		item           url.Values
+		back, location string
+		notice, id     string
 	}{
-		{errorsItem, errorsRule, errorsRule, true},
-		{wholeLibrary, library + "?tab=rules", library + "?tab=rules", true},
-		{goGroupItem, library, library + "#cart-group-techs-go", false},
+		{errorsItem, errorsRule, errorsRule, "Added the rule Return errors with context to your cart.", "cart-rule"},
+		{wholeLibrary, library + "?tab=rules", library + "?tab=rules", "Added every group of example/rules to your cart.", "cart-library"},
+		{goGroupItem, library, library + "#cart-example-rules-group-techs-go", "Added the group Go to your cart.", "cart-example-rules-group-techs-go"},
 	} {
 		resp := site.signedInPost(t, cartPath("/account/cart", clone(c.item), c.back))
 		if resp.Header.Get("Location") != c.location {
 			t.Fatalf("adding %v returned to %q, want %q", c.item, resp.Header.Get("Location"), c.location)
 		}
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: c.back, cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
-		assertShows(t, page, "Added to your cart.")
-		if got := strings.Count(page, " autofocus"); got != map[bool]int{true: 1, false: 0}[c.autofocusedOnPage] {
-			t.Errorf("adding %v: the page has %d autofocused controls", c.item, got)
+		assertShows(t, page, c.notice)
+		if got := strings.Count(page, " autofocus"); got != 1 || !strings.Contains(page, `id="`+c.id+`"`) {
+			t.Errorf("adding %v: the page has %d autofocused controls, and wants one, %s", c.item, got, c.id)
 		}
-		if !c.autofocusedOnPage && !strings.Contains(page, `id="cart-group-techs-go"`) {
-			t.Errorf("adding %v: the page has no element the fragment names", c.item)
-		}
-		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(visibleText(t, again), "Added to your cart.") {
+		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(visibleText(t, again), "Added") {
 			t.Errorf("adding %v: the page says so again on the next visit", c.item)
 		}
 	}
-	removed := site.signedInPost(t, cartPath("/account/cart/remove", clone(errorsItem), "/account/cart"))
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account/cart", cookies: []*http.Cookie{site.session, cookie(removed, noticeCookie)}})),
-		"Removed from your cart.")
+	// Another page, which doesn't show the item, says only that something was added.
+	resp := site.signedInPost(t, cartPath("/account/cart", clone(retryItem), "/"))
+	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
+		"Added to your cart.")
+
 }
 
 // A group named in another case than its library's returns to the fragment its control has, which the library's
@@ -318,7 +323,7 @@ func TestAGroupInAnotherCaseReturnsToItsControl(t *testing.T) {
 	site := newCartSite(t)
 
 	resp := site.signedInPost(t, cartPath("/account/cart", url.Values{"library": {"Example/Rules"}, "group": {"TECHS/GO"}}, library))
-	if want := library + "#cart-group-techs-go"; resp.Header.Get("Location") != want {
+	if want := library + "#cart-example-rules-group-techs-go"; resp.Header.Get("Location") != want {
 		t.Fatalf("returned to %q, want %q", resp.Header.Get("Location"), want)
 	}
 }
@@ -358,6 +363,167 @@ func TestAFailedPageLogsItsWholeError(t *testing.T) {
 	if logs := site.logs.String(); !strings.Contains(logs, "the rules table is locked") {
 		t.Errorf("the logs lost the error's words:\n%s", logs)
 	}
+}
+
+// A rule's page says how the cart holds it: by itself, with its group or its whole library, still needing
+// confirmation from an unvetted library, or, retired, left out of checkout. Each leads where the visitor acts on it,
+// and names the rule to screen readers.
+func TestARulesPageSaysHowTheCartHoldsIt(t *testing.T) {
+	site := newCartSite(t)
+	retired := site.cart.catalog.rules["example/rules/techs/go/return-errors"]
+	retired.Rule.Path, retired.Rule.Retirement = "techs/go/old-errors", &views.Retirement{Release: 3, RetiredAt: day(3), Summaries: []string{"Drop it."}}
+	site.cart.catalog.rules["example/rules/techs/go/old-errors"] = retired
+	site.cart.items[octocatID] = map[string]bool{
+		"example/rules rule practices/testing/verify-retry-limits": false,
+		"example/rules group techs/go":                             false,
+		"example/rules rule techs/go/old-errors":                   false,
+		"stranger/rules rule techs/go/return-errors":               false,
+	}
+	strangerRule := unvettedLibrary + "/techs/go/return-errors"
+	for path, want := range map[string]struct{ text, href, name string }{
+		retryRule:                        {"In cart", "/account/cart", "In cart: the rule Verify retry limits. See your cart"},
+		errorsRule:                       {"Included with its group (in cart)", "/account/cart", "Included with its group (in cart): the rule Return errors with context. See your cart"},
+		library + "/techs/go/old-errors": {"In cart, left out of checkout because it's retired", "/account/cart", "In cart, left out of checkout because it's retired: the rule Return errors with context. See your cart"},
+		strangerRule: {"In cart, needs confirming", cartPath("/account/cart/confirm", clone(strangerItem), strangerRule),
+			"In cart, needs confirming: the rule Return errors with context. Confirm it"},
+	} {
+		page := body(t, site.signedInGet(t, path))
+		if got := links(t, page, want.text); !slices.Equal(got, []string{want.href}) {
+			t.Errorf("%s: %q leads to %q, want %q", path, want.text, got, want.href)
+		}
+		if !strings.Contains(page, `aria-label="`+htmlEscape(want.name)+`"`) {
+			t.Errorf("%s: no control is named %q", path, want.name)
+		}
+	}
+	delete(site.cart.items[octocatID], "example/rules group techs/go")
+	site.cart.items[octocatID]["example/rules library "] = false
+	if got := links(t, body(t, site.signedInGet(t, errorsRule)), "Included with the library (in cart)"); len(got) != 1 {
+		t.Errorf("a rule the whole library brings doesn't say so")
+	}
+	if page := body(t, send(t, site.handler, request{method: http.MethodGet, target: library + "/techs/go/old-errors"})); strings.Contains(visibleText(t, page), "cart") {
+		t.Error("a retired rule's page offers a visitor who isn't signed in to add it")
+	}
+}
+
+// A visitor who signs in from a page's Add returns to it offered, once, to add that item, with its control focused;
+// nothing is added without their click, and an item the cart holds already says so.
+func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
+	site := newCartSite(t)
+	back := errorsRule + "?add=" + url.QueryEscape("example/rules|rule|techs/go/return-errors")
+
+	signedOut := send(t, site.handler, request{method: http.MethodGet, target: back})
+	if signedOut.StatusCode != http.StatusMovedPermanently || signedOut.Header.Get("Location") != errorsRule {
+		t.Fatalf("signed out: answered %d to %q, want the page without the offer", signedOut.StatusCode, signedOut.Header.Get("Location"))
+	}
+	resp := site.signedInGet(t, back)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != errorsRule {
+		t.Fatalf("signed in: answered %d to %q, want the page without the offer", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	offer := cookie(resp, noticeCookie)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}}))
+	assertShows(t, page, "You're signed in. Add the rule Return errors with context to your cart?")
+	if strings.Count(page, " autofocus") != 1 || !strings.Contains(page, "ring-ink") {
+		t.Error("the offer doesn't focus and outline the control")
+	}
+	if got := site.cart.all(); len(got) != 0 {
+		t.Fatalf("signing in added %q", got)
+	}
+	site.signedInPost(t, cartPath("/account/cart", clone(errorsItem), ""))
+	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}})),
+		"You're signed in. Your cart has the rule Return errors with context already.")
+	// An offer the address names, and no cookie, says nothing: only this site's cookie can.
+	for _, bad := range []string{"nobody%7Crule%7Cx", "example%2Frules%7Crule%7Ctechs%2Fgo%2Freturn-errors%3Cscript%3E"} {
+		resp := site.signedInGet(t, errorsRule+"?add="+bad)
+		if resp.StatusCode != http.StatusMovedPermanently && resp.StatusCode != http.StatusSeeOther {
+			t.Errorf("%s: answered %d", bad, resp.StatusCode)
+		}
+		if c := cookie(resp, noticeCookie); c != nil && c.Value != "" && resp.StatusCode == http.StatusSeeOther && strings.Contains(c.Value, "script") {
+			t.Errorf("%s: the offer names %q", bad, c.Value)
+		}
+	}
+}
+
+// Removing an item says which, and focuses the next item's Remove, or the last one's after removing the last item;
+// emptying asks first.
+func TestRemovingFocusesTheNextItem(t *testing.T) {
+	site := newCartSite(t)
+	cart := exampleCart()
+	site.cart.contents[octocatID] = cart
+	removed := cart.Libraries[0].Items[1].Item
+	resp := site.signedInPost(t, cartPath("/account/cart/remove", url.Values{"library": {"example/rules"}, "rule": {removed.Path}}, "/account/cart"))
+	cart.Libraries[0].Items = slices.Delete(cart.Libraries[0].Items, 1, 2)
+	site.cart.contents[octocatID] = cart
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account/cart", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
+	assertShows(t, page, "Removed the rule practices/testing/verify-retry-limits of example/rules from your cart.")
+	// The store lists items by ID, so the item after the removed one is techs/go/return-errors.
+	next := `aria-label="Remove Return errors with context from your cart" autofocus`
+	if !strings.Contains(page, next) || strings.Count(page, " autofocus") != 1 {
+		t.Errorf("the page doesn't focus the next item's Remove")
+	}
+
+	site.signedInPost(t, cartPath("/account/cart", clone(errorsItem), ""))
+	confirm := site.signedInGet(t, "/account/cart/empty")
+	if confirm.StatusCode != http.StatusOK || confirm.Header.Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("the confirmation answered %d", confirm.StatusCode)
+	}
+	page = body(t, confirm)
+	assertShows(t, page, "Empty your cart?", "This removes 1 item from your cart.", "Cancel")
+	if got := formActions(t, page); !slices.Contains(got, "/account/cart/empty") {
+		t.Errorf("the confirmation's forms post to %q", got)
+	}
+}
+
+// The header shows a full cart's count in full.
+func TestTheHeaderCountsAFullCart(t *testing.T) {
+	site := newCartSite(t)
+	site.cart.items[octocatID] = map[string]bool{}
+	for i := range domain.MaxCartItems {
+		site.cart.items[octocatID][fmt.Sprintf("example/rules rule techs/go/filler-%d", i)] = false
+	}
+	if page := body(t, site.signedInGet(t, "/")); !strings.Contains(page, ">100</span>") || strings.Contains(page, "99+") {
+		t.Error("the header doesn't show 100")
+	}
+}
+
+// A canonical group's page across libraries offers each library's group, and a library's All rules tab each group.
+func TestGroupPagesAndAllRulesOfferGroups(t *testing.T) {
+	site := newCartSite(t)
+	site.cart.catalog.groups["techs/go"] = views.GroupPage{Path: "techs/go", Canonical: *goGroup, Libraries: []views.GroupLibrary{
+		{Library: views.LibraryRef{Owner: "example", Name: "rules"}, Rules: []views.RuleCard{{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context"}}},
+	}}
+
+	page := body(t, site.signedInGet(t, "/groups/techs/go"))
+	action := cartPath("/account/cart", clone(goGroupItem), "/groups/techs/go")
+	if got := formActions(t, page); !slices.Contains(got, action) {
+		t.Errorf("the group's page posts to %q, want %q", got, action)
+	}
+	if !strings.Contains(page, `aria-label="Add this group: the group Go of example/rules"`) {
+		t.Error("the group's control doesn't name its library")
+	}
+	resp := site.signedInPost(t, action)
+	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups/techs/go", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
+		"Added the group Go of example/rules to your cart.")
+
+	rules := body(t, site.signedInGet(t, library+"?tab=rules"))
+	testing := cartPath("/account/cart", url.Values{"library": {"example/rules"}, "group": {"practices/testing"}}, library+"?tab=rules")
+	if got := formActions(t, rules); !slices.Contains(got, testing) {
+		t.Errorf("the All rules tab posts to %q, want %q", got, testing)
+	}
+}
+
+// The confirmation for an item the cart holds already says so, and adds nothing more.
+func TestTheConfirmationForAHeldItemSaysSo(t *testing.T) {
+	site := newCartSite(t)
+	site.cart.items[octocatID] = map[string]bool{"stranger/rules rule techs/go/return-errors": true}
+
+	page := body(t, site.signedInGet(t, cartPath("/account/cart/confirm", clone(strangerItem), "")))
+	assertShows(t, page, "Your cart has this already.")
+	if got := formActions(t, page); slices.ContainsFunc(got, func(a string) bool { return strings.HasPrefix(a, "/account/cart?") }) {
+		t.Errorf("the page offers to add it again: %q", got)
+	}
+	site.cart.items[octocatID]["stranger/rules rule techs/go/return-errors"] = false
+	assertShows(t, body(t, site.signedInGet(t, cartPath("/account/cart/confirm", clone(strangerItem), ""))),
+		"Your cart has this, but checkout leaves it out until you confirm it")
 }
 
 // Adding twice, as a double click or a reload might, lands where once does.
@@ -482,7 +648,7 @@ func TestChangingTheCartSignedOutSignsInAndReturns(t *testing.T) {
 	site := newCartSite(t)
 
 	for target, back := range map[string]string{
-		cartPath("/account/cart", clone(errorsItem), errorsRule):             errorsRule,
+		cartPath("/account/cart", clone(errorsItem), errorsRule):             errorsRule + "?add=example%2Frules%7Crule%7Ctechs%2Fgo%2Freturn-errors",
 		cartPath("/account/cart/remove", clone(errorsItem), "/account/cart"): "/account/cart",
 		"/account/cart/empty": "/account/cart",
 	} {
@@ -558,7 +724,10 @@ func TestRemovingAndEmptyingTheCart(t *testing.T) {
 		t.Fatalf("the cart holds %q after emptying", got)
 	}
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account/cart", cookies: []*http.Cookie{site.session, cookie(emptied, noticeCookie)}}))
-	assertShows(t, page, "Your cart is empty.")
+	assertShows(t, page, "You emptied your cart.", "There's nothing in your cart.")
+	if !strings.Contains(page, `href="/libraries" autofocus`) {
+		t.Error("the empty cart doesn't focus the way to browse")
+	}
 }
 
 // exampleCart is a cart holding a group and a rule of example/rules, a rule its group covers, a retired rule, and an
@@ -635,15 +804,18 @@ func TestTheCartPageListsTheVisitorsItems(t *testing.T) {
 		t.Errorf("Check out leads to %q", got)
 	}
 	remove := cartPath("/account/cart/remove", clone(retryItem), "/account/cart")
-	if got := formActions(t, page); !slices.Contains(got, remove) || !slices.Contains(got, "/account/cart/empty") {
-		t.Errorf("the page's forms post to %q, want %q and emptying", got, remove)
+	if got := formActions(t, page); !slices.Contains(got, remove) || slices.Contains(got, "/account/cart/empty") {
+		t.Errorf("the page's forms post to %q, want %q, and no emptying without confirming", got, remove)
+	}
+	if got := links(t, page, "Empty cart"); !slices.Equal(got, []string{"/account/cart/empty"}) {
+		t.Errorf("Empty cart leads to %q", got)
 	}
 }
 
 func TestTheCartPageSaysWhenItsEmpty(t *testing.T) {
 	site := newCartSite(t)
 
-	assertShows(t, body(t, site.signedInGet(t, "/account/cart")), "Your cart is empty. Add a library, a group, or a rule from its page.")
+	assertShows(t, body(t, site.signedInGet(t, "/account/cart")), "There's nothing in your cart. Add a library, a group, or a rule from its page.")
 	assertShows(t, body(t, site.signedInGet(t, "/account/cart/checkout")), "Your cart is empty, so there's nothing to check out.")
 }
 
@@ -673,7 +845,18 @@ func TestCheckoutShowsThePromptAndConfiguration(t *testing.T) {
 	if !strings.Contains(cart.Checkout.Prompt(), "Rulemart hasn't vetted this library") || !strings.Contains(cart.Checkout.Prompt(), "`stranger/rules`, source `stranger-rules`") {
 		t.Errorf("the prompt doesn't name the unvetted library:\n%s", cart.Checkout.Prompt())
 	}
-	for _, want := range []string{`data-copy="prompt" hidden`, `data-copy="config" hidden`, "/copy.js"} {
+	// The plain path is numbered, in the order Code Rules needs: create the configuration, put the sources in it, then
+	// import and check.
+	assertShows(t, page,
+		"From your repository's root, create the configuration, unless .code-rules/config.yaml exists already: Copy code-rules project init",
+		"In .code-rules/config.yaml , replace sources: {} with these sources.",
+		"Import the rules, and check the generated files: Copy code-rules project sync code-rules project check",
+		"Read every rule in .code-rules/vendor/stranger-rules/ before your agent follows any: Rulemart hasn't vetted that library.",
+	)
+	for _, want := range []string{
+		`data-copy="prompt" hidden`, `data-copy="config" hidden`, `data-copy="init-command" hidden`, `data-copy="sync-commands" hidden`,
+		`role="status" data-copy-status="prompt"`, "/copy.js", "<ol",
+	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %q", want)
 		}
@@ -736,12 +919,12 @@ func TestTheHeaderAndAccountNameTheVisitorsCart(t *testing.T) {
 // count; pages for visitors who aren't signed in read no cart.
 func TestAFailedCartReadFailsThePage(t *testing.T) {
 	site := newCartSite(t)
-	site.cart.countErr = errors.New("the database is down")
+	site.cart.heldErr = errors.New("the database is down")
 
 	if resp := site.signedInGet(t, "/"); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("a failed count: got %d, want 503", resp.StatusCode)
 	}
-	site.cart.countErr, site.cart.err = nil, errors.New("the database is down")
+	site.cart.heldErr, site.cart.err = nil, errors.New("the database is down")
 	for _, path := range []string{library, errorsRule, "/account/cart", "/account/cart/checkout"} {
 		if resp := site.signedInGet(t, path); resp.StatusCode != http.StatusServiceUnavailable {
 			t.Errorf("%s: got %d, want 503", path, resp.StatusCode)

@@ -39,10 +39,10 @@ type libraryView struct {
 	groups, rules, releases int
 	// star is the library's star control, which server.libraryView fills in for a vetted library's pages.
 	star starView
-	// cart is the control that adds every group of the library to the cart, and cartItems the signed-in visitor's
-	// items from the library, which server.libraryView reads.
-	cart      cartControl
-	cartItems []domain.CartItem
+	// cart is the control that adds every group of the library to the cart, and cartNotice what the page says after
+	// adding, or signing in to add, the library or one of its items the page shows.
+	cart       cartControl
+	cartNotice string
 }
 
 // fullName returns the library's repository as owner/name.

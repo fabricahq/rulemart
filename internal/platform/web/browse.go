@@ -129,6 +129,8 @@ type groupPageView struct {
 	description string
 	rules       int
 	libraries   []groupLibraryView
+	// notice is what the page says after adding, or signing in to add, one library's group, if any.
+	notice string
 }
 
 // groupLibraryView is one library's rules on a group's page.
@@ -137,6 +139,8 @@ type groupLibraryView struct {
 	// section is the group's section on the library's All rules tab.
 	section string
 	rules   []ruleCard
+	// cart is the control that adds the library's group to the cart.
+	cart cartControl
 }
 
 func newGroupPageView(page views.GroupPage, iconURL func(file string) string) groupPageView {
