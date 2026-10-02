@@ -122,14 +122,11 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   The prompt says to use the project's own source name when it imports the repository already.
 - **Proposed: the prompt holds no text a library wrote**: only IDs, which Code Rules' format restricts, GitHub
   addresses, and Rulemart's own words. A rule's title could otherwise write instructions into the prompt.
-- **Proposed: with an unvetted library, the prompt stops for the visitor's approval before connecting the agent.**
-  After reviewing the library's rules, the agent waits for the visitor to approve them, or removes the source and
-  syncs again; only then does it check the rules and point the instruction file at them, so no later session follows
-  rules the visitor never approved. The plain path asks the same of a reader.
-- **Proposed: the prompt warns about each unvetted library before the agent syncs it**, right after the sources,
-  telling it to follow none of its rules, in this task or later, until reviewed; then, first thing after syncing, to
-  read each of them in `.code-rules/vendor/<source>/` and say which ask for anything unsafe or unexpected, and to wait
-  for the visitor before following any. The checkout page says so beside the libraries, and badges each unvetted one.
+- **Proposed: an unvetted library is reviewed outside the project, before its source is added.** The agent clones it
+  at its pinned release into a temporary directory, reads the rules the cart picked, says which ask for anything unsafe
+  or unexpected, and waits for the visitor's approval; without it, the source stays out of the configuration. Syncing
+  it first would put its rules into generated guidance that an agent already connected to the project reads in any
+  session. The plain path asks the same of a reader, with the clone command.
 - **Proposed: the page also offers a plain path**, under "Or set it up yourself", for a visitor who'd rather edit the
   file: numbered steps at body size, in the order Code Rules needs, since a file pasted before `code-rules project
   init` lacks `schemaVersion`, and one appended after it has two `sources`. Both orders failed browser QA; these
