@@ -326,7 +326,7 @@ func libraryHistory(ctx context.Context, q *catalogdb.Queries, vetted []domain.L
 		r.Title = row.Title.String
 		r.Versions = append(r.Versions, views.Version{
 			Version: version(row.Major, row.Minor, row.Patch), Release: int(row.Release), PublishedAt: row.PublishedAt.Time,
-			Change: coderules.Change(row.Change), Summaries: row.Summaries,
+			Change: coderules.Change(row.Change), Summaries: row.Summaries, Title: row.Title.String,
 		})
 		stored[n] = append(stored[n], storedText{id: row.ID, release: int(row.Release), present: row.HasMarkdown, bytes: int64(row.MarkdownBytes)})
 	}

@@ -142,6 +142,10 @@ func TestLibraryHistoryReadsEveryReleaseAndVersion(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("rules are\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+	// Each version keeps the title it published, which a release's notes name the rule by.
+	if title := history.Rules[3].Versions[0].Title; title != "Return errors" {
+		t.Errorf("return-errors 1.0.0 is titled %q", title)
+	}
 }
 
 // Comparing two releases reads the text of each rule that changed between them, and nothing for a rule that didn't,

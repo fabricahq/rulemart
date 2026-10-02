@@ -67,18 +67,19 @@ func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string,
 	return comparison, nil
 }
 
-// changes returns how each rule of history changed between releases from and to, in path order, with the text of
-// each changed rule that texts holds. Release 0 is the library before its first release, which holds no rules.
+// changes returns how each rule of history changed between releases from and to, in path order, each named by the
+// title it had after release to, or a retired rule by its last, with the text of each changed rule that texts holds. Release 0 is the library before its first release, which holds no rules.
 func changes(history views.LibraryHistory, from, to int, texts map[string]views.ComparedText) []views.RuleChange {
 	var result []views.RuleChange
 	for _, r := range history.Rules {
 		old, inFrom := r.VersionAt(from)
 		new, inTo := r.VersionAt(to)
-		change := views.RuleChange{Rule: views.RuleRef{Path: r.Path, Title: r.Title, RetiredIn: r.RetiredIn}, Text: texts[r.Path]}
+		change := views.RuleChange{Rule: views.RuleRef{Path: r.Path, RetiredIn: r.RetiredIn}, Text: texts[r.Path]}
 		switch {
 		case inFrom && inTo && old == new, !inFrom && !inTo:
 			continue
 		case !inTo:
+			change.Rule.Title = titleAt(r, old)
 			change.Change, change.From = coderules.ChangeRetired, r.Versions[old].Version
 			change.RetirementSummaries, change.ReplacedBy = r.RetirementSummaries, ruleRef(history, r.ReplacedBy)
 			result = append(result, change)
@@ -86,7 +87,7 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		case !inFrom:
 			change.Change, old = coderules.ChangeNew, -1
 		}
-		change.To = r.Versions[new].Version
+		change.Rule.Title, change.To = titleAt(r, new), r.Versions[new].Version
 		if old >= 0 {
 			change.From = r.Versions[old].Version
 		}
@@ -99,6 +100,15 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		result = append(result, change)
 	}
 	return result
+}
+
+// titleAt returns the title rule r had at its version i, or its newest title when the catalog doesn't have that
+// version's.
+func titleAt(r views.RuleHistory, i int) string {
+	if title := r.Versions[i].Title; title != "" {
+		return title
+	}
+	return r.Title
 }
 
 // versionsAt returns the version of every rule of history after release n, in path order.

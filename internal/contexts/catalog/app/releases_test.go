@@ -57,9 +57,16 @@ func published(text string, n int, change coderules.Change, summaries ...string)
 	return views.Version{Version: version(text), Release: n, Change: change, Summaries: summaries}
 }
 
+// titled returns v, published with title.
+func titled(v views.Version, title string) views.Version {
+	v.Title = title
+	return v
+}
+
 // fourReleases is a library whose release 2 changed verify-retry-limits and retired check-retry-backoff for it,
-// release 3 changed nothing but shared files, and release 4 changed return-errors twice over, added name-tests, and
-// retired a rule release 2 added.
+// release 3 changed nothing but shared files, and release 4 changed return-errors twice over, renaming it, added
+// name-tests, and retired a rule release 2 added. Versions without a title stand for ones a release before every
+// version kept its content stored, which show by the rule's newest title.
 var fourReleases = views.LibraryHistory{
 	Library: views.Library{Owner: "example", Name: "rules", LatestRelease: 4},
 	Releases: []views.Release{
@@ -79,11 +86,11 @@ var fourReleases = views.LibraryHistory{
 			}},
 		{Path: "techs/go/name-tests", Title: "Name tests",
 			Versions: []views.Version{published("1.0.0", 4, coderules.ChangeNew, "Add the rule.")}},
-		{Path: "techs/go/return-errors", Title: "Return errors",
+		{Path: "techs/go/return-errors", Title: "Return errors with context",
 			Versions: []views.Version{
-				published("1.0.0", 1, coderules.ChangeNew, "Add the rule."),
-				published("1.0.1", 2, coderules.ChangePatch, "Fix a typo."),
-				published("1.1.0", 4, coderules.ChangeMinor, "Add an example."),
+				titled(published("1.0.0", 1, coderules.ChangeNew, "Add the rule."), "Return errors"),
+				titled(published("1.0.1", 2, coderules.ChangePatch, "Fix a typo."), "Return errors"),
+				titled(published("1.1.0", 4, coderules.ChangeMinor, "Add an example."), "Return errors with context"),
 			}},
 	},
 }
@@ -109,7 +116,7 @@ func describeChanges(changes []views.RuleChange) []string {
 }
 
 // Each release lists what it changed since the release before it, as Code Rules' release notes do, newest first, and
-// the version of every rule after it.
+// the version of every rule after it. Each rule shows by the title it had after the release, not a later one.
 func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 	pages := app.Pages{Store: &histories{history: fourReleases}}
 
@@ -129,7 +136,7 @@ func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 		4: {
 			`practices/testing/short-lived "Short lived" retired 1.0.0->0.0.0 [] [Drop it.]`,
 			`techs/go/name-tests "Name tests" new 0.0.0->1.0.0 [1.0.0]`,
-			`techs/go/return-errors "Return errors" minor 1.0.1->1.1.0 [1.1.0]`,
+			`techs/go/return-errors "Return errors with context" minor 1.0.1->1.1.0 [1.1.0]`,
 		},
 		3: nil,
 		2: {
@@ -177,7 +184,7 @@ func TestReleaseComparisonSpansTheReleasesBetween(t *testing.T) {
 		`practices/testing/check-retry-backoff "Check retry backoff" retired 1.0.0->0.0.0 [] [Merge it.] by practices/testing/verify-retry-limits "Verify retry limits"`,
 		`practices/testing/verify-retry-limits "Verify retry limits" major 1.0.0->2.0.0 [2.0.0]`,
 		`techs/go/name-tests "Name tests" new 0.0.0->1.0.0 [1.0.0]`,
-		`techs/go/return-errors "Return errors" minor 1.0.0->1.1.0 [1.1.0 1.0.1]`,
+		`techs/go/return-errors "Return errors with context" minor 1.0.0->1.1.0 [1.1.0 1.0.1]`,
 	}
 	if got := describeChanges(comparison.Changes); !slices.Equal(got, want) {
 		t.Errorf("changes\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

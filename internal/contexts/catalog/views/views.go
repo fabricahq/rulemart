@@ -165,6 +165,9 @@ type Version struct {
 	PublishedAt time.Time
 	Change      coderules.Change
 	Summaries   []string
+	// Title is the rule's title as the version published it, which only a library's history reads; empty elsewhere,
+	// and when the catalog doesn't have the version's content yet.
+	Title string
 }
 
 // RuleComparison is a rule's page with the text of two of its versions, From older than To, to compare.
