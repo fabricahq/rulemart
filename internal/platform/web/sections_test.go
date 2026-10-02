@@ -4,6 +4,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -28,6 +29,18 @@ func withLibraryAt(c catalog, owner, name string) catalog {
 	return c
 }
 
+// pageTitle returns the text of an HTML body's title element.
+var pageTitle = regexp.MustCompile(`<title>([^<]*)</title>`)
+
+func titleOf(t *testing.T, body string) string {
+	t.Helper()
+	match := pageTitle.FindStringSubmatch(body)
+	if match == nil {
+		t.Fatal("the page has no title")
+	}
+	return match[1]
+}
+
 // follow requests path from handler and follows its redirects to the response that isn't one, which it returns with
 // every address it reached. More than 5 redirects fail the test, as a loop would.
 func follow(t *testing.T, handler http.Handler, path string) (*httptest.ResponseRecorder, []string) {
@@ -43,6 +56,40 @@ func follow(t *testing.T, handler http.Handler, path string) (*httptest.Response
 	}
 	t.Fatalf("%s redirects past 5 hops: %q", hops[0], hops)
 	return nil, nil
+}
+
+// GitHub has accounts named browse and g, so a library they own, such as browse/rules, is at /browse/rules beside the
+// site's browse pages, and its rules' pages under it; only the addresses the site's own pages take, such as
+// /browse/techs, are theirs.
+func TestLibrariesOwnedByASectionsNameKeepTheirPages(t *testing.T) {
+	for owner, sectionPages := range map[string]map[string]string{
+		"browse": {
+			"/browse/techs":           "Technologies · Rulemart",
+			"/browse/practices/other": "Other practice groups · Rulemart",
+		},
+		"g": {"/g/techs/go": "Go rules · Rulemart"},
+	} {
+		t.Run(owner, func(t *testing.T) {
+			handler := newSite(t, withLibraryAt(newBrowsingCatalog(), owner, "rules"))
+
+			for path, title := range map[string]string{
+				"/" + owner + "/rules":                        owner + "/rules · Rulemart",
+				"/" + owner + "/rules?tab=rules":              owner + "/rules · Rulemart",
+				"/" + owner + "/rules/techs/go/return-errors": "Return errors with context · " + owner + "/rules · Rulemart",
+			} {
+				resp := get(t, handler, path)
+				if resp.Code != http.StatusOK || titleOf(t, resp.Body.String()) != title {
+					t.Errorf("%s: got %d titled %q, want the library's page titled %q", path, resp.Code, titleOf(t, resp.Body.String()), title)
+				}
+			}
+			for path, title := range sectionPages {
+				resp := get(t, handler, path)
+				if resp.Code != http.StatusOK || titleOf(t, resp.Body.String()) != title {
+					t.Errorf("%s: got %d titled %q, want %q", path, resp.Code, titleOf(t, resp.Body.String()), title)
+				}
+			}
+		})
+	}
 }
 
 // A library whose owner's login is a section's name in another case, such as G, has its page at that spelling; the

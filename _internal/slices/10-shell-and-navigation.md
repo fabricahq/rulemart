@@ -61,10 +61,18 @@ decision.
   pages are `browse`, `g`, `libraries`, `search`, `unvetted`, `list`, `about`, `privacy`, `faq`, `feedback`, `o`,
   and the account pages. GitHub has users named `g`, `faq`, `browse`, `list`, `o`, and `me`, so an owner page can't
   share their address: every owner is also at `/o/{login}`, which is the canonical address for an owner whose login
-  is reserved, and every other owner's `/o/{login}` redirects to `/{login}`. Library and rule pages have two or more
-  segments, so no site page hides them; a library owned by `faq` stays at `/faq/{repo}`. The lowercase redirect for
-  site sections covers the new sections. One library is hidden: a library owned by the user `o` whose name is a
-  login, since `/o/{name}` is that login's owner address; its rules' pages, with three or more segments, stay.
+  is reserved, and every other owner's `/o/{login}` redirects to `/{login}`. A library's page has two segments and a
+  rule's at least five, since a rule's ID has at least three, so the pages under `browse`, `g`, and the old `groups`
+  are routed only for their kinds (`/browse/techs`, `/browse/techs/other`, `/g/techs/{name}`,
+  `/groups/techs/{name}`, and the same for `practices`), and every other path under them reaches the library and
+  rule pages: a library owned by `faq` stays at `/faq/{repo}`, and one owned by `browse` at `/browse/{repo}`. The
+  hidden library pages are exactly `browse/techs`, `browse/practices`, and every library owned by `o`, since
+  `/o/{name}` is that login's owner address, in any case; `g/techs` and `g/practices` aren't hidden, since a
+  group's page has three segments. GitHub has no account named `account`, so the account pages hide none. A hidden
+  library's rules' pages stay, and the sitemap leaves out its page; links to it from other pages, such as its card
+  or a release tag on a rule's page, still name the address, pending a decision on leaving them out. A route test checks that every route under a
+  segment a login could spell takes only these. The lowercase redirect for the sections, and for a kind under
+  them, redirects only to a path the site's own pages take, so a library owned by `G` keeps `/G/{repo}`.
 - **Proposed: an owner page exists for an owner with a vetted library**, and answers 404 otherwise, even for an owner
   with a listed, unvetted library, so listing a repository can't create a page under Rulemart's address. The page
   shows the login, the avatar the catalog stores, and the owner's vetted libraries. The owner's display name, kind

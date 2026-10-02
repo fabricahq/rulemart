@@ -46,7 +46,8 @@ func (s *server) robots(w http.ResponseWriter, r *http.Request) {
 }
 
 // newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each canonical
-// group's, then each owner's, then each library's and its rules', within maxBytes, and whether it lists them all: it
+// group's, then each owner's, then each library's, unless one of the site's pages takes its address, and its rules',
+// within maxBytes, and whether it lists them all: it
 // stops before the address that would pass maxBytes, since a Lambda function's response holds at most 6 MB.
 func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, bool) {
 	const open = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
@@ -91,7 +92,7 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 		}
 		for _, lib := range sitemap.Libraries {
 			href := libraryHref(lib.Owner, lib.Name)
-			if !add(href, lib.Updated) {
+			if !libraryPageTaken(lib.Owner, lib.Name) && !add(href, lib.Updated) {
 				return false
 			}
 			for _, rule := range lib.Rules {

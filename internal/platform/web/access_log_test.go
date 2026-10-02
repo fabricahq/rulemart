@@ -70,11 +70,11 @@ func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
 		status      int
 	}{
 		{"/", "/{$}", http.StatusOK},
-		{"/browse/techs", "/browse/{kind}", http.StatusOK},
-		{"/browse/tools", "/browse/{kind}", http.StatusNotFound},
-		{"/g/techs/go", "/g/{kind}/{name}", http.StatusOK},
-		{"/g/techs/golang", "/g/{kind}/{name}", http.StatusNotFound},
-		{"/groups/techs/go", "/groups/{kind}/{name}", http.StatusMovedPermanently},
+		{"/browse/techs", "/browse/techs", http.StatusOK},
+		{"/browse/tools", "/{owner}/{repo}", http.StatusNotFound},
+		{"/g/techs/go", "/g/techs/{name}", http.StatusOK},
+		{"/g/techs/golang", "/g/techs/{name}", http.StatusNotFound},
+		{"/groups/techs/go", "/groups/techs/{name}", http.StatusMovedPermanently},
 		{"/search?q=errors", "/search", http.StatusOK},
 		{"/search?q=private+words", "/search", http.StatusOK},
 		{library, "/{owner}/{repo}", http.StatusOK},

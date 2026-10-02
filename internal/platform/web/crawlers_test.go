@@ -170,6 +170,48 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	}
 }
 
+// A library whose page's address is one of the site's own pages, such as browse/techs, a browse page, or o/rules, an
+// owner's page under /o/, has no page to list, so the sitemap leaves it out; its rules' pages, under it, stay.
+func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
+	c := newBrowsingCatalog()
+	rule := []views.SitemapRule{{Path: "techs/go/return-errors", Updated: day(3)}}
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
+		{Owner: "browse", Name: "Practices", Updated: day(3), Rules: rule},
+		{Owner: "browse", Name: "rules", Updated: day(3)},
+		{Owner: "browse", Name: "techs", Updated: day(3), Rules: rule},
+		{Owner: "g", Name: "techs", Updated: day(3)},
+		{Owner: "o", Name: "rules", Updated: day(3), Rules: rule},
+	}}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got urlset
+	if err := xml.Unmarshal(get(t, handler, "/sitemap.xml").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var listed []string
+	for _, u := range got.URLs {
+		listed = append(listed, strings.TrimPrefix(u.Loc, "https://rulemart.example"))
+	}
+	// After the site's own pages and the canonical groups', the owners' pages, then the libraries' and their rules'.
+	listed = listed[slices.Index(listed, "/o/browse"):]
+	want := []string{
+		"/o/browse", "/o/g", "/o/o",
+		"/browse/Practices/techs/go/return-errors",
+		"/browse/rules",
+		"/browse/techs/techs/go/return-errors",
+		"/g/techs",
+		"/o/rules/techs/go/return-errors",
+	}
+	if !slices.Equal(listed, want) {
+		t.Errorf("lists\n%s\nwant\n%s", strings.Join(listed, "\n"), strings.Join(want, "\n"))
+	}
+}
+
 // A sitemap that leaves out rules past the most it lists says so in the log, so the operator knows to split it.
 func TestTruncatedSitemapIsLogged(t *testing.T) {
 	c := newBrowsingCatalog()

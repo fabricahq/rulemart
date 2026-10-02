@@ -30,7 +30,8 @@ const (
 	searchHref = "/search"
 )
 
-// groupKind is a kind of group, techs or practices, which the browse pages take as their address's segment.
+// groupKind is a kind of group, techs or practices, which the browse pages and a group's page take as their address's
+// second segment.
 type groupKind string
 
 const (
@@ -41,7 +42,8 @@ const (
 // groupKinds are the kinds in the order pages list them: the browse pages' tabs, and a library's groups and rules.
 var groupKinds = []groupKind{techsKind, practicesKind}
 
-// parseGroupKind returns the kind that segment names, matched without regard to case, or false when it names none.
+// parseGroupKind returns the kind that segment names, matched without regard to case, or false when it names none,
+// which siteSpelling redirects to the kind's own spelling.
 func parseGroupKind(segment string) (groupKind, bool) {
 	for _, kind := range groupKinds {
 		if strings.EqualFold(segment, string(kind)) {
@@ -237,43 +239,37 @@ func newOtherGroupsView(kind groupKind, index groupIndexView) otherGroupsView {
 	return otherGroupsView{kind: kind, groups: othersOnly(index.ofKind(kind))}
 }
 
-// browse shows the browse page of the kind the path names, techs or practices, and is missing for any other.
-func (s *server) browse(w http.ResponseWriter, r *http.Request) {
-	kind, index, ok := s.browseIndex(w, r, groupKind.href)
-	if !ok {
-		return
+// browse shows the browse page of kind.
+func (s *server) browse(kind groupKind) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		index, ok := s.browseIndex(w, r)
+		if !ok {
+			return
+		}
+		s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
 	}
-	s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
 }
 
-// otherGroups shows the groups of the kind the path names that aren't canonical.
-func (s *server) otherGroups(w http.ResponseWriter, r *http.Request) {
-	kind, index, ok := s.browseIndex(w, r, groupKind.othersHref)
-	if !ok {
-		return
+// otherGroups shows the groups of kind that aren't canonical.
+func (s *server) otherGroups(kind groupKind) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		index, ok := s.browseIndex(w, r)
+		if !ok {
+			return
+		}
+		s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
 	}
-	s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
 }
 
-// browseIndex reads the groups a browse page shows, for the kind r's path names, and reports whether it did. It
-// answers a kind that isn't one with the missing page, another spelling of the kind with a redirect to the page's
-// address, which href gives, and a failed read with a failure.
-func (s *server) browseIndex(w http.ResponseWriter, r *http.Request, href func(groupKind) string) (groupKind, groupIndexView, bool) {
-	kind, ok := parseGroupKind(r.PathValue("kind"))
-	if !ok {
-		s.notFound(w, r)
-		return "", groupIndexView{}, false
-	}
-	if r.PathValue("kind") != string(kind) {
-		redirect(w, r, withQuery(href(kind), r))
-		return "", groupIndexView{}, false
-	}
+// browseIndex reads the groups a browse page shows, and reports whether it did. It answers a failed read with a
+// failure.
+func (s *server) browseIndex(w http.ResponseWriter, r *http.Request) (groupIndexView, bool) {
 	index, err := s.catalog.GroupIndex(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
-		return "", groupIndexView{}, false
+		return groupIndexView{}, false
 	}
-	return kind, newGroupIndexView(index, s.assets.iconURL), true
+	return newGroupIndexView(index, s.assets.iconURL), true
 }
 
 // redirectToTechs redirects /browse, which names no kind, and the groups page's old address to the technologies'
@@ -282,9 +278,11 @@ func (s *server) redirectToTechs(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, withQuery(techsKind.href(), r))
 }
 
-// legacyGroup redirects a group's old address, under the groups page's, to its page, keeping the query.
-func (s *server) legacyGroup(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, withQuery(groupHref(r.PathValue("kind")+"/"+r.PathValue("name")), r))
+// legacyGroup redirects the old address of a group of kind, under the groups page's, to its page, keeping the query.
+func (s *server) legacyGroup(kind groupKind) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		redirect(w, r, withQuery(groupHref(string(kind)+"/"+r.PathValue("name")), r))
+	}
 }
 
 // groupPageView is what a canonical group's page shows.

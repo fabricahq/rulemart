@@ -197,15 +197,19 @@ func (s *server) handler() http.Handler {
 	handle("GET "+privacyHref, s.privacy)
 	handle("GET "+faqHref, s.faq)
 	handle("GET "+feedbackHref, s.feedback)
-	// One segment can't hide a library's page, though GitHub has accounts named libraries, browse, and g, and
-	// a group's page and a browse page have three segments, where a rule's page has at least four.
+	// One segment can't hide a library's page, though GitHub has accounts named libraries, browse, and g. Under
+	// browse, g, and groups, only each kind's own pages are the site's: a library's page has two segments and a
+	// rule's at least five, so only a browse page takes a library's address, browse/techs or browse/practices, and
+	// every other path reaches the library and rule pages.
 	handle("GET /libraries", s.libraries)
 	handle("GET "+strings.TrimSuffix(browsePrefix, "/"), s.redirectToTechs)
-	handle("GET "+browsePrefix+"{kind}", s.browse)
-	handle("GET "+browsePrefix+"{kind}/other", s.otherGroups)
-	handle("GET "+groupPrefix+"{kind}/{name}", s.group)
 	handle("GET "+legacyGroupsHref, s.redirectToTechs)
-	handle("GET "+legacyGroupsHref+"/{kind}/{name}", s.legacyGroup)
+	for _, kind := range groupKinds {
+		handle("GET "+kind.href(), s.browse(kind))
+		handle("GET "+kind.othersHref(), s.otherGroups(kind))
+		handle("GET "+groupPrefix+string(kind)+"/{name}", s.group(kind))
+		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
+	}
 	handle("GET /search", s.search)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
@@ -267,6 +271,12 @@ var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true,
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
 // old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
 // the account pages, they're the logins whose owner pages are under /o/.
+//
+// A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
+// pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
+// browse/practices, the browse pages, and every library owned by o, whose address is an owner's page under /o/.
+// GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
+// browse/rules, g/techs, groups/techs, or libraries/rules.
 var siteSections = []string{
 	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
 }
@@ -282,20 +292,30 @@ func reservedOwner(login string) bool {
 	return slices.Contains(siteSections, lower) || slices.Contains(accountSections, lower)
 }
 
+// libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in
+// any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The account
+// pages take account/{name} too, but GitHub has no account named account.
+func libraryPageTaken(owner, name string) bool {
+	switch strings.ToLower(owner) {
+	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"):
+		return true
+	case strings.Trim(browsePrefix, "/"):
+		_, kind := parseGroupKind(name)
+		return kind
+	}
+	return false
+}
+
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of the site's own pages in another case,
-// such as /Groups/techs/go or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a
-// library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
+// such as /Groups/techs/go or /SEARCH, or whose kind does under browse, g, and groups, such as /browse/Techs, to the
+// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
 // pages: a path a catch-all takes, such as /G/rules for a library whose owner's login is G, is left to that page's own
 // redirect to GitHub's spelling, which a lowercase redirect would send back and forth. The target starts with the
 // section, so it stays on the site.
 func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.EscapedPath()
-		first, rest, nested := strings.Cut(strings.TrimPrefix(path, "/"), "/")
-		target := "/" + strings.ToLower(first)
-		if nested {
-			target += "/" + rest
-		}
+		target := siteSpelling(path)
 		if target == path || catchAllPatterns[routeOf(mux, r, target)] {
 			mux.ServeHTTP(w, r)
 			return
@@ -303,6 +323,22 @@ func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 		redirect(w, r, withQuery(target, r))
 	})
 }
+
+// siteSpelling returns path, an escaped path, with its first segment in lowercase, and under browse, g, and groups,
+// with a second segment that names a group kind in any case spelled as the kind, as the site's own pages spell them.
+func siteSpelling(path string) string {
+	segments := strings.SplitN(strings.TrimPrefix(path, "/"), "/", 3)
+	segments[0] = strings.ToLower(segments[0])
+	if len(segments) > 1 && slices.Contains(kindSections, segments[0]) {
+		if kind, ok := parseGroupKind(segments[1]); ok {
+			segments[1] = string(kind)
+		}
+	}
+	return "/" + strings.Join(segments, "/")
+}
+
+// kindSections are the sections whose pages name a group kind as their second segment.
+var kindSections = []string{strings.Trim(browsePrefix, "/"), strings.Trim(groupPrefix, "/"), strings.Trim(legacyGroupsHref, "/")}
 
 // routeOf returns the pattern mux routes r to at the escaped path instead of r's own, or the missing page's when it
 // routes the path to none, such as one it would clean first.
@@ -349,36 +385,40 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
-func (s *server) group(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("kind") + "/" + r.PathValue("name")
-	page, err := s.catalog.GroupPage(r.Context(), id)
-	if errors.Is(err, app.ErrNotFound) {
-		s.notFound(w, r)
-		return
-	}
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	view := newGroupPageView(page, s.assets.iconURL)
-	if page.Path != id {
-		redirect(w, r, withQuery(view.href, r))
-		return
-	}
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
-	// Every library a group's page shows is vetted.
-	for i, lib := range view.libraries {
-		item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
-		view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
-			"the group "+view.label.name+" of "+lib.library.fullName())
-		view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
-		if view.libraries[i].cart.prompt {
-			view.offer = &view.libraries[i].cart
+// group shows the page of the canonical group of kind that the path names, and redirects another spelling of its
+// name to its own.
+func (s *server) group(kind groupKind) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := string(kind) + "/" + r.PathValue("name")
+		page, err := s.catalog.GroupPage(r.Context(), id)
+		if errors.Is(err, app.ErrNotFound) {
+			s.notFound(w, r)
+			return
 		}
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		view := newGroupPageView(page, s.assets.iconURL)
+		if page.Path != id {
+			redirect(w, r, withQuery(view.href, r))
+			return
+		}
+		if s.withoutCartPrompt(w, r) {
+			return
+		}
+		// Every library a group's page shows is vetted.
+		for i, lib := range view.libraries {
+			item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
+			view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
+				"the group "+view.label.name+" of "+lib.library.fullName())
+			view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
+			if view.libraries[i].cart.prompt {
+				view.offer = &view.libraries[i].cart
+			}
+		}
+		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 	}
-	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
 
 // search shows a page of the results of the query in the q parameter, the page the page parameter numbers, from 1.

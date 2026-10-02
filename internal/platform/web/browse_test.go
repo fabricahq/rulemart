@@ -236,7 +236,7 @@ func TestOldGroupAddressesRedirectToTheNewOnes(t *testing.T) {
 		"/groups?x=1":            "/browse/techs?x=1",
 		"/groups/techs/go":       "/g/techs/go",
 		"/groups/techs/go?ref=x": "/g/techs/go?ref=x",
-		"/groups/Techs/Go":       "/g/Techs/Go",
+		"/groups/Techs/Go":       "/groups/techs/Go",
 		"/Groups/techs/go":       "/groups/techs/go",
 		"/groups/techs/missing":  "/g/techs/missing",
 		"/browse":                "/browse/techs",
@@ -295,8 +295,8 @@ func TestGroupPageAnswersNotFoundForAGroupThatIsntCanonical(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for _, path := range []string{"/g/techs/golang", "/g/Techs/Golang", "/g/techs", "/browse/tools", "/browse/techs/golang", "/browse/tools/other"} {
-		if resp := get(t, handler, path); resp.Code != http.StatusNotFound {
-			t.Errorf("%s: got %d", path, resp.Code)
+		if resp, hops := follow(t, handler, path); resp.Code != http.StatusNotFound {
+			t.Errorf("%s: reached %d at %q", path, resp.Code, hops)
 		}
 	}
 }
@@ -726,7 +726,8 @@ func TestPagesRedirectOtherSpellingsOfTheirAddress(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for path, location := range map[string]string{
-		"/g/Techs/GO":                            "/g/techs/go",
+		"/g/Techs/GO":                            "/g/techs/GO",
+		"/g/techs/GO":                            "/g/techs/go",
 		"/g/techs/Go?ref=x":                      "/g/techs/go?ref=x",
 		"/browse/":                               "/browse",
 		"/browse/techs/":                         "/browse/techs",
