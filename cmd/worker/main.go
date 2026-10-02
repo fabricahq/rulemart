@@ -36,9 +36,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
 
 	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -51,6 +48,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
+	"github.com/fabricahq/rulemart/internal/platform/queue"
 	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
@@ -68,11 +66,11 @@ func main() {
 	}
 	ctx := context.Background()
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
-		queue, err := newSQSQueue(ctx, os.Getenv("QUEUE_URL"))
+		jobsQueue, err := queue.New(ctx, os.Getenv("QUEUE_URL"))
 		if err != nil {
 			exit(logger, err)
 		}
-		w, err := newWorker(ctx, logger, queue, schemaVersion)
+		w, err := newWorker(ctx, logger, jobsQueue, schemaVersion)
 		if err != nil {
 			exit(logger, err)
 		}
@@ -396,27 +394,4 @@ type memoryQueue struct {
 func (q *memoryQueue) Send(_ context.Context, body string) error {
 	q.bodies = append(q.bodies, body)
 	return nil
-}
-
-// sqsQueue sends jobs to an SQS queue.
-type sqsQueue struct {
-	client *sqs.Client
-	url    string
-}
-
-// newSQSQueue returns the queue at url, sending with the ambient AWS credentials.
-func newSQSQueue(ctx context.Context, url string) (*sqsQueue, error) {
-	if url == "" {
-		return nil, errors.New("set QUEUE_URL to the jobs queue's URL")
-	}
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load AWS configuration to send to QUEUE_URL: %v", err)
-	}
-	return &sqsQueue{client: sqs.NewFromConfig(cfg), url: url}, nil
-}
-
-func (q *sqsQueue) Send(ctx context.Context, body string) error {
-	_, err := q.client.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(q.url), MessageBody: aws.String(body)})
-	return err
 }
