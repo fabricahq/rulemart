@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 	"golang.org/x/net/html"
@@ -51,6 +52,39 @@ func (l libraryView) fullName() string { return l.owner + "/" + l.name }
 // fileAtVersionURL returns file on GitHub at library release n.
 func (l libraryView) fileAtVersionURL(file string, n int) string {
 	return domain.BlobURL(l.fullName(), domain.ReleaseTag(n), file)
+}
+
+// maxSummary is the most characters a page's description holds: search engines show about 160, and cut the rest.
+const maxSummary = 200
+
+// summary returns text as a page's description: its whitespace collapsed, and cut at a word to at most maxSummary
+// characters, with an ellipsis when it's cut.
+func summary(text string) string {
+	words := strings.Fields(text)
+	var out strings.Builder
+	for _, word := range words {
+		if n := utf8.RuneCountInString(out.String()) + 1 + utf8.RuneCountInString(word); n > maxSummary-1 && out.Len() > 0 {
+			return out.String() + "…"
+		}
+		if out.Len() > 0 {
+			out.WriteByte(' ')
+		}
+		out.WriteString(word)
+	}
+	if utf8.RuneCountInString(out.String()) > maxSummary {
+		// One word longer than a description: cut it.
+		return string([]rune(out.String())[:maxSummary-1]) + "…"
+	}
+	return out.String()
+}
+
+// summary returns what a library's pages say about it to search engines: its own description, or else what it
+// holds.
+func (l libraryView) summary() string {
+	if l.description != "" {
+		return l.description
+	}
+	return l.fullName() + ": " + plural(l.rules, "rule", "rules") + " for coding agents, in a Code Rules library on Rulemart."
 }
 
 // newLibraryView describes lib.
@@ -285,6 +319,14 @@ type versionView struct {
 	releaseHref, previous, compareHref string
 	latest, major                      bool
 	summaries                          []string
+}
+
+// summary returns what a rule's pages say about it to search engines: when to read it, or else what it is.
+func (r ruleView) summary() string {
+	if r.whenToRead != "" {
+		return r.whenToRead
+	}
+	return r.title + ": a rule for coding agents in " + r.library.fullName() + ", a Code Rules library on Rulemart."
 }
 
 // newRuleView describes the rule on page, a rule of lib.

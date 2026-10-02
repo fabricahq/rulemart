@@ -32,7 +32,7 @@ func (s *server) robots(w http.ResponseWriter, r *http.Request) {
 	if s.BaseURL != nil {
 		body.WriteString("\nSitemap: " + s.BaseURL.String() + sitemapHref + "\n")
 	}
-	writeFile(w, r, "text/plain; charset=utf-8", []byte(body.String()))
+	writeFile(w, r, "text/plain; charset=utf-8", pageCache, []byte(body.String()))
 }
 
 // sitemapURL is one address in a sitemap. LastMod is empty when the page has no one date it changed.
@@ -91,17 +91,5 @@ func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeFile(w, r, "application/xml; charset=utf-8", body.Bytes())
-}
-
-// writeFile answers with content, a file that's the same for every visitor, of the media type contentType, cacheable
-// as pages are.
-func writeFile(w http.ResponseWriter, r *http.Request, contentType string, content []byte) {
-	header := w.Header()
-	header.Set("Content-Type", contentType)
-	header.Set("Cache-Control", pageCache)
-	w.WriteHeader(http.StatusOK)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write(content)
-	}
+	writeFile(w, r, "application/xml; charset=utf-8", pageCache, body.Bytes())
 }

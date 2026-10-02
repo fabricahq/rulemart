@@ -13,7 +13,7 @@ import (
 // releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
 // describe it, with links to newer and older pages.
 templ releasesPage(c chrome, lib libraryView, v releasesView) {
-	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}, lib, releasesTab, true) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), section: librariesHref}, lib, releasesTab, true) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
 			if len(v.from) > 1 {

@@ -154,8 +154,8 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
 			copyScript:  assets.url("copy.js"),
-			icon:        assets.url("favicon.svg"),
-			font:        assets.url("fonts/inter-latin.woff2"),
+			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
+			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}
 	mux := http.NewServeMux()
@@ -166,6 +166,9 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	}
 	mux.HandleFunc(staticPattern, assets.serve)
 	s.routes[staticPattern] = true
+	// Browsers ask for /favicon.ico wherever a page names no icon they take, such as for a file that isn't a page.
+	mux.HandleFunc(faviconPattern, assets.serveFavicon)
+	s.routes[faviconPattern] = true
 	handle("GET /{$}", s.home)
 	// One segment each, so neither can hide a library's page.
 	handle("GET "+robotsHref, s.robots)
@@ -606,6 +609,7 @@ func (s *server) pageChrome(href string) chrome {
 	c := s.chrome
 	if s.BaseURL != nil {
 		c.canonical = s.BaseURL.String() + href
+		c.socialImage = s.BaseURL.String() + s.assets.url("social.png")
 	}
 	return c
 }

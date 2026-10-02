@@ -10,16 +10,21 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
-// chrome is what the frame links: the stylesheet, the theme and menu scripts, the icon, the font to preload, and the
+// chrome is what the frame links: the stylesheet, the theme and menu scripts, the icons, the font to preload, and the
 // page's canonical address.
 type chrome struct {
 	stylesheet, script, menuScript, icon, font string
+	// touchIcon is the icon a phone's home screen shows.
+	touchIcon string
 	// caretScript puts the caret at the end of a field the page focuses, and copyScript shows Copy buttons and copies,
 	// on a page that asks for each.
 	caretScript, copyScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
+	// socialImage is the absolute address of the image a link to the page shows on social sites and in chat, set
+	// with canonical.
+	socialImage string
 	// beacon is the data Cloudflare's analytics beacon reads, naming the site's token, or empty when analytics are
 	// off.
 	beacon string
@@ -65,8 +70,8 @@ templ layout(c chrome, h head) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ h.title }</title>
-			if h.description != "" {
-				<meta name="description" content={ h.description }/>
+			if description := summary(h.description); description != "" {
+				<meta name="description" content={ description }/>
 			}
 			if h.unvetted {
 				<meta name="robots" content="noindex, nofollow"/>
@@ -76,7 +81,11 @@ templ layout(c chrome, h head) {
 			if c.canonical != "" && !h.unvetted {
 				<link rel="canonical" href={ c.canonical }/>
 			}
+			if c.canonical != "" && !h.unvetted && !h.noindex {
+				@socialCard(c, h)
+			}
 			<link rel="icon" type="image/svg+xml" href={ c.icon }/>
+			<link rel="apple-touch-icon" href={ c.touchIcon }/>
 			<link rel="preload" href={ c.font } as="font" type="font/woff2" crossorigin/>
 			<link rel="stylesheet" href={ c.stylesheet }/>
 			<script src={ c.script }></script>
@@ -106,6 +115,24 @@ templ layout(c chrome, h head) {
 			}
 		</body>
 	</html>
+}
+
+// socialCard is what a link to the page shows on social sites and in chat, by Open Graph's tags, which X reads too:
+// its title, description, address, and Rulemart's image. Only a page with an address of its own, which search engines
+// may index, has one, so a link to an unvetted library's page shows none of Rulemart's.
+templ socialCard(c chrome, h head) {
+	<meta property="og:type" content="website"/>
+	<meta property="og:site_name" content="Rulemart"/>
+	<meta property="og:title" content={ h.title }/>
+	if description := summary(h.description); description != "" {
+		<meta property="og:description" content={ description }/>
+	}
+	<meta property="og:url" content={ c.canonical }/>
+	<meta property="og:image" content={ c.socialImage }/>
+	<meta property="og:image:width" content="1200"/>
+	<meta property="og:image:height" content="630"/>
+	<meta property="og:image:alt" content="Rulemart: agent coding best practices, off the shelf"/>
+	<meta name="twitter:card" content="summary_large_image"/>
 }
 
 // header is the bar atop every page: Rulemart's name, links to the libraries and the groups, a search field, which a phone's
