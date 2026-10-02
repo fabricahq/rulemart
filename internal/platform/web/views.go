@@ -108,8 +108,9 @@ const notCanonicalExplanation = "Not on Code Rules' canonical group list, which 
 type groupIcon struct {
 	// src is empty when the group has no icon.
 	src string
-	// monochrome icons are inverted in dark themes, and narrow ones drawn larger.
-	monochrome, narrow bool
+	// monochrome icons are inverted in dark themes, narrow ones drawn larger, and lightTile ones shown on a light tile
+	// in every theme.
+	monochrome, narrow, lightTile bool
 }
 
 // newGroupIcon returns the icon pages show beside a group: a canonical group's when Rulemart has one, and otherwise
@@ -119,7 +120,7 @@ func newGroupIcon(canonical *views.CanonicalGroup, iconURL func(file string) str
 		return groupIcon{}
 	}
 	icon := canonical.Icon
-	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow}
+	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow, lightTile: icon.LightTile}
 }
 
 // ruleCard is a rule's entry in a library's list of rules.

@@ -31,6 +31,9 @@ type GroupIcon struct {
 	// Narrow marks an icon whose drawing is much narrower than its square, such as Go's gopher, which pages draw
 	// larger so it looks as big as square logos.
 	Narrow bool
+	// LightTile marks a colored icon drawn mostly in dark colors, such as Zustand's bear, which pages show on a light
+	// tile in dark themes too, so it stays visible without inverting its colors.
+	LightTile bool
 }
 
 // CanonicalGroups is Code Rules' canonical group list, with Rulemart's icons for its groups. Its zero value is an

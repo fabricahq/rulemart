@@ -80,6 +80,8 @@ type GroupIcon struct {
 	Monochrome bool
 	// Narrow marks an icon whose drawing is much narrower than its square, which pages draw larger.
 	Narrow bool
+	// LightTile marks a colored icon drawn mostly in dark colors, which pages show on a light tile in every theme.
+	LightTile bool
 }
 
 // RuleCard is a current rule in a library's list of rules.

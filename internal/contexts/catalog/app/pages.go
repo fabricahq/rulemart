@@ -170,6 +170,6 @@ func (p Pages) canonical(path string) *views.CanonicalGroup {
 		return nil
 	}
 	return &views.CanonicalGroup{Name: g.Name, Description: g.Description, Icon: views.GroupIcon{
-		File: g.Icon.File, Monochrome: g.Icon.Monochrome, Narrow: g.Icon.Narrow,
+		File: g.Icon.File, Monochrome: g.Icon.Monochrome, Narrow: g.Icon.Narrow, LightTile: g.Icon.LightTile,
 	}}
 }

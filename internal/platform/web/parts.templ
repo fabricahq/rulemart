@@ -41,10 +41,11 @@ const (
 
 // groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
 // no icon for it, and any other group with an empty dashed tile, so names line up either way. Monochrome icons are
-// inverted in dark themes, and narrow icons fill more of the tile so they look as big as square logos.
+// inverted in dark themes, colored icons drawn mostly in dark colors keep a light tile in dark themes, and narrow icons
+// fill more of the tile so they look as big as square logos.
 templ groupTile(label groupLabel, icon groupIcon, size tileSize) {
 	if icon.src != "" {
-		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile", string(size) }>
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle", string(size), templ.KV("bg-icon-tile", !icon.lightTile), templ.KV("bg-white", icon.lightTile) }>
 			<img class={ "object-contain", templ.KV("size-[64%]", !icon.narrow), templ.KV("size-[88%]", icon.narrow), templ.KV("icon-ink", icon.monochrome) } src={ icon.src } alt=""/>
 		</span>
 	} else if label.canonical {

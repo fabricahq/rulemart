@@ -50,7 +50,7 @@ func TestGroupIconsNameExactlyTheVendoredIcons(t *testing.T) {
 
 func TestParseGroupIconsReadsEachGroupsIcon(t *testing.T) {
 	got, err := parseGroupIcons([]byte("# Icons.\npractices/testing:\n  file: lucide/flask-conical.svg\n  monochrome: true\n" +
-		"techs/go:\n  file: devicon/go-original.svg\n  narrow: true\n"))
+		"techs/go:\n  file: devicon/go-original.svg\n  narrow: true\n" + "techs/zustand:\n  file: devicon/zustand-original.svg\n  lightTile: true\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +58,7 @@ func TestParseGroupIconsReadsEachGroupsIcon(t *testing.T) {
 	want := map[string]domain.GroupIcon{
 		"practices/testing": {File: "lucide/flask-conical.svg", Monochrome: true},
 		"techs/go":          {File: "devicon/go-original.svg", Narrow: true},
+		"techs/zustand":     {File: "devicon/zustand-original.svg", LightTile: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v; want %+v", got, want)
@@ -75,6 +76,7 @@ func TestParseGroupIconsRejectsAmbiguousEntries(t *testing.T) {
 		"a repeated group":                      "techs/go: {file: devicon/go.svg}\ntechs/go: {file: devicon/go.svg}\n",
 		"groups out of order":                   "techs/go: {file: devicon/go.svg}\npractices/testing: {file: lucide/flask-conical.svg}\n",
 		"a monochrome that isn't true or false": "techs/go: {file: devicon/go.svg, monochrome: sometimes}\n",
+		"a monochrome icon on a light tile":     "techs/go: {file: devicon/go.svg, monochrome: true, lightTile: true}\n",
 		"a second document":                     "techs/go: {file: devicon/go.svg}\n---\ntechs/rust: {file: devicon/rust.svg}\n",
 		"a list":                                "- techs/go\n",
 		"nothing":                               "",
