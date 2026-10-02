@@ -27,7 +27,8 @@ func (q *Queries) CountSearchableTerms(ctx context.Context, terms []string) (int
 
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
-       latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count
+       latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted
 FROM libraries l
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
@@ -36,15 +37,18 @@ JOIN LATERAL (
     SELECT count(*) AS rule_count, count(DISTINCT group_id) AS group_count
     FROM rules WHERE library_id = l.id AND retired_in_release_id IS NULL
 ) current ON true
-WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
-  AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
+WHERE l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+  AND (
+      l.host || ':' || l.host_repository_id = ANY ($1::text[])
+      OR EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id)
+  )
 `
 
 type GetLibraryParams struct {
+	Vetted []string
 	Host   string
 	Owner  string
 	Name   string
-	Vetted []string
 }
 
 type GetLibraryRow struct {
@@ -59,16 +63,17 @@ type GetLibraryRow struct {
 	LatestTaggedAt    pgtype.Timestamptz
 	RuleCount         int64
 	GroupCount        int64
+	Vetted            bool
 }
 
-// GetLibrary returns the vetted library owner/name, with its latest release, and how many current rules it holds and
-// in how many groups.
+// GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
+// latest release, and how many current rules it holds and in how many groups.
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
 	row := q.db.QueryRow(ctx, getLibrary,
+		arg.Vetted,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
-		arg.Vetted,
 	)
 	var i GetLibraryRow
 	err := row.Scan(
@@ -83,6 +88,7 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 		&i.LatestTaggedAt,
 		&i.RuleCount,
 		&i.GroupCount,
+		&i.Vetted,
 	)
 	return i, err
 }
@@ -580,6 +586,53 @@ func (q *Queries) ListRuleLinks(ctx context.Context, libraryID int64) ([]ListRul
 			&i.FirstRelease,
 			&i.FirstTitle,
 			&i.LastTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnvettedLibraries = `-- name: ListUnvettedLibraries :many
+SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
+FROM libraries l
+WHERE NOT l.host || ':' || l.host_repository_id = ANY ($1::text[])
+  AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id)
+ORDER BY lower(l.owner), lower(l.name)
+`
+
+type ListUnvettedLibrariesRow struct {
+	ID             int64
+	Owner          string
+	Name           string
+	Description    string
+	OwnerAvatarUrl string
+	RuleCount      int64
+}
+
+// ListUnvettedLibraries returns the libraries a listing names that vetted doesn't hold, as ListLibraries returns the
+// vetted ones.
+func (q *Queries) ListUnvettedLibraries(ctx context.Context, vetted []string) ([]ListUnvettedLibrariesRow, error) {
+	rows, err := q.db.Query(ctx, listUnvettedLibraries, vetted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUnvettedLibrariesRow
+	for rows.Next() {
+		var i ListUnvettedLibrariesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Owner,
+			&i.Name,
+			&i.Description,
+			&i.OwnerAvatarUrl,
+			&i.RuleCount,
 		); err != nil {
 			return nil, err
 		}

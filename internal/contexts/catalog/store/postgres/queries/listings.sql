@@ -1,0 +1,128 @@
+-- Listings: the web function adds, removes, and retries them for their accounts; the worker resolves and checks them.
+-- A library is vetted when vetted, the release's vetted keys as host:repository ID, holds its key.
+
+-- LockListings holds, until the transaction ends, the lock every listing takes, so the limits a listing checks can't
+-- change before it's added.
+-- name: LockListings :exec
+SELECT pg_advisory_xact_lock(4_812_337_015);
+
+-- FindListingConflict returns what already stands in the way of listing the repository owner/name, matched without
+-- regard to case: a listing by that name, with its account and whether its check failed; the library a listing
+-- names, by that name or as the library a listing by that name names, with that listing's account and when it last
+-- asked for a check; and whether
+-- vetted holds a library by that name. Its library columns name that library as the host spells it now, or are empty
+-- when the catalog stores none.
+-- name: FindListingConflict :one
+WITH named AS (
+    SELECT s.account_id, s.host_repository_id, s.failure IS NOT NULL AS failed, s.requested_at FROM listings s
+    WHERE s.host = @host AND lower(s.owner) = lower(@owner) AND lower(s.name) = lower(@name)
+),
+library AS (
+    SELECT l.owner, l.name, l.host_repository_id FROM libraries l
+    WHERE l.host = @host AND (
+        (lower(l.owner) = lower(@owner) AND lower(l.name) = lower(@name))
+        OR l.host_repository_id IN (SELECT n.host_repository_id FROM named n)
+    )
+    ORDER BY l.host_repository_id IN (SELECT n.host_repository_id FROM named n) DESC
+    LIMIT 1
+),
+holder AS (
+    SELECT s.account_id FROM listings s JOIN library b ON s.host = @host AND s.host_repository_id = b.host_repository_id
+)
+SELECT EXISTS (SELECT 1 FROM named)::boolean AS named,
+       coalesce((SELECT n.account_id FROM named n), 0)::bigint AS named_account_id,
+       coalesce((SELECT n.failed FROM named n), false)::boolean AS named_failed,
+       (SELECT n.requested_at FROM named n)::timestamptz AS named_requested_at,
+       EXISTS (SELECT 1 FROM holder)::boolean AS held,
+       coalesce((SELECT h.account_id FROM holder h), 0)::bigint AS holder_account_id,
+       EXISTS (SELECT 1 FROM library b WHERE @host::text || ':' || b.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
+       coalesce((SELECT b.owner FROM library b), '')::text AS library_owner,
+       coalesce((SELECT b.name FROM library b), '')::text AS library_name;
+
+-- SupersedeFailedListing removes another account's listing by the name owner/name whose check failed before its
+-- library ever ingested, so a failed listing doesn't keep everyone else from listing the repository.
+-- name: SupersedeFailedListing :execrows
+DELETE FROM listings s
+WHERE s.host = @host AND lower(s.owner) = lower(@owner) AND lower(s.name) = lower(@name)
+  AND s.account_id <> @account_id::bigint AND s.failure IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id);
+
+-- CountUnvettedListings counts the listings that vetted doesn't hold: the account's, and every account's. A listing
+-- the worker hasn't resolved yet counts as unvetted.
+-- name: CountUnvettedListings :one
+SELECT count(*) FILTER (WHERE account_id = @account_id::bigint) AS account_listings, count(*) AS all_listings
+FROM listings
+WHERE NOT coalesce(host || ':' || host_repository_id = ANY (@vetted::text[]), false);
+
+-- name: CreateListing :one
+INSERT INTO listings (account_id, host, owner, name) VALUES (@account_id::bigint, @host, @owner, @name) RETURNING id;
+
+-- ListAccountListings returns the account's listings, newest first, each with whether vetted holds it, and the
+-- library it names when the catalog stores it.
+-- name: ListAccountListings :many
+SELECT s.id, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.created_at,
+       s.requested_at, s.checked_at, s.failure,
+       coalesce(s.host || ':' || s.host_repository_id = ANY (@vetted::text[]), false)::boolean AS vetted,
+       (l.id IS NOT NULL)::boolean AS ingested, coalesce(l.owner, '')::text AS library_owner,
+       coalesce(l.name, '')::text AS library_name, coalesce(l.owner_avatar_url, '')::text AS library_avatar_url
+FROM listings s
+LEFT JOIN libraries l ON l.host = s.host AND l.host_repository_id = s.host_repository_id
+WHERE s.account_id = @account_id::bigint
+ORDER BY s.created_at DESC, s.id DESC;
+
+-- name: HasListing :one
+SELECT EXISTS (SELECT 1 FROM listings WHERE id = @id AND account_id = @account_id::bigint)::boolean;
+
+-- name: DeleteListing :execrows
+DELETE FROM listings WHERE id = @id AND account_id = @account_id::bigint;
+
+-- RetryListing asks the worker to check the account's listing again, when its last check failed.
+-- name: RetryListing :execrows
+UPDATE listings SET requested_at = now(), failure = NULL
+WHERE id = @id AND account_id = @account_id::bigint AND failure IS NOT NULL;
+
+-- GetListing returns a listing as the worker checks it, with whether the catalog stores the library it names.
+-- name: GetListing :one
+SELECT s.id, s.host, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.requested_at,
+       EXISTS (
+           SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id
+       )::boolean AS ingested
+FROM listings s
+WHERE s.id = @id;
+
+-- name: ResolveListing :execrows
+UPDATE listings SET host_repository_id = @host_repository_id::text WHERE id = @id;
+
+-- RecordListingCheck records that a check of the listing finished, and why it failed, or NULL when it didn't, unless
+-- its lister asked for another check since requested_at, when this check started, whose result is newer.
+-- name: RecordListingCheck :execrows
+UPDATE listings SET checked_at = now(), failure = sqlc.narg(failure) WHERE id = @id AND requested_at = @requested_at;
+
+-- ListListingsToCheck returns the listings the hourly poll checks, in the order they were listed: every one vetted
+-- doesn't hold, except one whose check failed before its library ever ingested, which waits for its lister to try
+-- again, unless GitHub has its repository and the lister asked for the check in the last day: fetching it may have
+-- failed for a moment.
+-- name: ListListingsToCheck :many
+SELECT s.id
+FROM listings s
+WHERE NOT coalesce(s.host || ':' || s.host_repository_id = ANY (@vetted::text[]), false)
+  AND NOT (
+      s.failure IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id)
+      AND (s.host_repository_id IS NULL OR s.requested_at <= now() - interval '1 day')
+  )
+ORDER BY s.id;
+
+-- CountListingRequests counts the account's listings and retries in the last day, and every account's in the last
+-- hour.
+-- name: CountListingRequests :one
+SELECT count(*) FILTER (WHERE account_id = @account_id::bigint) AS account_requests,
+       count(*) FILTER (WHERE requested_at > now() - interval '1 hour') AS all_requests
+FROM listing_requests
+WHERE requested_at > now() - interval '1 day';
+
+-- RecordListingRequest records that the account listed or retried a listing now, and forgets requests a day old,
+-- which no limit counts.
+-- name: RecordListingRequest :exec
+WITH forgotten AS (DELETE FROM listing_requests WHERE requested_at <= now() - interval '1 day')
+INSERT INTO listing_requests (account_id) VALUES (@account_id::bigint);

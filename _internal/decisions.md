@@ -5,21 +5,37 @@ than adding history.
 
 ## Catalog and trust
 
-- **Anyone signed in can list a public library.** New libraries are unvetted until vetted.
+- **Anyone signed in can list a public library.** New libraries are unvetted until vetted. Listing is a GET form
+  that checks the repository's name, then a POST whose action holds it; the worker looks the repository up and
+  ingests it within seconds, and the lister follows that on `/account/listings`, where they can try a failed listing
+  again or remove one. A failure the repository caused is the lister's to see there, not an alarm.
+  [Slice 6](slices/6-listing-and-unvetted.md) explains the choices.
+- **An account holds at most 5 unvetted listings, and Rulemart at most 500.** Removing a listing frees its place, and
+  a vetted one takes none. The cap bounds the unvetted area, the worker's hourly checks, and what someone with many
+  GitHub accounts can add. Ingestion's size and memory limits apply to every library, and nothing runs a library's
+  files.
+- **A listing records who listed it, and pages don't say.** The lister can remove it at any time, after a page that
+  says what removing does, which hides the library again. A listing that failed before its library ever ingested
+  doesn't reserve the repository: another account listing it replaces it. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
+- **An account lists or retries at most 20 times a day, and every account together at most 100 times an hour**,
+  since each one makes the worker check a repository, and may cost a GitHub API call.
 - **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by its code host and
   the host's repository ID. `main`'s protection guards it, and it ships with each release, so the public
-  history shows when and why each library was vetted.
+  history shows when and why each library was vetted. A listed library becomes vetted when the release that adds it
+  deploys, without being listed again: pages decide vetted or not from the release's list as they read.
 - **Vetting covers a library, including its future releases.** A major version is declared by the library's
   maintainer, so pausing vetting on one would add nothing. The FAQ says so.
 - **Unvetted libraries are hidden from normal browsing.** They're reached only through "View unvetted libraries" at
   the bottom of the libraries page, and every unvetted page shows "This library has not been vetted. Tread
   carefully." Rules are instructions that coding agents follow, so an unvetted rule is untrusted input for an
-  agent.
+  agent. A library's own pages find it when it's vetted or a listing names it; every page across libraries reads
+  only the vetted ones. The warning is a band in the one amber the palette has, which means caution and nothing else.
 - **Search covers vetted libraries only.**
 - **Unvetted rules can go in the cart only after an explicit confirmation**, and the checkout prompt names them to
   the agent.
 - **Unvetted pages carry `noindex`**, and links to them `nofollow`, so listing a repository can't borrow Rulemart's
-  reputation in search engines.
+  reputation in search engines. Their robots tag says `noindex, nofollow`, which covers every link on them, the
+  repository's own included, and they name no canonical address.
 
 ## Groups
 
@@ -112,7 +128,7 @@ than adding history.
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
-  `rulemart_accounts_writer`, which writes only accounts and sessions.** Infrastructure owns the roles: it creates
+  `rulemart_accounts_writer`, which writes only accounts, sessions, and listings.** Infrastructure owns the roles: it creates
   each group role with SQL, as a NOLOGIN role, creates the login, and makes the login a member, because a role made
   through Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
   databases. Migrations own the grants: they grant each group role what each table needs, never grant to a login,
@@ -121,18 +137,23 @@ than adding history.
 - **Ingestion connects as `rulemart_worker`, a login that can only write the catalog, through its membership in
   `rulemart_catalog_writer`.** The split is the web function's: infrastructure creates the NOLOGIN group role, the
   login, and the membership with SQL, and migrations grant the group exactly what ingestion writes, which never
-  includes deleting a library or changing the schema. The worker function and the operator's `cmd/ingest` both use
+  includes deleting a library or changing the schema. Of a listing, it may change only what a check finds: the
+  repository's ID, when it last checked, and why that failed. The worker function and the operator's `cmd/ingest` both use
   it, so production ingestion never needs the owner.
-- **The worker keeps vetted libraries current.** The EventBridge schedule invokes the worker function every hour,
-  and it queues one job per vetted library on the SQS jobs queue, which invokes it again for each job. A
+- **The worker keeps vetted and listed libraries current.** The EventBridge schedule invokes the worker function
+  every hour, and it queues one job per vetted library, and one per listing to check, on the SQS jobs queue, which
+  invokes it again for each job. The web function queues a new listing's job at once. A
   job lists the library's `release/<number>` tags with go-git, without fetching objects, and ingests only when their
   numbers and tag object IDs differ from what the catalog stored, so an unchanged library costs one request and no
   GitHub API call. A failed job writes nothing; SQS retries it, then moves it to the dead-letter queue, whose alarm
   reports it. Hourly, not every 10 minutes, because each job reads the stored tags from Postgres and wakes Neon's
   compute: about $3 a month instead of about $12. Faster updates would keep a tag fingerprint outside Postgres.
-- **A job names a library only by its code host and the host's repository ID, and only a vetted one.** It carries no
-  URL: the worker fetches from the clone URL the catalog stored, or the one the host's API returns for that ID, so a
-  queued message can't point it at another repository.
+- **A job names a library only by its code host and the host's repository ID, and only a vetted one, or a listing by
+  its ID.** It carries no URL: the worker fetches from the clone URL the catalog stored, or the one the host's API
+  returns for that ID or the listing's name, so a queued message can't point it at another repository.
+- **The worker may authenticate to GitHub's API with a token from SSM**, which raises its limit from 60 requests an
+  hour, shared with other Lambda functions on the same address. It calls the API once per new listing, and once per
+  library whose tags changed; listing tags uses Git.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
   rules, with no I/O; `render` for rules' Markdown, which assembly takes as a function so the web function doesn't

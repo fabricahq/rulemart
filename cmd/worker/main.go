@@ -1,29 +1,31 @@
-// Command worker keeps the catalog's vetted libraries current with their release tags.
+// Command worker keeps the catalog's vetted and listed libraries current with their release tags, and checks new
+// listings.
 //
 // On Lambda, the EventBridge schedule invokes it with {"source": "schedule"}, and it sends one job for each library
-// catalog/vetted.yaml lists to the jobs queue at QUEUE_URL. The queue's SQS trigger then invokes it with each job,
-// and it updates that library: it lists the library's release tags, and ingests the library when they aren't the
-// ones the catalog stored. It reports a job that fails as failed, so SQS retries it and then moves it to the
-// dead-letter queue, whose alarm reports it.
+// catalog/vetted.yaml lists, and one for each listing to check, to the jobs queue at QUEUE_URL. The web function
+// queues a new listing's job too. The queue's SQS trigger then invokes it with each job. For a vetted library, it
+// lists the library's release tags, and ingests the library when they aren't the ones the catalog stored. For a
+// listing, it looks the repository up the first time, then does the same, and records how the check went for the
+// listing's lister. It reports a job that fails as failed, so SQS retries it and then moves it to the dead-letter
+// queue, whose alarm reports it; a listing that fails because of its repository isn't a failed job.
 //
 // It logs JSON lines: one per job, with its outcome and duration, one per SQS batch, and one per poll, as
-// _internal/slices/2-automatic-updates.md describes.
+// _internal/slices/2-automatic-updates.md and 6-listing-and-unvetted.md describe.
 //
 // Run anywhere else, it polls once: it sends the jobs to a queue in memory, handles each of them as on Lambda, and
 // exits, failing when a job failed.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
-// GITHUB_TOKEN, when set, authenticates GitHub lookups. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
+// GITHUB_TOKEN, or GITHUB_TOKEN_PARAMETER naming the SSM parameter that holds it, authenticates GitHub lookups when
+// set. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
 // internal/platform/logging describes.
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -34,13 +36,11 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
 
 	"github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/jobs"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
@@ -48,6 +48,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
+	"github.com/fabricahq/rulemart/internal/platform/queue"
+	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
 func main() {
@@ -64,11 +66,11 @@ func main() {
 	}
 	ctx := context.Background()
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
-		queue, err := newSQSQueue(ctx, os.Getenv("QUEUE_URL"))
+		jobsQueue, err := queue.New(ctx, os.Getenv("QUEUE_URL"))
 		if err != nil {
 			exit(logger, err)
 		}
-		w, err := newWorker(ctx, logger, queue, schemaVersion)
+		w, err := newWorker(ctx, logger, jobsQueue, schemaVersion)
 		if err != nil {
 			exit(logger, err)
 		}
@@ -100,6 +102,12 @@ type updater interface {
 	Update(ctx context.Context, library domain.LibraryKey) (app.Update, error)
 }
 
+// listings checks listings, as app.Ingester does.
+type listings interface {
+	CheckListing(ctx context.Context, vetted []domain.LibraryKey, id int64) (app.ListingCheck, error)
+	ListingsToCheck(ctx context.Context, vetted []domain.LibraryKey) ([]int64, error)
+}
+
 // sender sends one message to the jobs queue.
 type sender interface {
 	Send(ctx context.Context, body string) error
@@ -108,16 +116,17 @@ type sender interface {
 // worker answers the worker function's invocations.
 type worker struct {
 	updater updater
-	// vetted are the libraries the schedule queues jobs for, and the only ones a job may name.
+	// listings checks listings; nil leaves them out of polls, and refuses their jobs.
+	listings listings
+	// vetted are the libraries the schedule queues jobs for, and the only ones a library's job may name.
 	vetted []domain.LibraryKey
 	// queue receives the schedule's jobs; runOnce replaces it with a queue in memory.
 	queue sender
 	log   *slog.Logger
 }
 
-// newWorker returns a worker that updates the vetted libraries in the database the environment names, which must be
-// at schemaVersion, and sends jobs to queue. It connects on the first job, so the schedule's invocations never touch
-// the database.
+// newWorker returns a worker that updates the vetted libraries and checks listings in the database the environment
+// names, which must be at schemaVersion, and sends jobs to queue. It connects on the first poll or job.
 func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVersion int64) (*worker, error) {
 	vetted, err := catalog.Vetted()
 	if err != nil {
@@ -127,15 +136,19 @@ func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVer
 	if err != nil {
 		return nil, err
 	}
+	token, err := secret.FromEnv(ctx, os.Getenv, "GITHUB_TOKEN")
+	if err != nil {
+		return nil, err
+	}
 	ingester := app.Ingester{
-		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: token},
 		Fetch:        git.Fetch,
 		List:         git.ListReleaseTags,
 		Render:       render.Rule,
 		Store:        postgres.New(source.Open(schemaVersion)),
 		Limits:       domain.DefaultLimits,
 	}
-	return &worker{updater: ingester, vetted: vetted, queue: queue, log: logger}, nil
+	return &worker{updater: ingester, listings: ingester, vetted: vetted, queue: queue, log: logger}, nil
 }
 
 // scheduleSource is the source field of the event the EventBridge schedule sends.
@@ -167,7 +180,8 @@ func (w *worker) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	}
 	switch {
 	case event.Source == scheduleSource:
-		return map[string]int{"queued": len(w.vetted)}, w.poll(ctx)
+		queued, err := w.poll(ctx)
+		return map[string]int{"queued": queued}, err
 	case event.fromSQS():
 		var batch events.SQSEvent
 		if err := json.Unmarshal(raw, &batch); err != nil {
@@ -179,30 +193,35 @@ func (w *worker) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	}
 }
 
-// job asks the worker to update one vetted library. It names the library only by its key, so a queued message
-// can't point the worker at a repository nobody vetted.
-type job struct {
-	Host         string `json:"host"`
-	RepositoryID string `json:"repositoryID"`
-}
-
-// poll sends one job for each vetted library to the queue, and logs what it queued. It tries every library, and
-// fails when any send failed.
-func (w *worker) poll(ctx context.Context) error {
+// poll sends one job for each vetted library and each listing to check to the queue, logs what it queued, and returns
+// how many it queued. It tries every job, and fails when any send failed, or it couldn't read the listings.
+func (w *worker) poll(ctx context.Context) (int, error) {
 	started := time.Now()
 	var failed []error
+	bodies := make([]string, 0, len(w.vetted))
 	for _, library := range w.vetted {
-		body, err := json.Marshal(job{Host: library.Host, RepositoryID: library.RepositoryID})
-		if err == nil {
-			err = w.queue.Send(ctx, string(body))
-		}
-		if err != nil {
-			failed = append(failed, fmt.Errorf("queue update host=%s repository=%s: %v", library.Host, library.RepositoryID, err))
+		bodies = append(bodies, jobs.Update(library))
+	}
+	var listed []int64
+	if w.listings != nil {
+		var err error
+		if listed, err = w.listings.ListingsToCheck(ctx, w.vetted); err != nil {
+			failed = append(failed, err)
 		}
 	}
-	w.log.InfoContext(ctx, "poll queued", "libraries", len(w.vetted), "queued", len(w.vetted)-len(failed),
-		"queue_failures", len(failed), "duration_ms", milliseconds(time.Since(started)))
-	return errors.Join(failed...)
+	for _, id := range listed {
+		bodies = append(bodies, jobs.CheckListing(id))
+	}
+	queueFailures := 0
+	for _, body := range bodies {
+		if err := w.queue.Send(ctx, body); err != nil {
+			queueFailures++
+			failed = append(failed, fmt.Errorf("queue job %s: %v", body, err))
+		}
+	}
+	w.log.InfoContext(ctx, "poll queued", "libraries", len(w.vetted), "listings", len(listed),
+		"queued", len(bodies)-queueFailures, "queue_failures", queueFailures, "duration_ms", milliseconds(time.Since(started)))
+	return len(bodies) - queueFailures, errors.Join(failed...)
 }
 
 // jobMargin is how long before the function's deadline a job stops, so its transaction rolls back and its failure is
@@ -230,12 +249,18 @@ const (
 	outcomeUnchanged = "unchanged"
 	outcomeIngested  = "ingested"
 	outcomeFailed    = "failed"
+	// outcomeRefused is a listing's check that failed because of its repository, which it recorded for its lister.
+	outcomeRefused = "refused"
+	// outcomeSkipped is a listing's check that had nothing to do: the listing is gone, or its library is vetted.
+	outcomeSkipped = "skipped"
 )
 
 // jobResult is what one job of a batch did.
 type jobResult struct {
 	messageID string
 	update    app.Update
+	// listing is what a listing's job did, or nil for a library's job.
+	listing *app.ListingCheck
 	// err is why the job failed; nil when it succeeded.
 	err error
 }
@@ -251,31 +276,48 @@ func (w *worker) runBatch(ctx context.Context, messages []events.SQSMessage) []j
 		counts[outcome(result)]++
 	}
 	w.log.InfoContext(ctx, "batch processed", "jobs", len(messages), outcomeUnchanged, counts[outcomeUnchanged],
-		outcomeIngested, counts[outcomeIngested], outcomeFailed, counts[outcomeFailed],
-		"duration_ms", milliseconds(time.Since(started)))
+		outcomeIngested, counts[outcomeIngested], outcomeFailed, counts[outcomeFailed], outcomeRefused,
+		counts[outcomeRefused], outcomeSkipped, counts[outcomeSkipped], "duration_ms", milliseconds(time.Since(started)))
 	return results
 }
 
-// runJob updates the vetted library message names, and logs the job's outcome and how long it took. Every job line
-// carries outcome, message_id, and duration_ms, and host and repository once the job names a library.
+// runJob runs the job message holds: it updates a vetted library, or checks a listing, and logs the job's outcome and
+// how long it took. Every job line carries outcome, message_id, and duration_ms, host and repository once the job
+// names a library, and listing for a listing's job.
 func (w *worker) runJob(ctx context.Context, message events.SQSMessage) jobResult {
 	started := time.Now()
 	result := jobResult{messageID: message.MessageId}
-	library, err := w.parseJob(message.Body)
-	if err == nil {
+	job, err := w.parseJob(message.Body)
+	library := job.Library
+	switch {
+	case err != nil:
+	case job.Listing != 0:
+		var check app.ListingCheck
+		check, err = w.listings.CheckListing(ctx, w.vetted, job.Listing)
+		result.listing, result.update, library = &check, check.Update, check.Listing.Library
+	default:
 		result.update, err = w.updater.Update(ctx, library)
 	}
 	result.err = err
 	attrs := []any{"outcome", outcome(result), "message_id", message.MessageId}
-	if library != (domain.LibraryKey{}) {
+	if job.Listing != 0 {
+		attrs = append(attrs, "listing", job.Listing)
+	}
+	if library.RepositoryID != "" {
 		attrs = append(attrs, "host", library.Host, "repository", library.RepositoryID)
 	}
 	update := result.update
-	switch {
-	case err != nil:
+	switch outcome(result) {
+	case outcomeFailed:
 		attrs = append(attrs, "error", err.Error(), "duration_ms", milliseconds(time.Since(started)))
 		w.log.ErrorContext(ctx, "job failed", attrs...)
-	case update.Ingested:
+	case outcomeRefused:
+		attrs = append(attrs, "failure", result.listing.Failure, "duration_ms", milliseconds(time.Since(started)))
+		w.log.InfoContext(ctx, "listing refused", attrs...)
+	case outcomeSkipped:
+		attrs = append(attrs, "duration_ms", milliseconds(time.Since(started)))
+		w.log.InfoContext(ctx, "listing skipped", attrs...)
+	case outcomeIngested:
 		attrs = append(attrs, "full_name", update.Result.Repository.FullName(), "releases", update.Result.Releases,
 			"rules", update.Result.Rules, "rows_changed", update.Result.Changed, "list_ms", milliseconds(update.ListTime),
 			"ingest_ms", milliseconds(update.IngestTime), "duration_ms", milliseconds(time.Since(started)))
@@ -292,6 +334,10 @@ func outcome(result jobResult) string {
 	switch {
 	case result.err != nil:
 		return outcomeFailed
+	case result.listing != nil && result.listing.Outcome == app.ListingRefused:
+		return outcomeRefused
+	case result.listing != nil && result.listing.Outcome == app.ListingSkipped:
+		return outcomeSkipped
 	case result.update.Ingested:
 		return outcomeIngested
 	}
@@ -301,27 +347,23 @@ func outcome(result jobResult) string {
 // milliseconds returns d in whole milliseconds, as the log's *_ms fields hold it.
 func milliseconds(d time.Duration) int64 { return d.Milliseconds() }
 
-// parseJob returns the library a job's body names. It refuses a body that isn't exactly one job with known fields, or
-// that names a library w doesn't vet.
-func (w *worker) parseJob(body string) (domain.LibraryKey, error) {
-	decoder := json.NewDecoder(bytes.NewReader([]byte(body)))
-	decoder.DisallowUnknownFields()
-	var j job
-	if err := decoder.Decode(&j); err != nil {
-		return domain.LibraryKey{}, fmt.Errorf("decode job: %v", err)
+// parseJob returns the job a message's body holds, as jobs.Parse reads it. It refuses a library w doesn't vet, and a
+// listing when w checks none.
+func (w *worker) parseJob(body string) (jobs.Job, error) {
+	job, err := jobs.Parse(body)
+	switch {
+	case err != nil:
+		return jobs.Job{}, err
+	case job.Listing != 0 && w.listings == nil:
+		return jobs.Job{}, fmt.Errorf("job for listing=%d: this worker checks no listings", job.Listing)
+	case job.Listing == 0 && !slices.Contains(w.vetted, job.Library):
+		return jobs.Job{}, fmt.Errorf("job for host=%q repository=%q: the library isn't vetted in this release", job.Library.Host, job.Library.RepositoryID)
 	}
-	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
-		return domain.LibraryKey{}, errors.New("decode job: expected one JSON object and nothing after it")
-	}
-	library := domain.LibraryKey{Host: j.Host, RepositoryID: j.RepositoryID}
-	if !slices.Contains(w.vetted, library) {
-		return domain.LibraryKey{}, fmt.Errorf("job for host=%q repository=%q: the library isn't vetted in this release", j.Host, j.RepositoryID)
-	}
-	return library, nil
+	return job, nil
 }
 
 // runOnce polls once without SQS: it sends the schedule's jobs to a queue in memory, then runs them as one batch, as
-// consume does, and returns what each update did. It fails when any job failed.
+// consume does, and returns what each update did, a listing's included. It fails when any job failed.
 func (w *worker) runOnce(ctx context.Context) ([]app.Update, error) {
 	queue := &memoryQueue{}
 	w.queue = queue
@@ -352,27 +394,4 @@ type memoryQueue struct {
 func (q *memoryQueue) Send(_ context.Context, body string) error {
 	q.bodies = append(q.bodies, body)
 	return nil
-}
-
-// sqsQueue sends jobs to an SQS queue.
-type sqsQueue struct {
-	client *sqs.Client
-	url    string
-}
-
-// newSQSQueue returns the queue at url, sending with the ambient AWS credentials.
-func newSQSQueue(ctx context.Context, url string) (*sqsQueue, error) {
-	if url == "" {
-		return nil, errors.New("set QUEUE_URL to the jobs queue's URL")
-	}
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load AWS configuration to send to QUEUE_URL: %v", err)
-	}
-	return &sqsQueue{client: sqs.NewFromConfig(cfg), url: url}, nil
-}
-
-func (q *sqsQueue) Send(ctx context.Context, body string) error {
-	_, err := q.client.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(q.url), MessageBody: aws.String(body)})
-	return err
 }

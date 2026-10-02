@@ -89,8 +89,11 @@ type visitor struct {
 	withGitHub bool
 	// signOut is where the sign-out form posts, with this page to return to.
 	signOut string
-	// onAccountPage is true on the account page, which the menu marks as current.
-	onAccountPage bool
+	// onAccountPage and onListingsPage are true on the account page and the listings page, which the menu marks as
+	// current.
+	onAccountPage, onListingsPage bool
+	// listings is true when visitors can list libraries, so the menu links the listings page.
+	listings bool
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty.
@@ -99,9 +102,16 @@ type visitor struct {
 
 // notices are what a notice cookie may name, by key, and what each says.
 var notices = map[string]string{
-	"signed-out":            "You're signed out.",
-	"signed-out-everywhere": "You're signed out of every browser.",
-	"account-deleted":       "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
+	"signed-out":               "You're signed out.",
+	"signed-out-everywhere":    "You're signed out of every browser.",
+	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
+	"listed":                   "Listed. Rulemart is checking the repository, which usually takes a few seconds.",
+	"listing-removed":          "Your listing is removed.",
+	"listing-removed-listed":   "Your listing is removed. Its library no longer shows on Rulemart.",
+	"listing-removed-vetted":   "Your listing is removed. Its library stays on Rulemart, which vetted it.",
+	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
+	"listing-retried":          "Rulemart is checking the repository again.",
+	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
 }
 
 // setNotice has the next page show the notice notices names by key, once.
@@ -127,7 +137,7 @@ func (s *server) signInAvailable() bool {
 // page as if they weren't.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		v := visitor{onAccountPage: r.URL.Path == accountHref}
+		v := visitor{onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref, listings: s.listingAvailable()}
 		back := returnPath(r.URL.RequestURI())
 		if s.signInAvailable() {
 			v.signIn = s.absolute(signInPageHref(back))
@@ -200,7 +210,8 @@ func returnQuery(back string) string {
 // returnPath returns target as a path on this site to return to after signing in or out, or / when it isn't one: an
 // absolute URL, a path another host could take, such as //evil.example or /\evil.example, one with a backslash or a
 // control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, or anything
-// under /account/, which holds the flow's callback and actions that take POST. The account page itself is one.
+// under /account/, which holds the flow's callback and actions that take POST, except the listings page. The account
+// page itself is one.
 func returnPath(target string) string {
 	if target == "" || len(target) > maxReturnLength || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") ||
 		strings.ContainsFunc(target, func(r rune) bool { return r == '\\' || r < 0x20 || r == 0x7f }) {
@@ -210,16 +221,17 @@ func returnPath(target string) string {
 	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
 		return "/"
 	}
-	if u.Path == signInHref || u.Path == signOutHref || strings.HasPrefix(u.Path, accountHref+"/") {
+	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && u.Path != listingsHref) {
 		return "/"
 	}
 	u.Fragment, u.RawFragment = "", ""
 	return u.String()
 }
 
-// publicPath returns back, a return path, or / when back is the account page, which a signed-out visitor can't see.
+// publicPath returns back, a return path, or / when back is the account or listings page, which a signed-out visitor
+// can't see.
 func publicPath(back string) string {
-	if path, _, _ := strings.Cut(back, "?"); path == accountHref {
+	if path, _, _ := strings.Cut(back, "?"); path == accountHref || path == listingsHref {
 		return "/"
 	}
 	return back
@@ -233,6 +245,8 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, back)
 	case !s.signInAvailable():
 		s.renderSignIn(w, r, http.StatusNotFound, back, "")
+	case publicPath(back) != back && strings.HasPrefix(back, listingsHref):
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your listings.")
 	case publicPath(back) != back:
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your account.")
 	default:
@@ -381,7 +395,7 @@ func (s *server) signOut(w http.ResponseWriter, r *http.Request) {
 
 // accountPage shows the signed-in visitor's account, or sends anyone else to sign in first.
 func (s *server) accountPage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r)
+	account, ok := s.signedIn(w, r, accountHref)
 	if !ok {
 		return
 	}
@@ -445,11 +459,11 @@ func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, "/")
 }
 
-// signedIn returns the signed-in account, or sends the visitor to sign in and return here, and returns false.
-func (s *server) signedIn(w http.ResponseWriter, r *http.Request) (accounts.Account, bool) {
+// signedIn returns the signed-in account, or sends the visitor to sign in and return to back, and returns false.
+func (s *server) signedIn(w http.ResponseWriter, r *http.Request, back string) (accounts.Account, bool) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
-		seeOther(w, r, s.absolute(signInPageHref(accountHref)))
+		seeOther(w, r, s.absolute(signInPageHref(back)))
 		return accounts.Account{}, false
 	}
 	return *v.account, true

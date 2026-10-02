@@ -1,8 +1,9 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
-// each canonical group's rules in every library, and search; and signing in with GitHub, signing out, and the
-// signed-in visitor's account.
-// It reads the catalog from its page reads, which app.Pages implements, and accounts from accounts/app.Sessions.
+// each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
+// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; and listing a library.
+// It reads the catalog from its page reads, which app.Pages implements, accounts from accounts/app.Sessions, and
+// listings from catalog/app.Listings.
 package web
 
 import (
@@ -64,6 +65,8 @@ type Options struct {
 	Accounts Accounts
 	// GitHub signs visitors in with GitHub. Nil, with Accounts, leaves only a local build's test users to sign in as.
 	GitHub GitHub
+	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
+	Listings Listings
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -95,7 +98,10 @@ func checkBaseURL(u *url.URL) error {
 type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
 	Libraries(ctx context.Context) ([]views.LibraryCard, error)
-	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule.
+	// UnvettedLibraries returns the libraries listings name that aren't vetted.
+	UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error)
+	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule. They find
+	// a library a listing names as well as a vetted one, and say which it is.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
 	// ReleasesPage returns the page of releases that holds release, or the first page when release is 0, and fails
 	// with app.ErrNotFound when there's no such release either.
@@ -138,6 +144,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
+			caretScript: assets.url("caret.js"),
 			icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
@@ -157,6 +164,8 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /groups", s.groups)
 	handle("GET /groups/{kind}/{name}", s.group)
 	handle("GET /search", s.search)
+	// One segment can't hide a library's page.
+	handle("GET "+unvettedHref, s.unvetted)
 	if options.Accounts != nil {
 		// Single segments can't hide a library's page, and GitHub has no account named account.
 		handle("GET "+signInHref, s.signInPage)
@@ -167,6 +176,14 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
+		if options.Listings != nil {
+			handle("GET "+listHref, s.listPage)
+			handle("POST "+listHref, s.createListing)
+			handle("GET "+listingsHref, s.listingsPage)
+			handle("GET "+removeListingHref, s.removeListingPage)
+			handle("POST "+removeListingHref, s.removeListing)
+			handle("POST "+retryListingHref, s.retryListing)
+		}
 	}
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
@@ -175,9 +192,9 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 }
 
 // siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
-// path under it, and libraries and search as a whole path, since GitHub has an account named libraries, whose
-// libraries' pages are /libraries/{repo}.
-var siteSections = map[string]bool{"groups": true, "libraries": false, "search": false}
+// path under it, and libraries, search, unvetted, and list as a whole path, since GitHub has an account named
+// libraries, whose libraries' pages are /libraries/{repo}, and may have others.
+var siteSections = map[string]bool{"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false}
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
 // /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other
@@ -230,7 +247,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries, false), newGroupIndexView(page.Groups, s.assets.iconURL)))
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +256,7 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries)))
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries, false), s.listingAvailable()))
 }
 
 func (s *server) groups(w http.ResponseWriter, r *http.Request) {

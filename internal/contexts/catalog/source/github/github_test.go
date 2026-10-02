@@ -2,12 +2,20 @@ package github_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
+	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
 func TestGitHubRepositoryReturnsTheRepositoryAsGitHubSpellsIt(t *testing.T) {
@@ -27,14 +35,19 @@ func TestGitHubRepositoryReturnsTheRepositoryAsGitHubSpellsIt(t *testing.T) {
 	}
 }
 
+// A missing or private repository is one GitHub has no public repository for, which a listing's lister can act on;
+// any other refusal, such as a rate limit, is GitHub's or Rulemart's.
 func TestGitHubRepositoryRejectsRepositoriesRulemartCantList(t *testing.T) {
 	for name, tc := range map[string]struct {
-		status int
-		body   string
+		status       int
+		body         string
+		noPublicRepo bool
 	}{
-		"missing":   {http.StatusNotFound, `{"message": "Not Found"}`},
-		"private":   {http.StatusOK, `{"id": 1, "name": "r", "private": true, "clone_url": "https://github.com/o/r.git", "owner": {"login": "o"}}`},
-		"elsewhere": {http.StatusOK, `{"id": 1, "name": "r", "clone_url": "https://example.com/o/r.git", "owner": {"login": "o"}}`},
+		"missing":      {http.StatusNotFound, `{"message": "Not Found"}`, true},
+		"private":      {http.StatusOK, `{"id": 1, "name": "r", "private": true, "clone_url": "https://github.com/o/r.git", "owner": {"login": "o"}}`, true},
+		"elsewhere":    {http.StatusOK, `{"id": 1, "name": "r", "clone_url": "https://example.com/o/r.git", "owner": {"login": "o"}}`, false},
+		"rate limited": {http.StatusForbidden, `{"message": "API rate limit exceeded"}`, false},
+		"failing":      {http.StatusBadGateway, `{}`, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			server := serve(t, tc.status, tc.body)
@@ -44,8 +57,45 @@ func TestGitHubRepositoryRejectsRepositoriesRulemartCantList(t *testing.T) {
 			if err == nil {
 				t.Fatal("accepted the repository")
 			}
+			if got := errors.Is(err, domain.ErrNoPublicRepository); got != tc.noPublicRepo {
+				t.Fatalf("%v: errors.Is(err, domain.ErrNoPublicRepository) = %v, want %v", err, got, tc.noPublicRepo)
+			}
 		})
 	}
+}
+
+// A token authenticates each request, and one GitHub refuses is read again on the next.
+func TestGitHubAuthenticatesWithTheTokenAndForgetsARefusedOne(t *testing.T) {
+	var authorizations []string
+	status := http.StatusUnauthorized
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorizations = append(authorizations, r.Header.Get("Authorization"))
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"id": 1, "name": "r", "clone_url": "https://github.com/o/r.git", "owner": {"login": "o"}}`))
+	}))
+	t.Cleanup(server.Close)
+	parameter := &rotatingParameter{values: []string{"old-token", "new-token"}}
+	client := github.Client{Client: server.Client(), BaseURL: server.URL, Token: secret.FromParameter(parameter, "/token")}
+
+	_, refused := client.Repository(context.Background(), "o", "r")
+	status = http.StatusOK
+	_, err := client.Repository(context.Background(), "o", "r")
+
+	if refused == nil || strings.Contains(refused.Error(), "old-token") || err != nil {
+		t.Fatalf("got %v, then %v", refused, err)
+	}
+	if want := []string{"Bearer old-token", "Bearer new-token"}; !slices.Equal(authorizations, want) {
+		t.Fatalf("sent %q, want %q", authorizations, want)
+	}
+}
+
+// rotatingParameter is an SSM parameter whose value changes to the next of values each time it's read.
+type rotatingParameter struct{ values []string }
+
+func (p *rotatingParameter) GetParameter(context.Context, *ssm.GetParameterInput, ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+	value := p.values[0]
+	p.values = p.values[1:]
+	return &ssm.GetParameterOutput{Parameter: &types.Parameter{Value: aws.String(value)}}, nil
 }
 
 // serve serves body with status for any request.

@@ -165,7 +165,7 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantLibrary := views.Library{
-		Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL,
+		Vetted: true, Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL,
 		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
 	}
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
@@ -244,11 +244,11 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			_, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/missing")
 			return err
 		},
-		"an unvetted library's history": func() error {
+		"an unlisted, unvetted library's history": func() error {
 			_, err := reader.LibraryHistory(ctx, vetted, "stranger", "unvetted-rules")
 			return err
 		},
-		"an unvetted library's releases to compare": func() error {
+		"an unlisted, unvetted library's releases to compare": func() error {
 			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", pickChanged(1, 3), 1<<20)
 			return err
 		},

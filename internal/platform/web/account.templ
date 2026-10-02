@@ -42,10 +42,11 @@ templ personIcon(class string) {
 	</svg>
 }
 
-// accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account
-// and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the button's
-// shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar, just inside
-// its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves it.
+// accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account,
+// their listings, and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
+// button's shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar,
+// just inside its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves
+// it.
 templ accountMenu(v visitor) {
 	<details class="group relative shrink-0" data-menu>
 		<summary class="-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span]:outline-2 [&:focus-visible>span]:-outline-offset-2 [&:focus-visible>span]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
@@ -63,6 +64,15 @@ templ accountMenu(v visitor) {
 					aria-current="page"
 				}
 			>Account</a>
+			if v.listings {
+				<a
+					class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onListingsPage), templ.KV("text-muted", !v.onListingsPage) }
+					href={ templ.SafeURL(listingsHref) }
+					if v.onListingsPage {
+						aria-current="page"
+					}
+				>Your listings</a>
+			}
 			<form method="post" action={ templ.SafeURL(v.signOut) }>
 				<button class={ menuItemStyle, "w-full cursor-pointer text-left text-muted" } type="submit">Sign out</button>
 			</form>
@@ -133,8 +143,8 @@ templ signInPage(c chrome, view signInView) {
 // accountPage shows the signed-in visitor what Rulemart keeps about them, and lets them sign out, everywhere at once,
 // or delete their account. Deleting asks first, by opening a disclosure, so it takes two deliberate clicks.
 templ accountPage(c chrome, account accountView) {
-	@layout(c, head{title: "Account · Rulemart", noindex: true}) {
-		<div class="page wrap max-w-[44rem]">
+	@layout(c, head{title: "Account · Rulemart", noindex: true, narrow: true}) {
+		<div class={ "page wrap", narrowPage }>
 			@label("") {
 				Account
 			}
@@ -172,6 +182,9 @@ templ accountPage(c chrome, account accountView) {
 					}
 				</dl>
 				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username and avatar each time you sign in, and keeps nothing else from GitHub. Each browser stays signed in for 30 days, or until you sign out.</p>
+				if visitorOf(ctx).listings {
+					<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you list, and when you listed or retried them, and shows no one else who listed them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
+				}
 			</section>
 			<section class="mt-10" aria-labelledby="sign-out">
 				@labelHeading("mb-3") {
@@ -199,7 +212,7 @@ templ accountPage(c chrome, account accountView) {
 						<span class="underline underline-offset-4">What deleting does</span>
 					</summary>
 					<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
-						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. Your GitHub account doesn't change. Signing in again starts a new account.</p>
+						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your listings, so libraries you listed that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
 						<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
 							<button class={ dangerButtonStyle } type="submit">Delete my account</button>
 						</form>

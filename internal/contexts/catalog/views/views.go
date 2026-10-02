@@ -7,6 +7,7 @@ package views
 import (
 	"time"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
@@ -16,7 +17,7 @@ type HomePage struct {
 	Groups    GroupIndex
 }
 
-// LibraryCard is a vetted library in the list of libraries.
+// LibraryCard is a library in a list of libraries.
 type LibraryCard struct {
 	// Owner and Name are spelled as the code host spells them now.
 	Owner, Name, Description string
@@ -26,8 +27,10 @@ type LibraryCard struct {
 	Rules int
 }
 
-// Library is a vetted library, as every page about it describes it.
+// Library is a vetted or listed library, as every page about it describes it.
 type Library struct {
+	// Vetted is false for a library that's only listed, whose pages warn that it hasn't been vetted.
+	Vetted bool
 	// Owner and Name are spelled as the code host spells them now.
 	Owner, Name, Description string
 	// OwnerAvatarURL is empty when the host reported none.
@@ -433,4 +436,22 @@ type VersionPair struct {
 	Key                 string
 	OldRule, OldVersion int
 	NewRule, NewVersion int
+}
+
+// AccountListing is one of an account's listings, as its listings page shows it.
+type AccountListing struct {
+	ID int64
+	// Owner and Name are the repository's as its lister gave them.
+	Owner, Name string
+	// RepositoryID is the code host's ID for the repository, or empty until the worker has looked it up.
+	RepositoryID string
+	State        domain.ListingState
+	// Library is the library the listing names, as the code host spells it now, while the catalog stores it, and the
+	// zero LibraryRef until then.
+	Library LibraryRef
+	// Failure says why the last check failed, or is empty.
+	Failure string
+	// ListedAt is when the account listed it, RequestedAt when it last asked for a check, by listing it or trying it
+	// again, and CheckedAt when the worker last finished checking it, or the zero time until it does.
+	ListedAt, RequestedAt, CheckedAt time.Time
 }

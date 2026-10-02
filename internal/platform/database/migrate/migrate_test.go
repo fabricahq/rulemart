@@ -16,10 +16,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
-// The web function connects as the web role, which may read the catalog and the schema version, through its
-// membership in the catalog reader role, and write accounts and sessions, through its membership in the accounts
-// writer role, and nothing else.
-func TestMigrationsLetTheWebRoleReadTheCatalogAndSignVisitorsInAndNothingElse(t *testing.T) {
+// The web function connects as the web role, which may read the catalog, its listings, and the schema version,
+// through its membership in the catalog reader role, and write accounts, sessions, and listings, through its
+// membership in the accounts writer role, and nothing else.
+func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInAndListLibrariesAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
 	if _, err := Up(ctx, connString); err != nil {
@@ -50,6 +50,13 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndSignVisitorsInAndNothingElse(t 
 		"rename it":          `UPDATE accounts SET github_login = 'renamed' WHERE github_user_id = 1`,
 		"sign it in":         `INSERT INTO sessions (token_hash, account_id, expires_at) SELECT sha256('token'), id, now() + interval '1 day' FROM accounts`,
 		"find its session":   `SELECT a.github_login FROM sessions s JOIN accounts a ON a.id = s.account_id`,
+		"list a library":     `INSERT INTO listings (account_id, host, owner, name) SELECT id, 'github', 'octocat', 'rules' FROM accounts`,
+		"count its requests": `SELECT count(*) FROM listing_requests WHERE requested_at > now() - interval '1 day'`,
+		"record a request":   `INSERT INTO listing_requests (account_id) SELECT id FROM accounts`,
+		"forget old ones":    `DELETE FROM listing_requests WHERE requested_at < now() - interval '1 day'`,
+		"find its listings":  `SELECT l.owner, l.name FROM listings l JOIN accounts a ON a.id = l.account_id`,
+		"try it again":       `UPDATE listings SET requested_at = now(), failure = NULL`,
+		"remove it":          `DELETE FROM listings WHERE name = 'gone'`,
 		"sign it out":        `DELETE FROM sessions`,
 		"delete the account": `DELETE FROM accounts`,
 	} {
@@ -60,6 +67,9 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndSignVisitorsInAndNothingElse(t 
 	for name, statement := range map[string]string{
 		"write the catalog":      `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url) VALUES ('github', '1', 'o', 'n', '', '')`,
 		"extend a session":       `UPDATE sessions SET expires_at = expires_at + interval '1 year'`,
+		"resolve a listing":      `UPDATE listings SET host_repository_id = '1'`,
+		"give a listing away":    `UPDATE listings SET account_id = NULL`,
+		"fake a check":           `UPDATE listings SET checked_at = now()`,
 		"empty the accounts":     `TRUNCATE accounts CASCADE`,
 		"change the schema":      `CREATE TABLE intruder (id integer)`,
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
@@ -97,6 +107,8 @@ func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
 		"delete stale rules":  `DELETE FROM rules`,
 		"delete stale groups": `DELETE FROM library_groups`,
 		"delete old versions": `DELETE FROM rule_versions`,
+		"read the listings":   `SELECT owner, name, host_repository_id FROM listings`,
+		"record a check":      `UPDATE listings SET host_repository_id = '1', checked_at = now(), failure = 'broken'`,
 	} {
 		if _, err := conn.Exec(ctx, statement); err != nil {
 			t.Errorf("%s: %v", name, err)
@@ -110,6 +122,11 @@ func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
 		"read the accounts":      `SELECT count(*) FROM accounts`,
 		"read the sessions":      `SELECT count(*) FROM sessions`,
+		"list a library":         `INSERT INTO listings (account_id, host, owner, name) VALUES (1, 'github', 'o', 'n')`,
+		"read listing requests":  `SELECT count(*) FROM listing_requests`,
+		"remove a listing":       `DELETE FROM listings`,
+		"give a listing away":    `UPDATE listings SET account_id = NULL`,
+		"rename a listing":       `UPDATE listings SET name = 'other'`,
 	} {
 		_, err := conn.Exec(ctx, statement)
 		var pgErr *pgconn.PgError
@@ -140,6 +157,10 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 				SELECT 'table ' || c.relname || ' ' || a.privilege_type
 				FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a WHERE a.grantee = to_regrole($1)
 				UNION ALL
+				SELECT 'column ' || c.relname || '.' || t.attname || ' ' || a.privilege_type
+				FROM pg_attribute t JOIN pg_class c ON c.oid = t.attrelid CROSS JOIN LATERAL aclexplode(t.attacl) a
+				WHERE a.grantee = to_regrole($1)
+				UNION ALL
 				SELECT 'schema ' || n.nspname || ' ' || a.privilege_type
 				FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a WHERE a.grantee = to_regrole($1)
 				ORDER BY 1)`, role).Scan(&got)
@@ -156,10 +177,14 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table libraries SELECT",
 			"table library_groups SELECT",
 			"table library_releases SELECT",
+			"table listings SELECT",
 			"table rule_versions SELECT",
 			"table rules SELECT",
 		},
 		postgrestest.CatalogWriterRole: {
+			"column listings.checked_at UPDATE",
+			"column listings.failure UPDATE",
+			"column listings.host_repository_id UPDATE",
 			"schema public USAGE",
 			"table goose_db_version SELECT",
 			"table libraries INSERT",
@@ -173,6 +198,7 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table library_releases INSERT",
 			"table library_releases SELECT",
 			"table library_releases UPDATE",
+			"table listings SELECT",
 			"table rule_versions DELETE",
 			"table rule_versions INSERT",
 			"table rule_versions SELECT",
@@ -183,11 +209,19 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table rules UPDATE",
 		},
 		postgrestest.AccountsWriterRole: {
+			"column listings.failure UPDATE",
+			"column listings.requested_at UPDATE",
 			"schema public USAGE",
 			"table accounts DELETE",
 			"table accounts INSERT",
 			"table accounts SELECT",
 			"table accounts UPDATE",
+			"table listing_requests DELETE",
+			"table listing_requests INSERT",
+			"table listing_requests SELECT",
+			"table listings DELETE",
+			"table listings INSERT",
+			"table listings SELECT",
 			"table sessions DELETE",
 			"table sessions INSERT",
 			"table sessions SELECT",

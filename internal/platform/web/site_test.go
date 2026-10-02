@@ -34,6 +34,8 @@ const (
 // catalog serves the pages' reads from memory, matching libraries without regard to case as the store does.
 type catalog struct {
 	libraries []views.LibraryCard
+	// unvetted are the libraries listings name that aren't vetted.
+	unvetted []views.LibraryCard
 	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
 	// page of releases after the first adds " release=<n>" to its key, once for each release it holds.
 	pages    map[string]views.LibraryPage
@@ -60,6 +62,10 @@ func (c catalog) HomePage(context.Context) (views.HomePage, error) {
 }
 
 func (c catalog) Libraries(context.Context) ([]views.LibraryCard, error) { return c.libraries, c.err }
+
+func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error) {
+	return c.unvetted, c.err
+}
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
 
@@ -154,7 +160,7 @@ func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) 
 // exampleRules is a library whose second release changed verify-retry-limits to 1.1.0, and whose third changed
 // return-errors to 2.0.0, a major change.
 var exampleRules = views.Library{
-	Owner: "example", Name: "rules", Description: "Example rules for tests.",
+	Vetted: true, Owner: "example", Name: "rules", Description: "Example rules for tests.",
 	OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", LicenseExpression: "MIT", LicenseFile: "LICENSE",
 	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
 }
@@ -715,7 +721,7 @@ const (
 // newMixedCatalog returns a catalog holding the library example/mixed, whose groups are canonical with an icon
 // (techs/go and practices/testing), canonical without one (techs/goose), and not canonical (techs/golang).
 func newMixedCatalog() catalog {
-	lib := views.Library{Owner: "example", Name: "mixed", LatestRelease: 1, LatestTaggedAt: day(1)}
+	lib := views.Library{Vetted: true, Owner: "example", Name: "mixed", LatestRelease: 1, LatestTaggedAt: day(1)}
 	goose := &views.CanonicalGroup{Name: "Goose"}
 	rule := func(path, group string, canonical *views.CanonicalGroup, title string) views.RulePage {
 		return views.RulePage{Library: lib, Rule: views.Rule{

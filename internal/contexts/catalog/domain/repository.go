@@ -5,6 +5,8 @@
 // itself, and leaves Markdown to the render package.
 package domain
 
+import "errors"
+
 // GitHub is the only code host Rulemart reads libraries from, as the catalog names it. Page URLs name no host,
 // so they're GitHub's.
 const GitHub = "github"
@@ -33,3 +35,7 @@ type Repository struct {
 
 // FullName returns the repository's owner/name.
 func (r Repository) FullName() string { return r.Owner + "/" + r.Name }
+
+// ErrNoPublicRepository reports that a code host has no public repository by the name or ID asked for: none at all,
+// or a private one, which Rulemart can't read.
+var ErrNoPublicRepository = errors.New("no such public repository")

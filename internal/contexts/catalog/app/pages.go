@@ -1,4 +1,5 @@
-// Read what the pages show, finding only the vetted libraries, and show each group as canonical or not.
+// Read what the pages show, finding only the vetted libraries across libraries, and listed ones too on a library's own
+// pages, and show each group as canonical or not.
 
 package app
 
@@ -14,8 +15,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired, or a group that
-// isn't canonical.
+// ErrNotFound reports a library or rule that isn't in the catalog, a library that's neither vetted nor listed, a
+// group that isn't canonical, or an account's listing it doesn't have.
 var ErrNotFound = store.ErrNotFound
 
 // ErrSearchQueryTooLong reports a query of more than domain.MaxSearchQueryLength characters, which search won't run.
@@ -28,8 +29,8 @@ const SearchPageSize = 20
 // read: 200 pages of 20 is many times the catalog.
 const MaxSearchPage = 200
 
-// Pages reads what the catalog's pages show. It finds only the libraries in Vetted, and reads each page from one
-// state of the catalog.
+// Pages reads what the catalog's pages show, each page from one state of the catalog. Pages across libraries find only
+// the libraries in Vetted; a library's own pages also find one a listing names, and say it isn't vetted.
 type Pages struct {
 	Store  store.Reader
 	Vetted []domain.LibraryKey
@@ -53,8 +54,14 @@ func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
 	return p.Store.Libraries(ctx, p.Vetted)
 }
 
-// LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
-// and retired rules, each with its chain of replacements to now and whether it was renamed, or ErrNotFound.
+// UnvettedLibraries returns the libraries listings name that aren't vetted, ordered by owner and name.
+func (p Pages) UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error) {
+	return p.Store.UnvettedLibraries(ctx, p.Vetted)
+}
+
+// LibraryPage returns the library owner/name, vetted or listed, matched without regard to case, with its groups,
+// current rules, and retired rules, each with its chain of replacements to now and whether it was renamed, or
+// ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {
 	page, err := p.Store.LibraryPage(ctx, p.Vetted, owner, name)
 	if err != nil {
@@ -70,7 +77,7 @@ func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.Libra
 	return page, nil
 }
 
-// RulePage returns the rule at rulePath in the vetted library owner/name, current or retired, with every version, the
+// RulePage returns the rule at rulePath in the library owner/name, current or retired, with every version, the
 // rules it replaced or renamed, and while it's retired, its chain of replacements to now, or ErrNotFound.
 func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error) {
 	page, err := p.Store.RulePage(ctx, p.Vetted, owner, name, rulePath)
