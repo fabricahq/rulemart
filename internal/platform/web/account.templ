@@ -148,7 +148,7 @@ templ signInPage(c chrome, view signInView) {
 							Continue with GitHub
 						</button>
 					</form>
-					<p class="mt-4 text-center text-[13px] text-faint">Rulemart asks GitHub only for your public profile, and keeps your GitHub user ID, username, and avatar. It can't see your private repositories or act on GitHub for you. <a class="text-muted" href={ templ.SafeURL(privacyHref) }>How Rulemart treats your data</a></p>
+					<p class="mt-4 text-center text-[13px] text-faint">Rulemart asks GitHub only for your public profile, and keeps your GitHub user ID, username, and avatar. It can't see your private repositories or act on GitHub for you.</p>
 				}
 				if len(view.testUsers) > 0 {
 					<section class="mt-9 rounded-card border border-dashed border-border-strong px-5 py-4" aria-labelledby="test-users">
@@ -167,6 +167,7 @@ templ signInPage(c chrome, view signInView) {
 						</ul>
 					</section>
 				}
+				<p class="mt-6 text-center text-[13px]"><a class="text-muted" href={ templ.SafeURL(privacyHref) }>How Rulemart treats your data</a></p>
 			}
 		</div>
 	}

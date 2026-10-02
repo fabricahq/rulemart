@@ -209,7 +209,7 @@ templ listingRow(l listingView) {
 			}
 			<div class="min-w-0 flex-1">
 				<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-					<h2 class="font-mono text-[14px] font-semibold [overflow-wrap:anywhere]">{ l.fullName }</h2>
+					<h2 class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">{ l.fullName }</h2>
 					@listingState(l.state)
 				</div>
 				<p class="mt-0.5 text-[13px] text-muted">Listed { l.listed }</p>
@@ -273,7 +273,7 @@ templ removeListingPage(c chrome, l listingView) {
 			<h1 class="title-xl mt-2">Remove this listing?</h1>
 			<div class="mt-5 rounded-card border border-border px-5 py-5">
 				<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-					<p class="font-mono text-[14px] font-semibold [overflow-wrap:anywhere]">{ l.fullName }</p>
+					<p class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">{ l.fullName }</p>
 					@listingState(l.state)
 				</div>
 				<p class="mt-3 text-[14.5px] text-ink">
