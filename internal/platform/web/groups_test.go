@@ -25,7 +25,7 @@ func TestGroupPageListsItsRulesBesideTheFilters(t *testing.T) {
 	page := resp.Body.String()
 	assertShows(t, page,
 		"Technologies › techs/go Go 3 rules from 2 libraries · The Go language.",
-		"Libraries example/rules 1 other/go-rules 2 Impact Critical and high Medium and lower Stars Any 10+ 50+ 100+ "+
+		"Libraries example/ rules 1 other/ go-rules 2 Impact Critical and high Medium and lower Stars Any 10+ 50+ 100+ "+
 			"Retired Show retired rules Unvetted Include unvetted libraries",
 		"3 rules in 2 libraries Most starred Newest",
 		"Return errors with context HIGH example/rules 3 3 stars Close response bodies MEDIUM other/go-rules "+

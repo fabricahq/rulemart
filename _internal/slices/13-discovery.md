@@ -126,6 +126,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
   hear it after the library's name in a row.
 - **Proposed: the header's search field holds the query on the search page**; a phone's header has none, so the page
   holds its own field below the narrow breakpoint. The syntax hints are gone, as in the prototype.
+- **Proposed: the sidebar names a library by its repository**, beside its owner's avatar, with `owner/name` on hover
+  and to screen readers, since the full slug was cut off at the sidebar's width, as the prototype shows a library's
+  avatar and name. A ticked library's row is in stronger type; the prototype sets Fabrica's library in stronger type
+  instead, which marks nothing while every library on Rulemart is Fabrica's.
 - **Proposed: on a phone the sidebar folds into a "Filters" disclosure**, below the narrow breakpoint, closed while no
   choice is on, so the first result sits near the top of the screen rather than under the whole sidebar, and open
   while any is, its summary counting them ("Filters · 2"): each library, the impact, the stars, the kind, and retired

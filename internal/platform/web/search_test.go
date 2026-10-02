@@ -27,7 +27,7 @@ func TestSearchPageGroupsItsRulesUnderTheirGroups(t *testing.T) {
 
 	assertShows(t, page,
 		"Search Rules matching “errors”",
-		"Libraries example/rules 1 other/go-rules 1 Kind Technologies Practices Impact",
+		"Libraries example/ rules 1 other/ go-rules 1 Kind Technologies Practices Impact",
 		"2 rules in 2 libraries Best match Most starred Newest",
 		"Go techs/go 3 Return errors with context HIGH example/rules",
 		"techs/golang not canonical 1 Wrap errors MEDIUM other/go-rules",

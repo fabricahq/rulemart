@@ -266,3 +266,34 @@ func TestFilterSidebarExplainsUnvettedLibraries(t *testing.T) {
 		}
 	}
 }
+
+// The sidebar names each library by its repository, beside its owner's avatar, and gives its full name on hover and
+// to screen readers.
+func TestFilterSidebarNamesLibrariesByRepository(t *testing.T) {
+	page := get(t, newSite(t, newBrowsingCatalog()), "/g/techs/go").Body.String()
+
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := find(doc, func(n *html.Node) bool { return attribute(n, "id") == "filters" })
+	var names, titles []string
+	for n := range form.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "label" && find(n, func(c *html.Node) bool { return attribute(c, "name") == "libs" }) != nil {
+			names = append(names, nodeText(n))
+			if named := find(n, func(c *html.Node) bool { return c.Data == "span" && attribute(c, "title") != "" && attribute(c, "title") != "Vetted by Rulemart" }); named != nil {
+				titles = append(titles, attribute(named, "title"))
+			}
+		}
+	}
+	// nodeText separates the owner, said only to screen readers, from the name, which the markup joins.
+	if want := []string{"example/ rules 1", "other/ go-rules 2"}; !slices.Equal(names, want) {
+		t.Errorf("the sidebar's libraries read %q to screen readers, want %q", names, want)
+	}
+	if want := []string{"example/rules", "other/go-rules"}; !slices.Equal(titles, want) {
+		t.Errorf("the sidebar's libraries are titled %q, want %q", titles, want)
+	}
+	if !strings.Contains(page, `<span class="sr-only">example/</span>rules`) {
+		t.Error("the sidebar shows more than the repository's name")
+	}
+}

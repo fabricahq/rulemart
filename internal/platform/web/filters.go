@@ -31,7 +31,7 @@ type ruleListView struct {
 	libraryFilters []libraryFilterView
 }
 
-// libraryFilterView is a library's checkbox in the filter sidebar, which sets Fabrica's in stronger type.
+// libraryFilterView is a library's checkbox in the filter sidebar.
 type libraryFilterView struct {
 	libraryRefView
 	// value is the library's value in the address, owner/name in lowercase.
