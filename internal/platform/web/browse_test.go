@@ -394,12 +394,21 @@ func TestSearchPageNamesTheWordsEachResultLacks(t *testing.T) {
 		// The quoted query is a node of its own, which visible text separates from the punctuation after it.
 		`1 rule matches every word of “error handling "error chain"” , and 1 more match some of them`,
 		"Return errors with context HIGH When a function fails. example/rules",
-		`Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
+		// Rules that lack a word follow those that hold every word, under a heading of their own.
+		`Rules that match some of your words Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
 	)
 	if !strings.Contains(page, "<s>handling</s>") {
 		t.Error("the missing words aren't struck through")
 	}
-	assertShows(t, get(t, handler, "/search?q=errors").Body.String(), "No rule matches every word of “errors” ; 1 rule matches some of them")
+	if got := listItems(t, page, "ol"); !slices.Equal(got, []int{1, 1}) {
+		t.Errorf("the results' lists hold %v items, want the complete one and then the partial one", got)
+	}
+	// With no rule holding every word, the summary says so, and no heading divides the results.
+	none := get(t, handler, "/search?q=errors").Body.String()
+	assertShows(t, none, "No rule matches every word of “errors” ; 1 rule matches some of them")
+	if strings.Contains(none, "Rules that match some of your words") {
+		t.Error("a search without complete matches divides its results")
+	}
 }
 
 // A query of only words search skips, or words to leave out, says why it finds nothing.

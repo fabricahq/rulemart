@@ -504,7 +504,7 @@ JOIN rule_versions v ON v.id = ranked.id
 JOIN rules r ON r.id = v.rule_id
 JOIN library_groups g ON g.id = r.group_id
 JOIN libraries l ON l.id = r.library_id
-ORDER BY ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
+ORDER BY cardinality(ranked.missing) > 0, ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
 LIMIT $2 OFFSET $1
 `
 
@@ -549,12 +549,12 @@ type SearchRulesRow struct {
 // with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
 // source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 //
-// Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
-// impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
-// average, scaled by the square of the share of terms it holds, so a rule that holds every term usually comes first,
-// but one whose title holds some can pass one whose body holds all. A title made mostly of the terms it matches adds up
-// to 0.25, so "Verify retry limits" outranks a longer title for retry. Equal scores fall back to ts_rank, then title,
-// the library's owner and name, and rule ID, so the order is stable.
+// Rules that hold every term come first, then those that hold some, each by score. Each term scores by the best
+// place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact description 0.5, and anywhere
+// else, the body or the library's name, 0.1. A rule's score is its terms' average, scaled by the square of the share
+// of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so "Verify retry limits" outranks a
+// longer title for retry. Equal scores fall back to ts_rank, then title, the library's owner and name, and rule ID, so
+// the order is stable.
 func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]SearchRulesRow, error) {
 	rows, err := q.db.Query(ctx, searchRules,
 		arg.Skip,

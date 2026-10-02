@@ -64,14 +64,13 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   library's owner and name, as body text, so `fabricahq` finds its libraries' rules. A hyphen leaves a word out only
   at the start of a word.
 - **Every word, then some. Proposed.** A rule matches when it holds at least one of the words to find and none of the
-  words to leave out. A rule that lacks some of the words names them, as "Missing: handling", and the results say how
-  many hold every word. `or` joins the words on either side into one term that either satisfies.
-- **Ranking. Proposed.** Each word scores by the best place it matches: the title 1, the group's name or the
-  identifiers 0.8, the reading guidance or impact description 0.5, and the body or the library's name 0.1. A rule's
-  score is its words' average times the square of the share of words it holds, so a rule that holds every word
-  usually comes first, but one whose title names the subject can pass one whose body mentions every word in passing:
-  `error handling` lists the Go error rules before rules that only mention both words. A title made mostly of matched
-  words adds up to 0.25, so "Verify retry limits" outranks "Reset query errors when an error boundary retries" for
+  words to leave out. A rule that lacks some of the words names them, as "Missing: handling", follows every rule that
+  holds them all, and the results say how many hold every word. `or` joins the words on either side into one term that either satisfies.
+- **Ranking. Proposed.** Rules that hold every word come first, then rules that hold some, under the heading "Rules
+  that match some of your words" on each page that has them, so the order agrees with the summary's counts. Within
+  each, each word scores by the best place it matches: the title 1, the group's name or the identifiers 0.8, the
+  reading guidance or impact description 0.5, and the body or the library's name 0.1. A rule's score is its words'
+  average times the square of the share of words it holds. A title made mostly of matched words adds up to 0.25, so "Verify retry limits" outranks "Reset query errors when an error boundary retries" for
   `retry`. Words to leave out only filter, so `testing -react` keeps this order. Equal scores fall back to `ts_rank`,
   then title, library owner and name, and rule ID, so the order is stable. There's no prefix matching: `go` never
   matches `goose`, and finds a goose rule only when its text names Go.

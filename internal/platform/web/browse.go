@@ -218,6 +218,26 @@ func (v searchView) title() string {
 	return "“" + v.query + "” · Search · Rulemart"
 }
 
+// completeResults returns the page's results that hold every word to find, which search ranks first.
+func (v searchView) completeResults() []searchResultView {
+	return v.results[:v.partialStart()]
+}
+
+// partialResults returns the page's results that lack some of the words to find, which follow those that hold them all.
+func (v searchView) partialResults() []searchResultView {
+	return v.results[v.partialStart():]
+}
+
+// partialStart returns the index of the page's first result that lacks a word, or the number of results when none does.
+func (v searchView) partialStart() int {
+	for i, r := range v.results {
+		if len(r.missing) > 0 {
+			return i
+		}
+	}
+	return len(v.results)
+}
+
 // pageMissing reports a page past the last of a search's results.
 func (v searchView) pageMissing() bool { return v.page > 1 && len(v.results) == 0 }
 

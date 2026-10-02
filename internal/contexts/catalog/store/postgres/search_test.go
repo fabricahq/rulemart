@@ -99,9 +99,9 @@ func TestSearchRanksATitleAboutTheWordAboveALongerTitleThatMentionsIt(t *testing
 	}
 }
 
-// "error handling" is about errors: rules whose titles name errors come before rules that only mention both words in
-// passing, and each result that lacks a word names it.
-func TestSearchRanksRulesByWhereTheyHoldTheTermsAndNamesTheTermsTheyLack(t *testing.T) {
+// A rule that holds every word comes before any that lacks one, as the results' summary counts them. Within each,
+// rules rank by where they hold the words, and each result that lacks a word names it.
+func TestSearchRanksRulesHoldingEveryWordFirstAndNamesTheTermsOthersLack(t *testing.T) {
 	search := searchPublicRules(t)
 
 	got := search("error handling")
@@ -109,9 +109,9 @@ func TestSearchRanksRulesByWhereTheyHoldTheTermsAndNamesTheTermsTheyLack(t *test
 	want := []string{
 		returnErrors.Path,    // both words, error in its title
 		sharedRequests.Path,  // both words, in its impact description
+		narrowUnknown.Path,   // both words, only in its body
 		contractErrors.Path,  // error in its title, without handling
 		errorBoundaries.Path, // error in a longer title, without handling
-		narrowUnknown.Path,   // both words, only in its body
 	}
 	if !slices.Equal(paths(got), want) || got.Total != 5 || got.Complete != 3 {
 		t.Fatalf("got %q of %d, %d complete; want %q of 5, 3 complete", paths(got), got.Total, got.Complete, want)
@@ -148,6 +148,29 @@ func TestSearchRanksTheRuleAnIDNamesFirst(t *testing.T) {
 		got := paths(search(query))
 		if len(got) == 0 || got[0] != independentTests.Path {
 			t.Errorf("%q found %q, want %s first", query, got, independentTests.Path)
+		}
+	}
+}
+
+// However strongly a rule matches some of the words, it never comes before one that holds them all.
+func TestSearchNeverRanksARuleLackingAWordAboveOneHoldingEvery(t *testing.T) {
+	search := searchPublicRules(t)
+
+	for _, query := range []string{"error handling", "retry go", "typescript testing", "react errors", "goose go migration", "tests retries"} {
+		got := search(query)
+		seenPartial, complete := false, 0
+		for _, r := range got.Results {
+			if len(r.Missing) > 0 {
+				seenPartial = true
+				continue
+			}
+			complete++
+			if seenPartial {
+				t.Errorf("%q ranks %s, which holds every word, after a rule that lacks one: %q", query, r.Rule.Path, paths(got))
+			}
+		}
+		if complete != got.Complete {
+			t.Errorf("%q: %d results hold every word, but the count says %d", query, complete, got.Complete)
 		}
 	}
 }

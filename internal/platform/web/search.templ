@@ -45,13 +45,13 @@ templ searchPage(c chrome, v searchView) {
 						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">
 							@searchSummary(v)
 						</h2>
-						<ol class="grid gap-2.5">
-							for _, r := range v.results {
-								<li>
-									@searchResult(r)
-								</li>
+						@searchResults(v.completeResults())
+						if partial := v.partialResults(); len(partial) > 0 {
+							if v.complete > 0 {
+								<h3 class="mt-7 mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">Rules that match some of your words</h3>
 							}
-						</ol>
+							@searchResults(partial)
+						}
 						@searchPages(v)
 					}
 				</div>
@@ -90,6 +90,19 @@ templ searchPages(v searchView) {
 				<span></span>
 			}
 		</nav>
+	}
+}
+
+// searchResults lists rules that matched, in order.
+templ searchResults(results []searchResultView) {
+	if len(results) > 0 {
+		<ol class="grid gap-2.5">
+			for _, r := range results {
+				<li>
+					@searchResult(r)
+				</li>
+			}
+		</ol>
 	}
 }
 
