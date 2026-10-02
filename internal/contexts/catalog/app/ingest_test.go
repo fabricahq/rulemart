@@ -253,3 +253,31 @@ func read(t *testing.T, pages app.Pages) page {
 	}
 	return page{library, rule}
 }
+
+// Rendering is what an ingestion spends its time on, and a job has a deadline, so ingestion must stop rendering when
+// its context ends rather than run on until Lambda stops the function.
+func TestIngestStopsRenderingWhenItsContextEnds(t *testing.T) {
+	ingester, pages := newCatalog(t)
+	lib := firstRelease(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rendered := 0
+	ingester.Render = func(body string, page domain.RulePage, allowance int64) (string, int64, error) {
+		rendered++
+		cancel()
+		return render.Rule(body, page, allowance)
+	}
+	ingester.Repositories = repositories{lib.Repository(42)}
+
+	_, err := ingester.IngestRepository(ctx, lib.Repository(42))
+
+	if !errors.Is(err, context.Canceled) && (err == nil || !strings.Contains(err.Error(), context.Canceled.Error())) {
+		t.Fatalf("got error %v, want the context's", err)
+	}
+	if rendered != 1 {
+		t.Fatalf("rendered %d rules after the context ended, want to stop after the first", rendered)
+	}
+	if _, err := pages.LibraryPage(context.Background(), "example", "rules"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("a stopped ingestion stored the library: %v", err)
+	}
+}

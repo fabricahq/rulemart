@@ -31,7 +31,7 @@ func Fetch(ctx context.Context, url string, limits domain.FetchLimits) ([]domain
 	if err != nil {
 		return nil, err
 	}
-	return readReleases(repo, limits)
+	return readReleases(ctx, repo, limits)
 }
 
 // ListReleaseTags returns the release/<number> tags the repository at url lists, with the IDs of the tag objects
@@ -103,11 +103,11 @@ func listReleaseTags(ctx context.Context, remote *gogit.Remote, limits domain.Fe
 	return tags, nil
 }
 
-// readReleases parses the record of every release/<number> tag in repo, in number order. Like Code Rules, it skips
-// other names under release/, such as release/01, and fails when no tag remains. Each tag must be an annotated tag
-// of a commit, no larger than limits.TagBytes, whose message is release notes followed by a record for that
-// release.
-func readReleases(repo *gogit.Repository, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
+// readReleases parses the record of every release/<number> tag in repo, in number order, until ctx ends. Like Code
+// Rules, it skips other names under release/, such as release/01, and fails when no tag remains. Each tag must be an
+// annotated tag of a commit, no larger than limits.TagBytes, whose message is release notes followed by a record for
+// that release.
+func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
 	refs, err := repo.Tags()
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %v", err)
@@ -117,6 +117,10 @@ func readReleases(repo *gogit.Repository, limits domain.FetchLimits) ([]domain.R
 		name := ref.Name().Short()
 		if _, err := coderules.ParseReleaseTag(name); err != nil {
 			return nil
+		}
+		// Parsing a record is the work here, so stop between records once ctx ends.
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		r, err := readRelease(repo, name, ref.Hash(), limits)
 		if err != nil {
