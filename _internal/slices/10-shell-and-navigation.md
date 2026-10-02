@@ -77,7 +77,8 @@ decision.
   traffic data yet; the prototype hard-codes four. The chips link to the group pages.
 - **Proposed: tiles sort by rule count**, as the prototype's, and say "N rules · M libraries"; the libraries band shows
   the first four vetted libraries in owner and name order (**Existing**), since nothing sorts libraries by anything
-  else.
+  else. On a narrow phone, under 384 pixels, the tiles stand in one column rather than the prototype's two, which cut
+  off names such as Concurrency at 320 pixels.
 - **Proposed: "List your library →" leads to `/list`** while that is the page that lists a library, signed in, and to
   sign-in with a return to it otherwise; slice R7 moves it to `/me/add`. Where listing isn't available, as in a build
   without sign-in, it leads to the about page's "Get a library vetted".
