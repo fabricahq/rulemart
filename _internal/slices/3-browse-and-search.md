@@ -130,6 +130,23 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 - **The home page reads its libraries and groups from one state of the catalog (Existing rule).** The store's
   `HomePage` read replaces `Libraries`, so the counts on one page always agree.
 
+### Every page
+
+These come from a browser review of this slice, and apply to pages before it too.
+
+- **The header stays put. Proposed.** It's opaque, so text scrolled under it doesn't show through, and the search page
+  keeps the space of the header's search field, so the links sit where every other page has them.
+- **Accessibility. Proposed.** Every page starts with a skip link to its content. Text meets WCAG AA contrast, 4.5:1,
+  in both themes: the light theme's faint text is `#6e6e6e`. Sections are headings and lists are lists, so a screen
+  reader can move by them, and search results are an ordered list under a heading that counts them. A search field's
+  focus thickens its border into one ring.
+- **Long values wrap, and no page scrolls sideways. Proposed.** IDs and file names keep each part between slashes and
+  colons whole when it fits and break between parts first. A browser check visits every page, every rule's included,
+  at 1280 and 390 pixels wide and fails on horizontal scrolling.
+- **One About panel. Proposed.** A library's and a rule's pages show their facts in one bordered About panel. A
+  rule's names its library, repository, license, file, publication date, and impact, and says what the impact level
+  means, since an impact label's hover text is out of reach on touch screens and keyboards.
+
 ### Pages and caching
 
 - **Search pages carry `noindex`, and name no canonical address. Proposed.** They're results, not content, and
