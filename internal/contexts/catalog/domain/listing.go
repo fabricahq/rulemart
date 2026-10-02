@@ -84,33 +84,43 @@ var ErrInvalidRepository = errors.New("not a GitHub repository")
 
 var (
 	// gitHubOwner matches what GitHub allows in a user or organization's name: letters, digits, and hyphens, at most
-	// 39. Older names may have hyphens where new ones can't, so it doesn't check where they fall.
-	gitHubOwner = regexp.MustCompile(`^[A-Za-z0-9-]{1,39}$`)
-	// gitHubRepository matches what GitHub allows in a repository's name.
+	// 39, neither starting nor ending with a hyphen.
+	gitHubOwner = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`)
+	// gitHubRepository matches what GitHub allows in a repository's name. GitHub also refuses . and .., and a name
+	// that ends in .git, which ParseListedRepository checks apart.
 	gitHubRepository = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
 )
 
-// repositoryPrefixes are what may come before owner/name when a lister gives a repository's address.
-var repositoryPrefixes = []string{"https://github.com/", "https://www.github.com/", "github.com/", "www.github.com/"}
+// repositoryAddresses are what may come before owner/name when a lister gives a repository's address, compared
+// without regard to case.
+var repositoryAddresses = []string{
+	"https://github.com/", "https://www.github.com/", "http://github.com/", "http://www.github.com/",
+	"github.com/", "www.github.com/",
+}
 
 // ParseListedRepository returns the owner and name of the GitHub repository text names, as a lister may give it:
-// owner/name, github.com/owner/name, or its https URL, with or without a trailing slash, and the URL with or without
-// .git. It fails with
-// ErrInvalidRepository for anything else, such as another host, a page inside a repository, a query, or a name
-// GitHub wouldn't allow.
+// owner/name, or its address, such as https://github.com/owner/name, github.com/owner/name, or the address of a
+// page inside it, such as .../tree/main, whose query and fragment it ignores. Either may end with a slash, and with
+// .git, as a clone URL does: GitHub refuses a repository name that ends in .git, so one .git is never part of a
+// name. It fails with ErrInvalidRepository for anything else, such as another host, or a name GitHub wouldn't allow.
 func ParseListedRepository(text string) (owner, name string, err error) {
 	text = strings.TrimSpace(text)
 	path := text
-	for _, prefix := range repositoryPrefixes {
-		if rest, ok := strings.CutPrefix(text, prefix); ok {
-			// Only an address may end in .git, as a clone URL does; owner/name.git names a repository called name.git.
-			path = strings.TrimSuffix(strings.TrimSuffix(rest, "/"), ".git")
+	for _, prefix := range repositoryAddresses {
+		if len(text) >= len(prefix) && strings.EqualFold(text[:len(prefix)], prefix) {
+			path, _, _ = strings.Cut(text[len(prefix):], "#")
+			path, _, _ = strings.Cut(path, "?")
+			// A page inside the repository, such as owner/name/tree/main, names the repository first.
+			if parts := strings.SplitN(path, "/", 3); len(parts) == 3 {
+				path = parts[0] + "/" + parts[1]
+			}
 			break
 		}
 	}
-	path = strings.TrimSuffix(path, "/")
+	path = strings.TrimSuffix(strings.TrimSuffix(path, "/"), ".git")
 	owner, name, ok := strings.Cut(path, "/")
-	if !ok || !gitHubOwner.MatchString(owner) || !gitHubRepository.MatchString(name) || name == "." || name == ".." {
+	if !ok || !gitHubOwner.MatchString(owner) || !gitHubRepository.MatchString(name) || name == "." || name == ".." ||
+		strings.HasSuffix(strings.ToLower(name), ".git") {
 		return "", "", fmt.Errorf("parse repository %q: %w", text, ErrInvalidRepository)
 	}
 	return owner, name, nil

@@ -12,12 +12,21 @@ func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T)
 		"fabricahq/public-rules",
 		" fabricahq/public-rules\n",
 		"fabricahq/public-rules/",
+		"fabricahq/public-rules.git",
+		"fabricahq/public-rules.git/",
 		"github.com/fabricahq/public-rules",
 		"www.github.com/fabricahq/public-rules",
 		"https://github.com/fabricahq/public-rules",
 		"https://github.com/fabricahq/public-rules/",
 		"https://github.com/fabricahq/public-rules.git",
 		"https://www.github.com/fabricahq/public-rules",
+		"http://github.com/fabricahq/public-rules",
+		"HTTPS://GitHub.com/fabricahq/public-rules",
+		"https://github.com/fabricahq/public-rules/tree/main",
+		"https://github.com/fabricahq/public-rules/releases",
+		"https://github.com/fabricahq/public-rules/blob/release/1/techs/go/_group.yaml",
+		"https://github.com/fabricahq/public-rules?tab=readme-ov-file",
+		"https://github.com/fabricahq/public-rules#readme",
 	} {
 		owner, name, err := ParseListedRepository(text)
 		if err != nil || owner != "fabricahq" || name != "public-rules" {
@@ -27,11 +36,6 @@ func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T)
 	owner, name, err := ParseListedRepository("Old-Name/rules_v2.x")
 	if err != nil || owner != "Old-Name" || name != "rules_v2.x" {
 		t.Errorf("got %q, %q, %v", owner, name, err)
-	}
-	// GitHub allows a repository named rules.git; only its address's .git is a clone URL's.
-	owner, name, err = ParseListedRepository("team/rules.git")
-	if err != nil || owner != "team" || name != "rules.git" {
-		t.Errorf("got %q, %q, %v; want team/rules.git", owner, name, err)
 	}
 }
 
@@ -43,16 +47,21 @@ func TestParseListedRepositoryRefusesWhatIsNotAGitHubRepository(t *testing.T) {
 		"/public-rules",
 		"fabricahq/public-rules/tree/main",
 		"https://gitlab.com/fabricahq/public-rules",
-		"http://github.com/fabricahq/public-rules",
-		"https://github.com/fabricahq/public-rules?tab=readme",
-		"https://github.com/fabricahq/public-rules#readme",
+		"ftp://github.com/fabricahq/public-rules",
 		"https://user@github.com/fabricahq/public-rules",
 		"https://github.com.evil.example/fabricahq/public-rules",
+		"https://github.com/fabricahq",
 		"fabric_hq/public-rules",
+		"-fabricahq/public-rules",
+		"fabricahq-/public-rules",
 		strings.Repeat("a", 40) + "/rules",
 		"fabricahq/" + strings.Repeat("r", 101),
 		"fabricahq/..",
 		"fabricahq/.",
+		"fabricahq/.git",
+		"fabricahq/public-rules.git.git",
+		"fabricahq/public-rules.GIT.git",
+		"https://github.com/fabricahq/public-rules.git.git",
 		"fabricahq/public rules",
 		"fabricahq/public%2Frules",
 		"../etc/passwd",
