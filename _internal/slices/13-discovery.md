@@ -92,14 +92,22 @@ The spec's Proposed decisions are built as written, except where an entry here s
   which works without a script and can't send two orders. The form keeps the current order in a hidden field.
 - **Proposed: without a script the sidebar shows an Apply button**, in `noscript`; `filters.js` goes straight to the
   address the server would redirect the form to, and turns off a filter's other checkbox when one turns on.
-- **Proposed: search keeps slice 3's tiers.** Rules that hold every word come first in every order, then the rest
-  under "Rules that match some of your words", and each tier groups its rules by group, in the order of each group's
-  first rule, so a group's heading can appear in both. The results head adds "N match every word" when some don't.
-  The group heading counts its rules that pass the filters, in its tier, on every page.
-- **Proposed: a search finds retired rules only for words.** Search without a query, "All rules", lists every current
-  rule, as a group's page does.
-- **Proposed: ties fall to vetted libraries before unvetted ones**, after retired rules, so an opted-in list never
-  puts an unvetted rule above a vetted one that ties with it. Best match falls to `ts_rank`, then stars, Fabrica's
+- **Proposed: search keeps slice 3's tiers, and adds retired rules as a third.** Current rules that hold every word
+  come first in every order, then the other current rules under "Rules that match some of your words", then the
+  retired rules under "Retired rules", those that hold every word first. Each tier groups its rules by group, in the
+  order of each group's first rule, so a group's heading can appear in each. The results head adds "N match every
+  word" when some don't. The group heading counts its rules that pass the filters, in its tier, on every page.
+- **Decided (Josh): retired rules follow every current rule, in every list.** Search for words keeps finding retired
+  rules, but after every current rule, whatever their match, so a retired rule never ranks first for a word a current
+  rule also holds; a group's page and every rule put them after the current rules too when shown. This replaces
+  ranking a retired rule below only the current rules it ties with.
+- **Proposed: every rule offers retired rules as a group's page does.** Search without a query, "All rules", lists
+  every current rule, with "Show retired rules" in its sidebar, off by default and `retired=1` in the address, so the
+  two pages behave alike. A search for words always finds retired rules, so its sidebar doesn't offer them and its
+  address drops `retired`. The sidebar's library counts include retired rules exactly when the list shows them, so
+  narrowing a list never raises a count.
+- **Proposed: ties fall to vetted libraries before unvetted ones**, so an opted-in list never puts an unvetted rule
+  above a vetted one that ties with it. Best match falls to `ts_rank`, then stars, Fabrica's
   libraries, title, owner, and name; the other orders to stars, Fabrica's, owner, name, and title.
 - **Proposed: a renamed rule reads "Renamed to `new-id`"** in place of "replaced by <title>", since its replacement
   has its title.

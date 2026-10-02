@@ -248,7 +248,8 @@ func TestAGroupThatIsntCanonicalListsTheRulesOfThatExactID(t *testing.T) {
 	}
 }
 
-// A group's list holds its retired rules only when asked, after the current rules, each with its replacement.
+// A group's list holds its retired rules only when asked, after the current rules, each with its replacement, counted
+// apart from them.
 func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 	c := newRuleLists(t)
 
@@ -263,42 +264,77 @@ func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 		Vetted:  true,
 		Rule: views.RuleCard{Path: "techs/go/old-errors", Group: "techs/go", Title: "Old errors", Impact: "HIGH",
 			Version: coderules.RuleVersion{Major: 1}},
-		Retired: true, ReplacedBy: &views.RuleRef{Path: "techs/go/handle-errors", Title: "Handle errors"}, GroupRules: 5,
+		Retired: true, ReplacedBy: &views.RuleRef{Path: "techs/go/handle-errors", Title: "Handle errors"}, GroupRules: 1,
 	}
 	if !reflect.DeepEqual(retired, want) {
 		t.Errorf("got %+v, want %+v", retired, want)
 	}
 }
 
-// Search finds a retired rule, ranked after the current rules that match as well, and every rule groups with its
-// group's, in the order of each group's best rule.
-func TestSearchRanksRetiredRulesBelowCurrentOnesAndGroupsByGroup(t *testing.T) {
+// Search finds a retired rule after every current rule, even one holding fewer of the query's words, and every current
+// rule groups with its group's, in the order of each group's best rule. Retired rules group by group after them.
+func TestSearchListsRetiredRulesAfterEveryCurrentRule(t *testing.T) {
 	c := newRuleLists(t)
 
-	got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
+	for _, query := range []string{"errors", "old errors"} {
+		got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery(query), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 
-	ids := sourceIDs(got)
-	if len(ids) != 6 || !slices.Contains(ids, oldErrors) {
-		t.Fatalf("got %q, want 6 rules with old-errors", ids)
-	}
-	var groups []string
-	for i, r := range got.Rows {
-		if r.Retired && r.Rule.Path != "techs/go/old-errors" {
-			t.Errorf("%s is retired", ids[i])
+		ids := sourceIDs(got)
+		if len(ids) != 6 || ids[5] != oldErrors || !got.Rows[5].Retired {
+			t.Fatalf("%q: got %q, want 6 rules ending with the retired old-errors", query, ids)
 		}
-		if n := len(groups); n == 0 || groups[n-1] != r.Rule.Group {
-			if slices.Contains(groups, r.Rule.Group) {
-				t.Errorf("got %s apart from its group's other rules: %q", ids[i], ids)
+		var groups []string
+		for i, r := range got.Rows[:5] {
+			if r.Retired {
+				t.Errorf("%q: %s is retired", query, ids[i])
 			}
-			groups = append(groups, r.Rule.Group)
+			if n := len(groups); n == 0 || groups[n-1] != r.Rule.Group {
+				if slices.Contains(groups, r.Rule.Group) {
+					t.Errorf("%q: got %s apart from its group's other rules: %q", query, ids[i], ids)
+				}
+				groups = append(groups, r.Rule.Group)
+			}
+		}
+		goRow := slices.IndexFunc(got.Rows, func(r views.RuleRow) bool { return r.Rule.Group == "techs/go" })
+		if got.Rows[goRow].GroupRules != 3 || got.Rows[5].GroupRules != 1 {
+			t.Errorf("%q: got techs/go's current rules counted %d and its retired ones %d, want 3 and 1", query, got.Rows[goRow].GroupRules, got.Rows[5].GroupRules)
 		}
 	}
-	goRows := slices.IndexFunc(got.Rows, func(r views.RuleRow) bool { return r.Rule.Group == "techs/go" })
-	if goRows < 0 || got.Rows[goRows].GroupRules != 4 {
-		t.Fatalf("got %+v, want techs/go's 4 rules", got.Rows)
+}
+
+// A list holds retired rules when it shows them, a search for words always and any other list when asked, and the
+// sidebar's counts include them then, so narrowing a list never raises a count. Every list knows how many retired
+// rules it could show.
+func TestAListCountsItsRetiredRulesOnlyWhenItShowsThem(t *testing.T) {
+	c := newRuleLists(t)
+	fabrica := func(results views.RuleResults) int {
+		for _, l := range results.UnfilteredLibraries {
+			if l.Library.Owner == "fabricahq" {
+				return l.Rules
+			}
+		}
+		return 0
 	}
-	if ids[goRows+3] != oldErrors {
-		t.Errorf("got techs/go's rules %q, want old-errors after the current ones that match as well", ids[goRows:goRows+4])
+
+	for _, tc := range []struct {
+		name                       string
+		list                       domain.RuleList
+		unfiltered, fabrica, total int
+	}{
+		{"every rule", domain.RuleList{ListChoices: domain.ListChoices{Order: domain.MostStarred}}, 6, 3, 6},
+		{"every rule with retired ones", domain.RuleList{ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 7, 4, 7},
+		{"a group", goList(domain.RuleFilters{}), 4, 2, 4},
+		{"a group with retired ones", domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 5, 3, 5},
+		{"a search", domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}}, 6, 3, 6},
+	} {
+		got := c.listRules(t, tc.list)
+		if got.Unfiltered != tc.unfiltered || fabrica(got) != tc.fabrica || got.Total != tc.total || got.RetiredRules != 1 {
+			t.Errorf("%s: got %d rules, %d of fabricahq/rules, %d passing, %d retired; want %d, %d, %d, 1",
+				tc.name, got.Unfiltered, fabrica(got), got.Total, got.RetiredRules, tc.unfiltered, tc.fabrica, tc.total)
+		}
+	}
+	if got := c.listRules(t, domain.RuleList{Group: "techs/golang", ListChoices: domain.ListChoices{Order: domain.MostStarred}}); got.RetiredRules != 0 {
+		t.Errorf("techs/golang: got %d retired rules, want none", got.RetiredRules)
 	}
 }
 

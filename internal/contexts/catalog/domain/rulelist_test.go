@@ -58,7 +58,8 @@ func TestListChoicesReadAndWriteTheirAddress(t *testing.T) {
 		{"a group's page has no best match", domain.GroupListPage, "sort=best", domain.ListChoices{Order: domain.MostStarred}, ""},
 		{"an empty sort", domain.SearchListPage, "sort=", domain.ListChoices{Order: domain.BestMatch}, ""},
 		{"retired rules", domain.GroupListPage, "retired=1", domain.ListChoices{Retired: true, Order: domain.MostStarred}, "retired=1"},
-		{"search always finds retired rules", domain.SearchListPage, "retired=1", domain.ListChoices{Order: domain.BestMatch}, ""},
+		{"retired rules on search for every rule", domain.SearchListPage, "retired=1", domain.ListChoices{Retired: true, Order: domain.BestMatch}, "retired=1"},
+		{"search for words always finds retired rules", domain.SearchListPage, "q=errors&retired=1", domain.ListChoices{Order: domain.BestMatch}, ""},
 		{"every choice, in any order", domain.SearchListPage, "unvetted=1&sort=new&kind=techs&stars=100&impact=high&libs=zeta/go",
 			domain.ListChoices{Unvetted: true, Filters: domain.RuleFilters{
 				Libraries: []string{"zeta/go"}, Impact: domain.HighImpact, MinStars: 100, Kind: "techs",

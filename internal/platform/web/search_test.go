@@ -1,9 +1,12 @@
 package web_test
 
 import (
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // Search lists its rules under their groups, each heading leading to the group's page and counting its rules, the
@@ -90,4 +93,42 @@ func TestSearchPagesKeepTheirChoices(t *testing.T) {
 	if got := links(t, page, "Newest"); !slices.Equal(got, []string{"/search?kind=techs&q=errors&sort=new"}) {
 		t.Errorf("a sort tab leads to %q, want the first page", got)
 	}
+}
+
+// Search offers retired rules as a group's page does while it lists every rule, off by default, and a search for words
+// always finds them; either way they follow every current rule, under a heading of their own.
+func TestSearchOffersRetiredRulesForEveryRuleAndListsThemLast(t *testing.T) {
+	var chosen []domain.ListChoices
+	c := newBrowsingCatalog()
+	c.chosen = &chosen
+	retired := closeBodiesRow
+	retired.Retired, retired.GroupRules = true, 1
+	results := c.results["errors"]
+	results.Rows = append(slices.Clone(results.Rows), retired)
+	c.results["errors"] = results
+	handler := newSite(t, c)
+
+	all := get(t, handler, "/search").Body.String()
+	withRetired := get(t, handler, "/search?retired=1").Body.String()
+	words := get(t, handler, "/search?q=errors").Body.String()
+
+	_, _, fields := filterFields(t, all)
+	if !slices.Contains(fieldNames(fields), "retired=1") || slices.Contains(checkedFields(fields), "retired=1") {
+		t.Errorf("every rule's form holds %q, want retired rules offered, off", fieldNames(fields))
+	}
+	_, _, fields = filterFields(t, withRetired)
+	if !slices.Contains(checkedFields(fields), "retired=1") || len(chosen) < 2 || !chosen[1].Retired {
+		t.Errorf("with retired rules, the form holds %q and the catalog read %+v", checkedFields(fields), chosen)
+	}
+	_, _, fields = filterFields(t, words)
+	if slices.Contains(fieldNames(fields), "retired=1") {
+		t.Errorf("a search for words offers retired rules: %q", fieldNames(fields))
+	}
+	if resp := get(t, handler, "/search?q=errors&retired=1"); resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != "/search?q=errors" {
+		t.Errorf("a search for words with retired rules got %d to %q", resp.Code, resp.Header().Get("Location"))
+	}
+	if got, want := headings(t, words, "h2"), []string{"Go techs/go 3", "techs/golang not canonical 1", "Retired rules", "Go techs/go 1"}; !slices.Equal(got, want) {
+		t.Errorf("the search's headings are %q, want %q", got, want)
+	}
+	assertShows(t, words, "Retired rules Go techs/go 1 Close response bodies MEDIUM Retired other/go-rules")
 }

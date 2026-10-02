@@ -58,7 +58,7 @@ templ filterSidebar(v ruleListView) {
 				</label>
 			}
 		}
-		if v.page.OffersRetired() {
+		if v.offersRetired() {
 			@filterGroup("Retired", "") {
 				<label class={ filterLabel }>
 					<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ v.choices.Retired }/> Show retired rules

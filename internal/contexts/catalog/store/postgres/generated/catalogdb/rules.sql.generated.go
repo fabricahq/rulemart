@@ -114,11 +114,10 @@ documents AS (
         SELECT v.id, v.search_document FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
         WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
     ) newest ON true
-    WHERE (r.retired_in_release_id IS NULL OR $13::boolean)
-      AND ($14::text = '' OR g.path = $14::text)
+    WHERE ($13::text = '' OR g.path = $13::text)
       AND (
           l.host || ':' || l.host_repository_id = ANY ($9::text[])
-          OR ($15::boolean
+          OR ($14::boolean
               AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
       )
 ),
@@ -173,6 +172,7 @@ base AS (
         SELECT p.tagged_at FROM rule_versions f JOIN library_releases p ON p.id = f.release_id
         WHERE f.rule_id = r.id ORDER BY p.number LIMIT 1
     ) first ON true
+    WHERE NOT d.retired OR $15::boolean
 ),
 library_counts AS (
     SELECT b.owner, b.name, b.owner_avatar_url, b.vetted, count(*) AS rules,
@@ -182,7 +182,7 @@ library_counts AS (
     GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
 ),
 facets AS (
-    SELECT (SELECT count(*) FROM base) AS unfiltered,
+    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
            coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
            coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
            coalesce(array_agg(c.owner_avatar_url ORDER BY c.position), '{}')::text[] AS library_avatar_urls,
@@ -191,21 +191,21 @@ facets AS (
     FROM library_counts c
 ),
 filtered AS (
-    SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.replaced_by, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at FROM base b
+    SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.replaced_by, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality($17::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY ($17::text[]))
       AND ($18::text = '' OR ($18::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
       AND b.stars >= $19::integer
       AND ($20::text = '' OR b.group_path LIKE $20::text || '/%')
 ),
 positioned AS (
-    SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.replaced_by, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, row_number() OVER (
-               ORDER BY cardinality(f.missing) > 0,
+    SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.replaced_by, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, f.tier, row_number() OVER (
+               ORDER BY f.tier,
+                        cardinality(f.missing) > 0,
                         CASE $21::text
                             WHEN 'best' THEN f.score
                             WHEN 'stars' THEN f.stars::float
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
-                        f.retired,
                         f.vetted DESC,
                         CASE WHEN $21::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
@@ -216,8 +216,8 @@ positioned AS (
     FROM filtered f
 ),
 grouped AS (
-    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.replaced_by, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.position, min(p.position) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_position,
-           count(*) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_rules
+    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.replaced_by, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.tier, p.position, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
+           count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
 )
 SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
@@ -226,7 +226,7 @@ SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.gro
        coalesce(replacement.title, '')::text AS replacement_title, gr.stars::integer AS stars, gr.missing,
        gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
-       facets.unfiltered, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM grouped gr
 CROSS JOIN facets
@@ -254,9 +254,9 @@ type ListRulesParams struct {
 	MatchAll               bool
 	CanonicalNames         []string
 	CanonicalIds           []string
-	IncludeRetired         bool
 	GroupPath              string
 	IncludeUnvetted        bool
+	IncludeRetired         bool
 	FirstOwner             string
 	Libraries              []string
 	Impact                 string
@@ -288,6 +288,7 @@ type ListRulesRow struct {
 	Complete          int64
 	Libraries         int64
 	Unfiltered        int64
+	RetiredRules      int64
 	LibraryOwners     []string
 	LibraryNames      []string
 	LibraryAvatarUrls []string
@@ -319,18 +320,18 @@ type ListRulesRow struct {
 // or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
 // both when it's empty.
 //
-// Rules that hold every find term come first. Then order_by orders them: best by score, stars by stars, and new by
-// when the release that first published each rule was tagged, newest first. A retired rule comes after the current
-// rules it ties with, and a rule of a library vetted doesn't hold after the vetted ones it ties with; then rules fall
-// to best's ts_rank, stars, the libraries first_owner owns, best's title, owner, name, title, and rule ID, so the order
-// is stable. Then each group's rules come together, among the rules that hold every term and among the rest apart, in
-// the order of each group's first rule.
+// Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
+// rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
+// by when the release that first published each rule was tagged, newest first. A rule of a library vetted doesn't hold
+// comes after the vetted ones it ties with; then rules fall to best's ts_rank, stars, the libraries first_owner owns,
+// best's title, owner, name, title, and rule ID, so the order is stable. Then each group's rules in a tier come
+// together, in the order of each group's first rule.
 //
 // Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
-// libraries; how many rules of its group pass them, among the rules that hold every term or the rest, as the row is;
-// and, the same on every row, how many rules the list holds before its filters, and the libraries those come from, in
-// step, first_owner's first and then by owner and name, each with whether vetted holds it and how many of the rules it
-// holds.
+// libraries; how many rules of its group in its tier pass them; and, the same on every row, how many rules the list
+// holds before its filters, and the libraries those come from, in step, first_owner's first and then by owner and name,
+// each with whether vetted holds it and how many of the rules it holds; and how many retired rules the group at
+// group_path, or every group, holds in the list's libraries, whether or not the list holds them.
 func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRulesRow, error) {
 	rows, err := q.db.Query(ctx, listRules,
 		arg.Skip,
@@ -345,9 +346,9 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 		arg.MatchAll,
 		arg.CanonicalNames,
 		arg.CanonicalIds,
-		arg.IncludeRetired,
 		arg.GroupPath,
 		arg.IncludeUnvetted,
+		arg.IncludeRetired,
 		arg.FirstOwner,
 		arg.Libraries,
 		arg.Impact,
@@ -385,6 +386,7 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 			&i.Complete,
 			&i.Libraries,
 			&i.Unfiltered,
+			&i.RetiredRules,
 			&i.LibraryOwners,
 			&i.LibraryNames,
 			&i.LibraryAvatarUrls,

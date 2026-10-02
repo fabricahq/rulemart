@@ -368,6 +368,10 @@ type RuleResults struct {
 	// from, Fabrica's first, then by owner and name, each with how many of them it holds.
 	Unfiltered          int
 	UnfilteredLibraries []LibraryCount
+	// RetiredRules counts the retired rules of the list's group, or of every group, in its libraries, whether or not
+	// the list holds them, so a page offers to show them only when there are some. It's 0 when the list holds no rule
+	// before its filters.
+	RetiredRules int
 	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
 	// search ignores, such as "the", or punctuation.
 	NoWords bool

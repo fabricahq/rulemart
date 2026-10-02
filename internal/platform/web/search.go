@@ -27,9 +27,32 @@ type searchView struct {
 	// reads.
 	page, pages int
 	list        ruleListView
-	// groups are the page's rules, under their groups, in the order of each group's first rule: first the rules that
-	// hold every word of the query, then the rest, each among themselves.
+	// groups are the page's rules, under their groups, in the order of each group's first rule: first the current rules
+	// that hold every word of the query, then the other current rules, then the retired rules, each among themselves.
 	groups []resultGroupView
+}
+
+// resultTier is where a rule stands among a search's results, which come in tiers, each grouping its rules apart.
+type resultTier int
+
+const (
+	// completeTier holds the current rules that hold every word of the query, and every current rule without one.
+	completeTier resultTier = iota
+	// partialTier holds the current rules that lack some of the query's words.
+	partialTier
+	// retiredTier holds the retired rules, after every current one.
+	retiredTier
+)
+
+// tierOf returns the tier of r, a row of a search's results.
+func tierOf(r views.RuleRow) resultTier {
+	switch {
+	case r.Retired:
+		return retiredTier
+	case len(r.Missing) > 0:
+		return partialTier
+	}
+	return completeTier
 }
 
 // resultGroupView is a group's rules on a page of search's results, under a heading that leads to the group's page.
@@ -37,11 +60,10 @@ type resultGroupView struct {
 	label groupLabel
 	icon  groupIcon
 	href  string
-	// rules counts the group's rules that pass the filters, on this page and others, among the rules that hold every
-	// word of the query or the rest, as partial says.
-	rules   int
-	partial bool
-	rows    []ruleRowView
+	// rules counts the group's rules in its tier that pass the filters, on this page and others.
+	rules int
+	tier  resultTier
+	rows  []ruleRowView
 }
 
 func newSearchView(query domain.SearchQuery, choices domain.ListChoices, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
@@ -51,11 +73,11 @@ func newSearchView(query domain.SearchQuery, choices domain.ListChoices, tooLong
 		list:  newRuleListView(domain.SearchListPage, searchHref, searchParams(query.String()), choices, results),
 	}
 	for _, r := range results.Rows {
-		partial := len(r.Missing) > 0
-		if n := len(v.groups); n == 0 || v.groups[n-1].label.id != r.Rule.Group || v.groups[n-1].partial != partial {
+		tier := tierOf(r)
+		if n := len(v.groups); n == 0 || v.groups[n-1].label.id != r.Rule.Group || v.groups[n-1].tier != tier {
 			v.groups = append(v.groups, resultGroupView{
 				label: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
-				href: withUnvetted(groupHref(r.Rule.Group), choices.Unvetted), rules: r.GroupRules, partial: partial,
+				href: withUnvetted(groupHref(r.Rule.Group), choices.Unvetted), rules: r.GroupRules, tier: tier,
 			})
 		}
 		last := &v.groups[len(v.groups)-1]
@@ -69,7 +91,7 @@ func searchParams(query string) url.Values {
 	if query == "" {
 		return nil
 	}
-	return url.Values{"q": {query}}
+	return url.Values{domain.QueryParam: {query}}
 }
 
 // title is the search page's document title, which names the query.
@@ -88,20 +110,15 @@ func (v searchView) heading() string {
 	return "Rules matching “" + v.query + "”"
 }
 
-// completeGroups returns the page's groups of rules that hold every word of the query, which come first.
-func (v searchView) completeGroups() []resultGroupView { return v.groups[:v.partialStart()] }
-
-// partialGroups returns the page's groups of rules that lack some of the query's words, which follow.
-func (v searchView) partialGroups() []resultGroupView { return v.groups[v.partialStart():] }
-
-// partialStart returns the index of the page's first group of rules that lack a word, or the number of groups.
-func (v searchView) partialStart() int {
-	for i, g := range v.groups {
-		if g.partial {
-			return i
+// groupsIn returns the page's groups of rules in tier, in order.
+func (v searchView) groupsIn(tier resultTier) []resultGroupView {
+	var groups []resultGroupView
+	for _, g := range v.groups {
+		if g.tier == tier {
+			groups = append(groups, g)
 		}
 	}
-	return len(v.groups)
+	return groups
 }
 
 // empty reports whether the page shows no rules.
@@ -143,13 +160,13 @@ func searchHrefNumbered(query string, choices domain.ListChoices, number string)
 // is missing.
 func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
-	query := domain.ParseSearchQuery(params.Get("q"))
+	query := domain.ParseSearchQuery(params.Get(domain.QueryParam))
 	choices := domain.ParseListChoices(domain.SearchListPage, params)
 	page, spelled := searchPageNumber(params)
-	own := searchHrefFor(params.Get("q"), choices, page)
+	own := searchHrefFor(params.Get(domain.QueryParam), choices, page)
 	if page > app.MaxSearchPage {
 		// A number too large to read keeps its spelling, so the page past the last says so rather than redirecting.
-		own = searchHrefNumbered(params.Get("q"), choices, params.Get("page"))
+		own = searchHrefNumbered(params.Get(domain.QueryParam), choices, params.Get("page"))
 	}
 	if !spelled || !spelledAs(r, own) {
 		redirect(w, r, own)

@@ -9,7 +9,7 @@ import (
 )
 
 // searchPage shows the rules a query matches, or every rule without one, under their groups, beside the filters, as
-// the prototype's search page does. A phone's header has no search field, so the page holds its own there.
+// the prototype's search page does, and the retired rules after every current one, under a heading of their own. A phone's header has no search field, so the page holds its own there.
 templ searchPage(c chrome, v searchView) {
 	@layout(c, head{title: v.title(), noindex: true, searchPage: true, query: v.query, filters: true}) {
 		<div class="page wrap">
@@ -46,14 +46,24 @@ templ searchPage(c chrome, v searchView) {
 								No rules match. Try a broader word, or <a href={ templ.SafeURL(feedbackHref) }>tell us what you were looking for</a>.
 							</div>
 						} else {
-							for _, g := range v.completeGroups() {
+							for _, g := range v.groupsIn(completeTier) {
 								@resultGroup(g)
 							}
-							if partial := v.partialGroups(); len(partial) > 0 {
+							if partial := v.groupsIn(partialTier); len(partial) > 0 {
 								if v.list.complete > 0 {
-									<h2 class="mt-8 mb-1 border-b border-border pb-[11px] text-[14px] font-normal text-muted">Rules that match some of your words</h2>
+									@tierHeading() {
+										Rules that match some of your words
+									}
 								}
 								for _, g := range partial {
+									@resultGroup(g)
+								}
+							}
+							if retired := v.groupsIn(retiredTier); len(retired) > 0 {
+								@tierHeading() {
+									Retired rules
+								}
+								for _, g := range retired {
 									@resultGroup(g)
 								}
 							}
@@ -72,6 +82,12 @@ func searchMore(v searchView) string {
 		return ""
 	}
 	return plural(v.list.complete, "matches", "match") + " every word"
+}
+
+// tierHeading heads the results of a tier after the first: the current rules that lack some of the query's words, or
+// the retired rules.
+templ tierHeading() {
+	<h2 class="mt-8 mb-1 border-b border-border pb-[11px] text-[14px] font-normal text-muted">{ children... }</h2>
 }
 
 // searchMessage is a search's outcome when it shows no results: a query too long to run, or one with no word to find.

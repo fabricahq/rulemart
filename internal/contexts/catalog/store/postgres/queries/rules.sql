@@ -41,18 +41,18 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 -- or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
 -- both when it's empty.
 --
--- Rules that hold every find term come first. Then order_by orders them: best by score, stars by stars, and new by
--- when the release that first published each rule was tagged, newest first. A retired rule comes after the current
--- rules it ties with, and a rule of a library vetted doesn't hold after the vetted ones it ties with; then rules fall
--- to best's ts_rank, stars, the libraries first_owner owns, best's title, owner, name, title, and rule ID, so the order
--- is stable. Then each group's rules come together, among the rules that hold every term and among the rest apart, in
--- the order of each group's first rule.
+-- Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
+-- rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
+-- by when the release that first published each rule was tagged, newest first. A rule of a library vetted doesn't hold
+-- comes after the vetted ones it ties with; then rules fall to best's ts_rank, stars, the libraries first_owner owns,
+-- best's title, owner, name, title, and rule ID, so the order is stable. Then each group's rules in a tier come
+-- together, in the order of each group's first rule.
 --
 -- Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
--- libraries; how many rules of its group pass them, among the rules that hold every term or the rest, as the row is;
--- and, the same on every row, how many rules the list holds before its filters, and the libraries those come from, in
--- step, first_owner's first and then by owner and name, each with whether vetted holds it and how many of the rules it
--- holds.
+-- libraries; how many rules of its group in its tier pass them; and, the same on every row, how many rules the list
+-- holds before its filters, and the libraries those come from, in step, first_owner's first and then by owner and name,
+-- each with whether vetted holds it and how many of the rules it holds; and how many retired rules the group at
+-- group_path, or every group, holds in the list's libraries, whether or not the list holds them.
 -- name: ListRules :many
 WITH find_terms AS (
     SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
@@ -105,8 +105,7 @@ documents AS (
         SELECT v.id, v.search_document FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
         WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
     ) newest ON true
-    WHERE (r.retired_in_release_id IS NULL OR @include_retired::boolean)
-      AND (@group_path::text = '' OR g.path = @group_path::text)
+    WHERE (@group_path::text = '' OR g.path = @group_path::text)
       AND (
           l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
           OR (@include_unvetted::boolean
@@ -164,6 +163,7 @@ base AS (
         SELECT p.tagged_at FROM rule_versions f JOIN library_releases p ON p.id = f.release_id
         WHERE f.rule_id = r.id ORDER BY p.number LIMIT 1
     ) first ON true
+    WHERE NOT d.retired OR @include_retired::boolean
 ),
 library_counts AS (
     SELECT b.owner, b.name, b.owner_avatar_url, b.vetted, count(*) AS rules,
@@ -173,7 +173,7 @@ library_counts AS (
     GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
 ),
 facets AS (
-    SELECT (SELECT count(*) FROM base) AS unfiltered,
+    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
            coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
            coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
            coalesce(array_agg(c.owner_avatar_url ORDER BY c.position), '{}')::text[] AS library_avatar_urls,
@@ -182,7 +182,7 @@ facets AS (
     FROM library_counts c
 ),
 filtered AS (
-    SELECT b.* FROM base b
+    SELECT b.*, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality(@libraries::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY (@libraries::text[]))
       AND (@impact::text = '' OR (@impact::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
       AND b.stars >= @min_stars::integer
@@ -190,13 +190,13 @@ filtered AS (
 ),
 positioned AS (
     SELECT f.*, row_number() OVER (
-               ORDER BY cardinality(f.missing) > 0,
+               ORDER BY f.tier,
+                        cardinality(f.missing) > 0,
                         CASE @order_by::text
                             WHEN 'best' THEN f.score
                             WHEN 'stars' THEN f.stars::float
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
-                        f.retired,
                         f.vetted DESC,
                         CASE WHEN @order_by::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
@@ -207,8 +207,8 @@ positioned AS (
     FROM filtered f
 ),
 grouped AS (
-    SELECT p.*, min(p.position) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_position,
-           count(*) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_rules
+    SELECT p.*, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
+           count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
 )
 SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
@@ -217,7 +217,7 @@ SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.gro
        coalesce(replacement.title, '')::text AS replacement_title, gr.stars::integer AS stars, gr.missing,
        gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
-       facets.unfiltered, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM grouped gr
 CROSS JOIN facets

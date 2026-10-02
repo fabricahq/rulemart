@@ -74,6 +74,12 @@ func addressOf(path string, choices, params url.Values) string {
 	return path + "?" + choices.Encode()
 }
 
+// offersRetired reports whether the sidebar offers the list's retired rules: on a page that offers them, unless it
+// searches for words, which always finds them.
+func (v ruleListView) offersRetired() bool {
+	return v.page.OffersRetired() && !v.params.Has(domain.QueryParam)
+}
+
 // filtered reports whether a filter narrows the list, which Clear filters undoes.
 func (v ruleListView) filtered() bool { return !v.choices.Filters.IsZero() }
 

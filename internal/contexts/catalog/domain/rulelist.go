@@ -73,8 +73,8 @@ const (
 	// GroupListPage is a group's page: its libraries, impact, stars, retired rules, unvetted libraries, and Most
 	// starred or Newest.
 	GroupListPage ListPage = iota
-	// SearchListPage is search: a group's choices but retired rules, which search always finds, plus the kind of
-	// group, and Best match, Most starred, or Newest.
+	// SearchListPage is search: a group's choices, plus the kind of group, and Best match, Most starred, or Newest. It
+	// offers retired rules only while it lists every rule, since a search for words always finds them.
 	SearchListPage
 	// LibraryListPage is a list of libraries or groups, such as the libraries page or a browse page: only unvetted
 	// libraries.
@@ -96,16 +96,17 @@ func (p ListPage) Orders() []RuleOrder {
 // page holds one kind.
 func (p ListPage) OffersKind() bool { return p == SearchListPage }
 
-// OffersRetired reports whether the page offers its retired rules as a choice, as a group's page does; search always
-// finds them.
-func (p ListPage) OffersRetired() bool { return p == GroupListPage }
+// OffersRetired reports whether the page offers its retired rules as a choice, as a group's page and search do; search
+// offers it only without a query in QueryParam.
+func (p ListPage) OffersRetired() bool { return p == GroupListPage || p == SearchListPage }
 
 // ListChoices are what a visitor chose on a page that lists rules or libraries: which libraries it includes, what it
 // filters, and how it orders them. ParseListChoices reads them from an address, and Values writes them back.
 type ListChoices struct {
 	// Unvetted adds the libraries listings name that the release doesn't vet to the vetted ones.
 	Unvetted bool
-	// Retired adds retired rules to a list without a query; a search for words always finds them.
+	// Retired adds retired rules to a list without a query, after every current rule; a search for words always finds
+	// them, after its current rules too.
 	Retired bool
 	Filters RuleFilters
 	// Order is one of the page's orders, its default when the address names none; empty on a LibraryListPage. Every
@@ -125,6 +126,10 @@ const (
 	RetiredParam   = "retired"
 )
 
+// QueryParam holds what search finds, which isn't a choice of the list's, but decides whether search offers retired
+// rules.
+const QueryParam = "q"
+
 // StarThresholds are the least stars the stars filter offers, besides any.
 var StarThresholds = []int{10, 50, 100}
 
@@ -134,7 +139,7 @@ const MaxLibraryFilters = 50
 
 // ParseListChoices reads the choices of the page from values, an address's query. It reads only what the page
 // offers, and leaves out anything else, or any value it doesn't offer, such as an order of another page's or stars it
-// has no threshold for. A parameter may repeat, as a form without a script sends checkboxes, and libs may also join
+// has no threshold for, or retired rules on search for words. A parameter may repeat, as a form without a script sends checkboxes, and libs may also join
 // libraries with commas; a filter whose every value is chosen keeps every rule. Libraries are kept as
 // LibraryFilterValue spells them, in order, each once.
 func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
@@ -158,7 +163,7 @@ func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
 	if page.OffersKind() {
 		choices.Filters.Kind = oneOf(values[KindParam], "techs", "practices")
 	}
-	if page.OffersRetired() {
+	if page.OffersRetired() && (page != SearchListPage || ParseSearchQuery(url.Values(values).Get(QueryParam)).IsZero()) {
 		choices.Retired = has(values[RetiredParam], "1")
 	}
 	return choices

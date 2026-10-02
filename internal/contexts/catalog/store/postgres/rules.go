@@ -52,7 +52,7 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	}
 	// Every row says the same of the list before its filters.
 	first := summary[0]
-	results.Unfiltered = int(first.Unfiltered)
+	results.Unfiltered, results.RetiredRules = int(first.Unfiltered), int(first.RetiredRules)
 	for i, owner := range first.LibraryOwners {
 		results.UnfilteredLibraries = append(results.UnfilteredLibraries, views.LibraryCount{
 			Library: libraryRef(owner, first.LibraryNames[i], first.LibraryAvatarUrls[i]),
