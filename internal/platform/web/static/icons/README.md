@@ -14,6 +14,7 @@ rules are about, which doesn't imply that the owner endorses Rulemart or the rul
 
 To add or change an icon, copy its file from the pinned version, or from a newer one after updating the pin for its
 whole set here, and name it in `catalog/group-icons.yaml`. Never edit a Devicon or Lucide icon; a `community/` icon
-changes only as its notice says. The pages show SVGs with `<img>`, which doesn't run scripts, and the tests reject an
-SVG that holds scripts, event handlers, or references to other files, and any icon `catalog/group-icons.yaml` doesn't
-name.
+changes only as its notice says. A `community/` icon is a PNG, at most 256 pixels a side, only when the project
+publishes no vector logo. The pages show icons with `<img>`, which doesn't run scripts, and the tests reject an SVG
+that holds scripts, event handlers, or references to other files, a PNG that doesn't decode or is larger, and any
+icon `catalog/group-icons.yaml` doesn't name.

@@ -1,7 +1,40 @@
 # Community icons
 
-Each icon here is a project's own logo, used where Devicon's version doesn't read at a group tile's size. Each entry
-says where the file came from and what Rulemart changed.
+Each icon here is a project's own logo, used where Devicon's version doesn't read at a group tile's size or Devicon
+has none. Each entry says where the file came from and what Rulemart changed.
+
+## goose.png
+
+The Goose logo is from [pressly/goose](https://github.com/pressly/goose), the file
+[assets/goose_logo.png](https://github.com/pressly/goose/blob/main/assets/goose_logo.png) as of 2026-10-02, under the
+repository's MIT license. The project publishes no vector logo. Rulemart trimmed its transparent margin, centered the
+drawing on a transparent square, and downscaled it to 256 pixels a side, so it fills a tile as other logos do; the
+drawing is unchanged. The repository's license:
+
+```text
+MIT License
+
+Original work Copyright (c) 2012 Liam Staskawicz
+Modified work Copyright (c) 2016 Vojtech Vitek
+Modified work Copyright (c) 2021 Michael Fridman, Vojtech Vitek
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
 
 ## tanstack-query.svg and tanstack-router.svg
 

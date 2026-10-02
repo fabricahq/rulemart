@@ -4,7 +4,8 @@
 # instead, and a group that isn't canonical never shows an icon.
 #
 # Technologies use Devicon logos (MIT), or a project's own logo from community/ where Devicon's doesn't read at a
-# tile's size, and practices Lucide icons (ISC). Vendor only the icons this file names, as
+# tile's size or Devicon has none, as an SVG, or a PNG when the project publishes only one, and practices Lucide
+# icons (ISC). Vendor only the icons this file names, as
 # internal/platform/web/static/icons/README.md explains.
 #
 # file is the icon's path under icons/. monochrome: true marks an icon drawn in black or one dark color, which dark
@@ -103,6 +104,9 @@ techs/github-actions:
   file: devicon/githubactions-original.svg
 techs/go:
   file: devicon/go-original.svg
+  narrow: true
+techs/goose:
+  file: community/goose.png
   narrow: true
 techs/graphql:
   file: devicon/graphql-plain.svg
