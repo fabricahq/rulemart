@@ -245,6 +245,9 @@ func plural(n int, one, many string) string {
 	return strconv.Itoa(n) + " " + many
 }
 
+// impactLevelsDocs is Code Rules' explanation of impact levels.
+const impactLevelsDocs = "https://code-rules.fabricahq.com/reference/rule-authoring/#describe-impact-through-consequences"
+
 // impactExplanations say what each impact level means, following Code Rules' rule-authoring reference: how serious
 // the problem is that a rule helps prevent, not how much code applying it changes.
 var impactExplanations = map[string]string{
@@ -294,7 +297,7 @@ func plainText(text, rendered string) string {
 var inlineElements = map[string]bool{"a": true, "code": true, "em": true, "strong": true, "del": true, "img": true, "span": true}
 
 // breakable shows text, such as an ID or a file name, so it wraps at its parts: each part up to a / or : stays whole
-// on a line unless it's longer than the line, and then breaks after a hyphen, _, or ., as words do. It writes the parts
+// on a line unless it's longer than the line, and then breaks after a hyphen or _, as words do. It writes the parts
 // escaped, with no space between them, which a templ template would add.
 func breakable(text string) templ.Component {
 	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
@@ -304,7 +307,7 @@ func breakable(text string) templ.Component {
 				out.WriteString("<wbr>")
 			}
 			out.WriteString(`<span class="inline-block">`)
-			for j, piece := range breakParts(part, "_.") {
+			for j, piece := range breakParts(part, "_") {
 				if j > 0 {
 					out.WriteString("<wbr>")
 				}

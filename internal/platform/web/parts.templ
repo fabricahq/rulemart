@@ -197,14 +197,28 @@ templ searchForm(id, query string, autofocus bool) {
 	</form>
 }
 
-// aboutPanel frames a library's or rule's facts beside its content, as label and value pairs, each fact a fact.
-templ aboutPanel() {
+// aboutPanel frames a library's or rule's facts beside its content, as label and value pairs, each fact a fact, and
+// a note under them when note isn't nil.
+templ aboutPanel(note templ.Component) {
 	<section class="rounded-card border border-border" aria-labelledby="about">
 		<h2 id="about" class="border-b border-border px-4 py-2.5 text-[12px] font-medium tracking-[.12em] text-muted uppercase">About</h2>
 		<dl class="grid gap-2.5 px-4 py-3.5 text-[13px]">
 			{ children... }
 		</dl>
+		if note != nil {
+			<div class="border-t border-border px-4 py-3 text-[12.5px] text-muted">
+				@note
+			</div>
+		}
 	</section>
+}
+
+// impactNote says what a rule's impact level means, where a touch or a keyboard reaches it, as the impact label's
+// hover text does, and links Code Rules' explanation of the levels.
+templ impactNote(level string) {
+	<p id="impact-meaning">
+		{ impactExplanation(level) } <a class="whitespace-nowrap" href={ templ.SafeURL(impactLevelsDocs) }>Impact levels</a>
+	</p>
 }
 
 // fact is one fact in an aboutPanel. A long value wraps at its parts.
@@ -226,7 +240,7 @@ templ factLink(href, text, title string) {
 
 // libraryFacts is the facts every library page shows beside its content.
 templ libraryFacts(lib libraryView) {
-	@aboutPanel() {
+	@aboutPanel(nil) {
 		@fact("Owner") {
 			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
 		}

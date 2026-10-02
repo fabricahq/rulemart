@@ -23,7 +23,7 @@ func TestBreakableLetsAnIDWrapAtItsParts(t *testing.T) {
 	part := func(text string) string { return `<span class="inline-block">` + text + "</span>" }
 	for text, want := range map[string]string{
 		"fabricahq/public-rules:techs/go": part("fabricahq/") + "<wbr>" + part("public-rules:") + "<wbr>" + part("techs/") + "<wbr>" + part("go"),
-		"use_template.md":                 part("use_<wbr>template.<wbr>md"),
+		"use_template.md":                 part("use_<wbr>template.md"),
 		"plain":                           part("plain"),
 		"trailing/":                       part("trailing/"),
 		"/x":                              part("/") + "<wbr>" + part("x"),

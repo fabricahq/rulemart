@@ -295,6 +295,17 @@ func TestRulePageShowsTheCurrentVersion(t *testing.T) {
 	}
 }
 
+// An impact label explains itself on hover, which touch and keyboards can't reach, so a rule's page also says what
+// its level means, and links the levels' explanation.
+func TestRulePageSaysWhatItsImpactMeans(t *testing.T) {
+	page := get(t, newSite(t, newCatalog()), errorsRule).Body.String()
+
+	assertShows(t, page, "Impact HIGH High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels")
+	if got := links(t, page, "Impact levels"); len(got) != 1 || !strings.HasPrefix(got[0], "https://code-rules.fabricahq.com/") {
+		t.Errorf("Impact levels links %q", got)
+	}
+}
+
 // Reading guidance is Markdown, rendered at ingestion as the body is: the page shows its markup, and places that show
 // text, such as the page's description and search results, show its text. Guidance a release stored without HTML
 // shows as written.

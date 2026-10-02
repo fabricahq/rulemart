@@ -10,7 +10,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 	@layout(c, head{title: "Rulemart: Code Rules libraries", description: "Find and adopt Code Rules libraries: the engineering rules coding agents follow while they write and review your code."}) {
 		<section class="wrap pt-20 pb-12 text-center max-narrow:pt-14 max-narrow:pb-9">
 			@label("") {
-				Fabrica / Rulemart
+				The Code Rules library catalog
 			}
 			<h1 class="mt-[22px] mb-[18px] text-[clamp(2.25rem,4.6vw,3.6rem)] leading-[1.08] font-normal tracking-[-.06em]">
 				Agent coding best practices,{ " " }
@@ -281,7 +281,7 @@ templ ruleContent(r ruleView) {
 			@templ.Raw(r.html)
 		</div>
 		<aside class="grid content-start gap-[18px]">
-			@aboutPanel() {
+			@aboutPanel(impactNote(r.impact)) {
 				@fact("Library") {
 					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
 						@avatar(r.library.avatar, r.library.owner, avatarXS)
@@ -301,6 +301,9 @@ templ ruleContent(r ruleView) {
 				}
 				@fact("Updated") {
 					{ r.updated }
+				}
+				@fact("Impact") {
+					@impact(r.impact)
 				}
 			}
 		</aside>
