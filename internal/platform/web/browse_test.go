@@ -54,7 +54,7 @@ func newBrowsingCatalog() catalog {
 		},
 	}
 	c.unvettedIndex = c.index
-	c.groups = map[string]views.GroupList{
+	c.groups = map[string]views.GroupPage{
 		"techs/go": {Path: "techs/go", Canonical: goGroup, Rules: views.RuleResults{
 			Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow}, Total: 3, Libraries: 2, Unfiltered: 3,
 			LibraryCounts: browsingCounts,

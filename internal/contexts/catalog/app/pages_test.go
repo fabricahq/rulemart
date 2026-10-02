@@ -167,14 +167,14 @@ func TestGroupIndexOrdersCanonicalGroupsByNameWithoutRegardToCase(t *testing.T) 
 
 // A group's page lists a canonical group by the list's spelling of its ID, in the choices' order, and names each
 // rule's group as pages do.
-func TestGroupListsACanonicalGroupByTheListsSpelling(t *testing.T) {
+func TestGroupPageListsACanonicalGroupByTheListsSpelling(t *testing.T) {
 	r := &reads{ruleResults: views.RuleResults{Unfiltered: 1, Rows: []views.RuleRow{
 		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go"}},
 	}}}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 	choices := domain.ListChoices{Unvetted: true, Filters: domain.RuleFilters{MinStars: 10}, Order: domain.Newest}
 
-	got, err := pages.Group(context.Background(), "Techs/GO", choices)
+	got, err := pages.GroupPage(context.Background(), "Techs/GO", choices)
 
 	if err != nil {
 		t.Fatal(err)
@@ -196,13 +196,13 @@ func TestGroupHasAPageWhenCanonicalOrHeld(t *testing.T) {
 		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/golang/pass-context", Group: "techs/golang"}},
 	}}}, Groups: canonicalList(t)}
 
-	if got, err := empty.Group(context.Background(), "practices/accessibility", domain.ListChoices{}); err != nil || got.Canonical.Name != "Accessibility" {
+	if got, err := empty.GroupPage(context.Background(), "practices/accessibility", domain.ListChoices{}); err != nil || got.Canonical.Name != "Accessibility" {
 		t.Errorf("a canonical group no library holds: got %+v, %v", got, err)
 	}
-	if _, err := empty.Group(context.Background(), "techs/golang", domain.ListChoices{}); !errors.Is(err, app.ErrNotFound) {
+	if _, err := empty.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}); !errors.Is(err, app.ErrNotFound) {
 		t.Errorf("a group no library holds: got %v, want app.ErrNotFound", err)
 	}
-	got, err := held.Group(context.Background(), "techs/golang", domain.ListChoices{})
+	got, err := held.GroupPage(context.Background(), "techs/golang", domain.ListChoices{})
 	if err != nil || got.Path != "techs/golang" || got.Canonical != nil || got.Rules.Rows[0].CanonicalGroup != nil {
 		t.Errorf("a held group that isn't canonical: got %+v, %v", got, err)
 	}

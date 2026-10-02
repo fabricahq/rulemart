@@ -347,8 +347,8 @@ type GroupSummary struct {
 	Vetted bool
 }
 
-// GroupList is a group's page: the group, and its rules across libraries.
-type GroupList struct {
+// GroupPage is a group's page: the group, and its rules across libraries.
+type GroupPage struct {
 	// Path is the group's ID, such as techs/go.
 	Path string
 	// Canonical is nil when Path isn't on Code Rules' canonical group list.

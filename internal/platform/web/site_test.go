@@ -49,7 +49,7 @@ type catalog struct {
 	// unvettedIndex is the index with unvetted libraries, which GroupIndex answers when asked for them.
 	unvettedIndex views.GroupIndex
 	// groups are the groups' pages, keyed by ID in lowercase; Group answers the same page whatever the choices.
-	groups map[string]views.GroupList
+	groups map[string]views.GroupPage
 	// results are keyed by the query that finds them, empty for every rule, followed for pages after the first by
 	// " page " and the page's number; any other query or page finds nothing, whatever the choices.
 	results map[string]views.RuleResults
@@ -103,7 +103,7 @@ func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, er
 func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
 // Group matches id without regard to case, and records the choices.
-func (c catalog) Group(_ context.Context, id string, choices domain.ListChoices) (views.GroupList, error) {
+func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
 	if c.chosen != nil {
 		*c.chosen = append(*c.chosen, choices)
 	}

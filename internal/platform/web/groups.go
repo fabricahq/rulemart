@@ -12,8 +12,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// groupListView is what a group's page shows.
-type groupListView struct {
+// groupPageView is what a group's page shows.
+type groupPageView struct {
 	// href is the page's own address, without choices.
 	href        string
 	label       groupLabel
@@ -23,8 +23,8 @@ type groupListView struct {
 	rows        []ruleRowView
 }
 
-func newGroupListView(page views.GroupList, choices domain.ListChoices, iconURL func(file string) string) groupListView {
-	v := groupListView{
+func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL func(file string) string) groupPageView {
+	v := groupPageView{
 		href: groupHref(page.Path), label: newGroupLabel(page.Path, page.Canonical), icon: newGroupIcon(page.Canonical, iconURL),
 	}
 	if page.Canonical != nil {
@@ -38,13 +38,13 @@ func newGroupListView(page views.GroupList, choices domain.ListChoices, iconURL 
 }
 
 // truncated reports whether more rules pass the filters than the page lists.
-func (v groupListView) truncated() bool { return v.list.total > len(v.rows) }
+func (v groupPageView) truncated() bool { return v.list.total > len(v.rows) }
 
 // title is the group's page's document title.
-func (v groupListView) title() string { return v.label.display() + " rules · Rulemart" }
+func (v groupPageView) title() string { return v.label.display() + " rules · Rulemart" }
 
 // summary describes the group to search engines: its description, or else what it holds.
-func (v groupListView) summary() string {
+func (v groupPageView) summary() string {
 	if v.description != "" {
 		return v.description
 	}
@@ -57,7 +57,7 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := string(kind) + "/" + r.PathValue("name")
 		choices := domain.ParseListChoices(domain.GroupListPage, r.URL.Query())
-		page, err := s.catalog.Group(r.Context(), id, choices)
+		page, err := s.catalog.GroupPage(r.Context(), id, choices)
 		if errors.Is(err, app.ErrNotFound) {
 			s.notFound(w, r)
 			return
@@ -66,7 +66,7 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 			s.fail(w, r, err)
 			return
 		}
-		view := newGroupListView(page, choices, s.assets.iconURL)
+		view := newGroupPageView(page, choices, s.assets.iconURL)
 		if page.Path != id || !spelledAs(r, view.list.href(choices)) {
 			redirect(w, r, view.list.href(choices))
 			return

@@ -14,7 +14,7 @@ import templruntime "github.com/a-h/templ/runtime"
 // list beside the filters, as the prototype's group page does. A group that isn't canonical says it only includes the
 // libraries that chose its exact ID. A page with any choice in its address asks search engines not to index it, and
 // still names the group's own address as canonical.
-func groupPage(c chrome, g groupListView) templ.Component {
+func groupPage(c chrome, g groupPageView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

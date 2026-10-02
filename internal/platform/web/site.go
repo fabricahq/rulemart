@@ -117,9 +117,9 @@ type Catalog interface {
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
 	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
-	// Group returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
+	// GroupPage returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
 	// and no library holds it.
-	Group(ctx context.Context, id string, choices domain.ListChoices) (views.GroupList, error)
+	GroupPage(ctx context.Context, id string, choices domain.ListChoices) (views.GroupPage, error)
 	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
 	// query, that choices keep. It fails with app.ErrSearchQueryTooLong for a query it won't run.
 	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error)

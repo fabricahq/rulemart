@@ -6,7 +6,7 @@ package web
 // list beside the filters, as the prototype's group page does. A group that isn't canonical says it only includes the
 // libraries that chose its exact ID. A page with any choice in its address asks search engines not to index it, and
 // still names the group's own address as canonical.
-templ groupPage(c chrome, g groupListView) {
+templ groupPage(c chrome, g groupPageView) {
 	@layout(c, head{title: g.title(), description: g.summary(), noindex: g.list.href(g.list.choices) != g.href, filters: true}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">

@@ -163,22 +163,22 @@ func (p Pages) summarize(groups []views.LibraryGroup) []views.GroupSummary {
 // MaxGroupRules is the most rules a group's page lists, which bounds the page a group shared by many libraries makes.
 const MaxGroupRules = 500
 
-// Group returns the rules of the group id that choices keep, in their order, at most MaxGroupRules: a canonical
+// GroupPage returns the rules of the group id that choices keep, in their order, at most MaxGroupRules: a canonical
 // group's, matched without regard to case, in every library that holds it, or any other group's, in the libraries that
 // chose exactly that ID. It fails with ErrNotFound for a group that isn't canonical and holds no rule before the
 // filters, so a made-up ID has no page. The page's Path is the list's spelling of a canonical group's ID.
-func (p Pages) Group(ctx context.Context, id string, choices domain.ListChoices) (views.GroupList, error) {
-	page := views.GroupList{Path: id}
+func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
+	page := views.GroupPage{Path: id}
 	if g, ok := p.Groups.FindIgnoringCase(id); ok {
 		page.Path, page.Canonical = g.ID, p.canonical(g.ID)
 	}
 	var err error
 	page.Rules, err = p.rules(ctx, domain.RuleList{Group: page.Path, ListChoices: choices}, MaxGroupRules, 0)
 	if err != nil {
-		return views.GroupList{}, err
+		return views.GroupPage{}, err
 	}
 	if page.Canonical == nil && page.Rules.Unfiltered == 0 {
-		return views.GroupList{}, fmt.Errorf("load group: %w", ErrNotFound)
+		return views.GroupPage{}, fmt.Errorf("load group: %w", ErrNotFound)
 	}
 	return page, nil
 }
