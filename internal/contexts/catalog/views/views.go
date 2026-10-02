@@ -1,6 +1,7 @@
-// Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and current
-// rules, a current rule with its versions, the groups across libraries, one group's rules in every library, and
-// search results. They're plain values, read from one state of the catalog, with nothing of how it's stored.
+// Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and rules, its
+// releases and what changed between two of them, a rule with its versions and what changed between two of them, the
+// groups across libraries, one group's rules in every library, and search results. They're plain values, read from
+// one state of the catalog, with nothing of how it's stored.
 package views
 
 import (
@@ -33,20 +34,59 @@ type Library struct {
 	OwnerAvatarURL string
 	// LicenseExpression and LicenseFile are what the library declares; each is empty when it declares none.
 	LicenseExpression, LicenseFile string
-	// LatestRelease is the number of the library's latest release, tagged at LatestTaggedAt.
+	// LatestRelease is the number of the library's latest release, tagged at LatestTaggedAt. Releases are numbered
+	// from 1 without gaps, so it's also how many there are.
 	LatestRelease  int
 	LatestTaggedAt time.Time
+	// Groups counts the groups that hold current rules, and Rules the current rules.
+	Groups, Rules int
 }
 
 // FullName returns the library's repository as owner/name.
 func (l Library) FullName() string { return l.Owner + "/" + l.Name }
 
-// LibraryPage is a library with the groups that hold current rules, in path order, and its current rules, in
-// group path and then title order.
+// LibraryPage is a library with the groups that hold current rules, in path order, its current rules, in group path
+// and then title order, and its retired rules, in path order.
 type LibraryPage struct {
 	Library Library
 	Groups  []Group
 	Rules   []RuleCard
+	Retired []RetiredRuleCard
+	// Links are how every rule of the library was replaced, which pages read to tell a rename from a replacement.
+	Links []RuleLink
+}
+
+// RetiredRuleCard is a retired rule in a library's list of rules.
+type RetiredRuleCard struct {
+	// Path is the rule's ID.
+	Path string
+	// Title is its last version's, or empty when the catalog doesn't have it yet.
+	Title       string
+	LastVersion coderules.RuleVersion
+	// RetiredIn is the number of the library release that retired the rule.
+	RetiredIn int
+	// ReplacedBy is the ID of the rule that replaced it, or empty when its retirement named none.
+	ReplacedBy string
+	// Replacements are that rule, then while it's retired, the rule that replaced it, and so on, to a rule current now.
+	Replacements []RuleRef
+	// Renamed reports that the replacement is the same rule under a new ID: added by the release that retired this
+	// one, under its title.
+	Renamed bool
+}
+
+// RuleLink is how a rule of a library relates to the rule that replaced it, which pages follow to name a retired
+// rule's replacement, the rule that replaced that one, and so on, and to tell a rename from a replacement.
+type RuleLink struct {
+	// Path is the rule's ID, and Title its newest version's title, empty when the catalog doesn't have it yet.
+	Path, Title string
+	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.
+	RetiredIn int
+	// ReplacedBy is the ID of the rule that replaced it, or empty.
+	ReplacedBy string
+	// FirstRelease is the number of the library release that added the rule, with the title FirstTitle; LastTitle is
+	// its newest version's. Either title is empty when the catalog doesn't have it yet.
+	FirstRelease          int
+	FirstTitle, LastTitle string
 }
 
 // Group is a group that holds current rules.
@@ -92,28 +132,63 @@ type RuleCard struct {
 	Version       coderules.RuleVersion
 }
 
-// RulePage is a current rule of a library, with every version, newest first.
+// RulePage is a rule of a library, current or retired, with every version, newest first.
 type RulePage struct {
 	Library  Library
 	Rule     Rule
 	Versions []Version
+	// Replaces are the retired rules whose retirement named this one as their replacement, in path order, and
+	// RenamedFrom is the one this rule renamed, if any, which Replaces leaves out.
+	Replaces    []RuleRef
+	RenamedFrom *RuleRef
+	// Links are how every rule of the library was replaced.
+	Links []RuleLink
 }
 
-// Rule is a current rule as its page shows it.
+// Rule is a rule as its page shows it: its current version while it's current, and its last once retired.
 type Rule struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group string
 	// CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
-	Title, Impact  string
-	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty when the catalog holds no HTML rendered from it,
-	// so the page shows WhenToRead as text.
-	WhenToRead, WhenToReadHTML string
-	HTML                       string
-	Version                    coderules.RuleVersion
-	// Release is the number of the library release that published the current version, tagged at PublishedAt.
+	// Title, Impact, and WhenToRead are the version's, and empty for a retired rule whose last version's content the
+	// catalog doesn't have yet.
+	Title, Impact, WhenToRead string
+	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty when the catalog holds no HTML rendered from it, or
+	// the rule is retired, so the page shows WhenToRead as text.
+	WhenToReadHTML string
+	// HTML is the current version's body; empty when the rule is retired.
+	HTML    string
+	Version coderules.RuleVersion
+	// Release is the number of the library release that published the version, tagged at PublishedAt.
 	Release     int
 	PublishedAt time.Time
+	// Retirement is nil while the rule is current.
+	Retirement *Retirement
+}
+
+// Retirement is how a library release retired a rule.
+type Retirement struct {
+	// Release is the number of the library release that retired the rule, tagged at RetiredAt.
+	Release   int
+	RetiredAt time.Time
+	// Summaries holds one summary per change note that retired the rule.
+	Summaries []string
+	// Replacements are the rule that replaced it, then, while that one is retired too, the rule that replaced that
+	// one, and so on; empty when the retirement named none.
+	Replacements []RuleRef
+	// Renamed reports that the rule's replacement is the same rule under a new ID.
+	Renamed bool
+}
+
+// RuleRef names another rule of the same library.
+type RuleRef struct {
+	// Path is the rule's ID.
+	Path string
+	// Title is its newest version's, or empty when the catalog doesn't have it yet.
+	Title string
+	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.
+	RetiredIn int
 }
 
 // Version is one version of a rule.
@@ -124,6 +199,87 @@ type Version struct {
 	PublishedAt time.Time
 	Change      coderules.Change
 	Summaries   []string
+	// Title is the rule's title as the version published it, which only a library's history reads; empty elsewhere,
+	// and when the catalog doesn't have the version's content yet.
+	Title string
+}
+
+// RuleComparison is a rule's page with the text of two of its versions, From older than To, to compare.
+type RuleComparison struct {
+	Page     RulePage
+	From, To coderules.RuleVersion
+	Text     ComparedText
+}
+
+// ComparedText is the text of two versions of a rule, as a page compares them.
+type ComparedText struct {
+	// Old and New are the versions' Markdown files, when State is TextShown.
+	Old, New string
+	State    TextState
+	// OldRelease and NewRelease number the library releases that published each version, whose files a page can
+	// link to when it can't show them.
+	OldRelease, NewRelease int
+}
+
+// TextState says whether a page can show two versions' text.
+type TextState int
+
+const (
+	// TextShown means the page has both texts.
+	TextShown TextState = iota
+	// TextMissing means the catalog doesn't have one of them yet: a release that stored only current versions'
+	// text ingested the library, and the worker hasn't ingested it again.
+	TextMissing
+	// TextTooLarge means the two texts, with those the page shows before them, pass what a page compares.
+	TextTooLarge
+)
+
+// LibraryHistory is everything a library's releases published: each release, and every rule's versions.
+type LibraryHistory struct {
+	Library Library
+	// Releases are in number order, from 1.
+	Releases []Release
+	// Rules are every rule the releases published, current or retired, in path order.
+	Rules []RuleHistory
+}
+
+// Release is one library release.
+type Release struct {
+	Number   int
+	TaggedAt time.Time
+	// UpdatesSharedFiles reports whether the release changed library-wide files, such as group metadata or shared
+	// assets, after the first release.
+	UpdatesSharedFiles bool
+}
+
+// RuleHistory is one rule's versions.
+type RuleHistory struct {
+	// Path is the rule's ID.
+	Path string
+	// Title is its newest version's, or empty when the catalog doesn't have it yet.
+	Title string
+	// Versions are oldest first, and never empty.
+	Versions []Version
+	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.
+	RetiredIn int
+	// ReplacedBy is the ID of the rule that replaced a retired rule, or empty when its retirement named none.
+	ReplacedBy string
+	// RetirementSummaries holds one summary per change note that retired the rule; nil while it's current.
+	RetirementSummaries []string
+}
+
+// VersionAt returns the index in Versions of the rule's version after library release n: the newest version
+// published by n or before, unless a release by n retired the rule. ok is false when the rule didn't exist after n.
+func (r RuleHistory) VersionAt(n int) (index int, ok bool) {
+	if r.RetiredIn != 0 && r.RetiredIn <= n {
+		return 0, false
+	}
+	for i := len(r.Versions) - 1; i >= 0; i-- {
+		if r.Versions[i].Release <= n {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // LibraryRef names the library a rule or group comes from, on a page that shows more than one library.
@@ -200,4 +356,81 @@ type SearchResult struct {
 	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
 	// holds every one.
 	Missing []string
+}
+
+// ReleasesPage is one page of a library's releases, newest first, each with what it published.
+type ReleasesPage struct {
+	Library  Library
+	Releases []ReleaseNotes
+	// Older is the newest release the next page starts with, or 0 when this page ends with release 1, and Newer the
+	// one the page before starts with, or 0 when this is the first page.
+	Older, Newer int
+	// AllReleases are every release of the library, in number order, to compare.
+	AllReleases []Release
+}
+
+// ReleaseNotes is what one library release published, as Code Rules' release notes describe it: how each rule changed
+// since the release before it, and every rule's version after it.
+type ReleaseNotes struct {
+	Release Release
+	// Changes are in rule path order; the first release's are every rule it added.
+	Changes []RuleChange
+	// Versions are the version of every rule after the release, in rule path order.
+	Versions []RuleVersionRef
+}
+
+// RuleVersionRef names one version of a rule of the same library.
+type RuleVersionRef struct {
+	// Path is the rule's ID.
+	Path    string
+	Version coderules.RuleVersion
+}
+
+// ReleaseComparison is what changed in a library between two of its releases, From before To.
+type ReleaseComparison struct {
+	Library Library
+	// Releases are every release of the library, in number order, to compare others.
+	Releases []Release
+	From, To int
+	// Changes are in rule path order.
+	Changes []RuleChange
+	// SharedFiles are the numbers of the releases after From, up to To, that changed library-wide files, in order.
+	SharedFiles []int
+}
+
+// ChangeRenamed is how a rule changed when a release retired it and added it under a new ID, with the same title.
+// Code Rules records a rename as a retirement and a new rule; pages show the two as one change.
+const ChangeRenamed coderules.Change = "renamed"
+
+// RuleChange is how one rule changed between two library releases.
+type RuleChange struct {
+	Rule RuleRef
+	// Change is the largest change between the releases: new for a rule the later one has and the earlier doesn't,
+	// retired for one the earlier has and the later doesn't, and otherwise the largest of major, minor, and patch
+	// among the versions published between them.
+	Change coderules.Change
+	// From is the rule's version after the earlier release, and zero for a new rule; To is its version after the later
+	// one, and zero for a retired rule.
+	From, To coderules.RuleVersion
+	// Versions are the versions published after the earlier release, up to the later one, newest first; none for a
+	// retired rule.
+	Versions []Version
+	// RetirementSummaries and Replacements describe a retired rule's retirement: the rule that replaced it, then, while
+	// that one was retired by the later release too, the rule that replaced that one, and so on.
+	RetirementSummaries []string
+	Replacements        []RuleRef
+	// RenamedFrom is the rule a renamed one had been, for a ChangeRenamed; From is that rule's last version.
+	RenamedFrom *RuleRef
+	// Text is the text of From and To, for a rule that changed or was renamed, in a comparison of releases.
+	Text ComparedText
+}
+
+// VersionPair names two versions whose text a comparison of releases reads, by their places in a library's history:
+// a rule's index in its Rules, and each version's index in that rule's Versions. A renamed rule's pair spans two
+// rules.
+type VersionPair struct {
+	// Key names the pair in the texts the comparison returns.
+	Key                 string
+	OldRule, OldVersion int
+	NewRule, NewVersion int
 }

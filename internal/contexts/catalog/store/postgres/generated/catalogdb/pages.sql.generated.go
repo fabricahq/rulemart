@@ -27,11 +27,15 @@ func (q *Queries) CountSearchableTerms(ctx context.Context, terms []string) (int
 
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
-       latest.number AS latest_release, latest.tagged_at AS latest_tagged_at
+       latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count
 FROM libraries l
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
 ) latest ON true
+JOIN LATERAL (
+    SELECT count(*) AS rule_count, count(DISTINCT group_id) AS group_count
+    FROM rules WHERE library_id = l.id AND retired_in_release_id IS NULL
+) current ON true
 WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
   AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
 `
@@ -53,8 +57,12 @@ type GetLibraryRow struct {
 	LicenseFile       pgtype.Text
 	LatestRelease     int32
 	LatestTaggedAt    pgtype.Timestamptz
+	RuleCount         int64
+	GroupCount        int64
 }
 
+// GetLibrary returns the vetted library owner/name, with its latest release, and how many current rules it holds and
+// in how many groups.
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
 	row := q.db.QueryRow(ctx, getLibrary,
 		arg.Host,
@@ -73,20 +81,28 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 		&i.LicenseFile,
 		&i.LatestRelease,
 		&i.LatestTaggedAt,
+		&i.RuleCount,
+		&i.GroupCount,
 	)
 	return i, err
 }
 
 const getRule = `-- name: GetRule :one
-SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact,
-       v.when_to_read::text AS when_to_read,
-       coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text AS when_to_read_html,
-       v.html::text AS html, v.major, v.minor, v.patch,
-       published.number AS release, published.tagged_at AS published_at
+SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
+       v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
+       r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
-JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
-JOIN library_releases published ON published.id = v.release_id
+JOIN LATERAL (
+    SELECT v.title, v.impact, v.when_to_read,
+           coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
+               AS when_to_read_html,
+           coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
+           p.tagged_at AS published_at
+    FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) v ON true
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
 WHERE r.library_id = $1 AND lower(r.path) = lower($2)
 ORDER BY r.path = $2 DESC, r.path
 LIMIT 1
@@ -98,24 +114,28 @@ type GetRuleParams struct {
 }
 
 type GetRuleRow struct {
-	ID             int64
-	Path           string
-	GroupPath      string
-	Title          string
-	Impact         string
-	WhenToRead     string
-	WhenToReadHtml string
-	Html           string
-	Major          int32
-	Minor          int32
-	Patch          int32
-	Release        int32
-	PublishedAt    pgtype.Timestamptz
+	ID                  int64
+	Path                string
+	GroupPath           string
+	Title               pgtype.Text
+	Impact              pgtype.Text
+	WhenToRead          pgtype.Text
+	WhenToReadHtml      string
+	Html                pgtype.Text
+	Major               int32
+	Minor               int32
+	Patch               int32
+	Release             int32
+	PublishedAt         pgtype.Timestamptz
+	RetiredIn           pgtype.Int4
+	RetiredAt           pgtype.Timestamptz
+	RetirementSummaries []string
 }
 
-// GetRule returns a library's current rule at path, matched without regard to case, preferring the rule spelled
-// exactly so. when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since
-// a release that didn't render it may have changed it since.
+// GetRule returns the rule at path, current or retired, matched without regard to case, preferring the rule spelled
+// exactly so, with its newest version: the current version while it's current, and the last once retired, and a
+// retired rule's retirement. Its html is the newest version's body. when_to_read_html is empty unless it was rendered
+// from the reading guidance the version holds now, since a release that didn't render it may have changed it since.
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
 	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow
@@ -133,6 +153,9 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.Patch,
 		&i.Release,
 		&i.PublishedAt,
+		&i.RetiredIn,
+		&i.RetiredAt,
+		&i.RetirementSummaries,
 	)
 	return i, err
 }
@@ -332,8 +355,245 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLib
 	return items, nil
 }
 
+const listMarkdown = `-- name: ListMarkdown :many
+SELECT id, markdown::text AS markdown FROM rule_versions WHERE id = ANY ($1::bigint[]) AND markdown IS NOT NULL
+`
+
+type ListMarkdownRow struct {
+	ID       int64
+	Markdown string
+}
+
+// ListMarkdown returns the Markdown of the rule versions ids names that have it.
+func (q *Queries) ListMarkdown(ctx context.Context, ids []int64) ([]ListMarkdownRow, error) {
+	rows, err := q.db.Query(ctx, listMarkdown, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMarkdownRow
+	for rows.Next() {
+		var i ListMarkdownRow
+		if err := rows.Scan(&i.ID, &i.Markdown); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReleases = `-- name: ListReleases :many
+SELECT number, tagged_at, updates_shared_files FROM library_releases WHERE library_id = $1 ORDER BY number
+`
+
+type ListReleasesRow struct {
+	Number             int32
+	TaggedAt           pgtype.Timestamptz
+	UpdatesSharedFiles bool
+}
+
+func (q *Queries) ListReleases(ctx context.Context, libraryID int64) ([]ListReleasesRow, error) {
+	rows, err := q.db.Query(ctx, listReleases, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReleasesRow
+	for rows.Next() {
+		var i ListReleasesRow
+		if err := rows.Scan(&i.Number, &i.TaggedAt, &i.UpdatesSharedFiles); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRetiredRules = `-- name: ListRetiredRules :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, last.title, last.major, last.minor, last.patch
+FROM rules r
+JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT v.title, v.major, v.minor, v.patch FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = $1
+ORDER BY r.path COLLATE "C"
+`
+
+type ListRetiredRulesRow struct {
+	Path       string
+	RetiredIn  int32
+	ReplacedBy pgtype.Text
+	Title      pgtype.Text
+	Major      int32
+	Minor      int32
+	Patch      int32
+}
+
+// ListRetiredRules returns the library's retired rules, in path order, each with its last version and that version's
+// title.
+func (q *Queries) ListRetiredRules(ctx context.Context, libraryID int64) ([]ListRetiredRulesRow, error) {
+	rows, err := q.db.Query(ctx, listRetiredRules, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRetiredRulesRow
+	for rows.Next() {
+		var i ListRetiredRulesRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.RetiredIn,
+			&i.ReplacedBy,
+			&i.Title,
+			&i.Major,
+			&i.Minor,
+			&i.Patch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleHistories = `-- name: ListRuleHistories :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, r.retirement_summaries, v.id, v.major, v.minor, v.patch,
+       published.number AS release, published.tagged_at AS published_at, v.change, v.summaries, v.title,
+       (v.markdown IS NOT NULL)::boolean AS has_markdown, coalesce(octet_length(v.markdown), 0)::integer AS markdown_bytes
+FROM rules r
+JOIN rule_versions v ON v.rule_id = r.id
+JOIN library_releases published ON published.id = v.release_id
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+WHERE r.library_id = $1
+ORDER BY r.path COLLATE "C", published.number
+`
+
+type ListRuleHistoriesRow struct {
+	Path                string
+	RetiredIn           pgtype.Int4
+	ReplacedBy          pgtype.Text
+	RetirementSummaries []string
+	ID                  int64
+	Major               int32
+	Minor               int32
+	Patch               int32
+	Release             int32
+	PublishedAt         pgtype.Timestamptz
+	Change              string
+	Summaries           []string
+	Title               pgtype.Text
+	HasMarkdown         bool
+	MarkdownBytes       int32
+}
+
+// ListRuleHistories returns every version of every rule in the library, current or retired: one row per version, by
+// rule path, in code point order as Code Rules' release notes list rules, and then release, with the rule's retirement, whether the version has its Markdown, which a release that
+// stored only current versions' content left out, and how many bytes it holds.
+func (q *Queries) ListRuleHistories(ctx context.Context, libraryID int64) ([]ListRuleHistoriesRow, error) {
+	rows, err := q.db.Query(ctx, listRuleHistories, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleHistoriesRow
+	for rows.Next() {
+		var i ListRuleHistoriesRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.RetiredIn,
+			&i.ReplacedBy,
+			&i.RetirementSummaries,
+			&i.ID,
+			&i.Major,
+			&i.Minor,
+			&i.Patch,
+			&i.Release,
+			&i.PublishedAt,
+			&i.Change,
+			&i.Summaries,
+			&i.Title,
+			&i.HasMarkdown,
+			&i.MarkdownBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleLinks = `-- name: ListRuleLinks :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, first.release AS first_release, first.title AS first_title,
+       last.title AS last_title
+FROM rules r
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT p.number AS release, v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number LIMIT 1
+) first ON true
+JOIN LATERAL (
+    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = $1
+ORDER BY r.path COLLATE "C"
+`
+
+type ListRuleLinksRow struct {
+	Path         string
+	RetiredIn    pgtype.Int4
+	ReplacedBy   pgtype.Text
+	FirstRelease int32
+	FirstTitle   pgtype.Text
+	LastTitle    pgtype.Text
+}
+
+// ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
+// added it with its first title, and its last title, in path order.
+func (q *Queries) ListRuleLinks(ctx context.Context, libraryID int64) ([]ListRuleLinksRow, error) {
+	rows, err := q.db.Query(ctx, listRuleLinks, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleLinksRow
+	for rows.Next() {
+		var i ListRuleLinksRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.RetiredIn,
+			&i.ReplacedBy,
+			&i.FirstRelease,
+			&i.FirstTitle,
+			&i.LastTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVersions = `-- name: ListVersions :many
-SELECT v.major, v.minor, v.patch, published.number AS release, v.change, v.summaries, published.tagged_at AS published_at
+SELECT v.id, v.major, v.minor, v.patch, published.number AS release, v.change, v.summaries,
+       published.tagged_at AS published_at, (v.markdown IS NOT NULL)::boolean AS has_markdown, coalesce(octet_length(v.markdown), 0)::integer AS markdown_bytes
 FROM rule_versions v
 JOIN library_releases published ON published.id = v.release_id
 WHERE v.rule_id = $1
@@ -341,15 +601,20 @@ ORDER BY published.number DESC
 `
 
 type ListVersionsRow struct {
-	Major       int32
-	Minor       int32
-	Patch       int32
-	Release     int32
-	Change      string
-	Summaries   []string
-	PublishedAt pgtype.Timestamptz
+	ID            int64
+	Major         int32
+	Minor         int32
+	Patch         int32
+	Release       int32
+	Change        string
+	Summaries     []string
+	PublishedAt   pgtype.Timestamptz
+	HasMarkdown   bool
+	MarkdownBytes int32
 }
 
+// ListVersions returns each version of a rule, newest first, with whether it has its Markdown, which a release that
+// stored only current versions' content left out, and how many bytes it holds.
 func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersionsRow, error) {
 	rows, err := q.db.Query(ctx, listVersions, ruleID)
 	if err != nil {
@@ -360,6 +625,7 @@ func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersion
 	for rows.Next() {
 		var i ListVersionsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.Major,
 			&i.Minor,
 			&i.Patch,
@@ -367,6 +633,8 @@ func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersion
 			&i.Change,
 			&i.Summaries,
 			&i.PublishedAt,
+			&i.HasMarkdown,
+			&i.MarkdownBytes,
 		); err != nil {
 			return nil, err
 		}

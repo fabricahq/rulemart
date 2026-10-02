@@ -16,12 +16,12 @@ import (
 
 // rule returns a current rule at path, in the group its path names, with one version and the given content.
 func rule(path, title, whenToRead, body string) domain.Rule {
-	c := content(title)
-	c.WhenToRead, c.WhenToReadHTML = whenToRead, "<p>"+whenToRead+"</p>\n"
+	c := content(title, v(1, 0, 0))
+	c.WhenToRead = whenToRead
 	c.Markdown = "---\ntitle: " + title + "\n---\n\n" + body + "\n"
 	group := path[:strings.LastIndex(path, "/")]
-	return domain.Rule{Path: path, Group: group, Content: c, Versions: []domain.Version{
-		{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
+	return domain.Rule{Path: path, Group: group, HTML: "<p>" + title + ".</p>\n", WhenToReadHTML: "<p>" + whenToRead + "</p>\n", Versions: []domain.Version{
+		{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}, Content: c},
 	}}
 }
 

@@ -95,7 +95,7 @@ rules:
 }
 
 // Ingestion stores what the releases publish, as the pages read it: each change level, a retirement, and each
-// rule's content at the release that published its current version, not a later edit no release recorded.
+// version's content at the release that published it, not a later edit no release recorded.
 func TestIngestStoresWhatTheReleasesPublish(t *testing.T) {
 	ingester, pages := newCatalog(t)
 	lib := firstRelease(t)
@@ -137,8 +137,16 @@ func TestIngestStoresWhatTheReleasesPublish(t *testing.T) {
 	if want := []string{"2.0.0 release/3 major Require context on every returned error. | Add an example.", "1.0.0 release/1 new Add the rule."}; !slices.Equal(versions, want) {
 		t.Errorf("versions are %q, want %q", versions, want)
 	}
-	if _, err := pages.RulePage(context.Background(), "example", "rules", retryBackoff); !errors.Is(err, app.ErrNotFound) {
-		t.Errorf("the retired rule %s: got %v, want app.ErrNotFound", retryBackoff, err)
+	retired, err := pages.RulePage(context.Background(), "example", "rules", retryBackoff)
+	if err != nil || retired.Rule.Title != "Check retry backoff" || retired.Rule.Retirement == nil || retired.Rule.Retirement.Release != 3 {
+		t.Errorf("the retired rule %s is %+v, %v; want its last title, retired in release/3", retryBackoff, retired.Rule, err)
+	}
+	comparison, err := pages.RuleComparison(context.Background(), "example", "rules", returnErrors, rule.Versions[1].Version, rule.Versions[0].Version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := comparison.Text; !strings.Contains(text.Old, "Return errors instead of panicking.") || !strings.Contains(text.New, "operation that failed") {
+		t.Errorf("%s 1.0.0...2.0.0 compares %+v, want release/1's file and release/3's", returnErrors, text)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // Writer replaces what the catalog stores about a library, and reads back what ingestion needs to decide whether to
@@ -17,8 +18,8 @@ type Writer interface {
 	// changed. Rows that still exist keep their ids, and a row whose values didn't change isn't written, so
 	// replacing a library with itself changes nothing.
 	ReplaceLibrary(ctx context.Context, lib domain.Library) (changed int64, err error)
-	// Checkpoint returns where the library was last fetched from and the tags of its stored releases, or found false
-	// when the catalog has no such library.
+	// Checkpoint returns where the library was last fetched from, the tags of its stored releases, and whether any of
+	// its stored versions lacks content, or found false when the catalog has no such library.
 	Checkpoint(ctx context.Context, library domain.LibraryKey) (checkpoint domain.Checkpoint, found bool, err error)
 }
 
@@ -32,9 +33,20 @@ type Reader interface {
 	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)
 	// LibraryPage returns the vetted library owner/name, matched without regard to case, or ErrNotFound.
 	LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error)
-	// RulePage returns the current rule at rulePath in the vetted library owner/name, both matched without regard to
-	// case, as LibraryPage matches the library, or ErrNotFound. The page's Rule.Path is the library's spelling.
+	// RulePage returns the rule at rulePath in the vetted library owner/name, current or retired, both matched without
+	// regard to case, as LibraryPage matches the library, with how every rule of the library was replaced, or
+	// ErrNotFound. The page's Rule.Path is the library's spelling.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
+	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
+	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.
+	RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error)
+	// LibraryHistory returns the vetted library owner/name, matched as LibraryPage matches it, with its releases and
+	// every rule's versions, or ErrNotFound.
+	LibraryHistory(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryHistory, error)
+	// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each pair of versions
+	// that pick chooses from it, keyed by the pair's key, read from the same snapshot: in pick's order, each pair read
+	// only when both are stored and hold, with the pairs before it, at most maxBytes.
+	ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, pick func(views.LibraryHistory) []views.VersionPair, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error)
 	// Groups returns each group that holds current rules in a vetted library, once for each library that holds it,
 	// in path order and then the library's owner and name, without regard to case.
 	Groups(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryGroup, error)
@@ -51,5 +63,5 @@ type Reader interface {
 	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error)
 }
 
-// ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired.
+// ErrNotFound reports a library, rule, or rule version that isn't in the catalog, or a library that isn't vetted.
 var ErrNotFound = errors.New("not found")

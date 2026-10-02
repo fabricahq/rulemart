@@ -27,7 +27,9 @@ make web
 ```
 
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
-to show: `/groups` and a group such as `/groups/techs/go` across both, and `/search?q=retry`. Run `make ingest` again
+to show: `/groups` and a group such as `/groups/techs/go` across both, and `/search?q=retry`. The test library has
+six releases to compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of
+them, and a rule's Versions tab compares two of its versions. Run `make ingest` again
 to bring a library up to date, or `make worker` to update every vetted one. To keep the local `rulemart` database for
 other work, point the commands at another database on the same server, such as
 `LOCAL_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart_dev?sslmode=disable' make migrate`, after
@@ -68,7 +70,7 @@ released with a Code Rules version that writes the same record format.
 
 `make worker` runs what the deployed worker does every hour, once: for each library `catalog/vetted.yaml`
 lists, it lists the release tags without fetching them, and ingests the library when they aren't the ones the
-catalog stored. A queue in memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
+catalog stored, or when a release before every rule version kept its content stored it. A queue in memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
 
 ## Generated files
 
@@ -118,7 +120,8 @@ one they no longer generate, such as a file under an old name.
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
   `RULEMART_BASE_URL`, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
-- `internal/lib/coderules` is the vendored copy of Code Rules' parser.
+- `internal/lib/coderules` is the vendored copy of Code Rules' parser, and `internal/lib/textdiff` compares two
+  versions' text for the comparison pages, within bounded work.
 - `db/migrations` holds the schema as numbered SQL files.
 - `catalog` holds the data each release ships: `vetted.yaml`, the vetted libraries; `canonical-groups.yaml`, Code
   Rules' canonical group list, copied unchanged at a pinned commit; and `group-icons.yaml`, the icon for each

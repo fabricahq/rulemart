@@ -251,7 +251,7 @@ templ libraryFacts(lib libraryView) {
 			@license(lib)
 		}
 		@fact("Latest library release") {
-			@factLink(lib.latestURL, lib.latestTag, "GitHub Release page for "+lib.latestTag)
+			@factLink(lib.latestHref, lib.latestTag, "What "+lib.latestTag+" published")
 		}
 		@fact("Updated") {
 			{ lib.updated }

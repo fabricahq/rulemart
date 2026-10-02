@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -23,13 +24,26 @@ func v(major, minor, patch int) coderules.RuleVersion {
 	return coderules.RuleVersion{Major: major, Minor: minor, Patch: patch}
 }
 
-// content returns a current version's content with title.
-func content(title string) *domain.Content {
-	return &domain.Content{
+// content returns what version of a rule titled title published: a file whose body names the version.
+func content(title string, version coderules.RuleVersion) domain.Content {
+	return domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
-		WhenToReadHTML: "<p>When changing <code>" + title + "</code>.</p>\n",
-		Markdown:       "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
+		Markdown: "---\ntitle: " + title + "\n---\n\n" + title + ", version " + version.String() + ".\n",
 	}
+}
+
+// withContent returns r with each version's content, titled title, its newest version's HTML, and while r is current,
+// its reading guidance's.
+func withContent(r domain.Rule, title string) domain.Rule {
+	r.Versions = slices.Clone(r.Versions)
+	for i, version := range r.Versions {
+		r.Versions[i].Content = content(title, version.Number)
+	}
+	r.HTML = "<p>" + title + ".</p>\n"
+	if r.IsCurrent() {
+		r.WhenToReadHTML = "<p>When changing <code>" + title + "</code>.</p>\n"
+	}
+	return r
 }
 
 // exampleRules is a library of three releases. Release 2 changed verify-retry-limits; release 3 changed
@@ -52,21 +66,21 @@ var exampleRules = domain.Library{
 		{Path: "techs/go", Name: "Go", Description: "Go rules.", WhenToRead: "When writing Go."},
 	},
 	Rules: []domain.Rule{
-		{Path: "practices/legacy/old-habit", Group: "practices/legacy", RetiredIn: 3, RetirementSummaries: []string{"Drop it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
-		{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", RetiredIn: 3,
+		withContent(domain.Rule{Path: "practices/legacy/old-habit", Group: "practices/legacy", RetiredIn: 3, RetirementSummaries: []string{"Drop it."},
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Old habit"),
+		withContent(domain.Rule{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", RetiredIn: 3,
 			ReplacedBy: "practices/testing/verify-retry-limits", RetirementSummaries: []string{"Merge it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
-		{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Content: content("Verify retry limits"),
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Check retry backoff"),
+		withContent(domain.Rule{Path: "practices/testing/verify-retry-limits", Group: "practices/testing",
 			Versions: []domain.Version{
 				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
 				{Number: v(1, 1, 0), Release: 2, Change: coderules.ChangeMinor, Summaries: []string{"Count timeouts."}},
-			}},
-		{Path: "techs/go/return-errors", Group: "techs/go", Content: content("Return errors"),
+			}}, "Verify retry limits"),
+		withContent(domain.Rule{Path: "techs/go/return-errors", Group: "techs/go",
 			Versions: []domain.Version{
 				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
 				{Number: v(2, 0, 0), Release: 3, Change: coderules.ChangeMajor, Summaries: []string{"Require context.", "Add an example."}},
-			}},
+			}}, "Return errors"),
 	},
 }
 
@@ -140,7 +154,7 @@ func TestRulePageMatchesTheRuleIDWithoutRegardToCase(t *testing.T) {
 }
 
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
-// all retired, and only current rules.
+// all retired, its current rules, and apart from them, its retired rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	reader := newCatalog(t)
 
@@ -152,7 +166,7 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	}
 	wantLibrary := views.Library{
 		Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL,
-		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3),
+		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
 	}
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
 		t.Errorf("latest release tagged at %s, want %s", page.Library.LatestTaggedAt, day(3))
@@ -174,6 +188,14 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	}
 	if !slices.Equal(page.Rules, wantRules) {
 		t.Errorf("rules are %+v, want %+v", page.Rules, wantRules)
+	}
+	wantRetired := []views.RetiredRuleCard{
+		{Path: "practices/legacy/old-habit", Title: "Old habit", LastVersion: v(1, 0, 0), RetiredIn: 3},
+		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", LastVersion: v(1, 0, 0), RetiredIn: 3,
+			ReplacedBy: "practices/testing/verify-retry-limits"},
+	}
+	if !reflect.DeepEqual(page.Retired, wantRetired) {
+		t.Errorf("retired rules are %+v, want %+v", page.Retired, wantRetired)
 	}
 }
 
@@ -222,8 +244,16 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			_, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/missing")
 			return err
 		},
-		"a retired rule": func() error {
-			_, err := reader.RulePage(ctx, vetted, "example", "rules", "practices/testing/check-retry-backoff")
+		"an unvetted library's history": func() error {
+			_, err := reader.LibraryHistory(ctx, vetted, "stranger", "unvetted-rules")
+			return err
+		},
+		"an unvetted library's releases to compare": func() error {
+			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", pickChanged(1, 3), 1<<20)
+			return err
+		},
+		"a version the rule doesn't have": func() error {
+			_, err := reader.RuleComparison(ctx, vetted, "example", "rules", "techs/go/return-errors", v(1, 0, 0), v(1, 1, 0), 1<<20)
 			return err
 		},
 		"a group": func() error { _, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go"); return err },

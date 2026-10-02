@@ -168,37 +168,48 @@ libraryFiles: [techs/go/_group.yaml]
 		t.Errorf("groups are %+v, want %+v", lib.Groups, wantGroups)
 	}
 	if got := describe(lib.Rules); !slices.Equal(got, []string{
-		"practices/testing/check-retry-backoff in practices/testing: 1.0.0 release/1 new [Add the rule.]; retired in release/2 by practices/testing/verify-retry-limits [Merge it.]",
-		"practices/testing/verify-retry-limits in practices/testing: 1.0.0 release/1 new [Add the rule.], 1.1.0 release/2 minor [Count timeouts.]; Verify retry limits",
-		"techs/go/return-errors in techs/go: 1.0.0 release/1 new [Add the rule.]; Return errors",
+		"practices/testing/check-retry-backoff in practices/testing: 1.0.0 release/1 new [Add the rule.] Check retry backoff; retired in release/2 by practices/testing/verify-retry-limits [Merge it.]",
+		"practices/testing/verify-retry-limits in practices/testing: 1.0.0 release/1 new [Add the rule.] Verify retry limits, 1.1.0 release/2 minor [Count timeouts.] Verify retry limits; current",
+		"techs/go/return-errors in techs/go: 1.0.0 release/1 new [Add the rule.] Return errors; current",
 	}) {
 		t.Errorf("rules are %q", got)
 	}
-	retryLimits := lib.Rules[1].Content
+	retryLimits := lib.Rules[1]
 	if !strings.Contains(retryLimits.HTML, "timeouts included") {
 		t.Errorf("the current version's HTML is %s", retryLimits.HTML)
 	}
-	if retryLimits.Impact != "HIGH" || retryLimits.WhenToRead != "When changing verify retry limits." ||
+	current := retryLimits.Current().Content
+	if current.Impact != "HIGH" || current.WhenToRead != "When changing verify retry limits." ||
 		retryLimits.WhenToReadHTML != "<p>When changing verify retry limits.</p>\n" ||
-		!strings.HasPrefix(retryLimits.Markdown, "---\ntitle: Verify retry limits\n") {
-		t.Errorf("the current version's content is %+v", retryLimits)
+		!strings.HasPrefix(current.Markdown, "---\ntitle: Verify retry limits\n") || !strings.Contains(current.Markdown, "timeouts included") {
+		t.Errorf("the current version's content is %+v", current)
+	}
+	// Each older version is its file at the release that published it, and a retired rule keeps its versions' files,
+	// though the release that retired it no longer holds them.
+	if older := retryLimits.Versions[0].Content.Markdown; !strings.Contains(older, "Stop after a fixed number of attempts.\n") || strings.Contains(older, "timeouts") {
+		t.Errorf("verify-retry-limits 1.0.0 is %q, want release/1's file", older)
+	}
+	// A retired rule's page shows its last version's body, rendered at the release that published it.
+	if retired := lib.Rules[0]; !strings.Contains(retired.HTML, "Retries wait longer after each attempt.") || retired.WhenToReadHTML != "" ||
+		!strings.Contains(retired.Current().Content.Markdown, "Retries wait longer after each attempt.") {
+		t.Errorf("the retired rule is %+v", retired)
 	}
 	if lib.CurrentRules() != 2 {
 		t.Errorf("%d current rules, want 2", lib.CurrentRules())
 	}
 }
 
-// describe returns each rule as "<path> in <group>: <versions>; <title, or retirement>".
+// describe returns each rule as "<path> in <group>: <versions, each with its title>; <current, or retirement>".
 func describe(rules []Rule) []string {
 	var result []string
 	for _, r := range rules {
 		var versions []string
 		for _, v := range r.Versions {
-			versions = append(versions, fmt.Sprintf("%s %s %s %v", v.Number, ReleaseTag(v.Release), v.Change, v.Summaries))
+			versions = append(versions, fmt.Sprintf("%s %s %s %v %s", v.Number, ReleaseTag(v.Release), v.Change, v.Summaries, v.Content.Title))
 		}
 		end := ""
-		if r.Content != nil {
-			end = r.Content.Title
+		if r.IsCurrent() {
+			end = "current"
 		} else {
 			end = fmt.Sprintf("retired in %s by %s %v", ReleaseTag(r.RetiredIn), r.ReplacedBy, r.RetirementSummaries)
 		}
@@ -240,7 +251,7 @@ retired: {techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}}
 	if got := lib.Groups[1]; got.Path != "techs/go" || got.Name != "Go" {
 		t.Fatalf("the retired rules' group is %+v, want release/1's techs/go", got)
 	}
-	if r := lib.Rules[2]; r.Path != "techs/go/return-errors" || r.Group != "techs/go" || r.Content != nil {
+	if r := lib.Rules[2]; r.Path != "techs/go/return-errors" || r.Group != "techs/go" || r.IsCurrent() {
 		t.Fatalf("the retired rule is %+v", r)
 	}
 }
@@ -267,6 +278,62 @@ func TestAssembleRefusesALibraryMissingAFileItPublishes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Every version's file is read at the release that published it, so a release that lacks the file of a version it
+// published is refused, though a later release holds the rule.
+func TestAssembleRefusesALibraryMissingAnOlderVersionsFile(t *testing.T) {
+	older := first(t)
+	delete(older.Files.(files), "practices/testing/verify-retry-limits.md")
+	second := snapshot(t, 2, `formatVersion: 1
+release: 2
+rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
+changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
+`, first(t).Files)
+
+	_, err := Assemble(repo, []ReleaseSnapshot{older, second}, limits, markup)
+
+	if want := "release/1: practices/testing/verify-retry-limits.md: the file doesn't exist"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("got error %v, want one containing %q", err, want)
+	}
+}
+
+// An older version's file is held until the library is stored, like the current one's, so it spends the budget.
+func TestAssembleSpendsTheBudgetOnOlderVersions(t *testing.T) {
+	second := snapshot(t, 2, `formatVersion: 1
+release: 2
+rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
+changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
+`, first(t).Files)
+	onlyFirst, err := Assemble(repo, []ReleaseSnapshot{first(t)}, limits, markup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	budget := limits
+	// release/1 alone fits, and release/2 adds no file, only a second version of one.
+	budget.ContentBytes = contentBytes(onlyFirst)
+
+	_, err = Assemble(repo, []ReleaseSnapshot{first(t), second}, budget, markup)
+
+	if want := fmt.Sprintf("more than %d bytes of content", budget.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("got error %v, want %q", err, want)
+	}
+}
+
+// contentBytes returns the content assembly held for lib: each version's file, title, impact description, and
+// reading guidance, each current rule's HTML, and each group's metadata file.
+func contentBytes(lib Library) int64 {
+	var n int64
+	for _, r := range lib.Rules {
+		n += int64(len(r.HTML) + len(r.WhenToReadHTML))
+		for _, v := range r.Versions {
+			n += int64(len(v.Content.Markdown) + len(v.Content.Title) + len(v.Content.ImpactDescription) + len(v.Content.WhenToRead))
+		}
+	}
+	for _, g := range lib.Groups {
+		n += int64(len(group(g.Name)))
+	}
+	return n
 }
 
 func TestAssembleRefusesAFileLargerThanItsLimit(t *testing.T) {

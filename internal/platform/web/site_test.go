@@ -34,10 +34,16 @@ const (
 // catalog serves the pages' reads from memory, matching libraries without regard to case as the store does.
 type catalog struct {
 	libraries []views.LibraryCard
-	// pages are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>.
-	pages map[string]views.LibraryPage
-	rules map[string]views.RulePage
-	index views.GroupIndex
+	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
+	// page of releases after the first adds " release=<n>" to its key, once for each release it holds.
+	pages    map[string]views.LibraryPage
+	releases map[string]views.ReleasesPage
+	rules    map[string]views.RulePage
+	// releaseComparisons are keyed by lowercase owner/name, then " <from>...<to>", and ruleComparisons by the rule's
+	// key, then " <from>...<to>", the older first.
+	releaseComparisons map[string]views.ReleaseComparison
+	ruleComparisons    map[string]views.RuleComparison
+	index              views.GroupIndex
 	// groups are the canonical groups' pages, keyed by ID.
 	groups map[string]views.GroupPage
 	// results are keyed by the query that finds them, followed for pages after the first by " page " and the page's
@@ -105,6 +111,43 @@ func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (view
 	return page, c.err
 }
 
+// ReleasesPage finds the page that holds a release after the first page's under the library's key, then
+// " release=<n>"; any other release of the library finds the first page, as app.Pages does.
+func (c catalog) ReleasesPage(_ context.Context, owner, name string, release int) (views.ReleasesPage, error) {
+	key := strings.ToLower(owner + "/" + name)
+	page, ok := c.releases[key+fmt.Sprintf(" release=%d", release)]
+	if !ok {
+		page, ok = c.releases[key]
+		ok = ok && release <= page.Library.LatestRelease
+	}
+	if c.err == nil && !ok {
+		return page, fmt.Errorf("load library history %s/%s: %w", owner, name, app.ErrNotFound)
+	}
+	return page, c.err
+}
+
+// ReleaseComparison puts the older release first, as app.Pages does.
+func (c catalog) ReleaseComparison(_ context.Context, owner, name string, from, to int) (views.ReleaseComparison, error) {
+	from, to = min(from, to), max(from, to)
+	comparison, ok := c.releaseComparisons[fmt.Sprintf("%s %d...%d", strings.ToLower(owner+"/"+name), from, to)]
+	if c.err == nil && !ok {
+		return comparison, fmt.Errorf("compare releases of library %s/%s: %w", owner, name, app.ErrNotFound)
+	}
+	return comparison, c.err
+}
+
+// RuleComparison puts the older version first, as app.Pages does.
+func (c catalog) RuleComparison(_ context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error) {
+	if from.Compare(to) > 0 {
+		from, to = to, from
+	}
+	comparison, ok := c.ruleComparisons[strings.ToLower(owner+"/"+name)+"/"+rulePath+" "+from.String()+"..."+to.String()]
+	if c.err == nil && !ok {
+		return comparison, fmt.Errorf("compare versions of rule %s/%s/%s: %w", owner, name, rulePath, app.ErrNotFound)
+	}
+	return comparison, c.err
+}
+
 // day returns noon UTC on day n of September 2026.
 func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) }
 
@@ -113,7 +156,7 @@ func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) 
 var exampleRules = views.Library{
 	Owner: "example", Name: "rules", Description: "Example rules for tests.",
 	OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", LicenseExpression: "MIT", LicenseFile: "LICENSE",
-	LatestRelease: 3, LatestTaggedAt: day(3),
+	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
 }
 
 // goGroup and testingGroup are how the canonical group list shows techs/go and practices/testing.
@@ -173,6 +216,9 @@ func newCatalog() catalog {
 			"example/rules/" + returnErrors.Rule.Path: returnErrors,
 			"example/rules/" + retryLimits.Rule.Path:  retryLimits,
 		},
+		releases:           map[string]views.ReleasesPage{},
+		releaseComparisons: map[string]views.ReleaseComparison{},
+		ruleComparisons:    map[string]views.RuleComparison{},
 	}
 }
 
@@ -261,13 +307,13 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	}
 	assertShows(t, resp.Body.String(),
 		"example / rules Example rules for tests.",
-		"Groups 2", "All rules 2",
+		"Groups 2", "All rules 2", "Library releases 3",
 		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
 		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
 	)
-	if !strings.Contains(resp.Body.String(), `href="https://github.com/example/rules/releases/tag/release/3"`) {
-		t.Fatal("the latest release doesn't link its GitHub Release page")
+	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
+		t.Fatal("the latest release doesn't link to it on the Library releases tab")
 	}
 }
 
@@ -353,7 +399,8 @@ func TestRuleVersionsTabListsEveryVersionNewestFirst(t *testing.T) {
 
 	page := resp.Body.String()
 	assertShows(t, page,
-		"2.0.0 Latest Major release/3 3 Sep 2026 Require context on every error. Add an example. Release notes "+
+		"2 versions Compare versions",
+		"2.0.0 Latest Major release/3 3 Sep 2026 Require context on every error. Add an example. Compare with 1.0.0 Release notes "+
 			"1.0.0 release/1 1 Sep 2026 Add the rule. Release notes",
 	)
 	if strings.Count(visibleText(t, page), "Major") != 2 { // The explanation, and the one major version.
@@ -367,6 +414,22 @@ func TestRuleVersionsTabListsEveryVersionNewestFirst(t *testing.T) {
 			t.Fatalf("no Release notes link %s", want)
 		}
 	}
+}
+
+// Whatever a library holds, a page must fit one response: past the most a response may hold, the page says it's too
+// large instead.
+func TestPagesTooLargeForAResponseSaySo(t *testing.T) {
+	c := newCatalog()
+	page := c.pages["example/rules"]
+	page.Library.Description = strings.Repeat("A very long description. ", 300000)
+	c.pages["example/rules"] = page
+
+	resp := get(t, newSite(t, c), library)
+
+	if resp.Code != http.StatusOK || resp.Body.Len() > 64<<10 {
+		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
+	}
+	assertShows(t, resp.Body.String(), "Too large", "This page is too large to show. Go home")
 }
 
 func TestPagesAnswerNotFound(t *testing.T) {

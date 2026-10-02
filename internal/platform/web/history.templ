@@ -1,0 +1,521 @@
+// A library's releases, and what changed between two of its releases or two versions of a rule, with the changed
+// text.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+	"github.com/fabricahq/rulemart/internal/lib/textdiff"
+)
+
+// releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
+// describe it, with links to newer and older pages.
+templ releasesPage(c chrome, lib libraryView, v releasesView) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}, lib, releasesTab, true) {
+		<div class="mb-4 grid gap-3">
+			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
+			if len(v.from) > 1 {
+				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")
+			}
+		</div>
+		if v.newerHref != "" {
+			<p class="mb-4 text-[13px]"><a href={ templ.SafeURL(v.newerHref) }>← Newer library releases</a></p>
+		}
+		<div class="anchor-cards">
+			for _, card := range v.cards {
+				@releaseCardView(card)
+			}
+		</div>
+		if v.olderHref != "" {
+			<p class="text-[13px]"><a href={ templ.SafeURL(v.olderHref) }>Older library releases →</a></p>
+		}
+	}
+}
+
+// releaseCardView is one release, laid out like its generated release notes, with links to compare it with the
+// release before and to its notes on GitHub.
+templ releaseCardView(card releaseCard) {
+	<section class="anchor-card mb-4 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ card.anchor } aria-labelledby={ card.anchor + "-title" }>
+		<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-surface-header px-5 py-3 max-narrow:px-4">
+			<h2 class="font-mono text-[15px] font-semibold" id={ card.anchor + "-title" }>
+				<a class="text-ink no-underline hover:underline hover:decoration-border-strong hover:underline-offset-3" href={ templ.SafeURL("#" + card.anchor) }>{ card.tag }</a>
+			</h2>
+			if card.latest {
+				@latestBadge()
+			}
+			if card.major {
+				@majorMark()
+			}
+			<span class="text-[13px] text-faint">{ card.date }</span>
+			<span class="ml-auto flex flex-wrap items-center gap-x-[14px] gap-y-1 max-narrow:ml-0 max-narrow:basis-full">
+				if card.compareHref != "" {
+					<a class="text-[13px] whitespace-nowrap text-muted underline-offset-3 hover:text-ink" href={ templ.SafeURL(card.compareHref) }>Compare with { card.previous }</a>
+				}
+				@releaseNotesLink(card.notesURL, card.tag)
+			</span>
+		</div>
+		<div class="px-5 pt-4 pb-[18px] max-narrow:px-4">
+			<p class="text-[14px]">{ card.summary }</p>
+			@changeSections(card.sections)
+			if card.sharedFiles {
+				<p class="mt-3 text-[13px] text-muted">{ sharedFilesNote }</p>
+			}
+			if len(card.versions) > maxVersionRows {
+				<p class="mt-3.5 text-[13px] text-muted">This library release holds { plural(len(card.versions), "rule", "rules") }. Its <a href={ templ.SafeURL(card.notesURL) }>release notes on GitHub</a> list every rule's version.</p>
+			} else if len(card.versions) > 0 {
+				<details class="group mt-3.5 text-[13px]">
+					<summary class="cursor-pointer text-muted marker:text-faint hover:text-ink">All rule versions in this library release</summary>
+					<table class="rule-versions">
+						<thead>
+							<tr><th>Rule</th><th>Version</th></tr>
+						</thead>
+						<tbody>
+							for _, v := range card.versions {
+								<tr><td><a href={ templ.SafeURL(v.href) }>{ v.id }</a></td><td>{ v.version }</td></tr>
+							}
+						</tbody>
+					</table>
+				</details>
+			}
+		</div>
+	</section>
+}
+
+// releaseNotesLink leads to a release's notes on GitHub, named the same wherever a page links them.
+templ releaseNotesLink(href, tag string) {
+	@githubLink(href, "Release notes", "Release notes for "+tag+" on GitHub")
+}
+
+// githubLink leads to a page on GitHub, marked with GitHub's logo, its text muted beside the content it's about, and
+// named in full for a screen reader by label.
+templ githubLink(href, text, label string) {
+	<a class="inline-flex items-center gap-[5px] text-[13px] whitespace-nowrap text-muted underline-offset-3 hover:text-ink" href={ templ.SafeURL(href) } aria-label={ label }>
+		@githubMark("size-3.5 flex-none")
+		{ text }
+	</a>
+}
+
+// changeSections lists changed rules by kind, as release notes do, each kind under its own heading, and folds a long
+// list behind a disclosure that counts what it holds.
+templ changeSections(sections []changeSection) {
+	for _, section := range sections {
+		<h3 class="mt-[18px] mb-1.5 text-[13px] font-semibold">{ section.title }</h3>
+		if section.warning {
+			<p class="mb-1.5 text-[13px] text-muted">{ majorWarning }</p>
+		}
+		<ul class="rule-changes">
+			for _, item := range section.items {
+				@changeItemView(item)
+			}
+		</ul>
+		if len(section.more) > 0 {
+			<details class="group mt-1.5 text-[13px]">
+				<summary class="cursor-pointer text-muted marker:text-faint hover:text-ink">
+					<span class="group-open:hidden">Show { strconv.Itoa(len(section.more)) } more { section.noun }</span>
+					<span class="hidden group-open:inline">Show fewer</span>
+				</summary>
+				<ul class="rule-changes mt-1.5">
+					for _, item := range section.more {
+						@changeItemView(item)
+					}
+				</ul>
+			</details>
+		}
+	}
+}
+
+// changeItemView is one changed rule: its title, ID, and versions, and the summary of each change. A release can list
+// thousands of rules, so items take short markup that the stylesheet's rule-changes rules style.
+templ changeItemView(item changeItem) {
+	<li>
+		<a class="t" href={ templ.SafeURL(item.href) }>{ item.title }</a>
+		<span class="id">{ item.id }</span>
+		if item.versionsLabel != "" {
+			<span class="l">{ item.versionsLabel }</span>
+		}
+		if item.compareHref != "" {
+			<a class="v" href={ templ.SafeURL(item.compareHref) } title="Compare these versions">{ item.versions }</a>
+		} else {
+			<span class="v">{ item.versions }</span>
+		}
+		if item.renamedFrom != nil {
+			<div>Renamed from <span class="id">{ item.renamedFrom.id }</span>. <a href={ templ.SafeURL(item.textHref) }>Compare the text</a></div>
+		}
+		for _, note := range item.notes {
+			for i, summary := range note.summaries {
+				<div>
+					if note.version != "" && i == 0 {
+						<span class="n">{ note.version }</span>
+						if note.major {
+							@majorMark()
+						}
+					} else if note.version != "" {
+						<span class="n invisible" aria-hidden="true">{ note.version }</span>
+					}
+					{ summary }
+				</div>
+			}
+		}
+		if len(item.replacedBy) > 0 {
+			<div>
+				@replacementChain(item.replacedBy, false)
+			</div>
+		}
+	</li>
+}
+
+// replacementChain names a retired rule's replacement, then the rule that replaced that one, and so on, or with
+// renamed, the rule's new ID.
+templ replacementChain(links []ruleLink, renamed bool) {
+	for _, step := range chainSteps(links, renamed) {
+		{ step.prefix }<a href={ templ.SafeURL(step.link.href) }>{ step.link.title }</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">{ step.id }</span>{ step.suffix }
+	}
+}
+
+// compareForm chooses two versions, or two releases, to compare, and submits them to action with the tab named
+// tabName, keeping the diff's mode. Without a script, choosing doesn't submit: the Compare button does.
+templ compareForm(action, tabName string, from, to []releaseOption, mode diffMode, fromLabel, toLabel string) {
+	<form class="flex flex-wrap items-center gap-2 text-[14px]" action={ templ.SafeURL(action) } method="get">
+		<input type="hidden" name="tab" value={ tabName }/>
+		<span class="text-muted">Compare</span>
+		<label class="sr-only" for="compare-from">{ fromLabel }</label>
+		<select id="compare-from" class="h-8 max-w-full min-w-0 cursor-pointer rounded-sm border border-border-strong bg-paper px-2 font-mono text-[13px] text-ink" name="from">
+			for _, o := range from {
+				<option value={ o.value } selected?={ o.selected }>{ o.label }</option>
+			}
+		</select>
+		<span class="inline-flex max-w-full min-w-0 items-center gap-2">
+			<span class="text-faint" aria-hidden="true">→</span>
+			<label class="sr-only" for="compare-to">{ toLabel }</label>
+			<select id="compare-to" class="h-8 max-w-full min-w-0 cursor-pointer rounded-sm border border-border-strong bg-paper px-2 font-mono text-[13px] text-ink" name="to">
+				for _, o := range to {
+					<option value={ o.value } selected?={ o.selected }>{ o.label }</option>
+				}
+			</select>
+		</span>
+		if mode == diffLines {
+			<input type="hidden" name="view" value={ string(mode) }/>
+		}
+		<button class="inline-flex h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] text-[13px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface" type="submit">Compare</button>
+	</form>
+}
+
+// compareBar leads back to the list it came from, chooses what to compare, and with modes, switches the diff between
+// words and lines.
+templ compareBar(back, backText string, modes bool, mode diffMode, wordsHref, linesHref string) {
+	<div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+		<a class="text-[13px] whitespace-nowrap" href={ templ.SafeURL(back) }>← { backText }</a>
+		{ children... }
+		if modes {
+			<nav class="ml-auto inline-flex rounded-full border border-border p-0.5 text-[13px] max-narrow:ml-0" aria-label="Show changes as">
+				@modeLink("Words", wordsHref, mode == diffWords)
+				@modeLink("Lines", linesHref, mode == diffLines)
+			</nav>
+		}
+	</div>
+}
+
+templ modeLink(name, href string, on bool) {
+	<a
+		class={ "rounded-full px-3 py-0.5 no-underline", templ.KV("bg-surface-header font-medium text-ink", on), templ.KV("text-muted hover:text-ink", !on) }
+		href={ templ.SafeURL(href) }
+		if on {
+			aria-current="page"
+		}
+	>{ name }</a>
+}
+
+// releaseComparisonPage is what changed in a library between two releases, and the changed rules' text.
+templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) {
+	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, section: librariesHref}, lib, releasesTab, false) {
+		@compareBar(v.backHref, "All library releases", len(v.diffs) > 0, diffMode(v.mode), v.wordsHref, v.linesHref) {
+			@compareForm(lib.href, "releases", v.fromOptions, v.toOptions, diffMode(v.mode), "Older library release", "Newer library release")
+		}
+		if v.same {
+			@emptyNote() {
+				Choose two different library releases to compare.
+			}
+		} else {
+			@panel("What changed", "") {
+				<p class="text-[14px]">{ v.summary }</p>
+				if v.sharedFiles != "" {
+					<p class="mt-1.5 text-[13px] text-muted">{ v.sharedFiles }</p>
+				}
+				if v.major {
+					@majorNote(v.fromTag, v.toTag)
+				}
+				@changeSections(v.sections)
+			}
+			if len(v.diffs) > 0 {
+				<h2 class="mt-[22px] text-[12px] font-medium tracking-[.12em] text-muted uppercase">Changed text</h2>
+				<p class="mt-1 text-[13px] text-faint">The text of { plural(len(v.diffs), "rule", "rules") } that changed between { v.fromTag } and { v.toTag }.</p>
+				<div class="anchor-cards">
+					for _, d := range v.diffs {
+						@diffFile(d)
+					}
+				</div>
+				if v.omitted > 0 {
+					<p class="mt-3 text-[13px] text-muted">The text of { plural(v.omitted, "more rule", "more rules") } is more than one page shows. Compare each one's versions from its link above.</p>
+				}
+			}
+		}
+	}
+}
+
+// ruleComparisonPage is what changed between two versions of a rule, and its text.
+templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
+	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, section: librariesHref}, r, versionsTab) {
+		@compareBar(v.backHref, "All versions", !v.same, diffMode(v.mode), v.wordsHref, v.linesHref) {
+			@compareForm(r.href, "versions", v.fromOptions, v.toOptions, diffMode(v.mode), "Older version", "Newer version")
+		}
+		if v.same {
+			@emptyNote() {
+				Choose two different versions to compare.
+			}
+		} else {
+			@panel("What changed", plural(len(v.notes), "version", "versions")) {
+				if v.major {
+					@majorNote(v.from, v.to)
+				}
+				<div class="grid gap-3">
+					for _, note := range v.notes {
+						<div>
+							<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+								<h3 class="mono font-semibold">{ note.version }</h3>
+								if note.major {
+									@majorMark()
+								}
+								@releaseTagLink(note.releaseHref, note.tag)
+								<span class="text-[13px] text-faint">{ note.date }</span>
+							</div>
+							for _, summary := range note.summaries {
+								<div class="mt-0.5 text-[13px] text-muted">{ summary }</div>
+							}
+						</div>
+					}
+				</div>
+			}
+			<h2 class="mt-[22px] text-[12px] font-medium tracking-[.12em] text-muted uppercase">Changed text</h2>
+			<p class="mt-1 text-[13px] text-faint">{ v.span }</p>
+			@diffFile(v.diff)
+		}
+	}
+}
+
+// releasesNotFoundPage is a library's Library releases tab that says it can't show the releases a link asked for, with
+// the means to choose two releases to compare.
+templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message string) {
+	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, section: librariesHref}, lib, releasesTab, false) {
+		@compareBar(releasesHref(lib), "All library releases", false, diffWords, "", "") {
+			if len(v.from) > 1 {
+				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")
+			}
+		}
+		@notFoundNote(message, releasesHref(lib), "See all of this library's releases")
+	}
+}
+
+// ruleComparisonNotFoundPage is a rule's Versions tab that says it can't compare the versions a link asked for, with
+// the means to choose two of its versions.
+templ ruleComparisonNotFoundPage(c chrome, r ruleView, from, to []releaseOption, message string) {
+	@ruleFrame(c, head{title: "Not found · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, section: librariesHref}, r, versionsTab) {
+		@compareBar(r.href+"?tab=versions", "All versions", false, diffWords, "", "") {
+			if len(from) > 1 {
+				@compareForm(r.href, "versions", from, to, diffWords, "Older version", "Newer version")
+			}
+		}
+		@notFoundNote(message, r.href+"?tab=versions", "See all of this rule's versions")
+	}
+}
+
+// notFoundNote says what a page can't find, and leads back to the list it came from.
+templ notFoundNote(message, backHref, backText string) {
+	<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+		<h2 class="font-medium text-ink">Not found</h2>
+		<p class="mt-1">{ message } <a href={ templ.SafeURL(backHref) }>{ backText }</a>.</p>
+	</div>
+}
+
+// panel is a framed box with a heading, and a note at its right.
+templ panel(heading, note string) {
+	<section class="overflow-hidden rounded-card border border-border bg-surface">
+		<div class="flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-2.5">
+			<h2 class="text-[12px] font-medium tracking-[.12em] text-muted uppercase">{ heading }</h2>
+			if note != "" {
+				<span class="text-[12px] text-faint">{ note }</span>
+			}
+		</div>
+		<div class="px-[18px] pt-3.5 pb-4">
+			{ children... }
+		</div>
+	</section>
+}
+
+// majorNote warns that a comparison includes a major change.
+templ majorNote(from, to string) {
+	<p class="my-2.5 rounded-sm border border-l-[3px] border-border border-l-border-strong bg-paper px-3 py-2 text-[13px]">
+		Includes a major change. Work that complied with { from } could fail { to }, so review the changes before updating.
+	</p>
+}
+
+// emptyNote is a dashed box that says why there's nothing to show.
+templ emptyNote() {
+	<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+		{ children... }
+	</div>
+}
+
+// diffFile is one rule file's changes under a heading: its path, how many lines changed, and the changes in words or
+// lines, or why the page can't show them.
+templ diffFile(d diffView) {
+	<section class="anchor-card mt-3 scroll-mt-20 overflow-hidden rounded-card border border-border bg-paper" id={ d.anchor } aria-labelledby={ d.anchor + "-title" }>
+		<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-border bg-surface-header px-4 py-2.5">
+			<h3 class="contents" id={ d.anchor + "-title" }>
+				if d.title != "" {
+					<a class="text-[14px] font-semibold decoration-border-strong underline-offset-3" href={ templ.SafeURL(d.href) }>{ d.title }</a>
+				}
+				if d.renamed() {
+					<span class="font-mono text-[12.5px] [overflow-wrap:anywhere]">{ d.oldPath } → { d.path }</span>
+				} else {
+					<span class="font-mono text-[12.5px] [overflow-wrap:anywhere]">{ d.path }</span>
+				}
+			</h3>
+			<span class="font-mono text-[12px] whitespace-nowrap text-faint">{ d.versions() }</span>
+			if d.state == views.TextShown && !d.unchanged {
+				<span class="font-mono text-[12px] whitespace-nowrap"><span class="text-add-ink">+{ strconv.Itoa(d.added) }</span> <span class="text-del-ink">−{ strconv.Itoa(d.removed) }</span></span>
+			}
+			<a class="ml-auto inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-muted underline-offset-3 hover:text-ink" href={ templ.SafeURL(d.toURL) }>
+				@githubMark("size-3.5 flex-none")
+				View at { d.to }
+			</a>
+		</div>
+		switch {
+			case d.state == views.TextMissing:
+				@diffUnavailable(d, "Rulemart doesn't have the text of these versions yet. It reads them the next time it updates the library.")
+			case d.state == views.TextTooLarge:
+				@diffUnavailable(d, "These changes are too large to show here.")
+			case d.unchanged && d.renamed():
+				<p class="px-4 py-3.5 text-[13px] text-muted">The text is the same; only the rule's ID changed.</p>
+			case d.unchanged:
+				<p class="px-4 py-3.5 text-[13px] text-muted">The rule's file is the same in both versions.</p>
+			case d.mode == diffLines:
+				@lineDiff(d.lines)
+			default:
+				@wordDiff(d.words)
+		}
+	</section>
+}
+
+// diffUnavailable says why a diff isn't shown, and links both versions' files on GitHub.
+templ diffUnavailable(d diffView, why string) {
+	<p class="px-4 py-3.5 text-[13px] text-muted">
+		{ why } Compare the files on GitHub: <a href={ templ.SafeURL(d.fromURL) }>{ d.from }</a> and <a href={ templ.SafeURL(d.toURL) }>{ d.to }</a>.
+	</p>
+}
+
+// wordDiff shows the new Markdown with its changed words marked, folding unchanged blocks away from a change. A diff
+// repeats its blocks and marks for every change, so they take short markup that the stylesheet's diff rules style.
+templ wordDiff(parts []textdiff.Part) {
+	<div class="diff diff-words grid gap-[1.1em] px-4 py-3.5 font-mono text-[12.5px] leading-[1.65]">
+		for _, part := range parts {
+			if part.Folded {
+				<details class="group">
+					<summary class="cursor-pointer list-none rounded-sm border border-dashed border-border px-2.5 py-1 font-sans text-[12.5px] text-faint hover:text-muted group-open:mb-[1.1em] [&::-webkit-details-marker]:hidden">
+						<span class="group-open:hidden">⋯ Show </span><span class="hidden group-open:inline">Hide </span>{ plural(len(part.Blocks), "unchanged block", "unchanged blocks") }
+					</summary>
+					<div class="grid gap-[1.1em]">
+						for _, block := range part.Blocks {
+							<div class="b">
+								@segments(block.Segments)
+							</div>
+						}
+					</div>
+				</details>
+			} else {
+				for _, block := range part.Blocks {
+					<div class="b">
+						@segments(block.Segments)
+					</div>
+				}
+			}
+		}
+	</div>
+}
+
+// segments shows text with deleted words struck through and inserted words marked. A mark right after another, such
+// as the words that replace deleted ones, has class g, which sets it apart.
+templ segments(list []textdiff.Segment) {
+	for i, s := range list {
+		switch s.Op {
+			case textdiff.Delete:
+				if adjacentMark(list, i) {
+					<del class="g">{ s.Text }</del>
+				} else {
+					<del>{ s.Text }</del>
+				}
+			case textdiff.Insert:
+				if adjacentMark(list, i) {
+					<ins class="g">{ s.Text }</ins>
+				} else {
+					<ins>{ s.Text }</ins>
+				}
+			default:
+				{ s.Text }
+		}
+	}
+}
+
+// lineDiff shows a unified diff: each hunk's header, then its lines numbered on each side, with the unchanged lines
+// between hunks folded behind a disclosure, as the words view folds unchanged blocks.
+templ lineDiff(d textdiff.LineDiff) {
+	<div class="diff">
+		for _, h := range d.Hunks {
+			if len(h.Before) > 0 {
+				@hiddenLines(h.Before)
+			}
+			<table class="diff-lines">
+				@lineColumns()
+				<tr class="h"><td colspan="4">{ hunkHeader(h) }</td></tr>
+				@lineRows(h.Lines)
+			</table>
+		}
+		if len(d.After) > 0 {
+			@hiddenLines(d.After)
+		}
+	</div>
+}
+
+// hiddenLines folds unchanged lines that no hunk shows, and shows them on request.
+templ hiddenLines(lines []textdiff.Line) {
+	<details class="diff-gap group">
+		<summary>
+			<span class="group-open:hidden">⋯ Show </span><span class="hidden group-open:inline">Hide </span>{ plural(len(lines), "unchanged line", "unchanged lines") }
+		</summary>
+		<table class="diff-lines">
+			@lineColumns()
+			@lineRows(lines)
+		</table>
+	</details>
+}
+
+templ lineColumns() {
+	<colgroup>
+		<col class="n"/>
+		<col class="n"/>
+		<col class="s"/>
+		<col/>
+	</colgroup>
+}
+
+templ lineRows(lines []textdiff.Line) {
+	for _, line := range lines {
+		<tr class={ lineClass(line.Op) }><td>{ lineNumber(line.Old) }</td><td>{ lineNumber(line.New) }</td><td>{ lineSign(line.Op) }</td><td>
+			if len(line.Segments) == 0 {
+				{ " " }
+			}
+			@segments(line.Segments)
+		</td></tr>
+	}
+}

@@ -75,26 +75,35 @@ DELETE FROM rule_versions WHERE id = @id;
 -- name: UpsertVersion :execrows
 INSERT INTO rule_versions (library_id, rule_id, release_id, major, minor, patch, change, summaries,
                            title, impact, impact_description, when_to_read, markdown, html,
-                           when_to_read_html, rendered_when_to_read)
+                           when_to_read_html, rendered_when_to_read, retired_html)
 VALUES (@library_id, @rule_id, @release_id, @major, @minor, @patch, @change, @summaries,
         @title, @impact, @impact_description, @when_to_read, @markdown, @html,
-        @when_to_read_html, @when_to_read)
+        @when_to_read_html, @rendered_when_to_read, @retired_html)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
     impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
     markdown = excluded.markdown, html = excluded.html, when_to_read_html = excluded.when_to_read_html,
-    rendered_when_to_read = excluded.rendered_when_to_read
+    rendered_when_to_read = excluded.rendered_when_to_read, retired_html = excluded.retired_html
 WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
        rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html,
-       rule_versions.when_to_read_html, rule_versions.rendered_when_to_read)
+       rule_versions.when_to_read_html, rule_versions.rendered_when_to_read, rule_versions.retired_html)
     IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
        excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html,
-       excluded.when_to_read_html, excluded.rendered_when_to_read);
+       excluded.when_to_read_html, excluded.rendered_when_to_read, excluded.retired_html);
 
 -- name: GetCheckpoint :many
 -- One row per stored release of the library, or one row with a NULL number when it has none, each saying whether a
--- current version's reading guidance lacks the HTML rendered from it.
+-- release that stored content only on current versions left any version without it, or a retired rule's last version
+-- without its body's HTML, and whether a current version's reading guidance lacks the HTML rendered from it.
 SELECT l.clone_url, r.number, r.tag_object_id,
+       (EXISTS (SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NULL) OR EXISTS (
+           SELECT FROM rules retired
+           JOIN LATERAL (
+               SELECT v.retired_html FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+               WHERE v.rule_id = retired.id ORDER BY p.number DESC LIMIT 1
+           ) last ON true
+           WHERE retired.library_id = l.id AND retired.retired_in_release_id IS NOT NULL AND last.retired_html IS NULL
+       ))::boolean AS missing_content,
        EXISTS (
            SELECT FROM rule_versions v
            WHERE v.library_id = l.id AND v.html IS NOT NULL AND v.rendered_when_to_read IS DISTINCT FROM v.when_to_read

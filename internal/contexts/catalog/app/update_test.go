@@ -188,6 +188,32 @@ func TestUpdateIngestsALibraryStoredWithoutItsTagsOnce(t *testing.T) {
 	}
 }
 
+// A release before every version kept its content stored it only on current versions, so the first update after it
+// ingests the library again, which stores every version's, and the next one stops at the check.
+func TestUpdateIngestsALibraryStoredWithoutItsVersionsContentOnce(t *testing.T) {
+	lib := firstRelease(t)
+	laterReleases(t, lib)
+	u := newUpdates(t, lib)
+	if _, err := u.update(t); err != nil {
+		t.Fatal(err)
+	}
+	postgrestest.Exec(t, u.connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL,
+		when_to_read = NULL, markdown = NULL, retired_html = NULL WHERE html IS NULL`)
+
+	first, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !first.Ingested || first.Result.Changed == 0 || second.Ingested {
+		t.Fatalf("updated %+v, then %+v; want one ingestion that stores the content, then none", first, second)
+	}
+}
+
 // An unreachable remote fails the update, so the worker retries it and its alarm reports it, and the catalog keeps
 // what it had.
 func TestUpdateFailsWithoutWritingWhenTheRemoteIsUnreachable(t *testing.T) {

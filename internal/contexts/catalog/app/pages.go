@@ -53,8 +53,8 @@ func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
 	return p.Store.Libraries(ctx, p.Vetted)
 }
 
-// LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups and current
-// rules, or ErrNotFound.
+// LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
+// and retired rules, each with its chain of replacements to now and whether it was renamed, or ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {
 	page, err := p.Store.LibraryPage(ctx, p.Vetted, owner, name)
 	if err != nil {
@@ -63,17 +63,26 @@ func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.Libra
 	for i, g := range page.Groups {
 		page.Groups[i].Canonical = p.canonical(g.Path)
 	}
+	links := newRuleLinks(page.Links)
+	for i, r := range page.Retired {
+		page.Retired[i].Replacements, page.Retired[i].Renamed = links.replacements(r.Path), links.renamed(r.Path)
+	}
 	return page, nil
 }
 
-// RulePage returns the current rule at rulePath in the vetted library owner/name, with every version, or
-// ErrNotFound.
+// RulePage returns the rule at rulePath in the vetted library owner/name, current or retired, with every version, the
+// rules it replaced or renamed, and while it's retired, its chain of replacements to now, or ErrNotFound.
 func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error) {
 	page, err := p.Store.RulePage(ctx, p.Vetted, owner, name, rulePath)
 	if err != nil {
 		return views.RulePage{}, err
 	}
 	page.Rule.CanonicalGroup = p.canonical(page.Rule.Group)
+	links := newRuleLinks(page.Links)
+	if retirement := page.Rule.Retirement; retirement != nil {
+		retirement.Replacements, retirement.Renamed = links.replacements(page.Rule.Path), links.renamed(page.Rule.Path)
+	}
+	page.RenamedFrom, page.Replaces = links.replaced(page.Rule.Path)
 	return page, nil
 }
 

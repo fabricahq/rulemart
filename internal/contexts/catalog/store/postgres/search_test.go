@@ -48,11 +48,10 @@ var (
 	}
 )
 
-// summarized returns r with impactDescription.
+// summarized returns r with impactDescription on its current version.
 func summarized(r domain.Rule, impactDescription string) domain.Rule {
-	c := *r.Content
-	c.ImpactDescription = impactDescription
-	r.Content = &c
+	r.Versions = slices.Clone(r.Versions)
+	r.Versions[len(r.Versions)-1].Content.ImpactDescription = impactDescription
 	return r
 }
 

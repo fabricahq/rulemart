@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/fabricahq/rulemart/internal/lib/textdiff"
 )
 
 func TestEveryImpactLevelHasAnExplanation(t *testing.T) {
@@ -34,5 +36,21 @@ func TestBreakableLetsAnIDWrapAtItsParts(t *testing.T) {
 		if err := breakable(text).Render(context.Background(), &out); err != nil || out.String() != want {
 			t.Errorf("breakable(%q) = %q, %v; want %q", text, out.String(), err, want)
 		}
+	}
+}
+
+// A mark right after another, with no text between them, is set apart from it; one after a space keeps only the
+// space, so the gap before it is no wider than any other.
+func TestSegmentsSetApartOnlyAdjacentMarks(t *testing.T) {
+	var out strings.Builder
+	err := segments([]textdiff.Segment{
+		{Op: textdiff.Equal, Text: "Log "}, {Op: textdiff.Insert, Text: "them"}, {Op: textdiff.Equal, Text: " and "},
+		{Op: textdiff.Delete, Text: "continue."}, {Op: textdiff.Insert, Text: "carry on."},
+	}).Render(context.Background(), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `Log <ins>them</ins> and <del>continue.</del><ins class="g">carry on.</ins>`; out.String() != want {
+		t.Errorf("got %s, want %s", out.String(), want)
 	}
 }

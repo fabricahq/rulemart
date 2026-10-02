@@ -30,6 +30,7 @@
   --primary: #1c1c1c; --on-primary: #ffffff; --focus: #333333;
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
   --icon-tile: #ffffff; --icon-ink: none;
+  --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #116329; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #a40e26;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -38,6 +39,8 @@
   --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
   --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
   --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
+  --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
+  --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -47,11 +50,14 @@
     --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
     --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
     --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
+    --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
+    --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
     color-scheme: dark;
   }
 }
 
-/* Only the tokens are colors, so markup can't drift from the palette. */
+/* Only the tokens are colors, so markup can't drift from the palette. The palette is grays, except the green and red
+   that mark text a comparison adds and deletes, GitHub's diff colors. */
 @theme {
   --color-*: initial;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -76,6 +82,8 @@
   --color-icon-tile: var(--icon-tile);
   --color-on-primary: var(--on-primary);
   --color-white: #ffffff;
+  --color-add-ink: var(--add-ink);
+  --color-del-ink: var(--del-ink);
 }
 
 /* The prototype's layout primitives. */
@@ -121,7 +129,7 @@
   /* A rule's rendered Markdown, which has no classes of its own. */
   .prose h2 { font-size: 1.3rem; letter-spacing: -.035em; margin: 26px 0 10px; }
   .prose h3 { font-size: 1.05rem; letter-spacing: -.025em; margin: 22px 0 8px; font-weight: 600; }
-  .prose h4 { font-size: 15px; margin: 18px 0 6px; font-weight: 600; }
+  .prose h4, .prose h5 { font-size: 15px; margin: 18px 0 6px; font-weight: 600; }
   .prose p, .prose li { color: var(--muted); }
   .prose p { margin: 0 0 10px; }
   .prose p strong, .prose li strong { color: var(--ink); }
@@ -149,6 +157,67 @@
   /* A rule's reading guidance, rendered as its body is, in the smaller type of the box it sits in. */
   .prose .when-to-apply p, .prose .when-to-apply li { color: inherit; }
   .prose .when-to-apply > :last-child { margin-bottom: 0; }
+
+  /* A release or diff that a link's fragment names stands out, and when it's among the last on its page, the page
+     leaves room below it, so it can still scroll to the top rather than stop short at the page's end. */
+  .anchor-card:target { border-color: var(--border-strong); box-shadow: 0 0 0 1px var(--border-strong); }
+  .anchor-cards:has(> .anchor-card:target:nth-last-of-type(-n+3)) { padding-bottom: 70vh; }
+
+  /* The rules a release changed, and its table of every rule's version, which list up to every rule a library holds:
+     short markup, styled here, keeps a page of releases small. */
+  .rule-changes { list-style: disc; padding-left: 18px; font-size: 13.5px; }
+  .rule-changes li { margin: 6px 0; }
+  .rule-changes li::marker { color: var(--faint); }
+  .rule-changes a { text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+  .rule-changes a:hover { text-decoration-color: var(--ink); }
+  .rule-changes .t { font-weight: 600; }
+  /* The space between a change's title, ID, and versions widens after each, not before, so a part that wraps starts
+     flush with the line above. */
+  .rule-changes li > .t, .rule-changes li > .id, .rule-changes li > .l { margin-right: 4px; }
+  .rule-changes .id { font-family: var(--font-mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+  .rule-changes .v { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+  .rule-changes div { font-size: 13px; color: var(--muted); }
+  .rule-changes div a { color: var(--ink); }
+  .rule-changes .l { font-size: 12px; color: var(--muted); }
+  .rule-changes .n { margin-right: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+  .rule-changes div > a[aria-label] { margin-right: 6px; }
+  .rule-versions { width: 100%; margin-top: 8px; border-collapse: collapse; }
+  .rule-versions th { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: 11px; font-weight: 500; letter-spacing: .08em; color: var(--faint); text-transform: uppercase; }
+  .rule-versions td { padding: 6px 10px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 12.5px; }
+  .rule-versions td:first-child { overflow-wrap: anywhere; }
+  .rule-versions td:last-child { white-space: nowrap; }
+  .rule-versions a { text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+
+  /* A diff, which repeats its rows and marks for every changed line or word: short markup, styled here, keeps a
+     comparison's page small. */
+  .diff ins { background: var(--add-word); text-decoration: none; border-radius: 2px; }
+  .diff del { background: var(--del-word); text-decoration: line-through; text-decoration-color: var(--del-ink); border-radius: 2px; }
+  .diff-words .b { white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* In the words view, an insertion is underlined, as a deletion is struck through, so neither relies on color, and
+     a deletion and the insertion right after it, class g, stand apart. A mark after a space keeps only the space. */
+  .diff-words ins { text-decoration: underline; text-decoration-color: var(--add-ink); text-underline-offset: 3px; }
+  .diff-words .g { margin-left: .35em; }
+  .diff-lines { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+  .diff-lines col.n { width: 3.4em; }
+  .diff-lines col.s { width: 1.6em; }
+  .diff-lines td { padding: 0 8px; vertical-align: top; }
+  .diff-lines td:nth-child(-n+2) { text-align: right; color: var(--faint); user-select: none; }
+  .diff-lines td:nth-child(3) { padding: 0; text-align: center; color: var(--muted); user-select: none; }
+  .diff-lines td:nth-child(4) { padding-right: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff-lines tr.i { background: var(--add-line); }
+  .diff-lines tr.d { background: var(--del-line); }
+  /* Faint numbers lose contrast on a changed line's tint. */
+  .diff-lines tr.i td:nth-child(-n+3), .diff-lines tr.d td:nth-child(-n+3) { color: var(--muted); }
+  .diff-gap > summary { cursor: pointer; list-style: none; padding: 4px 16px; background: var(--surface); color: var(--faint); font-size: 12.5px; }
+  .diff-gap > summary:hover { color: var(--muted); }
+  .diff-lines del { text-decoration: none; }
+  .diff-lines tr.h td { padding: 4px 16px; background: var(--surface); color: var(--faint); text-align: left; user-select: auto; }
+  /* Once the lines before a hunk are shown, its header would sit mid-run, so it goes. */
+  .diff-gap[open] + .diff-lines tr.h { display: none; }
+  @media (width < 45rem) {
+    .diff-lines col.n { width: 2.8em; }
+    .diff-lines td:nth-child(-n+2) { padding: 0 4px; }
+  }
 
   /* Highlighted code, in the docs site's code palette. Ingestion assigns these classes. */
   .hl-keyword { color: var(--code-keyword); }
