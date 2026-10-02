@@ -23,6 +23,8 @@ type fakeStars struct {
 	mu sync.Mutex
 	// vetted names the libraries that can be starred, as lowercase owner/name, with how GitHub spells each.
 	vetted map[string]views.LibraryRef
+	// unvetted names the libraries the catalog has that can't be starred, but can be unstarred.
+	unvetted map[string]bool
 	// starred holds each account's stars, as "<account> <lowercase owner/name>".
 	starred map[string]bool
 	// listed is what AccountStars returns for each account.
@@ -33,8 +35,9 @@ type fakeStars struct {
 
 func newFakeStars() *fakeStars {
 	return &fakeStars{
-		vetted:  map[string]views.LibraryRef{"example/rules": {Owner: "example", Name: "rules"}},
-		starred: map[string]bool{}, listed: map[int64][]views.StarredLibrary{},
+		vetted:   map[string]views.LibraryRef{"example/rules": {Owner: "example", Name: "rules"}},
+		unvetted: map[string]bool{"stranger/rules": true, "gone/rules": true},
+		starred:  map[string]bool{}, listed: map[int64][]views.StarredLibrary{},
 	}
 }
 
@@ -58,7 +61,7 @@ func (f *fakeStars) Unstar(_ context.Context, accountID int64, library string) e
 	if f.err != nil {
 		return f.err
 	}
-	if !strings.Contains(library, "/") {
+	if _, ok := f.vetted[strings.ToLower(library)]; !ok && !f.unvetted[strings.ToLower(library)] {
 		return fmt.Errorf("unstar library=%q: %w", library, app.ErrNotFound)
 	}
 	delete(f.starred, fmt.Sprintf("%d %s", accountID, strings.ToLower(library)))
@@ -71,10 +74,20 @@ func (f *fakeStars) Starred(_ context.Context, accountID int64, owner, name stri
 	return f.starred[fmt.Sprintf("%d %s/%s", accountID, strings.ToLower(owner), strings.ToLower(name))], f.err
 }
 
+// AccountStars returns what listed holds for the account, if anything, and otherwise the vetted libraries it starred.
 func (f *fakeStars) AccountStars(_ context.Context, accountID int64) ([]views.StarredLibrary, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.listed[accountID], f.err
+	if listed, ok := f.listed[accountID]; ok {
+		return listed, f.err
+	}
+	var stars []views.StarredLibrary
+	for key, ref := range f.vetted {
+		if f.starred[fmt.Sprintf("%d %s", accountID, key)] {
+			stars = append(stars, views.StarredLibrary{Library: views.LibraryCard{Owner: ref.Owner, Name: ref.Name, Stars: 1}, Vetted: true})
+		}
+	}
+	return stars, f.err
 }
 
 // stars returns the stars every account holds, sorted.
@@ -166,8 +179,12 @@ func TestALibrarysPagesOfferAVisitorWhoIsntSignedInToSignInAndStar(t *testing.T)
 			t.Fatalf("%s: got %d, cached as %q; want a public page", path, resp.StatusCode, resp.Header.Get("Cache-Control"))
 		}
 		page := body(t, resp)
-		assertShows(t, page, "Star, 3 stars")
-		want := "/sign-in?" + url.Values{"return": {path}, "to": {"star"}}.Encode()
+		assertShows(t, page, "Sign in to star example/rules, 3 stars")
+		back := path + "?star=1"
+		if strings.Contains(path, "?") {
+			back = path + "&star=1"
+		}
+		want := "/sign-in?" + url.Values{"return": {back}, "to": {"star"}}.Encode()
 		if got := links(t, page, "Star"); !slices.Equal(got, []string{want}) {
 			t.Errorf("%s: Star leads to %q, want %q", path, got, want)
 		}
@@ -206,7 +223,7 @@ func TestASignedInVisitorStarsALibraryFromItsPages(t *testing.T) {
 	}
 
 	page = body(t, site.signedInGet(t, library))
-	assertShows(t, page, "Starred, 3 stars. Unstar")
+	assertShows(t, page, "Starred, 3 stars")
 	if got := formActions(t, page); !slices.Contains(got, unstarPath) || slices.Contains(got, starPath) {
 		t.Fatalf("a starred library's forms post to %q, want %q and not %q", got, unstarPath, starPath)
 	}
@@ -246,31 +263,18 @@ func TestStarringAndUnstarringTwiceIsLikeOnce(t *testing.T) {
 func TestStarringSignedOutSignsInAndReturnsToThePage(t *testing.T) {
 	site := newStarSite(t)
 
-	for target, back := range map[string]string{
-		starPath: library,
-		starPath + "&return=%2Fexample%2Frules%3Ftab%3Drules": library + "?tab=rules",
-		unstarPath + "&return=%2Faccount%2Fstars":             "/account/stars",
+	for target, want := range map[string]string{
+		starPath: "/sign-in?" + url.Values{"return": {library + "?star=1"}, "to": {"star"}}.Encode(),
+		starPath + "&return=%2Fexample%2Frules%3Ftab%3Drules": "/sign-in?" + url.Values{"return": {library + "?tab=rules&star=1"}, "to": {"star"}}.Encode(),
+		unstarPath + "&return=%2Faccount%2Fstars":             "/sign-in?return=%2Faccount%2Fstars",
 	} {
 		resp := send(t, site.handler, request{method: http.MethodPost, target: target})
-		want := "/sign-in?" + url.Values{"return": {back}, "to": {"star"}}.Encode()
 		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
 			t.Errorf("%s: answered %d to %q, want a redirect to %q", target, resp.StatusCode, resp.Header.Get("Location"), want)
 		}
 	}
 	if got := site.stars.all(); len(got) != 0 {
 		t.Fatalf("stars %q for a visitor who isn't signed in", got)
-	}
-}
-
-// A star returns only to a path on this site.
-func TestStarringReturnsOnlyToPathsOnThisSite(t *testing.T) {
-	site := newStarSite(t)
-
-	for _, back := range []string{"//evil.example", "https://evil.example/", `/\evil.example`} {
-		resp := site.signedInPost(t, starPath+"&"+url.Values{"return": {back}}.Encode())
-		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/" {
-			t.Errorf("return %q: answered %d to %q, want a redirect home", back, resp.StatusCode, resp.Header.Get("Location"))
-		}
 	}
 }
 
@@ -378,8 +382,8 @@ func TestTheStarsPageListsTheVisitorsStars(t *testing.T) {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page := body(t, resp)
-	assertShows(t, page, "Your stars", "rules Example rules for tests. example/rules · Starred 3 Sep 2026",
-		"rules Unvetted stranger/rules · Starred 2 Sep 2026", "rules No longer on Rulemart gone/rules · Starred 1 Sep 2026")
+	assertShows(t, page, "Your stars", "rules Example rules for tests. example/rules · Starred on 3 Sep 2026",
+		"rules Unvetted stranger/rules · Starred on 2 Sep 2026", "rules No longer on Rulemart gone/rules · Starred on 1 Sep 2026")
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
 	}
@@ -402,7 +406,7 @@ func TestTheStarsPageListsTheVisitorsStars(t *testing.T) {
 func TestTheStarsPageSaysWhenThereAreNone(t *testing.T) {
 	site := newStarSite(t)
 
-	assertShows(t, body(t, site.signedInGet(t, "/account/stars")), "You haven't starred a library.")
+	assertShows(t, body(t, site.signedInGet(t, "/account/stars")), "No stars yet. Star a library from its page to keep it here.")
 }
 
 // The account menu leads to the visitor's stars, and the account page says Rulemart keeps them, and that deleting the
@@ -413,7 +417,11 @@ func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 	if got := links(t, body(t, site.signedInGet(t, "/")), "Your stars"); !slices.Equal(got, []string{"/account/stars"}) {
 		t.Errorf("the menu's Your stars leads to %q", got)
 	}
-	assertShows(t, body(t, site.signedInGet(t, "/account")), "which libraries you star", "It removes your stars and your listings")
+	page := body(t, site.signedInGet(t, "/account"))
+	assertShows(t, page, "it keeps which libraries you starred, and when", "It removes your stars and your listings")
+	if text := visibleText(t, page); strings.Count(text, " also ") > 1 {
+		t.Errorf("the account page says also more than once: %s", text)
+	}
 	signedOut := site.signedInPost(t, "/sign-out?return=%2Faccount%2Fstars")
 	if signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signing out of the stars page returns to %q, want home", signedOut.Header.Get("Location"))

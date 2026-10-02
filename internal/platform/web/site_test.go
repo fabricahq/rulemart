@@ -865,7 +865,7 @@ func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 }
 
 // accessibleNames returns the name a screen reader gives each link in body that leads to an address starting with
-// prefix: its text nodes joined as they are, with whitespace collapsed.
+// prefix: its text nodes joined as they are, outside anything hidden from screen readers, with whitespace collapsed.
 func accessibleNames(t *testing.T, body, prefix string) []string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -878,11 +878,19 @@ func accessibleNames(t *testing.T, body, prefix string) []string {
 			continue
 		}
 		var text strings.Builder
-		for d := range n.Descendants() {
-			if d.Type == html.TextNode {
-				text.WriteString(d.Data)
+		var walk func(*html.Node)
+		walk = func(n *html.Node) {
+			if n.Type == html.TextNode {
+				text.WriteString(n.Data)
+			}
+			if attribute(n, "aria-hidden") == "true" {
+				return
+			}
+			for child := n.FirstChild; child != nil; child = child.NextSibling {
+				walk(child)
 			}
 		}
+		walk(n)
 		names = append(names, strings.Join(strings.Fields(text.String()), " "))
 	}
 	return names

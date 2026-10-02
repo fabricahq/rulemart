@@ -106,7 +106,7 @@ templ libraryRow(lib libraryCard, headed bool) {
 		</div>
 		<span class="flex items-center gap-3 self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1 narrow:self-center narrow:pt-0">
 			if lib.stars > 0 && !lib.unvetted {
-				@starCount(lib.stars)
+				@starCount(lib.stars, lib.starredByYou)
 			}
 			<span>{ plural(lib.rules, "rule", "rules") } ›</span>
 		</span>

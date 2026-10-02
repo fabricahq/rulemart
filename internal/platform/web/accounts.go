@@ -101,8 +101,9 @@ type visitor struct {
 	listings, stars bool
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
-	// notice is a notice for this page to show once, from noticeCookie, or empty.
-	notice string
+	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
+	// the cookie named, which the page clears as it renders.
+	notice, noticeKey string
 }
 
 // notices are what a notice cookie may name, by key, and what each says.
@@ -117,6 +118,10 @@ var notices = map[string]string{
 	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
 	"listing-retried":          "Rulemart is checking the repository again.",
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
+	"starred":                  "You starred this library. It's on Your stars.",
+	"unstarred":                "You unstarred this library.",
+	// A library's page says what follows signing in to star it, naming the library, as starPromptNotice does.
+	starPromptKey: "You're signed in.",
 }
 
 // setNotice has the next page show the notice notices names by key, once.
@@ -170,6 +175,8 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
 		if v.notice = notices[cookie.Value]; v.notice == "" {
 			clearCookie(w, noticeCookie)
+		} else {
+			v.noticeKey = cookie.Value
 		}
 	}
 	if s.Accounts != nil {
@@ -278,8 +285,11 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	case publicPath(back) != back:
 		path, _, _ := strings.Cut(back, "?")
 		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
-	case r.URL.Query().Get("to") == starPurpose:
+	case r.URL.Query().Get("to") == starPurpose && back != "/":
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries. You'll come back to this one.")
+	case r.URL.Query().Get("to") == starPurpose:
+		// The return path was refused, so the page promises no return.
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

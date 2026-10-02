@@ -451,7 +451,7 @@ func libraryRow(lib libraryCard, headed bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if lib.stars > 0 && !lib.unvetted {
-			templ_7745c5c3_Err = starCount(lib.stars).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = starCount(lib.stars, lib.starredByYou).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
