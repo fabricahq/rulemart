@@ -163,11 +163,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		if err != nil {
 			return err
 		}
-		ids := make([]int64, len(rules))
-		for i, r := range rules {
-			ids[i] = r.ID
-		}
-		stars, err := ruleStars(ctx, q, ids)
+		stars, err := ruleStars(ctx, q, ruleIDs(rules, func(r catalogdb.ListCurrentRulesRow) int64 { return r.ID }))
 		if err != nil {
 			return err
 		}

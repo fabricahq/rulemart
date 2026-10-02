@@ -84,11 +84,7 @@ func (s *Store) AccountStars(ctx context.Context, vetted []domain.LibraryKey, ac
 		if err != nil {
 			return err
 		}
-		ids := make([]int64, len(rows))
-		for i, row := range rows {
-			ids[i] = row.ID
-		}
-		stars, err := ruleStars(ctx, q, ids)
+		stars, err := ruleStars(ctx, q, ruleIDs(rows, func(r catalogdb.ListAccountRuleStarsRow) int64 { return r.ID }))
 		if err != nil {
 			return err
 		}
@@ -109,6 +105,15 @@ func (s *Store) AccountStars(ctx context.Context, vetted []domain.LibraryKey, ac
 		return nil, fmt.Errorf("load stars accountID=%d: %v", accountID, err)
 	}
 	return starred, nil
+}
+
+// ruleIDs returns the ID of each of rows, which id reads, in order, for ruleStars to count the rules a read found.
+func ruleIDs[R any](rows []R, id func(R) int64) []int64 {
+	ids := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = id(row)
+	}
+	return ids
 }
 
 // ruleStars returns how many accounts' stars count toward each of the rules ids names, by id, as store.Stars counts

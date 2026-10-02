@@ -51,11 +51,7 @@ func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path
 		if rows, err = q.ListGroupRules(ctx, catalogdb.ListGroupRulesParams{Path: path, Vetted: vettedKeys(vetted)}); err != nil {
 			return err
 		}
-		ids := make([]int64, len(rows))
-		for i, row := range rows {
-			ids[i] = row.ID
-		}
-		stars, err = ruleStars(ctx, q, ids)
+		stars, err = ruleStars(ctx, q, ruleIDs(rows, func(r catalogdb.ListGroupRulesRow) int64 { return r.ID }))
 		return err
 	})
 	if err != nil {
@@ -108,11 +104,7 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 			searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
 			return err
 		}
-		ids := make([]int64, len(rows))
-		for i, row := range rows {
-			ids[i] = row.ID
-		}
-		stars, err = ruleStars(ctx, q, ids)
+		stars, err = ruleStars(ctx, q, ruleIDs(rows, func(r catalogdb.SearchRulesRow) int64 { return r.ID }))
 		return err
 	})
 	if err != nil {
