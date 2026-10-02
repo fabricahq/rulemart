@@ -1,0 +1,21 @@
+# Linked from "Report a problem" in every page's footer, beside the other forms.
+name: Report a problem
+description: Something on Rulemart that's broken, wrong, or confusing.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public, so leave out anything private. To report a security vulnerability in Rulemart, write to hello@fabricahq.com instead.
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The address of the page, if the problem is on one.
+      placeholder: https://rulemart.fabricahq.com/...
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true

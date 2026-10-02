@@ -1,0 +1,32 @@
+# Linked from Rulemart's about page, under "Get a library vetted".
+name: Ask to vet a library
+description: Ask Fabrica to vet a Code Rules library, so Rulemart shows it across the site.
+title: "Vet: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Vetting adds the library to [catalog/vetted.yaml](https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml). The library must be a public GitHub repository with Code Rules release tags. Listing it on Rulemart first shows its pages, under a warning, while Fabrica reviews it.
+  - type: input
+    id: library
+    attributes:
+      label: Library
+      description: The library's GitHub repository, as owner/name.
+      placeholder: owner/name
+    validations:
+      required: true
+  - type: textarea
+    id: about
+    attributes:
+      label: About the library
+      description: Who maintains it, what its rules cover, and who uses them.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before asking
+      options:
+        - label: The library is released with Code Rules, with release tags.
+          required: true
+        - label: I maintain the library, or its maintainers agree to its vetting.

@@ -173,6 +173,8 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	// One segment each, so neither can hide a library's page.
 	handle("GET "+robotsHref, s.robots)
 	handle("GET "+sitemapHref, s.sitemap)
+	handle("GET "+aboutHref, s.about)
+	handle("GET "+privacyHref, s.privacy)
 	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
 	// segment, so it can't either, though GitHub has an account named libraries.
 	handle("GET /libraries", s.libraries)
@@ -220,9 +222,11 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 }
 
 // siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
-// path under it, and libraries, search, unvetted, and list as a whole path, since GitHub has an account named
-// libraries, whose libraries' pages are /libraries/{repo}, and may have others.
-var siteSections = map[string]bool{"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false}
+// path under it, and libraries, search, unvetted, list, about, and privacy as a whole path, since GitHub has an
+// account named libraries, whose libraries' pages are /libraries/{repo}, and may have others.
+var siteSections = map[string]bool{
+	"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false,
+}
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
 // /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other

@@ -72,7 +72,7 @@ func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 		}
 		set.URLs = append(set.URLs, u)
 	}
-	for _, href := range []string{"/", librariesHref, groupsHref} {
+	for _, href := range []string{"/", librariesHref, groupsHref, aboutHref, privacyHref} {
 		add(href, time.Time{})
 	}
 	for _, id := range sitemap.Groups {

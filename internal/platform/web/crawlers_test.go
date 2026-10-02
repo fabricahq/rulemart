@@ -110,6 +110,8 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/",
 		"https://rulemart.example/libraries",
 		"https://rulemart.example/groups",
+		"https://rulemart.example/about",
+		"https://rulemart.example/privacy",
 		"https://rulemart.example/groups/practices/testing",
 		"https://rulemart.example/groups/techs/go",
 		"https://rulemart.example/example/rules",

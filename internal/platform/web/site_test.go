@@ -687,7 +687,7 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	if resp.Code != http.StatusServiceUnavailable || resp.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("got %d with Cache-Control %q", resp.Code, resp.Header().Get("Cache-Control"))
 	}
-	for _, leak := range []string{"arn:", "AccessDenied", "GetParameter", "/rulemart/"} {
+	for _, leak := range []string{"arn:", "AccessDenied", "GetParameter", "/rulemart/database-url"} {
 		if strings.Contains(resp.Body.String(), leak) {
 			t.Fatalf("the response exposes %q", leak)
 		}

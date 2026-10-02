@@ -1,0 +1,54 @@
+// The pages about Rulemart itself, what it is and how it treats visitors' data, and the places on GitHub where
+// visitors ask for a library's vetting or report a problem, which keep no reports of Rulemart's own.
+
+package web
+
+import (
+	"net/http"
+	"net/url"
+)
+
+const (
+	aboutHref   = "/about"
+	privacyHref = "/privacy"
+)
+
+const (
+	// repositoryURL is Rulemart's public repository, whose issues take reports and requests.
+	repositoryURL = "https://github.com/fabricahq/rulemart"
+	// vettedFileURL is the file that vets libraries, whose history shows when and why each was vetted.
+	vettedFileURL = repositoryURL + "/blob/main/catalog/vetted.yaml"
+	// reportProblemURL lets a visitor choose which report to file.
+	reportProblemURL = repositoryURL + "/issues/new/choose"
+	// codeRulesURL is Code Rules' documentation, and codeRulesLibrariesURL its page on libraries and their releases.
+	codeRulesURL          = "https://code-rules.fabricahq.com"
+	codeRulesLibrariesURL = codeRulesURL + "/concepts/libraries/"
+)
+
+// issueFormURL returns the address that opens a new issue in Rulemart's repository with the issue form template,
+// a file in .github/ISSUE_TEMPLATE, its title, and each of its fields filled in from fields, by field ID.
+func issueFormURL(template, title string, fields map[string]string) string {
+	q := url.Values{"template": {template}, "title": {title}}
+	for id, value := range fields {
+		q.Set(id, value)
+	}
+	return repositoryURL + "/issues/new?" + q.Encode()
+}
+
+// reportLibraryURL returns where a visitor reports the library fullName, owner/name, with it filled in.
+func reportLibraryURL(fullName string) string {
+	return issueFormURL("report-a-library.yml", "Report: "+fullName, map[string]string{"library": fullName})
+}
+
+// askToVetURL is where a visitor asks Fabrica to vet a library.
+var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
+
+// about shows what Rulemart is, what vetting means, and how a library gets vetted.
+func (s *server) about(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, aboutPage(s.pageChrome(aboutHref), s.listingAvailable()))
+}
+
+// privacy shows what Rulemart keeps about visitors, why, for how long, and who else handles it.
+func (s *server) privacy(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, privacyPage(s.pageChrome(privacyHref), s.AnalyticsToken != ""))
+}

@@ -184,16 +184,30 @@ templ navLink(href, name, section string) {
 	>{ name }</a>
 }
 
+// footer is the bar at the bottom of every page: what Rulemart and Code Rules are, Rulemart's privacy notice, its
+// source, where to report a problem, and the theme menu.
 templ footer() {
 	<footer class="border-t border-border pt-[22px] pb-10 text-[13px] text-muted">
-		<div class="wrap flex flex-wrap items-center justify-between gap-4">
+		<div class="wrap flex flex-wrap items-center gap-x-6">
 			<span>Fabrica / Rulemart</span>
-			<div class="flex flex-wrap items-center gap-[18px]">
-				<a class="text-muted no-underline hover:text-ink hover:underline hover:underline-offset-3" href="https://code-rules.fabricahq.com">About Code Rules</a>
+			// A phone's footer keeps the theme menu beside Rulemart's name, and its links on lines of their own below.
+			<nav class="ml-auto flex flex-wrap items-center gap-x-[18px] max-narrow:order-last max-narrow:ml-0 max-narrow:w-full max-narrow:gap-x-4" aria-label="About Rulemart">
+				@footerLink(aboutHref, "About Rulemart")
+				@footerLink(privacyHref, "Privacy")
+				@footerLink(codeRulesURL, "About Code Rules")
+				@footerLink(repositoryURL, "Source on GitHub")
+				@footerLink(reportProblemURL, "Report a problem")
+			</nav>
+			<div class="max-narrow:ml-auto">
 				@themeMenu()
 			</div>
 		</div>
 	</footer>
+}
+
+// footerLink is one of the footer's links, tall enough to tap.
+templ footerLink(href, text string) {
+	<a class="inline-flex min-h-11 items-center text-muted no-underline hover:text-ink hover:underline hover:underline-offset-3" href={ templ.SafeURL(href) }>{ text }</a>
 }
 
 // themeChoice is one of the color themes a visitor can choose.

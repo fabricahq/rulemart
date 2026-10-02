@@ -1,0 +1,157 @@
+// The pages about Rulemart itself: what it is and what vetting means, and how it treats visitors' data.
+
+package web
+
+// aboutPage says what Rulemart is, what vetting a library means and what an unvetted one is, how a library gets
+// vetted, and where to report a problem. It links listing when canList is true.
+templ aboutPage(c chrome, canList bool) {
+	@layout(c, head{title: "About Rulemart", description: "What Rulemart is, what vetting a Code Rules library means, and how to get a library vetted."}) {
+		<div class={ "page wrap", narrowPage }>
+			<h1 class="title-xl">About Rulemart</h1>
+			<div class="prose mt-5">
+				<p>
+					Rulemart is a catalog of <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> libraries: sets of engineering
+					rules that coding agents follow while they write and review code. Find rules for the technologies and practices
+					your project uses, collect them in a cart, and check out with a prompt that has your coding agent import them
+					with Code Rules, each library pinned to the release you saw.
+				</p>
+				<p>
+					<a href="https://fabricahq.com">Fabrica</a> runs Rulemart, and its source is <a href={ templ.SafeURL(repositoryURL) }>on GitHub</a>.
+					Browsing needs no account. Every hour, Rulemart checks each library for a new release.
+				</p>
+				<h2 id="vetting">What vetting means</h2>
+				<p>
+					Rules are instructions a coding agent follows, so Rulemart shows a library across the site, in its lists,
+					groups, and search, only once Fabrica has vetted it. Vetting is a reviewed change to
+					<a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's repository, so the file's
+					history shows when each library was vetted, and why.
+				</p>
+				<p>
+					Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica
+					chose to show the library, not that it checked every rule: read the rules you adopt, as you would any code
+					you add to your project.
+				</p>
+				<h2 id="unvetted">Unvetted libraries</h2>
+				<p>
+					Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica
+					vets it, a listed library appears only under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>,
+					every page of it warns that it hasn't been vetted, search engines are asked not to index it, search leaves it
+					out, and adding its rules to your cart takes a second confirmation. Checkout then asks your agent to review
+					those rules before following any.
+				</p>
+				<h2 id="get-vetted">Get a library vetted</h2>
+				<ol>
+					<li>
+						Release the library with Code Rules, which tags each release, as
+						<a href={ templ.SafeURL(codeRulesLibrariesURL) }>Code Rules' guide to libraries</a> explains.
+					</li>
+					<li>
+						if canList {
+							<a href={ templ.SafeURL(listHref) }>List it on Rulemart</a>, so its pages show, under a warning, and Rulemart keeps them current.
+						} else {
+							List it on Rulemart, so its pages show, under a warning, and Rulemart keeps them current.
+						}
+					</li>
+					<li>
+						<a href={ templ.SafeURL(askToVetURL) }>Ask to vet a library</a> on GitHub. When Fabrica vets it, the next
+						Rulemart release shows it across the site.
+					</li>
+				</ol>
+				<h2 id="report">Report a problem</h2>
+				<p>
+					Each library's page has Report this library, for rules that are harmful, misleading, or not what they claim.
+					For anything else, <a href={ templ.SafeURL(reportProblemURL) }>report a problem</a>. Reports are public
+					GitHub issues, so leave out anything private.
+				</p>
+				<p>
+					<a href={ templ.SafeURL(privacyHref) }>Privacy</a> says what Rulemart keeps about you, and for how long.
+				</p>
+			</div>
+		</div>
+	}
+}
+
+// privacyPage says what Rulemart keeps about visitors, why, for how long, and who else handles it, and how to delete
+// it. It says whether Rulemart counts visits with Cloudflare Web Analytics, which analytics reports.
+templ privacyPage(c chrome, analytics bool) {
+	@layout(c, head{title: "Privacy · Rulemart", description: "What Rulemart keeps about you, why, for how long, and how to delete it."}) {
+		<div class={ "page wrap", narrowPage }>
+			<h1 class="title-xl">Privacy</h1>
+			<p class="mt-1.5 text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
+			<div class="prose mt-7">
+				<h2 id="browsing">Browsing</h2>
+				<p>
+					Browsing Rulemart needs no account, and sets no cookie. If you choose a color theme in the footer, your
+					browser keeps the choice, and never sends it to Rulemart.
+				</p>
+				<h2 id="account">Your account</h2>
+				<p>
+					You sign in with GitHub. Rulemart asks GitHub for no permissions: it reads your GitHub user ID, your username,
+					and the address of your avatar, then discards GitHub's token. It keeps those three, when you made your
+					account, and when you last signed in, and updates your username and avatar each time you sign in. Your avatar
+					loads from GitHub's servers.
+				</p>
+				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
+				<ul>
+					<li><strong>Stars:</strong> which libraries you starred, and when. Others see only how many stars a library has.</li>
+					<li><strong>Your cart:</strong> the libraries, groups, and rules you add, and when. No one else sees it.</li>
+					<li>
+						<strong>Listings:</strong> which repositories you list, and when you listed or retried them. Pages don't
+						show who listed a library. To limit how often anyone lists, Rulemart also notes when each account lists or
+						retries, and deletes each note once it's a day old.
+					</li>
+				</ul>
+				<h2 id="cookies">Cookies</h2>
+				<p>Rulemart sets only cookies that signing in needs, never for advertising or tracking:</p>
+				<ul>
+					<li><code>__Host-rulemart-sign-in</code>, for 10 minutes: the state of a sign-in in progress.</li>
+					<li><code>__Host-rulemart-session</code>, for 30 days, or until you sign out: a random token that keeps you signed in. Rulemart stores only its SHA-256 hash.</li>
+					<li><code>__Host-rulemart-notice</code>, for 1 minute: which notice to show once, such as after you sign out.</li>
+				</ul>
+				<h2 id="logs">Logs</h2>
+				<p>
+					Rulemart is served through Amazon CloudFront, whose access logs record each request: your IP address and its
+					country, your browser's user agent, the page you came from, the address you asked for, including a search's
+					words, and when. Rulemart uses them to understand its traffic and to stop abuse, and deletes them after 180 days.
+				</p>
+				<p>
+					The server that builds pages logs each request it serves by the kind of page, such as a library's, never your
+					IP address, the page's address, or your cookies. When you sign in or delete your account, it logs your
+					account's number in Rulemart, not your GitHub details. It deletes these logs after 30 days.
+				</p>
+				<h2 id="analytics">Analytics</h2>
+				if analytics {
+					<p>
+						Rulemart counts page views with <a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web Analytics</a>,
+						which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends
+						it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded.
+					</p>
+				} else {
+					<p>Rulemart uses no analytics service.</p>
+				}
+				<h2 id="others">Who else handles it</h2>
+				<ul>
+					<li><strong>Amazon Web Services</strong> hosts Rulemart, in the United States, and keeps its logs.</li>
+					<li><strong>Neon</strong> hosts its database, in the United States.</li>
+					<li><strong>GitHub</strong> signs you in, and serves avatars and the images in rules.</li>
+					if analytics {
+						<li><strong>Cloudflare</strong> counts page views, and redirects rulemart.ai here.</li>
+					} else {
+						<li><strong>Cloudflare</strong> redirects rulemart.ai here.</li>
+					}
+				</ul>
+				<p>Rulemart sells nothing about you, and shows no ads.</p>
+				<h2 id="delete">Deleting your data</h2>
+				<p>
+					Delete your account on your <a href={ templ.SafeURL(accountHref) }>account page</a>, under Delete your account.
+					Rulemart deletes your account, sessions, stars, cart, and listings at once, and unlinks its notes of when you
+					listed. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours
+					more. Logs age out as above.
+				</p>
+				<p>
+					For any question about your data, write to <a href="mailto:hello@fabricahq.com">hello@fabricahq.com</a>.
+				</p>
+			</div>
+		</div>
+	}
+}

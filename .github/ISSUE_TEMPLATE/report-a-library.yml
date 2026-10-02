@@ -1,0 +1,35 @@
+# Opened from "Report this library" on a library's page, which fills in the library field and the title.
+name: Report a library
+description: A library on Rulemart whose rules are harmful, misleading, or not what they claim.
+title: "Report: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public, so leave out anything private. Fabrica reads each report, and can remove a listing or a library's vetting.
+  - type: input
+    id: library
+    attributes:
+      label: Library
+      description: The library's GitHub repository, as owner/name.
+      placeholder: owner/name
+    validations:
+      required: true
+  - type: dropdown
+    id: reason
+    attributes:
+      label: What's wrong
+      options:
+        - Its rules tell agents to do something harmful or unsafe
+        - It isn't a set of engineering rules, such as spam
+        - It copies someone else's rules without permission
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Which rules, and what they ask an agent to do.
+    validations:
+      required: true
