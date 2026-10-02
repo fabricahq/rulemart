@@ -4,8 +4,10 @@ package web
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
@@ -16,6 +18,21 @@ const (
 	// searchHref is the path of the search page, which takes the query in its q parameter.
 	searchHref = "/search"
 )
+
+// searchHrefFor is the address of page of the search for query, which leaves out the first page's number.
+func searchHrefFor(query string, page int) string {
+	params := url.Values{}
+	if query != "" {
+		params.Set("q", query)
+	}
+	if page > 1 {
+		params.Set("page", strconv.Itoa(page))
+	}
+	if len(params) == 0 {
+		return searchHref
+	}
+	return searchHref + "?" + params.Encode()
+}
 
 // groupHref is the path of a canonical group's page, such as /groups/techs/go.
 func groupHref(id string) string {
@@ -156,7 +173,9 @@ type searchView struct {
 	total, complete int
 	// noWords marks a query with no word to find, such as only "the", which matches nothing.
 	noWords bool
-	results []searchResultView
+	// page numbers the page of results shown, from 1, of pages.
+	page, pages int
+	results     []searchResultView
 }
 
 // searchResultView is one rule that matched a search.
@@ -173,8 +192,11 @@ type searchResultView struct {
 	missing []string
 }
 
-func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, iconURL func(file string) string) searchView {
-	v := searchView{query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords}
+func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
+	v := searchView{
+		query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords,
+		page: page, pages: (results.Total + app.SearchPageSize - 1) / app.SearchPageSize,
+	}
 	for _, r := range results.Results {
 		lib := newLibraryRefView(r.Library)
 		v.results = append(v.results, searchResultView{
@@ -197,10 +219,8 @@ func (v searchView) title() string {
 	return "“" + v.query + "” · Search · Rulemart"
 }
 
-// shown says how many of the matching rules the page shows, when it doesn't show them all.
-func (v searchView) shown() string {
-	if len(v.results) == v.total {
-		return ""
-	}
-	return "Showing the " + plural(len(v.results), "best", "best")
-}
+// pageMissing reports a page past the last of a search's results.
+func (v searchView) pageMissing() bool { return v.page > 1 && len(v.results) == 0 }
+
+// pageHref is the address of page n of the search's results.
+func (v searchView) pageHref(n int) string { return searchHrefFor(v.query, n) }

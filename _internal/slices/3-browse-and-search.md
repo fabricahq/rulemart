@@ -76,9 +76,12 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   UTF-8 into spaces, and collapses runs of spaces. An empty query shows the search page without searching. A query
   longer than 200 characters isn't run: the page says to shorten it. A query with no word to find, such as only stop words like `the`,
   only punctuation, or only words left out, matches nothing, and the page says why.
-- **Results. Proposed.** A search shows at most the 50 best matches, and says how many matched in all. Paging
-  through more waits until the catalog needs it. Each result shows its title, impact, reading guidance, library,
-  group, and version.
+- **Results and pages. Proposed.** A search shows 20 results a page, says how many matched in all, and links the
+  previous and next pages as `/search?q=…&page=2`. The first page's address names no page, and a page number spelled
+  any other way, such as `0`, `02`, or `two`, or given without a query, redirects permanently to its own address. A
+  page past the last, or past page 200, which bounds what a crafted URL makes the database read, is a missing page
+  that says so and links the first. Every page of results carries `noindex` and names no canonical address, as the
+  first does. Each result shows its title, impact, reading guidance, library, group, and version.
 - **Cost. Proposed.** Search reads the stored documents of every vetted library's current rules and scores each word
   against each, since an index on the document alone can't find a rule whose words are split between its text, its
   group, and its IDs. On production's two libraries, about 150 rules, that takes a few milliseconds in Postgres. An
@@ -161,7 +164,7 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 
 ## Not in this slice
 
-Paging through more than 50 results. Typo tolerance and partial words, through trigram matching. Filtering search
+Typo tolerance and partial words, through trigram matching. Filtering search
 results by group or library, and highlighting the matched words. Search suggestions as you type. Unvetted libraries
 and the unvetted area, sign-in, listing libraries, stars, and the cart. The library releases tab and version
 comparison (slice 4). Dropping `hello_messages`, which slice 2 left for the release after v0.1.0, belongs in its own

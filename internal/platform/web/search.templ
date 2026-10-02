@@ -20,7 +20,12 @@ templ searchPage(c chrome, v searchView) {
 			</div>
 			if v.searched() {
 				<div class="mt-[30px] max-w-[52rem]">
-					if v.tooLong {
+					if v.pageMissing() {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">“{ v.query }” has no page { strconv.Itoa(v.page) } of results.</p>
+							<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
+						</div>
+					} else if v.tooLong {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
 							Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
 						</div>
@@ -41,6 +46,7 @@ templ searchPage(c chrome, v searchView) {
 						for _, r := range v.results {
 							@searchResult(r)
 						}
+						@searchPages(v)
 					}
 				</div>
 			}
@@ -57,8 +63,27 @@ templ searchSummary(v searchView) {
 	} else {
 		{ plural(v.complete, "rule matches", "rules match") } every word of <span class="text-ink">“{ v.query }”</span>, and { strconv.Itoa(v.total - v.complete) } more match some of them
 	}
-	if shown := v.shown(); shown != "" {
-		<span>· { shown }</span>
+	if v.pages > 1 {
+		<span>· Page { strconv.Itoa(v.page) } of { strconv.Itoa(v.pages) }</span>
+	}
+}
+
+// searchPages links the previous and next pages of a search's results, when there's more than one.
+templ searchPages(v searchView) {
+	if v.pages > 1 {
+		<nav class="mt-5 flex items-center justify-between gap-4 text-[14px]" aria-label="Search result pages">
+			if v.page > 1 {
+				<a class="inline-flex min-h-11 items-center no-underline hover:underline" href={ templ.SafeURL(v.pageHref(v.page - 1)) } rel="prev">‹ Previous</a>
+			} else {
+				<span></span>
+			}
+			<span class="text-muted">Page { strconv.Itoa(v.page) } of { strconv.Itoa(v.pages) }</span>
+			if v.page < v.pages {
+				<a class="inline-flex min-h-11 items-center no-underline hover:underline" href={ templ.SafeURL(v.pageHref(v.page + 1)) } rel="next">Next ›</a>
+			} else {
+				<span></span>
+			}
+		</nav>
 	}
 }
 

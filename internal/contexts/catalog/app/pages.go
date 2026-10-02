@@ -21,8 +21,12 @@ var ErrNotFound = store.ErrNotFound
 // ErrSearchQueryTooLong reports a query of more than domain.MaxSearchQueryLength characters, which search won't run.
 var ErrSearchQueryTooLong = errors.New("search query too long")
 
-// MaxSearchResults is the most results a search returns: the best matches.
-const MaxSearchResults = 50
+// SearchPageSize is how many results each page of a search holds.
+const SearchPageSize = 20
+
+// MaxSearchPage is the last page of results a search reads, which bounds how far a crafted URL makes the database
+// read: 200 pages of 20 is many times the catalog.
+const MaxSearchPage = 200
 
 // Pages reads what the catalog's pages show. It finds only the libraries in Vetted, and reads each page from one
 // state of the catalog.
@@ -129,17 +133,21 @@ func (p Pages) GroupPage(ctx context.Context, id string) (views.GroupPage, error
 	return views.GroupPage{Path: id, Canonical: *c, Libraries: libraries}, nil
 }
 
-// Search returns the vetted libraries' current rules that best match query, at most MaxSearchResults of them, with
-// how many matched in all. An empty query matches nothing, and one longer than domain.MaxSearchQueryLength fails with
-// ErrSearchQueryTooLong; neither reads the catalog.
-func (p Pages) Search(ctx context.Context, query domain.SearchQuery) (views.SearchResults, error) {
+// Search returns page, counted from 1, of the vetted libraries' current rules that best match query, SearchPageSize
+// to a page, with how many matched in all. An empty query matches nothing, and one longer than
+// domain.MaxSearchQueryLength fails with ErrSearchQueryTooLong; neither reads the catalog. A page past the last
+// holds no results, and page must be from 1 to MaxSearchPage.
+func (p Pages) Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error) {
+	if page < 1 || page > MaxSearchPage {
+		return views.SearchResults{}, fmt.Errorf("search: page %d is outside 1 to %d", page, MaxSearchPage)
+	}
 	if query.IsZero() {
 		return views.SearchResults{}, nil
 	}
 	if query.TooLong() {
 		return views.SearchResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
 	}
-	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, MaxSearchResults, 0)
+	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, SearchPageSize, (page-1)*SearchPageSize)
 	if err != nil {
 		return views.SearchResults{}, err
 	}

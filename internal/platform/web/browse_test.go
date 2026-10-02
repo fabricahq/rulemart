@@ -293,7 +293,75 @@ func TestSearchPageSaysHowManyOfTheMatchesItShows(t *testing.T) {
 
 	page := get(t, newSite(t, c), "/search?q=errors").Body.String()
 
-	assertShows(t, page, "87 rules match “errors” · Showing the 2 best")
+	assertShows(t, page, "87 rules match “errors” · Page 1 of 5")
+}
+
+// A search that matches more rules than a page holds links the pages before and after the one shown.
+func TestSearchPageLinksThePagesBeforeAndAfterIt(t *testing.T) {
+	c := newBrowsingCatalog()
+	first := c.results["errors"]
+	first.Total, first.Complete = 45, 45
+	c.results["errors"] = first
+	c.results["errors page 2"], c.results["errors page 3"] = first, first
+	handler := newSite(t, c)
+
+	for path, want := range map[string]struct {
+		summary        string
+		previous, next []string
+	}{
+		"/search?q=errors":        {"45 rules match “errors” · Page 1 of 3", nil, []string{"/search?page=2&q=errors"}},
+		"/search?q=errors&page=2": {"45 rules match “errors” · Page 2 of 3", []string{"/search?q=errors"}, []string{"/search?page=3&q=errors"}},
+		"/search?q=errors&page=3": {"45 rules match “errors” · Page 3 of 3", []string{"/search?page=2&q=errors"}, nil},
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.Code)
+		}
+		page := resp.Body.String()
+		assertShows(t, page, want.summary)
+		if got := links(t, page, "Previous"); !slices.Equal(got, want.previous) {
+			t.Errorf("%s: Previous links %q, want %q", path, got, want.previous)
+		}
+		if got := links(t, page, "Next"); !slices.Equal(got, want.next) {
+			t.Errorf("%s: Next links %q, want %q", path, got, want.next)
+		}
+	}
+	// One page needs no links between pages.
+	if page := get(t, newSite(t, newBrowsingCatalog()), "/search?q=errors").Body.String(); strings.Contains(page, "Page 1 of") {
+		t.Error("a single page numbers itself")
+	}
+}
+
+// A page number has one spelling: the first page's address names none, and a number that isn't a page's leads there.
+// A page past the last is missing, and says so on a search page.
+func TestSearchPageNumbersRedirectToTheirAddressOrAreMissing(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, location := range map[string]string{
+		"/search?q=errors&page=1":   "/search?q=errors",
+		"/search?q=errors&page=0":   "/search?q=errors",
+		"/search?q=errors&page=-2":  "/search?q=errors",
+		"/search?q=errors&page=two": "/search?q=errors",
+		"/search?q=errors&page=":    "/search?q=errors",
+		"/search?q=errors&page=1e3": "/search?q=errors",
+		"/search?page=2":            "/search",
+		"/search?q=a+b&page=1":      "/search?q=a+b",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
+		}
+	}
+	for _, path := range []string{"/search?q=errors&page=2", "/search?q=errors&page=201", "/search?q=errors&page=99999999999999999999", "/search?q=nothing&page=3"} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusNotFound {
+			t.Errorf("%s: got %d, want 404", path, resp.Code)
+			continue
+		}
+		page := resp.Body.String()
+		assertShows(t, page, "has no page", "Go to the first page")
+		assertSearchForm(t, page, "search", strings.Split(strings.TrimPrefix(path, "/search?q="), "&")[0])
+	}
 }
 
 // A search of several words finds rules that hold only some of them, after those that hold every one, and each such

@@ -39,7 +39,8 @@ type catalog struct {
 	index views.GroupIndex
 	// groups are the canonical groups' pages, keyed by ID.
 	groups map[string]views.GroupPage
-	// results are keyed by the query that finds them; any other query finds nothing.
+	// results are keyed by the query that finds them, followed for pages after the first by " page " and the page's
+	// number; any other query or page finds nothing.
 	results map[string]views.SearchResults
 	// searched records each query searched, when it isn't nil.
 	searched *[]string
@@ -62,7 +63,7 @@ func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error
 }
 
 // Search answers as app.Pages does: nothing for the zero query, and app.ErrSearchQueryTooLong for a long one.
-func (c catalog) Search(_ context.Context, query domain.SearchQuery) (views.SearchResults, error) {
+func (c catalog) Search(_ context.Context, query domain.SearchQuery, page int) (views.SearchResults, error) {
 	if c.err != nil || query.IsZero() {
 		return views.SearchResults{}, c.err
 	}
@@ -71,6 +72,9 @@ func (c catalog) Search(_ context.Context, query domain.SearchQuery) (views.Sear
 	}
 	if c.searched != nil {
 		*c.searched = append(*c.searched, query.String())
+	}
+	if page > 1 {
+		return c.results[fmt.Sprintf("%s page %d", query, page)], nil
 	}
 	return c.results[query.String()], nil
 }

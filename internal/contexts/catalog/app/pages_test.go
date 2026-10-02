@@ -18,10 +18,12 @@ import (
 // read asked for. Reads it doesn't override aren't used here.
 type reads struct {
 	store.Reader
-	groups      []views.LibraryGroup
-	groupRules  []views.GroupLibrary
-	results     views.SearchResults
-	searched    []domain.SearchQuery
+	groups     []views.LibraryGroup
+	groupRules []views.GroupLibrary
+	results    views.SearchResults
+	searched   []domain.SearchQuery
+	// pagesRead records each search's limit and skip.
+	pagesRead   [][2]int
 	searchedFor []domain.CanonicalGroup
 	ruleReads   []string
 }
@@ -41,9 +43,7 @@ func (r *reads) GroupRules(_ context.Context, _ []domain.LibraryKey, path string
 
 func (r *reads) Search(_ context.Context, _ []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error) {
 	r.searched, r.searchedFor = append(r.searched, query), groups
-	if limit != app.MaxSearchResults || skip != 0 {
-		return views.SearchResults{}, errors.New("unexpected limit")
-	}
+	r.pagesRead = append(r.pagesRead, [2]int{limit, skip})
 	return r.results, nil
 }
 
@@ -205,7 +205,7 @@ func TestSearchShowsEachResultsGroupByTheCanonicalList(t *testing.T) {
 	list := canonicalList(t)
 	pages := app.Pages{Store: r, Groups: list}
 
-	got, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"))
+	got, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), 1)
 
 	if err != nil {
 		t.Fatal(err)
@@ -223,7 +223,7 @@ func TestSearchRunsNoQueryThatIsEmptyOrTooLong(t *testing.T) {
 	r := &reads{}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 
-	empty, err := pages.Search(context.Background(), domain.ParseSearchQuery("  "))
+	empty, err := pages.Search(context.Background(), domain.ParseSearchQuery("  "), 1)
 	if err != nil || len(empty.Results) != 0 || empty.Total != 0 {
 		t.Fatalf("an empty query gave %+v, %v", empty, err)
 	}
@@ -231,10 +231,32 @@ func TestSearchRunsNoQueryThatIsEmptyOrTooLong(t *testing.T) {
 	for i := range long {
 		long[i] = 'a'
 	}
-	if _, err := pages.Search(context.Background(), domain.ParseSearchQuery(string(long))); !errors.Is(err, app.ErrSearchQueryTooLong) {
+	if _, err := pages.Search(context.Background(), domain.ParseSearchQuery(string(long)), 1); !errors.Is(err, app.ErrSearchQueryTooLong) {
 		t.Fatalf("a long query gave %v, want app.ErrSearchQueryTooLong", err)
 	}
 	if len(r.searched) != 0 {
 		t.Fatalf("searched for %q", r.searched)
+	}
+}
+
+// Each page of a search holds SearchPageSize results, after the pages before it, and a page outside 1 to
+// MaxSearchPage is a mistake that never reaches the database.
+func TestSearchReadsThePageItIsAskedFor(t *testing.T) {
+	r := &reads{}
+	pages := app.Pages{Store: r, Groups: canonicalList(t)}
+
+	for _, page := range []int{1, 2, app.MaxSearchPage} {
+		if _, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), page); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, page := range []int{0, -1, app.MaxSearchPage + 1} {
+		if _, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), page); err == nil {
+			t.Errorf("searched page %d", page)
+		}
+	}
+	want := [][2]int{{app.SearchPageSize, 0}, {app.SearchPageSize, app.SearchPageSize}, {app.SearchPageSize, (app.MaxSearchPage - 1) * app.SearchPageSize}}
+	if !slices.Equal(r.pagesRead, want) {
+		t.Fatalf("read %v, want %v", r.pagesRead, want)
 	}
 }

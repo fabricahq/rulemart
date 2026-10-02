@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -78,8 +79,9 @@ type Catalog interface {
 	GroupIndex(ctx context.Context) (views.GroupIndex, error)
 	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
 	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
-	// Search fails with app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
-	Search(ctx context.Context, query domain.SearchQuery) (views.SearchResults, error)
+	// Search returns page, from 1 to app.MaxSearchPage, of what query finds. It fails with
+	// app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
+	Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error)
 }
 
 // server answers page requests.
@@ -159,17 +161,62 @@ func (s *server) group(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
 
-// search shows the results of the query in the q parameter. Its page names no canonical address and asks search
-// engines not to index it, since each query would otherwise be a page of its own.
+// search shows a page of the results of the query in the q parameter, the page the page parameter numbers, from 1.
+// Its page names no canonical address and asks search engines not to index it, since each query would otherwise be a
+// page of its own. A page number that isn't one, the first page's number, and a page number without a query redirect
+// to the address without it, another spelling of a page's number, such as 02, to its own, and a page past the last
+// is missing.
 func (s *server) search(w http.ResponseWriter, r *http.Request) {
-	query := domain.ParseSearchQuery(r.URL.Query().Get("q"))
-	results, err := s.catalog.Search(r.Context(), query)
+	params := r.URL.Query()
+	query := domain.ParseSearchQuery(params.Get("q"))
+	page, spelled := searchPageNumber(params)
+	if query.IsZero() {
+		page = 1
+	}
+	if !spelled || (query.IsZero() && params.Has("page")) {
+		redirect(w, r, searchHrefFor(params.Get("q"), page))
+		return
+	}
+	var results views.SearchResults
+	var err error
+	if page <= app.MaxSearchPage {
+		results, err = s.catalog.Search(r.Context(), query, page)
+	}
 	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
 	if err != nil && !tooLong {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, searchPage(s.chrome, newSearchView(query, tooLong, results, s.assets.iconURL)))
+	view := newSearchView(query, tooLong, results, page, s.assets.iconURL)
+	status := http.StatusOK
+	if view.pageMissing() {
+		status = http.StatusNotFound
+	}
+	s.render(w, r, status, searchPage(s.chrome, view))
+}
+
+// searchPageNumber returns the page params number, and whether they spell it as its address does: the first page
+// by no number, and any other in digits without a sign or leading zeros. A number that isn't a page's is 1, and a
+// number too large to hold is past app.MaxSearchPage.
+func searchPageNumber(params url.Values) (page int, spelled bool) {
+	if !params.Has("page") {
+		return 1, true
+	}
+	text := params.Get("page")
+	page, err := strconv.Atoi(text)
+	switch {
+	case errors.Is(err, strconv.ErrRange) && text[0] >= '1' && text[0] <= '9':
+		return app.MaxSearchPage + 1, strings.Trim(text, "0123456789") == ""
+	case err != nil || page < 1:
+		return 1, false
+	}
+	return page, page > 1 && text == strconv.Itoa(page)
+}
+
+// redirect answers with a permanent redirect to target, cacheable as pages are.
+func redirect(w http.ResponseWriter, r *http.Request, target string) {
+	w.Header().Set("Cache-Control", pageCache)
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
@@ -220,8 +267,7 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		if rule := r.PathValue("rule"); rule != "" {
 			canonical.Path += "/" + rule
 		}
-		w.Header().Set("Cache-Control", pageCache)
-		http.Redirect(w, r, canonical.String(), http.StatusMovedPermanently)
+		redirect(w, r, canonical.String())
 		return false
 	}
 	return true
