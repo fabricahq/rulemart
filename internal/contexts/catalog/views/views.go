@@ -174,11 +174,14 @@ type GroupLibrary struct {
 	Rules   []RuleCard
 }
 
-// SearchResults are the current rules of vetted libraries that match a search, best first.
+// SearchResults are one page of the current rules of vetted libraries that match a search, best first.
 type SearchResults struct {
 	Results []SearchResult
-	// Total counts every rule that matched, of which Results holds the best.
-	Total int
+	// Total counts every rule that matched, and Complete those of them that hold every term the search finds.
+	Total, Complete int
+	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
+	// search ignores, such as "the", or punctuation.
+	NoWords bool
 }
 
 // SearchResult is a rule that matched a search, with its library.
@@ -188,4 +191,7 @@ type SearchResult struct {
 	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
 	WhenToRead     string
+	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
+	// holds every one.
+	Missing []string
 }

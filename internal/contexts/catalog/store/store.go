@@ -39,11 +39,14 @@ type Reader interface {
 	// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in
 	// owner and name order, and each library's in title order. It's empty when no vetted library holds the group.
 	GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error)
-	// Search returns the vetted libraries' current rules that match query, best first, at most limit of them, which
-	// must be at least 1, with how many matched in all. A rule matches by its title, reading guidance, impact
-	// description, and body, and by its group's name, together: the name groups gives a canonical group, and the name
-	// part of any group's ID. It leaves each result's CanonicalGroup nil.
-	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error)
+	// Search returns one page of the vetted libraries' current rules that match query, best first: at most limit of
+	// them, which must be at least 1, after the best skip, with how many matched in all. A rule matches when it holds
+	// at least one of the query's terms to find and none of those to leave out, by its title, reading guidance,
+	// impact description, body, library name, and group's name: the name groups gives a canonical group, and the name
+	// part of any group's ID. A term that joins words with -, /, or : also matches the rule's ID, its group's, and its
+	// library's owner and name. Rules that hold more of the terms, in more telling places, come first. It leaves each
+	// result's CanonicalGroup nil.
+	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error)
 }
 
 // ErrNotFound reports a library or rule that isn't in the catalog, isn't vetted, or is retired.

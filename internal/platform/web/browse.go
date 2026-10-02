@@ -151,8 +151,11 @@ type searchView struct {
 	query string
 	// tooLong marks a query search didn't run, because it holds more than domain.MaxSearchQueryLength characters.
 	tooLong bool
-	// total counts every rule that matched, of which results holds the best.
-	total   int
+	// total counts every rule that matched, of which results holds the best, and complete those that hold every word
+	// to find.
+	total, complete int
+	// noWords marks a query with no word to find, such as only "the", which matches nothing.
+	noWords bool
 	results []searchResultView
 }
 
@@ -166,15 +169,18 @@ type searchResultView struct {
 	library  libraryRefView
 	group    groupLabel
 	icon     groupIcon
+	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
+	missing []string
 }
 
 func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, iconURL func(file string) string) searchView {
-	v := searchView{query: query.String(), tooLong: tooLong, total: results.Total}
+	v := searchView{query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords}
 	for _, r := range results.Results {
 		lib := newLibraryRefView(r.Library)
 		v.results = append(v.results, searchResultView{
 			rule: newRuleCard(lib.href, r.Rule), whenToRead: r.WhenToRead, sourceID: lib.fullName() + ":" + r.Rule.Path,
 			library: lib, group: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
+			missing: r.Missing,
 		})
 	}
 	return v
@@ -191,12 +197,10 @@ func (v searchView) title() string {
 	return "“" + v.query + "” · Search · Rulemart"
 }
 
-// summary says how many rules matched, and how many of them the page shows.
-func (v searchView) summary() string {
-	switch {
-	case v.total == len(v.results):
-		return plural(v.total, "rule matches", "rules match")
-	default:
-		return "The " + plural(len(v.results), "best", "best") + " of " + plural(v.total, "rule", "rules") + " that match"
+// shown says how many of the matching rules the page shows, when it doesn't show them all.
+func (v searchView) shown() string {
+	if len(v.results) == v.total {
+		return ""
 	}
+	return "Showing the " + plural(len(v.results), "best", "best")
 }

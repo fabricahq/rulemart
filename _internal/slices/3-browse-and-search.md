@@ -48,21 +48,41 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   its library's ingestion.
 - **Group names. Proposed.** A rule matches its text and its group's name together, so `retry go` finds a Go rule
   whose text says retry. A group's name is the canonical list's name for a canonical group, and the name part of any
-  group's ID, such as `go` in `techs/go`, weighted B. Never the name a library declares for its group (**Existing**: pages never show it). Search reads the list when it runs, as a
-  parameter, as other cross-library reads do (**Existing**: canonical status is decided when pages read), so the
-  names aren't stored and a release that moves the pin changes search at once.
-- **Ranking. Proposed.** Results are ordered by `ts_rank` over the document and the group names, then by title, then
-  by library owner and name, then by rule ID, so equal scores keep a stable order.
+  group's ID, such as `go` in `techs/go`. Never the name a library declares for its group (**Existing**: pages never
+  show it). Search reads the list when it runs, as a parameter, as other cross-library reads do (**Existing**:
+  canonical status is decided when pages read), so the names aren't stored and a release that moves the pin changes
+  search at once.
+- **Identifiers. Proposed.** Visitors copy the IDs pages show, so a word that joins words with `-`, `/`, or `:`, such
+  as `keep-tests-independent`, `retry-limits`, `techs/go`, `public-rules`, or
+  `fabricahq/public-rules:practices/testing/keep-tests-independent`, is a phrase of its words. It matches that phrase
+  in the rule's text, and in the words of the rule's source-qualified ID, `owner/name:rule-ID`, whose rule ID starts
+  with its group's ID. So `techs/go` finds the Go rules but not `techs/goose`'s, and `retry-limits` finds
+  `verify-retry-limits`. A plain word doesn't match IDs, so `techs` alone finds nothing, but any word matches the
+  library's owner and name, as body text, so `fabricahq` finds its libraries' rules. A hyphen leaves a word out only
+  at the start of a word.
+- **Every word, then some. Proposed.** A rule matches when it holds at least one of the words to find and none of the
+  words to leave out. A rule that lacks some of the words names them, as "Missing: handling", and the results say how
+  many hold every word. `or` joins the words on either side into one term that either satisfies.
+- **Ranking. Proposed.** Each word scores by the best place it matches: the title 1, the group's name or the
+  identifiers 0.8, the reading guidance or impact description 0.5, and the body or the library's name 0.1. A rule's
+  score is its words' average times the square of the share of words it holds, so a rule that holds every word
+  usually comes first, but one whose title names the subject can pass one whose body mentions every word in passing:
+  `error handling` lists the Go error rules before rules that only mention both words. A title made mostly of matched
+  words adds up to 0.25, so "Verify retry limits" outranks "Reset query errors when an error boundary retries" for
+  `retry`. Words to leave out only filter, so `testing -react` keeps this order. Equal scores fall back to `ts_rank`,
+  then title, library owner and name, and rule ID, so the order is stable. There's no prefix matching: `go` never
+  matches `goose`, and finds a goose rule only when its text names Go.
 - **Input. Proposed.** The query is the `q` parameter. Rulemart trims it, turns control characters and invalid
   UTF-8 into spaces, and collapses runs of spaces. An empty query shows the search page without searching. A query
-  longer than 200 characters isn't run: the page says to shorten it. A query of only stop words, such as `the`,
-  matches nothing.
+  longer than 200 characters isn't run: the page says to shorten it. A query with no word to find, such as only stop words like `the`,
+  only punctuation, or only words left out, matches nothing, and the page says why.
 - **Results. Proposed.** A search shows at most the 50 best matches, and says how many matched in all. Paging
   through more waits until the catalog needs it. Each result shows its title, impact, reading guidance, library,
   group, and version.
-- **Cost. Proposed.** Search reads the stored documents of every vetted library's current rules, since an index on
-  the document alone can't find a rule whose words are split between its text and its group. On production's two
-  libraries, 133 rules, that takes about 2 ms in Postgres. An index waits until measurement shows search is slow.
+- **Cost. Proposed.** Search reads the stored documents of every vetted library's current rules and scores each word
+  against each, since an index on the document alone can't find a rule whose words are split between its text, its
+  group, and its IDs. On production's two libraries, about 150 rules, that takes a few milliseconds in Postgres. An
+  index waits until measurement shows search is slow.
 - **Vetted libraries only. Existing.** Search reads only the libraries in the release's `catalog/vetted.yaml`.
 
 ### Browsing
@@ -128,6 +148,9 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   - search, the group index, and a group's page skip unvetted libraries and retired rules
   - a group's rules come from every vetted library, attributed to each, in owner and name order
   - stemming, quoted phrases, `-word`, stop words only, and the result cap with its total
+  - IDs: a rule's, part of one, a group's, a library's owner and name, and a source-qualified ID; `techs/go` never
+    finds `techs/golang`
+  - ranking on fixtures shaped like `fabricahq/public-rules`: `retry`, `error handling`, `go`, and a copied rule ID
 - **App tests:** the index combines a canonical group across libraries and keeps a group that isn't canonical apart,
   per library, in the decided order; a group's page refuses an ID that isn't canonical.
 - **Page tests:** each page's text, links, and attribution; odd input (control characters, invalid UTF-8, quotes,

@@ -48,7 +48,7 @@ func newBrowsingCatalog() catalog {
 			}},
 		"practices/accessibility": {Path: "practices/accessibility", Canonical: views.CanonicalGroup{Name: "Accessibility"}},
 	}
-	c.results = map[string]views.SearchResults{"errors": {Total: 2, Results: []views.SearchResult{
+	c.results = map[string]views.SearchResults{"errors": {Total: 2, Complete: 2, Results: []views.SearchResult{
 		{Library: exampleRef, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context",
 			Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}}, CanonicalGroup: goGroup, WhenToRead: "When a function fails."},
 		{Library: otherRef, Rule: views.RuleCard{Path: "techs/golang/wrap-errors", Group: "techs/golang", Title: "Wrap errors",
@@ -288,12 +288,50 @@ func TestSearchPageShowsEachResultWithItsLibraryAndGroup(t *testing.T) {
 func TestSearchPageSaysHowManyOfTheMatchesItShows(t *testing.T) {
 	c := newBrowsingCatalog()
 	results := c.results["errors"]
-	results.Total = 87
+	results.Total, results.Complete = 87, 87
 	c.results["errors"] = results
 
 	page := get(t, newSite(t, c), "/search?q=errors").Body.String()
 
-	assertShows(t, page, "The 2 best of 87 rules that match “errors”")
+	assertShows(t, page, "87 rules match “errors” · Showing the 2 best")
+}
+
+// A search of several words finds rules that hold only some of them, after those that hold every one, and each such
+// result names the words it lacks.
+func TestSearchPageNamesTheWordsEachResultLacks(t *testing.T) {
+	c := newBrowsingCatalog()
+	results := c.results["errors"]
+	results.Complete = 1
+	results.Results[1].Missing = []string{"handling", `"error chain"`}
+	c.results["error handling \"error chain\""] = results
+	c.results["errors"] = views.SearchResults{Total: 1, Complete: 0, Results: results.Results[1:]}
+	handler := newSite(t, c)
+
+	page := get(t, handler, "/search?q="+url.QueryEscape(`error handling "error chain"`)).Body.String()
+
+	assertShows(t, page,
+		// The quoted query is a node of its own, which visible text separates from the punctuation after it.
+		`1 rule matches every word of “error handling "error chain"” , and 1 more match some of them`,
+		"Return errors with context HIGH When a function fails. example/rules",
+		`Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
+	)
+	if !strings.Contains(page, "<s>handling</s>") {
+		t.Error("the missing words aren't struck through")
+	}
+	assertShows(t, get(t, handler, "/search?q=errors").Body.String(), "No rule matches every word of “errors” ; 1 rule matches some of them")
+}
+
+// A query of only words search skips, or words to leave out, says why it finds nothing.
+func TestSearchPageExplainsAQueryWithNoWordToFind(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.results["the -errors"] = views.SearchResults{NoWords: true}
+
+	page := get(t, newSite(t, c), "/search?q=the+-errors").Body.String()
+
+	assertShows(t, page, "Nothing to search for in “the -errors”.", "Search skips common words, such as “the”")
+	if strings.Contains(visibleText(t, page), "No rules match") {
+		t.Error("the page says no rules match")
+	}
 }
 
 func TestSearchPageStatesBeforeAndWithoutResults(t *testing.T) {

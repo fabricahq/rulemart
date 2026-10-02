@@ -39,9 +39,9 @@ func (r *reads) GroupRules(_ context.Context, _ []domain.LibraryKey, path string
 	return r.groupRules, nil
 }
 
-func (r *reads) Search(_ context.Context, _ []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error) {
+func (r *reads) Search(_ context.Context, _ []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error) {
 	r.searched, r.searchedFor = append(r.searched, query), groups
-	if limit != app.MaxSearchResults {
+	if limit != app.MaxSearchResults || skip != 0 {
 		return views.SearchResults{}, errors.New("unexpected limit")
 	}
 	return r.results, nil

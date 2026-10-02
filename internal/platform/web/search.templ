@@ -24,13 +24,20 @@ templ searchPage(c chrome, v searchView) {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
 							Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
 						</div>
+					} else if v.noWords {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">Nothing to search for in “{ v.query }”.</p>
+							<p class="mt-1">Search skips common words, such as “the”, “and”, and “of”, and words left out with a hyphen. Add a word to look for.</p>
+						</div>
 					} else if len(v.results) == 0 {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
 							<p class="font-medium text-ink">No rules match “{ v.query }”.</p>
 							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(groupsHref) }>browse rules by group</a>.</p>
 						</div>
 					} else {
-						<p class="mb-3 border-b border-border pb-[11px] text-[14px] text-muted">{ v.summary() } <span class="text-ink">“{ v.query }”</span></p>
+						<p class="mb-3 border-b border-border pb-[11px] text-[14px] text-muted">
+							@searchSummary(v)
+						</p>
 						for _, r := range v.results {
 							@searchResult(r)
 						}
@@ -38,6 +45,20 @@ templ searchPage(c chrome, v searchView) {
 				</div>
 			}
 		</div>
+	}
+}
+
+// searchSummary says how many rules matched the query, and how many of them hold every word of it.
+templ searchSummary(v searchView) {
+	if v.complete == v.total {
+		{ plural(v.total, "rule matches", "rules match") } <span class="text-ink">“{ v.query }”</span>
+	} else if v.complete == 0 {
+		No rule matches every word of <span class="text-ink">“{ v.query }”</span>; { plural(v.total, "rule matches", "rules match") } some of them
+	} else {
+		{ plural(v.complete, "rule matches", "rules match") } every word of <span class="text-ink">“{ v.query }”</span>, and { strconv.Itoa(v.total - v.complete) } more match some of them
+	}
+	if shown := v.shown(); shown != "" {
+		<span>· { shown }</span>
 	}
 }
 
@@ -50,6 +71,14 @@ templ searchResult(r searchResultView) {
 		</div>
 		if r.whenToRead != "" {
 			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
+		}
+		if len(r.missing) > 0 {
+			<p class="mt-1 text-[12.5px] text-muted">
+				Missing:
+				for _, word := range r.missing {
+					{ " " }<s>{ word }</s>
+				}
+			</p>
 		}
 		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
 			<span class="flex min-w-0 items-start gap-1.5">

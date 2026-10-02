@@ -139,7 +139,7 @@ func (p Pages) Search(ctx context.Context, query domain.SearchQuery) (views.Sear
 	if query.TooLong() {
 		return views.SearchResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
 	}
-	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, MaxSearchResults)
+	results, err := p.Store.Search(ctx, p.Vetted, p.Groups.All(), query, MaxSearchResults, 0)
 	if err != nil {
 		return views.SearchResults{}, err
 	}
