@@ -132,9 +132,9 @@ than adding history.
   every library; any other group's page holds the rules of the libraries that chose that exact ID, says it isn't
   canonical, and points at the canonical group it resembles when the catalog names one. Browse pages list canonical
   groups and lead to the others under "Other groups".
-- **A page that lists rules from more than one library names each rule's library**, by its owner's avatar and
-  `owner/name`, and search results show each rule's source-qualified ID, `owner/name:rule-ID`, Code Rules'
-  `source:rule` form with the repository as the source.
+- **A page that lists rules from more than one library names each rule's library**, by its mark, Fabrica's logo or
+  its owner's avatar, and `owner/name`, in the one rule row every list shows, as the prototype's does.
+  [Slice R4](slices/13-discovery.md) explains the change from slice 3's source-qualified IDs in search results.
 - **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. Search orders
   by relevance by default, and group pages by stars; both offer Most starred and Newest.
 - **Search result pages carry `noindex` and name no canonical address.** Each query would otherwise be a page of

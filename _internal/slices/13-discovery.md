@@ -61,6 +61,66 @@ the decisions.
 - **Proposed: the sidebar's library counts are counted within the page's unfiltered set**, as the prototype counts
   `base`, not the filtered rows.
 - **Existing:** Postgres full-text search, its ranking, paging, `noindex` on search pages, and the search syntax.
+- **Decided (Josh):** retired rules look deprioritized, never like another group. The shared `ruleRow` draws a
+  retired rule grayed out, the same wherever it appears: muted title and metadata, the Retired chip, and the line
+  naming its replacement; `data-retired` marks the row. A group's page has a "Show retired rules" checkbox, off by
+  default and `retired=1` in the address when on, which puts the group's retired rules in place in the ranked list,
+  grayed, rather than in a section of their own. Search keeps retired rules, ranked below the current rules they tie
+  with, in the same style. The library's All rules tab keeps its Retired section until slice R6 replaces it with the
+  same option and rows.
+
+### Decided while building
+
+The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+
+- **Proposed: one read lists every kind of list.** The store's `Rules` reads a group's rules, every rule, or a
+  search's matches, as `domain.RuleList` describes them, from one query, `ListRules`, so the filters, the orders, the
+  unvetted opt-in, and the retired rules have one owner. A group's page is a list with a group and no query. It
+  filters, orders, and pages in SQL, so a search never moves every match to Go. Each row also carries what the list
+  holds before its filters, the sidebar's counts, and when no row passes the filters, a second read of the first
+  rule without them supplies the counts. It replaces `GroupRules` and `Search`.
+- **Proposed: stars reach the list as parameters.** `CountRuleStars` stays the one statement that counts, as slice R3
+  decided: the read counts the current rules of the vetted libraries in scope first, then passes the counts to
+  `ListRules`, which filters and orders by them in the same snapshot.
+- **Proposed: choices are parsed in one place**, `domain.ParseListChoices`, which reads what each kind of page offers
+  (a group's, search, or a list of libraries or groups) and writes it back with every default left out. An address
+  that spells its choices any other way, such as a form submitted without a script, a default named, both impact
+  bands, a parameter the page doesn't take, or another order of parameters, redirects permanently to the one
+  spelling. Libraries keep the order the address gives, lowercase, each once, at most 50. Both of a filter's two
+  checkboxes on keep every rule.
+- **Proposed: the sort tabs are links**, not form fields: each leads to the page in its order with the same filters,
+  which works without a script and can't send two orders. The form keeps the current order in a hidden field.
+- **Proposed: without a script the sidebar shows an Apply button**, in `noscript`; `filters.js` goes straight to the
+  address the server would redirect the form to, and turns off a filter's other checkbox when one turns on.
+- **Proposed: search keeps slice 3's tiers.** Rules that hold every word come first in every order, then the rest
+  under "Rules that match some of your words", and each tier groups its rules by group, in the order of each group's
+  first rule, so a group's heading can appear in both. The results head adds "N match every word" when some don't.
+  The group heading counts its rules that pass the filters, in its tier, on every page.
+- **Proposed: a search finds retired rules only for words.** Search without a query, "All rules", lists every current
+  rule, as a group's page does.
+- **Proposed: ties fall to vetted libraries before unvetted ones**, after retired rules, so an opted-in list never
+  puts an unvetted rule above a vetted one that ties with it. Best match falls to `ts_rank`, then stars, Fabrica's
+  libraries, title, owner, and name; the other orders to stars, Fabrica's, owner, name, and title.
+- **Proposed: a renamed rule reads "Renamed to `new-id`"** in place of "replaced by <title>", since its replacement
+  has its title.
+- **Proposed: a group's page lists at most 500 rules** and says so past them, which bounds a group many listed
+  libraries share. It isn't paged.
+- **Proposed: the other-groups page lists each ID once**, with the libraries that chose it, leading to its page, and
+  a library's group rows and a rule's crumbs link every group's page, canonical or not.
+- **Proposed: rows show the prototype's `ruleResult`**: title, impact, the library's mark (Fabrica's logo for
+  `fabricahq`, else the owner's avatar) and `owner/name`, and stars; the starred list adds the group. The reading
+  guidance, version, and source-qualified ID that search results showed are gone, so every list is the same.
+- **Proposed: the check mark is the prototype's blue**, a `--vetted` token, the same in both themes, on the avatar of
+  a vetted library in lists of libraries and the sidebar; "Vetted by Rulemart" is its hover text, and screen readers
+  hear it after the library's name in a row.
+- **Proposed: the header's search field holds the query on the search page**; a phone's header has none, so the page
+  holds its own field below the narrow breakpoint. The syntax hints are gone, as in the prototype.
+- **Proposed: Clear filters clears the filters only**, keeping the order and the unvetted and retired choices, and
+  shows only when a filter is on.
+- **Proposed: the libraries page reads "Every library on Rulemart"** while it includes unvetted ones.
+- **Measured** locally on both real libraries, 133 current rules: a group's page reads in about 4 ms, every rule in
+  about 8 ms, and a search in 12 to 17 ms, page included; `EXPLAIN ANALYZE` puts most of a search in building the
+  documents of every rule, as before, so a list without a query builds none.
 
 ## Not in this slice
 
