@@ -929,7 +929,7 @@ func TestTheHeaderAndAccountNameTheVisitorsCart(t *testing.T) {
 	if got := links(t, page, "Your cart"); !slices.Equal(got, []string{"/account/cart"}) {
 		t.Errorf("the menu leads to %q", got)
 	}
-	for _, want := range []string{`href="/account/cart" aria-label="Your cart, 2 items"`, "Account menu, signed in as octocat, 2 items in your cart"} {
+	for _, want := range []string{`href="/account/cart" aria-label="Your cart, 2 items"`, "Account menu, signed in as octocat"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the header lacks %q", want)
 		}

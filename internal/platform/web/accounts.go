@@ -94,9 +94,9 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onAccountPage, onListingsPage, onStarsPage, and onCartPage are true on the account page, the listings page, the
-	// stars page, and the cart, which the menu marks as current.
-	onAccountPage, onListingsPage, onStarsPage, onCartPage bool
+	// onAccountPage, onListPage, onListingsPage, onStarsPage, and onCartPage are true on the account page, the page
+	// that lists a library, the listings page, the stars page, and the cart, which the menu marks as current.
+	onAccountPage, onListPage, onListingsPage, onStarsPage, onCartPage bool
 	// listings, stars, and cart are true when visitors can list and star libraries, and collect rules in a cart, so the
 	// menu links the listings and the stars pages, and the cart.
 	listings, stars, cart bool
@@ -112,14 +112,9 @@ type visitor struct {
 	notice, noticeKey, noticeSubject string
 }
 
-// accountMenuName is what screen readers hear of the header's account menu: who is signed in, and how many items
-// their cart holds, which a phone's header shows on the avatar.
+// accountMenuName is what screen readers hear of the header's account menu: who is signed in.
 func accountMenuName(v visitor) string {
-	name := "Account menu, signed in as " + v.account.Login
-	if v.cart && v.cartItems > 0 {
-		name += ", " + plural(v.cartItems, "item", "items") + " in your cart"
-	}
-	return name
+	return "Account menu, signed in as " + v.account.Login
 }
 
 // notices are what a notice cookie may name, by key, and what each says.
@@ -202,7 +197,7 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
 	back := returnPath(r.URL.RequestURI())
 	v := visitor{
-		here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
+		here: back, onAccountPage: r.URL.Path == accountHref, onListPage: r.URL.Path == listHref, onListingsPage: r.URL.Path == listingsHref,
 		onStarsPage: r.URL.Path == starsHref, onCartPage: r.URL.Path == cartHref,
 		listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
 	}

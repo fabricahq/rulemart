@@ -28,7 +28,7 @@ const (
 	signInCookie  = "__Host-rulemart-sign-in"
 	noticeCookie  = "__Host-rulemart-notice"
 	// accountSlotClass is a class only the header's account slot has.
-	accountSlotClass = "w-[6.25rem]"
+	accountSlotClass = "account-slot"
 	// gitHubMarkPath starts the outline of GitHub's mark.
 	gitHubMarkPath = "M8 0C3.58 0"
 )
@@ -667,12 +667,12 @@ func TestTheHeaderOffersSignInReturningToThePage(t *testing.T) {
 
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/search?q=retry"}))
 
-	link := findLink(t, page, "Sign in")
+	link := signInHref(t, page)
 	if link != "/sign-in?return=%2Fsearch%3Fq%3Dretry" {
 		t.Errorf("Sign in leads to %q", link)
 	}
 	// On the home page it needs no return.
-	if link := findLink(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"})), "Sign in"); link != "/sign-in" {
+	if link := signInHref(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"}))); link != "/sign-in" {
 		t.Errorf("on the home page, Sign in leads to %q", link)
 	}
 }
@@ -688,7 +688,7 @@ func TestSignInLinksAndGitHubsCallbackAreOnTheBaseURL(t *testing.T) {
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "https://d111111abcdef8.cloudfront.net/browse/techs"}))
 	_, location := startSignIn(t, site, "/browse/techs")
 
-	if link := findLink(t, page, "Sign in"); link != "https://rulemart.example/sign-in?return=%2Fbrowse%2Ftechs" {
+	if link := signInHref(t, page); link != "https://rulemart.example/sign-in?return=%2Fbrowse%2Ftechs" {
 		t.Errorf("Sign in leads to %q", link)
 	}
 	if got := location.Query().Get("redirect_uri"); got != "https://rulemart.example/account/github/callback" {
@@ -702,7 +702,7 @@ func TestTheHeaderShowsTheSignedInVisitorsMenu(t *testing.T) {
 
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 
-	assertShows(t, page, "Signed in as octocat", "Account", "Sign out")
+	assertShows(t, page, "Signed in as octocat", "Dashboard", "Sign out")
 	if strings.Contains(visibleText(t, page), "Sign in ") {
 		t.Error("a signed-in visitor is offered sign-in")
 	}
@@ -898,7 +898,9 @@ func signInLinkHasMark(t *testing.T, page string) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	link := find(doc, func(n *html.Node) bool { return n.Data == "a" && strings.TrimSpace(visibleTextOf(n)) == "Sign in" })
+	link := find(doc, func(n *html.Node) bool {
+		return n.Data == "a" && strings.HasPrefix(strings.TrimSpace(visibleTextOf(n)), "Sign in")
+	})
 	if link == nil {
 		t.Fatal("no Sign in link")
 	}
@@ -967,17 +969,18 @@ func TestPagesOfferNoSignInThatIsNotAvailable(t *testing.T) {
 }
 
 // findLink returns the href of the first link in page whose text is text, or fails the test.
-func findLink(t *testing.T, page, text string) string {
+// signInHref returns where the header's Sign in link leads, which says "with GitHub" when it does.
+func signInHref(t *testing.T, page string) string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatal(err)
 	}
 	link := find(doc, func(n *html.Node) bool {
-		return n.Data == "a" && strings.TrimSpace(visibleTextOf(n)) == text
+		return n.Data == "a" && strings.HasPrefix(strings.TrimSpace(visibleTextOf(n)), "Sign in")
 	})
 	if link == nil {
-		t.Fatalf("no link reads %q", text)
+		t.Fatalf("no link reads Sign in")
 	}
 	return attribute(link, "href")
 }

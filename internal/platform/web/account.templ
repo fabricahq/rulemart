@@ -3,79 +3,76 @@
 
 package web
 
-// accountControl ends the header: the signed-in visitor's avatar, which opens their menu, or a link to sign in, or
-// nothing when sign-in isn't available. Its slot is as wide either way, and stays, empty, on the sign-in page, so the
-// links beside it never move. Its content sits at the page's edge.
+// accountControl ends the header: the signed-in visitor's cart and avatar, which opens their menu, or a button to
+// sign in, or nothing when sign-in isn't available. On the sign-in page, the button's place stays, invisible, so the
+// links beside it don't move. Its content sits at the page's edge.
 templ accountControl(v visitor) {
 	if v.account != nil || v.signIn != "" {
-		<div class={ accountSlotStyle }>
+		<div class="account-slot flex shrink-0 items-center gap-1">
 			if v.account != nil {
 				if v.cart {
 					@cartLink(v)
 				}
 				@accountMenu(v)
-			} else if !v.onSignInPage {
+			} else {
 				@signInLink(v)
 			}
 		</div>
 	}
 }
 
-// accountSlotStyle sizes the header's account slot to its widest content at each width: the Sign in button, then
-// the Sign in link of a phone's header, then a narrow phone's icon.
-const accountSlotStyle = "flex shrink-0 items-center justify-end gap-1 w-[6.25rem] max-narrow:w-14 max-tiny:w-11"
+// signInButtonStyle is the header's Sign in button: the prototype's small button.
+const signInButtonStyle = "inline-flex min-h-8 items-center justify-center gap-2 rounded-full border border-border-strong px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
 
-// signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, a link
-// like the others beside it in a phone's header, and an icon with a label in a narrow phone's.
+// signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, which
+// says so beside a phone's width. On the sign-in page, it's a placeholder of the same size, so the links beside it
+// stay where every other page has them.
 templ signInLink(v visitor) {
-	<a class="inline-flex min-h-9 items-center gap-2 rounded-full border border-border-strong px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface max-narrow:min-h-11 max-narrow:border-transparent max-narrow:px-1.5 max-narrow:text-[14px] max-narrow:hover:border-transparent max-narrow:hover:bg-transparent max-tiny:size-11 max-tiny:justify-center max-tiny:px-0" href={ templ.SafeURL(v.signIn) }>
-		if v.withGitHub {
-			@githubMark("size-4 max-narrow:hidden")
-		}
-		<span class="max-tiny:sr-only">Sign in</span>
-		@personIcon("hidden size-5 text-muted max-tiny:block")
-	</a>
+	if v.onSignInPage {
+		<span class={ signInButtonStyle, "invisible" } aria-hidden="true">
+			@signInLabel(v)
+		</span>
+	} else {
+		<a class={ signInButtonStyle } href={ templ.SafeURL(v.signIn) }>
+			@signInLabel(v)
+		</a>
+	}
 }
 
-// personIcon is a person's head and shoulders, in the current text color.
-templ personIcon(class string) {
-	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		<circle cx="12" cy="8" r="4"></circle>
-		<path d="M4 21a8 8 0 0 1 16 0"></path>
-	</svg>
+templ signInLabel(v visitor) {
+	if v.withGitHub {
+		@githubMark("size-[15px] flex-none")
+		<span>Sign in<span class="max-narrow:hidden"> with GitHub</span></span>
+	} else {
+		<span>Sign in</span>
+	}
 }
 
-// accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account,
-// their cart, their stars, their listings, and to sign out. On a phone, whose header has no room for the cart's link,
-// the avatar shows the cart's count. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
+// accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu naming them, with links to
+// their dashboard, which is the account page until slice R7, adding a library, their starred rules, their cart, their
+// listings, and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
 // button's shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar,
-// just inside its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves
-// it.
+// just inside its circle, so it stays inside the edge. menus.js closes the menu when focus or a click leaves it.
 templ accountMenu(v visitor) {
 	<details class="group relative shrink-0" data-menu>
-		<summary class="relative -mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span:first-child]:outline-2 [&:focus-visible>span:first-child]:-outline-offset-2 [&:focus-visible>span:first-child]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ accountMenuName(v) } title={ "Signed in as " + v.account.Login }>
-			@avatar(v.account.AvatarURL, v.account.Login, avatarSM)
-			if v.cart && v.cartItems > 0 {
-				<span class="narrow:hidden">
-					@cartBadge(v.cartItems, "top-px -right-[3px]")
-				</span>
-			}
+		<summary class="relative -mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-full transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span:first-child]:outline-2 [&:focus-visible>span:first-child]:-outline-offset-2 [&:focus-visible>span:first-child]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ accountMenuName(v) } title={ "Signed in as " + v.account.Login }>
+			@avatar(v.account.AvatarURL, v.account.Login, avatarRound)
 		</summary>
-		<div class="absolute top-[calc(100%+6px)] right-[7px] z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
-			<div class="mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5">
-				<p class="text-[12px] text-faint">Signed in as</p>
-				<p class="truncate text-[14px] font-medium text-ink">{ v.account.Login }</p>
+		<div class="absolute top-10 right-[7px] z-40 grid w-[230px] rounded-card border border-border bg-paper p-1.5 shadow-[0_16px_40px_-16px_rgb(0_0_0/.35)]">
+			<div class="mb-1 border-b border-border-subtle px-2.5 py-2 text-[13px]">
+				<p class="text-faint">Signed in as</p>
+				<p class="truncate font-semibold text-ink">{ v.account.Login }</p>
 			</div>
-			<a
-				class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onAccountPage), templ.KV("text-muted", !v.onAccountPage) }
-				href={ templ.SafeURL(accountHref) }
-				if v.onAccountPage {
-					aria-current="page"
-				}
-			>Account</a>
+			@menuLink(accountHref, "Dashboard", v.onAccountPage)
+			if v.listings {
+				@menuLink(listHref, "Add a library", v.onListPage)
+			}
+			if v.stars {
+				@menuLink(starsHref, "Starred rules", v.onStarsPage)
+			}
 			if v.cart {
 				<a
-					class={ menuItemStyle, "justify-between gap-3 no-underline", templ.KV("font-medium text-ink", v.onCartPage), templ.KV("text-muted", !v.onCartPage) }
+					class={ menuItemStyle, "justify-between gap-3 no-underline", templ.KV("font-medium", v.onCartPage) }
 					href={ templ.SafeURL(cartHref) }
 					if v.onCartPage {
 						aria-current="page"
@@ -87,34 +84,30 @@ templ accountMenu(v visitor) {
 					}
 				</a>
 			}
-			if v.stars {
-				<a
-					class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onStarsPage), templ.KV("text-muted", !v.onStarsPage) }
-					href={ templ.SafeURL(starsHref) }
-					if v.onStarsPage {
-						aria-current="page"
-					}
-				>Your stars</a>
-			}
 			if v.listings {
-				<a
-					class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onListingsPage), templ.KV("text-muted", !v.onListingsPage) }
-					href={ templ.SafeURL(listingsHref) }
-					if v.onListingsPage {
-						aria-current="page"
-					}
-				>Your listings</a>
+				@menuLink(listingsHref, "Your listings", v.onListingsPage)
 			}
 			<form method="post" action={ templ.SafeURL(v.signOut) }>
-				<button class={ menuItemStyle, "w-full cursor-pointer text-left text-muted" } type="submit">Sign out</button>
+				<button class={ menuItemStyle, "w-full cursor-pointer text-left" } type="submit">Sign out</button>
 			</form>
 		</div>
 	</details>
 }
 
-// menuItemStyle is a link or button in a menu. Its focus ring is drawn inside it, clear of the menu's border and of
-// the line under the menu's heading.
-const menuItemStyle = "flex min-h-11 items-center rounded-lg px-3 text-sm transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2"
+// menuLink is one link of the account menu, marked current on its own page.
+templ menuLink(href, name string, current bool) {
+	<a
+		class={ menuItemStyle, "no-underline", templ.KV("font-medium", current) }
+		href={ templ.SafeURL(href) }
+		if current {
+			aria-current="page"
+		}
+	>{ name }</a>
+}
+
+// menuItemStyle is a link or button in a menu, as the prototype's: tall enough to tap. Its focus ring is drawn inside
+// it, clear of the menu's border and of the line under the menu's heading.
+const menuItemStyle = "flex min-h-10 w-full items-center rounded-lg px-2.5 text-left text-[13.5px] text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2"
 
 // primaryButtonStyle is a page's main action, filled in the primary color.
 const primaryButtonStyle = "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-full bg-primary px-5 text-[15px] font-medium text-on-primary transition-opacity hover:opacity-85"
