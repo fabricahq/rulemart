@@ -105,7 +105,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		Libraries: []views.SitemapLibrary{{
 			Owner: "example", Name: "rules", Updated: day(3),
 			Rules: []views.SitemapRule{{Path: "practices/testing/verify-retry-limits", Updated: day(2)}, {Path: "techs/go/return-errors", Updated: day(3)}},
-		}, {Owner: "other", Name: "go.rules", Updated: day(4)}},
+		}, {Owner: "faq", Name: "go.rules", Updated: day(4)}},
 		Groups: []string{"practices/testing", "techs/go"},
 	}
 	options := baseURL(t)
@@ -147,10 +147,12 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/feedback",
 		"https://rulemart.example/g/practices/testing",
 		"https://rulemart.example/g/techs/go",
+		"https://rulemart.example/example",
+		"https://rulemart.example/o/faq",
 		"https://rulemart.example/example/rules",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
 		"https://rulemart.example/example/rules/techs/go/return-errors",
-		"https://rulemart.example/other/go.rules",
+		"https://rulemart.example/faq/go.rules",
 	}
 	if !slices.Equal(locs, want) {
 		t.Fatalf("lists\n%s\nwant\n%s", strings.Join(locs, "\n"), strings.Join(want, "\n"))
@@ -158,7 +160,8 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	for loc, date := range map[string]string{
 		"https://rulemart.example/example/rules":                                       "2026-09-03",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits": "2026-09-02",
-		"https://rulemart.example/other/go.rules":                                      "2026-09-04",
+		"https://rulemart.example/faq/go.rules":                                        "2026-09-04",
+		"https://rulemart.example/example":                                             "",
 		"https://rulemart.example/browse/techs":                                        "",
 	} {
 		if lastMod[loc] != date {

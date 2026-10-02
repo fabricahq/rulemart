@@ -46,8 +46,8 @@ func (s *server) robots(w http.ResponseWriter, r *http.Request) {
 }
 
 // newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each canonical
-// group's, then each library's and its rules', within maxBytes, and whether it lists them all: it stops before the
-// address that would pass maxBytes, since a Lambda function's response holds at most 6 MB.
+// group's, then each owner's, then each library's and its rules', within maxBytes, and whether it lists them all: it
+// stops before the address that would pass maxBytes, since a Lambda function's response holds at most 6 MB.
 func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, bool) {
 	const open = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
 	const end = "</urlset>\n"
@@ -84,6 +84,11 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 				return false
 			}
 		}
+		for _, login := range owners(sitemap.Libraries) {
+			if !add(ownerHref(login), time.Time{}) {
+				return false
+			}
+		}
 		for _, lib := range sitemap.Libraries {
 			href := libraryHref(lib.Owner, lib.Name)
 			if !add(href, lib.Updated) {
@@ -101,6 +106,17 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 	return body.Bytes(), complete
 }
 
+// owners returns each owner of libraries once, in the libraries' order.
+func owners(libraries []views.SitemapLibrary) []string {
+	var logins []string
+	for _, lib := range libraries {
+		if n := len(logins); n == 0 || logins[n-1] != lib.Owner {
+			logins = append(logins, lib.Owner)
+		}
+	}
+	return logins
+}
+
 // sitemapURL is one address in a sitemap. LastMod is empty when the page has no one date it changed.
 type sitemapURL struct {
 	Loc     string `xml:"loc"`
@@ -108,7 +124,7 @@ type sitemapURL struct {
 }
 
 // sitemap answers GET /sitemap.xml with every page search engines may index, by its canonical address: the site's
-// own pages, each canonical group's, and each vetted library's and its current rules'. Never an unvetted library, a
+// own pages, each canonical group's, each owner's, and each vetted library's and its current rules'. Never an unvetted library, a
 // search, or a comparison. Its addresses must be absolute, so without a public origin there's no sitemap.
 func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 	if s.BaseURL == nil {

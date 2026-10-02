@@ -100,6 +100,9 @@ type Catalog interface {
 	Libraries(ctx context.Context) ([]views.LibraryCard, error)
 	// UnvettedLibraries returns the libraries listings name that aren't vetted.
 	UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error)
+	// OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, or fails with
+	// app.ErrNotFound when no vetted library is theirs.
+	OwnerPage(ctx context.Context, login string) (views.OwnerPage, error)
 	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule. They find
 	// a library a listing names as well as a vetted one, and say which it is.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
@@ -223,18 +226,22 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+checkoutHref, s.checkoutPage)
 		}
 	}
+	// An owner's page has one segment, like the site's own pages, which come first, so an owner whose login is one
+	// of theirs is at /o/{login} instead.
+	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
+	handle("GET /{owner}", s.owner)
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
 }
 
-// siteSections are the first segments of the site's own pages, which no library owner shadows: browse, g, and the
+// siteSections are the first segments of the site's own pages, which no library owner shadows: browse, g, o, and the
 // old groups for every path under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback as a
 // whole path, since GitHub has an account named libraries, whose libraries' pages are /libraries/{repo}, and may have
-// others.
+// others. With the account pages, they're the logins whose owner pages are under /o/.
 var siteSections = map[string]bool{
-	"browse": true, "g": true, "groups": true,
+	"browse": true, "g": true, "o": true, "groups": true,
 	"libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false, "faq": false, "feedback": false,
 }
 
@@ -731,13 +738,16 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.unavailable(w, r)
 }
 
-// withoutPath returns text with the library or rule that r's path names replaced by the route's wildcards. Page reads
-// name what they failed to read as owner/repo or owner/repo/rule, and those come from the visitor, so the logs keep
-// only the route, as the access log does.
+// withoutPath returns text with the owner, library, or rule that r's path names replaced by the route's wildcards.
+// Page reads name what they failed to read as owner/repo or owner/repo/rule, or as a quoted login, and those come
+// from the visitor, so the logs keep only the route, as the access log does.
 func withoutPath(text string, r *http.Request) string {
-	owner, repo, rule := r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule")
-	if owner == "" || repo == "" {
+	owner, repo, rule := cmp.Or(r.PathValue("owner"), r.PathValue("login")), r.PathValue("repo"), r.PathValue("rule")
+	if owner == "" {
 		return text
+	}
+	if repo == "" {
+		return strings.ReplaceAll(text, strconv.Quote(owner), "{owner}")
 	}
 	if rule != "" {
 		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")

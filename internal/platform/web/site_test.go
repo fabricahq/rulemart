@@ -71,6 +71,21 @@ func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error)
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
 
+// OwnerPage finds the owner among the vetted libraries, without regard to case, as app.Pages does.
+func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, error) {
+	var page views.OwnerPage
+	for _, lib := range c.libraries {
+		if strings.EqualFold(lib.Owner, login) {
+			page.Login, page.AvatarURL = lib.Owner, lib.OwnerAvatarURL
+			page.Libraries = append(page.Libraries, lib)
+		}
+	}
+	if c.err == nil && len(page.Libraries) == 0 {
+		return page, fmt.Errorf("load owner: %w", app.ErrNotFound)
+	}
+	return page, c.err
+}
+
 func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
 // GroupPage matches id without regard to case, as app.Pages does.
@@ -449,7 +464,7 @@ func TestPagesAnswerNotFound(t *testing.T) {
 		"an unknown library's rule": "/stranger/rules/techs/go/return-errors",
 		"an unknown rule":           library + "/techs/go/missing",
 		"a group":                   library + "/techs/go",
-		"another path":              "/example",
+		"another path":              "/nobody",
 	} {
 		t.Run(name, func(t *testing.T) {
 			resp := get(t, handler, path)

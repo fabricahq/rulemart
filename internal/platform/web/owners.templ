@@ -1,0 +1,36 @@
+// An owner's page.
+
+package web
+
+import "strconv"
+
+// ownerPage shows an owner's avatar, their login, their GitHub address, and their vetted libraries as the libraries
+// page lists them.
+templ ownerPage(c chrome, v ownerView) {
+	@layout(c, head{title: v.login + " · Rulemart", description: "The Code Rules libraries " + v.login + " publishes on Rulemart: " + plural(len(v.libraries), "vetted library", "vetted libraries") + " of engineering rules for coding agents.", section: librariesHref}) {
+		<div class="page wrap">
+			<div class="flex flex-nowrap items-start gap-[18px]">
+				@avatar(v.avatar, v.login, avatarXL)
+				<div class="min-w-0">
+					<h1 class="title-xl [overflow-wrap:anywhere]">{ v.login }</h1>
+					<div class="mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
+						<span class="mono [overflow-wrap:anywhere]">github.com/{ v.login }</span>
+					</div>
+				</div>
+			</div>
+			<div class="mt-[30px] flex justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase">
+				<h2 class="font-normal text-faint">Libraries</h2>
+				<span>{ strconv.Itoa(len(v.libraries)) }</span>
+			</div>
+			<div class="mt-[14px]">
+				@rowList() {
+					for _, lib := range v.libraries {
+						@rowItem() {
+							@libraryRow(lib, true)
+						}
+					}
+				}
+			</div>
+		</div>
+	}
+}
