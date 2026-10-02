@@ -264,7 +264,7 @@ func (s *server) otherGroups(kind groupKind) http.HandlerFunc {
 // browseIndex reads the groups a browse page shows, and reports whether it did. It answers a failed read with a
 // failure.
 func (s *server) browseIndex(w http.ResponseWriter, r *http.Request) (groupIndexView, bool) {
-	index, err := s.catalog.GroupIndex(r.Context())
+	index, err := s.catalog.GroupIndex(r.Context(), false)
 	if err != nil {
 		s.fail(w, r, err)
 		return groupIndexView{}, false

@@ -362,6 +362,15 @@ type GroupLibrary struct {
 	Rules   []RuleCard
 }
 
+// GroupList is a group's page: the group, and its rules across libraries.
+type GroupList struct {
+	// Path is the group's ID, such as techs/go.
+	Path string
+	// Canonical is nil when Path isn't on Code Rules' canonical group list.
+	Canonical *CanonicalGroup
+	Rules     RuleResults
+}
+
 // RuleResults are one page of a list of rules across libraries, a group's or a search's, as domain.RuleList describes
 // it.
 type RuleResults struct {

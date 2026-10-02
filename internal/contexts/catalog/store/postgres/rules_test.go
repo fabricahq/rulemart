@@ -128,7 +128,7 @@ const (
 
 // goList is techs/go's page, most starred first, with filters.
 func goList(filters domain.RuleFilters) domain.RuleList {
-	return domain.RuleList{Group: "techs/go", Filters: filters, Order: domain.MostStarred}
+	return domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Filters: filters, Order: domain.MostStarred}}
 }
 
 // A group's list orders its rules by stars, a tie falling to Fabrica's libraries, or by the release that first
@@ -143,7 +143,7 @@ func TestAGroupsRulesListInEachOrder(t *testing.T) {
 		{domain.MostStarred, []string{handleErrors, zapErrors, nameThings}},
 		{domain.Newest, []string{nameThings, zapErrors, handleErrors}},
 	} {
-		got := c.listRules(t, domain.RuleList{Group: "techs/go", Order: tc.order})
+		got := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Order: tc.order}})
 		if !slices.Equal(rowIDs(got), tc.want) {
 			t.Errorf("%s: got %q, want %q", tc.order, rowIDs(got), tc.want)
 		}
@@ -202,7 +202,7 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 	c := newRuleLists(t)
 
 	without := c.listRules(t, goList(domain.RuleFilters{}))
-	with := c.listRules(t, domain.RuleList{Group: "techs/go", Unvetted: true, Order: domain.MostStarred})
+	with := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Unvetted: true, Order: domain.MostStarred}})
 
 	if slices.Contains(rowIDs(without), aardvark) || len(without.LibraryCounts) != 2 {
 		t.Errorf("without unvetted libraries: got %q from %+v", rowIDs(without), without.LibraryCounts)
@@ -220,11 +220,11 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 	if want := []string{"fabricahq", "aardvark", "zeta"}; !slices.Equal(owners, want) || with.LibraryCounts[1].Vetted {
 		t.Errorf("got the sidebar's libraries %+v, want %q, aardvark unvetted", with.LibraryCounts, want)
 	}
-	search := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), Order: domain.BestMatch})
+	search := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 	if len(search.Rows) != 0 {
 		t.Errorf("search found %q without unvetted libraries", rowIDs(search))
 	}
-	search = c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), Unvetted: true, Order: domain.BestMatch})
+	search = c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), ListChoices: domain.ListChoices{Unvetted: true, Order: domain.BestMatch}})
 	if !slices.Equal(rowIDs(search), []string{aardvark}) {
 		t.Errorf("search found %q with unvetted libraries, want %q", rowIDs(search), aardvark)
 	}
@@ -234,12 +234,12 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 func TestAGroupThatIsntCanonicalListsTheRulesOfThatExactID(t *testing.T) {
 	c := newRuleLists(t)
 
-	got := c.listRules(t, domain.RuleList{Group: "techs/golang", Order: domain.MostStarred})
+	got := c.listRules(t, domain.RuleList{Group: "techs/golang", ListChoices: domain.ListChoices{Order: domain.MostStarred}})
 
 	if !slices.Equal(rowIDs(got), []string{goErrors}) {
 		t.Errorf("got %q, want %q", rowIDs(got), goErrors)
 	}
-	if got := c.listRules(t, domain.RuleList{Group: "techs/gol", Order: domain.MostStarred}); len(got.Rows) != 0 || got.Unfiltered != 0 {
+	if got := c.listRules(t, domain.RuleList{Group: "techs/gol", ListChoices: domain.ListChoices{Order: domain.MostStarred}}); len(got.Rows) != 0 || got.Unfiltered != 0 {
 		t.Errorf("techs/gol: got %q", rowIDs(got))
 	}
 }
@@ -248,7 +248,7 @@ func TestAGroupThatIsntCanonicalListsTheRulesOfThatExactID(t *testing.T) {
 func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 	c := newRuleLists(t)
 
-	got := c.listRules(t, domain.RuleList{Group: "techs/go", Retired: true, Order: domain.Newest})
+	got := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: true, Order: domain.Newest}})
 
 	if want := []string{nameThings, zapErrors, handleErrors, oldErrors}; !slices.Equal(rowIDs(got), want) {
 		t.Fatalf("got %q, want %q", rowIDs(got), want)
@@ -271,7 +271,7 @@ func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 func TestSearchRanksRetiredRulesBelowCurrentOnesAndGroupsByGroup(t *testing.T) {
 	c := newRuleLists(t)
 
-	got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("errors"), Order: domain.BestMatch})
+	got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 
 	ids := rowIDs(got)
 	if len(ids) != 5 || !slices.Contains(ids, oldErrors) {
@@ -303,8 +303,8 @@ func TestSearchFiltersByKindAndSortsByStars(t *testing.T) {
 	c := newRuleLists(t)
 	errors := domain.ParseSearchQuery("errors")
 
-	practices := c.listRules(t, domain.RuleList{Query: errors, Filters: domain.RuleFilters{Kind: "practices"}, Order: domain.BestMatch})
-	starred := c.listRules(t, domain.RuleList{Query: errors, Filters: domain.RuleFilters{Kind: "techs", MinStars: 1}, Order: domain.MostStarred})
+	practices := c.listRules(t, domain.RuleList{Query: errors, ListChoices: domain.ListChoices{Filters: domain.RuleFilters{Kind: "practices"}, Order: domain.BestMatch}})
+	starred := c.listRules(t, domain.RuleList{Query: errors, ListChoices: domain.ListChoices{Filters: domain.RuleFilters{Kind: "techs", MinStars: 1}, Order: domain.MostStarred}})
 
 	if !slices.Equal(rowIDs(practices), []string{testErrors}) || practices.Unfiltered != 5 {
 		t.Errorf("practices: got %q of %d", rowIDs(practices), practices.Unfiltered)
@@ -317,7 +317,7 @@ func TestSearchFiltersByKindAndSortsByStars(t *testing.T) {
 // A list without a query holds every current rule of the vetted libraries, and a page of it skips what came before.
 func TestEveryRuleListsInPages(t *testing.T) {
 	c := newRuleLists(t)
-	all := domain.RuleList{Order: domain.MostStarred}
+	all := domain.RuleList{ListChoices: domain.ListChoices{Order: domain.MostStarred}}
 
 	first, err := c.web.Rules(context.Background(), vettedLists, canonicalGroups, all, 2, 0)
 	if err != nil {
@@ -346,12 +346,12 @@ func TestAListOfAQueryWithoutWordsSaysSo(t *testing.T) {
 	c := newRuleLists(t)
 
 	for _, query := range []string{"the", "-errors", "..."} {
-		got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery(query), Order: domain.BestMatch})
+		got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery(query), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 		if !got.NoWords || len(got.Rows) != 0 {
 			t.Errorf("%q: got %+v, want no words", query, got)
 		}
 	}
-	if got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("zebra"), Order: domain.BestMatch}); got.NoWords || len(got.Rows) != 0 {
+	if got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("zebra"), ListChoices: domain.ListChoices{Order: domain.BestMatch}}); got.NoWords || len(got.Rows) != 0 {
 		t.Errorf("zebra: got %+v, want no rules, with words", got)
 	}
 }

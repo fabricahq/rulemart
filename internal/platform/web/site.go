@@ -98,7 +98,8 @@ func checkBaseURL(u *url.URL) error {
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
 type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
-	Libraries(ctx context.Context) ([]views.LibraryCard, error)
+	// Libraries and GroupIndex find the libraries listings name too when unvetted is true.
+	Libraries(ctx context.Context, unvetted bool) ([]views.LibraryCard, error)
 	// UnvettedLibraries returns the libraries listings name that aren't vetted.
 	UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error)
 	// OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, or fails with
@@ -115,7 +116,7 @@ type Catalog interface {
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
 	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
-	GroupIndex(ctx context.Context) (views.GroupIndex, error)
+	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
 	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
 	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
 	// Search returns page, from 1 to app.MaxSearchPage, of what query finds. It fails with
@@ -377,7 +378,7 @@ func withoutTrailingSlash(next http.Handler) http.Handler {
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
-	libraries, err := s.catalog.Libraries(r.Context())
+	libraries, err := s.catalog.Libraries(r.Context(), false)
 	if err != nil {
 		s.fail(w, r, err)
 		return

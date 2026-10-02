@@ -50,9 +50,10 @@ func (p Pages) HomePage(ctx context.Context) (views.HomePage, error) {
 	return views.HomePage{Libraries: libraries, Groups: p.index(groups)}, nil
 }
 
-// Libraries returns the vetted libraries, ordered by owner and name.
-func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
-	return p.Store.Libraries(ctx, p.Vetted, false)
+// Libraries returns the vetted libraries, and with unvetted, the libraries listings name too, ordered by owner and
+// name.
+func (p Pages) Libraries(ctx context.Context, unvetted bool) ([]views.LibraryCard, error) {
+	return p.Store.Libraries(ctx, p.Vetted, unvetted)
 }
 
 // OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, ordered by name, or
@@ -108,11 +109,11 @@ func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (view
 	return page, nil
 }
 
-// GroupIndex returns every group that holds current rules in a vetted library. A canonical group combines every
-// library that holds it; any other group stands alone, so each library's is listed apart. Each kind lists its
-// canonical groups first, by name without regard to case, then the others by ID and library.
-func (p Pages) GroupIndex(ctx context.Context) (views.GroupIndex, error) {
-	groups, err := p.Store.Groups(ctx, p.Vetted, false)
+// GroupIndex returns every group that holds current rules in a vetted library, and with unvetted, in a library a
+// listing names too. A group combines every library that holds it, under its ID. Each kind lists its canonical groups
+// first, by name without regard to case, then the others by ID.
+func (p Pages) GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error) {
+	groups, err := p.Store.Groups(ctx, p.Vetted, unvetted)
 	if err != nil {
 		return views.GroupIndex{}, err
 	}
@@ -133,21 +134,25 @@ func (p Pages) index(groups []views.LibraryGroup) views.GroupIndex {
 }
 
 // summarize turns each library's groups, in path order and then library order, into the index's entries, in its
-// order.
+// order: a group's libraries combined, canonical groups first.
 func (p Pages) summarize(groups []views.LibraryGroup) []views.GroupSummary {
 	var canonical, others []views.GroupSummary
 	for _, g := range groups {
 		c := p.canonical(g.Path)
-		if c == nil {
-			others = append(others, views.GroupSummary{Path: g.Path, Rules: g.Rules, Libraries: []views.LibraryRef{g.Library}})
+		summaries := &others
+		if c != nil {
+			summaries = &canonical
+		}
+		if n := len(*summaries); n > 0 && (*summaries)[n-1].Path == g.Path {
+			last := &(*summaries)[n-1]
+			last.Rules += g.Rules
+			last.Libraries = append(last.Libraries, g.Library)
+			last.Vetted = last.Vetted || g.Vetted
 			continue
 		}
-		if n := len(canonical); n > 0 && canonical[n-1].Path == g.Path {
-			canonical[n-1].Rules += g.Rules
-			canonical[n-1].Libraries = append(canonical[n-1].Libraries, g.Library)
-			continue
-		}
-		canonical = append(canonical, views.GroupSummary{Path: g.Path, Canonical: c, Rules: g.Rules, Libraries: []views.LibraryRef{g.Library}})
+		*summaries = append(*summaries, views.GroupSummary{
+			Path: g.Path, Canonical: c, Rules: g.Rules, Libraries: []views.LibraryRef{g.Library}, Vetted: g.Vetted,
+		})
 	}
 	slices.SortStableFunc(canonical, func(a, b views.GroupSummary) int {
 		return strings.Compare(strings.ToLower(a.Canonical.Name), strings.ToLower(b.Canonical.Name))
@@ -190,6 +195,55 @@ func (p Pages) Search(ctx context.Context, query domain.SearchQuery, page int) (
 	}
 	for i, r := range results.Results {
 		results.Results[i].CanonicalGroup = p.canonical(r.Rule.Group)
+	}
+	return results, nil
+}
+
+// MaxGroupRules is the most rules a group's page lists, which bounds the page a group shared by many libraries makes.
+const MaxGroupRules = 500
+
+// Group returns the rules of the group id that choices keep, in their order, at most MaxGroupRules: a canonical
+// group's, matched without regard to case, in every library that holds it, or any other group's, in the libraries that
+// chose exactly that ID. It fails with ErrNotFound for a group that isn't canonical and holds no rule before the
+// filters, so a made-up ID has no page. The page's Path is the list's spelling of a canonical group's ID.
+func (p Pages) Group(ctx context.Context, id string, choices domain.ListChoices) (views.GroupList, error) {
+	page := views.GroupList{Path: id}
+	if g, ok := p.Groups.FindIgnoringCase(id); ok {
+		page.Path, page.Canonical = g.ID, p.canonical(g.ID)
+	}
+	var err error
+	page.Rules, err = p.rules(ctx, domain.RuleList{Group: page.Path, ListChoices: choices}, MaxGroupRules, 0)
+	if err != nil {
+		return views.GroupList{}, err
+	}
+	if page.Canonical == nil && page.Rules.Unfiltered == 0 {
+		return views.GroupList{}, fmt.Errorf("load group: %w", ErrNotFound)
+	}
+	return page, nil
+}
+
+// SearchRules returns page, counted from 1, of the rules that match query, or of every rule for the zero query, that
+// choices keep, in their order, SearchPageSize to a page. A query longer than domain.MaxSearchQueryLength fails with
+// ErrSearchQueryTooLong without reading the catalog. A page past the last holds no rules, and page must be from 1 to
+// MaxSearchPage.
+func (p Pages) SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error) {
+	if page < 1 || page > MaxSearchPage {
+		return views.RuleResults{}, fmt.Errorf("search: page %d is outside 1 to %d", page, MaxSearchPage)
+	}
+	if query.TooLong() {
+		return views.RuleResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
+	}
+	return p.rules(ctx, domain.RuleList{Query: query, ListChoices: choices}, SearchPageSize, (page-1)*SearchPageSize)
+}
+
+// rules reads a page of list, at most limit rules after the first skip, and names each one's group as pages do.
+func (p Pages) rules(ctx context.Context, list domain.RuleList, limit, skip int) (views.RuleResults, error) {
+	results, err := p.Store.Rules(ctx, p.Vetted, p.Groups.All(), list, limit, skip)
+	if err != nil {
+		return views.RuleResults{}, err
+	}
+	for i, r := range results.Rows {
+		results.Rows[i].CanonicalGroup = p.canonical(r.Rule.Group)
 	}
 	return results, nil
 }

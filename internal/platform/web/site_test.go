@@ -63,13 +63,15 @@ func (c catalog) HomePage(context.Context) (views.HomePage, error) {
 	return views.HomePage{Libraries: c.libraries, Groups: c.index}, c.err
 }
 
-func (c catalog) Libraries(context.Context) ([]views.LibraryCard, error) { return c.libraries, c.err }
+func (c catalog) Libraries(context.Context, bool) ([]views.LibraryCard, error) {
+	return c.libraries, c.err
+}
 
 func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error) {
 	return c.unvetted, c.err
 }
 
-func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
+func (c catalog) GroupIndex(context.Context, bool) (views.GroupIndex, error) { return c.index, c.err }
 
 // OwnerPage finds the owner among the vetted libraries, without regard to case, as app.Pages does.
 func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, error) {
