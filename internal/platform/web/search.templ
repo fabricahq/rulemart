@@ -16,7 +16,9 @@ templ searchPage(c chrome, v searchView) {
 			<p class="mt-1.5 text-muted">Find rules in every vetted library by their title, text, or group.</p>
 			<div class="mt-[22px] max-w-[44rem]">
 				@searchForm("search", v.query, !v.searched())
-				<p class="mt-2 px-4 text-[12.5px] text-faint">Use quotes for a phrase, a hyphen before a word to leave it out, and or between words to find either.</p>
+				<p class="mt-2 px-4 text-[12.5px] text-faint">
+					Search for <code>"retry limits"</code> to find the phrase, <code>testing -react</code> to leave out a word, or <code>jitter or backoff</code> to find either word.
+				</p>
 			</div>
 			if v.searched() {
 				<div class="mt-[30px] max-w-[52rem]">
