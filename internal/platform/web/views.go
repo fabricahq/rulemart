@@ -104,6 +104,16 @@ type groupIcon struct {
 	monochrome, narrow bool
 }
 
+// newGroupIcon returns the icon pages show beside a group: a canonical group's when Rulemart has one, and otherwise
+// none. iconURL returns where the site serves an icon file.
+func newGroupIcon(canonical *views.CanonicalGroup, iconURL func(file string) string) groupIcon {
+	if canonical == nil || canonical.Icon.File == "" {
+		return groupIcon{}
+	}
+	icon := canonical.Icon
+	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow}
+}
+
 // ruleCard is a rule's entry in a library's list of rules.
 type ruleCard struct {
 	href, id, title, impact, version string
@@ -120,16 +130,13 @@ type libraryContents struct {
 func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
 	byGroup := map[string][]ruleCard{}
 	for _, r := range page.Rules {
-		byGroup[r.Group] = append(byGroup[r.Group], ruleCard{
-			href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String(),
-		})
+		byGroup[r.Group] = append(byGroup[r.Group], newRuleCard(lib.href, r))
 	}
 	var result libraryContents
 	for _, g := range page.Groups {
-		view := groupView{label: newGroupLabel(g.Path, g.Canonical), anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
-		if g.Canonical != nil && g.Canonical.Icon.File != "" {
-			icon := g.Canonical.Icon
-			view.icon = groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow}
+		view := groupView{
+			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
+			rules: byGroup[g.Path],
 		}
 		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead

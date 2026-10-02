@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
@@ -35,11 +36,44 @@ type catalog struct {
 	// pages are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>.
 	pages map[string]views.LibraryPage
 	rules map[string]views.RulePage
+	index views.GroupIndex
+	// groups are the canonical groups' pages, keyed by ID.
+	groups map[string]views.GroupPage
+	// results are keyed by the query that finds them; any other query finds nothing.
+	results map[string]views.SearchResults
+	// searched records each query searched, when it isn't nil.
+	searched *[]string
 	// err, when set, fails every read.
 	err error
 }
 
-func (c catalog) Libraries(context.Context) ([]views.LibraryCard, error) { return c.libraries, c.err }
+func (c catalog) HomePage(context.Context) (views.HomePage, error) {
+	return views.HomePage{Libraries: c.libraries, Groups: c.index}, c.err
+}
+
+func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
+
+func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error) {
+	page, ok := c.groups[id]
+	if c.err == nil && !ok {
+		return page, fmt.Errorf("load group: %w", app.ErrNotFound)
+	}
+	return page, c.err
+}
+
+// Search answers as app.Pages does: nothing for the zero query, and app.ErrSearchQueryTooLong for a long one.
+func (c catalog) Search(_ context.Context, query domain.SearchQuery) (views.SearchResults, error) {
+	if c.err != nil || query.IsZero() {
+		return views.SearchResults{}, c.err
+	}
+	if query.TooLong() {
+		return views.SearchResults{}, fmt.Errorf("search: %w", app.ErrSearchQueryTooLong)
+	}
+	if c.searched != nil {
+		*c.searched = append(*c.searched, query.String())
+	}
+	return c.results[query.String()], nil
+}
 
 func (c catalog) LibraryPage(_ context.Context, owner, name string) (views.LibraryPage, error) {
 	page, ok := c.pages[strings.ToLower(owner+"/"+name)]
@@ -201,6 +235,7 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	assertShows(t, resp.Body.String(),
+		"example / rules Example rules for tests.",
 		"Groups 2", "All rules 2",
 		"Technologies · 1 Go techs/go 1 rule ›",
 		"Practices · 1 Testing practices/testing When the work involves testing. 1 rule ›",

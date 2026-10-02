@@ -1,5 +1,6 @@
-// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, and each rule's
-// current version and version history. It reads them from the catalog's page reads, which app.Pages implements.
+// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, each rule's current
+// version and version history, the groups across libraries, each canonical group's rules in every library, and search.
+// It reads them from the catalog's page reads, which app.Pages implements.
 package web
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
@@ -23,11 +25,11 @@ import (
 const pageCache = "public, max-age=60"
 
 // contentSecurityPolicy allows only Rulemart's own files, plus images from GitHub's avatar and raw file hosts,
-// which rules and library owners use. Rule content comes from repositories Rulemart doesn't control, so nothing
-// else may load or run.
+// which rules and library owners use, and forms that submit to Rulemart, such as search. Rule content comes from
+// repositories Rulemart doesn't control, so nothing else may load or run.
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; " +
 	"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; " +
-	"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 // Options configures the handler.
 type Options struct {
@@ -69,10 +71,15 @@ func checkBaseURL(u *url.URL) error {
 
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
 type Catalog interface {
-	Libraries(ctx context.Context) ([]views.LibraryCard, error)
+	HomePage(ctx context.Context) (views.HomePage, error)
 	// LibraryPage and RulePage fail with app.ErrNotFound when there's no such library or current rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+	GroupIndex(ctx context.Context) (views.GroupIndex, error)
+	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
+	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
+	// Search fails with app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
+	Search(ctx context.Context, query domain.SearchQuery) (views.SearchResults, error)
 }
 
 // server answers page requests.
@@ -110,6 +117,10 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	}
 	handle("GET /{$}", s.home)
 	handle("GET /_static/{version}/{file...}", assets.serve)
+	// GitHub has no account named groups or search, so these can't hide a library's page.
+	handle("GET /groups", s.groups)
+	handle("GET /groups/{kind}/{name}", s.group)
+	handle("GET /search", s.search)
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
@@ -117,12 +128,48 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request) {
-	libraries, err := s.catalog.Libraries(r.Context())
+	page, err := s.catalog.HomePage(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(libraries)))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
+}
+
+func (s *server) groups(w http.ResponseWriter, r *http.Request) {
+	index, err := s.catalog.GroupIndex(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, groupsPage(s.pageChrome(groupsHref), newGroupIndexView(index, s.assets.iconURL)))
+}
+
+func (s *server) group(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.GroupPage(r.Context(), r.PathValue("kind")+"/"+r.PathValue("name"))
+	if errors.Is(err, app.ErrNotFound) {
+		s.notFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	view := newGroupPageView(page, s.assets.iconURL)
+	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
+}
+
+// search shows the results of the query in the q parameter. Its page names no canonical address and asks search
+// engines not to index it, since each query would otherwise be a page of its own.
+func (s *server) search(w http.ResponseWriter, r *http.Request) {
+	query := domain.ParseSearchQuery(r.URL.Query().Get("q"))
+	results, err := s.catalog.Search(r.Context(), query)
+	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
+	if err != nil && !tooLong {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, searchPage(s.chrome, newSearchView(query, tooLong, results, s.assets.iconURL)))
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {

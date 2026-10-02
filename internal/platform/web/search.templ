@@ -1,0 +1,71 @@
+// The search page: a search field, and the vetted libraries' rules that match.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
+
+// searchPage shows the search field and, once a visitor has searched, what matched, best first.
+templ searchPage(c chrome, v searchView) {
+	@layout(c, head{title: v.title(), noindex: true, searchPage: true}) {
+		<div class="page wrap">
+			<h1 class="title-xl">Search</h1>
+			<p class="mt-1.5 text-muted">Find rules in every vetted library by their title, text, or group.</p>
+			<div class="mt-[22px] max-w-[44rem]">
+				@searchForm("search", v.query, !v.searched())
+				<p class="mt-2 px-4 text-[12.5px] text-faint">Use quotes for a phrase, a hyphen before a word to leave it out, and or between words to find either.</p>
+			</div>
+			if v.searched() {
+				<div class="mt-[30px] max-w-[52rem]">
+					if v.tooLong {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
+						</div>
+					} else if len(v.results) == 0 {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">No rules match “{ v.query }”.</p>
+							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(groupsHref) }>browse rules by group</a>.</p>
+						</div>
+					} else {
+						<p class="mb-3 border-b border-border pb-[11px] text-[14px] text-muted">{ v.summary() } <span class="text-ink">“{ v.query }”</span></p>
+						for _, r := range v.results {
+							@searchResult(r)
+						}
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// searchResult is a rule that matched, with its library and group, leading to its page.
+templ searchResult(r searchResultView) {
+	<a class="mb-2.5 block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
+		<div class="flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
+			<span>{ r.rule.title }</span>
+			@impact(r.rule.impact)
+		</div>
+		if r.whenToRead != "" {
+			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
+		}
+		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
+			<span class="flex min-w-0 items-start gap-1.5">
+				@avatar(r.library.avatar, r.library.owner, avatarXS)
+				<span class="mono min-w-0 [overflow-wrap:anywhere] text-muted">{ r.sourceID }</span>
+			</span>
+			<span class="flex items-center gap-1.5">
+				@groupTile(r.group, r.icon, tileXS)
+				if r.group.canonical {
+					<span>{ r.group.name }</span>
+				} else {
+					<span class="mono">{ r.group.id }</span>
+					@notCanonical(flagSM)
+				}
+			</span>
+			<span class="mono" title="Latest version">{ r.rule.version }</span>
+		</div>
+	</a>
+}
