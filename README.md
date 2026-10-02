@@ -50,7 +50,9 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex. The agent
 installs [Code Rules](https://code-rules.fabricahq.com/start-here/install/) 0.2.0 or later, after asking you, if
-it's missing.
+it's missing. Until the next release reaches [rulemart.fabricahq.com](https://rulemart.fabricahq.com), run Rulemart
+on your machine as [CONTRIBUTING.md](CONTRIBUTING.md#run-the-site-locally) describes and follow the same steps at
+<http://127.0.0.1:8080>.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
    **Techs** and **Practices**.
