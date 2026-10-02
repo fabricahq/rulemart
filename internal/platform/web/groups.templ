@@ -30,11 +30,15 @@ templ groupPage(c chrome, g groupPageView) {
 			if !g.label.canonical {
 				<p class="mt-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted"><span class="mono">{ g.label.id }</span> isn't a canonical group, so it only includes rules from libraries that chose this exact name.</p>
 			}
+			// A group no library holds says so below, rather than counting none here.
 			<p class="mt-2 mb-6 text-muted">
-				{ plural(g.list.unfiltered, "rule", "rules") } from { plural(len(g.list.libraryFilters), "library", "libraries") }
-				if g.description != "" {
-					{ " · " }{ g.description }
+				if g.list.unfiltered > 0 {
+					{ plural(g.list.unfiltered, "rule", "rules") } from { plural(len(g.list.libraryFilters), "library", "libraries") }
+					if g.description != "" {
+						{ " · " }
+					}
 				}
+				{ g.description }
 			</p>
 			@listLayout() {
 				@filterSidebar(g.list)

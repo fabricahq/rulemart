@@ -133,29 +133,32 @@ templ exclusiveCheckbox(name, value, text string, checked bool) {
 	</label>
 }
 
-// resultsHead heads a list's results: how many rules pass its filters, from how many libraries, and the sort tabs.
+// resultsHead heads a list's results: how many rules pass its filters, from how many libraries, and the sort tabs. An
+// empty list has none, since its empty state says so.
 templ resultsHead(v ruleListView, more string) {
-	<div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-		<p class="text-[13px] text-muted">
-			{ plural(v.total, "rule", "rules") } in { plural(v.libraries, "library", "libraries") }
-			if more != "" {
-				<span>· { more }</span>
-			}
-		</p>
-		if tabs := v.sortTabs(); len(tabs) > 1 {
-			<nav class="inline-flex gap-0.5 rounded-full border border-border p-0.5 text-[12.5px]" aria-label="Sort">
-				for _, t := range tabs {
-					<a
-						class={ "rounded-full px-[11px] py-[3px] whitespace-nowrap no-underline", templ.KV("bg-surface-header text-ink", t.on), templ.KV("text-muted hover:text-ink", !t.on) }
-						href={ templ.SafeURL(t.href) }
-						if t.on {
-							aria-current="true"
-						}
-					>{ t.name }</a>
+	if v.total > 0 {
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<p class="text-[13px] text-muted">
+				{ plural(v.total, "rule", "rules") } in { plural(v.libraries, "library", "libraries") }
+				if more != "" {
+					<span>· { more }</span>
 				}
-			</nav>
-		}
-	</div>
+			</p>
+			if tabs := v.sortTabs(); len(tabs) > 1 {
+				<nav class="inline-flex gap-0.5 rounded-full border border-border p-0.5 text-[12.5px]" aria-label="Sort">
+					for _, t := range tabs {
+						<a
+							class={ "rounded-full px-[11px] py-[3px] whitespace-nowrap no-underline", templ.KV("bg-surface-header text-ink", t.on), templ.KV("text-muted hover:text-ink", !t.on) }
+							href={ templ.SafeURL(t.href) }
+							if t.on {
+								aria-current="true"
+							}
+						>{ t.name }</a>
+					}
+				</nav>
+			}
+		</div>
+	}
 }
 
 // noFilteredRules says no rule passes the list's filters, and leads to the list without them.

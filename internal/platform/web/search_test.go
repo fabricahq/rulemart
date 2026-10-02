@@ -71,6 +71,9 @@ func TestSearchPageListsEveryRuleAndSaysWhenNoneMatch(t *testing.T) {
 		t.Error("the title doesn't say it lists every rule")
 	}
 	assertShows(t, none, "Rules matching “nothing”", "No rules match. Try a broader word, or tell us what you were looking for .")
+	if strings.Contains(visibleText(t, none), "0 rules") {
+		t.Error("the empty search counts no rules beside saying none match")
+	}
 	if got := links(t, none, "tell us what you were looking for"); !slices.Equal(got, []string{"/feedback"}) {
 		t.Errorf("the empty search leads to %q", got)
 	}

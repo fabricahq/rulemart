@@ -87,8 +87,8 @@ func TestFilteredGroupPagesAreNotIndexedAndKeepTheirCanonicalAddress(t *testing.
 	}
 }
 
-// When no rule passes the filters, the page says so and leads to the list without them; a canonical group no library
-// holds says that instead.
+// When no rule passes the filters, the page says so, without counting none, and leads to the list without them; a
+// canonical group no library holds says that instead.
 func TestGroupPageSaysWhenNoRulePassesTheFiltersOrNoLibraryHoldsIt(t *testing.T) {
 	c := newBrowsingCatalog()
 	filtered := c.groups["techs/go"]
@@ -99,14 +99,20 @@ func TestGroupPageSaysWhenNoRulePassesTheFiltersOrNoLibraryHoldsIt(t *testing.T)
 	page := get(t, handler, "/g/techs/go?stars=100").Body.String()
 	empty := get(t, handler, "/g/practices/accessibility")
 
-	assertShows(t, page, "3 rules from 2 libraries", "0 rules in 0 libraries", "No rules match these filters. Clear filters")
+	assertShows(t, page, "3 rules from 2 libraries · The Go language.", "Rules No rules match these filters. Clear filters")
+	if strings.Contains(visibleText(t, page), "0 rules") {
+		t.Error("the page counts no rules beside saying none match")
+	}
 	if got := links(t, page, "Clear filters"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/go"}) {
 		t.Errorf("Clear filters leads to %q", got)
 	}
 	if empty.Code != http.StatusOK {
 		t.Fatalf("a canonical group no library holds: got %d", empty.Code)
 	}
-	assertShows(t, empty.Body.String(), "Accessibility 0 rules from 0 libraries", "No library has Accessibility rules yet.")
+	assertShows(t, empty.Body.String(), "Accessibility Filters", "Rules No library has Accessibility rules yet.")
+	if strings.Contains(visibleText(t, empty.Body.String()), "0 rules") {
+		t.Error("a group no library holds counts its rules")
+	}
 }
 
 // A group that isn't canonical has a page, which says it holds only the libraries that chose its exact ID; an ID no
