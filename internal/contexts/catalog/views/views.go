@@ -26,6 +26,9 @@ type LibraryCard struct {
 	OwnerAvatarURL string
 	// Rules counts the library's current rules.
 	Rules int
+	// Vetted is false for a library that's only listed, which a list includes only when the visitor asks for unvetted
+	// libraries.
+	Vetted bool
 }
 
 // OwnerPage is an owner's page: the vetted libraries they publish.
@@ -313,11 +316,13 @@ type LibraryRef struct {
 // FullName returns the library's repository as owner/name.
 func (l LibraryRef) FullName() string { return l.Owner + "/" + l.Name }
 
-// LibraryGroup is a group as one vetted library holds it.
+// LibraryGroup is a group as one library holds it.
 type LibraryGroup struct {
 	// Path is the group's ID, such as techs/go.
 	Path    string
 	Library LibraryRef
+	// Vetted is false for a library that's only listed.
+	Vetted bool
 	// Rules counts the library's current rules in the group.
 	Rules int
 }
@@ -338,6 +343,8 @@ type GroupSummary struct {
 	Rules int
 	// Libraries hold the group, in owner and name order. A group that isn't canonical has exactly one.
 	Libraries []LibraryRef
+	// Vetted is false when only listed libraries hold the group, in an index that includes them.
+	Vetted bool
 }
 
 // GroupPage is a canonical group's current rules in every vetted library that holds it.
@@ -353,6 +360,50 @@ type GroupPage struct {
 type GroupLibrary struct {
 	Library LibraryRef
 	Rules   []RuleCard
+}
+
+// RuleResults are one page of a list of rules across libraries, a group's or a search's, as domain.RuleList describes
+// it.
+type RuleResults struct {
+	// Rows are the page's rules, in the list's order, each group's together.
+	Rows []RuleRow
+	// Total counts the rules that pass the list's filters, Complete those of them that hold every word a search finds,
+	// and Libraries the libraries they come from.
+	Total, Complete, Libraries int
+	// Unfiltered counts the rules the list holds before its filters, and LibraryCounts the libraries they come from,
+	// Fabrica's first, then by owner and name, each with how many of them it holds.
+	Unfiltered    int
+	LibraryCounts []LibraryCount
+	// NoWords reports a search with no word to find, which matches nothing, as SearchResults' does.
+	NoWords bool
+}
+
+// LibraryCount is a library in a list of rules, with how many of the list's rules, before its filters, it holds.
+type LibraryCount struct {
+	Library LibraryRef
+	// Vetted is false for a library that's only listed.
+	Vetted bool
+	Rules  int
+}
+
+// RuleRow is a rule in a list of rules across libraries.
+type RuleRow struct {
+	Library LibraryRef
+	// Vetted is false for a rule of a library that's only listed.
+	Vetted bool
+	// Rule is the rule's newest version; its Stars are 0 for a retired rule, or one of a library that isn't vetted.
+	Rule RuleCard
+	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
+	CanonicalGroup *CanonicalGroup
+	// Retired marks a rule a library release retired. ReplacedBy is the rule its retirement named as its replacement,
+	// by ID and title, or nil when it named none; its RetiredIn isn't read.
+	Retired    bool
+	ReplacedBy *RuleRef
+	// Missing holds the words to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
+	// holds every one.
+	Missing []string
+	// GroupRules counts the rules of the rule's group that pass the list's filters, on this page and others.
+	GroupRules int
 }
 
 // SearchResults are one page of the current rules of vetted libraries that match a search, best first.

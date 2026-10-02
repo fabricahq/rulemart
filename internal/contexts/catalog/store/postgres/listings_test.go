@@ -111,7 +111,7 @@ func TestAListedLibraryHasUnvettedPagesAndStaysOutOfBrowsingAndSearch(t *testing
 		t.Fatalf("unvetted libraries: got %+v, %v", unvetted, err)
 	}
 
-	libraries, err := c.web.Libraries(ctx, vettedBoth)
+	libraries, err := c.web.Libraries(ctx, vettedBoth, false)
 	if err != nil || len(libraries) != 2 {
 		t.Errorf("libraries: got %+v, %v; want acme and beta", libraries, err)
 	}
@@ -119,7 +119,7 @@ func TestAListedLibraryHasUnvettedPagesAndStaysOutOfBrowsingAndSearch(t *testing
 	if err != nil || len(home) != 2 {
 		t.Errorf("home: got %+v, %v; want acme and beta", home, err)
 	}
-	allGroups, err := c.web.Groups(ctx, vettedBoth)
+	allGroups, err := c.web.Groups(ctx, vettedBoth, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestAVettedLibraryStaysVettedWhenListed(t *testing.T) {
 	if unvetted, err := c.web.UnvettedLibraries(ctx, vettedAll); err != nil || len(unvetted) != 0 {
 		t.Errorf("unvetted libraries: got %+v, %v; want none", unvetted, err)
 	}
-	if libraries, err := c.web.Libraries(ctx, vettedAll); err != nil || len(libraries) != 3 {
+	if libraries, err := c.web.Libraries(ctx, vettedAll, false); err != nil || len(libraries) != 3 {
 		t.Errorf("libraries: got %+v, %v; want all three", libraries, err)
 	}
 }

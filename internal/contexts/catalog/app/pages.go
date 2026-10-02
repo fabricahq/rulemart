@@ -52,7 +52,7 @@ func (p Pages) HomePage(ctx context.Context) (views.HomePage, error) {
 
 // Libraries returns the vetted libraries, ordered by owner and name.
 func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
-	return p.Store.Libraries(ctx, p.Vetted)
+	return p.Store.Libraries(ctx, p.Vetted, false)
 }
 
 // OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, ordered by name, or
@@ -112,7 +112,7 @@ func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (view
 // library that holds it; any other group stands alone, so each library's is listed apart. Each kind lists its
 // canonical groups first, by name without regard to case, then the others by ID and library.
 func (p Pages) GroupIndex(ctx context.Context) (views.GroupIndex, error) {
-	groups, err := p.Store.Groups(ctx, p.Vetted)
+	groups, err := p.Store.Groups(ctx, p.Vetted, false)
 	if err != nil {
 		return views.GroupIndex{}, err
 	}

@@ -31,7 +31,7 @@ type reads struct {
 	ruleReads   []string
 }
 
-func (r *reads) Groups(context.Context, []domain.LibraryKey) ([]views.LibraryGroup, error) {
+func (r *reads) Groups(context.Context, []domain.LibraryKey, bool) ([]views.LibraryGroup, error) {
 	return r.groups, nil
 }
 

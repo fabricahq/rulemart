@@ -39,7 +39,7 @@ func (s *Store) Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRule
 				Owner: lib.Owner, Name: lib.Name, Updated: lib.TaggedAt.Time.UTC(), Rules: byLibrary[lib.ID],
 			})
 		}
-		groups, err := libraryGroups(ctx, q, vetted)
+		groups, err := libraryGroups(ctx, q, vetted, false)
 		if err != nil {
 			return err
 		}

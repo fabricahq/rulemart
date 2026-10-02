@@ -294,7 +294,7 @@ func TestSearchReportsAQueryWithNoWordToFind(t *testing.T) {
 func TestGroupsListEachVettedLibrarysGroupsWithCurrentRules(t *testing.T) {
 	reader := newLibraries(t)
 
-	got, err := reader.Groups(context.Background(), vettedBoth)
+	got, err := reader.Groups(context.Background(), vettedBoth, false)
 
 	if err != nil {
 		t.Fatal(err)
@@ -302,10 +302,10 @@ func TestGroupsListEachVettedLibrarysGroupsWithCurrentRules(t *testing.T) {
 	acmeRef := views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL}
 	betaRef := views.LibraryRef{Owner: "Beta", Name: "rules", OwnerAvatarURL: beta.Repository.OwnerAvatarURL}
 	want := []views.LibraryGroup{
-		{Path: "practices/testing", Library: acmeRef, Rules: 2},
-		{Path: "techs/go", Library: acmeRef, Rules: 1},
-		{Path: "techs/go", Library: betaRef, Rules: 1},
-		{Path: "techs/golang", Library: acmeRef, Rules: 1},
+		{Path: "practices/testing", Library: acmeRef, Vetted: true, Rules: 2},
+		{Path: "techs/go", Library: acmeRef, Vetted: true, Rules: 1},
+		{Path: "techs/go", Library: betaRef, Vetted: true, Rules: 1},
+		{Path: "techs/golang", Library: acmeRef, Vetted: true, Rules: 1},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)

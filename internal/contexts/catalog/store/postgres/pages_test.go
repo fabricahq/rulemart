@@ -115,12 +115,12 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	ref := views.LibraryRef{Owner: "example", Name: "rules", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL}
-	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Rules: 1}, {Path: "techs/go", Library: ref, Rules: 1}}
+	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Vetted: true, Rules: 1}, {Path: "techs/go", Library: ref, Vetted: true, Rules: 1}}
 	if !slices.Equal(groups, wantGroups) {
 		t.Fatalf("got groups %+v, want %+v", groups, wantGroups)
 	}
@@ -130,12 +130,12 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	reader := newCatalog(t)
 
-	got, err := reader.Libraries(context.Background(), vetted)
+	got, err := reader.Libraries(context.Background(), vetted, false)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -147,7 +147,7 @@ func TestOwnerLibrariesListsOnlyTheOwnersVettedLibraries(t *testing.T) {
 	reader := newCatalog(t)
 
 	for login, want := range map[string][]views.LibraryCard{
-		"EXAMPLE":  {{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}},
+		"EXAMPLE":  {{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}},
 		"stranger": nil,
 		"nobody":   nil,
 	} {

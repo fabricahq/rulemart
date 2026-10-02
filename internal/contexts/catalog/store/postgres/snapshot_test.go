@@ -21,12 +21,12 @@ func TestReadSeesOneSnapshotWhileIngestionCommits(t *testing.T) {
 	vetted := vettedKeys([]domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}})
 
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		before, err := q.ListLibraries(ctx, vetted)
+		before, err := q.ListLibraries(ctx, catalogdb.ListLibrariesParams{Vetted: vetted})
 		if err != nil {
 			return err
 		}
 		postgrestest.Exec(t, connString, `UPDATE libraries SET description = 'After ingestion.' WHERE host_repository_id = '7'`)
-		after, err := q.ListLibraries(ctx, vetted)
+		after, err := q.ListLibraries(ctx, catalogdb.ListLibrariesParams{Vetted: vetted})
 		if err != nil {
 			return err
 		}
