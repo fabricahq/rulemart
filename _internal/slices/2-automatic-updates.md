@@ -49,7 +49,13 @@ invocation, at most two at once.
 - **Bounded.** Ingestion keeps slice 1's limits on what one library may hold in memory, about 1 GiB at most
   (**Existing**). The worker gets 2,048 MB of memory, so a library at the limits fails its job rather than the
   function. Its timeout is 120 seconds, and each job stops 10 seconds before that, so its transaction rolls back
-  while the function still runs. The libraries Rulemart knows ingest in under two seconds.
+  while the function still runs. The libraries Rulemart knows ingest in under two seconds. Three more bounds keep a
+  hostile library within these, each **Proposed**:
+  - Listing and fetching refuse more than 16 MiB of advertised references, which go-git would otherwise hold whole.
+  - A rule gets one second to highlight its code, and code past that shows escaped and without highlighting, since
+    chroma takes minutes on some inputs.
+  - Ingestion checks the job's deadline between rules and between release records, and the releases of one fetch
+    share their decoded Git trees.
 - **Failures.** A failed job writes nothing, so the catalog keeps the last release it ingested. The worker reports
   the message as failed, SQS retries it after the visibility timeout of 720 seconds, six times the function's
   timeout as the module requires, and moves it to the dead-letter queue after five attempts (**Existing**). The
