@@ -147,6 +147,21 @@ func TestHeaderSearchesFromEveryPageButSearch(t *testing.T) {
 	}
 }
 
+// A keyboard's first stop on every page skips the header to the page's content.
+func TestPagesLetKeyboardsSkipToTheirContent(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for _, path := range []string{"/", "/libraries", "/groups", "/groups/techs/go", "/search?q=errors", library, errorsRule, "/missing/page/here"} {
+		page := get(t, handler, path).Body.String()
+		if got := links(t, page, "Skip to content"); !slices.Equal(got, []string{"#main"}) || !strings.Contains(page, `<main id="main"`) {
+			t.Errorf("%s: the skip link leads to %q", path, got)
+		}
+		if strings.Index(page, "Skip to content") > strings.Index(page, "<header") {
+			t.Errorf("%s: the skip link comes after the header", path)
+		}
+	}
+}
+
 func TestGroupsPageListsTechnologiesThenPracticesAcrossLibraries(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
