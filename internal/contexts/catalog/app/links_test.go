@@ -97,15 +97,15 @@ func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 	if want := "techs/go/name-tests-by-behavior techs/go/name-tests 1.0.0...techs/go/name-tests-by-behavior 1.0.0"; !strings.Contains(h.compared[0], want) {
 		t.Errorf("read the text of %q, want it to include %q", h.compared[0], want)
 	}
-	if !comparison.SharedFiles {
-		t.Error("the comparison doesn't say release/5 changed shared files")
+	if !slices.Equal(comparison.SharedFiles, []int{5}) {
+		t.Errorf("the comparison says releases %v changed shared files, want release/5", comparison.SharedFiles)
 	}
 }
 
 func TestComparisonSaysWhenOnlyEarlierReleasesChangedSharedFiles(t *testing.T) {
 	comparison, err := app.Pages{Store: &histories{history: replacedTwice}}.ReleaseComparison(context.Background(), "fabricahq", "code-rules-test-library", 1, 4)
 
-	if err != nil || comparison.SharedFiles {
+	if err != nil || len(comparison.SharedFiles) != 0 {
 		t.Fatalf("got shared files %v, %v; want none between release/1 and release/4", comparison.SharedFiles, err)
 	}
 }

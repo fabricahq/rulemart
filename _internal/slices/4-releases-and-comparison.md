@@ -118,8 +118,8 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   the form to choose again, and a link back to the list, with status 404 and `noindex`. A library or rule that doesn't
   exist answers the site's missing page (**Existing**).
 - **A comparison says when shared files changed, and offers words or lines only for a diff. Proposed.** Code Rules
-  records that a release changed library-wide files, without which ones, so a comparison says a release in its range
-  did.
+  records that a release changed library-wide files, without which ones, so a comparison names the releases in its
+  range that did, "release/5 updates shared files", or counts them when there are more than three.
 - **Comparisons carry `noindex` and name no canonical address. Proposed.** As with search (**Existing**), every pair
   would otherwise be a page of its own to a search engine. The tabs themselves name their page's address
   (**Existing**).

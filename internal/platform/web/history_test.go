@@ -568,16 +568,23 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 		"Retired Wrap errors techs/go/wrap-errors · last version 1.0.0 · retired in release/3 · renamed to techs/go/return-errors › A old")
 }
 
-// A comparison says when a release in its range changed shared files, and offers words or lines only for a diff.
+// A comparison names the releases in its range that changed shared files, and offers words or lines only for a diff.
 func TestReleaseComparisonNotesSharedFilesAndOffersViewsOnlyForDiffs(t *testing.T) {
 	c := historyCatalog()
-	c.releaseComparisons["example/rules 2...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 2, To: 3, SharedFiles: true}
+	c.releaseComparisons["example/rules 2...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 2, To: 3, SharedFiles: []int{3}}
+	c.releaseComparisons["example/rules 1...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3, SharedFiles: []int{2, 3}}
 	handler := newSite(t, c)
 
 	page := get(t, handler, library+"?tab=releases&from=2&to=3").Body.String()
 	same := get(t, handler, library+"?tab=releases&from=3&to=3").Body.String()
 
-	assertShows(t, page, "No rules changed between release/2 and release/3. Library releases after release/2, up to release/3, update shared files")
+	assertShows(t, page, "No rules changed between release/2 and release/3. release/3 updates shared files, such as group descriptions or shared assets.")
+	assertShows(t, get(t, handler, library+"?tab=releases&from=1&to=3").Body.String(),
+		"release/2 and release/3 update shared files, such as group descriptions or shared assets.")
+	// A long range counts them.
+	c.releaseComparisons["example/rules 1...3"] = views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3, SharedFiles: []int{2, 3, 4, 5}}
+	assertShows(t, get(t, newSite(t, c), library+"?tab=releases&from=1&to=3").Body.String(),
+		"4 library releases after release/1, up to release/3, update shared files")
 	for name, body := range map[string]string{"no changes": page, "the same release": same} {
 		if strings.Contains(body, `aria-label="Show changes as"`) {
 			t.Errorf("%s: the page offers words or lines with no diff", name)

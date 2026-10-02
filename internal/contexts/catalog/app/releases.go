@@ -88,7 +88,9 @@ func (p Pages) ReleaseComparison(ctx context.Context, owner, name string, from, 
 		Changes: changes(history, from, to, texts),
 	}
 	for _, r := range history.Releases[from:to] {
-		comparison.SharedFiles = comparison.SharedFiles || r.UpdatesSharedFiles
+		if r.UpdatesSharedFiles {
+			comparison.SharedFiles = append(comparison.SharedFiles, r.Number)
+		}
 	}
 	return comparison, nil
 }

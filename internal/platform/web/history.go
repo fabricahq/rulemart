@@ -322,6 +322,11 @@ func countPhrase(changes []views.RuleChange) string {
 			parts = append(parts, strconv.Itoa(n)+" "+kind.word)
 		}
 	}
+	return joinAnd(parts)
+}
+
+// joinAnd joins parts as a list in a sentence: "a", "a and b", or "a, b, and c".
+func joinAnd(parts []string) string {
 	switch len(parts) {
 	case 0:
 		return ""
@@ -513,7 +518,7 @@ type releaseComparisonView struct {
 	diffs    []diffView
 	// omitted counts the changed rules whose diffs didn't fit the page.
 	omitted int
-	// sharedFiles says that a release between them changed library-wide files.
+	// sharedFiles names the releases between them that changed library-wide files, or counts more than three.
 	sharedFiles string
 	// backHref leads to the Library releases tab, and wordsHref and linesHref show this comparison each way.
 	backHref, wordsHref, linesHref string
@@ -536,9 +541,18 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 		v.summary = plural(len(comparison.Changes), "rule", "rules") + " changed between " + v.fromTag + " and " + v.toTag +
 			": " + countPhrase(comparison.Changes) + "."
 	}
-	if comparison.SharedFiles {
-		v.sharedFiles = "Library releases after " + v.fromTag + ", up to " + v.toTag +
-			", update shared files, such as group descriptions or shared assets."
+	if n := len(comparison.SharedFiles); n > 0 {
+		tags := make([]string, n)
+		for i, release := range comparison.SharedFiles {
+			tags[i] = domain.ReleaseTag(release)
+		}
+		releases, verb := joinAnd(tags), " update "
+		if n == 1 {
+			verb = " updates "
+		} else if n > 3 {
+			releases = plural(n, "", "library releases") + " after " + v.fromTag + ", up to " + v.toTag + ","
+		}
+		v.sharedFiles = releases + verb + "shared files, such as group descriptions or shared assets."
 	}
 	budget := newDiffBudget()
 	for _, c := range comparison.Changes {
