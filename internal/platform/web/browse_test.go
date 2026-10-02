@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
@@ -342,6 +344,26 @@ func TestSearchPageLinksThePagesBeforeAndAfterIt(t *testing.T) {
 	// One page needs no links between pages.
 	if page := get(t, newSite(t, newBrowsingCatalog()), "/search?q=errors").Body.String(); strings.Contains(page, "Page 1 of") {
 		t.Error("a single page numbers itself")
+	}
+}
+
+// Paging stops at the last page a search reads, however many rules match, so no link leads past it.
+func TestSearchPagingStopsAtTheLastPageASearchReads(t *testing.T) {
+	c := newBrowsingCatalog()
+	results := c.results["errors"]
+	results.Total, results.Complete = app.MaxSearchPage*app.SearchPageSize+1, app.MaxSearchPage*app.SearchPageSize+1
+	last := fmt.Sprintf("errors page %d", app.MaxSearchPage)
+	c.results["errors"], c.results[last] = results, results
+
+	resp := get(t, newSite(t, c), fmt.Sprintf("/search?q=errors&page=%d", app.MaxSearchPage))
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d", resp.Code)
+	}
+	page := resp.Body.String()
+	assertShows(t, page, fmt.Sprintf("Page %d of %d", app.MaxSearchPage, app.MaxSearchPage))
+	if got := links(t, page, "Next"); got != nil {
+		t.Errorf("the last page a search reads links Next to %q", got)
 	}
 }
 
