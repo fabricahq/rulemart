@@ -12,7 +12,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// A retired rule keeps a page: its last version, how it was retired, and what replaced it, by its newest title.
+// A retired rule keeps a page: its last version and its body, how it was retired, and what replaced it, by its newest
+// title.
 func TestRulePageReadsARetiredRuleAndItsReplacement(t *testing.T) {
 	reader := newCatalog(t)
 
@@ -22,7 +23,8 @@ func TestRulePageReadsARetiredRuleAndItsReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := page.Rule
-	if r.Title != "Check retry backoff" || r.HTML != "" || r.Version != v(1, 0, 0) || r.Release != 1 || r.Retirement == nil {
+	if r.Title != "Check retry backoff" || r.HTML != "<p>Check retry backoff.</p>\n" || r.WhenToReadHTML != "" ||
+		r.Version != v(1, 0, 0) || r.Release != 1 || r.Retirement == nil {
 		t.Fatalf("rule is %+v", r)
 	}
 	retirement := *r.Retirement
@@ -103,7 +105,7 @@ func TestRuleComparisonFindsAVersionStoredWithoutItsText(t *testing.T) {
 	s, connString := newStore(t)
 	replace(t, s, exampleRules)
 	lines(t, connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL, when_to_read = NULL,
-		markdown = NULL WHERE html IS NULL RETURNING id::text`)
+		markdown = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
 
 	comparison, err := s.RuleComparison(context.Background(), vetted, "example", "rules", "techs/go/return-errors", v(1, 0, 0), v(2, 0, 0), 1<<20)
 

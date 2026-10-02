@@ -31,15 +31,16 @@ func content(title string, version coderules.RuleVersion) domain.Content {
 	}
 }
 
-// withContent returns r with each version's content, titled title, and while r is current, its current version's
-// HTML.
+// withContent returns r with each version's content, titled title, its newest version's HTML, and while r is current,
+// its reading guidance's.
 func withContent(r domain.Rule, title string) domain.Rule {
 	r.Versions = slices.Clone(r.Versions)
 	for i, version := range r.Versions {
 		r.Versions[i].Content = content(title, version.Number)
 	}
+	r.HTML = "<p>" + title + ".</p>\n"
 	if r.IsCurrent() {
-		r.HTML, r.WhenToReadHTML = "<p>"+title+".</p>\n", "<p>When changing <code>"+title+"</code>.</p>\n"
+		r.WhenToReadHTML = "<p>When changing <code>" + title + "</code>.</p>\n"
 	}
 	return r
 }

@@ -68,8 +68,9 @@ type Rule struct {
 	ReplacedBy string
 	// RetirementSummaries holds one summary per change note that retired the rule; nil while the rule is current.
 	RetirementSummaries []string
-	// HTML and WhenToReadHTML are the current version's body and reading guidance as the rule's page shows them,
-	// rendered as Markdown; both are empty when the rule is retired.
+	// HTML is the newest version's body as the rule's page shows it, rendered as Markdown: the current version's, or a
+	// retired rule's last. WhenToReadHTML is the current version's reading guidance, rendered; empty when the rule is
+	// retired.
 	HTML, WhenToReadHTML string
 }
 

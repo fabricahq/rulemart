@@ -59,6 +59,13 @@ func TestEveryVersionMayKeepItsContentAndRowsWithoutItStillFit(t *testing.T) {
 		"with part of its content": {major: 5, columns: ", title, markdown", values: ", 'Return errors', 'Old.'",
 			refused: "rule_versions_content_check"},
 		"with HTML but no Markdown": {major: 6, columns: ", html", values: ", '<p>Old.</p>'", refused: "rule_versions_html_check"},
+		"retired, with its last body's HTML": {major: 7,
+			columns: ", title, impact, impact_description, when_to_read, markdown, retired_html",
+			values:  ", 'Return errors', 'HIGH', 'Prevents mistakes.', 'When handling failures.', '---\ntitle: Return errors\n---\nOld.', '<p>Old.</p>'"},
+		"both current and retired": {major: 8,
+			columns: ", title, impact, impact_description, when_to_read, markdown, html, retired_html",
+			values:  ", 'Return errors', 'HIGH', 'Prevents mistakes.', 'When handling failures.', '---\ntitle: Return errors\n---\nOld.', '<p>Old.</p>', '<p>Old.</p>'",
+			refused: "rule_versions_retired_html_check"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := insertVersion(tc.major, tc.columns, tc.values)

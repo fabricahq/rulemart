@@ -62,9 +62,22 @@ func TestCheckpointReportsVersionsMissingTheirContent(t *testing.T) {
 		t.Fatalf("read %+v, %v; want no content missing", checkpoint, err)
 	}
 	lines(t, connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL, when_to_read = NULL,
-		markdown = NULL WHERE html IS NULL RETURNING id::text`)
+		markdown = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
 
 	checkpoint, _, err := s.Checkpoint(context.Background(), key)
+
+	if err != nil || !checkpoint.MissingContent {
+		t.Fatalf("read %+v, %v; want content missing", checkpoint, err)
+	}
+}
+
+// A release before a retired rule's last body was rendered stored the rule without it.
+func TestCheckpointReportsARetiredRuleWithoutItsLastBody(t *testing.T) {
+	s, connString := newStore(t)
+	replace(t, s, exampleRules)
+	lines(t, connString, `UPDATE rule_versions SET retired_html = NULL WHERE retired_html IS NOT NULL RETURNING id::text`)
+
+	checkpoint, _, err := s.Checkpoint(context.Background(), domain.LibraryKey{Host: domain.GitHub, RepositoryID: "7"})
 
 	if err != nil || !checkpoint.MissingContent {
 		t.Fatalf("read %+v, %v; want content missing", checkpoint, err)

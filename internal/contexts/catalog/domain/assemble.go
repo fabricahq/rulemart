@@ -15,7 +15,8 @@ import (
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
 // number order. It checks that their records form one history, then reads rule-library.yaml at the latest
 // release, each group's _group.yaml at the latest release that has it, and each rule's file at the release that
-// published each of its versions, rendering the current version of each current rule with render. Errors name the
+// published each of its versions, rendering each rule's newest version with render: a current rule's body and
+// reading guidance, and a retired rule's last body. Errors name the
 // release and file at fault.
 func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits, render Render) (Library, error) {
 	if len(releases) == 0 {
@@ -150,7 +151,7 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that
-// published the version. While the rule is current, it also renders the current version's body and reading guidance.
+// published the version. It renders the newest version's body, and while the rule is current, its reading guidance.
 func (a *assembly) readRule(history Rule) (Rule, error) {
 	path := RuleFile(history.Path)
 	group, err := coderules.GroupFromPath(path, path)
@@ -171,10 +172,10 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 			ImpactDescription: strings.TrimSpace(parsed.ImpactDescription), WhenToRead: strings.TrimSpace(parsed.WhenToRead),
 			Markdown: parsed.Document,
 		}
-		if !r.IsCurrent() || i < len(r.Versions)-1 {
+		if i < len(r.Versions)-1 {
 			continue
 		}
-		if r.HTML, r.WhenToReadHTML, err = a.renderRule(published, path, parsed); err != nil {
+		if r.HTML, r.WhenToReadHTML, err = a.renderRule(published, path, parsed, r.IsCurrent()); err != nil {
 			return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
 		}
 	}
@@ -199,9 +200,9 @@ func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, 
 	return parsed, nil
 }
 
-// renderRule renders the body and the reading guidance of parsed, the rule file at path in release r, for the rule's
-// page.
-func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.Rule) (html, whenToReadHTML string, err error) {
+// renderRule renders the body of parsed, the rule file at path in release r, for the rule's page, and with guidance,
+// its reading guidance too.
+func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.Rule, guidance bool) (html, whenToReadHTML string, err error) {
 	document, err := coderules.SplitDocument(parsed.Document, path)
 	if err != nil {
 		return "", "", err
@@ -212,6 +213,9 @@ func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.R
 	}
 	if html, err = a.render(document.Body, page); err != nil {
 		return "", "", err
+	}
+	if !guidance {
+		return html, "", nil
 	}
 	// The reading guidance is Markdown too, whose links resolve against the rule's file as the body's do.
 	if whenToReadHTML, err = a.render(strings.TrimSpace(parsed.WhenToRead), page); err != nil {

@@ -42,7 +42,7 @@ ORDER BY g.path, lower(v.title), r.path;
 
 -- GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
 -- current, and the last once retired. A retired rule also has its retirement, and the newest title of the rule that
--- replaced it, when the retirement named one. when_to_read_html is empty unless it was rendered from the reading
+-- replaced it, when the retirement named one; its html is its last version's body. when_to_read_html is empty unless it was rendered from the reading
 -- guidance the version holds now, since a release that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
@@ -55,7 +55,8 @@ JOIN LATERAL (
     SELECT v.title, v.impact, v.when_to_read,
            coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
                AS when_to_read_html,
-           v.html, v.major, v.minor, v.patch, p.number AS release, p.tagged_at AS published_at
+           coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
+           p.tagged_at AS published_at
     FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true

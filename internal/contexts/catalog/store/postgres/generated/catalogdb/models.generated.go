@@ -78,4 +78,5 @@ type RuleVersion struct {
 	SearchDocument     interface{}
 	WhenToReadHtml     pgtype.Text
 	RenderedWhenToRead pgtype.Text
+	RetiredHtml        pgtype.Text
 }
