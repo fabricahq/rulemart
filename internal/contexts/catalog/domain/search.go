@@ -13,20 +13,20 @@ import (
 const MaxSearchQueryLength = 200
 
 // SearchQuery is the text a visitor searches the catalog for, cleaned so the database accepts it: words separated by
-// single spaces, without control characters or invalid UTF-8. Its zero value is no query. ParseSearchQuery is the
-// only way to make one.
+// single spaces, without control or invisible format characters or invalid UTF-8. Its zero value is no query.
+// ParseSearchQuery is the only way to make one.
 type SearchQuery struct {
 	text string
 }
 
-// ParseSearchQuery cleans text into a query: it treats each control character and each byte of invalid UTF-8 as a
-// space, then trims the spaces and collapses each run of them to one. The query keeps the visitor's punctuation,
+// ParseSearchQuery cleans text into a query: it treats each control character, each invisible format character such
+// as a zero-width space, and each byte of invalid UTF-8 as a space, then trims the spaces and collapses each run of them to one. The query keeps the visitor's punctuation,
 // which search reads as its syntax: quotes for a phrase, - to exclude a word, and or.
 func ParseSearchQuery(text string) SearchQuery {
 	var cleaned strings.Builder
 	for len(text) > 0 {
 		r, size := utf8.DecodeRuneInString(text)
-		if (r == utf8.RuneError && size == 1) || unicode.IsControl(r) {
+		if (r == utf8.RuneError && size == 1) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			r = ' '
 		}
 		cleaned.WriteRune(r)

@@ -18,6 +18,9 @@ func TestParseSearchQueryKeepsTheWordsAVisitorTyped(t *testing.T) {
 		"retry\xfflimits":   "retry limits",
 		"retry\u0085limits": "retry limits",
 		"\x00\xff\x7f":      "",
+		// Invisible format characters, such as a zero-width space, would make a query that looks empty.
+		"retry\u200blimits": "retry limits",
+		"\u200b\ufeff":      "",
 		"":                  "",
 		"   ":               "",
 	} {
