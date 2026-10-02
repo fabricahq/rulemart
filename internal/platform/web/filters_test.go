@@ -126,25 +126,17 @@ func equalChoices(a, b domain.ListChoices) bool {
 		a.Filters.MinStars == b.Filters.MinStars && a.Filters.Kind == b.Filters.Kind && slices.Equal(a.Filters.Libraries, b.Filters.Libraries)
 }
 
-// A list's address has one spelling: defaults, choices the page doesn't offer, unknown parameters, repeated
-// libraries, and another order of parameters redirect to it, as a form without a script submits them.
+// A list's address has one spelling, and any other, such as a form submitted without a script, redirects to it in one
+// step: on each kind of page that lists rules or libraries, and for a group's ID in another case. ParseListChoices' own
+// test covers how each spelling reads.
 func TestListAddressesRedirectToTheirOwnSpelling(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for path, location := range map[string]string{
-		"/g/techs/go?stars=&sort=":                           "/g/techs/go",
-		"/g/techs/go?sort=stars&stars=0":                     "/g/techs/go",
-		"/g/techs/go?impact=high&impact=medium":              "/g/techs/go",
-		"/g/techs/go?kind=techs&ref=x":                       "/g/techs/go",
 		"/g/techs/go?libs=example/rules&libs=other/go-rules": "/g/techs/go?libs=example%2Frules%2Cother%2Fgo-rules",
-		"/g/techs/go?stars=10&sort=new":                      "/g/techs/go?sort=new&stars=10",
 		"/g/techs/GO?sort=new":                               "/g/techs/go?sort=new",
 		"/search?q=errors&sort=best&kind=techs":              "/search?kind=techs&q=errors",
-		"/search?q=":                                         "/search",
-		"/search?retired=1&q=errors":                         "/search?q=errors",
-		"/libraries?unvetted=0":                              "/libraries",
 		"/libraries?unvetted=1&sort=new":                     "/libraries?unvetted=1",
-		"/browse/techs?impact=high":                          "/browse/techs",
 		"/browse/techs/other?x=1&unvetted=1":                 "/browse/techs/other?unvetted=1",
 	} {
 		resp := get(t, handler, path)
