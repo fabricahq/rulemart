@@ -196,17 +196,36 @@ func (s starSite) follow(t *testing.T, resp *http.Response) *http.Response {
 // starButton returns the attributes of the page's star button, or nil when it has none.
 func starButton(t *testing.T, page string) map[string]string {
 	t.Helper()
+	n := starButtonNode(t, page)
+	if n == nil {
+		return nil
+	}
+	attrs := map[string]string{}
+	for _, a := range n.Attr {
+		attrs[a.Key] = a.Val
+	}
+	return attrs
+}
+
+// starButtonName returns the name a screen reader gives the page's star button, or "" when it has none.
+func starButtonName(t *testing.T, page string) string {
+	t.Helper()
+	if n := starButtonNode(t, page); n != nil {
+		return accessibleName(n)
+	}
+	return ""
+}
+
+// starButtonNode returns the page's star button, or nil when it has none.
+func starButtonNode(t *testing.T, page string) *html.Node {
+	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for n := range doc.Descendants() {
 		if n.Type == html.ElementNode && n.Data == "button" && attribute(n, "id") == "star" {
-			attrs := map[string]string{}
-			for _, a := range n.Attr {
-				attrs[a.Key] = a.Val
-			}
-			return attrs
+			return n
 		}
 	}
 	return nil
@@ -274,8 +293,8 @@ func TestASignedInVisitorStarsARuleFromItsPages(t *testing.T) {
 	if got := formActions(t, page); !slices.Contains(got, formAction) {
 		t.Fatalf("the page's forms post to %q, want %q", got, formAction)
 	}
-	if !strings.Contains(page, `<span class="sr-only">Star Return errors with context, 1,234 stars</span>`) {
-		t.Error("the star button isn't named for the rule and its stars")
+	if got := starButtonName(t, page); got != "Star, 1,234 stars: Return errors with context" {
+		t.Errorf("the star button is named %q, want its visible label first, then its stars and the rule", got)
 	}
 	if button := starButton(t, page); button["aria-pressed"] != "false" {
 		t.Fatalf("an unstarred rule's button: %v, want aria-pressed false", button)
@@ -299,6 +318,9 @@ func TestASignedInVisitorStarsARuleFromItsPages(t *testing.T) {
 	}
 	if button := starButton(t, page); button["aria-pressed"] != "true" {
 		t.Errorf("a starred rule's button: %v, want aria-pressed true", button)
+	}
+	if got := starButtonName(t, page); got != "Starred, 1,234 stars: Return errors with context" {
+		t.Errorf("a starred rule's button is named %q, want its visible label first", got)
 	}
 	unstarred := site.signedInPost(t, unstarPath)
 	if unstarred.StatusCode != http.StatusSeeOther || unstarred.Header.Get("Location") != errorsRule {

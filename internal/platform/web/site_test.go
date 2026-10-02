@@ -877,7 +877,7 @@ func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 }
 
 // accessibleNames returns the name a screen reader gives each link in body that leads to an address starting with
-// prefix: its text nodes joined as they are, outside anything hidden from screen readers, with whitespace collapsed.
+// prefix, as accessibleName reads it.
 func accessibleNames(t *testing.T, body, prefix string) []string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -886,26 +886,31 @@ func accessibleNames(t *testing.T, body, prefix string) []string {
 	}
 	var names []string
 	for n := range doc.Descendants() {
-		if n.Type != html.ElementNode || n.Data != "a" || !strings.HasPrefix(attribute(n, "href"), prefix) {
-			continue
+		if n.Type == html.ElementNode && n.Data == "a" && strings.HasPrefix(attribute(n, "href"), prefix) {
+			names = append(names, accessibleName(n))
 		}
-		var text strings.Builder
-		var walk func(*html.Node)
-		walk = func(n *html.Node) {
-			if n.Type == html.TextNode {
-				text.WriteString(n.Data)
-			}
-			if attribute(n, "aria-hidden") == "true" {
-				return
-			}
-			for child := n.FirstChild; child != nil; child = child.NextSibling {
-				walk(child)
-			}
-		}
-		walk(n)
-		names = append(names, strings.Join(strings.Fields(text.String()), " "))
 	}
 	return names
+}
+
+// accessibleName returns the name a screen reader gives the link or button n: its text nodes joined as they are,
+// outside anything hidden from screen readers, with whitespace collapsed.
+func accessibleName(n *html.Node) string {
+	var text strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			text.WriteString(n.Data)
+		}
+		if attribute(n, "aria-hidden") == "true" {
+			return
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(n)
+	return strings.Join(strings.Fields(text.String()), " ")
 }
 
 // A tab's name says its count apart from its label, as "Groups, 2", rather than running them together.

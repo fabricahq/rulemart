@@ -7,7 +7,8 @@ import "strconv"
 
 // starControl is a rule's star in its page's head: a toggle button that stars it, or once starred unstars it, for a
 // signed-in visitor; a link that signs anyone else in and returns them, on a page that's the same for everyone; or the
-// count alone when no one can sign in. Screen readers hear its state, what it does, and the count in words. The page
+// count alone when no one can sign in. Screen readers hear its state, what it does, and the count in words; the
+// button's name starts with its visible label, Star or Starred, so a visitor who speaks that label reaches it. The page
 // that follows starring, unstarring, or signing in to star focuses it, which needs no script.
 templ starControl(star starView) {
 	if star.action != "" {
@@ -23,7 +24,7 @@ templ starControl(star starView) {
 					data-prompt
 				}
 			>
-				<span class="sr-only">Star { star.title }, { starCountText(star.count) }</span>
+				<span class="sr-only">{ starLabel(star.starred) }, { starCountText(star.count) }: { star.title }</span>
 				@starFace(star.count, star.starred, starLabel(star.starred))
 			</button>
 		</form>
