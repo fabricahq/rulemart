@@ -96,7 +96,8 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := newLibraryView(page.Library)
-	s.render(w, r, http.StatusOK, libraryPage(s.chrome, view, newLibraryContents(view, page), r.URL.Query().Get("tab") == "rules"))
+	contents := newLibraryContents(view, page, s.assets.iconURL)
+	s.render(w, r, http.StatusOK, libraryPage(s.chrome, view, contents, r.URL.Query().Get("tab") == "rules"))
 }
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {

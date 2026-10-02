@@ -21,6 +21,27 @@ than adding history.
 - **Unvetted pages carry `noindex`**, and links to them `nofollow`, so listing a repository can't borrow Rulemart's
   reputation in search engines.
 
+## Groups
+
+- **Code Rules owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
+  Code Rules' file at a pinned release, copied unchanged, and the vendored parser in `internal/lib/coderules` reads
+  it, so Rulemart and Code Rules can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
+  in its own pull request.
+- **A group is canonical only when its ID is on the list exactly. The list has no aliases**: a library's
+  `techs/golang` is a group of its own, never `techs/go`.
+- **Pages name a canonical group by the list's display name, and any other group by its ID, flagged "not
+  canonical".** They never show the name a library declares for a group, so a library can't rename a group every
+  library shares, or pass off its own group as one by naming it like one.
+- **Canonical status is decided when pages read, not stored at ingestion.** The list ships with each release, as
+  `vetted.yaml` does, and holds under a hundred IDs, so applying it to a page's groups costs a map lookup each.
+  Storing it would need a migration and a reingestion of every library whenever the pin moves, and a stored flag
+  could disagree with the list the running release ships. A later query across libraries, such as browsing one
+  canonical group, can pass the list's IDs as a parameter, as the page reads pass the vetted libraries.
+- **Rulemart owns the groups' icons**, in `catalog/group-icons.yaml`: Devicon logos (MIT) for technologies and
+  Lucide icons (ISC) for practices, vendored with their licenses, only for canonical groups, and only the files it
+  names. A canonical group without an icon shows its initial. Pages show icons with `<img>`, and tests reject an
+  SVG that holds scripts, event handlers, or references outside itself.
+
 ## Application
 
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone

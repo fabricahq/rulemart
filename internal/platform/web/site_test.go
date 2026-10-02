@@ -67,12 +67,18 @@ var exampleRules = views.Library{
 	LatestRelease: 3, LatestTaggedAt: day(3),
 }
 
+// goGroup and testingGroup are how the canonical group list shows techs/go and practices/testing.
+var (
+	goGroup      = &views.CanonicalGroup{Name: "Go", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}
+	testingGroup = &views.CanonicalGroup{Name: "Testing", Icon: views.GroupIcon{File: "lucide/flask-conical.svg", Monochrome: true}}
+)
+
 // newCatalog returns a catalog that holds exampleRules.
 func newCatalog() catalog {
 	returnErrors := views.RulePage{
 		Library: exampleRules,
 		Rule: views.Rule{
-			Path: "techs/go/return-errors", Group: "techs/go", GroupName: "Go", Title: "Return errors with context",
+			Path: "techs/go/return-errors", Group: "techs/go", CanonicalGroup: goGroup, Title: "Return errors with context",
 			Impact: "HIGH", WhenToRead: "When changing return errors with context.",
 			HTML: "<p>Wrap every returned error.</p>\n", Version: coderules.RuleVersion{Major: 2}, Release: 3, PublishedAt: day(3),
 		},
@@ -86,7 +92,7 @@ func newCatalog() catalog {
 	retryLimits := views.RulePage{
 		Library: exampleRules,
 		Rule: views.Rule{
-			Path: "practices/testing/verify-retry-limits", Group: "practices/testing", GroupName: "Testing",
+			Path: "practices/testing/verify-retry-limits", Group: "practices/testing", CanonicalGroup: testingGroup,
 			Title: "Verify retry limits", Impact: "HIGH", WhenToRead: "When changing verify retry limits.",
 			HTML: "<p>Stop after a fixed number of attempts.</p>\n", Version: coderules.RuleVersion{Major: 1, Minor: 1},
 			Release: 2, PublishedAt: day(2),
@@ -106,8 +112,8 @@ func newCatalog() catalog {
 		pages: map[string]views.LibraryPage{"example/rules": {
 			Library: exampleRules,
 			Groups: []views.Group{
-				{Path: "practices/testing", Name: "Testing", Description: "Testing rules.", WhenToRead: "When the work involves testing.", Rules: 1},
-				{Path: "techs/go", Name: "Go", Description: "Go rules.", WhenToRead: "When the work involves go.", Rules: 1},
+				{Path: "practices/testing", Canonical: testingGroup, Description: "Testing rules.", WhenToRead: "When the work involves testing.", Rules: 1},
+				{Path: "techs/go", Canonical: goGroup, Description: "Go rules.", WhenToRead: "When the work involves go.", Rules: 1},
 			},
 			Rules: []views.RuleCard{
 				{Path: retryLimits.Rule.Path, Group: "practices/testing", Title: retryLimits.Rule.Title, Impact: "HIGH", Version: retryLimits.Rule.Version},
@@ -414,4 +420,132 @@ func TestImpactLabelsExplainTheirLevel(t *testing.T) {
 			t.Errorf("%s: the HIGH label has no explanation", path)
 		}
 	}
+}
+
+const (
+	mixed          = "/example/mixed"
+	passContext    = mixed + "/techs/golang/pass-context-first"
+	returnErrorsGo = mixed + "/techs/go/return-errors"
+)
+
+// newMixedCatalog returns a catalog holding the library example/mixed, whose groups are canonical with an icon
+// (techs/go and practices/testing), canonical without one (techs/goose), and not canonical (techs/golang).
+func newMixedCatalog() catalog {
+	lib := views.Library{Owner: "example", Name: "mixed", LatestRelease: 1, LatestTaggedAt: day(1)}
+	goose := &views.CanonicalGroup{Name: "Goose"}
+	rule := func(path, group string, canonical *views.CanonicalGroup, title string) views.RulePage {
+		return views.RulePage{Library: lib, Rule: views.Rule{
+			Path: path, Group: group, CanonicalGroup: canonical, Title: title, Impact: "HIGH", WhenToRead: "When " + title + ".",
+			Version: coderules.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1),
+		}}
+	}
+	rules := []views.RulePage{
+		rule("practices/testing/verify-retry-limits", "practices/testing", testingGroup, "Verify retry limits"),
+		rule("techs/go/return-errors", "techs/go", goGroup, "Return errors"),
+		rule("techs/golang/pass-context-first", "techs/golang", nil, "Pass context first"),
+		rule("techs/goose/one-change-per-migration", "techs/goose", goose, "One change per migration"),
+	}
+	page := views.LibraryPage{Library: lib, Groups: []views.Group{
+		{Path: "practices/testing", Canonical: testingGroup, WhenToRead: "When testing.", Rules: 1},
+		{Path: "techs/go", Canonical: goGroup, Rules: 1},
+		{Path: "techs/golang", Rules: 1},
+		{Path: "techs/goose", Canonical: goose, Rules: 1},
+	}}
+	c := catalog{pages: map[string]views.LibraryPage{}, rules: map[string]views.RulePage{}}
+	for _, r := range rules {
+		page.Rules = append(page.Rules, views.RuleCard{Path: r.Rule.Path, Group: r.Rule.Group, Title: r.Rule.Title, Impact: "HIGH", Version: r.Rule.Version})
+		c.rules["example/mixed/"+r.Rule.Path] = r
+	}
+	c.pages["example/mixed"] = page
+	return c
+}
+
+// notCanonicalFlags returns the elements that flag a group as not canonical, by their visible text.
+func notCanonicalFlags(t *testing.T, page string) []*html.Node {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var flags []*html.Node
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.FirstChild != nil && n.FirstChild == n.LastChild &&
+			n.FirstChild.Type == html.TextNode && strings.TrimSpace(n.FirstChild.Data) == "not canonical" {
+			flags = append(flags, n)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	return flags
+}
+
+// assertFlagsExplainThemselves fails unless page flags exactly want groups as not canonical, each with an
+// explanation on hover.
+func assertFlagsExplainThemselves(t *testing.T, page string, want int) {
+	t.Helper()
+	flags := notCanonicalFlags(t, page)
+	if len(flags) != want {
+		t.Fatalf("%d groups are flagged as not canonical, want %d", len(flags), want)
+	}
+	for _, flag := range flags {
+		if !strings.Contains(attribute(flag, "title"), "canonical group list") {
+			t.Errorf("the flag doesn't explain itself: title=%q", attribute(flag, "title"))
+		}
+	}
+}
+
+// A canonical group goes by the list's name, with its icon when Rulemart has one, and any other group by its ID,
+// flagged, so a library can't pass off its own group as one that every library shares.
+func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testing.T) {
+	handler := newSite(t, newMixedCatalog())
+
+	page := get(t, handler, mixed).Body.String()
+
+	assertShows(t, page,
+		"Technologies · 3 Go techs/go 1 rule ›",
+		"techs/golang not canonical 1 rule ›",
+		"Goose techs/goose 1 rule ›",
+		"Practices · 1 Testing practices/testing When testing. 1 rule ›",
+	)
+	assertFlagsExplainThemselves(t, page, 1)
+	icons := regexp.MustCompile(`<img[^>]* src="(/_static/[^"]+)"`).FindAllStringSubmatch(page, -1)
+	if len(icons) != 2 || !strings.HasSuffix(icons[0][1], "/icons/devicon/go-original.svg") ||
+		!strings.HasSuffix(icons[1][1], "/icons/lucide/flask-conical.svg") {
+		t.Fatalf("the group icons are %q, want Go's and then Testing's", icons)
+	}
+	for _, icon := range icons {
+		resp := get(t, handler, icon[1])
+		if resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "image/svg+xml" {
+			t.Errorf("%s answered %d with %q", icon[1], resp.Code, resp.Header().Get("Content-Type"))
+		}
+	}
+}
+
+func TestLibraryRulesTabShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testing.T) {
+	handler := newSite(t, newMixedCatalog())
+
+	page := get(t, handler, mixed+"?tab=rules").Body.String()
+
+	assertShows(t, page,
+		"Go techs/go Return errors HIGH 1.0.0 techs/go/return-errors",
+		"techs/golang not canonical Pass context first HIGH 1.0.0 techs/golang/pass-context-first",
+		"Goose techs/goose One change per migration",
+		"Testing practices/testing Verify retry limits",
+	)
+	assertFlagsExplainThemselves(t, page, 1)
+}
+
+func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
+	handler := newSite(t, newMixedCatalog())
+
+	canonical := get(t, handler, returnErrorsGo).Body.String()
+	other := get(t, handler, passContext).Body.String()
+
+	assertShows(t, canonical, "mixed › Go techs/go")
+	assertFlagsExplainThemselves(t, canonical, 0)
+	assertShows(t, other, "mixed › techs/golang not canonical")
+	assertFlagsExplainThemselves(t, other, 1)
 }

@@ -77,7 +77,11 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 	if err != nil {
 		return nil, err
 	}
-	pages := app.Pages{Store: postgres.New(source.Open(schemaVersion)), Vetted: vetted}
+	groups, err := catalog.CanonicalGroups()
+	if err != nil {
+		return nil, err
+	}
+	pages := app.Pages{Store: postgres.New(source.Open(schemaVersion)), Vetted: vetted, Groups: groups}
 	return web.New(pages, web.Options{Log: logger, RequestID: lambdaRequestID})
 }
 

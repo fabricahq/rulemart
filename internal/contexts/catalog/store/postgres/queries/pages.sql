@@ -18,7 +18,7 @@ WHERE l.host = @host AND lower(l.owner) = lower(@owner) AND lower(l.name) = lowe
 -- ListGroups returns the groups that hold current rules: a group whose rules are all retired stays in the catalog,
 -- but not on the library's page.
 -- name: ListGroups :many
-SELECT g.path, g.name, g.description, g.when_to_read, current.rule_count
+SELECT g.path, g.description, g.when_to_read, current.rule_count
 FROM library_groups g
 JOIN LATERAL (
     SELECT count(*) AS rule_count FROM rules r WHERE r.group_id = g.id AND r.retired_in_release_id IS NULL
@@ -35,7 +35,7 @@ WHERE r.library_id = @library_id
 ORDER BY g.path, lower(v.title), r.path;
 
 -- name: GetRule :one
-SELECT r.id, r.path, g.path AS group_path, g.name AS group_name, v.title::text AS title, v.impact::text AS impact,
+SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact,
        v.when_to_read::text AS when_to_read, v.html::text AS html, v.major, v.minor, v.patch,
        published.number AS release, published.tagged_at AS published_at
 FROM rules r

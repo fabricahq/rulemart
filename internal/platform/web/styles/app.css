@@ -29,6 +29,7 @@
   --faint: #8d8d8d; --border: #d5d5d5; --border-subtle: #e8e8e8; --border-strong: #626262;
   --primary: #1c1c1c; --on-primary: #ffffff; --focus: #333333;
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
+  --icon-tile: #ffffff; --icon-ink: none;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -36,6 +37,7 @@
   --faint: #8a8a8a; --border: #444444; --border-subtle: #303030; --border-strong: #b8b8b8;
   --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
   --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
+  --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -44,6 +46,7 @@
     --faint: #8a8a8a; --border: #444444; --border-subtle: #303030; --border-strong: #b8b8b8;
     --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
     --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
+    --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
     color-scheme: dark;
   }
 }
@@ -70,6 +73,7 @@
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
   --color-primary: var(--primary);
+  --color-icon-tile: var(--icon-tile);
   --color-on-primary: var(--on-primary);
   --color-white: #ffffff;
 }
@@ -91,6 +95,11 @@
   letter-spacing: -.05em;
   line-height: 1.15;
   font-weight: 500;
+}
+/* A monochrome group icon, drawn in black or one dark color: dark themes invert it, keeping its hue, so it stays
+   visible on the dark icon tile. */
+@utility icon-ink {
+  filter: var(--icon-ink);
 }
 /* Code type, a little smaller than the text around it. */
 @utility mono {

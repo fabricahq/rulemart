@@ -28,6 +28,45 @@ templ avatar(src, owner string, size avatarSize) {
 	</span>
 }
 
+// tileSize is a group tile's box: its size, corner radius, and initial's size.
+type tileSize string
+
+const (
+	tileXS tileSize = "size-[18px] rounded-[4px] text-[9px]"
+	tileMD tileSize = "size-7 rounded-[7px] text-[12px]"
+)
+
+// groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
+// no icon for it, and any other group with an empty dashed tile, so names line up either way. Monochrome icons are
+// inverted in dark themes, and narrow icons fill more of the tile so they look as big as square logos.
+templ groupTile(label groupLabel, icon groupIcon, size tileSize) {
+	if icon.src != "" {
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile", string(size) }>
+			<img class={ "object-contain", templ.KV("size-[64%]", !icon.narrow), templ.KV("size-[88%]", icon.narrow), templ.KV("icon-ink", icon.monochrome) } src={ icon.src } alt=""/>
+		</span>
+	} else if label.canonical {
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile leading-none font-semibold tracking-normal text-muted normal-case", string(size) } aria-hidden="true">{ label.initial() }</span>
+	} else {
+		<span class={ "inline-block flex-none border border-dashed border-border", string(size) } aria-hidden="true"></span>
+	}
+}
+
+// flagSize is a "not canonical" flag's type size and line height, which with its border sets its height.
+type flagSize string
+
+const (
+	// flagSM fits a line of small metadata, such as a section header or a breadcrumb: 15px tall, in type no larger
+	// than the group ID beside it.
+	flagSM flagSize = "text-[9px] leading-[13px]"
+	// flagMD sits on its own line under a group's ID.
+	flagMD flagSize = "text-[10.5px] leading-[15px]"
+)
+
+// notCanonical flags a group that isn't on Code Rules' canonical group list, explained on hover.
+templ notCanonical(size flagSize) {
+	<span class={ "inline-block flex-none rounded-[4px] border border-dashed border-border-strong px-1.5 align-middle font-mono font-normal tracking-normal whitespace-nowrap text-faint normal-case", string(size) } title={ notCanonicalExplanation }>not canonical</span>
+}
+
 // label is a small uppercase heading, such as a list's or a panel's.
 templ label(class string) {
 	<p class={ "text-[12px] font-medium tracking-[.12em] text-muted uppercase", class }>

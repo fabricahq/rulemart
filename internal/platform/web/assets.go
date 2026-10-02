@@ -54,6 +54,11 @@ func (a *assets) url(name string) string {
 	return "/_static/" + a.version + "/" + name
 }
 
+// iconURL returns the path that serves the icon file, a path under static/icons such as devicon/go-plain.svg.
+func (a *assets) iconURL(file string) string {
+	return a.url("icons/" + file)
+}
+
 // immutable caches a file for a year: its path changes whenever its content does.
 const immutable = "public, max-age=31536000, immutable"
 

@@ -1,0 +1,180 @@
+# The icon Rulemart shows beside each canonical group, as a file under internal/platform/web/static/icons. Rulemart
+# owns this file; Code Rules owns the list of canonical groups, in canonical-groups.yaml. Only a group on that list
+# may have an icon here. A canonical group without one, such as one Devicon has no logo for, shows its initial
+# instead, and a group that isn't canonical never shows an icon.
+#
+# Technologies use Devicon logos (MIT) and practices Lucide icons (ISC). Vendor only the icons this file names, as
+# internal/platform/web/static/icons/README.md explains.
+#
+# file is the icon's path under icons/. monochrome: true marks an icon drawn in black or one dark color, which dark
+# themes invert so it stays visible; other icons keep their colors in both themes. narrow: true marks an icon whose
+# drawing is much narrower than its square, such as Go's gopher, which pages draw larger so it looks as big as square
+# logos. Keep entries sorted by group ID.
+practices/accessibility:
+  file: lucide/accessibility.svg
+  monochrome: true
+practices/api-design:
+  file: lucide/plug.svg
+  monochrome: true
+practices/code-design:
+  file: lucide/blocks.svg
+  monochrome: true
+practices/code-review:
+  file: lucide/git-pull-request.svg
+  monochrome: true
+practices/comments:
+  file: lucide/message-square-text.svg
+  monochrome: true
+practices/concurrency:
+  file: lucide/split.svg
+  monochrome: true
+practices/database-migrations:
+  file: lucide/database-zap.svg
+  monochrome: true
+practices/dependency-management:
+  file: lucide/package.svg
+  monochrome: true
+practices/documentation:
+  file: lucide/book-open.svg
+  monochrome: true
+practices/error-handling:
+  file: lucide/triangle-alert.svg
+  monochrome: true
+practices/naming:
+  file: lucide/tag.svg
+  monochrome: true
+practices/observability:
+  file: lucide/activity.svg
+  monochrome: true
+practices/performance:
+  file: lucide/gauge.svg
+  monochrome: true
+practices/readmes:
+  file: lucide/file-text.svg
+  monochrome: true
+practices/resilience:
+  file: lucide/life-buoy.svg
+  monochrome: true
+practices/security:
+  file: lucide/shield.svg
+  monochrome: true
+practices/testing:
+  file: lucide/flask-conical.svg
+  monochrome: true
+practices/version-control:
+  file: lucide/git-branch.svg
+  monochrome: true
+techs/angular:
+  file: devicon/angular-original.svg
+techs/aws:
+  file: devicon/amazonwebservices-plain-wordmark.svg
+techs/azure:
+  file: devicon/azure-original.svg
+techs/bash:
+  file: devicon/bash-original.svg
+  monochrome: true
+techs/c:
+  file: devicon/c-original.svg
+techs/cpp:
+  file: devicon/cplusplus-original.svg
+techs/csharp:
+  file: devicon/csharp-original.svg
+techs/django:
+  file: devicon/django-plain.svg
+  monochrome: true
+techs/docker:
+  file: devicon/docker-original.svg
+techs/dotnet:
+  file: devicon/dotnetcore-original.svg
+techs/elixir:
+  file: devicon/elixir-original.svg
+techs/express:
+  file: devicon/express-original.svg
+  monochrome: true
+techs/fastapi:
+  file: devicon/fastapi-original.svg
+techs/flutter:
+  file: devicon/flutter-original.svg
+techs/gcp:
+  file: devicon/googlecloud-original.svg
+techs/github-actions:
+  file: devicon/githubactions-original.svg
+techs/go:
+  file: devicon/go-original.svg
+  narrow: true
+techs/graphql:
+  file: devicon/graphql-plain.svg
+techs/java:
+  file: devicon/java-original.svg
+techs/javascript:
+  file: devicon/javascript-original.svg
+techs/jest:
+  file: devicon/jest-plain.svg
+techs/kotlin:
+  file: devicon/kotlin-original.svg
+techs/kubernetes:
+  file: devicon/kubernetes-original.svg
+techs/laravel:
+  file: devicon/laravel-original.svg
+techs/lua:
+  file: devicon/lua-original.svg
+techs/mongodb:
+  file: devicon/mongodb-original.svg
+techs/mysql:
+  file: devicon/mysql-original.svg
+  monochrome: true
+techs/nextjs:
+  file: devicon/nextjs-original.svg
+  monochrome: true
+techs/nodejs:
+  file: devicon/nodejs-original.svg
+techs/php:
+  file: devicon/php-original.svg
+techs/playwright:
+  file: devicon/playwright-original.svg
+techs/postgresql:
+  file: devicon/postgresql-original.svg
+techs/prisma:
+  file: devicon/prisma-original.svg
+  monochrome: true
+techs/pytest:
+  file: devicon/pytest-original.svg
+techs/python:
+  file: devicon/python-original.svg
+techs/rails:
+  file: devicon/rails-plain.svg
+techs/react:
+  file: devicon/react-original.svg
+techs/react-native:
+  file: devicon/reactnative-original.svg
+techs/redis:
+  file: devicon/redis-original.svg
+techs/redux:
+  file: devicon/redux-original.svg
+techs/ruby:
+  file: devicon/ruby-original.svg
+techs/rust:
+  file: devicon/rust-original.svg
+  monochrome: true
+techs/spring-boot:
+  file: devicon/spring-original.svg
+techs/sqlite:
+  file: devicon/sqlite-original.svg
+techs/svelte:
+  file: devicon/svelte-original.svg
+techs/swift:
+  file: devicon/swift-original.svg
+techs/tailwindcss:
+  file: devicon/tailwindcss-original.svg
+techs/terraform:
+  file: devicon/terraform-original.svg
+techs/typescript:
+  file: devicon/typescript-original.svg
+techs/vitest:
+  file: devicon/vitest-original.svg
+techs/vue:
+  file: devicon/vuejs-original.svg
+techs/zig:
+  file: devicon/zig-original.svg
+techs/zustand:
+  file: devicon/zustand-original.svg

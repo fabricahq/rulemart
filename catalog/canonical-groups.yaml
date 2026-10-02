@@ -1,0 +1,242 @@
+# Canonical Code Rules group IDs.
+#
+# Libraries choose their own group IDs. When libraries use an ID from this list,
+# tools and catalogs can treat their groups as the same group and combine them.
+# A group whose ID isn't listed stands alone. The list has no aliases.
+#
+# Each entry maps a group ID to its display name and one line saying which rules
+# belong in the group. Keep entries sorted by ID. Unknown fields are errors.
+# Tools should read this file at an explicit commit and update that pin
+# deliberately. To propose a group, open a pull request. See
+# https://code-rules.fabricahq.com/concepts/groups/#canonical-group-ids
+practices/accessibility:
+  name: Accessibility
+  description: Making interfaces usable with assistive technology, keyboards, and varied vision, hearing, and motor abilities.
+practices/api-design:
+  name: API design
+  description: The contracts of HTTP, RPC, and library APIs, including resources, errors, pagination, versioning, and compatibility.
+practices/code-design:
+  name: Code design
+  description: How functions, modules, and folders are structured so code reads clearly and each feature's code stays together; naming has its own group.
+practices/code-review:
+  name: Code review
+  description: How to review changes and plans, including agent-written pull requests.
+practices/comments:
+  name: Comments
+  description: Code comments, file headers, and doc comments.
+practices/concurrency:
+  name: Concurrency
+  description: Coordinating concurrent work, including shared resources, parallel tasks, and propagating cancellation between them.
+practices/database-migrations:
+  name: Database migrations
+  description: Changing schemas and data safely, with backward compatibility, expand-and-contract steps, and reversibility, whatever the tool.
+practices/dependency-management:
+  name: Dependency management
+  description: Choosing, pinning, and updating third-party dependencies; responding to vulnerable dependencies belongs in security.
+practices/documentation:
+  name: Documentation
+  description: Guides, references, and other written documentation; READMEs and code comments have their own groups.
+practices/error-handling:
+  name: Error handling
+  description: Creating, wrapping, returning, and reporting errors.
+practices/naming:
+  name: Naming
+  description: Names for variables, functions, types, files, and other identifiers; how code is structured belongs in code design.
+practices/observability:
+  name: Observability
+  description: Logs, metrics, and traces.
+practices/performance:
+  name: Performance
+  description: Speed and resource use, guided by measurement and without changing behavior.
+practices/readmes:
+  name: READMEs
+  description: Repository READMEs, from what the product does to a first working result and links to the full documentation.
+practices/resilience:
+  name: Resilience
+  description: Timeouts, retries, and recovery from failures in networks, services, and other external operations.
+practices/security:
+  name: Security
+  description: Protecting code and data from attack, including authentication, authorization, secrets, input handling, and vulnerable dependencies.
+practices/testing:
+  name: Testing
+  description: What to test and how to write, name, and run tests, regardless of language or framework.
+practices/version-control:
+  name: Version control
+  description: Commits, branches, and pull requests.
+techs/angular:
+  name: Angular
+  description: Angular components, services, dependency injection, and change detection.
+techs/aws:
+  name: AWS
+  description: Building on and configuring Amazon Web Services.
+techs/azure:
+  name: Azure
+  description: Building on and configuring Microsoft Azure.
+techs/bash:
+  name: Bash
+  description: Bash scripts and shell commands run by Bash.
+techs/c:
+  name: C
+  description: The C programming language and its tooling.
+techs/cpp:
+  name: C++
+  description: The C++ programming language and its tooling.
+techs/csharp:
+  name: C#
+  description: The C# programming language; the .NET platform and its libraries have their own group.
+techs/django:
+  name: Django
+  description: Web applications built with Django, including models, views, and the ORM.
+techs/docker:
+  name: Docker
+  description: Dockerfiles, images, and containers built with Docker.
+techs/dotnet:
+  name: .NET
+  description: The .NET platform, runtime, and libraries, including ASP.NET Core and Entity Framework.
+techs/elixir:
+  name: Elixir
+  description: The Elixir programming language, its tooling, and OTP.
+techs/express:
+  name: Express
+  description: HTTP servers built with Express, including routing and middleware.
+techs/fastapi:
+  name: FastAPI
+  description: HTTP APIs built with FastAPI, including routes, dependencies, and Pydantic models.
+techs/flutter:
+  name: Flutter
+  description: Apps built with Flutter and Dart, including widgets, state, and platform integration.
+techs/gcp:
+  name: Google Cloud
+  description: Building on and configuring Google Cloud.
+techs/github-actions:
+  name: GitHub Actions
+  description: GitHub Actions workflows, actions, and runners.
+techs/go:
+  name: Go
+  description: The Go programming language and its standard tooling.
+techs/goose:
+  name: Goose
+  description: The goose migration tool, including its migration files, annotations, and commands; general migration practice belongs in database migrations.
+techs/graphql:
+  name: GraphQL
+  description: GraphQL schemas, resolvers, and queries.
+techs/java:
+  name: Java
+  description: The Java programming language and its tooling.
+techs/javascript:
+  name: JavaScript
+  description: The JavaScript language and browser APIs, including rules that also apply to TypeScript code; the Node.js runtime has its own group.
+techs/jest:
+  name: Jest
+  description: Tests written and run with Jest.
+techs/kotlin:
+  name: Kotlin
+  description: The Kotlin programming language and its tooling.
+techs/kubernetes:
+  name: Kubernetes
+  description: Kubernetes manifests and the workloads they define.
+techs/laravel:
+  name: Laravel
+  description: Web applications built with Laravel, including Eloquent, routing, and queues.
+techs/lua:
+  name: Lua
+  description: The Lua programming language, standalone or embedded in another program.
+techs/mongodb:
+  name: MongoDB
+  description: MongoDB documents, queries, indexes, and aggregation pipelines.
+techs/mysql:
+  name: MySQL
+  description: MySQL-specific schemas, features, configuration, and behavior; portable SQL belongs in SQL.
+techs/nextjs:
+  name: Next.js
+  description: Routing, rendering, and data fetching in the Next.js framework.
+techs/nodejs:
+  name: Node.js
+  description: The Node.js runtime and its standard library, such as streams, the file system, and process lifecycle; the JavaScript language belongs in JavaScript.
+techs/opentofu:
+  name: OpenTofu
+  description: OpenTofu configuration and the OpenTofu CLI; a rule that also holds for Terraform belongs in both groups, or in whichever the library targets.
+techs/php:
+  name: PHP
+  description: The PHP programming language and its tooling; Laravel has its own group.
+techs/playwright:
+  name: Playwright
+  description: Browser tests written with Playwright.
+techs/postgresql:
+  name: PostgreSQL
+  description: PostgreSQL-specific schemas, features, configuration, and behavior; portable SQL belongs in SQL.
+techs/prisma:
+  name: Prisma
+  description: The Prisma ORM, its schema, client queries, and Prisma Migrate.
+techs/pytest:
+  name: pytest
+  description: Python tests written and run with pytest, including fixtures and plugins.
+techs/python:
+  name: Python
+  description: The Python programming language and its tooling.
+techs/rails:
+  name: Ruby on Rails
+  description: Web applications built with Ruby on Rails, including Active Record and controllers.
+techs/react:
+  name: React
+  description: React components, Hooks, state, and rendering.
+techs/react-native:
+  name: React Native
+  description: Mobile apps built with React Native, including native modules and platform differences; general React rules belong in React.
+techs/redis:
+  name: Redis
+  description: Redis data structures, caching, expiry, and persistence.
+techs/redux:
+  name: Redux
+  description: Client state managed with Redux and Redux Toolkit.
+techs/ruby:
+  name: Ruby
+  description: The Ruby programming language and its tooling; Ruby on Rails has its own group.
+techs/rust:
+  name: Rust
+  description: The Rust programming language and its tooling.
+techs/spring-boot:
+  name: Spring Boot
+  description: Applications built with Spring Boot, including configuration, dependency injection, and Spring Data.
+techs/sql:
+  name: SQL
+  description: The SQL language, including queries, joins, and transactions written to work across databases; database-specific behavior belongs in that database's group.
+techs/sqlite:
+  name: SQLite
+  description: SQLite-specific schemas, features, configuration, and behavior; portable SQL belongs in SQL.
+techs/svelte:
+  name: Svelte
+  description: Svelte components and SvelteKit applications.
+techs/swift:
+  name: Swift
+  description: The Swift programming language and its tooling.
+techs/tailwindcss:
+  name: Tailwind CSS
+  description: Styling with Tailwind CSS utility classes and its configuration.
+techs/tanstack-query:
+  name: TanStack Query
+  description: Fetching, caching, and mutating server data with TanStack Query.
+techs/tanstack-router:
+  name: TanStack Router
+  description: Routes, loaders, navigation, and search params with TanStack Router.
+techs/terraform:
+  name: Terraform
+  description: Terraform configuration and the Terraform CLI; a rule that also holds for OpenTofu belongs in both groups, or in whichever the library targets.
+techs/terragrunt:
+  name: Terragrunt
+  description: "Terragrunt, the infrastructure-as-code orchestrator for OpenTofu and Terraform: units, stacks, dependencies between units, includes, and hooks."
+techs/typescript:
+  name: TypeScript
+  description: TypeScript types, functions, modules, and compiler configuration.
+techs/vitest:
+  name: Vitest
+  description: Tests written and run with Vitest.
+techs/vue:
+  name: Vue
+  description: Vue components, reactivity, and the Composition API.
+techs/zig:
+  name: Zig
+  description: The Zig programming language and its build system.
+techs/zustand:
+  name: Zustand
+  description: Client state stores built with Zustand.

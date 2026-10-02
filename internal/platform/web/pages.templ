@@ -107,12 +107,22 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		}
 		@rowList() {
 			for _, g := range groups {
-				<a class="grid grid-cols-[minmax(150px,220px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
-					<div>
-						<b class="block text-[14px] font-semibold">{ g.name }</b>
-						<span class="font-mono text-[12px] text-faint">{ g.id }</span>
+				<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+					<div class="flex min-w-0 items-center gap-3">
+						@groupTile(g.label, g.icon, tileMD)
+						<div class="min-w-0">
+							if g.label.canonical {
+								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
+								<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
+							} else {
+								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
+								<span class="block leading-[20px]">
+									@notCanonical(flagMD)
+								</span>
+							}
+						</div>
 					</div>
-					<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2">{ g.blurb }</p>
+					<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
 					<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
 				</a>
 			}
@@ -123,8 +133,14 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {
-		<div class="mt-8 mb-3 flex scroll-mt-20 justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
-			<span>{ g.name } <span class="mono tracking-normal normal-case">{ g.id }</span></span>
+		<div class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
+			@groupTile(g.label, g.icon, tileXS)
+			if g.label.canonical {
+				<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
+			} else {
+				<span class="mono tracking-normal normal-case">{ g.label.id }</span>
+				@notCanonical(flagSM)
+			}
 		</div>
 		for _, r := range g.rules {
 			<a class="mb-2.5 block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
@@ -149,8 +165,13 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 				@avatar(r.library.avatar, r.library.owner, avatarSM)
 				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
 				<span>›</span>
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.groupName }</a>
-				<span class="mono">{ r.groupID }</span>
+				if r.group.canonical {
+					<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.name }</a>
+					<span class="mono">{ r.group.id }</span>
+				} else {
+					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
+					@notCanonical(flagSM)
+				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">
 				<div>

@@ -64,7 +64,7 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 }
 
 const getRule = `-- name: GetRule :one
-SELECT r.id, r.path, g.path AS group_path, g.name AS group_name, v.title::text AS title, v.impact::text AS impact,
+SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact,
        v.when_to_read::text AS when_to_read, v.html::text AS html, v.major, v.minor, v.patch,
        published.number AS release, published.tagged_at AS published_at
 FROM rules r
@@ -83,7 +83,6 @@ type GetRuleRow struct {
 	ID          int64
 	Path        string
 	GroupPath   string
-	GroupName   string
 	Title       string
 	Impact      string
 	WhenToRead  string
@@ -102,7 +101,6 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.ID,
 		&i.Path,
 		&i.GroupPath,
-		&i.GroupName,
 		&i.Title,
 		&i.Impact,
 		&i.WhenToRead,
@@ -164,7 +162,7 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 }
 
 const listGroups = `-- name: ListGroups :many
-SELECT g.path, g.name, g.description, g.when_to_read, current.rule_count
+SELECT g.path, g.description, g.when_to_read, current.rule_count
 FROM library_groups g
 JOIN LATERAL (
     SELECT count(*) AS rule_count FROM rules r WHERE r.group_id = g.id AND r.retired_in_release_id IS NULL
@@ -175,7 +173,6 @@ ORDER BY g.path
 
 type ListGroupsRow struct {
 	Path        string
-	Name        string
 	Description string
 	WhenToRead  string
 	RuleCount   int64
@@ -194,7 +191,6 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 		var i ListGroupsRow
 		if err := rows.Scan(
 			&i.Path,
-			&i.Name,
 			&i.Description,
 			&i.WhenToRead,
 			&i.RuleCount,

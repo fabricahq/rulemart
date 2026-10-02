@@ -45,9 +45,33 @@ type LibraryPage struct {
 
 // Group is a group that holds current rules.
 type Group struct {
-	Path, Name, Description, WhenToRead string
+	// Path is the group's ID, such as techs/go.
+	Path string
+	// Canonical is nil when Path isn't on Code Rules' canonical group list.
+	Canonical *CanonicalGroup
+	// Description and WhenToRead are what the library declares about the group.
+	Description, WhenToRead string
 	// Rules counts the group's current rules.
 	Rules int
+}
+
+// CanonicalGroup is how pages show a group whose ID is on Code Rules' canonical group list: by the list's display
+// name, which every library using the ID shares, rather than the name a library declares. Pages show any other
+// group by its ID, flagged as not canonical.
+type CanonicalGroup struct {
+	Name string
+	// Icon is zero when Rulemart has no icon for the group.
+	Icon GroupIcon
+}
+
+// GroupIcon is the icon pages show beside a canonical group.
+type GroupIcon struct {
+	// File is the icon's path under the site's icons, such as devicon/go-original.svg.
+	File string
+	// Monochrome marks an icon drawn in black or one dark color, which dark themes invert so it stays visible.
+	Monochrome bool
+	// Narrow marks an icon whose drawing is much narrower than its square, which pages draw larger.
+	Narrow bool
 }
 
 // RuleCard is a current rule in a library's list of rules.
@@ -68,10 +92,12 @@ type RulePage struct {
 // Rule is a current rule as its page shows it.
 type Rule struct {
 	// Path is the rule's ID, and Group its group's path.
-	Path, Group, GroupName string
-	Title, Impact          string
-	WhenToRead, HTML       string
-	Version                coderules.RuleVersion
+	Path, Group string
+	// CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
+	CanonicalGroup   *CanonicalGroup
+	Title, Impact    string
+	WhenToRead, HTML string
+	Version          coderules.RuleVersion
 	// Release is the number of the library release that published the current version, tagged at PublishedAt.
 	Release     int
 	PublishedAt time.Time
