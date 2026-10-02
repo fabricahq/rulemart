@@ -21,8 +21,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// runMain runs main in a new process with env added to the test's environment, outside Lambda, and returns its
-// standard output's JSON lines and its exit code.
+// runMain runs main in a new process with env added to the test's environment, outside Lambda unless env sets
+// AWS_LAMBDA_RUNTIME_API, and returns its standard output's JSON lines and its exit code.
 func runMain(t *testing.T, env ...string) ([]map[string]any, int) {
 	t.Helper()
 	cmd := exec.Command(os.Args[0])
@@ -60,10 +60,23 @@ func TestStartupFailureIsLoggedAndStopsTheCommand(t *testing.T) {
 	}
 }
 
-func TestStartupLogsReadyWithTheSchemaVersion(t *testing.T) {
-	lines, _ := runMain(t, "RULEMART_RELEASE=v9.9.9")
+// On Lambda, the worker says it's ready, with the schema version it needs, once it has built its queue and worker,
+// and never logs the connection string it was given. The runtime API here is unreachable, so the worker stops right
+// after it starts.
+func TestStartupLogsReadyWithoutTheConnectionString(t *testing.T) {
+	lines, _ := runMain(t, "RULEMART_RELEASE=v9.9.9", "AWS_LAMBDA_RUNTIME_API=127.0.0.1:1",
+		"QUEUE_URL=https://sqs.us-west-2.amazonaws.com/123456789012/jobs", "AWS_REGION=us-west-2",
+		"AWS_CONFIG_FILE=/dev/null", "AWS_SHARED_CREDENTIALS_FILE=/dev/null",
+		"DATABASE_URL=postgres://rulemart:hunter2@db.example/rulemart", "DATABASE_URL_PARAMETER=")
 
 	if len(lines) == 0 || lines[0]["msg"] != "ready" || lines[0]["schema"] == nil || lines[0]["init_ms"] == nil || lines[0]["release"] != "v9.9.9" {
 		t.Fatalf("logged %v, want ready first", lines)
+	}
+	for _, line := range lines {
+		for key, value := range line {
+			if s, ok := value.(string); ok && strings.Contains(s, "hunter2") {
+				t.Fatalf("%s logged the password: %v", key, line)
+			}
+		}
 	}
 }

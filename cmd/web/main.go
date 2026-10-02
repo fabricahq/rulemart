@@ -1,7 +1,5 @@
-// Command web serves Rulemart's pages. On Lambda, CloudFront reaches it through its Function URL, and the
-// EventBridge schedule invokes it with {"source": "schedule"}, which it acknowledges and ignores until the
-// library-release poller arrives in the next slice. Run anywhere else, it serves HTTP at ADDR, 127.0.0.1:8080 by
-// default.
+// Command web serves Rulemart's pages. On Lambda, CloudFront reaches it through its Function URL. Run anywhere else,
+// it serves HTTP at ADDR, 127.0.0.1:8080 by default.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
 // LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
@@ -50,7 +48,7 @@ func main() {
 	}
 	logging.Ready(logger, schemaVersion, time.Since(start))
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
-		lambda.Start(newFunction(handler, logger).handle)
+		lambda.Start(newFunction(handler).handle)
 		return
 	}
 	addr := cmp.Or(os.Getenv("ADDR"), "127.0.0.1:8080")
@@ -96,20 +94,14 @@ func lambdaRequestID(r *http.Request) string {
 type function struct {
 	// adapter turns Function URL requests into requests for the pages' handler.
 	adapter *httpadapter.HandlerAdapterV2
-	log     *slog.Logger
 }
 
-func newFunction(handler http.Handler, logger *slog.Logger) *function {
-	return &function{adapter: httpadapter.NewV2(handler), log: logger}
+func newFunction(handler http.Handler) *function {
+	return &function{adapter: httpadapter.NewV2(handler)}
 }
 
-// scheduleSource is the source field of the event the EventBridge schedule sends.
-const scheduleSource = "schedule"
-
-// invocation holds the fields handle uses to tell the web function's two kinds of events apart.
+// invocation holds the field handle uses to recognize a Function URL request.
 type invocation struct {
-	// Source is scheduleSource in the schedule's event, and absent from Function URL requests.
-	Source         string `json:"source"`
 	RequestContext struct {
 		HTTP struct {
 			Method string `json:"method"`
@@ -117,27 +109,23 @@ type invocation struct {
 	} `json:"requestContext"`
 }
 
-// handle serves Function URL requests, acknowledges the schedule's event, and rejects anything else.
+// handle serves Function URL requests, and rejects anything else. The schedule invokes the worker function, not this
+// one.
 func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var event invocation
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return nil, fmt.Errorf("decode invocation event: %v", err)
 	}
-	switch {
-	case event.Source == scheduleSource:
-		f.log.InfoContext(ctx, "ignored the scheduled invocation: the library-release poller isn't built yet")
-		return map[string]string{"status": "ignored"}, nil
-	case event.RequestContext.HTTP.Method != "":
-		// A Function URL request has the same shape as an API Gateway HTTP API request with payload format 2.0.
-		var request events.APIGatewayV2HTTPRequest
-		if err := json.Unmarshal(raw, &request); err != nil {
-			return nil, fmt.Errorf("decode Function URL request: %v", err)
-		}
-		if !convertible(request) {
-			return rejectUnconvertible(ctx, request), nil
-		}
-		return f.adapter.ProxyWithContext(ctx, request)
-	default:
-		return nil, errors.New("unrecognized invocation event: neither the schedule's event nor a Function URL request")
+	if event.RequestContext.HTTP.Method == "" {
+		return nil, errors.New("unrecognized invocation event: not a Function URL request")
 	}
+	// A Function URL request has the same shape as an API Gateway HTTP API request with payload format 2.0.
+	var request events.APIGatewayV2HTTPRequest
+	if err := json.Unmarshal(raw, &request); err != nil {
+		return nil, fmt.Errorf("decode Function URL request: %v", err)
+	}
+	if !convertible(request) {
+		return rejectUnconvertible(ctx, request), nil
+	}
+	return f.adapter.ProxyWithContext(ctx, request)
 }

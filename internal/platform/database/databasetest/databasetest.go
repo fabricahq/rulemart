@@ -1,5 +1,5 @@
-// Package databasetest opens database.DBs on migrated test databases, as the server's user or as the web
-// function's role. It's apart from postgrestest because the database package's own tests use postgrestest.
+// Package databasetest opens database.DBs on migrated test databases, as the server's user or as a function's role.
+// It's apart from postgrestest because the database package's own tests use postgrestest.
 package databasetest
 
 import (
@@ -28,6 +28,14 @@ func New(t *testing.T) (*database.DB, string) {
 func AsWebRole(t *testing.T, connString string) *database.DB {
 	t.Helper()
 	return open(t, postgrestest.AsWebRole(t, connString), "test-web-database")
+}
+
+// AsWorkerRole returns a DB for the test database at connString that connects as postgrestest.WorkerRole, as the
+// worker function does, so it has only the access migrations grant postgrestest.CatalogWriterRole, its group. It
+// closes the DB when the test ends.
+func AsWorkerRole(t *testing.T, connString string) *database.DB {
+	t.Helper()
+	return open(t, postgrestest.AsWorkerRole(t, connString), "test-worker-database")
 }
 
 // open returns a DB for connString that expects the migrations' schema version, closed when the test ends.

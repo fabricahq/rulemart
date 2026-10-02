@@ -26,7 +26,8 @@ type Repository struct {
 	Description string
 	// OwnerAvatarURL is the owner's avatar on the host's avatar host; empty when unknown.
 	OwnerAvatarURL string
-	// CloneURL is where ingestion fetches the release tags, such as https://github.com/owner/name.git.
+	// CloneURL is where ingestion fetches the release tags, such as https://github.com/owner/name.git. The catalog
+	// stores it, so a check can list the tags again without looking the repository up.
 	CloneURL string
 }
 

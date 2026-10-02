@@ -1,0 +1,86 @@
+name: Build release assets
+# Release Planner's release-assets workflow: it builds web.zip and worker.zip from the release commit with
+# fabricahq/lambda-build, and uploads them with SHA256SUMS and manifest.json as the release-assets artifact, which
+# Release Planner attests and attaches to the release. CI calls it too, so a pull request finds a broken or
+# irreproducible build before a release does. The build doesn't read the release's tag or version, so CI's files for
+# a commit are the release's, byte for byte.
+#
+# It runs lambda-build's own steps rather than calling lambda-build's reusable workflow, because that workflow doesn't
+# output its upload's artifact-id, which Release Planner downloads the files by.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Full SHA of the commit to build.
+        type: string
+        required: true
+      tag:
+        description: The release's tag, such as v0.1.0. The build doesn't use it.
+        type: string
+        required: false
+      version:
+        description: The release's version without the v, such as 0.1.0. The build doesn't use it.
+        type: string
+        required: false
+    outputs:
+      artifact-id:
+        description: ID of the release-assets artifact upload.
+        value: ${{ jobs.build.outputs.artifact-id }}
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Build and package
+    # The Lambdas' own architecture, so the container runs natively.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    env:
+      REF: ${{ inputs.ref }}
+    steps:
+      - name: Require a full commit SHA
+        run: |
+          if [[ ! "$REF" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+            echo "::error::ref must be a full commit SHA, not '$REF', so the build names exactly one commit"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # Keep this commit equal to LAMBDA_BUILD_COMMIT in the Makefile, so make dist builds the same files.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fabricahq/lambda-build
+          ref: 15992fe67ee5af77c338558bcb4a4203c4aaed58
+          path: .lambda-build-tool
+          persist-credentials: false
+      - name: Build the functions (twice, in the pinned container)
+        run: python3 .lambda-build-tool/lambda_build.py build --commit "$REF" --config lambda-build.toml --output "$RUNNER_TEMP/builds"
+      - name: Package each function into a reproducible ZIP
+        run: python3 .lambda-build-tool/lambda_build.py package --builds "$RUNNER_TEMP/builds" --commit "$REF" --config lambda-build.toml --output "$RUNNER_TEMP/release-assets"
+      - name: Check the release files
+        run: python3 .lambda-build-tool/lambda_build.py check --release-dir "$RUNNER_TEMP/release-assets" --commit "$REF" --config lambda-build.toml
+      # Lambda's provided.al2023 runtime on arm64 runs bootstrap directly.
+      - name: Require arm64 Linux executables
+        run: |
+          set -euo pipefail
+          for zip in "$RUNNER_TEMP/release-assets"/*.zip; do
+            unzip -p "$zip" bootstrap > "$RUNNER_TEMP/bootstrap"
+            kind=$(file -b "$RUNNER_TEMP/bootstrap")
+            if [[ "$kind" != "ELF 64-bit LSB executable, ARM aarch64"* ]]; then
+              echo "::error::$(basename "$zip")'s bootstrap isn't an arm64 Linux executable: $kind"
+              exit 1
+            fi
+          done
+      # Release Planner requires one artifact named release-assets with the files at its top level.
+      - id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-assets
+          path: ${{ runner.temp }}/release-assets
+          if-no-files-found: error
+          retention-days: 14

@@ -57,9 +57,54 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 	}
 }
 
-// Migrations grant to the catalog reader role, never to the web role, so infrastructure can replace or rotate the
-// login without a migration.
-func TestMigrationsGrantTheCatalogReaderRoleAndNotTheWebRole(t *testing.T) {
+// The worker connects as the worker role, which may write the catalog's rows, through its membership in the catalog
+// writer role, and nothing else: it can't delete a library, empty a table, change the schema, or read the skeleton's
+// table.
+func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
+	ctx := context.Background()
+	connString := postgrestest.New(t)
+	if _, err := Up(ctx, connString); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, postgrestest.AsWorkerRole(t, connString))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+
+	for name, statement := range map[string]string{
+		"add a library": `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url)
+			VALUES ('github', '1', 'o', 'n', '', '')`,
+		"rename it":           `UPDATE libraries SET name = 'renamed' WHERE host_repository_id = '1'`,
+		"add a release":       `INSERT INTO library_releases (library_id, number, commit_id, tagged_at, updates_shared_files) SELECT id, 1, 'c', now(), false FROM libraries`,
+		"delete a release":    `DELETE FROM library_releases`,
+		"read the schema":     `SELECT count(*) FROM goose_db_version`,
+		"delete stale rules":  `DELETE FROM rules`,
+		"delete stale groups": `DELETE FROM library_groups`,
+		"delete old versions": `DELETE FROM rule_versions`,
+	} {
+		if _, err := conn.Exec(ctx, statement); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, statement := range map[string]string{
+		"delete a library":       `DELETE FROM libraries`,
+		"empty a table":          `TRUNCATE rule_versions`,
+		"change the schema":      `CREATE TABLE intruder (id integer)`,
+		"change the version":     `DELETE FROM goose_db_version`,
+		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
+	} {
+		_, err := conn.Exec(ctx, statement)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "42501" { // insufficient_privilege
+			t.Errorf("%s: got %v, want permission denied", name, err)
+		}
+	}
+}
+
+// Migrations grant to the group roles, never to the login roles, so infrastructure can replace or rotate a login
+// without a migration.
+func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
 	if _, err := Up(ctx, connString); err != nil {
@@ -87,77 +132,120 @@ func TestMigrationsGrantTheCatalogReaderRoleAndNotTheWebRole(t *testing.T) {
 		return got
 	}
 
-	want := []string{
-		"schema public USAGE",
-		"table goose_db_version SELECT",
-		"table libraries SELECT",
-		"table library_groups SELECT",
-		"table library_releases SELECT",
-		"table rule_versions SELECT",
-		"table rules SELECT",
+	for role, want := range map[string][]string{
+		postgrestest.CatalogReaderRole: {
+			"schema public USAGE",
+			"table goose_db_version SELECT",
+			"table libraries SELECT",
+			"table library_groups SELECT",
+			"table library_releases SELECT",
+			"table rule_versions SELECT",
+			"table rules SELECT",
+		},
+		postgrestest.CatalogWriterRole: {
+			"schema public USAGE",
+			"table goose_db_version SELECT",
+			"table libraries INSERT",
+			"table libraries SELECT",
+			"table libraries UPDATE",
+			"table library_groups DELETE",
+			"table library_groups INSERT",
+			"table library_groups SELECT",
+			"table library_groups UPDATE",
+			"table library_releases DELETE",
+			"table library_releases INSERT",
+			"table library_releases SELECT",
+			"table library_releases UPDATE",
+			"table rule_versions DELETE",
+			"table rule_versions INSERT",
+			"table rule_versions SELECT",
+			"table rule_versions UPDATE",
+			"table rules DELETE",
+			"table rules INSERT",
+			"table rules SELECT",
+			"table rules UPDATE",
+		},
+	} {
+		if got := grants(role); !slices.Equal(got, want) {
+			t.Errorf("%s has %q, want %q", role, got, want)
+		}
 	}
-	if got := grants(postgrestest.CatalogReaderRole); !slices.Equal(got, want) {
-		t.Errorf("%s has %q, want %q", postgrestest.CatalogReaderRole, got, want)
-	}
-	if got := grants(postgrestest.WebRole); len(got) > 0 {
-		t.Errorf("%s has its own grants %q; migrations must grant to %s", postgrestest.WebRole, got, postgrestest.CatalogReaderRole)
+	for login, group := range map[string]string{
+		postgrestest.WebRole:    postgrestest.CatalogReaderRole,
+		postgrestest.WorkerRole: postgrestest.CatalogWriterRole,
+	} {
+		if got := grants(login); len(got) > 0 {
+			t.Errorf("%s has its own grants %q; migrations must grant to %s", login, got, group)
+		}
 	}
 }
 
-// Grants can't narrow what a privileged role already holds, so the migration must refuse a catalog reader role that
-// isn't the plain NOLOGIN group role infrastructure creates, rather than give its members a false boundary. Roles span
-// the server, so each case gives the migration its own role instead of changing the one other tests share.
-func TestMigrationsRefuseACatalogReaderRoleThatIsMissingOrPrivileged(t *testing.T) {
+// Grants can't narrow what a privileged role already holds, so each migration that grants a group role must refuse
+// one that isn't the plain NOLOGIN group role infrastructure creates, rather than give its members a false boundary.
+// Roles span the server, so each case gives the migrations its own role instead of changing the one other tests
+// share.
+func TestMigrationsRefuseAGroupRoleThatIsMissingOrPrivileged(t *testing.T) {
 	server := postgrestest.Server(t)
-	for name, tc := range map[string]struct {
-		create []string
-		want   string
+	for _, group := range []struct {
+		role string
+		// before is the version the database is at when the migration that grants role refuses it.
+		before int64
 	}{
-		"missing":          {nil, "does not exist"},
-		"able to log in":   {[]string{"CREATE ROLE %s LOGIN"}, "can log in"},
-		"a superuser":      {[]string{"CREATE ROLE %s NOLOGIN SUPERUSER"}, "is privileged"},
-		"with CREATEROLE":  {[]string{"CREATE ROLE %s NOLOGIN CREATEROLE"}, "is privileged"},
-		"with CREATEDB":    {[]string{"CREATE ROLE %s NOLOGIN CREATEDB"}, "is privileged"},
-		"with BYPASSRLS":   {[]string{"CREATE ROLE %s NOLOGIN BYPASSRLS"}, "is privileged"},
-		"with REPLICATION": {[]string{"CREATE ROLE %s NOLOGIN REPLICATION"}, "is privileged"},
-		"a member of a predefined role": {
-			[]string{"CREATE ROLE %s NOLOGIN", "GRANT pg_read_all_data TO %s"}, "is privileged",
-		},
+		{postgrestest.CatalogReaderRole, 2},
+		{postgrestest.CatalogWriterRole, 4},
 	} {
-		t.Run(name, func(t *testing.T) {
-			ctx := context.Background()
-			role := "rulemart_reader_" + postgrestest.RandomHex(t, 6)
-			// Registered before the database, so it runs after the database, and the grants in it, are dropped.
-			t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
-			for _, statement := range tc.create {
-				postgrestest.Exec(t, server, strings.ReplaceAll(statement, "%s", role))
-			}
-			connString := postgrestest.New(t)
+		t.Run(group.role, func(t *testing.T) {
+			for name, tc := range map[string]struct {
+				create []string
+				want   string
+			}{
+				"missing":          {nil, "does not exist"},
+				"able to log in":   {[]string{"CREATE ROLE %s LOGIN"}, "can log in"},
+				"a superuser":      {[]string{"CREATE ROLE %s NOLOGIN SUPERUSER"}, "is privileged"},
+				"with CREATEROLE":  {[]string{"CREATE ROLE %s NOLOGIN CREATEROLE"}, "is privileged"},
+				"with CREATEDB":    {[]string{"CREATE ROLE %s NOLOGIN CREATEDB"}, "is privileged"},
+				"with BYPASSRLS":   {[]string{"CREATE ROLE %s NOLOGIN BYPASSRLS"}, "is privileged"},
+				"with REPLICATION": {[]string{"CREATE ROLE %s NOLOGIN REPLICATION"}, "is privileged"},
+				"a member of a predefined role": {
+					[]string{"CREATE ROLE %s NOLOGIN", "GRANT pg_read_all_data TO %s"}, "is privileged",
+				},
+			} {
+				t.Run(name, func(t *testing.T) {
+					ctx := context.Background()
+					role := "rulemart_group_" + postgrestest.RandomHex(t, 6)
+					// Registered before the database, so it runs after the database, and the grants in it, are dropped.
+					t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
+					for _, statement := range tc.create {
+						postgrestest.Exec(t, server, strings.ReplaceAll(statement, "%s", role))
+					}
+					connString := postgrestest.New(t)
 
-			result, err := up(ctx, connString, migrationsGrantingTo(t, role))
-			if err == nil || !strings.Contains(err.Error(), role+" "+tc.want) || !strings.Contains(err.Error(), "infrastructure creates it") {
-				t.Fatalf("got %v, want a refusal saying %s %s and that infrastructure creates it", err, role, tc.want)
+					result, err := up(ctx, connString, migrationsGrantingTo(t, group.role, role))
+					if err == nil || !strings.Contains(err.Error(), role+" "+tc.want) || !strings.Contains(err.Error(), "infrastructure creates it") {
+						t.Fatalf("got %v, want a refusal saying %s %s and that infrastructure creates it", err, role, tc.want)
+					}
+					if got := appliedVersions(result); len(got) != int(group.before) || got[len(got)-1] != group.before {
+						t.Errorf("reported %v applied, want 1 through %d, those before the refused migration", got, group.before)
+					}
+					var version int64
+					postgrestest.QueryRow(t, connString, "SELECT max(version_id) FROM goose_db_version", &version)
+					if version != group.before {
+						t.Errorf("the database is at version %d, want %d, before the refused migration", version, group.before)
+					}
+				})
 			}
-			if got := appliedVersions(result); !slices.Equal(got, []int64{1, 2}) {
-				t.Errorf("reported %v applied, want the two before the refused migration", got)
-			}
-			var version int64
-			postgrestest.QueryRow(t, connString, "SELECT max(version_id) FROM goose_db_version", &version)
-			if version != 2 {
-				t.Errorf("the database is at version %d, want 2, before the refused migration", version)
-			}
+
+			// The same migrations accept a plain NOLOGIN role, so the refusals above come from the role's shape.
+			t.Run("a plain NOLOGIN role", func(t *testing.T) {
+				role := "rulemart_group_" + postgrestest.RandomHex(t, 6)
+				t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
+				postgrestest.Exec(t, server, "CREATE ROLE "+role+" NOLOGIN")
+				if _, err := up(context.Background(), postgrestest.New(t), migrationsGrantingTo(t, group.role, role)); err != nil {
+					t.Fatal(err)
+				}
+			})
 		})
 	}
-
-	// The same migrations accept a plain NOLOGIN role, so the refusals above come from the role's shape.
-	t.Run("a plain NOLOGIN role", func(t *testing.T) {
-		role := "rulemart_reader_" + postgrestest.RandomHex(t, 6)
-		t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
-		postgrestest.Exec(t, server, "CREATE ROLE "+role+" NOLOGIN")
-		if _, err := up(context.Background(), postgrestest.New(t), migrationsGrantingTo(t, role)); err != nil {
-			t.Fatal(err)
-		}
-	})
 }
 
 // The migrate command logs what Up reports, which CI keeps: each migration it applied, oldest first, and the
@@ -200,8 +288,8 @@ func appliedVersions(result Result) []int64 {
 	return versions
 }
 
-// migrationsGrantingTo returns the embedded migrations with the catalog reader role's name replaced by role.
-func migrationsGrantingTo(t *testing.T, role string) fs.FS {
+// migrationsGrantingTo returns the embedded migrations with the group role named group replaced by role.
+func migrationsGrantingTo(t *testing.T, group, role string) fs.FS {
 	t.Helper()
 	migrations := fstest.MapFS{}
 	err := fs.WalkDir(db.Migrations, "migrations", func(name string, entry fs.DirEntry, err error) error {
@@ -212,7 +300,7 @@ func migrationsGrantingTo(t *testing.T, role string) fs.FS {
 		if err != nil {
 			return err
 		}
-		replaced := strings.ReplaceAll(string(content), postgrestest.CatalogReaderRole, role)
+		replaced := strings.ReplaceAll(string(content), group, role)
 		migrations[strings.TrimPrefix(name, "migrations/")] = &fstest.MapFile{Data: []byte(replaced)}
 		return nil
 	})

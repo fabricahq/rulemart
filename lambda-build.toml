@@ -1,0 +1,26 @@
+# Lambda build settings for fabricahq/lambda-build, which builds each release's assets: web.zip and worker.zip, plus
+# SHA256SUMS and manifest.json. It builds the committed tree twice in this image, pinned by digest to the Go version
+# in go.mod, and requires identical ZIP bytes. Fabrica's infrastructure repository deploys the ZIPs by these names.
+runtime = "provided.al2023"
+architecture = "arm64"
+image = "golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514"
+# Each function is a static linux/arm64 bootstrap binary. GOTOOLCHAIN=local fails instead of downloading another Go
+# when go.mod moves past the image's version; update both together.
+build = """
+export GOTOOLCHAIN=local GOFLAGS=-mod=readonly CGO_ENABLED=0 GOOS=linux GOARCH=arm64
+for function in web worker; do
+  go build -tags lambda.norpc -trimpath -buildvcs=false -ldflags='-s -w' \
+    -o "build/functions/$function/bootstrap" "./cmd/$function"
+done
+"""
+executable = ["bootstrap"]
+
+[[assets]]
+name = "web"
+directory = "build/functions/web"
+files = ["bootstrap"]
+
+[[assets]]
+name = "worker"
+directory = "build/functions/worker"
+files = ["bootstrap"]

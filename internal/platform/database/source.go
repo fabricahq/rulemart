@@ -18,6 +18,8 @@ type Source struct {
 	parameters ParameterReader
 	// name is the SSM parameter's name, or DATABASE_URL for a fixed connection string; errors name it.
 	name string
+	// fromParameter is true when parameters reads an SSM parameter, and false for DATABASE_URL.
+	fromParameter bool
 }
 
 // SourceFromEnv returns the source that exactly one of two variables names:
@@ -38,7 +40,7 @@ func SourceFromEnv(ctx context.Context, getenv func(string) string) (Source, err
 		if err != nil {
 			return Source{}, fmt.Errorf("load AWS configuration to read DATABASE_URL_PARAMETER: %v", err)
 		}
-		return Source{parameters: ssm.NewFromConfig(cfg), name: parameterName}, nil
+		return Source{parameters: ssm.NewFromConfig(cfg), name: parameterName, fromParameter: true}, nil
 	default:
 		return Source{}, errors.New("set DATABASE_URL, or DATABASE_URL_PARAMETER to read the connection string from SSM")
 	}
@@ -47,6 +49,22 @@ func SourceFromEnv(ctx context.Context, getenv func(string) string) (Source, err
 // Open returns a DB that connects with the source's connection string, as New does.
 func (s Source) Open(schemaVersion int64) *DB {
 	return New(s.parameters, s.name, schemaVersion)
+}
+
+// FromParameter reports whether the source is the SSM parameter DATABASE_URL_PARAMETER names, rather than
+// DATABASE_URL.
+func (s Source) FromParameter() bool {
+	return s.fromParameter
+}
+
+// ConnString reads the source's connection string once, without connecting, for a command that connects by itself,
+// such as one that applies migrations. Errors name the source and never include the connection string.
+func (s Source) ConnString(ctx context.Context) (string, error) {
+	out, err := s.parameters.GetParameter(ctx, &ssm.GetParameterInput{Name: aws.String(s.name), WithDecryption: aws.Bool(true)})
+	if err != nil {
+		return "", fmt.Errorf("read connection string parameter=%q: %v", s.name, err)
+	}
+	return aws.ToString(out.Parameter.Value), nil
 }
 
 // fixedParameter stands in for an SSM parameter whose value is a connection string that never changes.

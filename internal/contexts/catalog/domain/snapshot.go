@@ -10,8 +10,10 @@ import (
 // ReleaseSnapshot is one library release as a source fetched it: its annotated release/<number> tag, the record
 // the tag holds, and the files of the commit it tags.
 type ReleaseSnapshot struct {
-	Number   int
-	Tag      string
+	Number int
+	Tag    string
+	// TagID is the hash of the annotated tag object, which holds the record.
+	TagID    string
 	TaggedAt time.Time
 	// CommitID is the hash of the commit the release tags.
 	CommitID string
@@ -25,7 +27,7 @@ type ReleaseSnapshot struct {
 // adds rather than updates.
 func (s ReleaseSnapshot) release() Release {
 	return Release{
-		Number: s.Number, CommitID: s.CommitID, TaggedAt: s.TaggedAt,
+		Number: s.Number, TagID: s.TagID, CommitID: s.CommitID, TaggedAt: s.TaggedAt,
 		UpdatesSharedFiles: s.Number > 1 && len(s.Record.LibraryFiles) > 0,
 	}
 }

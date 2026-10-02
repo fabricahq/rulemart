@@ -3,12 +3,13 @@
 //	ingest https://github.com/<owner>/<repository>
 //
 // It looks the repository up on GitHub, reads every release/<number> tag, and replaces the catalog's rows for the
-// library in one transaction. Running it again on unchanged tags changes nothing. Operators run it; pages show only
-// the libraries catalog/vetted.yaml lists.
+// library in one transaction. Running it again on unchanged tags changes nothing. Operators run it to backfill a
+// library, vetted or not; the worker function keeps vetted libraries current, and pages show only the libraries
+// catalog/vetted.yaml lists.
 //
-// Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one. GITHUB_TOKEN,
-// when set, authenticates the GitHub lookup. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
-// internal/platform/logging describes.
+// Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, such as the
+// worker's, whose login can write the catalog and nothing else. GITHUB_TOKEN, when set, authenticates the GitHub
+// lookup. LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
 package main
 
 import (

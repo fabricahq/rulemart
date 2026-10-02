@@ -35,7 +35,22 @@ than adding history.
   Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
   databases. Migrations own the grants: they grant the group role what each table needs, never grant to a login,
   and never create roles, so a release can't migrate before infrastructure has, and a login can be replaced or
-  rotated without a migration. Migrations and ingestion connect as the database's owner.
+  rotated without a migration. Migrations connect as the database's owner.
+- **Ingestion connects as `rulemart_worker`, a login that can only write the catalog, through its membership in
+  `rulemart_catalog_writer`.** The split is the web function's: infrastructure creates the NOLOGIN group role, the
+  login, and the membership with SQL, and migrations grant the group exactly what ingestion writes, which never
+  includes deleting a library or changing the schema. The worker function and the operator's `cmd/ingest` both use
+  it, so production ingestion never needs the owner.
+- **The worker keeps vetted libraries current.** The EventBridge schedule invokes the worker function every hour,
+  and it queues one job per vetted library on the SQS jobs queue, which invokes it again for each job. A
+  job lists the library's `release/<number>` tags with go-git, without fetching objects, and ingests only when their
+  numbers and tag object IDs differ from what the catalog stored, so an unchanged library costs one request and no
+  GitHub API call. A failed job writes nothing; SQS retries it, then moves it to the dead-letter queue, whose alarm
+  reports it. Hourly, not every 10 minutes, because each job reads the stored tags from Postgres and wakes Neon's
+  compute: about $3 a month instead of about $12. Faster updates would keep a tag fingerprint outside Postgres.
+- **A job names a library only by its code host and the host's repository ID, and only a vetted one.** It carries no
+  URL: the worker fetches from the clone URL the catalog stored, or the one the host's API returns for that ID, so a
+  queued message can't point it at another repository.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
   rules, with no I/O; `render` for rules' Markdown, which assembly takes as a function so the web function doesn't
@@ -55,12 +70,20 @@ than adding history.
 
 - **One environment until launch**, at `rulemart.fabricahq.com`, with Neon branches for trying migrations on real
   data. `rulemart.ai` redirects there through a Cloudflare rule set up by hand.
-- **Migrations run in CI on each `v*` release tag**, before assets are published (planned). The job assumes an AWS
-  role through GitHub OIDC, reads the pooled connection string from SSM, and derives the direct one. It runs in a
-  `production` environment limited to `v*` tags, which only admins can create.
+- **Releases are published by [Release Planner](https://release-planner.fabricahq.com)**, and merging a release
+  pull request approves one. Nothing else tags or publishes a release.
+- **Migrations are the application's concern, and run after a release is approved and before it's published**, as
+  Release Planner's pre-publish workflow, "Migrate the database". If they fail, nothing is published. They never
+  run at deploy time or from the infrastructure repository. The job runs in a `production` environment that only
+  `main` can use, assumes an AWS role that trusts only that environment through GitHub OIDC, reads the pooled
+  connection string from SSM, and derives the direct one. The environment's variables name the role and parameter,
+  so this public repository names no account details.
+- **Migrations are safe to run again, late, and twice at once**: goose skips applied migrations and takes a Postgres
+  session lock. They work with the release that's still running: expand in one release, contract in a later one.
 - **GitHub repositories are created by hand**, and their rulesets, environments, and Pages are managed in code.
-- **Lambda packaging moves to a public, shared tool** (planned), and a release is pinned for deployment only after
-  a matching rebuild or a verified build attestation.
+- **Lambda packaging uses [lambda-build](https://github.com/fabricahq/lambda-build)**, a public, shared tool, as
+  Release Planner's release-assets workflow. A release is pinned for deployment only after a matching rebuild or a
+  verified build attestation.
 - **Local development and tests use Postgres 18 in Docker.**
 
 ## What Rulemart logs

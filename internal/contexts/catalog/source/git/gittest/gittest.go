@@ -115,6 +115,28 @@ func (l *Library) Tag(name string, commit *object.Commit, message string) {
 	l.tags++
 }
 
+// Retag replaces the annotated tag name with one of the same commit whose message is message, a day after the
+// previous tag, as a library that rewrites a release's tag does.
+func (l *Library) Retag(name, message string) {
+	l.t.Helper()
+	ref, err := l.repo.Tag(name)
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	tag, err := l.repo.TagObject(ref.Hash())
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	commit, err := tag.Commit()
+	if err != nil {
+		l.t.Fatal(err)
+	}
+	if err := l.repo.DeleteTag(name); err != nil {
+		l.t.Fatal(err)
+	}
+	l.Tag(name, commit, message)
+}
+
 // URL returns where git.Fetch fetches the library from: its directory.
 func (l *Library) URL() string { return l.dir }
 
