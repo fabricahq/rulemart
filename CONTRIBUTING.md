@@ -28,7 +28,7 @@ make web
 ```
 
 To try signed-in pages, run `make web-dev` instead of `make web`: it builds the site with the `rulemartdev` tag, whose
-sign-in page offers two test users, `rulemart-tester` and `rulemart-tester-2`, so you can sign in without GitHub.
+sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub.
 Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
 sign in with GitHub itself, create an OAuth app whose callback URL is `http://127.0.0.1/account/github/callback`, and
 run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> make web`. Rulemart's cookies are `Secure`,
