@@ -5,47 +5,42 @@ package web
 import (
 	"bytes"
 	"net/http"
-	"strings"
 )
-
-// staticPrefix starts the path of every static file, which is the same for every visitor and sets no cookie.
-const staticPrefix = "/_static/"
 
 // withPrivateResponses keeps every response that depends on who's asking out of shared caches. A request that
 // carries a session cookie gets a page for its visitor, so its response, whatever it is, can't be cached; nor can a
-// response that sets a cookie, since a cache would hand the cookie to everyone. Static files are the same for
-// everyone and stay cacheable.
+// response that sets a cookie, since a cache would hand the cookie to everyone. Static files, and only responses the
+// static files' route serves, are the same for everyone and stay cacheable: a missing page under /_static/ is a page
+// like any other.
 //
 // It also marks every other response as varying with the Cookie header, so a browser that signs in doesn't show a
 // page it kept from before. CloudFront passes Vary: Cookie through to browsers, and keeps signed-in requests apart by
 // putting the session cookie in its cache key, but never caches their responses either way.
 func withPrivateResponses(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, staticPrefix) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		next.ServeHTTP(&privateWriter{ResponseWriter: w, signedIn: hasCookie(r, sessionCookie)}, r)
+		next.ServeHTTP(&privateWriter{ResponseWriter: w, request: r, signedIn: hasCookie(r, sessionCookie)}, r)
 	})
 }
 
 // privateWriter sets a response's caching as withPrivateResponses describes, just before its header is written.
 type privateWriter struct {
 	http.ResponseWriter
+	// request is the request answered, whose route the mux has recorded by the time the header is written.
+	request *http.Request
 	// signedIn is true when the request carries a session cookie, valid or not.
 	signedIn bool
 	wrote    bool
 }
 
 func (w *privateWriter) WriteHeader(status int) {
-	if !w.wrote {
-		w.wrote = true
+	if !w.wrote && w.request.Pattern != staticPattern {
 		header := w.Header()
 		header.Add("Vary", "Cookie")
 		if w.signedIn || len(header.Values("Set-Cookie")) > 0 {
 			header.Set("Cache-Control", privateCache)
 		}
 	}
+	w.wrote = true
 	w.ResponseWriter.WriteHeader(status)
 }
 

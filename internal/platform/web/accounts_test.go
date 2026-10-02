@@ -534,7 +534,8 @@ func TestOnlyPagesForEveryoneCanBeCached(t *testing.T) {
 	session := &http.Cookie{Name: sessionCookie, Value: string(token)}
 	ended := &http.Cookie{Name: sessionCookie, Value: string(accounts.NewSessionToken())}
 	malformed := &http.Cookie{Name: sessionCookie, Value: "not-a-token"}
-	for _, path := range []string{"/", library, retryRule, "/groups", "/search?q=retry", "/example/missing", "/libraries/"} {
+	// /_static/missing and /_static/v1 aren't static files: the missing page answers them, for its visitor.
+	for _, path := range []string{"/", library, retryRule, "/groups", "/search?q=retry", "/example/missing", "/libraries/", "/_static/missing", "/_static/v1/"} {
 		for name, tc := range map[string]struct {
 			cookie *http.Cookie
 			want   string
