@@ -35,7 +35,7 @@ const (
 type catalog struct {
 	libraries []views.LibraryCard
 	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
-	// page of releases that doesn't start at the latest adds " until=<n>" to its key.
+	// page of releases after the first adds " release=<n>" to its key, once for each release it holds.
 	pages    map[string]views.LibraryPage
 	releases map[string]views.ReleasesPage
 	rules    map[string]views.RulePage
@@ -105,13 +105,15 @@ func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (view
 	return page, c.err
 }
 
-// ReleasesPage finds a page that starts at a release other than the latest under the library's key, then " until=<n>".
-func (c catalog) ReleasesPage(_ context.Context, owner, name string, until int) (views.ReleasesPage, error) {
+// ReleasesPage finds the page that holds a release after the first page's under the library's key, then
+// " release=<n>"; any other release of the library finds the first page, as app.Pages does.
+func (c catalog) ReleasesPage(_ context.Context, owner, name string, release int) (views.ReleasesPage, error) {
 	key := strings.ToLower(owner + "/" + name)
-	if until != 0 {
-		key += fmt.Sprintf(" until=%d", until)
+	page, ok := c.releases[key+fmt.Sprintf(" release=%d", release)]
+	if !ok {
+		page, ok = c.releases[key]
+		ok = ok && release <= page.Library.LatestRelease
 	}
-	page, ok := c.releases[key]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load library history %s/%s: %w", owner, name, app.ErrNotFound)
 	}

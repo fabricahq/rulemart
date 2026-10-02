@@ -41,14 +41,13 @@ WHERE r.library_id = @library_id
 ORDER BY g.path, lower(v.title), r.path;
 
 -- GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
--- current, and the last once retired. A retired rule also has its retirement, and the newest title of the rule that
--- replaced it, when the retirement named one; its html is its last version's body. when_to_read_html is empty unless it was rendered from the reading
--- guidance the version holds now, since a release that didn't render it may have changed it since.
+-- current, and the last once retired, and a retired rule's retirement. Its html is the newest version's body.
+-- when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since a release
+-- that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
        v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries, r.replaced_by, replacement.title AS replacement_title,
-       replacement.retired_in AS replacement_retired_in
+       r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
@@ -61,17 +60,25 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-LEFT JOIN LATERAL (
-    SELECT newest.title, replaced_retired.number AS retired_in
-    FROM rules other
-    JOIN LATERAL (
-        SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-        WHERE v.rule_id = other.id ORDER BY p.number DESC LIMIT 1
-    ) newest ON true
-    LEFT JOIN library_releases replaced_retired ON replaced_retired.id = other.retired_in_release_id
-    WHERE other.library_id = r.library_id AND other.path = r.replaced_by
-) replacement ON true
 WHERE r.library_id = @library_id AND r.path = @path;
+
+-- ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
+-- added it with its first title, and its last title, in path order.
+-- name: ListRuleLinks :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, first.release AS first_release, first.title AS first_title,
+       last.title AS last_title
+FROM rules r
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT p.number AS release, v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number LIMIT 1
+) first ON true
+JOIN LATERAL (
+    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = @library_id
+ORDER BY r.path COLLATE "C";
 
 -- ListVersions returns each version of a rule, newest first, with whether it has its Markdown, which a release that
 -- stored only current versions' content left out, and how many bytes it holds.
@@ -94,19 +101,6 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) last ON true
 WHERE r.library_id = @library_id
-ORDER BY r.path COLLATE "C";
-
--- ListReplacedRules returns the retired rules whose retirement named the rule at path as their replacement, in path
--- order, each with its last version's title.
--- name: ListReplacedRules :many
-SELECT r.path, retired.number AS retired_in, last.title
-FROM rules r
-JOIN library_releases retired ON retired.id = r.retired_in_release_id
-JOIN LATERAL (
-    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
-) last ON true
-WHERE r.library_id = @library_id AND r.replaced_by = @path::text
 ORDER BY r.path COLLATE "C";
 
 -- name: ListReleases :many

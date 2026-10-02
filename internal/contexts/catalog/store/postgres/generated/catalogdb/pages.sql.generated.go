@@ -90,8 +90,7 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 const getRule = `-- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
        v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries, r.replaced_by, replacement.title AS replacement_title,
-       replacement.retired_in AS replacement_retired_in
+       r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
@@ -104,16 +103,6 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-LEFT JOIN LATERAL (
-    SELECT newest.title, replaced_retired.number AS retired_in
-    FROM rules other
-    JOIN LATERAL (
-        SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-        WHERE v.rule_id = other.id ORDER BY p.number DESC LIMIT 1
-    ) newest ON true
-    LEFT JOIN library_releases replaced_retired ON replaced_retired.id = other.retired_in_release_id
-    WHERE other.library_id = r.library_id AND other.path = r.replaced_by
-) replacement ON true
 WHERE r.library_id = $1 AND r.path = $2
 `
 
@@ -123,31 +112,28 @@ type GetRuleParams struct {
 }
 
 type GetRuleRow struct {
-	ID                   int64
-	Path                 string
-	GroupPath            string
-	Title                pgtype.Text
-	Impact               pgtype.Text
-	WhenToRead           pgtype.Text
-	WhenToReadHtml       string
-	Html                 pgtype.Text
-	Major                int32
-	Minor                int32
-	Patch                int32
-	Release              int32
-	PublishedAt          pgtype.Timestamptz
-	RetiredIn            pgtype.Int4
-	RetiredAt            pgtype.Timestamptz
-	RetirementSummaries  []string
-	ReplacedBy           pgtype.Text
-	ReplacementTitle     pgtype.Text
-	ReplacementRetiredIn pgtype.Int4
+	ID                  int64
+	Path                string
+	GroupPath           string
+	Title               pgtype.Text
+	Impact              pgtype.Text
+	WhenToRead          pgtype.Text
+	WhenToReadHtml      string
+	Html                pgtype.Text
+	Major               int32
+	Minor               int32
+	Patch               int32
+	Release             int32
+	PublishedAt         pgtype.Timestamptz
+	RetiredIn           pgtype.Int4
+	RetiredAt           pgtype.Timestamptz
+	RetirementSummaries []string
 }
 
 // GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
-// current, and the last once retired. A retired rule also has its retirement, and the newest title of the rule that
-// replaced it, when the retirement named one; its html is its last version's body. when_to_read_html is empty unless it was rendered from the reading
-// guidance the version holds now, since a release that didn't render it may have changed it since.
+// current, and the last once retired, and a retired rule's retirement. Its html is the newest version's body.
+// when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since a release
+// that didn't render it may have changed it since.
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
 	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow
@@ -168,9 +154,6 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.RetiredIn,
 		&i.RetiredAt,
 		&i.RetirementSummaries,
-		&i.ReplacedBy,
-		&i.ReplacementTitle,
-		&i.ReplacementRetiredIn,
 	)
 	return i, err
 }
@@ -430,51 +413,6 @@ func (q *Queries) ListReleases(ctx context.Context, libraryID int64) ([]ListRele
 	return items, nil
 }
 
-const listReplacedRules = `-- name: ListReplacedRules :many
-SELECT r.path, retired.number AS retired_in, last.title
-FROM rules r
-JOIN library_releases retired ON retired.id = r.retired_in_release_id
-JOIN LATERAL (
-    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
-) last ON true
-WHERE r.library_id = $1 AND r.replaced_by = $2::text
-ORDER BY r.path COLLATE "C"
-`
-
-type ListReplacedRulesParams struct {
-	LibraryID int64
-	Path      string
-}
-
-type ListReplacedRulesRow struct {
-	Path      string
-	RetiredIn int32
-	Title     pgtype.Text
-}
-
-// ListReplacedRules returns the retired rules whose retirement named the rule at path as their replacement, in path
-// order, each with its last version's title.
-func (q *Queries) ListReplacedRules(ctx context.Context, arg ListReplacedRulesParams) ([]ListReplacedRulesRow, error) {
-	rows, err := q.db.Query(ctx, listReplacedRules, arg.LibraryID, arg.Path)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListReplacedRulesRow
-	for rows.Next() {
-		var i ListReplacedRulesRow
-		if err := rows.Scan(&i.Path, &i.RetiredIn, &i.Title); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRetiredRules = `-- name: ListRetiredRules :many
 SELECT r.path, retired.number AS retired_in, r.replaced_by, last.title, last.major, last.minor, last.patch
 FROM rules r
@@ -585,6 +523,61 @@ func (q *Queries) ListRuleHistories(ctx context.Context, libraryID int64) ([]Lis
 			&i.Title,
 			&i.HasMarkdown,
 			&i.MarkdownBytes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleLinks = `-- name: ListRuleLinks :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, first.release AS first_release, first.title AS first_title,
+       last.title AS last_title
+FROM rules r
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT p.number AS release, v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number LIMIT 1
+) first ON true
+JOIN LATERAL (
+    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = $1
+ORDER BY r.path COLLATE "C"
+`
+
+type ListRuleLinksRow struct {
+	Path         string
+	RetiredIn    pgtype.Int4
+	ReplacedBy   pgtype.Text
+	FirstRelease int32
+	FirstTitle   pgtype.Text
+	LastTitle    pgtype.Text
+}
+
+// ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
+// added it with its first title, and its last title, in path order.
+func (q *Queries) ListRuleLinks(ctx context.Context, libraryID int64) ([]ListRuleLinksRow, error) {
+	rows, err := q.db.Query(ctx, listRuleLinks, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleLinksRow
+	for rows.Next() {
+		var i ListRuleLinksRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.RetiredIn,
+			&i.ReplacedBy,
+			&i.FirstRelease,
+			&i.FirstTitle,
+			&i.LastTitle,
 		); err != nil {
 			return nil, err
 		}

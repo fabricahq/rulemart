@@ -30,7 +30,7 @@
   --primary: #1c1c1c; --on-primary: #ffffff; --focus: #333333;
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
   --icon-tile: #ffffff; --icon-ink: none;
-  --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #1a7f37; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #cf222e;
+  --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #116329; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #a40e26;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -40,7 +40,7 @@
   --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
   --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
   --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
-  --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #f85149;
+  --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -51,7 +51,7 @@
     --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
     --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
     --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
-    --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #f85149;
+    --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
     color-scheme: dark;
   }
 }
@@ -166,7 +166,9 @@
   .rule-changes .v { margin-left: 4px; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
   .rule-changes div { font-size: 13px; color: var(--muted); }
   .rule-changes div a { color: var(--ink); }
+  .rule-changes .l { margin-left: 4px; font-size: 12px; color: var(--muted); }
   .rule-changes .n { margin-right: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+  .rule-changes div > a[aria-label] { margin-right: 6px; }
   .rule-versions { width: 100%; margin-top: 8px; border-collapse: collapse; }
   .rule-versions th { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; font-size: 11px; font-weight: 500; letter-spacing: .08em; color: var(--faint); text-transform: uppercase; }
   .rule-versions td { padding: 6px 10px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 12.5px; }
@@ -179,6 +181,10 @@
   .diff ins { background: var(--add-word); text-decoration: none; border-radius: 2px; }
   .diff del { background: var(--del-word); text-decoration: line-through; text-decoration-color: var(--del-ink); border-radius: 2px; }
   .diff-words .b { white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* In the words view, an insertion is underlined, as a deletion is struck through, so neither relies on color, and
+     a deletion and the insertion that replaces it stand apart. */
+  .diff-words ins { text-decoration: underline; text-decoration-color: var(--add-ink); text-underline-offset: 3px; }
+  .diff-words del + ins, .diff-words ins + del { margin-left: .35em; }
   .diff-lines { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
   .diff-lines col.n { width: 3.4em; }
   .diff-lines col.s { width: 1.6em; }
@@ -188,6 +194,10 @@
   .diff-lines td:nth-child(4) { padding-right: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
   .diff-lines tr.i { background: var(--add-line); }
   .diff-lines tr.d { background: var(--del-line); }
+  /* Faint numbers lose contrast on a changed line's tint. */
+  .diff-lines tr.i td:nth-child(-n+3), .diff-lines tr.d td:nth-child(-n+3) { color: var(--muted); }
+  .diff-gap > summary { cursor: pointer; list-style: none; padding: 4px 16px; background: var(--surface); color: var(--faint); font-size: 12.5px; }
+  .diff-gap > summary:hover { color: var(--muted); }
   .diff-lines del { text-decoration: none; }
   .diff-lines tr.h td { padding: 4px 16px; background: var(--surface); color: var(--faint); text-align: left; user-select: auto; }
   @media (width < 45rem) {

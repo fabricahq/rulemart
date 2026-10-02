@@ -111,7 +111,11 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		if err != nil {
 			return err
 		}
-		page = views.LibraryPage{Library: lib}
+		links, err := ruleLinks(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		page = views.LibraryPage{Library: lib, Links: links}
 		for _, r := range retired {
 			page.Retired = append(page.Retired, views.RetiredRuleCard{
 				Path: r.Path, Title: r.Title.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
@@ -213,7 +217,7 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	if err != nil {
 		return views.RulePage{}, nil, err
 	}
-	replaced, err := q.ListReplacedRules(ctx, catalogdb.ListReplacedRulesParams{LibraryID: id, Path: r.Path})
+	links, err := ruleLinks(ctx, q, id)
 	if err != nil {
 		return views.RulePage{}, nil, err
 	}
@@ -222,14 +226,9 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 		WhenToRead: r.WhenToRead.String, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html.String,
 		Version: version(r.Major, r.Minor, r.Patch),
 		Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
-	}}
+	}, Links: links}
 	if r.RetiredIn.Valid {
 		page.Rule.Retirement = &views.Retirement{Release: int(r.RetiredIn.Int32), RetiredAt: r.RetiredAt.Time, Summaries: r.RetirementSummaries}
-		if r.ReplacedBy.Valid {
-			page.Rule.Retirement.ReplacedBy = &views.RuleRef{
-				Path: r.ReplacedBy.String, Title: r.ReplacementTitle.String, RetiredIn: int(r.ReplacementRetiredIn.Int32),
-			}
-		}
 	}
 	stored := make([]storedText, len(versions))
 	for i, v := range versions {
@@ -239,10 +238,23 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 		})
 		stored[i] = storedText{id: v.ID, release: int(v.Release), present: v.HasMarkdown, bytes: int64(v.MarkdownBytes)}
 	}
-	for _, x := range replaced {
-		page.Replaces = append(page.Replaces, views.RuleRef{Path: x.Path, Title: x.Title.String, RetiredIn: int(x.RetiredIn)})
-	}
 	return page, stored, nil
+}
+
+// ruleLinks reads how every rule of the library library was replaced, in path order.
+func ruleLinks(ctx context.Context, q *catalogdb.Queries, library int64) ([]views.RuleLink, error) {
+	rows, err := q.ListRuleLinks(ctx, library)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]views.RuleLink, len(rows))
+	for i, row := range rows {
+		links[i] = views.RuleLink{
+			Path: row.Path, Title: row.LastTitle.String, RetiredIn: int(row.RetiredIn.Int32), ReplacedBy: row.ReplacedBy.String,
+			FirstRelease: int(row.FirstRelease), FirstTitle: row.FirstTitle.String, LastTitle: row.LastTitle.String,
+		}
+	}
+	return links, nil
 }
 
 // LibraryHistory returns the vetted library owner/name, matched as LibraryPage matches it, with its releases and every
@@ -263,11 +275,10 @@ func (s *Store) LibraryHistory(ctx context.Context, vetted []domain.LibraryKey, 
 	return history, nil
 }
 
-// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each rule whose version
-// after release from differs from its version after release to, keyed by the rule's path. It reads the texts in
-// path order, each pair only when both are stored and hold, with the pairs before it, at most maxBytes. A rule added
-// or retired between the releases has no text.
-func (s *Store) ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, from, to int, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error) {
+// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each pair of versions that
+// pick chooses from it, keyed by the pair's key, read from the same snapshot. It reads the pairs in pick's order, each
+// only when both texts are stored and hold, with the pairs before it, at most maxBytes.
+func (s *Store) ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, pick func(views.LibraryHistory) []views.VersionPair, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error) {
 	var history views.LibraryHistory
 	texts := map[string]views.ComparedText{}
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
@@ -277,22 +288,17 @@ func (s *Store) ReleaseComparison(ctx context.Context, vetted []domain.LibraryKe
 		if err != nil {
 			return err
 		}
-		var pairs []textPair
-		var paths []string
-		for i, r := range history.Rules {
-			old, inFrom := r.VersionAt(from)
-			new, inTo := r.VersionAt(to)
-			if inFrom && inTo && old != new {
-				pairs = append(pairs, textPair{old: stored[i][old], new: stored[i][new]})
-				paths = append(paths, r.Path)
-			}
+		picked := pick(history)
+		pairs := make([]textPair, len(picked))
+		for i, p := range picked {
+			pairs[i] = textPair{old: stored[p.OldRule][p.OldVersion], new: stored[p.NewRule][p.NewVersion]}
 		}
 		compared, err := compareTexts(ctx, q, pairs, maxBytes)
 		if err != nil {
 			return err
 		}
-		for i, path := range paths {
-			texts[path] = compared[i]
+		for i, p := range picked {
+			texts[p.Key] = compared[i]
 		}
 		return nil
 	})

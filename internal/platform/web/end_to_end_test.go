@@ -152,7 +152,7 @@ changes: {techs/go/return-errors: {change: minor, from: 1.0.0, summaries: [Name 
 		library + "?tab=releases":                        "Library release 2 changes 1 rule: 1 minor. Minor changes Return errors techs/go/return-errors 1.0.0 → 1.1.0 Name each error.",
 		library + "?tab=releases&from=1&to=2":            "Wrap every each returned error.",
 		library + "?tab=releases&from=1&to=2&view=lines": "<iframe src=x></iframe>",
-		errorsRule + "?tab=versions&from=1.0.0&to=1.1.0": "1.1.0 release/2 2 Sep 2026 Name each error. Between release/1 and release/2.",
+		errorsRule + "?tab=versions&from=1.0.0&to=1.1.0": "1.1.0 release/2 2 Sep 2026 Name each error. Changed text Between release/1 and release/2.",
 	} {
 		t.Run(path, func(t *testing.T) {
 			resp := get(t, handler, path)

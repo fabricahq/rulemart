@@ -82,9 +82,9 @@ type Catalog interface {
 	Libraries(ctx context.Context) ([]views.LibraryCard, error)
 	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
-	// ReleasesPage starts at release until, or at the latest when until is 0, and fails with app.ErrNotFound when
-	// there's no such release either.
-	ReleasesPage(ctx context.Context, owner, name string, until int) (views.ReleasesPage, error)
+	// ReleasesPage returns the page of releases that holds release, or the first page when release is 0, and fails
+	// with app.ErrNotFound when there's no such release either.
+	ReleasesPage(ctx context.Context, owner, name string, release int) (views.ReleasesPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
@@ -282,20 +282,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	case tab == releasesTab && (query.Has("from") || query.Has("to")):
 		s.releaseComparison(w, r, owner, name)
 	case tab == releasesTab:
-		until := 0
-		if query.Has("until") {
-			var err error
-			if until, err = parseReleaseNumber(query.Get("until")); err != nil {
-				s.notFound(w, r)
-				return
-			}
-		}
-		page, err := s.catalog.ReleasesPage(r.Context(), owner, name, until)
-		if !s.found(w, r, page.Library, err) {
-			return
-		}
-		view := newLibraryView(page.Library)
-		s.render(w, r, http.StatusOK, releasesPage(s.pageChrome(view.href), view, newReleasesView(view, page)))
+		s.releases(w, r, owner, name)
 	default:
 		page, err := s.catalog.LibraryPage(r.Context(), owner, name)
 		if !s.found(w, r, page.Library, err) {
@@ -309,6 +296,47 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// releases shows the page of the library's releases that holds the release the release parameter numbers, or the
+// first page. The first page has one address, so asked for a release on it, it redirects there, and the browser keeps
+// the link's fragment, which leads to the release's card.
+func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name string) {
+	release := 0
+	if text := r.URL.Query().Get("release"); r.URL.Query().Has("release") {
+		var err error
+		if release, err = parseReleaseNumber(text); err != nil {
+			s.releasesNotFound(w, r, owner, name)
+			return
+		}
+	}
+	page, err := s.catalog.ReleasesPage(r.Context(), owner, name, release)
+	if release != 0 && errors.Is(err, app.ErrNotFound) {
+		s.releasesNotFound(w, r, owner, name)
+		return
+	}
+	if !s.found(w, r, page.Library, err) {
+		return
+	}
+	view := newLibraryView(page.Library)
+	if release != 0 && page.Newer == 0 {
+		w.Header().Set("Cache-Control", pageCache)
+		http.Redirect(w, r, releasesHref(view), http.StatusFound)
+		return
+	}
+	s.render(w, r, http.StatusOK, releasesPage(s.pageChrome(view.href), view, newReleasesView(view, page)))
+}
+
+// releasesNotFound answers a link to releases the library doesn't have, or can't compare, with its Library releases
+// tab saying so, or the site's missing page when there's no such library.
+func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner, name string) {
+	page, err := s.catalog.ReleasesPage(r.Context(), owner, name, 0)
+	if !s.found(w, r, page.Library, err) {
+		return
+	}
+	view := newLibraryView(page.Library)
+	s.render(w, r, http.StatusNotFound, releasesNotFoundPage(s.chrome, view, newReleasesView(view, page),
+		"This library has no such release to show or compare."))
+}
+
 // releaseComparison compares the library's releases that the from and to parameters number. Comparisons name no
 // canonical address and ask search engines not to index them, since every pair would be a page of its own.
 func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner, name string) {
@@ -316,15 +344,32 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 	from, fromErr := parseReleaseNumber(query.Get("from"))
 	to, toErr := parseReleaseNumber(query.Get("to"))
 	if fromErr != nil || toErr != nil {
-		s.notFound(w, r)
+		s.releasesNotFound(w, r, owner, name)
 		return
 	}
 	comparison, err := s.catalog.ReleaseComparison(r.Context(), owner, name, from, to)
+	if errors.Is(err, app.ErrNotFound) {
+		s.releasesNotFound(w, r, owner, name)
+		return
+	}
 	if !s.found(w, r, comparison.Library, err) {
 		return
 	}
 	view := newLibraryView(comparison.Library)
 	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
+}
+
+// ruleComparisonNotFound answers a link to versions the rule doesn't have with its Versions tab saying so, or the
+// site's missing page when there's no such rule.
+func (s *server) ruleComparisonNotFound(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
+	if !s.found(w, r, page.Library, err) {
+		return
+	}
+	view := newRuleView(newLibraryView(page.Library), page)
+	from, to := versionPicker(page.Versions)
+	s.render(w, r, http.StatusNotFound, ruleComparisonNotFoundPage(s.chrome, view, from, to,
+		"This rule has no such version to compare."))
 }
 
 // parseReleaseNumber reads a release's number as its tag names it, such as 4, without a sign or leading zeros.
@@ -363,10 +408,14 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 	from, fromErr := coderules.ParseRuleVersion(query.Get("from"), "from")
 	to, toErr := coderules.ParseRuleVersion(query.Get("to"), "to")
 	if fromErr != nil || toErr != nil {
-		s.notFound(w, r)
+		s.ruleComparisonNotFound(w, r)
 		return
 	}
 	comparison, err := s.catalog.RuleComparison(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"), from, to)
+	if errors.Is(err, app.ErrNotFound) {
+		s.ruleComparisonNotFound(w, r)
+		return
+	}
 	if !s.found(w, r, comparison.Page.Library, err) {
 		return
 	}

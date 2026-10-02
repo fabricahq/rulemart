@@ -22,17 +22,49 @@ type histories struct {
 	store.Reader
 	history views.LibraryHistory
 	texts   map[string]views.ComparedText
-	// compared records each comparison of releases asked for, as "from...to", and each rule comparison's versions.
+	// links are what RulePage and LibraryPage read of how the library's rules were replaced.
+	links []views.RuleLink
+	// compared records the keys of the pairs each comparison of releases picked, and each rule comparison's versions.
 	compared []string
 	maxBytes []int64
+}
+
+func (h *histories) RulePage(_ context.Context, _ []domain.LibraryKey, _, _, path string) (views.RulePage, error) {
+	for _, r := range h.history.Rules {
+		if r.Path != path {
+			continue
+		}
+		page := views.RulePage{Rule: views.Rule{Path: path, Group: "practices/testing"}, Links: h.links}
+		if r.RetiredIn != 0 {
+			page.Rule.Retirement = &views.Retirement{Release: r.RetiredIn}
+		}
+		return page, nil
+	}
+	return views.RulePage{}, app.ErrNotFound
+}
+
+func (h *histories) LibraryPage(context.Context, []domain.LibraryKey, string, string) (views.LibraryPage, error) {
+	page := views.LibraryPage{Links: h.links}
+	for _, r := range h.history.Rules {
+		if r.RetiredIn != 0 {
+			page.Retired = append(page.Retired, views.RetiredRuleCard{Path: r.Path, ReplacedBy: r.ReplacedBy})
+		}
+	}
+	return page, nil
 }
 
 func (h *histories) LibraryHistory(context.Context, []domain.LibraryKey, string, string) (views.LibraryHistory, error) {
 	return h.history, nil
 }
 
-func (h *histories) ReleaseComparison(_ context.Context, _ []domain.LibraryKey, _, _ string, from, to int, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error) {
-	h.compared, h.maxBytes = append(h.compared, fmt.Sprintf("%d...%d", from, to)), append(h.maxBytes, maxBytes)
+func (h *histories) ReleaseComparison(_ context.Context, _ []domain.LibraryKey, _, _ string, pick func(views.LibraryHistory) []views.VersionPair, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error) {
+	var keys []string
+	for _, p := range pick(h.history) {
+		r := h.history.Rules
+		keys = append(keys, fmt.Sprintf("%s %s %s...%s %s", p.Key, r[p.OldRule].Path, r[p.OldRule].Versions[p.OldVersion].Version,
+			r[p.NewRule].Path, r[p.NewRule].Versions[p.NewVersion].Version))
+	}
+	h.compared, h.maxBytes = append(h.compared, strings.Join(keys, "; ")), append(h.maxBytes, maxBytes)
 	return h.history, h.texts, nil
 }
 
@@ -106,9 +138,12 @@ func describeChanges(changes []views.RuleChange) []string {
 		line := fmt.Sprintf("%s %q %s %s->%s [%s]", c.Rule.Path, c.Rule.Title, c.Change, c.From, c.To, strings.Join(versions, " "))
 		if c.Change == coderules.ChangeRetired {
 			line += fmt.Sprintf(" %v", c.RetirementSummaries)
-			if c.ReplacedBy != nil {
-				line += fmt.Sprintf(" by %s %q", c.ReplacedBy.Path, c.ReplacedBy.Title)
+			for _, r := range c.Replacements {
+				line += fmt.Sprintf(" by %s %q", r.Path, r.Title)
 			}
+		}
+		if c.RenamedFrom != nil {
+			line += fmt.Sprintf(" from %s %q", c.RenamedFrom.Path, c.RenamedFrom.Title)
 		}
 		result = append(result, line)
 	}
@@ -180,23 +215,25 @@ func manyReleases(releases, rules int) views.LibraryHistory {
 }
 
 // A page shows whole releases, newest first, while their changes and versions fit app.MaxReleaseRows, and at least
-// one, and says where the older ones start; a later page starts at the release it's asked for.
+// one, and says where the older and newer pages start. Asked for a release, it returns the page that holds it, so a
+// link to a release keeps the newer releases on its page.
 func TestReleasesPageShowsAsManyReleasesAsFitAPage(t *testing.T) {
 	// Each release lists 390 rules' versions and counts as 10 rows more, so five fit a page; release 1 also lists them
 	// as new rules.
 	pages := app.Pages{Store: &histories{history: manyReleases(12, 390)}}
 	ctx := context.Background()
 	for name, tc := range map[string]struct {
-		until, older int
-		want         []int
+		release, older, newer int
+		want                  []int
 	}{
-		"the newest":                 {0, 7, []int{12, 11, 10, 9, 8}},
-		"a page from release 7":      {7, 2, []int{7, 6, 5, 4, 3}},
-		"the oldest, larger than it": {2, 0, []int{2, 1}},
-		"the first alone":            {1, 0, []int{1}},
+		"the first page":                 {0, 7, 0, []int{12, 11, 10, 9, 8}},
+		"a release on the first page":    {9, 7, 0, []int{12, 11, 10, 9, 8}},
+		"the release a page starts with": {7, 2, 12, []int{7, 6, 5, 4, 3}},
+		"a release inside a later page":  {4, 2, 12, []int{7, 6, 5, 4, 3}},
+		"release 1, on the shorter last": {1, 0, 7, []int{2, 1}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			page, err := pages.ReleasesPage(ctx, "example", "rules", tc.until)
+			page, err := pages.ReleasesPage(ctx, "example", "rules", tc.release)
 
 			if err != nil {
 				t.Fatal(err)
@@ -205,8 +242,8 @@ func TestReleasesPageShowsAsManyReleasesAsFitAPage(t *testing.T) {
 			for _, r := range page.Releases {
 				numbers = append(numbers, r.Release.Number)
 			}
-			if !slices.Equal(numbers, tc.want) || page.Older != tc.older {
-				t.Fatalf("got %v, older from %d; want %v, older from %d", numbers, page.Older, tc.want, tc.older)
+			if !slices.Equal(numbers, tc.want) || page.Older != tc.older || page.Newer != tc.newer {
+				t.Fatalf("got %v, older from %d, newer from %d; want %v, %d, %d", numbers, page.Older, page.Newer, tc.want, tc.older, tc.newer)
 			}
 		})
 	}
@@ -259,6 +296,10 @@ func TestReleaseComparisonSpansTheReleasesBetween(t *testing.T) {
 	if text := comparison.Changes[3].Text; text.Old != "old" || text.New != "new" {
 		t.Errorf("return-errors text is %+v", text)
 	}
+	if want := []string{"practices/testing/verify-retry-limits practices/testing/verify-retry-limits 1.0.0...practices/testing/verify-retry-limits 2.0.0; " +
+		"techs/go/return-errors techs/go/return-errors 1.0.0...techs/go/return-errors 1.1.0"}; !slices.Equal(h.compared, want) {
+		t.Errorf("read the text of %q, want %q", h.compared, want)
+	}
 	if comparison.From != 1 || comparison.To != 4 || len(comparison.Releases) != 4 || !slices.Equal(h.maxBytes, []int64{app.MaxComparedBytes}) {
 		t.Errorf("compared %d...%d of %d releases, reading at most %v bytes", comparison.From, comparison.To, len(comparison.Releases), h.maxBytes)
 	}
@@ -280,8 +321,8 @@ func TestReleaseComparisonPutsTheOlderReleaseFirst(t *testing.T) {
 
 			comparison, err := app.Pages{Store: h}.ReleaseComparison(context.Background(), "example", "rules", tc.from, tc.to)
 
-			if err != nil || !slices.Equal(h.compared, []string{tc.want}) || len(comparison.Changes) != tc.changes {
-				t.Fatalf("compared %v with %d changes, %v; want %s with %d", h.compared, len(comparison.Changes), err, tc.want, tc.changes)
+			if got := fmt.Sprintf("%d...%d", comparison.From, comparison.To); err != nil || got != tc.want || len(comparison.Changes) != tc.changes {
+				t.Fatalf("compared %s with %d changes, %v; want %s with %d", got, len(comparison.Changes), err, tc.want, tc.changes)
 			}
 		})
 	}

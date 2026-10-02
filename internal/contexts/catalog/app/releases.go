@@ -5,7 +5,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
@@ -25,55 +24,73 @@ const MaxReleaseRows = 2000
 // so a page of releases that list few rules or none is bounded too.
 const releaseRows = 10
 
-// ReleasesPage returns the vetted library owner/name, matched without regard to case, with its releases from release
-// until back, newest first, each with what it changed since the release before it: whole releases while their rows
-// fit MaxReleaseRows, each counting releaseRows more, and at least one. until 0 starts at the latest release. It fails with ErrNotFound when there's no
-// such library or release.
-func (p Pages) ReleasesPage(ctx context.Context, owner, name string, until int) (views.ReleasesPage, error) {
+// ReleasesPage returns the vetted library owner/name, matched without regard to case, with the page of its releases
+// that holds release, or the first page when release is 0. Pages list releases newest first, each with what it
+// changed since the release before it: whole releases while their rows fit MaxReleaseRows, each counting releaseRows
+// more, and at least one, the first page starting at the latest release and each later one where the one before it
+// ends. It fails with ErrNotFound when there's no such library or release.
+func (p Pages) ReleasesPage(ctx context.Context, owner, name string, release int) (views.ReleasesPage, error) {
 	history, err := p.Store.LibraryHistory(ctx, p.Vetted, owner, name)
 	if err != nil {
 		return views.ReleasesPage{}, err
 	}
-	if until == 0 {
-		until = len(history.Releases)
+	latest := len(history.Releases)
+	if release == 0 {
+		release = latest
 	}
-	if until < 1 || until > len(history.Releases) {
-		return views.ReleasesPage{}, fmt.Errorf("load releases of library %s/%s: release/%d: %w", owner, name, until, ErrNotFound)
+	if release < 1 || release > latest {
+		return views.ReleasesPage{}, fmt.Errorf("load releases of library %s/%s: release/%d: %w", owner, name, release, ErrNotFound)
 	}
 	page := views.ReleasesPage{Library: history.Library, AllReleases: history.Releases}
+	for start := latest; ; {
+		page.Releases, page.Older = releasesFrom(history, start)
+		if page.Older < release {
+			return page, nil
+		}
+		page.Newer, start = start, page.Older
+	}
+}
+
+// releasesFrom returns the page of history's releases that starts with release start, and the release the next page
+// starts with, or 0 when the page ends with release 1.
+func releasesFrom(history views.LibraryHistory, start int) (releases []views.ReleaseNotes, older int) {
 	rows := 0
-	for n := until; n >= 1; n-- {
+	for n := start; n >= 1; n-- {
 		notes := views.ReleaseNotes{
 			Release:  history.Releases[n-1],
 			Changes:  changes(history, n-1, n, nil),
 			Versions: versionsAt(history, n),
 		}
 		rows += releaseRows + len(notes.Changes) + len(notes.Versions)
-		if len(page.Releases) > 0 && rows > MaxReleaseRows {
-			page.Older = n
-			break
+		if len(releases) > 0 && rows > MaxReleaseRows {
+			return releases, n
 		}
-		page.Releases = append(page.Releases, notes)
+		releases = append(releases, notes)
 	}
-	return page, nil
+	return releases, 0
 }
 
 // ReleaseComparison returns what changed in the vetted library owner/name between releases from and to, the older
-// first whichever way round they're given, with the text of each changed rule within MaxComparedBytes. It fails with
-// ErrNotFound when there's no such library or release.
+// first whichever way round they're given, with the text of each changed or renamed rule within MaxComparedBytes. It
+// fails with ErrNotFound when there's no such library or release.
 func (p Pages) ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error) {
 	from, to = min(from, to), max(from, to)
-	history, texts, err := p.Store.ReleaseComparison(ctx, p.Vetted, owner, name, from, to, MaxComparedBytes)
+	pick := func(history views.LibraryHistory) []views.VersionPair { return comparedPairs(history, from, to) }
+	history, texts, err := p.Store.ReleaseComparison(ctx, p.Vetted, owner, name, pick, MaxComparedBytes)
 	if err != nil {
 		return views.ReleaseComparison{}, err
 	}
 	if from < 1 || to > len(history.Releases) {
 		return views.ReleaseComparison{}, fmt.Errorf("compare releases of library %s/%s: release/%d...release/%d: %w", owner, name, from, to, ErrNotFound)
 	}
-	return views.ReleaseComparison{
+	comparison := views.ReleaseComparison{
 		Library: history.Library, Releases: history.Releases, From: from, To: to,
 		Changes: changes(history, from, to, texts),
-	}, nil
+	}
+	for _, r := range history.Releases[from:to] {
+		comparison.SharedFiles = comparison.SharedFiles || r.UpdatesSharedFiles
+	}
+	return comparison, nil
 }
 
 // RuleComparison returns the rule at rulePath in the vetted library owner/name with the text of its versions from and
@@ -92,10 +109,21 @@ func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string,
 }
 
 // changes returns how each rule of history changed between releases from and to, in path order, each named by the
-// title it had after release to, or a retired rule by its last, with the text of each changed rule that texts holds. Release 0 is the library before its first release, which holds no rules.
+// title it had after release to, or a retired rule by its last, with the text of each changed or renamed rule that
+// texts holds. A rule renamed between them shows once, as a ChangeRenamed of its new ID. Release 0 is the library
+// before its first release, which holds no rules.
 func changes(history views.LibraryHistory, from, to int, texts map[string]views.ComparedText) []views.RuleChange {
+	links := historyLinks(history)
+	renames := renamesBetween(history, links, from, to)
+	renamedOld := map[int]bool{}
+	for _, old := range renames {
+		renamedOld[old] = true
+	}
 	var result []views.RuleChange
-	for _, r := range history.Rules {
+	for i, r := range history.Rules {
+		if renamedOld[i] {
+			continue
+		}
 		old, inFrom := r.VersionAt(from)
 		new, inTo := r.VersionAt(to)
 		change := views.RuleChange{Rule: views.RuleRef{Path: r.Path, RetiredIn: r.RetiredIn}, Text: texts[r.Path]}
@@ -105,11 +133,17 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		case !inTo:
 			change.Rule.Title = titleAt(r, old)
 			change.Change, change.From = coderules.ChangeRetired, r.Versions[old].Version
-			change.RetirementSummaries, change.ReplacedBy = r.RetirementSummaries, ruleRef(history, r.ReplacedBy)
+			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, links.replacements(r.Path, to)
 			result = append(result, change)
 			continue
 		case !inFrom:
 			change.Change, old = coderules.ChangeNew, -1
+			if o, ok := renames[i]; ok {
+				before := history.Rules[o]
+				last := len(before.Versions) - 1
+				change.Change, change.From = views.ChangeRenamed, before.Versions[last].Version
+				change.RenamedFrom = &views.RuleRef{Path: before.Path, Title: titleAt(before, last), RetiredIn: before.RetiredIn}
+			}
 		}
 		change.Rule.Title, change.To = titleAt(r, new), r.Versions[new].Version
 		if old >= 0 {
@@ -117,13 +151,58 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		}
 		for i := new; i > old; i-- {
 			change.Versions = append(change.Versions, r.Versions[i])
-			if change.Change != coderules.ChangeNew {
+			if change.Change != coderules.ChangeNew && change.Change != views.ChangeRenamed {
 				change.Change = coderules.LargerChange(change.Change, r.Versions[i].Change)
 			}
 		}
 		result = append(result, change)
 	}
 	return result
+}
+
+// renamesBetween returns the rules of history renamed between releases from and to: by the index of the new rule, the
+// index of the old one, which a release after from retired and replaced by the new one, which that release added
+// under the old one's title, and which is still current after to.
+func renamesBetween(history views.LibraryHistory, links ruleLinks, from, to int) map[int]int {
+	index := make(map[string]int, len(history.Rules))
+	for i, r := range history.Rules {
+		index[r.Path] = i
+	}
+	renames := map[int]int{}
+	for i, r := range history.Rules {
+		_, inFrom := r.VersionAt(from)
+		_, inTo := r.VersionAt(to)
+		if !inFrom || inTo || !links.renamed(r.Path) {
+			continue
+		}
+		n, ok := index[r.ReplacedBy]
+		if !ok {
+			continue
+		}
+		if _, inTo := history.Rules[n].VersionAt(to); inTo {
+			renames[n] = i
+		}
+	}
+	return renames
+}
+
+// comparedPairs returns the pairs of versions whose text a comparison of releases from and to shows, in path order:
+// each changed rule's versions after each release, keyed by its path, and each renamed rule's last version before the
+// rename with the new rule's after to, keyed by the new rule's path.
+func comparedPairs(history views.LibraryHistory, from, to int) []views.VersionPair {
+	renames := renamesBetween(history, historyLinks(history), from, to)
+	var pairs []views.VersionPair
+	for i, r := range history.Rules {
+		old, inFrom := r.VersionAt(from)
+		new, inTo := r.VersionAt(to)
+		switch o, renamed := renames[i]; {
+		case renamed:
+			pairs = append(pairs, views.VersionPair{Key: r.Path, OldRule: o, OldVersion: len(history.Rules[o].Versions) - 1, NewRule: i, NewVersion: new})
+		case inFrom && inTo && old != new:
+			pairs = append(pairs, views.VersionPair{Key: r.Path, OldRule: i, OldVersion: old, NewRule: i, NewVersion: new})
+		}
+	}
+	return pairs
 }
 
 // titleAt returns the title rule r had at its version i, or its newest title when the catalog doesn't have that
@@ -144,14 +223,4 @@ func versionsAt(history views.LibraryHistory, n int) []views.RuleVersionRef {
 		}
 	}
 	return result
-}
-
-// ruleRef returns the rule of history at path, or nil when path is empty or names no rule of it.
-func ruleRef(history views.LibraryHistory, path string) *views.RuleRef {
-	i := slices.IndexFunc(history.Rules, func(r views.RuleHistory) bool { return r.Path == path })
-	if path == "" || i < 0 {
-		return nil
-	}
-	r := history.Rules[i]
-	return &views.RuleRef{Path: r.Path, Title: r.Title, RetiredIn: r.RetiredIn}
 }

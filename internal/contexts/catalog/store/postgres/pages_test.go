@@ -236,7 +236,7 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			return err
 		},
 		"an unvetted library's releases to compare": func() error {
-			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", 1, 3, 1<<20)
+			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", pickChanged(1, 3), 1<<20)
 			return err
 		},
 		"a version the rule doesn't have": func() error {
