@@ -183,6 +183,33 @@ func newRuleLinks(lib libraryView, refs []views.RuleRef) []ruleLink {
 	return links
 }
 
+// chainStep is one rule in a chain of replacements, with the words before it and after it, which pages show on one
+// line so no space comes before the period.
+type chainStep struct {
+	prefix, suffix string
+	link           ruleLink
+	// id is the rule's ID, shown beside its title for a rename, whose title is the same, and empty otherwise.
+	id string
+}
+
+// chainSteps words a chain of replacements: "Replaced by A, itself replaced by B.", or "Renamed to A." for a rename.
+func chainSteps(links []ruleLink, renamed bool) []chainStep {
+	steps := make([]chainStep, len(links))
+	for i, link := range links {
+		steps[i] = chainStep{prefix: ", itself replaced by ", link: link}
+		if i == 0 {
+			steps[i].prefix = "Replaced by "
+			if renamed {
+				steps[i].prefix, steps[i].id = "Renamed to ", link.id
+			}
+		}
+	}
+	if n := len(steps); n > 0 {
+		steps[n-1].suffix = "."
+	}
+	return steps
+}
+
 // titleOrID returns a rule's title, or its ID when the catalog doesn't have its title yet.
 func titleOrID(title, id string) string {
 	if title == "" {

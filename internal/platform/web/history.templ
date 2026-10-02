@@ -161,17 +161,9 @@ templ changeItemView(item changeItem) {
 // replacementChain names a retired rule's replacement, then the rule that replaced that one, and so on, or with
 // renamed, the rule's new ID.
 templ replacementChain(links []ruleLink, renamed bool) {
-	for i, link := range links {
-		switch {
-			case i == 0 && renamed:
-				Renamed to <a href={ templ.SafeURL(link.href) }>{ link.title }</a> <span class="font-mono text-[12px] text-faint [overflow-wrap:anywhere]">{ link.id }</span>
-			case i == 0:
-				Replaced by <a href={ templ.SafeURL(link.href) }>{ link.title }</a>
-			default:
-				, itself replaced by <a href={ templ.SafeURL(link.href) }>{ link.title }</a>
-		}
+	for _, step := range chainSteps(links, renamed) {
+		{ step.prefix }<a href={ templ.SafeURL(step.link.href) }>{ step.link.title }</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">{ step.id }</span>{ step.suffix }
 	}
-	{ "." }
 }
 
 // compareForm chooses two versions, or two releases, to compare, and submits them to action with the tab named

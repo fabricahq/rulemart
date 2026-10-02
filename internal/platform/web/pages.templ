@@ -494,7 +494,7 @@ templ versionList(r ruleView) {
 						</div>
 					</div>
 					<div class="grid grid-cols-[10.5rem_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
-						<span class="justify-self-end">
+						<span class="justify-self-end max-narrow:empty:hidden">
 							if v.compareHref != "" {
 								@smallButton(v.compareHref) {
 									Compare with { v.previous }

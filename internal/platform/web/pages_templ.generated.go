@@ -2618,7 +2618,7 @@ func versionList(r ruleView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 166, "</div></div><div class=\"grid grid-cols-[10.5rem_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap\"><span class=\"justify-self-end\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 166, "</div></div><div class=\"grid grid-cols-[10.5rem_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap\"><span class=\"justify-self-end max-narrow:empty:hidden\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
