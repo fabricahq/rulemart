@@ -108,9 +108,10 @@ decision.
 
 ### Icons
 
-- **Decided (Josh): Zustand's tile shows the one-color bear**, the vector cicero-mello contributed in
-  pmndrs/zustand#1623, vendored as `community/zustand.svg` and drawn like the Lucide icons: ink on light themes,
-  inverted on dark ones, on the usual tile. Devicon's Zustand logo, a photo-like vectorization of 235 paths, didn't
+- **Decided (Josh): Zustand's tile shows the bear in two tones**, the line art cicero-mello contributed in
+  pmndrs/zustand#1623, in dark brown over a light brown silhouette Rulemart traced from it, vendored as
+  `community/zustand.svg`. It is a colored logo on the usual tile in both themes, as React's is, rather than the
+  one-color line art inverted on dark themes. Devicon's Zustand logo, a photo-like vectorization of 235 paths, didn't
   read at a tile's size and needed a white tile in dark themes. The lightTile option stays for any later icon that
   needs it. Rulemart replaces the bear if the project publishes an official vector.
 

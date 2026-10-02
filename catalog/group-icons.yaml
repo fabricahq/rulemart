@@ -180,4 +180,3 @@ techs/zig:
   file: devicon/zig-original.svg
 techs/zustand:
   file: community/zustand.svg
-  monochrome: true
