@@ -242,7 +242,7 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 					@notCanonical(flagSM)
 				}
 				if r.acrossHref != "" {
-					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in all libraries ›</a>
+					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in all libraries ›</a>
 				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">
