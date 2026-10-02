@@ -13,7 +13,8 @@
 // exits, failing when a job failed.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
-// GITHUB_TOKEN, when set, authenticates GitHub lookups. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
+// GITHUB_TOKEN, or GITHUB_TOKEN_PARAMETER naming the SSM parameter that holds it, authenticates GitHub lookups when
+// set. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
 // internal/platform/logging describes.
 package main
 
@@ -48,6 +49,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
+	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
 func main() {
@@ -127,8 +129,12 @@ func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVer
 	if err != nil {
 		return nil, err
 	}
+	token, err := secret.FromEnv(ctx, os.Getenv, "GITHUB_TOKEN")
+	if err != nil {
+		return nil, err
+	}
 	ingester := app.Ingester{
-		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: os.Getenv("GITHUB_TOKEN")},
+		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: token},
 		Fetch:        git.Fetch,
 		List:         git.ListReleaseTags,
 		Render:       render.Rule,
