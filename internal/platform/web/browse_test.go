@@ -77,9 +77,7 @@ func links(t *testing.T, body, text string) []string {
 func nodeText(n *html.Node) string {
 	var text strings.Builder
 	for d := range n.Descendants() {
-		if d.Type == html.TextNode {
-			text.WriteString(d.Data + " ")
-		}
+		writeText(&text, d)
 	}
 	return strings.Join(strings.Fields(text.String()), " ")
 }

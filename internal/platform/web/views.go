@@ -3,12 +3,15 @@
 package web
 
 import (
+	"context"
+	"io"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/a-h/templ"
 	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -284,3 +287,36 @@ func plainText(text, rendered string) string {
 
 // inlineElements are the elements Markdown renders within a line of text, which separate no words.
 var inlineElements = map[string]bool{"a": true, "code": true, "em": true, "strong": true, "del": true, "img": true, "span": true}
+
+// breakable shows text, such as an ID or a file name, letting a line break after each /, :, -, _, or . in it, so it
+// wraps at its parts rather than anywhere. It writes the parts escaped, with a <wbr> between each, and no space, which
+// a templ template would add between them.
+func breakable(text string) templ.Component {
+	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+		for i, part := range breakParts(text) {
+			if i > 0 {
+				if _, err := io.WriteString(w, "<wbr>"); err != nil {
+					return err
+				}
+			}
+			if _, err := io.WriteString(w, templ.EscapeString(part)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// breakParts splits text after each /, :, -, _, and ., where a line may break inside an ID or a file name. Joined,
+// the parts are text.
+func breakParts(text string) []string {
+	var parts []string
+	for len(text) > 0 {
+		i := strings.IndexAny(text, "/:-_.")
+		if i < 0 || i == len(text)-1 {
+			break
+		}
+		parts, text = append(parts, text[:i+1]), text[i+1:]
+	}
+	return append(parts, text)
+}

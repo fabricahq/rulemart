@@ -271,29 +271,14 @@ templ ruleContent(r ruleView) {
 			@templ.Raw(r.html)
 		</div>
 		<aside class="grid content-start gap-[18px]">
-			<div class="overflow-hidden rounded-panel border border-border bg-surface">
-				<div class="flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3">
-					@label("") {
-						About
-					}
-				</div>
-				<div class="grid gap-[14px] px-[18px] py-4">
-					<a class="group flex items-center gap-2.5 text-ink no-underline" href={ templ.SafeURL(r.library.href) }>
-						@avatar(r.library.avatar, r.library.owner, avatarMD)
-						<span class="grid min-w-0 gap-px">
-							<span class="text-[14px] font-medium group-hover:underline group-hover:underline-offset-3">{ r.library.name }</span>
-							<span class="text-[12px] text-faint">Published by { r.library.owner }</span>
+			@aboutPanel() {
+				@fact("Library") {
+					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
+						@avatar(r.library.avatar, r.library.owner, avatarXS)
+						<span class="min-w-0">
+							@breakable(r.library.owner + "/" + r.library.name)
 						</span>
 					</a>
-					<div class="flex justify-between border-t border-border pt-3 text-[13px]">
-						<span class="text-muted">Updated</span>
-						<span>{ r.updated }</span>
-					</div>
-				</div>
-			</div>
-			@facts() {
-				@fact("Owner") {
-					<a href={ templ.SafeURL(r.library.ownerURL) }>{ r.library.owner }</a>
 				}
 				@fact("Repository") {
 					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.owner+"/"+r.library.name)
@@ -303,6 +288,9 @@ templ ruleContent(r ruleView) {
 				}
 				@fact("File") {
 					@factLink(r.fileURL, r.fileName, r.id+".md")
+				}
+				@fact("Updated") {
+					{ r.updated }
 				}
 			}
 		</aside>

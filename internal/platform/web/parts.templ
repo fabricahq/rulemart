@@ -158,30 +158,36 @@ templ searchForm(id, query string, autofocus bool) {
 	</form>
 }
 
-// facts lists a library's or rule's facts as label and value pairs.
-templ facts() {
-	<div class="grid gap-[7px] px-0.5 text-[13px]">
-		{ children... }
-	</div>
-}
-
-templ fact(name string) {
-	<div class="flex justify-between gap-3">
-		<span class="whitespace-nowrap text-muted">{ name }</span>
-		<span class="min-w-0 text-right [overflow-wrap:anywhere]">
+// aboutPanel frames a library's or rule's facts beside its content, as label and value pairs, each fact a fact.
+templ aboutPanel() {
+	<section class="rounded-card border border-border" aria-labelledby="about">
+		<h2 id="about" class="border-b border-border px-4 py-2.5 text-[12px] font-medium tracking-[.12em] text-muted uppercase">About</h2>
+		<dl class="grid gap-2.5 px-4 py-3.5 text-[13px]">
 			{ children... }
-		</span>
+		</dl>
+	</section>
+}
+
+// fact is one fact in an aboutPanel. A long value wraps at its parts.
+templ fact(name string) {
+	<div class="flex items-baseline justify-between gap-4">
+		<dt class="shrink-0 text-muted">{ name }</dt>
+		<dd class="min-w-0 text-right [overflow-wrap:anywhere]">
+			{ children... }
+		</dd>
 	</div>
 }
 
-// factLink is a fact's value that links elsewhere, in code type, shortened to fit.
+// factLink is a fact's value that links elsewhere, in code type, which wraps at its parts.
 templ factLink(href, text, title string) {
-	<a class="inline-block max-w-full overflow-hidden align-bottom font-mono text-[.86em] text-ellipsis whitespace-nowrap" href={ templ.SafeURL(href) } title={ title }>{ text }</a>
+	<a class="font-mono text-[.86em]" href={ templ.SafeURL(href) } title={ title }>
+		@breakable(text)
+	</a>
 }
 
 // libraryFacts is the facts every library page shows beside its content.
 templ libraryFacts(lib libraryView) {
-	@facts() {
+	@aboutPanel() {
 		@fact("Owner") {
 			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
 		}

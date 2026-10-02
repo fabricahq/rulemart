@@ -201,15 +201,26 @@ func visibleText(t *testing.T, body string) string {
 		if n.Type == html.ElementNode && (n.Data == "head" || n.Data == "script") {
 			return
 		}
-		if n.Type == html.TextNode {
-			text.WriteString(n.Data + " ")
-		}
+		writeText(&text, n)
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
 			walk(child)
 		}
 	}
 	walk(doc)
 	return strings.Join(strings.Fields(text.String()), " ")
+}
+
+// writeText adds n's text to text, if it's a text node, separating it from the next node's. A <wbr> only lets a line
+// break inside a word, so the text either side of it is one word.
+func writeText(text *strings.Builder, n *html.Node) {
+	switch {
+	case n.Type == html.TextNode:
+		text.WriteString(n.Data + " ")
+	case n.Type == html.ElementNode && n.Data == "wbr":
+		trimmed := strings.TrimSuffix(text.String(), " ")
+		text.Reset()
+		text.WriteString(trimmed)
+	}
 }
 
 // assertShows fails unless the page's visible text includes each of want.
