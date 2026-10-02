@@ -115,7 +115,7 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, every page of it warns that it hasn't been vetted, search engines are asked not to index it, search leaves it out, and adding its rules to your cart takes a second confirmation. Checkout then asks your agent to review those rules before following any.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, every page of it warns that it hasn't been vetted, search engines are asked not to index it, search leaves it out, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
