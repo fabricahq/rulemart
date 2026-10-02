@@ -418,7 +418,7 @@ func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 		t.Errorf("the menu's Your stars leads to %q", got)
 	}
 	page := body(t, site.signedInGet(t, "/account"))
-	assertShows(t, page, "it keeps which libraries you starred, and when", "It removes your stars and your listings")
+	assertShows(t, page, "it keeps which libraries you starred, and when", "It removes your stars, your cart, and your listings")
 	if text := visibleText(t, page); strings.Count(text, " also ") > 1 {
 		t.Errorf("the account page says also more than once: %s", text)
 	}

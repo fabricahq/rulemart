@@ -89,42 +89,42 @@ func (s *server) withoutStarPrompt(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
-// libraryView describes lib for the page r asks for, with the star control a vetted library's pages show: for a
-// signed-in visitor, whether they starred it, which it reads. After starring or unstarring, the button is focused,
-// and after signing in to star the library, it's highlighted too, beside a prompt that names the library.
-func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
-	view := newLibraryView(lib)
+// starControl returns the star control a vetted library's pages show of lib, whose page is href, for the page r asks
+// for: for a signed-in visitor, whether they starred it, which it reads. After starring or unstarring, the button is
+// focused, and after signing in to star the library, it's highlighted too, beside a prompt that names the library.
+// It's the zero starView, which shows nothing, for a library that isn't vetted, or without stars.
+func (s *server) starControl(r *http.Request, lib views.Library, href string) (starView, error) {
 	if !lib.Vetted || s.Stars == nil {
-		return view, nil
+		return starView{}, nil
 	}
 	v := visitorOf(r.Context())
-	view.star = starView{shown: true, count: lib.Stars, fullName: lib.FullName()}
+	star := starView{shown: true, count: lib.Stars, fullName: lib.FullName()}
 	if v.account == nil {
 		if v.signIn != "" {
-			view.star.signIn = s.starSignIn(v.here)
+			star.signIn = s.starSignIn(v.here)
 		}
-		return view, nil
+		return star, nil
 	}
 	starred, err := s.Stars.Starred(r.Context(), v.account.ID, lib.Owner, lib.Name)
 	if err != nil {
-		return libraryView{}, err
+		return starView{}, err
 	}
-	view.star.starred = starred
-	view.star.action = starAction(starsHref, lib.FullName(), v.here, view.href)
+	star.starred = starred
+	star.action = starAction(starsHref, lib.FullName(), v.here, href)
 	if starred {
-		view.star.action = starAction(unstarHref, lib.FullName(), v.here, view.href)
+		star.action = starAction(unstarHref, lib.FullName(), v.here, href)
 	}
 	switch v.noticeKey {
 	case "starred", "unstarred":
-		view.star.focused = true
+		star.focused = true
 	case starPromptKey:
-		view.star.focused, view.star.prompt = !starred, !starred
-		view.star.notice = "You're signed in. Star " + lib.FullName() + "?"
+		star.focused, star.prompt = !starred, !starred
+		star.notice = "You're signed in. Star " + lib.FullName() + "?"
 		if starred {
-			view.star.notice = "You're signed in. You've starred this library already."
+			star.notice = "You're signed in. You've starred this library already."
 		}
 	}
-	return view, nil
+	return star, nil
 }
 
 // vettedCards describes vetted libraries for a list of them that r asks for, with their stars only when Rulemart has

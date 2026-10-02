@@ -1,0 +1,9 @@
+sources:
+  public-rules:
+    repository: https://github.com/fabricahq/public-rules.git
+    groups:
+      - practices/testing
+    rules:
+      - techs/go/comment-non-obvious-struct-fields
+      - techs/go/errors-include-useful-diagnostic-data
+    ref: release/1

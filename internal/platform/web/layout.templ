@@ -14,8 +14,9 @@ import (
 // page's canonical address.
 type chrome struct {
 	stylesheet, script, menuScript, icon, font string
-	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it.
-	caretScript string
+	// caretScript puts the caret at the end of a field the page focuses, and copyScript shows Copy buttons and copies,
+	// on a page that asks for each.
+	caretScript, copyScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -35,10 +36,13 @@ type head struct {
 	searchPage bool
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
-	// notice is the page's own notice, which takes the place of the notice cookie's, or empty.
-	notice string
-	// caret loads the script that puts the caret at the end of a field the page focuses.
-	caret bool
+	// notice is the page's own notice, which takes the place of the notice cookie's, or empty, and noticeAction what
+	// the notice offers to do, such as add an item to the cart after signing in, or nil.
+	notice       string
+	noticeAction templ.Component
+	// caret loads the script that puts the caret at the end of a field the page focuses, and copy the one that shows
+	// Copy buttons.
+	caret, copy bool
 }
 
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
@@ -48,7 +52,10 @@ const narrowPage = "max-w-[44rem]"
 // gives, if any.
 func libraryHead(h head, lib libraryView) head {
 	h.unvetted = !lib.vetted
-	h.notice = lib.star.notice
+	h.notice = cmp.Or(lib.star.notice, lib.cartNotice)
+	if lib.cartOffer != nil && h.notice == lib.cartNotice {
+		h.noticeAction = cartOffer(*lib.cartOffer)
+	}
 	return h
 }
 
@@ -79,13 +86,21 @@ templ layout(c chrome, h head) {
 			if h.caret {
 				<script src={ c.caretScript } defer></script>
 			}
+			if h.copy {
+				<script src={ c.copyScript } defer></script>
+			}
 		</head>
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
 			@header(h)
 			if notice := cmp.Or(h.notice, visitorOf(ctx).notice); notice != "" {
 				<div class="border-b border-border-subtle bg-surface" role="status">
-					<p class={ "wrap py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>{ notice }</p>
+					<div class={ "wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>
+						<p>{ notice }</p>
+						if h.noticeAction != nil {
+							@h.noticeAction
+						}
+					</div>
 				</div>
 			}
 			<main id="main" class="flex-1" tabindex="-1">

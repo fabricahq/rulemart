@@ -16,7 +16,8 @@ import (
 )
 
 // ErrNotFound reports a library or rule that isn't in the catalog, a library that's neither vetted nor listed, a
-// group that isn't canonical, a library to star that isn't vetted, or an account's listing it doesn't have.
+// group that isn't canonical, a library to star that isn't vetted, an account's listing it doesn't have, or an item to
+// add to a cart that its library doesn't have.
 var ErrNotFound = store.ErrNotFound
 
 // ErrSearchQueryTooLong reports a query of more than domain.MaxSearchQueryLength characters, which search won't run.
@@ -181,7 +182,12 @@ func (p Pages) Search(ctx context.Context, query domain.SearchQuery, page int) (
 
 // canonical returns how pages show the group at path when it's on the canonical group list, or nil when it isn't.
 func (p Pages) canonical(path string) *views.CanonicalGroup {
-	g, ok := p.Groups.Find(path)
+	return canonicalGroup(p.Groups, path)
+}
+
+// canonicalGroup returns how pages show the group at path when it's on groups, or nil when it isn't.
+func canonicalGroup(groups domain.CanonicalGroups, path string) *views.CanonicalGroup {
+	g, ok := groups.Find(path)
 	if !ok {
 		return nil
 	}

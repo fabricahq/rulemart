@@ -31,8 +31,9 @@ than adding history.
   agent. A library's own pages find it when it's vetted or a listing names it; every page across libraries reads
   only the vetted ones. The warning is a band in the one amber the palette has, which means caution and nothing else.
 - **Search covers vetted libraries only.**
-- **Unvetted rules can go in the cart only after an explicit confirmation**, and the checkout prompt names them to
-  the agent.
+- **Unvetted rules can go in the cart only after an explicit confirmation**, which the cart records, and the checkout
+  prompt names their library to the agent, and asks it to review the rules before following them. An item whose
+  library loses its vetting needs confirming again.
 - **Unvetted pages carry `noindex`**, and links to them `nofollow`, so listing a repository can't borrow Rulemart's
   reputation in search engines. Their robots tag says `noindex, nofollow`, which covers every link on them, the
   repository's own included, and they name no canonical address.
@@ -50,6 +51,22 @@ than adding history.
   nothing. A visitor who isn't signed in gets a link that signs them in and returns them, prompted once to star the
   library. `/account/stars` lists a visitor's stars, newest first.
 - **Deleting an account removes its stars**, so they stop counting.
+
+## Cart and checkout
+
+- **Anyone signed in collects rules in a cart, in Postgres**: a whole library, one of its groups, or one rule, at most
+  100 items, where a group or library takes the place of the items it covers. A cart in a cookie would need CloudFront to key every page on it. Visitors who aren't signed in get links
+  that sign them in and return them, so public pages stay the same for everyone. [Slice 8](slices/8-cart-and-checkout.md)
+  explains the choices.
+- **Adding is a POST to `/account/cart`, removing to `/account/cart/remove`**, each naming the item in its query
+  string and returning to the page, which says what it did and focuses the control. Items are named by their ID in the
+  library, so a retired rule, or a library that lost its vetting, stays in the cart, saying so, and checkout leaves it
+  out.
+- **Checkout is a prompt for a coding agent, and the configuration it adds**: one Code Rules source per library,
+  pinned with `ref` to the release the visitor saw, importing whole libraries with `groups: "*"`, groups, and single
+  rules, with the `code-rules` commands to run, what to check, and how to upgrade later. The prompt holds no text a
+  library wrote, so no library can write instructions into it.
+- **Deleting an account empties its cart.**
 
 ## Groups
 
@@ -144,7 +161,7 @@ than adding history.
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
-  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, and stars.** Infrastructure owns the roles: it creates
+  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, stars, and carts.** Infrastructure owns the roles: it creates
   each group role with SQL, as a NOLOGIN role, creates the login, and makes the login a member, because a role made
   through Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
   databases. Migrations own the grants: they grant each group role what each table needs, never grant to a login,
@@ -179,7 +196,8 @@ than adding history.
   as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
   `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
-  Contexts added later, such as the cart, get it too.
+  Stars, listings, and the cart live in the catalog context, since each names a library, group, or rule, and pages
+  read them with the catalog from one snapshot. A context added later gets the same layout.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

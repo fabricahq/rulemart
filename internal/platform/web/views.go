@@ -39,6 +39,12 @@ type libraryView struct {
 	groups, rules, releases int
 	// star is the library's star control, which server.libraryView fills in for a vetted library's pages.
 	star starView
+	// cart is the control that adds every group of the library to the cart, and cartNotice what the page says after
+	// adding, or signing in to add, the library or one of its items the page shows.
+	cart       cartControl
+	cartNotice string
+	// cartOffer is the control the page offers, in its notice, to add after signing in, or nil.
+	cartOffer *cartControl
 }
 
 // fullName returns the library's repository as owner/name.
@@ -101,6 +107,8 @@ type groupView struct {
 	// acrossHref is a canonical group's page across libraries, and empty for any other group.
 	acrossHref string
 	rules      []ruleCard
+	// cart is the control that adds the group to the cart, which server.withGroupCarts fills in.
+	cart cartControl
 }
 
 // groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
@@ -251,6 +259,8 @@ type ruleView struct {
 	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
 	replaces    []replacedRule
 	renamedFrom *replacedRule
+	// cart is the control that adds a current rule to the cart, which the rule's page fills in.
+	cart cartControl
 }
 
 // retiredView is how a library release retired a rule.

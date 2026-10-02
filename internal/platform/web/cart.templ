@@ -1,0 +1,543 @@
+// The parts and pages of the cart: the controls that add to it, the header's link to it, the cart, the page that
+// confirms adding from an unvetted library, and checkout.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
+
+// cartButton is a cartControl as a small outlined button: a form that adds the item, or a link that confirms adding
+// it from an unvetted library, or signs a visitor in and returns them, each reading c.label. Once the cart holds the
+// item, it says how, with a check, and leads to the cart, or to the confirmation the item needs. Screen readers hear
+// the visible text first, then what it adds or holds. After adding, or signing in to add, the page focuses it, with
+// a lighter ring than a keyboard's, and a prompt to add after signing in outlines it in ink.
+templ cartButton(c cartControl) {
+	switch {
+		case c.held == heldUnconfirmed:
+			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "border-warn-border text-warn-ink no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ "In cart, needs confirming: " + c.what + ". Confirm it" }>
+				@warningIcon("size-[15px] flex-none")
+				In cart, needs confirming
+			</a>
+		case c.held == heldRetired:
+			<a id={ c.id } class={ cartButtonStyle, cartButtonWrapShape, "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ "In cart, left out of checkout because it's retired: " + c.what + ". See your cart" }>
+				@leftOutIcon("size-[15px] flex-none")
+				In cart, left out of checkout because it's retired
+			</a>
+		case c.held != notHeld:
+			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ heldText(c.held) + ": " + c.what + ". See your cart" }>
+				@checkIcon("size-[15px] flex-none")
+				{ heldText(c.held) }
+			</a>
+		case c.action != "":
+			<form method="post" action={ templ.SafeURL(c.action) }>
+				<button id={ c.id } class={ cartButtonStyle, cartButtonShape, "cursor-pointer", templ.KV(cartPromptStyle, c.prompt), templ.KV(autofocusRing, c.focused) } type="submit" autofocus?={ c.focused } aria-label={ c.label + ": " + c.what }>
+					@cartIcon("size-[15px] flex-none")
+					{ c.label }
+				</button>
+			</form>
+		case c.confirm != "":
+			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "no-underline", templ.KV(cartPromptStyle, c.prompt), templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.confirm) } autofocus?={ c.focused } aria-label={ c.label + ": " + c.what }>
+				@cartIcon("size-[15px] flex-none")
+				{ c.label }
+			</a>
+		case c.signIn != "":
+			<a class={ cartButtonStyle, cartButtonShape, "no-underline" } href={ templ.SafeURL(c.signIn) } aria-label={ c.label + ": " + c.what + ". Sign in first" } title="Sign in to add to your cart">
+				@cartIcon("size-[15px] flex-none")
+				{ c.label }
+			</a>
+	}
+}
+
+// cartOffer is the button a notice holds that adds c's item, offered after signing in, focused.
+templ cartOffer(c cartControl) {
+	if c.action != "" {
+		<form method="post" action={ templ.SafeURL(c.action) }>
+			<button class={ cartButtonStyle, cartButtonShape, "cursor-pointer border-ink", autofocusRing } type="submit" autofocus aria-label={ "Add to cart: " + c.what }>
+				@cartIcon("size-[15px] flex-none")
+				Add to cart
+			</button>
+		</form>
+	} else if c.confirm != "" {
+		<a class={ cartButtonStyle, cartButtonShape, "border-ink no-underline", autofocusRing } href={ templ.SafeURL(c.confirm) } autofocus aria-label={ "Add to cart: " + c.what }>
+			@cartIcon("size-[15px] flex-none")
+			Add to cart
+		</a>
+	}
+}
+
+// groupOffer is the button a group page's notice holds, or nil when it offers nothing.
+func groupOffer(g groupPageView) templ.Component {
+	if g.offer == nil {
+		return nil
+	}
+	return cartOffer(*g.offer)
+}
+
+// heldText is what a cart control reads for an item the cart holds, or imports with another item.
+func heldText(held heldState) string {
+	switch held {
+	case heldInGroup:
+		return "Included with its group (in cart)"
+	case heldInLibrary:
+		return "Included with the library (in cart)"
+	}
+	return "In cart"
+}
+
+// autofocusRing is a lighter focus ring for a control the page focuses after a click, rather than the visitor's
+// keyboard, which would otherwise wear a keyboard's heavy ring.
+const autofocusRing = "focus-visible:outline-2 focus-visible:outline-offset-2"
+
+// cartPromptStyle outlines the control that offers to add an item after signing in, in ink inside a ring, as the star
+// button's prompt does.
+const cartPromptStyle = "border-ink ring-2 ring-ink ring-offset-2 ring-offset-paper"
+
+// cartButtonStyle is a cart control: a small outlined button, as the star's is.
+const cartButtonStyle = "inline-flex min-h-8 scroll-mt-24 items-center gap-1.5 border border-border-strong px-[11px] py-1 text-left text-[13px] leading-[18px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
+
+// cartButtonShape is a cart control's shape on one line, which a long state's text, wrapping, trades for rounded
+// corners.
+const (
+	cartButtonShape     = "rounded-full whitespace-nowrap"
+	cartButtonWrapShape = "max-w-full rounded-2xl"
+)
+
+// cartIcon is a shopping cart, in the current text color.
+templ cartIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="M2.5 3.5h2.6l2.3 11.1a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 7.5H6"></path>
+		<circle cx="9.5" cy="20" r="1.4"></circle>
+		<circle cx="17.5" cy="20" r="1.4"></circle>
+	</svg>
+}
+
+// leftOutIcon is a circle with a bar, an item checkout leaves out, in the current text color.
+templ leftOutIcon(class string) {
+	<svg class={ class } viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+		<circle cx="8" cy="8" r="6"></circle>
+		<path d="M5.25 8h5.5"></path>
+	</svg>
+}
+
+// checkIcon is a check mark, in the current text color.
+templ checkIcon(class string) {
+	<svg class={ class } viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="m3 8.5 3 3 7-7"></path>
+	</svg>
+}
+
+// cartLink is the header's link to a signed-in visitor's cart, a cart with its count when it holds any items, beside
+// their avatar, from a phone's width up; a phone's header has room only for the avatar, which shows the count.
+templ cartLink(v visitor) {
+	<a
+		class="relative grid size-11 shrink-0 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink max-narrow:hidden"
+		href={ templ.SafeURL(cartHref) }
+		aria-label={ "Your cart, " + plural(v.cartItems, "item", "items") }
+		title="Your cart"
+		if v.onCartPage {
+			aria-current="page"
+		}
+	>
+		@cartIcon("size-[22px]")
+		if v.cartItems > 0 {
+			@cartBadge(v.cartItems, "top-[3px] right-0")
+		}
+	</a>
+}
+
+// cartBadge is the count of a cart's items, in a small filled circle at place.
+templ cartBadge(items int, place string) {
+	<span class={ "pointer-events-none absolute grid h-[18px] min-w-[18px] place-items-center rounded-full bg-primary px-[5px] text-[11px] leading-none font-semibold text-on-primary tabular-nums ring-2 ring-paper", place } aria-hidden="true">{ cartCount(items) }</span>
+}
+
+// cartPage shows the signed-in visitor's cart: each library's items, the whole library first, then its groups, then
+// its rules, each with Remove, and what checkout leaves out and why. It leads to checkout.
+templ cartPage(c chrome, cart cartView) {
+	@layout(c, head{title: "Your cart · Rulemart", noindex: true, narrow: true, notice: cart.notice}) {
+		<div class={ "page wrap", narrowPage }>
+			@label("") {
+				Account
+			}
+			<div class="mt-2 mb-[22px]">
+				<h1 class="title-xl">Your cart</h1>
+				<p class="mt-1.5 text-muted">Rules you picked to adopt. Check out for a prompt that sets your project up to follow them with Code Rules.</p>
+			</div>
+			if cart.items == 0 {
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">There's nothing in your cart. Add a library, a group, or a rule from its page. <a href={ templ.SafeURL(librariesHref) } autofocus?={ cart.focusBrowse }>Browse libraries</a></div>
+			} else {
+				<div class="grid gap-[18px]">
+					for _, lib := range cart.libraries {
+						@cartLibrary(lib)
+					}
+				</div>
+				<div class="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-4 border-t border-border-subtle pt-5">
+					<p class="text-[14px] text-muted">
+						{ plural(cart.items, "item", "items") }
+						if cart.leftOut > 0 {
+							· { strconv.Itoa(cart.leftOut) } left out of checkout
+						}
+						<span class="block text-[12.5px] text-faint">A cart holds up to { strconv.Itoa(domain.MaxCartItems) } items. A group takes the place of its rules.</span>
+					</p>
+					<div class="flex flex-wrap items-center gap-2.5">
+						<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(emptyCartHref) }>Empty cart</a>
+						<a class={ primaryLinkStyle } href={ templ.SafeURL(checkoutHref) }>Check out</a>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
+
+// emptyCartPage asks the visitor to confirm emptying their cart of its items, with Empty cart and Cancel.
+templ emptyCartPage(c chrome, items int) {
+	@layout(c, head{title: "Empty your cart · Rulemart", noindex: true, narrow: true}) {
+		<div class={ "page wrap", narrowPage }>
+			@label("") {
+				Your cart
+			}
+			<h1 class="title-xl mt-2">Empty your cart?</h1>
+			if items == 0 {
+				<p class="mt-2.5 text-muted">There's nothing in your cart to remove.</p>
+				<div class="mt-7"><a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(cartHref) } autofocus>Back to your cart</a></div>
+			} else {
+				<p class="mt-2.5 text-muted">This removes { plural(items, "item", "items") } from your cart. Rulemart can't put them back; you'd add each again from its page.</p>
+				<div class="mt-7 flex flex-wrap items-center gap-2.5">
+					<form method="post" action={ templ.SafeURL(emptyCartHref) }>
+						<button class={ dangerButtonStyle, "min-h-11" } type="submit">Empty cart</button>
+					</form>
+					<a class={ outlineButtonStyle, "min-h-11 no-underline" } href={ templ.SafeURL(cartHref) } autofocus>Cancel</a>
+				</div>
+			}
+		</div>
+	}
+}
+
+// primaryLinkStyle is a page's main action as a link, filled in the primary color, as wide as its text.
+const primaryLinkStyle = "inline-flex min-h-10 items-center justify-center rounded-full bg-primary px-5 text-[14px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85"
+
+// cartLibrary is one library's items in the cart, under its name, its warning when it isn't vetted or is gone, and the
+// release checkout pins it to.
+templ cartLibrary(lib cartLibraryView) {
+	<section class="overflow-hidden rounded-card border border-border" aria-label={ lib.owner + "/" + lib.name }>
+		<div class="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+			@avatar(lib.avatar, lib.owner, avatarSM)
+			<div class="min-w-0 flex-1">
+				<h2 class="flex flex-wrap items-center gap-x-2.5 gap-y-1 leading-[1.35] font-semibold">
+					if lib.href == "" {
+						<span class="min-w-0 [overflow-wrap:anywhere]">{ lib.owner }/{ lib.name }</span>
+					} else if lib.unvetted {
+						<a class="min-w-0 text-ink no-underline [overflow-wrap:anywhere] hover:underline" href={ templ.SafeURL(lib.href) } rel="nofollow">{ lib.owner }/{ lib.name }</a>
+					} else {
+						<a class="min-w-0 text-ink no-underline [overflow-wrap:anywhere] hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.owner }/{ lib.name }</a>
+					}
+					if lib.unvetted {
+						@unvettedBadge()
+					} else if lib.gone {
+						<span class="inline-flex items-center rounded-full border border-border px-2 text-[11.5px] leading-[18px] font-medium text-muted">No longer on Rulemart</span>
+					}
+				</h2>
+			</div>
+			if !lib.gone {
+				<span class="mono shrink-0 text-[12.5px] text-faint" title="Checkout pins the library to its latest release">{ lib.tag }</span>
+			}
+		</div>
+		<ul class="divide-y divide-border-subtle">
+			for _, item := range lib.items {
+				<li>
+					@cartItemRow(item)
+				</li>
+			}
+		</ul>
+	</section>
+}
+
+// unvettedBadge marks a library Rulemart doesn't vet, in the one amber the palette has.
+templ unvettedBadge() {
+	<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
+}
+
+// cartItemRow is one item of the cart: its group's tile, or a rule's dashed one, what it is, its ID, how many rules a
+// group or whole library holds, why checkout leaves it out or what imports it already, and Remove.
+templ cartItemRow(item cartItemView) {
+	<div class="flex items-start gap-3 px-4 py-3.5 max-narrow:flex-wrap">
+		<span class="mt-0.5 flex-none">
+			if item.kind == domain.CartLibrary {
+				<span class="inline-grid size-7 place-items-center rounded-[7px] border border-border-subtle bg-icon-tile text-muted">
+					@layersIcon("size-4")
+				</span>
+			} else if item.kind == domain.CartGroup {
+				@groupTile(item.label, item.icon, tileMD)
+			} else {
+				<span class="inline-grid size-7 place-items-center rounded-[7px] border border-border-subtle text-faint">
+					@ruleIcon("size-4")
+				</span>
+			}
+		</span>
+		<div class="min-w-0 flex-1">
+			<h3 class={ "text-[14px] leading-[22px] font-semibold", templ.KV("text-muted", !item.ready) }>
+				if item.href != "" {
+					<a class="text-inherit no-underline hover:underline" href={ templ.SafeURL(item.href) }>{ item.title }</a>
+				} else {
+					{ item.title }
+				}
+			</h3>
+			if item.id != "" || (item.kind != domain.CartRule && item.rules > 0) {
+				<p class="text-[12.5px] leading-[20px] text-faint">
+					if item.id != "" {
+						<span class="mono">
+							@breakable(item.id)
+						</span>
+					}
+					if item.kind != domain.CartRule && item.rules > 0 {
+						if item.id != "" {
+							{ " · " }
+						}
+						<span class="whitespace-nowrap">{ plural(item.rules, "rule", "rules") }</span>
+					}
+				</p>
+			}
+			if item.note != "" {
+				<p class={ "mt-1 text-[13px]", templ.KV("text-muted", item.ready), templ.KV("text-ink", !item.ready) }>
+					{ item.note }
+					if item.noteHref != "" {
+						{ " " }
+						<a href={ templ.SafeURL(item.noteHref) }>{ item.noteLink }</a>
+					}
+				</p>
+			}
+		</div>
+		<form class="max-narrow:basis-full max-narrow:pl-10" method="post" action={ templ.SafeURL(item.remove) }>
+			<button class={ smallActionStyle } type="submit" aria-label={ "Remove " + item.title + " from your cart" } autofocus?={ item.focused }>Remove</button>
+		</form>
+	</div>
+}
+
+// layersIcon is three stacked sheets, a whole library, in the current text color.
+templ layersIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="m12 3 9 5-9 5-9-5 9-5Z"></path>
+		<path d="m3 12.5 9 5 9-5"></path>
+		<path d="m3 17 9 5 9-5"></path>
+	</svg>
+}
+
+// ruleIcon is a page with lines, one rule, in the current text color.
+templ ruleIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="M6 2.75h8.5L19 7.25v14H6Z"></path>
+		<path d="M9.5 11.5h6M9.5 15h6M9.5 18.5h3.5"></path>
+	</svg>
+}
+
+// confirmCartPage asks the visitor to confirm adding an item from a library Rulemart doesn't vet, under the warning
+// every unvetted page shows, with Add to cart and Cancel. Search engines have no use for it.
+templ confirmCartPage(c chrome, view confirmView) {
+	@layout(c, head{title: "Add to your cart · Rulemart", noindex: true, narrow: true}) {
+		<div class={ "page wrap", narrowPage }>
+			if !view.library.vetted {
+				@unvettedWarning(false)
+			}
+			<div class="flex items-center gap-3">
+				@avatar(view.library.avatar, view.library.owner, avatarMD)
+				<div class="min-w-0">
+					<p class="text-[13px] text-faint">Add to your cart</p>
+					<p class="mono text-[13.5px] text-muted [overflow-wrap:anywhere]">{ view.library.fullName() }</p>
+				</div>
+			</div>
+			<h1 class="title-xl mt-5">
+				switch {
+					case view.needsConfirming:
+						Confirm { view.what }?
+					case view.held:
+						{ view.what } is in your cart
+					default:
+						Add { view.what }?
+				}
+			</h1>
+			<p class="mono mt-1.5 text-[13px] text-faint">
+				@breakable(view.id)
+			</p>
+			if view.held && !view.needsConfirming {
+				<p class="mt-4 text-ink">Your cart has this already.</p>
+				<div class="mt-7 flex flex-wrap items-center gap-2.5">
+					<a class={ primaryLinkStyle, "min-h-11" } href={ templ.SafeURL(cartHref) } autofocus>See your cart</a>
+					<a class={ outlineButtonStyle, "min-h-11 no-underline" } href={ templ.SafeURL(view.back) }>Back</a>
+				</div>
+			} else {
+				if view.needsConfirming {
+					<p class="mt-4 text-ink">Your cart has this, but checkout leaves it out until you confirm it, since Rulemart doesn't vet this library.</p>
+				}
+				if !view.library.vetted {
+					<p class="mt-4 text-ink">Checkout will name this library in the prompt it writes, and ask your coding agent to follow none of its rules until it has read them, and told you about any that look unsafe.</p>
+				}
+				<div class="mt-7 flex flex-wrap items-center gap-2.5">
+					<form method="post" action={ templ.SafeURL(view.action) }>
+						<button class={ primaryButtonStyle, "w-auto" } type="submit">
+							switch {
+								case view.needsConfirming:
+									Confirm
+								case view.library.vetted:
+									Add to cart
+								default:
+									Add to cart anyway
+							}
+						</button>
+					</form>
+					<a class={ outlineButtonStyle, "min-h-11 no-underline" } href={ templ.SafeURL(view.back) }>Cancel</a>
+				</div>
+			}
+		</div>
+	}
+}
+
+// checkoutPage shows the libraries the cart imports, each pinned to its latest release, the prompt for a coding agent
+// with a Copy button, which copy.js shows, and the configuration and commands for a visitor who sets the project up
+// themselves. The prompt selects whole with one click, so it copies without JavaScript too.
+templ checkoutPage(c chrome, view checkoutView) {
+	@layout(c, head{title: "Check out · Rulemart", noindex: true, narrow: true, copy: true}) {
+		<div class={ "page wrap", narrowPage }>
+			<p class={ labelStyle }><a class="text-inherit no-underline hover:text-ink hover:underline" href={ templ.SafeURL(cartHref) }>Your cart</a></p>
+			<div class="mt-2 mb-[22px]">
+				<h1 class="title-xl">Check out</h1>
+				if view.prompt != "" {
+					<p class="mt-1.5 text-muted">Give this prompt to your coding agent in your project's repository. It sets the project up to follow these rules with <a href="https://code-rules.fabricahq.com">Code Rules</a>, each library pinned to the release shown here.</p>
+				}
+			</div>
+			if view.leftOut > 0 {
+				<p class="mb-[22px] rounded-card border border-border-strong px-4 py-3 text-[14px] text-ink" role="note">
+					if view.leftOut == view.items {
+						Checkout leaves out every item in your cart.
+					} else {
+						Checkout leaves out { plural(view.leftOut, "item", "items") } in your cart.
+					}
+					<a href={ templ.SafeURL(cartHref) }>See why</a>
+				</p>
+			}
+			if view.prompt == "" {
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+					if view.items == 0 {
+						Your cart is empty, so there's nothing to check out. <a href={ templ.SafeURL(librariesHref) }>Browse libraries</a>
+					} else {
+						Nothing in your cart can be checked out. <a href={ templ.SafeURL(cartHref) }>See your cart</a>
+					}
+				</div>
+			} else {
+				@labelHeading("mb-2.5") {
+					{ plural(len(view.sources), "Library", "Libraries") }
+				}
+				@rowList() {
+					for _, source := range view.sources {
+						@rowItem() {
+							@checkoutSource(source)
+						}
+					}
+				}
+				if view.unvetted {
+					<p class="mt-2.5 text-[13px] text-muted">The prompt names each library Rulemart hasn't vetted, and asks your agent to read its rules, and tell you about any that look unsafe, before following them.</p>
+				}
+				<section class="mt-9" aria-labelledby="prompt-heading">
+					<div class="mb-2.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+						@labelHeading("min-w-0") {
+							<span id="prompt-heading">Prompt for your agent</span>
+						}
+						@copyButton("prompt", "Copy prompt")
+					</div>
+					<pre id="prompt" class={ codeBlockStyle, "whitespace-pre-wrap" } tabindex="0" data-select-all aria-labelledby="prompt-heading">@unbrokenWords(view.prompt)</pre>
+					<p class="mt-2 text-[13px] text-faint">One click selects the whole prompt. Your agent asks before it installs anything, and commits nothing until you ask.</p>
+				</section>
+				<details class="group mt-9 border-t border-border-subtle pt-6">
+					<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+						<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+						</svg>
+						<span class="underline underline-offset-4">Or set it up yourself</span>
+					</summary>
+					<ol class="mt-4 grid list-decimal gap-5 pl-6 text-[14.5px] text-ink marker:text-muted">
+						<li>Install <a href={ templ.SafeURL(domain.CodeRulesInstallURL) }>Code Rules</a> { domain.MinCodeRulesVersion } or later.</li>
+						<li>
+							<p>From your repository's root, create the configuration, unless <code>.code-rules/config.yaml</code> exists already:</p>
+							@codeBlock("init-command", "Command that creates the configuration", initCommand)
+						</li>
+						for _, review := range view.unvettedReviews {
+							<li>
+								<p>Rulemart hasn't vetted <span class="font-mono text-[.86em]">{ review.library }</span>. Before you add it, read { review.scope } outside your repository: this command fetches the commit Rulemart showed into a new temporary directory, and prints its path. Leave its source, <code>{ review.source }</code>, out of the next step unless you approve them; its <code>ref</code> there is that commit.</p>
+								@codeBlock("review-"+review.source, "Command that fetches "+review.library+" to review", review.command)
+							</li>
+						}
+						<li>
+							<p>In <code>.code-rules/config.yaml</code>, replace <code>sources: {"{}"}</code> with these sources. If it lists sources already, add these under its <code>sources</code> instead, keeping the ones it has; for a repository it imports already, add the groups and rules to that source, leaving out any rule whose group it selects already. If that source names another <code>ref</code>, decide before changing it: a new <code>ref</code> moves every rule the source imports to that release.</p>
+							@codeBlock("config", "Configuration", view.config)
+						</li>
+						<li>
+							<p>Import the rules, and check the generated files:</p>
+							@codeBlock("sync-commands", "Commands that import and check the rules", syncCommands)
+						</li>
+						<li>Have your coding agent read the rules: add the section that <code>.code-rules/README.md</code> gives under "Connect your coding agent" to <code>AGENTS.md</code>, or the instruction file your agent reads.</li>
+					</ol>
+					<p class="mt-5 text-[14px] text-muted">To upgrade a library later, change its <code>ref</code> to a later release's tag and run <code>code-rules project sync</code>, or delete <code>ref</code> and run <code>code-rules project sync</code>, then <code>code-rules project update</code>, to follow each rule's newest version.</p>
+				</details>
+			}
+		</div>
+	}
+}
+
+// initCommand creates a project's Code Rules configuration, and syncCommands import and check its rules.
+const (
+	initCommand  = "code-rules project init"
+	syncCommands = "code-rules project sync\ncode-rules project check"
+)
+
+// codeBlockStyle is a block of text to copy, such as the prompt: monospaced, scrolling within itself, sideways too, so
+// a long line never widens the page, and selected whole by one click. The prompt adds whitespace-pre-wrap, to wrap
+// its prose at spaces; configuration and commands keep their lines, as a file and a shell read them.
+const codeBlockStyle = "max-h-[34rem] max-w-full overflow-auto rounded-card border border-border bg-surface px-4 py-3.5 font-mono text-[12.5px] leading-[1.6] text-ink select-all focus-visible:outline-offset-2"
+
+// codeBlock is text to copy, labeled for screen readers, with its Copy button above it.
+templ codeBlock(id, label, text string) {
+	<div class="mt-2 grid min-w-0 gap-2">
+		<div class="flex justify-end">
+			@copyButton(id, "Copy")
+		</div>
+		<pre id={ id } class={ codeBlockStyle, "whitespace-pre" } tabindex="0" data-select-all aria-label={ label }>{ text }</pre>
+	</div>
+}
+
+// copyButton copies the text of the element whose id is target. It's hidden until copy.js shows it, since it needs a
+// script.
+templ copyButton(target, label string) {
+	<button class={ smallActionStyle, "min-h-8 shrink-0 gap-1.5" } type="button" data-copy={ target } hidden>
+		@copyIcon("size-[14px] flex-none")
+		<span data-copy-label>{ label }</span>
+	</button>
+	<span class="sr-only" role="status" data-copy-status={ target }></span>
+}
+
+// copyIcon is two overlapping sheets, in the current text color.
+templ copyIcon(class string) {
+	<svg class={ class } viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"></rect>
+		<path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h.5"></path>
+	</svg>
+}
+
+// checkoutSource is one library checkout imports: its name, what of it, its source name, and its release.
+templ checkoutSource(source checkoutSourceView) {
+	<div class="flex items-start gap-3 px-4 py-3.5">
+		@avatar(source.avatar, source.owner, avatarMD)
+		<div class="min-w-0 flex-1">
+			<h3 class="flex flex-wrap items-center gap-x-2.5 gap-y-1 leading-[1.35] font-semibold">
+				if source.unvetted {
+					<a class="min-w-0 text-ink no-underline [overflow-wrap:anywhere] hover:underline" href={ templ.SafeURL(source.href) } rel="nofollow">{ source.owner }/{ source.name }</a>
+					@unvettedBadge()
+				} else {
+					<a class="min-w-0 text-ink no-underline [overflow-wrap:anywhere] hover:underline" href={ templ.SafeURL(source.href) }>{ source.owner }/{ source.name }</a>
+				}
+			</h3>
+			<p class="mt-0.5 text-[13px] text-muted">{ source.what }, pinned to <a class={ releaseTagClass } href={ templ.SafeURL(source.tagHref) }>{ source.tag }</a></p>
+			<p class="mt-0.5 text-[12.5px] text-faint">Source <span class="mono">{ source.source }</span></p>
+		</div>
+	</div>
+}

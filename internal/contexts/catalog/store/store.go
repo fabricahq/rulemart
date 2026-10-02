@@ -78,6 +78,38 @@ type Stars interface {
 	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredLibrary, error)
 }
 
+// Cart adds and removes an account's cart items, and reads its cart, as the web function does. An item can be added
+// from a library vetted holds, or one a listing names.
+type Cart interface {
+	// AddToCart adds item to the account's cart, its library and ID matched without regard to case, and returns it as
+	// the library spells it. confirmed records that the visitor confirmed adding it from a library vetted doesn't
+	// hold. Adding an item the cart holds keeps one, and records a confirmation it lacked; adding one the cart's whole
+	// library or group imports already changes nothing; and a whole library or group takes the place of the items of
+	// it the cart holds. It fails with ErrNotFound when the library isn't vetted or listed, or has no such group with
+	// current rules, or current rule; with ErrUnvettedNotConfirmed when vetted doesn't hold the library and confirmed
+	// is false; and with ErrCartFull when the cart would hold more than domain.MaxCartItems items.
+	AddToCart(ctx context.Context, vetted []domain.LibraryKey, accountID int64, item domain.CartItem, confirmed bool) (domain.CartItem, error)
+	// RemoveFromCart removes item from the account's cart, matched as AddToCart matches it, and does nothing when the
+	// cart doesn't hold it.
+	RemoveFromCart(ctx context.Context, accountID int64, item domain.CartItem) error
+	// EmptyCart removes every item from the account's cart.
+	EmptyCart(ctx context.Context, accountID int64) error
+	// HeldCartItems returns the account's items, each as its library spells it, with whether the visitor confirmed it
+	// as unvetted, by library in owner and name order.
+	HeldCartItems(ctx context.Context, accountID int64) ([]views.HeldCartItem, error)
+	// Cart returns the account's cart from one snapshot of the catalog: its libraries, in owner and name order, each
+	// with whether vetted holds it, and its items, as views.CartLibrary orders them, each with its group, title, and
+	// rules as the catalog has them now. It leaves each item's CanonicalGroup nil, and its State empty.
+	Cart(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.CartLibrary, error)
+}
+
+// ErrUnvettedNotConfirmed reports an item to add to a cart from a library Rulemart doesn't vet, which the visitor
+// didn't confirm.
+var ErrUnvettedNotConfirmed = errors.New("adding from an unvetted library needs confirming")
+
+// ErrCartFull reports a cart that holds domain.MaxCartItems items.
+var ErrCartFull = errors.New("the cart holds as many items as it may")
+
 // ListingConflict reports a repository that can't be listed because it already is, or is vetted.
 type ListingConflict struct {
 	// Vetted is true when the release's vetted list holds the library, and false when a listing names it.
@@ -165,6 +197,6 @@ type Reader interface {
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor
-// listed, a library to star that isn't vetted, a library to unstar that the catalog doesn't have, or an account's
-// listing that it doesn't have.
+// listed, a library to star that isn't vetted, a library to unstar that the catalog doesn't have, an account's listing
+// that it doesn't have, or an item to add to a cart that its library doesn't have.
 var ErrNotFound = errors.New("not found")

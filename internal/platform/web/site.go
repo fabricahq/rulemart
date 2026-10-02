@@ -1,13 +1,15 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
 // each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
-// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library; and
-// starring one. It reads the catalog from its page reads, which app.Pages implements, accounts from
-// accounts/app.Sessions, listings from catalog/app.Listings, and stars from catalog/app.Stars.
+// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library;
+// starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page reads, which
+// app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars from
+// catalog/app.Stars, and carts from catalog/app.Cart.
 package web
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -72,6 +74,8 @@ type Options struct {
 	// Stars stars vetted libraries for signed-in visitors, and pages count their stars. Nil leaves stars out; without a
 	// way to sign in, pages only count them.
 	Stars Stars
+	// Cart keeps signed-in visitors' carts. Nil, or without a way to sign in, leaves carts out.
+	Cart Cart
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -150,6 +154,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
+			copyScript:  assets.url("copy.js"),
 			icon:        assets.url("favicon.svg"),
 			font:        assets.url("fonts/inter-latin.woff2"),
 		},
@@ -193,6 +198,15 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+starsHref, s.starsPage)
 			handle("POST "+starsHref, s.starLibrary)
 			handle("POST "+unstarHref, s.unstarLibrary)
+		}
+		if options.Cart != nil {
+			handle("GET "+cartHref, s.cartPage)
+			handle("POST "+cartHref, s.addToCart)
+			handle("POST "+removeFromCartHref, s.removeFromCart)
+			handle("GET "+emptyCartHref, s.emptyCartPage)
+			handle("POST "+emptyCartHref, s.emptyCart)
+			handle("GET "+confirmCartHref, s.confirmCartPage)
+			handle("GET "+checkoutHref, s.checkoutPage)
 		}
 	}
 	handle("GET /{owner}/{repo}", s.library)
@@ -308,6 +322,19 @@ func (s *server) group(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, target)
 		return
 	}
+	if s.withoutCartPrompt(w, r) {
+		return
+	}
+	// Every library a group's page shows is vetted.
+	for i, lib := range view.libraries {
+		item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
+		view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
+			"the group "+view.label.name+" of "+lib.library.fullName())
+		view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
+		if view.libraries[i].cart.prompt {
+			view.offer = &view.libraries[i].cart
+		}
+	}
 	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
 
@@ -374,7 +401,7 @@ func redirect(w http.ResponseWriter, r *http.Request, target string) {
 // parameters, the releases tab compares them. Returning from signing in to star the library, it prompts once to star
 // it.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	if s.withoutStarPrompt(w, r) {
+	if s.withoutStarPrompt(w, r) || s.withoutCartPrompt(w, r) {
 		return
 	}
 	query := r.URL.Query()
@@ -397,7 +424,8 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		if tab != rulesTab {
 			tab = groupsTab
 		}
-		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, newLibraryContents(view, page, s.assets.iconURL), tab))
+		contents := s.withGroupCarts(r, &view, newLibraryContents(view, page, s.assets.iconURL))
+		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab))
 	}
 }
 
@@ -511,10 +539,19 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
+	if s.withoutCartPrompt(w, r) {
+		return
+	}
 	if tab != versionsTab {
 		tab = contentTab
 	}
 	view := newRuleView(newLibraryView(page.Library), page)
+	item := domain.CartItem{Owner: page.Library.Owner, Name: page.Library.Name, Kind: domain.CartRule, Path: page.Rule.Path}
+	view.cart = s.newCartControl(r, page.Library.Vetted, view.retired != nil, item, "Add to cart", "the rule "+view.title)
+	view.library.cartNotice = view.cart.notice
+	if view.cart.prompt {
+		view.library.cartOffer = &view.cart
+	}
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
 }
 
@@ -538,6 +575,43 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 	}
 	view := newRuleView(newLibraryView(comparison.Page.Library), comparison.Page)
 	s.render(w, r, http.StatusOK, ruleComparisonPage(s.chrome, view, newRuleComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
+}
+
+// libraryView describes lib for the page r asks for, with the controls a library's pages show for the visitor: its
+// star, and the cart's control that adds the whole library.
+func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
+	view := newLibraryView(lib)
+	var err error
+	if view.star, err = s.starControl(r, lib, view.href); err != nil {
+		return libraryView{}, err
+	}
+	whole := domain.CartItem{Owner: lib.Owner, Name: lib.Name, Kind: domain.CartLibrary}
+	view.cart = s.newCartControl(r, lib.Vetted, false, whole, "Add library to cart", "every group of "+lib.FullName())
+	view.cartNotice = view.cart.notice
+	if view.cart.prompt {
+		view.cartOffer = &view.cart
+	}
+	return view, nil
+}
+
+// withGroupCarts gives each group of contents, a library's groups on the page r asks for, the cart's control that
+// adds it, and lib the notice one gives, if any.
+func (s *server) withGroupCarts(r *http.Request, lib *libraryView, contents libraryContents) libraryContents {
+	for _, groups := range [][]groupView{contents.techs, contents.practices} {
+		for i, g := range groups {
+			item := domain.CartItem{Owner: lib.owner, Name: lib.name, Kind: domain.CartGroup, Path: g.label.id}
+			name := g.label.id
+			if g.label.canonical {
+				name = g.label.name
+			}
+			groups[i].cart = s.newCartControl(r, lib.vetted, false, item, "Add", "the group "+name)
+			lib.cartNotice = cmp.Or(lib.cartNotice, groups[i].cart.notice)
+			if groups[i].cart.prompt {
+				lib.cartOffer = &groups[i].cart
+			}
+		}
+	}
+	return contents
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on

@@ -51,7 +51,7 @@ the local database. `make ingest` and `make worker` read either one. `make migra
 refuses a pooled `DATABASE_URL`, and from `DATABASE_URL_PARAMETER` it reads Neon's pooled connection string, as the
 functions do, and derives the direct one. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`. Each
 login may only do what its group roles' grants allow, as the deployed functions do: `rulemart_web` reads the
-catalog and writes accounts, sessions, listings, and stars, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
+catalog and writes accounts, sessions, listings, stars, and carts, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
 Pages show the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
@@ -121,11 +121,15 @@ one they no longer generate, such as a file under an old name.
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [_internal/decisions.md](_internal/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
-    snapshots within the content budget, addresses such as tags and GitHub URLs, and every ingestion limit.
+    snapshots within the content budget, addresses such as tags and GitHub URLs, every ingestion limit, and the
+    cart's items and the Code Rules configuration and prompt its checkout writes, whose golden files are in
+    `domain/testdata`; run `go test ./internal/contexts/catalog/domain -update` after changing them, and review the
+    diff.
   - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
     function, so only ingestion links goldmark and chroma, and the web function doesn't.
   - `app` holds the operations: `Ingester` ingests a library, updates one whose release tags changed, or checks a
-    listing; `Listings` lists libraries for accounts; `Stars` stars them; and `Pages` reads what the pages show.
+    listing; `Listings` lists libraries for accounts; `Stars` stars them; `Cart` keeps carts and checks them out;
+    and `Pages` reads what the pages show.
   - `jobs` encodes and decodes the jobs queue's messages.
   - `source/git` fetches release snapshots, or lists release tags, with go-git, which nothing else uses outside its
     test fixture `source/git/gittest`, and `source/github` looks repositories up in GitHub's API.
@@ -137,7 +141,7 @@ one they no longer generate, such as a file under an old name.
   and `store/postgres` keep accounts and sessions, with sqlc's output in `generated/accountsdb`.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
-  `RULEMART_BASE_URL`, sign-in, sign-out, the account page, listing, and stars, `queue` sends to the jobs queue, `secret`
+  `RULEMART_BASE_URL`, sign-in, sign-out, the account page, listing, stars, and the cart, `queue` sends to the jobs queue, `secret`
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser, and `internal/lib/textdiff` compares two
@@ -163,7 +167,7 @@ go tool goose -dir db/migrations -s create add_libraries sql
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_catalog_reader` what the web function needs from each new table, usually `SELECT` on what the
   pages read, and nothing on tables the pages don't read. Grant `rulemart_catalog_writer` what ingestion writes,
-  and `rulemart_accounts_writer` what signing in and out, listing, and starring write, and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
+  and `rulemart_accounts_writer` what signing in and out, listing, starring, and the cart write, and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
   the logins and their memberships, and migrations own the grants, so a login can be replaced or rotated without a
   migration. The site's tests read as `rulemart_web` and ingest as `rulemart_worker`, through their memberships, so
   a missing grant fails them.
