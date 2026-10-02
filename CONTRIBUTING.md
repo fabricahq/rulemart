@@ -119,6 +119,14 @@ one they no longer generate, such as a file under an old name.
 
 ## Layout
 
+Rulemart runs on AWS and Neon. Fabrica's private infrastructure repositories define and deploy the AWS resources.
+
+```text
+CloudFront -> web Lambda (Function URL) -> Neon Postgres
+EventBridge schedule -> worker Lambda -> SQS, one job per vetted library or listing -> worker Lambda -> Neon Postgres
+web Lambda -> SQS, one job per new listing
+```
+
 - `cmd/web` serves the pages, through CloudFront on Lambda or as a local HTTP server, and queues each new listing's
   check. `cmd/worker` keeps the vetted and listed libraries current: the schedule invokes it to queue one job per
   vetted library and per listing to check, and the job queue invokes it to run each job. Both run on Lambda.
