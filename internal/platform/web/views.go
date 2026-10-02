@@ -222,8 +222,6 @@ type ruleRowView struct {
 	href, title, impact string
 	stars               int
 	library             libraryRefView
-	// fabrica marks a rule of Fabrica's, whose row shows Fabrica's mark in place of the owner's avatar.
-	fabrica bool
 	// unvetted marks a rule of a library that's only listed, in a list that includes such libraries: its row shows the
 	// Unvetted chip, and its link carries nofollow.
 	unvetted bool
@@ -244,18 +242,17 @@ type ruleRowView struct {
 
 // newRuleRow describes r, a rule of lib, as a row; unvetted is true for a rule of a library that's only listed, in a
 // list that includes such libraries.
-func newRuleRow(lib views.LibraryRef, unvetted bool, r views.RuleCard) ruleRowView {
-	ref := newLibraryRefView(lib)
+func newRuleRow(lib libraryRefView, unvetted bool, r views.RuleCard) ruleRowView {
 	return ruleRowView{
-		href: ref.href + "/" + r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: ref,
-		fabrica: strings.EqualFold(lib.Owner, domain.FabricaOwner), unvetted: unvetted,
+		href: lib.href + "/" + r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
+		unvetted: unvetted,
 	}
 }
 
 // newListedRuleRow describes r, a row of a list of rules across libraries, with its retirement and the words of a
 // search it lacks.
 func newListedRuleRow(r views.RuleRow) ruleRowView {
-	row := newRuleRow(r.Library, !r.Vetted, r.Rule)
+	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
 	row.retired, row.missing = r.Retired, r.Missing
 	if r.ReplacedBy != nil {
 		row.replacedBy = titleOrID(r.ReplacedBy.Title, r.ReplacedBy.Path)
@@ -287,7 +284,7 @@ type retiredRuleCard struct {
 // serves an icon file.
 func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
 	byGroup := map[string][]ruleRowView{}
-	ref := views.LibraryRef{Owner: lib.owner, Name: lib.name, OwnerAvatarURL: lib.avatar}
+	ref := libraryRefView{href: lib.href, owner: lib.owner, name: lib.name, avatar: lib.avatar}
 	for _, r := range page.Rules {
 		byGroup[r.Group] = append(byGroup[r.Group], newRuleRow(ref, false, r))
 	}

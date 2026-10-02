@@ -144,7 +144,7 @@ func filterSidebar(v ruleListView) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				for _, l := range v.libraries {
-					var templ_7745c5c3_Var7 = []any{filterLabel, templ.KV("font-medium text-ink", l.fabrica)}
+					var templ_7745c5c3_Var7 = []any{filterLabel, templ.KV("font-medium text-ink", l.fabrica())}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -233,9 +233,9 @@ func filterSidebar(v ruleListView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var13 string
-					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.fullName)
+					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.fullName())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 34, Col: 62}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 34, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 					if templ_7745c5c3_Err != nil {
@@ -246,9 +246,9 @@ func filterSidebar(v ruleListView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var14 string
-					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(l.fullName)
+					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(l.fullName())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 34, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 34, Col: 81}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {

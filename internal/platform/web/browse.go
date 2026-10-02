@@ -110,6 +110,9 @@ func newLibraryRefView(lib views.LibraryRef) libraryRefView {
 // fullName returns the library's repository as owner/name.
 func (l libraryRefView) fullName() string { return l.owner + "/" + l.name }
 
+// fabrica reports whether the library is one of Fabrica's, which lists mark with Fabrica's logo and set first.
+func (l libraryRefView) fabrica() bool { return strings.EqualFold(l.owner, domain.FabricaOwner) }
+
 // groupSummaryView is a group's row on a browse page, and its tile on the home page.
 type groupSummaryView struct {
 	label groupLabel

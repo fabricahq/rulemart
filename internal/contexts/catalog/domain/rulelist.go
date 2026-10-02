@@ -9,9 +9,6 @@ import (
 	"strings"
 )
 
-// FabricaOwner owns Fabrica's libraries, which lists put first among libraries otherwise equal, while stars are few.
-const FabricaOwner = "fabricahq"
-
 // ImpactBand narrows a list of rules by the impact their libraries declare.
 type ImpactBand string
 

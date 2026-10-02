@@ -338,7 +338,7 @@ templ ruleRow(r ruleRowView) {
 			}
 			<div class={ "mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
 				<span class={ "flex min-w-0 items-center gap-[7px]", templ.KV("[&>:first-child]:opacity-60", r.retired) }>
-					@libraryMark(r.library, r.fabrica)
+					@libraryMark(r.library)
 					<span class="min-w-0 [overflow-wrap:anywhere]">
 						{ r.library.fullName() }
 						if r.group != nil {
@@ -354,8 +354,8 @@ templ ruleRow(r ruleRowView) {
 
 // libraryMark is a library's small mark in a quiet row, the prototype's libMark: Fabrica's logo on a dark tile for a
 // library of Fabrica's, and otherwise its owner's avatar.
-templ libraryMark(lib libraryRefView, fabrica bool) {
-	if fabrica {
+templ libraryMark(lib libraryRefView) {
+	if lib.fabrica() {
 		<span class="inline-grid size-[18px] flex-none place-items-center rounded-[4px] bg-primary text-on-primary" title="Published by Fabrica">
 			@fabricaMark("size-3")
 		</span>

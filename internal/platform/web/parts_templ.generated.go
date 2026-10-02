@@ -1674,7 +1674,7 @@ func ruleRow(r ruleRowView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = libraryMark(r.library, r.fabrica).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryMark(r.library).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1733,7 +1733,7 @@ func ruleRow(r ruleRowView) templ.Component {
 
 // libraryMark is a library's small mark in a quiet row, the prototype's libMark: Fabrica's logo on a dark tile for a
 // library of Fabrica's, and otherwise its owner's avatar.
-func libraryMark(lib libraryRefView, fabrica bool) templ.Component {
+func libraryMark(lib libraryRefView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1754,7 +1754,7 @@ func libraryMark(lib libraryRefView, fabrica bool) templ.Component {
 			templ_7745c5c3_Var86 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		if fabrica {
+		if lib.fabrica() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "<span class=\"inline-grid size-[18px] flex-none place-items-center rounded-[4px] bg-primary text-on-primary\" title=\"Published by Fabrica\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

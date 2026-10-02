@@ -226,7 +226,7 @@ func newStarredViews(starred []views.StarredRule) []ruleRowView {
 	rows := make([]ruleRowView, len(starred))
 	for i, s := range starred {
 		group := newGroupLabel(s.Rule.Group, s.CanonicalGroup)
-		rows[i] = newRuleRow(s.Library, false, s.Rule)
+		rows[i] = newRuleRow(newLibraryRefView(s.Library), false, s.Rule)
 		rows[i].group, rows[i].starredAs = &group, s.StarredAs
 	}
 	return rows
