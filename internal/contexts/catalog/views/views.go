@@ -493,8 +493,10 @@ type CartLibrary struct {
 	// Vetted is false for a library the release doesn't vet, and Listed true for one of those that a listing names,
 	// whose pages show it as unvetted. A library neither vetted nor listed has no pages.
 	Vetted, Listed bool
-	// LatestRelease is the number of the library's latest release, which checkout pins it to.
+	// LatestRelease is the number of the library's latest release, which checkout pins it to, and LatestCommit the
+	// commit its tag pointed to when Rulemart ingested it.
 	LatestRelease int
+	LatestCommit  string
 	// Items are the whole library first, then its groups, then its rules, each in ID order.
 	Items []CartItem
 }

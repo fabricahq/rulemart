@@ -153,6 +153,7 @@ func (s *Store) Cart(ctx context.Context, vetted []domain.LibraryKey, accountID 
 			if n := len(libraries); n == 0 || libraries[n-1].Library != ref {
 				libraries = append(libraries, views.CartLibrary{
 					Library: ref, Vetted: row.Vetted, Listed: row.Listed, LatestRelease: int(row.LatestRelease),
+					LatestCommit: row.LatestCommit,
 				})
 			}
 			item := views.CartItem{

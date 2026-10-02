@@ -74,7 +74,7 @@ func TestCheckoutOfSeveralLibrariesNamesTheUnvettedOne(t *testing.T) {
 			},
 		},
 		{
-			Owner: "stranger", Name: "Rules", Release: 3,
+			Owner: "stranger", Name: "Rules", Release: 3, Commit: "3333333333333333333333333333333333333333",
 			Items: []CartItem{item("stranger/Rules", CartRule, "techs/go/use-go")},
 		},
 	})
@@ -149,5 +149,29 @@ func TestCheckoutNamesSameNamedRepositoriesByOwner(t *testing.T) {
 	}
 	if config := checkout.Config(); strings.Count(config, "repository: https://github.com/") != 2 {
 		t.Errorf("the configuration doesn't import both:\n%s", config)
+	}
+}
+
+// An unvetted library is fetched for review, and imported, by the commit its release's tag named when Rulemart
+// ingested it, so a moved tag, or a branch of the same name, can't swap what the visitor approves; without a commit ID,
+// the tag by its full name.
+func TestCheckoutPinsAnUnvettedLibraryToTheReviewedCommit(t *testing.T) {
+	lib := CheckoutLibrary{Owner: "stranger", Name: "rules", Release: 3, Commit: "3333333333333333333333333333333333333333",
+		Items: []CartItem{item("stranger/rules", CartLibrary, "")}}
+	source := NewCheckout([]CheckoutLibrary{lib}).Sources[0]
+	if got, want := source.ref(), "3333333333333333333333333333333333333333 # release/3"; got != want {
+		t.Errorf("ref %q, want %q", got, want)
+	}
+	if got := source.ReviewCommand(); !strings.Contains(got, "fetch -q --depth 1 https://github.com/stranger/rules.git 3333333333333333333333333333333333333333 ") {
+		t.Errorf("the review fetches %q", got)
+	}
+	lib.Commit = ""
+	source = NewCheckout([]CheckoutLibrary{lib}).Sources[0]
+	if got := source.ReviewCommand(); !strings.Contains(got, " refs/tags/release/3 ") || source.ref() != "release/3" {
+		t.Errorf("without a commit: review %q, ref %q", got, source.ref())
+	}
+	lib.Vetted, lib.Commit = true, "3333333333333333333333333333333333333333"
+	if got := NewCheckout([]CheckoutLibrary{lib}).Sources[0].ref(); got != "release/3" {
+		t.Errorf("a vetted library's ref is %q, want its tag", got)
 	}
 }
