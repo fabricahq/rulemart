@@ -79,7 +79,7 @@ decision.
 
 - **Proposed: "Popular" names the two technologies and two practices with the most rules**, since Rulemart has no
   traffic data yet; the prototype hard-codes four. The chips link to the group pages.
-- **Proposed: tiles sort by rule count**, as the prototype's, and say "N rules · M libraries"; the libraries band shows
+- **Proposed: tiles sort by rule count, then name**, as the prototype's, and say "N rules · M libraries"; the libraries band shows
   the first four vetted libraries in owner and name order (**Existing**), since nothing sorts libraries by anything
   else. On a narrow phone, under 384 pixels, the tiles stand in one column rather than the prototype's two, which cut
   off names such as Concurrency at 320 pixels.
@@ -96,6 +96,8 @@ decision.
   on the library's All rules tab until slice R4 gives every group a page. The prototype's "similar to" note needs a
   list of near-canonical names Rulemart doesn't keep, so there is none.
 - **Proposed: the counts count current rules in vetted libraries**, as the groups page did.
+- **Proposed: rows sort by rule count, then name**, as the home page's tiles do, so both pages rank groups alike; the
+  prototype lists groups by size too. Tiles with as many rules also sort by name, rather than by ID.
 - **Proposed: on a phone, a row's counts drop under its text**, in line with it, rather than stand beside it as the
   prototype's do, since beside it, "10 rules" and "2 libraries" squeezed a practice's description into a column about
   120 pixels wide at 390 pixels and broke names mid-word at 320. Names and IDs wrap only between words and after a

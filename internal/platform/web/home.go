@@ -4,7 +4,6 @@
 package web
 
 import (
-	"cmp"
 	"net/http"
 	"slices"
 )
@@ -38,13 +37,6 @@ func newHomeView(libraries []libraryCard, index groupIndexView, listHref string)
 		libraries: firstOf(libraries, homeLibraries),
 		listHref:  listHref,
 	}
-}
-
-// byRuleCount returns groups with the most rules first, groups with as many in the order given.
-func byRuleCount(groups []groupSummaryView) []groupSummaryView {
-	sorted := slices.Clone(groups)
-	slices.SortStableFunc(sorted, func(a, b groupSummaryView) int { return cmp.Compare(b.rules, a.rules) })
-	return sorted
 }
 
 // firstOf returns at most n of items, the first ones. The result shares items' array but ends its capacity with

@@ -4,6 +4,7 @@
 package web
 
 import (
+	"cmp"
 	"net/http"
 	"net/url"
 	"slices"
@@ -186,6 +187,16 @@ func canonicalOnly(groups []groupSummaryView) []groupSummaryView {
 	return canonical
 }
 
+// byRuleCount returns groups with the most rules first, and groups with as many by name, as the home page's tiles and
+// the browse pages' rows list them.
+func byRuleCount(groups []groupSummaryView) []groupSummaryView {
+	sorted := slices.Clone(groups)
+	slices.SortStableFunc(sorted, func(a, b groupSummaryView) int {
+		return cmp.Or(cmp.Compare(b.rules, a.rules), strings.Compare(a.label.name, b.label.name))
+	})
+	return sorted
+}
+
 // othersOnly returns the groups of groups that aren't canonical, each one library's.
 func othersOnly(groups []groupSummaryView) []groupSummaryView {
 	var others []groupSummaryView
@@ -198,7 +209,7 @@ func othersOnly(groups []groupSummaryView) []groupSummaryView {
 }
 
 // browseView is what a kind's browse page shows: its canonical groups that hold current rules in a vetted library,
-// and how many other groups its other page lists.
+// by rule count, and how many other groups its other page lists.
 type browseView struct {
 	kind   groupKind
 	groups []groupSummaryView
@@ -207,7 +218,7 @@ type browseView struct {
 
 func newBrowseView(kind groupKind, index groupIndexView) browseView {
 	groups := index.ofKind(kind)
-	return browseView{kind: kind, groups: canonicalOnly(groups), others: len(othersOnly(groups))}
+	return browseView{kind: kind, groups: byRuleCount(canonicalOnly(groups)), others: len(othersOnly(groups))}
 }
 
 // otherGroupsView is what a kind's other-groups page shows: one row per library and group ID that isn't canonical.

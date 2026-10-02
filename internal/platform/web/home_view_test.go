@@ -30,7 +30,7 @@ func libraryCards(n int) []libraryCard {
 }
 
 // The hero names the two technologies and the two practices with the most rules, technologies first, and the tiles
-// list each kind's canonical groups by rule count, keeping the catalog's order between groups with as many.
+// list each kind's canonical groups by rule count, and groups with as many by name.
 func TestHomeViewRanksGroupsByRuleCount(t *testing.T) {
 	index := groupIndexView{
 		techs: []groupSummaryView{
