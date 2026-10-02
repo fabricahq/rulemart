@@ -260,10 +260,11 @@ func TestWordsMarksChangedWordsAndFoldsUnchangedBlocks(t *testing.T) {
 		"neighboring changed words are one change": {"Stop after three tries.\n", "Stop before four tries.\n",
 			"*Stop [-after three-]{+before four+} tries.\n"},
 		// Whitespace can change what code does, so in a code block it's compared, and marked, as it is.
+		// A line break stays unmarked; only the indentation after it changes.
 		"indentation in a fenced code block": {"Intro.\n\n```py\nif ready:\n    run()\n```\n", "Intro.\n\n```py\nif ready:\nrun()\n```\n",
-			" Intro.\n*```py⏎if ready:[-⏎    -]{+⏎+}run()⏎```\n"},
+			" Intro.\n*```py⏎if ready:⏎[-    -]run()⏎```\n"},
 		"indentation in an indented code block": {"Intro.\n\n    a\n      b\n", "Intro.\n\n    a\n    b\n",
-			" Intro.\n*    a[-⏎      -]{+⏎    +}b\n"},
+			" Intro.\n*    a⏎[-      -]{+    +}b\n"},
 		// Prose beside changed code still ignores whitespace: only its changed word is marked, not its rewrapping.
 		"rewrapped prose beside changed code": {"Use foo here.\n\n```go\nfoo()\n```\n", "Use bar\nhere.\n\n```go\nbar()\n```\n",
 			"*Use [-foo-]{+bar+}⏎here.⏎⏎```go⏎[-foo()-]{+bar()+}⏎```\n"},
