@@ -271,14 +271,13 @@ templ retiredRuleRow(r retiredRuleCard) {
 				<span class="mono text-faint">
 					@breakable(r.id)
 				</span> · last version <span class="mono">{ r.lastVersion }</span> · retired in <span class="mono">{ r.retiredTag }</span>
-				if r.replacedBy != "" && r.renamed {
-					· renamed to <span class="mono">
-						@breakable(r.replacedBy)
-					</span>
-				} else if r.replacedBy != "" {
-					· replaced by <span class="mono">
-						@breakable(r.replacedBy)
-					</span>
+				if len(r.replacedBy) > 0 {
+					·
+					for _, step := range rowChainSteps(r.replacedBy, r.renamed) {
+						{ step.prefix }<span class="mono">
+							@breakable(step.id)
+						</span>
+					}
 				}
 			</div>
 		</div>

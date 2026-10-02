@@ -53,9 +53,8 @@ func linksOf(history views.LibraryHistory) []views.RuleLink {
 	return links
 }
 
-// A retired rule's replacement chain runs to the rule that's current at the end of what's shown: a release's card
-// names the replacement it had then, a comparison follows it to the release it compares, and a rename shows once,
-// under its new ID, from the old one.
+// A retired rule's replacement chain runs to the rule that's current now, on a release's card and in a comparison,
+// naming its first replacement by its title then; a rename shows once, under its new ID, from the old one.
 func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 	h := &histories{history: replacedTwice}
 	pages := app.Pages{Store: h}
@@ -75,7 +74,7 @@ func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 		byRelease[notes.Release.Number] = describeChanges(notes.Changes)
 	}
 	if got, want := byRelease[2], []string{
-		`practices/testing/check-retry-backoff "Check retry backoff" retired 1.0.0->0.0.0 [] [Covered by verify-retries.] by practices/testing/verify-retries "Verify retries"`,
+		`practices/testing/check-retry-backoff "Check retry backoff" retired 1.0.0->0.0.0 [] [Covered by verify-retries.] by practices/testing/verify-retries "Verify retries" by practices/testing/verify-retry-limits "Verify retry limits"`,
 		`practices/testing/verify-retries "Verify retries" new 0.0.0->1.0.0 [1.0.0]`,
 	}; !slices.Equal(got, want) {
 		t.Errorf("release/2 changes\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -144,13 +143,21 @@ func TestRulePagesFollowReplacementsAndRenames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var renamed []string
+	replacements := map[string][]string{}
 	for _, r := range library.Retired {
 		if r.Renamed {
 			renamed = append(renamed, r.Path)
 		}
+		for _, ref := range r.Replacements {
+			replacements[r.Path] = append(replacements[r.Path], ref.Path)
+		}
 	}
 	if !slices.Equal(renamed, []string{"techs/go/name-tests"}) {
 		t.Errorf("renamed retired rules are %q", renamed)
+	}
+	// The All rules tab follows a retired rule's replacements to now, as its page does.
+	if got := replacements["practices/testing/check-retry-backoff"]; !slices.Equal(got, []string{"practices/testing/verify-retries", "practices/testing/verify-retry-limits"}) {
+		t.Errorf("check-retry-backoff's replacements on the All rules tab are %q", got)
 	}
 }
 

@@ -217,6 +217,19 @@ func chainSteps(links []ruleLink, renamed bool) []chainStep {
 	return steps
 }
 
+// rowChainSteps words a chain of replacements by the rules' IDs, within a line that names a retired rule: "replaced
+// by a, itself replaced by b", or "renamed to a", with no period, collapsed as chainSteps collapses a long chain.
+func rowChainSteps(links []ruleLink, renamed bool) []chainStep {
+	steps := chainSteps(links, renamed)
+	for i := range steps {
+		steps[i].id, steps[i].suffix = steps[i].link.id, ""
+	}
+	if len(steps) > 0 {
+		steps[0].prefix = strings.ToLower(steps[0].prefix)
+	}
+	return steps
+}
+
 // titleOrID returns a rule's title, or its ID when the catalog doesn't have its title yet.
 func titleOrID(title, id string) string {
 	if title == "" {

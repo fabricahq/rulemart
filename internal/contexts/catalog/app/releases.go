@@ -134,7 +134,7 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		case !inTo:
 			change.Rule.Title = titleAt(r, old)
 			change.Change, change.From = coderules.ChangeRetired, r.Versions[old].Version
-			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, titledAt(history, index, links.replacements(r.Path, to), to)
+			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, titledAt(history, index, links.replacements(r.Path), to)
 			result = append(result, change)
 			continue
 		case !inFrom:
@@ -204,7 +204,7 @@ func comparedPairs(history views.LibraryHistory, from, to int) []views.VersionPa
 }
 
 // titledAt names each rule of refs by the title it had after release n, which a page about that release shows, rather
-// than its newest, and keeps the newest for a rule retired by then.
+// than its newest, and keeps the newest for a rule that release didn't have.
 // index is ruleIndex's of history.
 func titledAt(history views.LibraryHistory, index map[string]int, refs []views.RuleRef, n int) []views.RuleRef {
 	for i, ref := range refs {

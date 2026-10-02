@@ -153,9 +153,9 @@ type retiredRuleCard struct {
 	href, title, id, lastVersion string
 	// retiredTag is the release that retired the rule, which retiredHref shows.
 	retiredTag, retiredHref string
-	// replacedBy is the ID of the rule that replaced it, or empty, and renamed reports that it's the same rule under a
-	// new ID.
-	replacedBy string
+	// replacedBy is the rule that replaced it, then the rule that replaced that one, and so on, and renamed reports that
+	// the first is the same rule under a new ID.
+	replacedBy []ruleLink
 	renamed    bool
 }
 
@@ -185,7 +185,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	for _, r := range page.Retired {
 		result.retired = append(result.retired, retiredRuleCard{
 			href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
-			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: r.ReplacedBy,
+			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: newRuleLinks(lib, r.Replacements),
 			renamed: r.Renamed,
 		})
 	}

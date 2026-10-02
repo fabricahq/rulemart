@@ -38,11 +38,10 @@ func historyLinks(history views.LibraryHistory) ruleLinks {
 // grow with the square of its rules.
 const MaxReplacements = 20
 
-// replacements returns the rule that replaced the rule at path, then, while that one was retired by release by, or
-// at all when by is 0, the rule that replaced it, and so on. The chain ends at a rule still current then, one whose
-// retirement named no replacement, or one it already named, so a cycle in a library's records can't loop, and after
-// MaxReplacements rules.
-func (l ruleLinks) replacements(path string, by int) []views.RuleRef {
+// replacements returns the rule that replaced the rule at path, then, while that one is retired, the rule that
+// replaced it, and so on. The chain ends at a rule current now, one whose retirement named no replacement, or one it
+// already named, so a cycle in a library's records can't loop, and after MaxReplacements rules.
+func (l ruleLinks) replacements(path string) []views.RuleRef {
 	var chain []views.RuleRef
 	seen := map[string]bool{path: true}
 	for next := l[path].ReplacedBy; next != "" && !seen[next] && len(chain) < MaxReplacements; {
@@ -53,7 +52,7 @@ func (l ruleLinks) replacements(path string, by int) []views.RuleRef {
 			break
 		}
 		chain = append(chain, views.RuleRef{Path: link.Path, Title: link.Title, RetiredIn: link.RetiredIn})
-		if link.RetiredIn == 0 || (by != 0 && link.RetiredIn > by) {
+		if link.RetiredIn == 0 {
 			break
 		}
 		next = link.ReplacedBy

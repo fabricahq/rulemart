@@ -85,12 +85,13 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A release names each rule by the title it published then. Proposed.** A rule renamed later keeps its old title in
   the releases before the rename, and a retired rule shows its last title.
 - **A retired rule's replacement is followed to a current rule. Proposed.** When the rule that replaced a retired one
-  was retired too by the end of what a page shows, the page names the chain: "Replaced by Verify retries, itself
-  replaced by Verify retry limits". A release's card follows it to that release, a comparison to its later release,
-  and a retired rule's page to now, each rule named by its title then. Following stops at a rule it already named,
-  so a cycle in a library's records can't loop, and after 20 rules; a chain of more than three names its first two
-  rules and its last, and counts the ones between, so a library that retires a rule every release can't make a page's
-  work grow with the square of its rules.
+  was retired too, every page that names the replacement names the chain to the rule current now: "Replaced by Verify
+  retries, itself replaced by Verify retry limits". A retired rule's page, its row on the All rules tab, a release's
+  card, and a comparison all follow it the same way, so the reader always reaches the rule that holds the guidance
+  today. A release's card and a comparison name the first replacement by its title then. Following stops at a rule it
+  already named, so a cycle in a library's records can't loop, and after 20 rules; a chain of more than three names its
+  first two rules and its last, and counts the ones between, so a library that retires a rule every release can't make a
+  page's work grow with the square of its rules.
 - **A rename shows once, as a rename. Proposed.** Code Rules records a rename as a retired rule replaced by a new one.
   When the release that retired a rule added its replacement under the retired rule's last title, Rulemart shows one
   change, under Renamed rules: the new ID, "Renamed from" the old one, and the old rule's last text compared with the

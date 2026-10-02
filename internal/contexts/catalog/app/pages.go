@@ -54,7 +54,7 @@ func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
 }
 
 // LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
-// and retired rules, each saying whether it was renamed, or ErrNotFound.
+// and retired rules, each with its chain of replacements to now and whether it was renamed, or ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {
 	page, err := p.Store.LibraryPage(ctx, p.Vetted, owner, name)
 	if err != nil {
@@ -65,7 +65,7 @@ func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.Libra
 	}
 	links := newRuleLinks(page.Links)
 	for i, r := range page.Retired {
-		page.Retired[i].Renamed = links.renamed(r.Path)
+		page.Retired[i].Replacements, page.Retired[i].Renamed = links.replacements(r.Path), links.renamed(r.Path)
 	}
 	return page, nil
 }
@@ -80,7 +80,7 @@ func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (view
 	page.Rule.CanonicalGroup = p.canonical(page.Rule.Group)
 	links := newRuleLinks(page.Links)
 	if retirement := page.Rule.Retirement; retirement != nil {
-		retirement.Replacements, retirement.Renamed = links.replacements(page.Rule.Path, 0), links.renamed(page.Rule.Path)
+		retirement.Replacements, retirement.Renamed = links.replacements(page.Rule.Path), links.renamed(page.Rule.Path)
 	}
 	page.RenamedFrom, page.Replaces = links.replaced(page.Rule.Path)
 	return page, nil

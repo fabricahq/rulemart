@@ -468,12 +468,15 @@ func TestAllRulesTabListsRetiredRules(t *testing.T) {
 	c := newCatalog()
 	lib := c.pages["example/rules"]
 	lib.Retired = []views.RetiredRuleCard{{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff",
-		LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retry-limits"}}
+		LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retries", Replacements: []views.RuleRef{
+			{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 4},
+			{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"},
+		}}}
 	c.pages["example/rules"] = lib
 
 	page := get(t, newSite(t, c), library+"?tab=rules").Body.String()
 
-	assertShows(t, page, "Retired Check retry backoff practices/testing/check-retry-backoff · last version 1.0.0 · retired in release/3 · replaced by practices/testing/verify-retry-limits")
+	assertShows(t, page, "Retired Check retry backoff practices/testing/check-retry-backoff · last version 1.0.0 · retired in release/3 · replaced by practices/testing/verify-retries , itself replaced by practices/testing/verify-retry-limits ›")
 }
 
 // A comparison's releases or versions come from its URL, so one that isn't a release number or version, or that the
@@ -535,7 +538,8 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 	c.rules["example/rules/techs/go/return-errors"] = page
 	lib := c.pages["example/rules"]
 	lib.Retired = []views.RetiredRuleCard{
-		{Path: "techs/go/wrap-errors", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors", Renamed: true},
+		{Path: "techs/go/wrap-errors", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors", Renamed: true,
+			Replacements: []views.RuleRef{{Path: "techs/go/return-errors", Title: "Return errors"}}},
 		{Path: "practices/testing/a-old", Title: "A old", LastVersion: v100, RetiredIn: 2},
 	}
 	c.pages["example/rules"] = lib
