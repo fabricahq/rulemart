@@ -100,7 +100,8 @@ func (s *Store) AccountListings(ctx context.Context, vetted []domain.LibraryKey,
 			listings[i] = views.AccountListing{
 				ID: row.ID, Owner: row.Owner, Name: row.Name, RepositoryID: row.HostRepositoryID,
 				State:   domain.StateOf(row.Vetted, row.Ingested, row.Failure.Valid),
-				Failure: row.Failure.String, ListedAt: row.CreatedAt.Time, CheckedAt: row.CheckedAt.Time,
+				Failure: row.Failure.String, ListedAt: row.CreatedAt.Time, RequestedAt: row.RequestedAt.Time,
+				CheckedAt: row.CheckedAt.Time,
 			}
 			if row.Ingested {
 				listings[i].Library = views.LibraryRef{Owner: row.LibraryOwner, Name: row.LibraryName, OwnerAvatarURL: row.LibraryAvatarUrl}

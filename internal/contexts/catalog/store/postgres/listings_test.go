@@ -316,7 +316,10 @@ func TestAccountListingsShowEachListingsState(t *testing.T) {
 		if g.ListedAt.IsZero() || g.CheckedAt.IsZero() != (w.Failure == "") {
 			t.Errorf("listing %d: listed at %v, checked at %v", i, g.ListedAt, g.CheckedAt)
 		}
-		g.ListedAt, g.CheckedAt = time.Time{}, time.Time{}
+		if g.RequestedAt.Before(g.ListedAt) {
+			t.Errorf("listing %d: requested at %v, before it was listed at %v", i, g.RequestedAt, g.ListedAt)
+		}
+		g.ListedAt, g.RequestedAt, g.CheckedAt = time.Time{}, time.Time{}, time.Time{}
 		if g != w {
 			t.Errorf("listing %d is %+v, want %+v", i, g, w)
 		}
@@ -345,8 +348,10 @@ func TestRemoveAndRetryActOnlyOnTheAccountsOwnListings(t *testing.T) {
 	if err := c.web.RetryListing(ctx, account, id); err != nil {
 		t.Fatalf("retry: %v", err)
 	}
-	if listings, err := c.web.AccountListings(ctx, vettedBoth, account); err != nil || listings[0].State != domain.ListingChecking || listings[0].Failure != "" {
-		t.Fatalf("after retrying: got %+v, %v", listings, err)
+	listings, err := c.web.AccountListings(ctx, vettedBoth, account)
+	if err != nil || listings[0].State != domain.ListingChecking || listings[0].Failure != "" ||
+		!listings[0].RequestedAt.After(listings[0].CheckedAt) {
+		t.Fatalf("after retrying: got %+v, %v; want checking, requested after its last check", listings, err)
 	}
 	if err := c.web.RemoveListing(ctx, account, id); err != nil {
 		t.Fatalf("remove: %v", err)

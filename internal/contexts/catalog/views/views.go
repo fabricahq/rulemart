@@ -451,7 +451,7 @@ type AccountListing struct {
 	Library LibraryRef
 	// Failure says why the last check failed, or is empty.
 	Failure string
-	// ListedAt is when the account listed it, and CheckedAt when the worker last finished checking it, or the zero
-	// time until it does.
-	ListedAt, CheckedAt time.Time
+	// ListedAt is when the account listed it, RequestedAt when it last asked for a check, by listing it or trying it
+	// again, and CheckedAt when the worker last finished checking it, or the zero time until it does.
+	ListedAt, RequestedAt, CheckedAt time.Time
 }

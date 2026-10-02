@@ -66,6 +66,7 @@ type Listing struct {
 	Name             string
 	HostRepositoryID pgtype.Text
 	CreatedAt        pgtype.Timestamptz
+	RequestedAt      pgtype.Timestamptz
 	CheckedAt        pgtype.Timestamptz
 	Failure          pgtype.Text
 }

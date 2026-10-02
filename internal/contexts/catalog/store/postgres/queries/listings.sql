@@ -48,7 +48,7 @@ INSERT INTO listings (account_id, host, owner, name) VALUES (@account_id::bigint
 -- library it names when the catalog stores it.
 -- name: ListAccountListings :many
 SELECT s.id, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.created_at,
-       s.checked_at, s.failure,
+       s.requested_at, s.checked_at, s.failure,
        coalesce(s.host || ':' || s.host_repository_id = ANY (@vetted::text[]), false)::boolean AS vetted,
        (l.id IS NOT NULL)::boolean AS ingested, coalesce(l.owner, '')::text AS library_owner,
        coalesce(l.name, '')::text AS library_name, coalesce(l.owner_avatar_url, '')::text AS library_avatar_url
@@ -62,7 +62,7 @@ DELETE FROM listings WHERE id = @id AND account_id = @account_id::bigint;
 
 -- RetryListing asks the worker to check the account's listing again, when its last check failed.
 -- name: RetryListing :execrows
-UPDATE listings SET checked_at = NULL, failure = NULL
+UPDATE listings SET requested_at = now(), failure = NULL
 WHERE id = @id AND account_id = @account_id::bigint AND failure IS NOT NULL;
 
 -- GetListing returns a listing as the worker checks it, with whether the catalog stores the library it names.

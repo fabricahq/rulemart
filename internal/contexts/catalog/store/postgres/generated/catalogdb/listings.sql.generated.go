@@ -171,7 +171,7 @@ func (q *Queries) GetListing(ctx context.Context, id int64) (GetListingRow, erro
 
 const listAccountListings = `-- name: ListAccountListings :many
 SELECT s.id, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.created_at,
-       s.checked_at, s.failure,
+       s.requested_at, s.checked_at, s.failure,
        coalesce(s.host || ':' || s.host_repository_id = ANY ($1::text[]), false)::boolean AS vetted,
        (l.id IS NOT NULL)::boolean AS ingested, coalesce(l.owner, '')::text AS library_owner,
        coalesce(l.name, '')::text AS library_name, coalesce(l.owner_avatar_url, '')::text AS library_avatar_url
@@ -192,6 +192,7 @@ type ListAccountListingsRow struct {
 	Name             string
 	HostRepositoryID string
 	CreatedAt        pgtype.Timestamptz
+	RequestedAt      pgtype.Timestamptz
 	CheckedAt        pgtype.Timestamptz
 	Failure          pgtype.Text
 	Vetted           bool
@@ -218,6 +219,7 @@ func (q *Queries) ListAccountListings(ctx context.Context, arg ListAccountListin
 			&i.Name,
 			&i.HostRepositoryID,
 			&i.CreatedAt,
+			&i.RequestedAt,
 			&i.CheckedAt,
 			&i.Failure,
 			&i.Vetted,
@@ -320,7 +322,7 @@ func (q *Queries) ResolveListing(ctx context.Context, arg ResolveListingParams) 
 }
 
 const retryListing = `-- name: RetryListing :execrows
-UPDATE listings SET checked_at = NULL, failure = NULL
+UPDATE listings SET requested_at = now(), failure = NULL
 WHERE id = $1 AND account_id = $2::bigint AND failure IS NOT NULL
 `
 

@@ -19,8 +19,9 @@ CREATE TABLE listings (
     -- The host's ID for the repository, once the worker has looked it up: the key vetting and the catalog use.
     host_repository_id text CHECK (host_repository_id ~ '^[1-9][0-9]*$'),
     created_at timestamptz NOT NULL DEFAULT now(),
-    -- When the worker last finished checking the listing, or NULL until it first does, and again after its lister
-    -- asks it to try again.
+    -- When the listing last asked for a check: when it was listed, or when its lister last asked to try again.
+    requested_at timestamptz NOT NULL DEFAULT now(),
+    -- When the worker last finished checking the listing, or NULL until it first does.
     checked_at timestamptz,
     -- Why the last check failed, in words the lister can act on, or NULL when it succeeded or hasn't run.
     failure text CHECK (failure <> '' AND length(failure) <= 1000),
@@ -35,7 +36,7 @@ CREATE INDEX listings_account_id_idx ON listings (account_id);
 
 -- Listing, removing a listing, and asking the worker to try one again.
 GRANT SELECT, INSERT, DELETE ON listings TO rulemart_accounts_writer;
-GRANT UPDATE (checked_at, failure) ON listings TO rulemart_accounts_writer;
+GRANT UPDATE (requested_at, failure) ON listings TO rulemart_accounts_writer;
 -- Pages find the libraries listings name.
 GRANT SELECT ON listings TO rulemart_catalog_reader;
 -- The worker records what each check finds, and nothing else: it can't list a library or change who listed one.
