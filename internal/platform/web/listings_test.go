@@ -708,7 +708,7 @@ func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	if got := links(t, page, "Your listings"); !slices.Equal(got, []string{"/account/listings"}) {
 		t.Errorf("the menu links your listings at %q", got)
 	}
-	if got := links(t, page, "List a library ›"); !slices.Equal(got, []string{"/list"}) {
+	if got := links(t, page, "list a public library"); !slices.Equal(got, []string{"/list"}) {
 		t.Errorf("the libraries page links listing at %q", got)
 	}
 
@@ -716,7 +716,7 @@ func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	token := without.accounts.signedIn(t, accounts.Identity{GitHubUserID: 2, Login: "hubot"})
 	page = body(t, send(t, without.handler, request{method: http.MethodGet, target: "/libraries",
 		cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
-	if strings.Contains(page, "Your listings") || strings.Contains(page, "List a library") {
+	if strings.Contains(page, "Your listings") || len(links(t, page, "list a public library")) > 0 {
 		t.Error("a site without listings offers them")
 	}
 	if resp := send(t, without.handler, request{method: http.MethodGet, target: "/list"}); resp.StatusCode != http.StatusNotFound {

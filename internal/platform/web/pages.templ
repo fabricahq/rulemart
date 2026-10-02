@@ -132,35 +132,34 @@ templ libraryRow(lib libraryCard, headed bool) {
 }
 
 
-// librariesPage lists every vetted library, then leads to the unvetted ones, and, when canList is true, to listing a
-// library.
+// librariesPage lists every vetted library, under a lede that says anyone can list a public library, leading to
+// listing one when canList is true, and where the unvetted ones are.
 templ librariesPage(c chrome, libraries []libraryCard, canList bool) {
 	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref}) {
 		<div class="page wrap">
-			<h1 class="title-xl">Libraries</h1>
-			<p class="mt-1.5 max-w-[46rem] text-muted">Each library is a set of rules a team publishes for coding agents to follow. Rulemart lists here only the libraries it has vetted.</p>
-			<div class="mt-[26px]">
-				if len(libraries) == 0 {
-					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
+			@label("") {
+				Libraries
+			}
+			<h1 class="title-xl mt-2 mb-2">Libraries Rulemart has vetted</h1>
+			<p class="mb-[22px] max-w-[46rem] text-muted">
+				if canList {
+					Anyone can <a href={ templ.SafeURL(listHref) }>list a public library</a>.
 				} else {
-					@rowList() {
-						for _, lib := range libraries {
-							@rowItem() {
-								@libraryRow(lib, false)
-							}
+					Anyone can list a public library.
+				}
+				It shows, with a warning, under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a> until Rulemart reviews and vets it. Check the owner line to see who stands behind each one.
+			</p>
+			if len(libraries) == 0 {
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
+			} else {
+				@rowList() {
+					for _, lib := range libraries {
+						@rowItem() {
+							@libraryRow(lib, false)
 						}
 					}
 				}
-			</div>
-			<div class="mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border-subtle pt-6 text-[14px]">
-				<p class="max-w-[40rem] text-muted">Libraries that people list show apart, under a warning, until Rulemart reviews and vets them.</p>
-				<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-					if canList {
-						<a class="text-ink no-underline hover:underline" href={ templ.SafeURL(listHref) }>List a library ›</a>
-					}
-					<a class="text-ink no-underline hover:underline" href={ templ.SafeURL(unvettedHref) } rel="nofollow">View unvetted libraries ›</a>
-				</div>
-			</div>
+			}
 		</div>
 	}
 }
