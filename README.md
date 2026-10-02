@@ -25,11 +25,6 @@
   <a href="https://code-rules.fabricahq.com">Code Rules docs</a>
 </p>
 
-> [!NOTE]
-> [rulemart.fabricahq.com](https://rulemart.fabricahq.com) runs release v0.1.0, which shows the vetted libraries and
-> their rules. Search, browsing by technology and practice, sign-in, the cart and checkout, and listing a library are
-> built on `main` and not released yet. This README describes `main`.
-
 ## Why Rulemart?
 
 Coding agents write code fast, but not the way your team would: they skip the error handling you expect, test the
@@ -51,9 +46,7 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex. The agent
 installs [Code Rules](https://code-rules.fabricahq.com/start-here/install/) 0.2.0 or later, after asking you, if
-it's missing. Until the next release reaches [rulemart.fabricahq.com](https://rulemart.fabricahq.com), run Rulemart
-on your machine as [CONTRIBUTING.md](CONTRIBUTING.md#run-the-site-locally) describes and follow the same steps at
-<http://127.0.0.1:8080>.
+it's missing.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
    **Techs** and **Practices**.
