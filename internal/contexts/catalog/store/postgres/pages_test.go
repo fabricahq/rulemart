@@ -28,7 +28,7 @@ func content(title string) *domain.Content {
 	return &domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
 		WhenToReadHTML: "<p>When changing <code>" + title + "</code>.</p>\n",
-		Markdown: "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
+		Markdown:       "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
 	}
 }
 
