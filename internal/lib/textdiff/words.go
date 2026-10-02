@@ -44,17 +44,14 @@ func Words(old, new string) []Part {
 		parts = appendUnchanged(parts, unchanged, !seenChange, false)
 		unchanged, seenChange = nil, true
 		var deleted, inserted []string
-		code := false
 		for ; k < len(edits) && edits[k].op != Equal; k++ {
 			if edits[k].op == Delete {
 				deleted = append(deleted, a[edits[k].i])
-				code = code || isCode(a[edits[k].i])
 			} else {
 				inserted = append(inserted, b[edits[k].j])
-				code = code || isCode(b[edits[k].j])
 			}
 		}
-		_, _, both := compareWords(strings.Join(deleted, "\n\n"), strings.Join(inserted, "\n\n"), code)
+		_, _, both := compareWords(blockWords(deleted), blockWords(inserted))
 		parts = append(parts, Part{Blocks: []Block{{Changed: true, Segments: both}}})
 	}
 	return appendUnchanged(parts, unchanged, !seenChange, true)
@@ -146,48 +143,99 @@ func isCode(block string) bool {
 	return true
 }
 
-// compareWords compares old and new as runs of words and whitespace, and returns three views of the result: old's
-// text with its deleted words marked, new's with its inserted words marked, and both together in reading order. A
-// space between two changed words joins them into one change. Unless exact, whitespace always compares equal, so only
-// words change; exact compares and marks whitespace as it is.
-func compareWords(old, new string, exact bool) (oldMarks, newMarks, both []Segment) {
-	a, b := splitWords(old), splitWords(new)
-	edits := diff(wordKeys(a, exact), wordKeys(b, exact))
+// word is a run of a text's words or whitespace, and what it compares by.
+type word struct {
+	text, key string
+	// exact marks whitespace that compares, and shows as changed, as it is, such as in code.
+	exact bool
+}
+
+// textWords splits text into runs of words and whitespace. Unless exact, whitespace compares as one space, so any
+// two runs of it are equal.
+func textWords(text string, exact bool) []word {
+	runs := splitWords(text)
+	words := make([]word, len(runs))
+	for i, run := range runs {
+		words[i] = word{text: run, key: run, exact: exact}
+		if isSpace(run) && !exact {
+			words[i].key = " "
+		}
+	}
+	return words
+}
+
+// blockWords splits Markdown blocks, joined by blank lines, into runs of words and whitespace: a code block's
+// whitespace exactly, and prose's, and the blank lines between blocks, as any whitespace.
+func blockWords(blocks []string) []word {
+	var words []word
+	for i, block := range blocks {
+		if i > 0 {
+			words = append(words, word{text: "\n\n", key: " "})
+		}
+		words = append(words, textWords(block, isCode(block))...)
+	}
+	return words
+}
+
+// compareWords compares two texts' runs of words and whitespace, and returns three views of the result: the old
+// text with its deleted words marked, the new with its inserted words marked, and both together in reading order. A
+// space between two changed words joins them into one change. Whitespace alone shows as changed only where it's
+// exact.
+func compareWords(a, b []word) (oldMarks, newMarks, both []Segment) {
+	keys := func(words []word) []string {
+		k := make([]string, len(words))
+		for i, w := range words {
+			k[i] = w.key
+		}
+		return k
+	}
+	edits := diff(keys(a), keys(b))
 	var o, n, t segmentBuilder
-	var deleted, inserted strings.Builder
-	// marked reports whether a run of changed text shows as a change: unless exact, whitespace alone doesn't.
-	marked := func(text string) bool { return text != "" && (exact || strings.TrimSpace(text) != "") }
+	// changed is a run of deleted or inserted text, and exact whether any of it is exact whitespace.
+	type changed struct {
+		text  strings.Builder
+		exact bool
+	}
+	var deleted, inserted changed
+	add := func(c *changed, w word) {
+		c.text.WriteString(w.text)
+		c.exact = c.exact || w.exact
+	}
+	// marked reports whether a run of changed text shows as a change: whitespace alone only where it's exact.
+	marked := func(c *changed) bool {
+		text := c.text.String()
+		return text != "" && (c.exact || strings.TrimSpace(text) != "")
+	}
 	flush := func() {
-		if text := deleted.String(); marked(text) {
+		if text := deleted.text.String(); marked(&deleted) {
 			o.add(Delete, text)
 			t.add(Delete, text)
 		} else {
 			o.add(Equal, text)
 		}
-		if text := inserted.String(); marked(text) {
+		if text := inserted.text.String(); marked(&inserted) {
 			n.add(Insert, text)
 			t.add(Insert, text)
 		} else {
 			n.add(Equal, text)
 			t.add(Equal, text)
 		}
-		deleted.Reset()
-		inserted.Reset()
+		deleted, inserted = changed{}, changed{}
 	}
 	for k, e := range edits {
 		switch {
 		case e.op == Delete:
-			deleted.WriteString(a[e.i])
+			add(&deleted, a[e.i])
 		case e.op == Insert:
-			inserted.WriteString(b[e.j])
-		case isSpace(b[e.j]) && deleted.Len()+inserted.Len() > 0 && k+1 < len(edits) && edits[k+1].op != Equal:
-			deleted.WriteString(a[e.i])
-			inserted.WriteString(b[e.j])
+			add(&inserted, b[e.j])
+		case isSpace(b[e.j].text) && deleted.text.Len()+inserted.text.Len() > 0 && k+1 < len(edits) && edits[k+1].op != Equal:
+			add(&deleted, a[e.i])
+			add(&inserted, b[e.j])
 		default:
 			flush()
-			o.add(Equal, a[e.i])
-			n.add(Equal, b[e.j])
-			t.add(Equal, b[e.j])
+			o.add(Equal, a[e.i].text)
+			n.add(Equal, b[e.j].text)
+			t.add(Equal, b[e.j].text)
 		}
 	}
 	flush()
@@ -216,20 +264,6 @@ func isSpace(word string) bool {
 		return unicode.IsSpace(r)
 	}
 	return false
-}
-
-// wordKeys returns what each run compares by: itself when exact, and otherwise whitespace as one space, so any two
-// runs of it are equal.
-func wordKeys(words []string, exact bool) []string {
-	keys := make([]string, len(words))
-	for i, word := range words {
-		if isSpace(word) && !exact {
-			keys[i] = " "
-		} else {
-			keys[i] = word
-		}
-	}
-	return keys
 }
 
 // segmentBuilder joins runs of text into segments, one for each run of the same op.

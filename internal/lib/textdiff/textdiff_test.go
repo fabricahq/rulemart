@@ -253,6 +253,9 @@ func TestWordsMarksChangedWordsAndFoldsUnchangedBlocks(t *testing.T) {
 			" Intro.\n*```py⏎if ready:[-⏎    -]{+⏎+}run()⏎```\n"},
 		"indentation in an indented code block": {"Intro.\n\n    a\n      b\n", "Intro.\n\n    a\n    b\n",
 			" Intro.\n*    a[-⏎      -]{+⏎    +}b\n"},
+		// Prose beside changed code still ignores whitespace: only its changed word is marked, not its rewrapping.
+		"rewrapped prose beside changed code": {"Use foo here.\n\n```go\nfoo()\n```\n", "Use bar\nhere.\n\n```go\nbar()\n```\n",
+			"*Use [-foo-]{+bar+}⏎here.⏎⏎```go⏎[-foo()-]{+bar()+}⏎```\n"},
 		// A fenced code block is one block, blank lines and all.
 		"a code block stays whole": {"```go\na := 1\n\nb := 2\n```\n", "```go\na := 1\n\nb := 3\n```\n",
 			"*```go⏎a := 1⏎⏎b := [-2-]{+3+}⏎```\n"},

@@ -162,7 +162,7 @@ func pairReplacedLines(edits []edit, a, b []string) map[int][]Segment {
 		}
 		for x := range min(len(deleted), len(inserted)) {
 			d, i := deleted[x], inserted[x]
-			marks[d], marks[i], _ = compareWords(a[edits[d].i], b[edits[i].j], true)
+			marks[d], marks[i], _ = compareWords(textWords(a[edits[d].i], true), textWords(b[edits[i].j], true))
 		}
 	}
 	return marks
