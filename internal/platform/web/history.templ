@@ -114,7 +114,7 @@ templ changeSections(sections []changeSection) {
 			<details class="group mt-1.5 text-[13px]">
 				<summary class="cursor-pointer text-muted marker:text-faint hover:text-ink">
 					<span class="group-open:hidden">Show { strconv.Itoa(len(section.more)) } more { section.noun }</span>
-					<span class="hidden group-open:inline">Hide { strconv.Itoa(len(section.more)) } more { section.noun }</span>
+					<span class="hidden group-open:inline">Show fewer</span>
 				</summary>
 				<ul class="rule-changes mt-1.5">
 					for _, item := range section.more {

@@ -102,7 +102,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A linked release or diff stands out. Proposed.** Following a link to a release's card or a rule's diff outlines
   that card, and a page leaves room below its last cards, so the target scrolls to the top even at the page's end.
 - **Long lists of changes fold. Proposed.** A section of more than 20 rules shows 10 and folds the rest behind a
-  disclosure that counts them, such as public-rules' first release, which adds 127.
+  disclosure that counts them, such as public-rules' first release, which adds 127; open, it reads "Show fewer".
 - **Each release links its comparison with the release before it, and its tag links its card. Proposed.**
 - **"Latest library release" links to the Library releases tab. Proposed.** Each card still links to the release's
   GitHub Release page, which is only its announcement.

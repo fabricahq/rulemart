@@ -596,7 +596,7 @@ func TestReleasesFoldALongListOfChanges(t *testing.T) {
 
 	page := get(t, newSite(t, c), library+"?tab=releases").Body.String()
 
-	assertShows(t, page, "Library release 1 publishes 127 rules.", "techs/go/rule-009 1.0.0 Show 117 more new rules Hide 117 more new rules A rule techs/go/rule-010")
+	assertShows(t, page, "Library release 1 publishes 127 rules.", "techs/go/rule-009 1.0.0 Show 117 more new rules Show fewer A rule techs/go/rule-010")
 }
 
 // A Major mark says what a major change means without hovering, and leads to how versions work.
