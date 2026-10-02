@@ -4,25 +4,51 @@
 package web
 
 // accountControl ends the header: the signed-in visitor's avatar, which opens their menu, or a link to sign in, or
-// nothing when sign-in isn't available.
+// nothing when sign-in isn't available. Its slot is as wide either way, so signing in or out doesn't move the links
+// beside it.
 templ accountControl(v visitor) {
-	if v.account != nil {
-		@accountMenu(v)
-	} else if v.signIn != "" {
-		// A phone's header has room only for the words, as a link like the others beside it.
-		<a class="ml-1 inline-flex min-h-9 items-center gap-2 rounded-full border border-border-strong px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface max-narrow:ml-0 max-narrow:min-h-11 max-narrow:border-transparent max-narrow:px-1.5 max-narrow:text-[14px] max-narrow:hover:border-transparent max-narrow:hover:bg-transparent" href={ templ.SafeURL(v.signIn) }>
-			@githubMark("size-4 max-narrow:hidden")
-			Sign in
-		</a>
+	if v.account != nil || v.signIn != "" {
+		<div class={ accountSlotStyle }>
+			if v.account != nil {
+				@accountMenu(v)
+			} else {
+				@signInLink(v)
+			}
+		</div>
 	}
 }
 
+// accountSlotStyle sizes the header's account slot to its widest content at each width: the Sign in button, then
+// the Sign in link of a phone's header, then a narrow phone's icon.
+const accountSlotStyle = "flex shrink-0 justify-end w-[6.25rem] max-narrow:w-14 max-tiny:w-11"
+
+// signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, a link
+// like the others beside it in a phone's header, and an icon with a label in a narrow phone's.
+templ signInLink(v visitor) {
+	<a class="inline-flex min-h-9 items-center gap-2 rounded-full border border-border-strong px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface max-narrow:min-h-11 max-narrow:border-transparent max-narrow:px-1.5 max-narrow:text-[14px] max-narrow:hover:border-transparent max-narrow:hover:bg-transparent max-tiny:size-11 max-tiny:justify-center max-tiny:px-0" href={ templ.SafeURL(v.signIn) }>
+		if v.withGitHub {
+			@githubMark("size-4 max-narrow:hidden")
+		}
+		<span class="max-tiny:sr-only">Sign in</span>
+		@personIcon("hidden size-5 text-muted max-tiny:block")
+	</a>
+}
+
+// personIcon is a person's head and shoulders, in the current text color.
+templ personIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<circle cx="12" cy="8" r="4"></circle>
+		<path d="M4 21a8 8 0 0 1 16 0"></path>
+	</svg>
+}
+
 // accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account
-// and to sign out. Sign-out is a form, since it changes state. menus.js closes the menu when focus or a click leaves
+// and to sign out. Sign-out is a form, since it changes state. The button stays shaded while the menu is open, and its
+// focus ring follows its rounded square inside the page's edge. menus.js closes the menu when focus or a click leaves
 // it.
 templ accountMenu(v visitor) {
-	<details class="relative shrink-0" data-menu>
-		<summary class="-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-full transition-colors hover:bg-surface [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
+	<details class="group relative shrink-0" data-menu>
+		<summary class="grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 group-open:bg-surface [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
 			@avatar(v.account.AvatarURL, v.account.Login, avatarSM)
 		</summary>
 		<div class="absolute top-[calc(100%+6px)] right-0 z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
@@ -30,16 +56,23 @@ templ accountMenu(v visitor) {
 				<p class="text-[12px] text-faint">Signed in as</p>
 				<p class="truncate text-[14px] font-medium text-ink">{ v.account.Login }</p>
 			</div>
-			<a class="flex min-h-11 items-center rounded-lg px-3 text-sm text-muted no-underline transition-colors hover:bg-surface hover:text-ink" href={ templ.SafeURL(accountHref) }>Account</a>
+			<a
+				class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onAccountPage), templ.KV("text-muted", !v.onAccountPage) }
+				href={ templ.SafeURL(accountHref) }
+				if v.onAccountPage {
+					aria-current="page"
+				}
+			>Account</a>
 			<form method="post" action={ templ.SafeURL(v.signOut) }>
-				<button class={ menuButtonStyle } type="submit">Sign out</button>
+				<button class={ menuItemStyle, "w-full cursor-pointer text-left text-muted" } type="submit">Sign out</button>
 			</form>
 		</div>
 	</details>
 }
 
-// menuButtonStyle is a button in a menu, styled as the menu's links are.
-const menuButtonStyle = "flex min-h-11 w-full cursor-pointer items-center rounded-lg px-3 text-left text-sm text-muted transition-colors hover:bg-surface hover:text-ink"
+// menuItemStyle is a link or button in a menu. Its focus ring is drawn inside it, clear of the menu's border and of
+// the line under the menu's heading.
+const menuItemStyle = "flex min-h-11 items-center rounded-lg px-3 text-sm transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2"
 
 // primaryButtonStyle is a page's main action, filled in the primary color.
 const primaryButtonStyle = "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-full bg-primary px-5 text-[15px] font-medium text-on-primary transition-opacity hover:opacity-85"
@@ -63,7 +96,7 @@ templ signInPage(c chrome, view signInView) {
 				<p class="mb-6 rounded-card border border-border-strong px-4 py-3 text-[14px] text-ink" role="alert">{ view.notice }</p>
 			}
 			if !view.available {
-				<p class="text-center text-muted">Signing in isn't available right now. Browsing needs no account.</p>
+				<p class="text-center text-muted">Sign-in isn't available yet. Browsing needs no account.</p>
 			} else {
 				<p class="text-center text-muted">Browsing Rulemart needs no account. Signing in lets Rulemart know who you are, with your GitHub account.</p>
 				if view.gitHub != "" {
@@ -109,7 +142,11 @@ templ accountPage(c chrome, account accountView) {
 				@avatar(account.avatar, account.login, avatarLG)
 				<div class="min-w-0">
 					<h1 class="title-xl truncate">{ account.login }</h1>
-					<p class="text-[14px] text-muted">Signed in with GitHub as <a href={ templ.SafeURL(account.profileURL) }>{ account.login }</a></p>
+					if account.testUser {
+						<p class="text-[14px] text-muted">Local test user, signed in without GitHub</p>
+					} else {
+						<p class="text-[14px] text-muted">Signed in with GitHub as <a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a></p>
+					}
 				</div>
 			</div>
 			<section class="mt-10" aria-labelledby="kept">
@@ -155,7 +192,12 @@ templ accountPage(c chrome, account accountView) {
 					<span id="delete">Delete your account</span>
 				}
 				<details class="group">
-					<summary class="inline-flex min-h-10 cursor-pointer list-none items-center text-[14px] text-muted underline underline-offset-4 hover:text-ink [&::-webkit-details-marker]:hidden">What deleting does…</summary>
+					<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+						<svg class="size-3.5 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+						</svg>
+						<span class="underline underline-offset-4">What deleting does</span>
+					</summary>
 					<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
 						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. Your GitHub account doesn't change. Signing in again starts a new account.</p>
 						<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>

@@ -20,11 +20,21 @@ const DevSignIn = true
 // return in the return parameter. GitHub has no account named account, so it can't hide a library's page.
 const devSignInPattern = "POST " + accountHref + "/dev-sign-in"
 
-// testUsers are who a local build can sign in as. Their IDs are far past GitHub's, and they have no avatar, so they
-// show their initial.
+// testUsers are who a local build can sign in as. Their IDs are far past GitHub's, their logins have an underscore,
+// which no personal GitHub account's can, and they have no avatar, so they show their initial.
 var testUsers = []accounts.Identity{
-	{GitHubUserID: 9_000_000_001, Login: "rulemart-tester"},
-	{GitHubUserID: 9_000_000_002, Login: "rulemart-tester-2"},
+	{GitHubUserID: 9_000_000_001, Login: "test_user"},
+	{GitHubUserID: 9_000_000_002, Login: "test_user_2"},
+}
+
+// isTestUser reports whether the GitHub user ID gitHubUserID is a test user's.
+func isTestUser(gitHubUserID int64) bool {
+	for _, user := range testUsers {
+		if user.GitHubUserID == gitHubUserID {
+			return true
+		}
+	}
+	return false
 }
 
 // registerDevSignIn adds the dev sign-in's route through handle.

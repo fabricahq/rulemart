@@ -14,7 +14,7 @@ import (
 func TestAReleaseBuildHasNoDevSignIn(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/dev-sign-in?as=rulemart-tester"})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/dev-sign-in?as=test_user"})
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"}))
 
 	if web.DevSignIn {
@@ -23,7 +23,7 @@ func TestAReleaseBuildHasNoDevSignIn(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound || cookie(resp, sessionCookie) != nil {
 		t.Errorf("POST /account/dev-sign-in answered %d", resp.StatusCode)
 	}
-	if strings.Contains(page, "rulemart-tester") || strings.Contains(page, "Local build") {
+	if strings.Contains(page, "test_user") || strings.Contains(page, "Local build") {
 		t.Error("the sign-in page offers a test user")
 	}
 }
