@@ -132,10 +132,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   avatar and name. A ticked library's row is in stronger type; the prototype sets Fabrica's library in stronger type
   instead, which marks nothing while every library on Rulemart is Fabrica's.
 - **Proposed: on a phone the sidebar folds into a "Filters" disclosure**, below the narrow breakpoint, closed while no
-  choice is on, so the first result sits near the top of the screen rather than under the whole sidebar, and open
-  while any is, its summary counting them ("Filters · 2"): each library, the impact, the stars, the kind, and retired
-  rules and unvetted libraries, since those change the list too. A departure from the prototype, whose phone layout
-  stacks the whole sidebar above the results. The desktop and tablet layouts don't change.
+  filter is on, so the first result sits near the top of the screen rather than under the whole sidebar, and open
+  while any is. Its summary counts the choices that are on ("Filters · 2"): each library, the impact, the stars, the
+  kind, and retired rules and unvetted libraries, since those change the list too, though they don't open it, as Clear
+  filters keeps them, so following a sort tab doesn't push the results down for them. A departure from the prototype,
+  whose phone layout stacks the whole sidebar above the results. The desktop and tablet layouts don't change.
 - **Proposed: Clear filters clears the filters only**, keeping the order and the unvetted and retired choices, and
   shows only when a filter is on.
 - **Proposed: the libraries page reads "Every library on Rulemart"** while it includes unvetted ones.

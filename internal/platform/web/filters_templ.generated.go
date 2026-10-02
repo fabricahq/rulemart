@@ -62,8 +62,9 @@ func listLayout() templ.Component {
 // button. Each kind of filter is a group of fields under its name. Its controls show only what the address holds:
 // autocomplete="off" keeps a browser from restoring the visitor's last choices into them after Back.
 //
-// Below the narrow breakpoint the form folds into a disclosure named Filters, closed while no choice is on, so the
-// results start near the top of a phone's screen, and open, counting the choices, while any is. From the breakpoint up,
+// Below the narrow breakpoint the form folds into a disclosure named Filters, which counts the choices that are on. It's
+// closed unless a filter is on, so the results start near the top of a phone's screen; retired rules and unvetted
+// libraries, which Clear filters keeps, count but don't open it, so the sort tabs don't push the results down. From the breakpoint up,
 // the stylesheet shows the form whether the disclosure is open or not and hides its summary, where the browser can;
 // filters.js opens it in a browser that can't.
 func filterSidebar(v ruleListView) templ.Component {
@@ -91,7 +92,7 @@ func filterSidebar(v ruleListView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if v.chosen() > 0 {
+		if v.filtered() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " open")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -109,7 +110,7 @@ func filterSidebar(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(n))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 37, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 38, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -165,7 +166,7 @@ func filterForm(v ruleListView) templ.Component {
 		var templ_7745c5c3_Var5 templ.SafeURL
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 46, Col: 172}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 47, Col: 172}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -183,7 +184,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 48, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 49, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -196,7 +197,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 48, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 49, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -268,7 +269,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.LibrariesParam)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 56, Col: 79}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 57, Col: 79}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 					if templ_7745c5c3_Err != nil {
@@ -281,7 +282,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 56, Col: 97}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 57, Col: 97}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 					if templ_7745c5c3_Err != nil {
@@ -312,7 +313,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.fullName())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 58, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 59, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 					if templ_7745c5c3_Err != nil {
@@ -325,7 +326,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(l.owner)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 58, Col: 98}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 59, Col: 98}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -338,7 +339,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(l.name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 58, Col: 116}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 59, Col: 116}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -351,7 +352,7 @@ func filterForm(v ruleListView) templ.Component {
 					var templ_7745c5c3_Var18 string
 					templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(l.rules))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 59, Col: 67}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 60, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 					if templ_7745c5c3_Err != nil {
@@ -490,7 +491,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.StarsParam)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 76, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 77, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 			if templ_7745c5c3_Err != nil {
@@ -558,7 +559,7 @@ func filterForm(v ruleListView) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.StarsParam)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 80, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 81, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 				if templ_7745c5c3_Err != nil {
@@ -571,7 +572,7 @@ func filterForm(v ruleListView) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.Itoa(n))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 80, Col: 97}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 81, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 				if templ_7745c5c3_Err != nil {
@@ -594,7 +595,7 @@ func filterForm(v ruleListView) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(n))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 80, Col: 164}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 81, Col: 164}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -671,7 +672,7 @@ func filterForm(v ruleListView) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.RetiredParam)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 87, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 88, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 				if templ_7745c5c3_Err != nil {
@@ -757,7 +758,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.UnvettedParam)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 94, Col: 76}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 95, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 			if templ_7745c5c3_Err != nil {
@@ -780,7 +781,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var46 templ.SafeURL
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(aboutHref + "#vetting"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 97, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 98, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -848,7 +849,7 @@ func filterForm(v ruleListView) templ.Component {
 			var templ_7745c5c3_Var51 templ.SafeURL
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.clearHref()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 105, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 106, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -923,7 +924,7 @@ func filterGroup(name, class string) templ.Component {
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 123, Col: 92}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 124, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1015,7 +1016,7 @@ func exclusiveCheckbox(name, value, text string, checked bool) templ.Component {
 		var templ_7745c5c3_Var61 string
 		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.ResolveAttributeValue(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 132, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 133, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var61)
 		if templ_7745c5c3_Err != nil {
@@ -1028,7 +1029,7 @@ func exclusiveCheckbox(name, value, text string, checked bool) templ.Component {
 		var templ_7745c5c3_Var62 string
 		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.ResolveAttributeValue(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 132, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 133, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var62)
 		if templ_7745c5c3_Err != nil {
@@ -1051,7 +1052,7 @@ func exclusiveCheckbox(name, value, text string, checked bool) templ.Component {
 		var templ_7745c5c3_Var63 string
 		templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 132, Col: 121}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 133, Col: 121}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 		if templ_7745c5c3_Err != nil {
@@ -1096,7 +1097,7 @@ func resultsHead(v ruleListView, more string) templ.Component {
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.total, "rule", "rules"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 142, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 143, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1109,7 +1110,7 @@ func resultsHead(v ruleListView, more string) templ.Component {
 			var templ_7745c5c3_Var66 string
 			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.libraries, "library", "libraries"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 142, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 143, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 			if templ_7745c5c3_Err != nil {
@@ -1127,7 +1128,7 @@ func resultsHead(v ruleListView, more string) templ.Component {
 				var templ_7745c5c3_Var67 string
 				templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(more)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 144, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 145, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 				if templ_7745c5c3_Err != nil {
@@ -1173,7 +1174,7 @@ func resultsHead(v ruleListView, more string) templ.Component {
 					var templ_7745c5c3_Var70 templ.SafeURL
 					templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(t.href))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 152, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 153, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 					if templ_7745c5c3_Err != nil {
@@ -1196,7 +1197,7 @@ func resultsHead(v ruleListView, more string) templ.Component {
 					var templ_7745c5c3_Var71 string
 					templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(t.name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 156, Col: 15}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 157, Col: 15}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 					if templ_7745c5c3_Err != nil {
@@ -1250,7 +1251,7 @@ func noFilteredRules(v ruleListView) templ.Component {
 		var templ_7745c5c3_Var73 string
 		templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.JoinStringErrs(" ")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 167, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 168, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var73))
 		if templ_7745c5c3_Err != nil {
@@ -1285,7 +1286,7 @@ func noFilteredRules(v ruleListView) templ.Component {
 		var templ_7745c5c3_Var76 templ.SafeURL
 		templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.clearHref()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 168, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 169, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var76))
 		if templ_7745c5c3_Err != nil {
@@ -1330,7 +1331,7 @@ func unvettedOptIn(path string, unvetted bool) templ.Component {
 		var templ_7745c5c3_Var78 templ.SafeURL
 		templ_7745c5c3_Var78, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 176, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 177, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var78))
 		if templ_7745c5c3_Err != nil {
@@ -1387,7 +1388,7 @@ func unvettedOptIn(path string, unvetted bool) templ.Component {
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.ResolveAttributeValue(domain.UnvettedParam)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 178, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 179, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var83)
 		if templ_7745c5c3_Err != nil {

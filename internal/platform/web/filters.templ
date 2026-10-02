@@ -22,12 +22,13 @@ templ listLayout() {
 // button. Each kind of filter is a group of fields under its name. Its controls show only what the address holds:
 // autocomplete="off" keeps a browser from restoring the visitor's last choices into them after Back.
 //
-// Below the narrow breakpoint the form folds into a disclosure named Filters, closed while no choice is on, so the
-// results start near the top of a phone's screen, and open, counting the choices, while any is. From the breakpoint up,
+// Below the narrow breakpoint the form folds into a disclosure named Filters, which counts the choices that are on. It's
+// closed unless a filter is on, so the results start near the top of a phone's screen; retired rules and unvetted
+// libraries, which Clear filters keeps, count but don't open it, so the sort tabs don't push the results down. From the breakpoint up,
 // the stylesheet shows the form whether the disclosure is open or not and hides its summary, where the browser can;
 // filters.js opens it in a browser that can't.
 templ filterSidebar(v ruleListView) {
-	<details class="group sticky top-[84px] self-start max-wide:static" open?={ v.chosen() > 0 } data-filters-disclosure>
+	<details class="group sticky top-[84px] self-start max-wide:static" open?={ v.filtered() } data-filters-disclosure>
 		<summary class="inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-full border border-border px-3.5 text-[13.5px] font-medium text-ink hover:border-border-strong [&::-webkit-details-marker]:hidden">
 			<svg class="size-3.5 shrink-0 text-muted group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 				<path d="m6 3.5 4.5 4.5L6 12.5"></path>

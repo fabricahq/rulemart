@@ -220,8 +220,8 @@ func TestListsOfLibrariesOfferUnvettedOnesAndMarkVettedOnes(t *testing.T) {
 	}
 }
 
-// On a phone the sidebar folds into a disclosure named Filters, closed while no choice is on, so the results start near
-// the top, and open, counting the choices, while any is.
+// On a phone the sidebar folds into a disclosure named Filters, counting the choices that are on, closed unless a
+// filter is on, so the results start near the top.
 func TestFilterSidebarFoldsIntoADisclosureThatOpensWithChoices(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
@@ -231,6 +231,7 @@ func TestFilterSidebarFoldsIntoADisclosureThatOpensWithChoices(t *testing.T) {
 	}{
 		"/g/techs/go":                       {"Filters", false},
 		"/g/techs/go?impact=high&retired=1": {"Filters · 2", true},
+		"/g/techs/go?retired=1&unvetted=1":  {"Filters · 2", false},
 		"/search?libs=example%2Frules":      {"Filters · 1", true},
 	} {
 		doc, err := html.Parse(strings.NewReader(get(t, handler, path).Body.String()))
