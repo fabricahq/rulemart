@@ -122,8 +122,10 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   The prompt says to use the project's own source name when it imports the repository already.
 - **Proposed: the prompt holds no text a library wrote**: only IDs, which Code Rules' format restricts, GitHub
   addresses, and Rulemart's own words. A rule's title could otherwise write instructions into the prompt.
-- **Proposed: an unvetted library is reviewed outside the project, before its source is added.** The agent clones it
-  at its pinned release into a temporary directory, reads the rules the cart picked, says which ask for anything unsafe
+- **Proposed: an unvetted library is reviewed outside the project, before its source is added, and pinned to the commit
+  reviewed.** Its source's `ref` is the commit its latest release's tag pointed to when Rulemart ingested it, named by
+  the tag in a comment, rather than the tag, which its publisher could move, or shadow with a branch of the same name
+  for a reviewer's clone. The agent fetches that commit by its ID into a temporary directory, reads the rules the cart picked, says which ask for anything unsafe
   or unexpected, and waits for the visitor's approval; without it, the source stays out of the configuration. Syncing
   it first would put its rules into generated guidance that an agent already connected to the project reads in any
   session. The plain path asks the same of a reader, with the clone command.
