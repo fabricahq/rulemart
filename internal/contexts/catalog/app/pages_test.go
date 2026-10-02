@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -18,6 +19,8 @@ import (
 // read asked for. Reads it doesn't override aren't used here.
 type reads struct {
 	store.Reader
+	// libraries are the vetted libraries, which OwnerLibraries answers from.
+	libraries  []views.LibraryCard
 	groups     []views.LibraryGroup
 	groupRules []views.GroupLibrary
 	results    views.SearchResults
@@ -30,6 +33,16 @@ type reads struct {
 
 func (r *reads) Groups(context.Context, []domain.LibraryKey) ([]views.LibraryGroup, error) {
 	return r.groups, nil
+}
+
+func (r *reads) OwnerLibraries(_ context.Context, _ []domain.LibraryKey, login string) ([]views.LibraryCard, error) {
+	var owned []views.LibraryCard
+	for _, lib := range r.libraries {
+		if strings.EqualFold(lib.Owner, login) {
+			owned = append(owned, lib)
+		}
+	}
+	return owned, nil
 }
 
 func (r *reads) HomePage(context.Context, []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
@@ -270,5 +283,24 @@ func TestSearchReadsThePageItIsAskedFor(t *testing.T) {
 	want := [][2]int{{app.SearchPageSize, 0}, {app.SearchPageSize, app.SearchPageSize}, {app.SearchPageSize, (app.MaxSearchPage - 1) * app.SearchPageSize}}
 	if !slices.Equal(r.pagesRead, want) {
 		t.Fatalf("read %v, want %v", r.pagesRead, want)
+	}
+}
+
+// An owner's page is their vetted libraries, under the login as the host spells it; an owner with none has no page.
+func TestOwnerPageNamesTheOwnerAsTheHostDoesOrIsNotFound(t *testing.T) {
+	acme := views.LibraryCard{Owner: "Acme", Name: "backend", OwnerAvatarURL: "https://avatars.example/acme", Rules: 3}
+	pages := app.Pages{Store: &reads{libraries: []views.LibraryCard{acme, {Owner: "Acme", Name: "web", Rules: 1}}}, Groups: canonicalList(t)}
+
+	got, err := pages.OwnerPage(context.Background(), "ACME")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := views.OwnerPage{Login: "Acme", AvatarURL: acme.OwnerAvatarURL, Libraries: []views.LibraryCard{acme, {Owner: "Acme", Name: "web", Rules: 1}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	if _, err := pages.OwnerPage(context.Background(), "nobody"); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("an owner without a vetted library: got %v, want ErrNotFound", err)
 	}
 }

@@ -1,94 +1,17 @@
-// The pages that browse rules by group across libraries: every group, and one canonical group's rules in each library.
+// A canonical group's page: its rules in each vetted library that holds it.
 
 package web
 
-import (
-	"strconv"
-	"strings"
-)
-
-// canonicalGroupsDocs explains Code Rules' canonical group list, which decides which groups libraries share.
-const canonicalGroupsDocs = "https://code-rules.fabricahq.com/concepts/groups/#canonical-group-ids"
-
-// groupsPage lists every group that holds current rules in a vetted library, technologies first.
-templ groupsPage(c chrome, index groupIndexView) {
-	@layout(c, head{title: "Groups · Rulemart", description: "Browse Code Rules by the technology or practice they cover, across every vetted library.", section: groupsHref}) {
-		<div class="page wrap">
-			<h1 class="title-xl">Groups</h1>
-			<p class="mt-1.5 max-w-[46rem] text-muted">
-				Find rules by the technology or practice they cover. Each group gathers its rules from every library that has them. A group marked “not canonical” is one library's own, so it stands alone; <a href={ templ.SafeURL(canonicalGroupsDocs) }>why groups are shared</a>.
-			</p>
-			<div class="mt-[26px]">
-				if index.empty() {
-					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No groups yet.</div>
-				} else {
-					@groupIndexList("Technologies", index.techs)
-					@groupIndexList("Practices", index.practices)
-				}
-			</div>
-		</div>
-	}
-}
-
-// groupIndexList lists one kind of group: each canonical group leading to its page, and any other group to its section
-// in its library.
-templ groupIndexList(kind string, groups []groupSummaryView) {
-	if len(groups) > 0 {
-		<section class="mt-[30px] scroll-mt-20 first:mt-0" id={ strings.ToLower(kind) }>
-			@labelHeading("mb-2") {
-				{ kind } · { strconv.Itoa(len(groups)) }
-			}
-			@rowList() {
-				for _, g := range groups {
-					@rowItem() {
-						<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(g.href) }>
-							<div class="flex min-w-0 items-center gap-3">
-								@groupTile(g.label, g.icon, tileMD)
-								<div class="min-w-0">
-									if g.label.canonical {
-										<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
-										<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
-									} else {
-										<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
-										<span class="block leading-[20px]">
-											@notCanonical(flagMD)
-										</span>
-									}
-								</div>
-							</div>
-							if g.label.canonical {
-								<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-							} else {
-								<p class="flex min-w-0 items-center gap-1.5 text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10">
-									<span>in</span>
-									@avatar(g.libraries[0].avatar, g.libraries[0].owner, avatarXS)
-									<span class="mono min-w-0 [overflow-wrap:anywhere]">{ g.libraries[0].fullName() }</span>
-								</p>
-							}
-							<span class="flex items-baseline justify-end gap-x-1 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1 max-narrow:flex-col max-narrow:items-end">
-								if g.label.canonical {
-									<span>{ plural(g.rules, "rule", "rules") }</span>
-									<span><span class="max-narrow:hidden">·</span> { plural(len(g.libraries), "library", "libraries") } ›</span>
-								} else {
-									<span>{ plural(g.rules, "rule", "rules") } ›</span>
-								}
-							</span>
-						</a>
-					}
-				}
-			}
-		</section>
-	}
-}
+import "strconv"
 
 // groupPage shows a canonical group's current rules in every vetted library that holds it, a section per library.
 templ groupPage(c chrome, g groupPageView) {
-	@layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, section: groupsHref, notice: g.notice, noticeAction: groupOffer(g)}) {
+	@layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, notice: g.notice, noticeAction: groupOffer(g)}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(groupsHref) }>Groups</a>
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(kindOf(g.label.id).href()) }>{ kindOf(g.label.id).name() }</a>
 				<span>›</span>
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(groupsHref + "#" + kindAnchor(g.label.id)) }>{ kindName(g.label.id) }</a>
+				<span class="mono">{ g.label.id }</span>
 			</div>
 			<div class="grid grid-cols-[56px_minmax(0,1fr)] items-start gap-[18px]">
 				@groupTile(g.label, g.icon, tileLG)

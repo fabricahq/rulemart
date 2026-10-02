@@ -141,6 +141,26 @@ func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	}
 }
 
+// An owner's page lists the vetted libraries they own, matched without regard to case and spelled as the host
+// spells them, and none of an owner whose only library is unvetted.
+func TestOwnerLibrariesListsOnlyTheOwnersVettedLibraries(t *testing.T) {
+	reader := newCatalog(t)
+
+	for login, want := range map[string][]views.LibraryCard{
+		"EXAMPLE":  {{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}},
+		"stranger": nil,
+		"nobody":   nil,
+	} {
+		got, err := reader.OwnerLibraries(context.Background(), vetted, login)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: got %+v, want %+v", login, got, want)
+		}
+	}
+}
+
 // A rule's address may spell its ID in any case, as a library's may spell its owner and name; the page names the ID
 // as the library spells it, so the site can redirect to it.
 func TestRulePageMatchesTheRuleIDWithoutRegardToCase(t *testing.T) {

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"cmp"
 	"net/http"
 	"net/url"
 	"slices"
@@ -8,25 +9,36 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"golang.org/x/net/html"
 )
 
-// Every page's footer leads to what Rulemart is, how it treats visitors' data, Code Rules, Rulemart's source, and
-// where to report a problem.
-func TestEveryPagesFooterLeadsToAboutPrivacySourceAndReports(t *testing.T) {
+// Every page's footer leads to Fabrica, to what Rulemart is, the feedback page, and how Rulemart treats visitors'
+// data, in that order, and, by GitHub's mark, to Rulemart's source. It doesn't repeat the header's sections, and the
+// about page, not the footer, leads to Code Rules.
+func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
-	want := map[string]string{
-		"About Rulemart":   "/about",
-		"Privacy":          "/privacy",
-		"About Code Rules": "https://code-rules.fabricahq.com",
-		"Source on GitHub": "https://github.com/fabricahq/rulemart",
-		"Report a problem": "https://github.com/fabricahq/rulemart/issues/new/choose",
+	want := []string{
+		"Fabrica https://fabricahq.com",
+		"About /about",
+		"Feedback /feedback",
+		"Privacy /privacy",
+		"Source on GitHub https://github.com/fabricahq/rulemart",
 	}
-	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy"} {
+	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
-		for text, href := range want {
-			if got := links(t, page, text); !slices.Contains(got, href) {
-				t.Errorf("%s: %q leads to %q, want %s", path, text, got, href)
+		doc, err := html.Parse(strings.NewReader(page[strings.Index(page, "<footer"):]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Each link is named by its text, or, drawn as an icon, by its label.
+		var got []string
+		for n := range doc.Descendants() {
+			if n.Type == html.ElementNode && n.Data == "a" {
+				got = append(got, cmp.Or(attribute(n, "aria-label"), nodeText(n))+" "+attribute(n, "href"))
 			}
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("%s: the footer links %q, want %q", path, got, want)
 		}
 	}
 }
@@ -46,6 +58,9 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 		"Report a problem")
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
+	}
+	if got := links(t, page, "Code Rules"); !slices.Contains(got, "https://code-rules.fabricahq.com") {
+		t.Errorf("Code Rules leads to %q", got)
 	}
 	if got := links(t, page, "catalog/vetted.yaml"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml"}) {
 		t.Errorf("vetted.yaml leads to %q", got)

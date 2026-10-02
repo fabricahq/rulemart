@@ -71,6 +71,21 @@ func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error)
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
 
+// OwnerPage finds the owner among the vetted libraries, without regard to case, as app.Pages does.
+func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, error) {
+	var page views.OwnerPage
+	for _, lib := range c.libraries {
+		if strings.EqualFold(lib.Owner, login) {
+			page.Login, page.AvatarURL = lib.Owner, lib.OwnerAvatarURL
+			page.Libraries = append(page.Libraries, lib)
+		}
+	}
+	if c.err == nil && len(page.Libraries) == 0 {
+		return page, fmt.Errorf("load owner: %w", app.ErrNotFound)
+	}
+	return page, c.err
+}
+
 func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
 // GroupPage matches id without regard to case, as app.Pages does.
@@ -296,17 +311,6 @@ func assertShows(t *testing.T, page string, want ...string) {
 	}
 }
 
-func TestHomeListsTheLibraries(t *testing.T) {
-	handler := newSite(t, newCatalog())
-
-	resp := get(t, handler, "/")
-
-	if resp.Code != http.StatusOK {
-		t.Fatalf("got %d", resp.Code)
-	}
-	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules 2 rules")
-}
-
 func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
@@ -324,6 +328,10 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	)
 	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
 		t.Fatal("the latest release doesn't link to it on the Library releases tab")
+	}
+	// A narrow phone wraps a group's ID after its slash, rather than inside a word.
+	if !strings.Contains(resp.Body.String(), `<span class="id-part">practices/</span><wbr><span class="id-part">testing</span>`) {
+		t.Error("a group's ID doesn't wrap at its slash")
 	}
 }
 
@@ -449,7 +457,7 @@ func TestPagesAnswerNotFound(t *testing.T) {
 		"an unknown library's rule": "/stranger/rules/techs/go/return-errors",
 		"an unknown rule":           library + "/techs/go/missing",
 		"a group":                   library + "/techs/go",
-		"another path":              "/example",
+		"another path":              "/nobody",
 	} {
 		t.Run(name, func(t *testing.T) {
 			resp := get(t, handler, path)
@@ -480,8 +488,8 @@ func TestPagesRedirectOtherCasesToTheirSpelling(t *testing.T) {
 	for path, location := range map[string]string{
 		"/Example/Rules/Techs/Go/Return-Errors?tab=versions": errorsRule + "?tab=versions",
 		"/example/rules/techs/go/RETURN-errors":              errorsRule,
-		"/Groups":                                            "/groups",
-		"/GROUPS/techs/go":                                   "/groups/techs/go",
+		"/Browse/techs":                                      "/browse/techs",
+		"/G/techs/go":                                        "/g/techs/go",
 		"/LIBRARIES":                                         "/libraries",
 		"/Search?q=retry&page=2":                             "/search?q=retry&page=2",
 	} {
@@ -848,7 +856,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
 	// A canonical group's rules in every library are a page of their own; any other group stands alone.
-	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
 	if got := links(t, other, "rules in every library"); len(got) != 0 {
@@ -860,7 +868,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
 
-	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
+	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/goose", "/g/practices/testing"}) {
 		t.Errorf("the groups link %q across libraries", got)
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {

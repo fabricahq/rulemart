@@ -37,7 +37,7 @@ templ warningIcon(class string) {
 // unvettedPage lists the libraries listings name that aren't vetted, under the warning, and leads to listing one when
 // canList is true. Like every unvetted page, it asks search engines neither to index it nor to follow its links.
 templ unvettedPage(c chrome, libraries []libraryCard, canList bool) {
-	@layout(c, head{title: "Unvetted libraries · Rulemart", unvetted: true, section: librariesHref}) {
+	@layout(c, head{title: "Unvetted libraries · Rulemart", unvetted: true}) {
 		<div class="page wrap">
 			<div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
 				<h1 class="title-xl">Unvetted libraries</h1>
@@ -76,7 +76,7 @@ const vettedListURL = "https://github.com/fabricahq/rulemart/blob/main/catalog/v
 // repository, then says why they can't list it, or what listing does, with a button that lists it. It asks anyone
 // else to sign in first. A refusal takes the field's focus, which names it.
 templ listPage(c chrome, v listView) {
-	@layout(c, head{title: "List a library · Rulemart", noindex: true, section: librariesHref, narrow: true, caret: v.problem != ""}) {
+	@layout(c, head{title: "List a library · Rulemart", noindex: true, narrow: true, caret: v.problem != ""}) {
 		<div class={ "page wrap", narrowPage }>
 			<h1 class="title-xl">List a library</h1>
 			<p class="mt-2 text-muted">List a public GitHub repository that publishes a <a href="https://code-rules.fabricahq.com">Code Rules</a> library: one with <span class="font-mono text-[.9em]">release/&lt;number&gt;</span> tags, which Code Rules makes each time it releases the library.</p>

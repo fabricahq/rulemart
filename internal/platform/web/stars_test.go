@@ -333,7 +333,8 @@ func TestOnlyAVettedLibraryCanBeStarredFromItsPage(t *testing.T) {
 		},
 	} {
 		page := body(t, get(t, unvettedLibrary))
-		if strings.Contains(visibleText(t, page), "Star") {
+		// No Star appears, and no form posts a star.
+		if text := visibleText(t, page); strings.Contains(text, "Star") || strings.Contains(page, `action="/account/stars`) {
 			t.Error("an unvetted library's page offers a star")
 		}
 	}

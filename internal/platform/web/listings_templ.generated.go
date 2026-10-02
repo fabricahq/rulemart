@@ -276,7 +276,7 @@ func unvettedPage(c chrome, libraries []libraryCard, canList bool) templ.Compone
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Unvetted libraries · Rulemart", unvetted: true, section: librariesHref}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Unvetted libraries · Rulemart", unvetted: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -734,7 +734,7 @@ func listPage(c chrome, v listView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "List a library · Rulemart", noindex: true, section: librariesHref, narrow: true, caret: v.problem != ""}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "List a library · Rulemart", noindex: true, narrow: true, caret: v.problem != ""}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

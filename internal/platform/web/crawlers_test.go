@@ -51,7 +51,7 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
-		"/": false, "/libraries": false, "/groups/techs/go": false, "/example/rules": false, "/example/rules?tab=releases": false,
+		"/": false, "/libraries": false, "/g/techs/go": false, "/browse/techs": false, "/faq": false, "/example/rules": false, "/example/rules?tab=releases": false,
 		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
 		"/sign-in-kit/rules": false, "/accountant/rules": false,
 	} {
@@ -105,7 +105,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		Libraries: []views.SitemapLibrary{{
 			Owner: "example", Name: "rules", Updated: day(3),
 			Rules: []views.SitemapRule{{Path: "practices/testing/verify-retry-limits", Updated: day(2)}, {Path: "techs/go/return-errors", Updated: day(3)}},
-		}, {Owner: "other", Name: "go.rules", Updated: day(4)}},
+		}, {Owner: "faq", Name: "go.rules", Updated: day(4)}},
 		Groups: []string{"practices/testing", "techs/go"},
 	}
 	options := baseURL(t)
@@ -137,15 +137,22 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	want := []string{
 		"https://rulemart.example/",
 		"https://rulemart.example/libraries",
-		"https://rulemart.example/groups",
+		"https://rulemart.example/browse/techs",
+		"https://rulemart.example/browse/techs/other",
+		"https://rulemart.example/browse/practices",
+		"https://rulemart.example/browse/practices/other",
 		"https://rulemart.example/about",
 		"https://rulemart.example/privacy",
-		"https://rulemart.example/groups/practices/testing",
-		"https://rulemart.example/groups/techs/go",
+		"https://rulemart.example/faq",
+		"https://rulemart.example/feedback",
+		"https://rulemart.example/g/practices/testing",
+		"https://rulemart.example/g/techs/go",
+		"https://rulemart.example/example",
+		"https://rulemart.example/o/faq",
 		"https://rulemart.example/example/rules",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
 		"https://rulemart.example/example/rules/techs/go/return-errors",
-		"https://rulemart.example/other/go.rules",
+		"https://rulemart.example/faq/go.rules",
 	}
 	if !slices.Equal(locs, want) {
 		t.Fatalf("lists\n%s\nwant\n%s", strings.Join(locs, "\n"), strings.Join(want, "\n"))
@@ -153,12 +160,55 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	for loc, date := range map[string]string{
 		"https://rulemart.example/example/rules":                                       "2026-09-03",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits": "2026-09-02",
-		"https://rulemart.example/other/go.rules":                                      "2026-09-04",
-		"https://rulemart.example/groups":                                              "",
+		"https://rulemart.example/faq/go.rules":                                        "2026-09-04",
+		"https://rulemart.example/example":                                             "",
+		"https://rulemart.example/browse/techs":                                        "",
 	} {
 		if lastMod[loc] != date {
 			t.Errorf("%s: lastmod %q, want %q", loc, lastMod[loc], date)
 		}
+	}
+}
+
+// A library whose page's address is one of the site's own pages, such as browse/techs, a browse page, or o/rules, an
+// owner's page under /o/, has no page to list, so the sitemap leaves it out; its rules' pages, under it, stay.
+func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
+	c := newBrowsingCatalog()
+	rule := []views.SitemapRule{{Path: "techs/go/return-errors", Updated: day(3)}}
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
+		{Owner: "browse", Name: "Practices", Updated: day(3), Rules: rule},
+		{Owner: "browse", Name: "rules", Updated: day(3)},
+		{Owner: "browse", Name: "techs", Updated: day(3), Rules: rule},
+		{Owner: "g", Name: "techs", Updated: day(3)},
+		{Owner: "o", Name: "rules", Updated: day(3), Rules: rule},
+	}}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got urlset
+	if err := xml.Unmarshal(get(t, handler, "/sitemap.xml").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var listed []string
+	for _, u := range got.URLs {
+		listed = append(listed, strings.TrimPrefix(u.Loc, "https://rulemart.example"))
+	}
+	// After the site's own pages and the canonical groups', the owners' pages, then the libraries' and their rules'.
+	listed = listed[slices.Index(listed, "/o/browse"):]
+	want := []string{
+		"/o/browse", "/o/g", "/o/o",
+		"/browse/Practices/techs/go/return-errors",
+		"/browse/rules",
+		"/browse/techs/techs/go/return-errors",
+		"/g/techs",
+		"/o/rules/techs/go/return-errors",
+	}
+	if !slices.Equal(listed, want) {
+		t.Errorf("lists\n%s\nwant\n%s", strings.Join(listed, "\n"), strings.Join(want, "\n"))
 	}
 }
 
@@ -233,5 +283,34 @@ func TestSitemapStaysWithinAResponsesSize(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `"msg":"sitemap truncated"`) {
 		t.Errorf("logged %s", logs.String())
+	}
+}
+
+func TestSitemapNamesAnOwnerOnceWhateverCaseTheirLibrariesSpell(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
+		{Owner: "Acme", Name: "a-rules", Updated: day(3)},
+		{Owner: "acme", Name: "b-rules", Updated: day(3)},
+		{Owner: "zed", Name: "rules", Updated: day(3)},
+	}}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got urlset
+	if err := xml.Unmarshal(get(t, handler, "/sitemap.xml").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var owners []string
+	for _, u := range got.URLs {
+		if path := strings.TrimPrefix(u.Loc, "https://rulemart.example"); strings.Count(path, "/") == 1 && (path == "/Acme" || path == "/acme" || path == "/zed") {
+			owners = append(owners, path)
+		}
+	}
+	if want := []string{"/Acme", "/zed"}; !slices.Equal(owners, want) {
+		t.Errorf("owner pages %v, want %v: one page per owner, spelled as the first library spells it", owners, want)
 	}
 }

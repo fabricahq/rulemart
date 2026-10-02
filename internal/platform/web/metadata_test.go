@@ -36,7 +36,7 @@ func TestIndexablePagesDescribeThemselvesToSocialSites(t *testing.T) {
 	c := unvettedCatalog()
 	handler := newSiteAt(t, c, "https://rulemart.example")
 
-	for _, path := range []string{"/", "/libraries", "/groups", library, library + "?tab=rules", errorsRule} {
+	for _, path := range []string{"/", "/libraries", "/browse/techs", "/faq", library, library + "?tab=rules", errorsRule} {
 		page := get(t, handler, path).Body.String()
 		meta := metas(t, page)
 		canonical := canonicalLinks(t, page)

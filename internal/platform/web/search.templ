@@ -45,7 +45,7 @@ templ searchPage(c chrome, v searchView) {
 					} else if len(v.results) == 0 {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
 							<p class="font-medium text-ink">No rules match “{ v.query }”.</p>
-							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(groupsHref) }>browse rules by group</a>.</p>
+							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(techsKind.href()) }>browse rules by group</a>.</p>
 						</div>
 					} else {
 						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">

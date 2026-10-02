@@ -38,7 +38,8 @@ type head struct {
 	// unvetted marks a page about a library that isn't vetted, which asks search engines neither to index it nor to
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
-	// section is the header's link to the part of the site the page belongs to, librariesHref or groupsHref, or empty.
+	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
+	// librariesHref, or faqHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
 	// searchPage leaves the header's search field out, keeping its space, since the page holds its own.
 	searchPage bool
@@ -145,48 +146,62 @@ templ socialCard(c chrome, h head) {
 	<meta name="twitter:card" content="summary_large_image"/>
 }
 
-// header is the bar atop every page: Rulemart's name, links to the libraries and the groups, a search field, which a phone's
-// narrow header replaces with a link to the search page, and the visitor's account menu or a link to sign in.
+// header is the bar atop every page, laid out as the prototype's: Rulemart's name, a search field, which a phone's
+// narrow header replaces with a link to the search page, then links to the techs, the practices, the libraries, and
+// the FAQ, which a menu takes the place of below the wide breakpoint, the cart, and the visitor's account menu or a
+// link to sign in.
 templ header(h head) {
-	<header class="sticky top-0 z-30 border-b border-border bg-paper">
+	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
 		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3 max-tiny:gap-2">
-			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap max-narrow:items-center max-narrow:gap-1.5">
-				// A phone's header has room for Fabrica's mark but not its name, which stays for screen readers, and a
-				// narrow phone's has room for Rulemart's name alone.
-				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-narrow:grid max-narrow:h-11 max-narrow:place-items-center max-narrow:pl-0 max-tiny:hidden" href="https://fabricahq.com">
-					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2 max-narrow:static max-narrow:translate-y-0")
-					<span class="max-narrow:sr-only">Fabrica</span>
+			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
+				// A narrow phone's header has room for Rulemart's name alone.
+				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-tiny:hidden" href="https://fabricahq.com">
+					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
+					Fabrica
 				</a>
 				<span class="font-normal text-muted max-tiny:hidden">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
-			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1 max-tiny:gap-0" aria-label="Rulemart">
-				@navLink(librariesHref, "Libraries", h.section)
-				@navLink(groupsHref, "Groups", h.section)
-				if h.searchPage {
-					// The page holds its own search field; the space keeps the links where every other page has them.
-					<div class="w-[15rem] max-narrow:hidden" aria-hidden="true"></div>
-				} else {
-					<form class="relative max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
-						<label class="sr-only" for="header-search">Search rules</label>
-						@searchIcon("pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint")
-						<input id="header-search" class="h-9 w-[15rem] rounded-full border border-border bg-paper pr-3 pl-9 text-[14px] text-ink placeholder:text-faint hover:border-border-strong focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
-					</form>
+			if !h.searchPage {
+				<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
+					<label class="sr-only" for="header-search">Search rules</label>
+					@searchIcon("pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint")
+					<input id="header-search" class="w-full rounded-full border border-border bg-surface py-[7px] pr-[14px] pl-[34px] text-[13.5px] leading-[1.65] text-ink placeholder:text-faint hover:border-border-strong focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
+				</form>
+			}
+			// The nav is the sections menu's frame, so the menu's right edge is the content edge, as the account menu's is.
+			<nav class="relative ml-auto flex items-center gap-5 text-[14px] max-narrow:gap-1 max-tiny:gap-0" aria-label="Rulemart">
+				for _, l := range headerLinks {
+					@navLink(l.href, l.name, h.section)
 				}
-				<a class="grid size-11 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink narrow:hidden" href={ templ.SafeURL(searchHref) } aria-label="Search rules" title="Search rules">
-					@searchIcon("size-5")
-				</a>
+				@sectionsMenu(h.section)
+				if !h.searchPage {
+					<a class="grid size-11 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink narrow:hidden" href={ templ.SafeURL(searchHref) } aria-label="Search rules" title="Search rules">
+						@searchIcon("size-5")
+					</a>
+				}
 				@accountControl(visitorOf(ctx))
 			</nav>
 		</div>
 	</header>
 }
 
-// navLink is a header link to a part of the site, marked current on every page of section, since each belongs to
-// the part it links.
+// headerLink is one of the parts of the site the header links: its address and name.
+type headerLink struct{ href, name string }
+
+// headerLinks are the header's links to the parts of the site, in order.
+var headerLinks = []headerLink{
+	{techsKind.href(), "Techs"},
+	{practicesKind.href(), "Practices"},
+	{librariesHref, "Libraries"},
+	{faqHref, "FAQ"},
+}
+
+// navLink is a header link to a part of the site, underlined as current on that part's own page, which section names,
+// as the prototype's are. The links hide below the wide breakpoint, as the prototype's do.
 templ navLink(href, name, section string) {
 	<a
-		class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5 max-tiny:px-1", templ.KV("font-medium text-ink", section == href), templ.KV("text-muted", section != href) }
+		class={ "inline-flex min-h-11 items-center text-ink underline-offset-[5px] whitespace-nowrap hover:underline max-wide:hidden", templ.KV("underline", section == href), templ.KV("no-underline", section != href) }
 		href={ templ.SafeURL(href) }
 		if section == href {
 			aria-current="true"
@@ -194,26 +209,62 @@ templ navLink(href, name, section string) {
 	>{ name }</a>
 }
 
-// footer is the bar at the bottom of every page: what Rulemart and Code Rules are, Rulemart's privacy notice, its
-// source, where to report a problem, and the theme menu.
+// sectionsMenu takes the place of the header's links below the wide breakpoint, where they hide: a round button with
+// a menu icon, just left of the search icon, that opens the same links, the current one underlined as the header's
+// is. Its frame is the header's nav, so the menu opens 10 pixels under the button with its right edge on the content
+// edge, as the account menu does. Without JavaScript it opens and closes with its button; menus.js also closes it
+// when a click or focus leaves it, and on Escape.
+templ sectionsMenu(current string) {
+	<details class="group shrink-0 wide:hidden" data-menu>
+		<summary class="grid size-11 cursor-pointer list-none place-items-center rounded-full text-muted hover:bg-surface hover:text-ink group-open:bg-surface group-open:text-ink [&::-webkit-details-marker]:hidden" aria-label="Menu" title="Menu">
+			@menuIcon("size-5")
+		</summary>
+		<div class="absolute top-[47px] right-0 z-40 grid w-[200px] rounded-card border border-border bg-paper p-1.5 shadow-[0_16px_40px_-16px_rgb(0_0_0/.35)]">
+			for _, l := range headerLinks {
+				<a
+					class={ menuItemStyle, "underline-offset-[5px]", templ.KV("underline", l.href == current), templ.KV("no-underline", l.href != current) }
+					href={ templ.SafeURL(l.href) }
+					if l.href == current {
+						aria-current="true"
+					}
+				>{ l.name }</a>
+			}
+		</div>
+	</details>
+}
+
+// footer is the bar at the bottom of every page: Fabrica's link; what Rulemart is, where to give feedback, and
+// Rulemart's privacy notice; and, as icons, Rulemart's source on GitHub and the theme menu. It doesn't repeat the
+// header's sections, which a phone reaches through the header's menu, and the about page leads to Code Rules.
 templ footer() {
 	<footer class="border-t border-border pt-[22px] pb-10 text-[13px] text-muted">
-		<div class="wrap flex flex-wrap items-center gap-x-6">
-			<span>Fabrica / Rulemart</span>
-			// A phone's footer keeps the theme menu beside Rulemart's name, and its links on lines of their own below.
-			<nav class="ml-auto flex flex-wrap items-center gap-x-[18px] max-narrow:order-last max-narrow:ml-0 max-narrow:w-full max-narrow:gap-x-4" aria-label="About Rulemart">
-				@footerLink(aboutHref, "About Rulemart")
+		<div class="wrap flex items-center gap-x-6 whitespace-nowrap max-narrow:gap-x-3 max-tiny:gap-x-0">
+			// A phone's footer has room on its one line for Rulemart's name alone. A narrow phone's draws its icons'
+			// buttons smaller, ending at the line's end, and spaces its links closer.
+			<span>
+				<a class="text-muted no-underline hover:text-ink hover:underline hover:underline-offset-3 max-narrow:hidden" href="https://fabricahq.com">Fabrica</a>
+				<span class="max-narrow:hidden">/</span>
+				Rulemart
+			</span>
+			// The links fill the room between Rulemart's name and the icons.
+			<nav class="flex min-w-0 flex-1 items-center justify-end gap-x-[18px] max-narrow:gap-x-3 max-tiny:ml-2 max-tiny:gap-x-2" aria-label="Site">
+				@footerLink(aboutHref, "About")
+				@footerLink(feedbackHref, "Feedback")
 				@footerLink(privacyHref, "Privacy")
-				@footerLink(codeRulesURL, "About Code Rules")
-				@footerLink(repositoryURL, "Source on GitHub")
-				@footerLink(reportProblemURL, "Report a problem")
 			</nav>
-			<div class="max-narrow:ml-auto">
+			<div class="flex items-center max-tiny:-mr-[7px]">
+				<a class={ footerIconStyle, "no-underline" } href={ templ.SafeURL(repositoryURL) } aria-label="Source on GitHub" title="Source on GitHub">
+					@githubMark("size-[18px]")
+				</a>
 				@themeMenu()
 			</div>
 		</div>
 	</footer>
 }
+
+// footerIconStyle is a round icon button at the footer's end, tall and wide enough to tap. Its focus ring is the
+// Fabrica website's, thinner than the rest of Rulemart's.
+const footerIconStyle = "flex size-11 max-tiny:size-8 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink"
 
 // footerLink is one of the footer's links, tall enough to tap.
 templ footerLink(href, text string) {
@@ -240,7 +291,7 @@ var themeChoices = []themeChoice{
 templ themeMenu() {
 	<details id="theme-control" class="relative shrink-0" data-menu hidden>
 		<summary
-			class="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink [&::-webkit-details-marker]:hidden"
+			class={ footerIconStyle, "list-none [&::-webkit-details-marker]:hidden" }
 			aria-label="Color theme: System"
 			title="Color theme: System"
 		>
@@ -274,6 +325,13 @@ templ searchIcon(class string) {
 	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 		<circle cx="11" cy="11" r="7"></circle>
 		<path d="m20 20-3.5-3.5"></path>
+	</svg>
+}
+
+// menuIcon is three lines, in the current text color.
+templ menuIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+		<path d="M4 7h16M4 12h16M4 17h16"></path>
 	</svg>
 }
 

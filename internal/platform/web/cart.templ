@@ -142,7 +142,7 @@ templ checkIcon(class string) {
 // their avatar, from a phone's width up; a phone's header has room only for the avatar, which shows the count.
 templ cartLink(v visitor) {
 	<a
-		class="relative grid size-11 shrink-0 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink max-narrow:hidden"
+		class={ "relative grid size-9 shrink-0 place-items-center rounded-full text-ink no-underline hover:bg-surface", templ.KV("bg-surface", v.onCartPage) }
 		href={ templ.SafeURL(cartHref) }
 		aria-label={ "Your cart, " + plural(v.cartItems, "item", "items") }
 		title="Your cart"
@@ -150,16 +150,16 @@ templ cartLink(v visitor) {
 			aria-current="page"
 		}
 	>
-		@cartIcon("size-[22px]")
+		@cartIcon("size-5")
 		if v.cartItems > 0 {
-			@cartBadge(v.cartItems, "top-[3px] right-0")
+			@cartBadge(v.cartItems)
 		}
 	</a>
 }
 
-// cartBadge is the count of a cart's items, in a small filled circle at place.
-templ cartBadge(items int, place string) {
-	<span class={ "pointer-events-none absolute grid h-[18px] min-w-[18px] place-items-center rounded-full bg-primary px-[5px] text-[11px] leading-none font-semibold text-on-primary tabular-nums ring-2 ring-paper", place } aria-hidden="true">{ cartCount(items) }</span>
+// cartBadge is the count of a cart's items, in the prototype's small filled circle at the icon's top right.
+templ cartBadge(items int) {
+	<span class="pointer-events-none absolute top-px right-0 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-primary px-1 text-[10.5px] leading-none font-semibold text-on-primary tabular-nums" aria-hidden="true">{ cartCount(items) }</span>
 }
 
 // cartPage shows the signed-in visitor's cart: each library's items, the whole library first, then its groups, then

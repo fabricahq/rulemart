@@ -515,8 +515,8 @@ func TestGroupPagesAndAllRulesOfferGroups(t *testing.T) {
 		{Library: views.LibraryRef{Owner: "example", Name: "rules"}, Rules: []views.RuleCard{{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context"}}},
 	}}
 
-	page := body(t, site.signedInGet(t, "/groups/techs/go"))
-	action := cartPath("/account/cart", clone(goGroupItem), "/groups/techs/go")
+	page := body(t, site.signedInGet(t, "/g/techs/go"))
+	action := cartPath("/account/cart", clone(goGroupItem), "/g/techs/go")
 	if got := formActions(t, page); !slices.Contains(got, action) {
 		t.Errorf("the group's page posts to %q, want %q", got, action)
 	}
@@ -524,7 +524,7 @@ func TestGroupPagesAndAllRulesOfferGroups(t *testing.T) {
 		t.Error("the group's control doesn't name its library")
 	}
 	resp := site.signedInPost(t, action)
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups/techs/go", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
+	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/g/techs/go", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
 		"Added the group Go of example/rules to your cart.")
 
 	rules := body(t, site.signedInGet(t, library+"?tab=rules"))
@@ -929,7 +929,7 @@ func TestTheHeaderAndAccountNameTheVisitorsCart(t *testing.T) {
 	if got := links(t, page, "Your cart"); !slices.Equal(got, []string{"/account/cart"}) {
 		t.Errorf("the menu leads to %q", got)
 	}
-	for _, want := range []string{`href="/account/cart" aria-label="Your cart, 2 items"`, "Account menu, signed in as octocat, 2 items in your cart"} {
+	for _, want := range []string{`href="/account/cart" aria-label="Your cart, 2 items"`, "Account menu, signed in as octocat"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the header lacks %q", want)
 		}

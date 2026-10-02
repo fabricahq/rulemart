@@ -131,6 +131,8 @@
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   :where(p, h1, h2, h3, h4, li, td) { overflow-wrap: anywhere; }
   h1, h2, h3, h4 { font-weight: 500; color: var(--ink); }
+  /* Search fields draw no browser clear button, which would show in the browser's own color. */
+  input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 }
 
 @layer components {
@@ -161,6 +163,14 @@
   /* One part of an ID that breakable shows, kept whole on a line when it fits. Its own box would hide a link's
      underline, so it draws the underline of the link it's in. */
   .id-part { display: inline-block; text-decoration: inherit; }
+
+  /* An FAQ answer: plain markup in the prototype's text rhythm. */
+  .faq-answer p { margin: 0 0 10px; }
+  .faq-answer ol, .faq-answer ul { margin: 0 0 10px; padding-left: 20px; }
+  .faq-answer ol { list-style: decimal; }
+  .faq-answer ul { list-style: disc; }
+  .faq-answer li { margin-bottom: 6px; }
+  .faq-answer b { color: var(--ink); }
 
   /* A rule's reading guidance, rendered as its body is, in the smaller type of the box it sits in. */
   .prose .when-to-apply p, .prose .when-to-apply li { color: inherit; }

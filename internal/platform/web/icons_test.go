@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
+	"image/png"
 	"io"
 	"io/fs"
 	"path"
@@ -36,6 +37,35 @@ func TestVendoredIconsHoldOnlyDrawing(t *testing.T) {
 	}
 	if count == 0 {
 		t.Fatal("found no vendored icons")
+	}
+}
+
+// A PNG icon, for a project whose only published logo is one, holds no code, but it must be a PNG, downscaled to at
+// most 256 pixels a side, since pages draw icons far smaller and every browse page loads them.
+func TestVendoredPNGIconsAreSmallPNGs(t *testing.T) {
+	err := fs.WalkDir(embedded, "static/icons", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil || path.Ext(name) != ".png" {
+			return err
+		}
+		content, err := fs.ReadFile(embedded, name)
+		if err != nil {
+			return err
+		}
+		config, err := png.DecodeConfig(bytes.NewReader(content))
+		if err != nil {
+			t.Errorf("%s: %v", name, err)
+			return nil
+		}
+		if _, err := png.Decode(bytes.NewReader(content)); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+		if config.Width > 256 || config.Height > 256 {
+			t.Errorf("%s is %dx%d, want at most 256 pixels a side", name, config.Width, config.Height)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

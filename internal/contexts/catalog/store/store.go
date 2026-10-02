@@ -161,6 +161,9 @@ type Reader interface {
 	Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
 	// UnvettedLibraries returns the libraries listings name that vetted doesn't hold, ordered as Libraries orders them.
 	UnvettedLibraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
+	// OwnerLibraries returns the vetted libraries whose owner is login, matched without regard to case, ordered as
+	// Libraries orders them, each spelling the owner as the code host does. It's empty when the owner has none.
+	OwnerLibraries(ctx context.Context, vetted []domain.LibraryKey, login string) ([]views.LibraryCard, error)
 	// HomePage returns the vetted libraries, ordered by owner and name without regard to case, and their groups, as
 	// Groups returns them.
 	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)

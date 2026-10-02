@@ -1,10 +1,10 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
-// current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
-// each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
-// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library;
-// starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page reads, which
-// app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars from
-// catalog/app.Stars, and carts from catalog/app.Cart.
+// current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
+// kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
+// pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
+// a library; starring one; and collecting rules in a cart and checking it out. It reads the catalog from its page
+// reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
+// from catalog/app.Stars, and carts from catalog/app.Cart.
 package web
 
 import (
@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -100,6 +101,9 @@ type Catalog interface {
 	Libraries(ctx context.Context) ([]views.LibraryCard, error)
 	// UnvettedLibraries returns the libraries listings name that aren't vetted.
 	UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error)
+	// OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, or fails with
+	// app.ErrNotFound when no vetted library is theirs.
+	OwnerPage(ctx context.Context, login string) (views.OwnerPage, error)
 	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule. They find
 	// a library a listing names as well as a vetted one, and say which it is.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
@@ -135,6 +139,16 @@ type server struct {
 
 // New returns the handler for Rulemart's pages, reading them from catalog.
 func New(catalog Catalog, options Options) (http.Handler, error) {
+	s, err := newServer(catalog, options)
+	if err != nil {
+		return nil, err
+	}
+	return s.handler(), nil
+}
+
+// newServer returns the server of Rulemart's pages, reading them from catalog, before it routes any. It refuses
+// options it can't serve pages with.
+func newServer(catalog Catalog, options Options) (*server, error) {
 	if options.BaseURL != nil {
 		if err := checkBaseURL(options.BaseURL); err != nil {
 			return nil, fmt.Errorf("serve pages at base URL %q: %v", options.BaseURL, err)
@@ -148,7 +162,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &server{
+	return &server{
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{}, policies: newPolicies(beacon != ""),
 		chrome: chrome{
 			beacon:     beacon,
@@ -158,17 +172,22 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
-	}
+	}, nil
+}
+
+// handler routes each page's pattern to its handler, recording every pattern in s.routes, and returns the routes behind
+// what every request passes through first, such as the access log and the security headers.
+func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	// Every page's handler first finds who the request is from, which the frame shows.
 	handle := func(pattern string, handler http.HandlerFunc) {
 		mux.HandleFunc(pattern, s.withVisitor(handler))
 		s.routes[pattern] = true
 	}
-	mux.HandleFunc(staticPattern, assets.serve)
+	mux.HandleFunc(staticPattern, s.assets.serve)
 	s.routes[staticPattern] = true
 	// Browsers ask for /favicon.ico wherever a page names no icon they take, such as for a file that isn't a page.
-	mux.HandleFunc(faviconPattern, assets.serveFavicon)
+	mux.HandleFunc(faviconPattern, s.assets.serveFavicon)
 	s.routes[faviconPattern] = true
 	handle("GET /{$}", s.home)
 	// One segment each, so neither can hide a library's page.
@@ -176,15 +195,25 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET "+sitemapHref, s.sitemap)
 	handle("GET "+aboutHref, s.about)
 	handle("GET "+privacyHref, s.privacy)
-	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
-	// segment, so it can't either, though GitHub has an account named libraries.
+	handle("GET "+faqHref, s.faq)
+	handle("GET "+feedbackHref, s.feedback)
+	// One segment can't hide a library's page, though GitHub has accounts named libraries, browse, and g. Under
+	// browse, g, and groups, only each kind's own pages are the site's: a library's page has two segments and a
+	// rule's at least five, so only a browse page takes a library's address, browse/techs or browse/practices, and
+	// every other path reaches the library and rule pages.
 	handle("GET /libraries", s.libraries)
-	handle("GET /groups", s.groups)
-	handle("GET /groups/{kind}/{name}", s.group)
+	handle("GET "+strings.TrimSuffix(browsePrefix, "/"), s.redirectToTechs)
+	handle("GET "+legacyGroupsHref, s.redirectToTechs)
+	for _, kind := range groupKinds {
+		handle("GET "+kind.href(), s.browse(kind))
+		handle("GET "+kind.othersHref(), s.otherGroups(kind))
+		handle("GET "+groupPrefix+string(kind)+"/{name}", s.group(kind))
+		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
+	}
 	handle("GET /search", s.search)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
-	if options.Accounts != nil {
+	if s.Accounts != nil {
 		// Single segments can't hide a library's page, and GitHub has no account named account.
 		handle("GET "+signInHref, s.signInPage)
 		handle("POST "+signInHref, s.startSignIn)
@@ -194,7 +223,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
-		if options.Listings != nil {
+		if s.Listings != nil {
 			handle("GET "+listHref, s.listPage)
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+listingsHref, s.listingsPage)
@@ -202,12 +231,12 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
 		}
-		if options.Stars != nil {
+		if s.Stars != nil {
 			handle("GET "+starsHref, s.starsPage)
 			handle("POST "+starsHref, s.starLibrary)
 			handle("POST "+unstarHref, s.unstarLibrary)
 		}
-		if options.Cart != nil {
+		if s.Cart != nil {
 			handle("GET "+cartHref, s.cartPage)
 			handle("POST "+cartHref, s.addToCart)
 			handle("POST "+removeFromCartHref, s.removeFromCart)
@@ -217,40 +246,111 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+checkoutHref, s.checkoutPage)
 		}
 	}
-	handle("GET /{owner}/{repo}", s.library)
-	handle("GET /{owner}/{repo}/{rule...}", s.rule)
-	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
+	// An owner's page has one segment, like the site's own pages, which come first, so an owner whose login is one
+	// of theirs is at /o/{login} instead.
+	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
+	handle(ownerPattern, s.owner)
+	handle(libraryPattern, s.library)
+	handle(rulePattern, s.rule)
+	handle(notFoundPattern, s.notFound)
+	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux))))))
 }
 
-// siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
-// path under it, and libraries, search, unvetted, list, about, and privacy as a whole path, since GitHub has an
-// account named libraries, whose libraries' pages are /libraries/{repo}, and may have others.
-var siteSections = map[string]bool{
-	"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false,
+// The routes that take every path the site's own pages don't: an owner's, a library's, and a rule's pages, which
+// GitHub's spelling of their names addresses, and the missing page.
+const (
+	ownerPattern    = "GET /{owner}"
+	libraryPattern  = "GET /{owner}/{repo}"
+	rulePattern     = "GET /{owner}/{repo}/{rule...}"
+	notFoundPattern = "/"
+)
+
+// catchAllPatterns are the routes of the paths the site's own pages don't take.
+var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true, rulePattern: true, notFoundPattern: true}
+
+// siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
+// old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
+// the account pages, they're the logins whose owner pages are under /o/.
+//
+// A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
+// pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
+// browse/practices, the browse pages, and every library owned by o, whose address is an owner's page under /o/.
+// GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
+// browse/rules, g/techs, groups/techs, or libraries/rules.
+var siteSections = []string{
+	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
 }
 
-// withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
-// /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other
-// spellings redirect. The target starts with the section, so it stays on the site.
-func withSiteSectionsInLowercase(next http.Handler) http.Handler {
+// accountSections are the first segments of the account pages, reserved like siteSections, which the account routes
+// take only when sign-in is available.
+var accountSections = []string{strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/")}
+
+// reservedOwner reports whether login, in any case, is the first segment of one of the site's own pages, so its
+// owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
+func reservedOwner(login string) bool {
+	lower := strings.ToLower(login)
+	return slices.Contains(siteSections, lower) || slices.Contains(accountSections, lower)
+}
+
+// libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in
+// any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The account
+// pages take account/{name} too, but GitHub has no account named account.
+func libraryPageTaken(owner, name string) bool {
+	switch strings.ToLower(owner) {
+	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"):
+		return true
+	case strings.Trim(browsePrefix, "/"):
+		_, kind := parseGroupKind(name)
+		return kind
+	}
+	return false
+}
+
+// withSiteSectionsInLowercase redirects a path whose first segment spells one of the site's own pages in another case,
+// such as /Groups/techs/go or /SEARCH, or whose kind does under browse, g, and groups, such as /browse/Techs, to the
+// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
+// pages: a path a catch-all takes, such as /G/rules for a library whose owner's login is G, is left to that page's own
+// redirect to GitHub's spelling, which a lowercase redirect would send back and forth. The target starts with the
+// section, so it stays on the site.
+func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		first, rest, nested := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
-		section := strings.ToLower(first)
-		withSubpaths, ok := siteSections[section]
-		if !ok || first == section || (nested && !withSubpaths) {
-			next.ServeHTTP(w, r)
+		path := r.URL.EscapedPath()
+		target := siteSpelling(path)
+		if target == path || catchAllPatterns[routeOf(mux, r, target)] {
+			mux.ServeHTTP(w, r)
 			return
 		}
-		target := "/" + section
-		if nested {
-			target += "/" + rest
-		}
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		redirect(w, r, target)
+		redirect(w, r, withQuery(target, r))
 	})
+}
+
+// siteSpelling returns path, an escaped path, with its first segment in lowercase, and under browse, g, and groups,
+// with a second segment that names a group kind in any case spelled as the kind, as the site's own pages spell them.
+func siteSpelling(path string) string {
+	segments := strings.SplitN(strings.TrimPrefix(path, "/"), "/", 3)
+	segments[0] = strings.ToLower(segments[0])
+	if len(segments) > 1 && slices.Contains(kindSections, segments[0]) {
+		if kind, ok := parseGroupKind(segments[1]); ok {
+			segments[1] = string(kind)
+		}
+	}
+	return "/" + strings.Join(segments, "/")
+}
+
+// kindSections are the sections whose pages name a group kind as their second segment.
+var kindSections = []string{strings.Trim(browsePrefix, "/"), strings.Trim(groupPrefix, "/"), strings.Trim(legacyGroupsHref, "/")}
+
+// routeOf returns the pattern mux routes r to at the escaped path instead of r's own, or the missing page's when it
+// routes the path to none, such as one it would clean first.
+func routeOf(mux *http.ServeMux, r *http.Request, path string) string {
+	unescaped, err := url.PathUnescape(path)
+	if err != nil {
+		return notFoundPattern
+	}
+	at := r.Clone(r.Context())
+	at.URL.Path, at.URL.RawPath = unescaped, path
+	_, pattern := mux.Handler(at)
+	return cmp.Or(pattern, notFoundPattern)
 }
 
 // staticPattern is the route of the static files, which are the same for every visitor.
@@ -267,26 +367,8 @@ func withoutTrailingSlash(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		target := trimmed
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
-		}
-		redirect(w, r, target)
+		redirect(w, r, withQuery(trimmed, r))
 	})
-}
-
-func (s *server) home(w http.ResponseWriter, r *http.Request) {
-	page, err := s.catalog.HomePage(r.Context())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	cards, err := s.vettedCards(r, page.Libraries)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), cards, newGroupIndexView(page.Groups, s.assets.iconURL)))
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
@@ -303,49 +385,40 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
-func (s *server) groups(w http.ResponseWriter, r *http.Request) {
-	index, err := s.catalog.GroupIndex(r.Context())
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	s.render(w, r, http.StatusOK, groupsPage(s.pageChrome(groupsHref), newGroupIndexView(index, s.assets.iconURL)))
-}
-
-func (s *server) group(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("kind") + "/" + r.PathValue("name")
-	page, err := s.catalog.GroupPage(r.Context(), id)
-	if errors.Is(err, app.ErrNotFound) {
-		s.notFound(w, r)
-		return
-	}
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	view := newGroupPageView(page, s.assets.iconURL)
-	if page.Path != id {
-		target := view.href
-		if r.URL.RawQuery != "" {
-			target += "?" + r.URL.RawQuery
+// group shows the page of the canonical group of kind that the path names, and redirects another spelling of its
+// name to its own.
+func (s *server) group(kind groupKind) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := string(kind) + "/" + r.PathValue("name")
+		page, err := s.catalog.GroupPage(r.Context(), id)
+		if errors.Is(err, app.ErrNotFound) {
+			s.notFound(w, r)
+			return
 		}
-		redirect(w, r, target)
-		return
-	}
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
-	// Every library a group's page shows is vetted.
-	for i, lib := range view.libraries {
-		item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
-		view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
-			"the group "+view.label.name+" of "+lib.library.fullName())
-		view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
-		if view.libraries[i].cart.prompt {
-			view.offer = &view.libraries[i].cart
+		if err != nil {
+			s.fail(w, r, err)
+			return
 		}
+		view := newGroupPageView(page, s.assets.iconURL)
+		if page.Path != id {
+			redirect(w, r, withQuery(view.href, r))
+			return
+		}
+		if s.withoutCartPrompt(w, r) {
+			return
+		}
+		// Every library a group's page shows is vetted.
+		for i, lib := range view.libraries {
+			item := domain.CartItem{Owner: lib.library.owner, Name: lib.library.name, Kind: domain.CartGroup, Path: page.Path}
+			view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
+				"the group "+view.label.name+" of "+lib.library.fullName())
+			view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
+			if view.libraries[i].cart.prompt {
+				view.offer = &view.libraries[i].cart
+			}
+		}
+		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 	}
-	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
 
 // search shows a page of the results of the query in the q parameter, the page the page parameter numbers, from 1.
@@ -404,6 +477,14 @@ func searchPageNumber(params url.Values) (page int, spelled bool) {
 func redirect(w http.ResponseWriter, r *http.Request, target string) {
 	w.Header().Set("Cache-Control", pageCache)
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
+}
+
+// withQuery returns target with r's query, if any.
+func withQuery(target string, r *http.Request) string {
+	if r.URL.RawQuery != "" {
+		return target + "?" + r.URL.RawQuery
+	}
+	return target
 }
 
 // library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
@@ -672,13 +753,16 @@ func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.unavailable(w, r)
 }
 
-// withoutPath returns text with the library or rule that r's path names replaced by the route's wildcards. Page reads
-// name what they failed to read as owner/repo or owner/repo/rule, and those come from the visitor, so the logs keep
-// only the route, as the access log does.
+// withoutPath returns text with the owner, library, or rule that r's path names replaced by the route's wildcards.
+// Page reads name what they failed to read as owner/repo or owner/repo/rule, or as a quoted login, and those come
+// from the visitor, so the logs keep only the route, as the access log does.
 func withoutPath(text string, r *http.Request) string {
-	owner, repo, rule := r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule")
-	if owner == "" || repo == "" {
+	owner, repo, rule := cmp.Or(r.PathValue("owner"), r.PathValue("login")), r.PathValue("repo"), r.PathValue("rule")
+	if owner == "" {
 		return text
+	}
+	if repo == "" {
+		return strings.ReplaceAll(text, strconv.Quote(owner), "{owner}")
 	}
 	if rule != "" {
 		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")

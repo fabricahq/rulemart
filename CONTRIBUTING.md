@@ -35,7 +35,7 @@ run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> make web
 which Chrome accepts from `http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
 
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
-to show: `/groups` and a group such as `/groups/techs/go` across both, and `/search?q=retry`. The test library has
+to show: `/browse/techs` and a group such as `/g/techs/go` across both, and `/search?q=retry`. The test library has
 six releases to compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of
 them, and a rule's Versions tab compares two of its versions. Run `make ingest` again
 to bring a library up to date, or `make worker` to update every vetted one. To keep the local `rulemart` database for

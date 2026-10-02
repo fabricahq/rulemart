@@ -1,4 +1,5 @@
-// Pieces several pages share: avatars, labels, chips, tabs, panels, lists, rule cards, and the search form.
+// Pieces several pages share: avatars, labels, chips, tabs, panels, lists, library rows, rule cards, and the search
+// form.
 
 package web
 
@@ -17,6 +18,9 @@ const (
 	avatarSM avatarSize = "size-[30px] rounded-[8px] text-[11px]"
 	avatarMD avatarSize = "size-10 rounded-[10px] text-[13px]"
 	avatarLG avatarSize = "size-14 rounded-[14px] text-[20px]"
+	avatarXL avatarSize = "size-[72px] rounded-[18px] text-[26px]"
+	// avatarRound is a person's avatar in the header, a circle as the prototype draws a user's.
+	avatarRound avatarSize = "size-[30px] rounded-full text-[11px]"
 )
 
 // avatar shows an owner's GitHub avatar, or the owner's initial when there's none.
@@ -36,6 +40,8 @@ type tileSize string
 const (
 	tileXS tileSize = "size-[18px] rounded-[4px] text-[9px]"
 	tileMD tileSize = "size-7 rounded-[7px] text-[12px]"
+	// tileRow is a browse page's row icon, the prototype's medium tile.
+	tileRow tileSize = "size-9 rounded-[9px] text-[14px]"
 	tileLG tileSize = "size-14 rounded-[14px] text-[22px]"
 )
 
@@ -78,17 +84,11 @@ templ label(class string) {
 	</p>
 }
 
-// labelHeading is a section's heading in a label's style, at level 2, and labelSubheading at level 3.
+// labelHeading is a section's heading in a label's style, at level 2.
 templ labelHeading(class string) {
 	<h2 class={ labelStyle, class }>
 		{ children... }
 	</h2>
-}
-
-templ labelSubheading(class string) {
-	<h3 class={ labelStyle, class }>
-		{ children... }
-	</h3>
 }
 
 // impact shows a rule's declared impact, explained on hover.
@@ -101,6 +101,23 @@ templ chip() {
 	<span class="inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted">
 		{ children... }
 	</span>
+}
+
+// chipLink is a chip that leads somewhere, such as a popular group on the home page.
+templ chipLink(href string) {
+	<a class="inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted no-underline hover:border-border-strong hover:text-ink" href={ templ.SafeURL(href) }>
+		{ children... }
+	</a>
+}
+
+// bigSearch is the home page's search field, the prototype's: one wide field with a magnifying glass, submitted with
+// Enter, which searches the rules of every vetted library.
+templ bigSearch(id string) {
+	<form class="relative mx-auto mt-8 max-w-[560px] text-left" action={ templ.SafeURL(searchHref) } method="get" role="search">
+		<label class="sr-only" for={ id }>Search rules</label>
+		@searchIcon("pointer-events-none absolute top-1/2 left-[18px] size-[17px] -translate-y-1/2 text-faint")
+		<input id={ id } class="w-full rounded-full border border-border-strong bg-paper py-[14px] pr-5 pl-[46px] text-[16px] text-ink placeholder:text-faint focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Try React effects, logging, testing" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
+	</form>
 }
 
 // smallButton is a link styled as a small outlined button.
@@ -150,11 +167,83 @@ templ rowList() {
 	</ul>
 }
 
+// rowLayout is where a rowLink's column of metadata sits on a phone.
+type rowLayout string
+
+const (
+	// rowBeside keeps the metadata beside the content at every width, for metadata as short as one count.
+	rowBeside rowLayout = ""
+	// rowStacked drops the metadata under the content on a phone, where beside it, metadata as wide as two counts
+	// would squeeze the content into a narrow column. The metadata places itself there, with stackedMeta.
+	rowStacked rowLayout = "max-narrow:grid-cols-[minmax(0,1fr)_14px] max-narrow:gap-y-1"
+)
+
+// stackedMeta places a rowStacked row's metadata under its content on a phone, indented by indent, a padding class,
+// to line up with the content's text.
+func stackedMeta(indent string) string {
+	return "max-narrow:col-start-1 max-narrow:row-start-2 max-narrow:justify-start " + indent
+}
+
+// rowLink is a row of a rowList that is one full-width link, laid out as the prototype's rowlink: its content, a
+// column of metadata on the right, or under the content on a phone when layout says so, and a chevron that shows on
+// hover. nofollow marks a link to an unvetted library's page. Its text wraps between words, breaking a word only
+// when the word is wider than the whole line.
+templ rowLink(href string, nofollow bool, layout rowLayout) {
+	<a
+		class={ "group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline [overflow-wrap:break-word] transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]", string(layout) }
+		href={ templ.SafeURL(href) }
+		if nofollow {
+			rel="nofollow"
+		}
+	>
+		{ children... }
+		@chevron()
+	</a>
+}
+
+// chevron ends a rowLink: hidden until the row is hovered or focused, when it slides in.
+templ chevron() {
+	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition-[opacity,transform] duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
+}
+
 // rowItem is one row of a rowList.
 templ rowItem() {
 	<li>
 		{ children... }
 	</li>
+}
+
+// libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, its name, its
+// description, and its repository with its rule count, leading to its page, with its stars when it's vetted and has
+// any. The library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A
+// link to an unvetted library's page carries nofollow.
+templ libraryRow(lib libraryCard, headed bool) {
+	@rowLink(lib.href, lib.unvetted, rowBeside) {
+		<div class="flex min-w-0 items-start gap-[14px]">
+			@avatar(lib.avatar, lib.owner, avatarMD)
+			<div class="min-w-0">
+				if headed {
+					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
+				} else {
+					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
+				}
+				if lib.description != "" {
+					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
+				}
+				<div class="mt-1 text-[12.5px] text-faint">
+					<span class="mono">
+						@breakable(lib.owner + "/" + lib.name)
+					</span>
+					· { plural(lib.rules, "rule", "rules") }
+				</div>
+			</div>
+		</div>
+		<span class="text-[12.5px] whitespace-nowrap text-muted">
+			if lib.stars > 0 && !lib.unvetted {
+				@starCount(lib.stars, lib.starredByYou)
+			}
+		</span>
+	}
 }
 
 // ruleCards lists rule cards, each a ruleCardLink.
@@ -195,7 +284,7 @@ templ searchForm(id, query string, autofocus bool) {
 	<form class="flex w-full items-center gap-2 rounded-full border border-border-strong bg-paper py-1 pr-1 pl-4 has-[input:focus-visible]:border-(--focus) has-[input:focus-visible]:shadow-[0_0_0_1px_var(--focus)]" action={ templ.SafeURL(searchHref) } method="get" role="search">
 		@searchIcon("size-[18px] flex-none text-faint")
 		<label class="sr-only" for={ id }>Search rules</label>
-		<input id={ id } class="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-ink placeholder:text-faint focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" type="search" name="q" value={ query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off" autofocus?={ autofocus }/>
+		<input id={ id } class="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-ink placeholder:text-faint focus-visible:outline-none" type="search" name="q" value={ query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off" autofocus?={ autofocus }/>
 		<button class="min-h-10 flex-none cursor-pointer rounded-full bg-primary px-5 text-[14px] font-medium text-on-primary transition-opacity hover:opacity-85" type="submit">Search</button>
 	</form>
 }
@@ -245,7 +334,7 @@ templ factLink(href, text, title string) {
 templ libraryFacts(lib libraryView) {
 	@aboutPanel(reportLibrary(lib)) {
 		@fact("Owner") {
-			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
+			<a href={ templ.SafeURL(lib.ownerHref) }>{ lib.owner }</a>
 		}
 		@fact("Repository") {
 			@factLink(lib.githubURL, lib.name, "github.com/"+lib.owner+"/"+lib.name)

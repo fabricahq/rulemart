@@ -89,7 +89,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 			t.Errorf("%s doesn't warn", path)
 		}
 	}
-	for _, path := range []string{"/", "/libraries", "/groups", "/groups/techs/go", "/search?q=retrying"} {
+	for _, path := range []string{"/", "/libraries", "/browse/techs", "/g/techs/go", "/search?q=retrying"} {
 		if page := body(t, send(t, handler, request{method: http.MethodGet, target: path})); strings.Contains(page, "example/rules") ||
 			strings.Contains(page, "Return errors") {
 			t.Errorf("%s shows the unvetted library", path)

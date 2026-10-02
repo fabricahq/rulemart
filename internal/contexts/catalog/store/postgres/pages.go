@@ -55,6 +55,30 @@ func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]vi
 	return cards, nil
 }
 
+// OwnerLibraries returns the vetted libraries whose owner is login, matched without regard to case, ordered by name
+// without regard to case.
+func (s *Store) OwnerLibraries(ctx context.Context, vetted []domain.LibraryKey, login string) ([]views.LibraryCard, error) {
+	var cards []views.LibraryCard
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		rows, err := q.ListOwnerLibraries(ctx, catalogdb.ListOwnerLibrariesParams{Vetted: vettedKeys(vetted), Login: login})
+		if err != nil {
+			return err
+		}
+		cards = make([]views.LibraryCard, len(rows))
+		for i, row := range rows {
+			cards[i] = views.LibraryCard{
+				Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
+				Rules: int(row.RuleCount), Stars: int(row.StarCount),
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load owner libraries login=%q: %v", login, err)
+	}
+	return cards, nil
+}
+
 // UnvettedLibraries returns the libraries listings name that vetted doesn't hold, ordered by owner and name without
 // regard to case.
 func (s *Store) UnvettedLibraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {

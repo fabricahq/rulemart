@@ -70,9 +70,11 @@ func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
 		status      int
 	}{
 		{"/", "/{$}", http.StatusOK},
-		{"/groups", "/groups", http.StatusOK},
-		{"/groups/techs/go", "/groups/{kind}/{name}", http.StatusOK},
-		{"/groups/techs/golang", "/groups/{kind}/{name}", http.StatusNotFound},
+		{"/browse/techs", "/browse/techs", http.StatusOK},
+		{"/browse/tools", "/{owner}/{repo}", http.StatusNotFound},
+		{"/g/techs/go", "/g/techs/{name}", http.StatusOK},
+		{"/g/techs/golang", "/g/techs/{name}", http.StatusNotFound},
+		{"/groups/techs/go", "/groups/techs/{name}", http.StatusMovedPermanently},
 		{"/search?q=errors", "/search", http.StatusOK},
 		{"/search?q=private+words", "/search", http.StatusOK},
 		{library, "/{owner}/{repo}", http.StatusOK},
@@ -80,7 +82,10 @@ func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
 		{"/Example/Rules", "/{owner}/{repo}", http.StatusMovedPermanently},
 		{"/example/missing", "/{owner}/{repo}", http.StatusNotFound},
 		{"/example/rules/techs/go/missing", "/{owner}/{repo}/{rule...}", http.StatusNotFound},
-		{"/nothing-here", "/", http.StatusNotFound},
+		{"/example", "/{owner}", http.StatusOK},
+		{"/nothing-here", "/{owner}", http.StatusNotFound},
+		{"/o/example", "/o/{login}", http.StatusMovedPermanently},
+		{"/nothing/here/at/all", "/{owner}/{repo}/{rule...}", http.StatusNotFound},
 		{"/_static/000000000000/missing.css", "/_static/{version}/{file...}", http.StatusNotFound},
 	} {
 		_, line := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, tc.path, nil))

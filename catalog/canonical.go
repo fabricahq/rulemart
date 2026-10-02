@@ -48,12 +48,13 @@ type groupIcon struct {
 	LightTile  bool   `yaml:"lightTile"`
 }
 
-// iconFile matches an icon's path under the site's icons: an SVG file directly in one icon set's directory.
-var iconFile = regexp.MustCompile(`^[a-z0-9-]+/[a-z0-9.-]+\.svg$`)
+// iconFile matches an icon's path under the site's icons: an SVG or PNG file directly in one icon set's directory.
+// A PNG is for a project whose only published logo is one.
+var iconFile = regexp.MustCompile(`^[a-z0-9-]+/[a-z0-9.-]+\.(svg|png)$`)
 
 // parseGroupIcons reads a group icons file, keyed by group ID. It rejects a file of more than one YAML document,
-// unknown fields, a group listed twice or out of ID order, and an entry whose file isn't an SVG directly in an icon
-// set's directory.
+// unknown fields, a group listed twice or out of ID order, and an entry whose file isn't an SVG or PNG directly in an
+// icon set's directory.
 func parseGroupIcons(input []byte) (map[string]domain.GroupIcon, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	decoder.KnownFields(true)
@@ -73,7 +74,7 @@ func parseGroupIcons(input []byte) (map[string]domain.GroupIcon, error) {
 	icons := make(map[string]domain.GroupIcon, len(entries))
 	for id, entry := range entries {
 		if !iconFile.MatchString(entry.File) {
-			return nil, fmt.Errorf("read group icons: %s: expected file to name an SVG in an icon set's directory, such as devicon/go-original.svg", id)
+			return nil, fmt.Errorf("read group icons: %s: expected file to name an SVG or PNG in an icon set's directory, such as devicon/go-original.svg", id)
 		}
 		if entry.Monochrome && entry.LightTile {
 			return nil, fmt.Errorf("read group icons: %s: expected monochrome or lightTile, not both: a monochrome icon is inverted on the dark tile", id)
