@@ -49,8 +49,9 @@ templ signInLabel(v visitor) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu naming them, with links to
-// their dashboard, which is the account page until slice R7, adding a library, their starred rules, their cart, their
-// listings, and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
+// their account page, adding a library, their stars, their cart, their listings, and to sign out. The links are named
+// for the pages they lead to today; slices R3 and R7 restore the prototype's Dashboard and Starred rules when the
+// pages become those. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
 // button's shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar,
 // just inside its circle, so it stays inside the edge. menus.js closes the menu when focus or a click leaves it.
 templ accountMenu(v visitor) {
@@ -63,12 +64,12 @@ templ accountMenu(v visitor) {
 				<p class="text-faint">Signed in as</p>
 				<p class="truncate font-semibold text-ink">{ v.account.Login }</p>
 			</div>
-			@menuLink(accountHref, "Dashboard", v.onAccountPage)
+			@menuLink(accountHref, "Account", v.onAccountPage)
 			if v.listings {
 				@menuLink(listHref, "Add a library", v.onListPage)
 			}
 			if v.stars {
-				@menuLink(starsHref, "Starred rules", v.onStarsPage)
+				@menuLink(starsHref, "Your stars", v.onStarsPage)
 			}
 			if v.cart {
 				<a

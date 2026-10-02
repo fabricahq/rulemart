@@ -333,8 +333,8 @@ func TestOnlyAVettedLibraryCanBeStarredFromItsPage(t *testing.T) {
 		},
 	} {
 		page := body(t, get(t, unvettedLibrary))
-		// The menu's Starred rules aside, no Star appears, and no form posts a star.
-		if text := visibleText(t, page); strings.Contains(strings.ReplaceAll(text, "Starred rules", ""), "Star") || strings.Contains(page, `action="/account/stars`) {
+		// No Star appears, and no form posts a star.
+		if text := visibleText(t, page); strings.Contains(text, "Star") || strings.Contains(page, `action="/account/stars`) {
 			t.Error("an unvetted library's page offers a star")
 		}
 	}
@@ -415,8 +415,8 @@ func TestTheStarsPageSaysWhenThereAreNone(t *testing.T) {
 func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 	site := newStarSite(t)
 
-	if got := links(t, body(t, site.signedInGet(t, "/")), "Starred rules"); !slices.Equal(got, []string{"/account/stars"}) {
-		t.Errorf("the menu's Starred rules leads to %q", got)
+	if got := links(t, body(t, site.signedInGet(t, "/")), "Your stars"); !slices.Equal(got, []string{"/account/stars"}) {
+		t.Errorf("the menu's Your stars leads to %q", got)
 	}
 	page := body(t, site.signedInGet(t, "/account"))
 	assertShows(t, page, "it keeps which libraries you starred, and when", "It removes your stars, your cart, and your listings")

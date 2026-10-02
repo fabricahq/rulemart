@@ -106,9 +106,11 @@ decision.
 - **Proposed: the header's cart keeps today's behavior**, a link to the cart for signed-in visitors only, drawn as the
   prototype's icon with its count badge, until slice R5 moves the cart into the browser and shows it to everyone. It
   shows at every width, as the prototype's does, so the avatar no longer carries the count on a phone.
-- **Proposed: the account menu lists Dashboard, Add a library, Starred rules, Your cart, Your listings, Sign out**,
+- **Proposed: the account menu lists Account, Add a library, Your stars, Your cart, Your listings, Sign out**,
   leading to today's `/account`, `/list`, `/account/stars`, `/account/cart`, and `/account/listings`, until slices R3
-  and R7 fold them into the dashboard.
+  and R7 fold them into the dashboard. The prototype's Dashboard and Starred rules would open pages titled "Account"
+  and "Your stars", which lists starred libraries, so the menu names the pages as they are; slices R3 and R7 restore
+  the prototype's names when the pages become those.
 - **Proposed: `/` focuses the header's search field**, as the prototype, when nothing else has focus; the small script
   that closes menus gains that.
 - **Proposed: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a

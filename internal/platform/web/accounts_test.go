@@ -702,7 +702,7 @@ func TestTheHeaderShowsTheSignedInVisitorsMenu(t *testing.T) {
 
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 
-	assertShows(t, page, "Signed in as octocat", "Dashboard", "Sign out")
+	assertShows(t, page, "Signed in as octocat", "Account", "Sign out")
 	if strings.Contains(visibleText(t, page), "Sign in ") {
 		t.Error("a signed-in visitor is offered sign-in")
 	}
