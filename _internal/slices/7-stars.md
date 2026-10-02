@@ -29,6 +29,8 @@ slice 5's note that deleting an account should remove them, so every choice here
   transfers, so a star always means the same library. A rule can be retired, renamed, or replaced, which a star would
   have to follow or lose; and slice 8's cart already collects rules to adopt. Starring rules can come later as a second
   table without changing this one.
+- **Proposed: a library's own pages star it, not its rules' pages.** A star beside a rule's title would read as starring
+  the rule; the rule's page links its library, one click from Star. Devin's review asked for it on rule pages too.
 - **Proposed: only vetted libraries.** An unvetted library's pages show no stars, and starring one is missing. A star
   count is a trust signal, which an unvetted library shouldn't borrow, as its pages' `nofollow` keeps it from borrowing
   Rulemart's reputation in search engines. It's also where throwaway accounts would inflate counts. A library that
