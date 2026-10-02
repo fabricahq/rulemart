@@ -2,7 +2,9 @@
 // it serves HTTP at ADDR, 127.0.0.1:8080 by default.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
-// LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
+// LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes. RULEMART_BASE_URL, such
+// as https://rulemart.fabricahq.com, is the public origin each page names as its canonical address; unset, pages name
+// none.
 package main
 
 import (
@@ -69,6 +71,10 @@ func exit(logger *slog.Logger, err error) {
 // be at schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
 // the function's start.
 func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (http.Handler, error) {
+	baseURL, err := web.ParseBaseURL(os.Getenv("RULEMART_BASE_URL"))
+	if err != nil {
+		return nil, fmt.Errorf("read RULEMART_BASE_URL: %v", err)
+	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
 	if err != nil {
 		return nil, err
@@ -82,7 +88,7 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		return nil, err
 	}
 	pages := app.Pages{Store: postgres.New(source.Open(schemaVersion)), Vetted: vetted, Groups: groups}
-	return web.New(pages, web.Options{Log: logger, RequestID: lambdaRequestID})
+	return web.New(pages, web.Options{Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL})
 }
 
 // lambdaRequestID returns the Lambda request ID of a request the Function URL delivered, or "" for another.

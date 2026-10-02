@@ -106,7 +106,8 @@ one they no longer generate, such as a file under an old name.
     and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
-  migrations, `web` the HTTP server, templates, and static files, `logging` the JSON logger every command builds from
+  migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
+  `RULEMART_BASE_URL`, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser.
 - `db/migrations` holds the schema as numbered SQL files.

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -290,6 +291,94 @@ func TestPagesRedirectToTheLibrarysSpelling(t *testing.T) {
 
 	if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != errorsRule+"?tab=versions" {
 		t.Fatalf("got %d to %q", resp.Code, resp.Header().Get("Location"))
+	}
+}
+
+// canonicalLinks returns the href of every canonical link in an HTML body.
+func canonicalLinks(t *testing.T, body string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hrefs []string
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "link" && attribute(n, "rel") == "canonical" {
+			hrefs = append(hrefs, attribute(n, "href"))
+		}
+	}
+	return hrefs
+}
+
+// The CDN's own domain serves the same pages as Rulemart's, so each page names its address on the base URL, and a
+// tab, which shows the same page, adds nothing to it.
+func TestPagesNameTheirAddressOnTheBaseURLAsCanonical(t *testing.T) {
+	base, err := web.ParseBaseURL("https://rulemart.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := web.New(newCatalog(), web.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), BaseURL: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		"/":                          "https://rulemart.example/",
+		library + "?tab=rules":       "https://rulemart.example" + library,
+		errorsRule + "?tab=versions": "https://rulemart.example" + errorsRule,
+		// Percent-encoded spellings of the same page name the page's own address, not the request's spelling.
+		"/%65xample/rules":                        "https://rulemart.example" + library,
+		"/example/rules/techs/go/return-%65rrors": "https://rulemart.example" + errorsRule,
+	} {
+		t.Run(path, func(t *testing.T) {
+			resp := get(t, handler, path)
+
+			if got := canonicalLinks(t, resp.Body.String()); resp.Code != http.StatusOK || len(got) != 1 || got[0] != want {
+				t.Fatalf("got %d with canonical links %q, want %q", resp.Code, got, want)
+			}
+		})
+	}
+	t.Run("a missing page", func(t *testing.T) {
+		resp := get(t, handler, "/example/missing")
+
+		if got := canonicalLinks(t, resp.Body.String()); resp.Code != http.StatusNotFound || len(got) != 0 {
+			t.Fatalf("got %d with canonical links %q, want none", resp.Code, got)
+		}
+	})
+}
+
+func TestPagesNameNoCanonicalAddressWithoutABaseURL(t *testing.T) {
+	resp := get(t, newSite(t, newCatalog()), library)
+
+	if got := canonicalLinks(t, resp.Body.String()); len(got) != 0 {
+		t.Fatalf("canonical links %q, want none", got)
+	}
+}
+
+// A page's path is appended to the base URL as it is, so anything but a bare https origin would name wrong addresses.
+func TestParseBaseURLAcceptsOnlyAnHTTPSOrigin(t *testing.T) {
+	if got, err := web.ParseBaseURL("https://rulemart.example"); err != nil || got.String() != "https://rulemart.example" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if got, err := web.ParseBaseURL(""); err != nil || got != nil {
+		t.Fatalf("empty text gave %v, %v, want none", got, err)
+	}
+	for _, text := range []string{
+		"http://rulemart.example", "https://rulemart.example/", "https://rulemart.example/catalog",
+		"https://rulemart.example?q", "https://rulemart.example#top", "https://user@rulemart.example", "https://",
+		"rulemart.example", "https:rulemart.example",
+	} {
+		if got, err := web.ParseBaseURL(text); err == nil {
+			t.Errorf("accepted %q as %v", text, got)
+		}
+	}
+}
+
+func TestNewRejectsABaseURLThatIsntAnOrigin(t *testing.T) {
+	_, err := web.New(newCatalog(), web.Options{
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), BaseURL: &url.URL{Scheme: "https", Host: "rulemart.example", Path: "/catalog"},
+	})
+	if err == nil {
+		t.Fatal("accepted a base URL with a path")
 	}
 }
 

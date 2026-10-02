@@ -53,6 +53,9 @@ func TestStartupFailureIsLoggedAndStopsTheCommand(t *testing.T) {
 	for name, env := range map[string][]string{
 		"no database":      {"DATABASE_URL=", "DATABASE_URL_PARAMETER="},
 		"an unknown level": {"DATABASE_URL=postgres://localhost/rulemart", "LOG_LEVEL=verbose"},
+		"a base URL with a path": {
+			"DATABASE_URL=postgres://localhost/rulemart", "RULEMART_BASE_URL=https://rulemart.example/catalog",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			lines, code := runMain(t, append(env, "RULEMART_RELEASE=v9.9.9")...)

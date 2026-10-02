@@ -2,9 +2,13 @@
 
 package web
 
-// chrome is what the frame links: the stylesheet, the theme script, the icon, and the font to preload.
+// chrome is what the frame links: the stylesheet, the theme script, the icon, the font to preload, and the page's
+// canonical address.
 type chrome struct {
 	stylesheet, script, icon, font string
+	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
+	// such as a missing one, has no address of its own.
+	canonical string
 }
 
 // head is a page's title and description.
@@ -22,6 +26,9 @@ templ layout(c chrome, h head) {
 			<title>{ h.title }</title>
 			if h.description != "" {
 				<meta name="description" content={ h.description }/>
+			}
+			if c.canonical != "" {
+				<link rel="canonical" href={ c.canonical }/>
 			}
 			<link rel="icon" type="image/svg+xml" href={ c.icon }/>
 			<link rel="preload" href={ c.font } as="font" type="font/woff2" crossorigin/>
