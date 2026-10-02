@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -587,6 +588,83 @@ func TestHeaderMarksALinkCurrentOnlyOnItsOwnPages(t *testing.T) {
 			if got, want := strings.Contains(page, `href="`+href+`" aria-current="true"`), href == current; got != want {
 				t.Errorf("%s: the %s link is current: %v, want %v", path, href, got, want)
 			}
+		}
+	}
+}
+
+// Below the wide breakpoint, where the header's links hide, a menu button opens the same links, marking one current
+// on the same pages as the header does. The button is a <details data-menu>'s summary, so Enter and Space open it
+// without JavaScript, and menus.js closes it on Escape.
+func TestHeaderMenuOpensTheSectionsAndMarksTheCurrentOne(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+	sections := []string{"Techs /browse/techs", "Practices /browse/practices", "Libraries /libraries", "FAQ /faq"}
+
+	for path, current := range map[string]string{
+		"/libraries": "/libraries", library: "", "/browse/techs": "/browse/techs", "/browse/techs/other": "/browse/techs",
+		"/browse/practices": "/browse/practices", "/g/techs/go": "", "/faq": "/faq", "/": "", "/search": "",
+	} {
+		doc, err := html.Parse(strings.NewReader(get(t, handler, path).Body.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		header := find(doc, func(n *html.Node) bool { return n.Data == "header" })
+		button := find(header, func(n *html.Node) bool { return n.Data == "summary" && attribute(n, "aria-label") == "Menu" })
+		if button == nil {
+			t.Errorf("%s: the header has no Menu button", path)
+			continue
+		}
+		menu := button.Parent
+		if menu.Data != "details" || !slices.ContainsFunc(menu.Attr, func(a html.Attribute) bool { return a.Key == "data-menu" }) {
+			t.Errorf("%s: the Menu button isn't the summary of a <details data-menu>", path)
+		}
+		var got, marked []string
+		for n := range menu.Descendants() {
+			if n.Type == html.ElementNode && n.Data == "a" {
+				got = append(got, nodeText(n)+" "+attribute(n, "href"))
+				if attribute(n, "aria-current") == "true" {
+					marked = append(marked, attribute(n, "href"))
+				}
+			}
+		}
+		if !slices.Equal(got, sections) {
+			t.Errorf("%s: the menu links %q, want %q", path, got, sections)
+		}
+		if want := slices.DeleteFunc([]string{current}, func(s string) bool { return s == "" }); !slices.Equal(marked, want) {
+			t.Errorf("%s: the menu marks %q current, want %q", path, marked, want)
+		}
+	}
+}
+
+// Tabbing through the header reaches the Menu button after the header's links, which it stands in for, and before
+// the search icon and the account control, which keep their places at the header's end; the open menu's links come
+// right after its button.
+func TestHeaderMenuComesBetweenTheLinksAndTheSearchIconInFocusOrder(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	sections := []string{"Techs", "Practices", "Libraries", "FAQ"}
+	start := slices.Concat([]string{"Fabrica", "Rulemart home", "Search rules"}, sections, []string{"Menu"}, sections, []string{"Search rules"})
+
+	for name, test := range map[string]struct {
+		cookies []*http.Cookie
+		want    []string
+	}{
+		"signed out": {want: append(slices.Clone(start), "Sign in with GitHub")},
+		"signed in":  {cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, want: append(slices.Clone(start), "Account menu, signed in as octocat", "Account", "Sign out")},
+	} {
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/faq", cookies: test.cookies}))
+		doc, err := html.Parse(strings.NewReader(page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		header := find(doc, func(n *html.Node) bool { return n.Data == "header" })
+		var got []string
+		for n := range header.Descendants() {
+			if n.Type == html.ElementNode && slices.Contains([]string{"a", "input", "summary", "button"}, n.Data) {
+				got = append(got, cmp.Or(attribute(n, "aria-label"), attribute(n, "placeholder"), nodeText(n)))
+			}
+		}
+		if !slices.Equal(got, test.want) {
+			t.Errorf("%s: the header's focus order is %q, want %q", name, got, test.want)
 		}
 	}
 }

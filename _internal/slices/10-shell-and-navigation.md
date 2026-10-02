@@ -16,8 +16,8 @@ decision.
 
 - **The header**, on every page: Fabrica's mark and name, a slash, Rulemart; the search field; then Techs,
   Practices, Libraries, FAQ; the cart; and Sign in with GitHub, or the visitor's avatar and menu. Techs, Practices,
-  Libraries, and FAQ hide on narrow screens, as the prototype's `hide-md` does; the search field becomes a search
-  icon, as today.
+  Libraries, and FAQ hide on narrow screens, as the prototype's `hide-md` does, and a menu button opens them instead;
+  the search field becomes a search icon, as today.
 - **The home page** (`/`): the eyebrow "Fabrica / Rulemart", the heading "Agent coding best practices, off the shelf",
   the lede, the big search field with the placeholder "Try React effects, logging, testing", and "Popular" chips.
   Then **Technologies** and **Practices**, each a band with "Browse all →" and a four-column grid of tiles, one per
@@ -128,6 +128,13 @@ decision.
   libraries page, and the FAQ, as the prototype does, and the cart marks its icon. A library's, a rule's, a group's,
   or an owner's page marks none, as in the prototype, and so do the unvetted libraries page and the page that lists a
   library, which the prototype doesn't have.
+- **Decided (Josh): a menu button stands in for the header's links where they hide**, below the wide breakpoint (960
+  pixels), as the prototype's `hide-md`: a round 44-pixel button with a three-line icon, named "Menu", just left of
+  the search icon, so the name, the search icon, the cart, and the account control keep their places. It opens a small
+  menu of Techs, Practices, Libraries, and FAQ, under the button with its right edge on the content edge, as the
+  account menu's, marking the current one as the header does. It is a `<details data-menu>`, as the account and theme
+  menus are, so it works without JavaScript and menus.js closes it. The prototype's phone header offers no way to
+  these pages.
 - **Proposed: `/` focuses the header's search field**, as the prototype, when nothing else has focus; the small script
   that closes menus gains that.
 - **Proposed: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a
@@ -168,8 +175,8 @@ decision.
   `/groups/{kind}/{name}`; `/o/{login}` for a reserved and an unreserved login; the owner page for an owner with
   vetted, only unvetted, and no libraries; the lowercase redirect for the new sections; the tiles' counts and
   sort; the Popular chips; the browse rows and the other-groups link and page, empty and not; the FAQ and feedback
-  pages' links and labels; the sitemap's and canonical links' new addresses; the footer's links; and the header's
-  current link on each section.
+  pages' links and labels; the sitemap's and canonical links' new addresses; the footer's links; the header's
+  current link on each section; and the header's menu's links, current link, and place in the focus order.
 - In a browser, every route above at 1280, 390, and 320 pixels, light and dark, beside the prototype, with no
   horizontal scroll and no console error, signed in and out.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.
