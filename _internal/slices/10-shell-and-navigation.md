@@ -43,8 +43,8 @@ decision.
   today, and "Still have a question? Ask us." leading to feedback.
 - **Feedback** (`/feedback`): the prototype's topic rows under Rulemart, Code Rules, A specific rule, and Anything
   else. Each row opens a new GitHub issue, prefilled, in the repository that owns the topic, marked "↗ GitHub".
-- **The footer**: "Fabrica / Rulemart", Fabrica linking fabricahq.com; Techs, Practices, Libraries, FAQ; About,
-  Privacy, About Code Rules, Feedback; GitHub's mark leading to Rulemart's source; the theme menu.
+- **The footer**: "Fabrica / Rulemart", Fabrica linking fabricahq.com; About, Feedback, Privacy; GitHub's mark leading
+  to Rulemart's source; the theme menu.
 
 ## Decisions
 
@@ -152,15 +152,13 @@ decision.
   have. GitHub drops labels for people who can't set them, so the title prefix carries the topic too. "Something
   broken on Rulemart", a row under Rulemart, leads to the existing Report a problem issue form, so the footer's link
   moves to the feedback page.
-- **Proposed: the footer keeps About Rulemart, Privacy, About Code Rules, and Source on GitHub**, and replaces Report
-  a problem with Give us feedback, which leads to the page that offers it.
-- **Decided (Josh): the footer's links are About, Privacy, About Code Rules, and Feedback**, after the four sections';
-  "Fabrica" in "Fabrica / Rulemart" links fabricahq.com; and Source on GitHub is GitHub's mark, an icon link named
-  "Source on GitHub", just left of the theme menu and the same size. On a phone, the footer's links flow as one run
-  under Rulemart's name and the two icons.
-- **Proposed: the footer also links Techs, Practices, Libraries, and FAQ, at every width.** The prototype's footer has
-  only feedback and the theme, and its header hides those four links on a phone, which left a phone no way to browse
-  by kind or reach the libraries page or the FAQ.
+- **Decided (Josh): the footer's links are About, Feedback, and Privacy, in that order**, Feedback replacing Report a
+  problem and leading to the page that offers it; "Fabrica" in "Fabrica / Rulemart" links fabricahq.com; and Source on
+  GitHub is GitHub's mark, an icon link named "Source on GitHub", just left of the theme menu and the same size. On a
+  phone, the footer's links stand on a line of their own under Rulemart's name and the two icons. The footer has no
+  About Code Rules: the about page's text leads to Code Rules.
+- **Decided (Josh): the footer doesn't repeat the header's sections.** Techs, Practices, Libraries, and FAQ stay in
+  the header; where it hides them, its menu button opens them.
 
 ## Not in this slice
 
