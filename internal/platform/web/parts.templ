@@ -377,9 +377,9 @@ templ ruleResult(r ruleResultView) {
 		}
 		if r.starredAs != "" {
 			<p class="mt-1 text-[12.5px] text-muted">
-				You starred it as{ " " }<span class="mono">
+				You starred{ " " }<span class="mono">
 					@breakable(r.starredAs)
-				</span>, which it replaced.
+				</span>, which this rule replaced.
 			</p>
 		}
 		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">

@@ -70,7 +70,7 @@ a decision under "Decided while building" says otherwise and why.
 - **Proposed: a rule reads Starred when any of the visitor's stars counts toward it, and unstarring removes them
   all**, on the rule and the retired rules it replaced. Otherwise a visitor who starred the old rule would see the
   new one, listed on their Starred rules, offering to star it again, and couldn't take their star back.
-- **Proposed: the starred list says "You starred it as `old-id`, which it replaced."** in place of "renamed from",
+- **Proposed: the starred list says "You starred `old-id`, which this rule replaced."** in place of "renamed from",
   since a star follows a replacement as well as a rename, and the line holds for both, however many rules the chain
   passed.
 - **Proposed: a star that counts toward no current rule of a vetted library stays stored, uncounted and unlisted**:

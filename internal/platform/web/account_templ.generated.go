@@ -1063,14 +1063,14 @@ func accountPage(c chrome, account accountView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if visitorOf(ctx).stars {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<p class=\"mt-2 text-[13.5px] text-muted\">For your stars, it keeps which rules you starred, and when: a list of your own, of which others see only how many stars each rule has. <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<p class=\"mt-2 text-[13.5px] text-muted\">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var52 templ.SafeURL
 				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(starredHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 213, Col: 217}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 213, Col: 209}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 				if templ_7745c5c3_Err != nil {

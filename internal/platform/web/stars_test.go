@@ -576,7 +576,7 @@ func TestStarredRulesListTheVisitorsRules(t *testing.T) {
 	page := body(t, resp)
 	assertShows(t, page, "Starred rules Rules you starred, most recent first.",
 		"Return errors with context HIGH E example/rules:techs/go/return-errors Go 2.0.0 1,234 1,234 stars "+
-			"Verify retry limits HIGH You starred it as practices/testing/check-retry-backoff , which it replaced. "+
+			"Verify retry limits HIGH You starred practices/testing/check-retry-backoff , which this rule replaced. "+
 			"E example/rules:practices/testing/verify-retry-limits Testing 1.1.0 1 1 star")
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
@@ -605,7 +605,7 @@ func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 		t.Errorf("the menu's Starred rules leads to %q", got)
 	}
 	page := body(t, site.signedInGet(t, "/account"))
-	assertShows(t, page, "it keeps which rules you starred, and when", "It removes your stars, your cart, and your listings")
+	assertShows(t, page, "it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.", "It removes your stars, your cart, and your listings")
 	if text := visibleText(t, page); strings.Count(text, " also ") > 1 {
 		t.Errorf("the account page says also more than once: %s", text)
 	}
