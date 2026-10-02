@@ -698,21 +698,23 @@ func (q *Queries) ListVettedGroups(ctx context.Context, vetted []string) ([]List
 
 const searchRules = `-- name: SearchRules :many
 WITH find_terms AS (
-    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::boolean[])[i] AS identifier
+    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::text[])[i] AS identifier_query
     FROM generate_subscripts($3::text[], 1) AS i
 ),
 find AS (
-    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query, t.identifier,
+    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
            tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
     FROM find_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 exclude_terms AS (
-    SELECT ($5::text[])[i] AS query, ($6::boolean[])[i] AS identifier
+    SELECT ($5::text[])[i] AS query, ($6::text[])[i] AS identifier_query
     FROM generate_subscripts($5::text[], 1) AS i
 ),
 exclude AS (
-    SELECT websearch_to_tsquery('english', t.query) AS query, t.identifier
+    SELECT websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
     FROM exclude_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
@@ -736,7 +738,7 @@ documents AS (
 places AS (
     SELECT d.id, f.ordinal, f.lexemes,
            CASE WHEN d.title @@ f.query THEN 1.0
-                WHEN d.group_names @@ f.query OR (f.identifier AND d.identifiers @@ f.query) THEN 0.8
+                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
                 WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
                 WHEN d.text @@ f.query THEN 0.1
            END AS score
@@ -754,7 +756,8 @@ scored AS (
     FROM documents d
     WHERE NOT EXISTS (
         SELECT 1 FROM exclude e
-        WHERE d.text @@ e.query OR d.group_names @@ e.query OR (e.identifier AND d.identifiers @@ e.query)
+        WHERE d.text @@ e.query OR d.group_names @@ e.query
+           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
     )
 ),
 ranked AS (
@@ -781,15 +784,15 @@ LIMIT $2 OFFSET $1
 `
 
 type SearchRulesParams struct {
-	Skip               int32
-	MaxResults         int32
-	FindTerms          []string
-	FindIdentifiers    []bool
-	ExcludeTerms       []string
-	ExcludeIdentifiers []bool
-	CanonicalNames     []string
-	CanonicalIds       []string
-	Vetted             []string
+	Skip                   int32
+	MaxResults             int32
+	FindTerms              []string
+	FindIdentifierTerms    []string
+	ExcludeTerms           []string
+	ExcludeIdentifierTerms []string
+	CanonicalNames         []string
+	CanonicalIds           []string
+	Vetted                 []string
 }
 
 type SearchRulesRow struct {
@@ -817,9 +820,9 @@ type SearchRulesRow struct {
 //
 // A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
 // the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
-// but never what its library calls the group. A term the identifiers flags mark, such as keep tests independent from
-// keep-tests-independent, also matches the words of the rule's source-qualified ID, owner/name:rule-ID, whose rule ID
-// starts with its group's.
+// but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+// with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+// source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 //
 // Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
 // impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
@@ -832,9 +835,9 @@ func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]Sea
 		arg.Skip,
 		arg.MaxResults,
 		arg.FindTerms,
-		arg.FindIdentifiers,
+		arg.FindIdentifierTerms,
 		arg.ExcludeTerms,
-		arg.ExcludeIdentifiers,
+		arg.ExcludeIdentifierTerms,
 		arg.CanonicalNames,
 		arg.CanonicalIds,
 		arg.Vetted,

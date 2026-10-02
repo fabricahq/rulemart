@@ -159,9 +159,9 @@ ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path;
 --
 -- A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
 -- the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
--- but never what its library calls the group. A term the identifiers flags mark, such as keep tests independent from
--- keep-tests-independent, also matches the words of the rule's source-qualified ID, owner/name:rule-ID, whose rule ID
--- starts with its group's.
+-- but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+-- with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+-- source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 --
 -- Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
 -- impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
@@ -171,21 +171,23 @@ ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path;
 -- the library's owner and name, and rule ID, so the order is stable.
 -- name: SearchRules :many
 WITH find_terms AS (
-    SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifiers::boolean[])[i] AS identifier
+    SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
     FROM generate_subscripts(@find_terms::text[], 1) AS i
 ),
 find AS (
-    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query, t.identifier,
+    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
            tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
     FROM find_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 exclude_terms AS (
-    SELECT (@exclude_terms::text[])[i] AS query, (@exclude_identifiers::boolean[])[i] AS identifier
+    SELECT (@exclude_terms::text[])[i] AS query, (@exclude_identifier_terms::text[])[i] AS identifier_query
     FROM generate_subscripts(@exclude_terms::text[], 1) AS i
 ),
 exclude AS (
-    SELECT websearch_to_tsquery('english', t.query) AS query, t.identifier
+    SELECT websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
     FROM exclude_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
@@ -209,7 +211,7 @@ documents AS (
 places AS (
     SELECT d.id, f.ordinal, f.lexemes,
            CASE WHEN d.title @@ f.query THEN 1.0
-                WHEN d.group_names @@ f.query OR (f.identifier AND d.identifiers @@ f.query) THEN 0.8
+                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
                 WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
                 WHEN d.text @@ f.query THEN 0.1
            END AS score
@@ -227,7 +229,8 @@ scored AS (
     FROM documents d
     WHERE NOT EXISTS (
         SELECT 1 FROM exclude e
-        WHERE d.text @@ e.query OR d.group_names @@ e.query OR (e.identifier AND d.identifiers @@ e.query)
+        WHERE d.text @@ e.query OR d.group_names @@ e.query
+           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
     )
 ),
 ranked AS (
