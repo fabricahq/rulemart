@@ -184,11 +184,11 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	// One segment can't hide a library's page, though GitHub has accounts named libraries, browse, and g, and
 	// a group's page and a browse page have three segments, where a rule's page has at least four.
 	handle("GET /libraries", s.libraries)
-	handle("GET "+strings.TrimSuffix(browsePrefix, "/"), s.legacyGroups)
+	handle("GET "+strings.TrimSuffix(browsePrefix, "/"), s.redirectToTechs)
 	handle("GET "+browsePrefix+"{kind}", s.browse)
 	handle("GET "+browsePrefix+"{kind}/other", s.otherGroups)
 	handle("GET "+groupPrefix+"{kind}/{name}", s.group)
-	handle("GET "+legacyGroupsHref, s.legacyGroups)
+	handle("GET "+legacyGroupsHref, s.redirectToTechs)
 	handle("GET "+legacyGroupsHref+"/{kind}/{name}", s.legacyGroup)
 	handle("GET /search", s.search)
 	// One segment can't hide a library's page.
@@ -297,63 +297,6 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
-// browse shows the browse page of the kind the path names, techs or practices, and is missing for any other.
-func (s *server) browse(w http.ResponseWriter, r *http.Request) {
-	kind, index, ok := s.browseIndex(w, r, groupKind.href)
-	if !ok {
-		return
-	}
-	s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
-}
-
-// otherGroups shows the groups of the kind the path names that aren't canonical.
-func (s *server) otherGroups(w http.ResponseWriter, r *http.Request) {
-	kind, index, ok := s.browseIndex(w, r, groupKind.othersHref)
-	if !ok {
-		return
-	}
-	s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
-}
-
-// browseIndex reads the groups a browse page shows, for the kind r's path names, and reports whether it did. It
-// answers a kind that isn't one with the missing page, another spelling of the kind with a redirect to the page's
-// address, which href gives, and a failed read with a failure.
-func (s *server) browseIndex(w http.ResponseWriter, r *http.Request, href func(groupKind) string) (groupKind, groupIndexView, bool) {
-	kind, ok := parseGroupKind(r.PathValue("kind"))
-	if !ok {
-		s.notFound(w, r)
-		return "", groupIndexView{}, false
-	}
-	if r.PathValue("kind") != string(kind) {
-		redirect(w, r, withQuery(href(kind), r))
-		return "", groupIndexView{}, false
-	}
-	index, err := s.catalog.GroupIndex(r.Context())
-	if err != nil {
-		s.fail(w, r, err)
-		return "", groupIndexView{}, false
-	}
-	return kind, newGroupIndexView(index, s.assets.iconURL), true
-}
-
-// legacyGroups redirects the groups page's old address, and /browse without a kind, to the technologies' browse page,
-// and legacyGroup a group's old address to its page, keeping the query.
-func (s *server) legacyGroups(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, withQuery(techsKind.href(), r))
-}
-
-func (s *server) legacyGroup(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, withQuery(groupHref(r.PathValue("kind")+"/"+r.PathValue("name")), r))
-}
-
-// withQuery returns target with r's query, if any.
-func withQuery(target string, r *http.Request) string {
-	if r.URL.RawQuery != "" {
-		return target + "?" + r.URL.RawQuery
-	}
-	return target
-}
-
 func (s *server) group(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("kind") + "/" + r.PathValue("name")
 	page, err := s.catalog.GroupPage(r.Context(), id)
@@ -442,6 +385,14 @@ func searchPageNumber(params url.Values) (page int, spelled bool) {
 func redirect(w http.ResponseWriter, r *http.Request, target string) {
 	w.Header().Set("Cache-Control", pageCache)
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
+}
+
+// withQuery returns target with r's query, if any.
+func withQuery(target string, r *http.Request) string {
+	if r.URL.RawQuery != "" {
+		return target + "?" + r.URL.RawQuery
+	}
+	return target
 }
 
 // library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,

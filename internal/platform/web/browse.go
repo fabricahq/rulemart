@@ -1,8 +1,10 @@
-// Shape what the pages across libraries read, the browse pages, a group's page, and search, into what they show.
+// The browse pages, and how the pages across libraries, the browse pages, a group's page, and search, shape what they
+// read into what they show.
 
 package web
 
 import (
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -212,6 +214,56 @@ func (v otherGroupsView) example() string {
 		return "practices/testing"
 	}
 	return "techs/go"
+}
+
+// browse shows the browse page of the kind the path names, techs or practices, and is missing for any other.
+func (s *server) browse(w http.ResponseWriter, r *http.Request) {
+	kind, index, ok := s.browseIndex(w, r, groupKind.href)
+	if !ok {
+		return
+	}
+	s.render(w, r, http.StatusOK, browsePage(s.pageChrome(kind.href()), newBrowseView(kind, index)))
+}
+
+// otherGroups shows the groups of the kind the path names that aren't canonical.
+func (s *server) otherGroups(w http.ResponseWriter, r *http.Request) {
+	kind, index, ok := s.browseIndex(w, r, groupKind.othersHref)
+	if !ok {
+		return
+	}
+	s.render(w, r, http.StatusOK, otherGroupsPage(s.pageChrome(kind.othersHref()), newOtherGroupsView(kind, index)))
+}
+
+// browseIndex reads the groups a browse page shows, for the kind r's path names, and reports whether it did. It
+// answers a kind that isn't one with the missing page, another spelling of the kind with a redirect to the page's
+// address, which href gives, and a failed read with a failure.
+func (s *server) browseIndex(w http.ResponseWriter, r *http.Request, href func(groupKind) string) (groupKind, groupIndexView, bool) {
+	kind, ok := parseGroupKind(r.PathValue("kind"))
+	if !ok {
+		s.notFound(w, r)
+		return "", groupIndexView{}, false
+	}
+	if r.PathValue("kind") != string(kind) {
+		redirect(w, r, withQuery(href(kind), r))
+		return "", groupIndexView{}, false
+	}
+	index, err := s.catalog.GroupIndex(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return "", groupIndexView{}, false
+	}
+	return kind, newGroupIndexView(index, s.assets.iconURL), true
+}
+
+// redirectToTechs redirects /browse, which names no kind, and the groups page's old address to the technologies'
+// browse page, keeping the query.
+func (s *server) redirectToTechs(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(techsKind.href(), r))
+}
+
+// legacyGroup redirects a group's old address, under the groups page's, to its page, keeping the query.
+func (s *server) legacyGroup(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(groupHref(r.PathValue("kind")+"/"+r.PathValue("name")), r))
 }
 
 // groupPageView is what a canonical group's page shows.
