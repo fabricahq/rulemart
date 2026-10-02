@@ -297,3 +297,19 @@ func TestFilterSidebarNamesLibrariesByRepository(t *testing.T) {
 		t.Error("the sidebar shows more than the repository's name")
 	}
 }
+
+// The sidebar offers retired rules only on a list that has some, or that shows them already, so it can stop.
+func TestFilterSidebarOffersRetiredRulesOnlyWhenTheListHasSome(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, want := range map[string]bool{
+		"/g/techs/go":               true,
+		"/g/techs/golang":           false,
+		"/g/techs/golang?retired=1": true,
+	} {
+		_, _, fields := filterFields(t, get(t, handler, path).Body.String())
+		if got := slices.Contains(fieldNames(fields), "retired=1"); got != want {
+			t.Errorf("%s: offers retired rules %t, want %t", path, got, want)
+		}
+	}
+}

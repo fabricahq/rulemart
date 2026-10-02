@@ -40,7 +40,7 @@ var (
 
 // newBrowsingCatalog returns newCatalog's library, with the groups of two libraries: Go, which both hold, Testing,
 // which one holds, and techs/golang, which isn't canonical. It finds two rules for "errors", and lists four as every
-// rule.
+// rule. Go, and every rule, hold a retired rule too; techs/golang doesn't.
 func newBrowsingCatalog() catalog {
 	c := newCatalog()
 	c.index = views.GroupIndex{
@@ -57,7 +57,7 @@ func newBrowsingCatalog() catalog {
 	c.groups = map[string]views.GroupPage{
 		"techs/go": {Path: "techs/go", Canonical: goGroup, Rules: views.RuleResults{
 			Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow}, Total: 3, Libraries: 2, Unfiltered: 3,
-			UnfilteredLibraries: browsingCounts,
+			UnfilteredLibraries: browsingCounts, RetiredRules: 1,
 		}},
 		"techs/golang": {Path: "techs/golang", Rules: views.RuleResults{
 			Rows: []views.RuleRow{wrapErrorsRow}, Total: 1, Libraries: 1, Unfiltered: 1,
@@ -69,7 +69,7 @@ func newBrowsingCatalog() catalog {
 		"errors": {Rows: []views.RuleRow{returnErrorsRow, wrapErrorsRow}, Total: 2, Complete: 2, Libraries: 2, Unfiltered: 2,
 			UnfilteredLibraries: []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 1}}},
 		"": {Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow, wrapErrorsRow}, Total: 4, Complete: 4,
-			Libraries: 2, Unfiltered: 4, UnfilteredLibraries: browsingCounts},
+			Libraries: 2, Unfiltered: 4, UnfilteredLibraries: browsingCounts, RetiredRules: 1},
 	}
 	return c
 }

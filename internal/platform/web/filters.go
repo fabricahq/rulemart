@@ -24,8 +24,9 @@ type ruleListView struct {
 	params  url.Values
 	choices domain.ListChoices
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
-	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters.
-	total, complete, libraries, unfiltered int
+	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, and
+	// retiredRules the retired rules it could show.
+	total, complete, libraries, unfiltered, retiredRules int
 	// libraryFilters are the sidebar's libraries: those of the rules the list holds before its filters, Fabrica's
 	// first.
 	libraryFilters []libraryFilterView
@@ -45,7 +46,7 @@ type libraryFilterView struct {
 func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, results views.RuleResults) ruleListView {
 	v := ruleListView{
 		page: page, path: path, params: params, choices: choices, total: results.Total, complete: results.Complete,
-		libraries: results.Libraries, unfiltered: results.Unfiltered,
+		libraries: results.Libraries, unfiltered: results.Unfiltered, retiredRules: results.RetiredRules,
 	}
 	for _, l := range results.UnfilteredLibraries {
 		value := domain.LibraryFilterValue(l.Library.Owner, l.Library.Name)
@@ -90,9 +91,10 @@ func (v ruleListView) chosen() int {
 }
 
 // offersRetired reports whether the sidebar offers the list's retired rules: on a page that offers them, unless it
-// searches for words, which always finds them.
+// searches for words, which always finds them, and only when the list has some, or shows them already, so the visitor
+// can stop.
 func (v ruleListView) offersRetired() bool {
-	return v.page.OffersRetired() && !v.params.Has(domain.QueryParam)
+	return v.page.OffersRetired() && !v.params.Has(domain.QueryParam) && (v.retiredRules > 0 || v.choices.Retired)
 }
 
 // filtered reports whether a filter narrows the list, which Clear filters undoes.
