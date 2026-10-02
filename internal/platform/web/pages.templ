@@ -76,9 +76,9 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 	}
 }
 
-// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
-// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A link to an
-// unvetted library's page carries nofollow.
+// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules,
+// with its stars when it's vetted and has any, under its rules on a phone. The library's name is a heading of level 2, or 3 when headed is true,
+// under a heading of the page's own. A link to an unvetted library's page carries nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
 	<a
 		class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
@@ -103,7 +103,12 @@ templ libraryRow(lib libraryCard, headed bool) {
 				</div>
 			</div>
 		</div>
-		<span class="self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted narrow:self-center narrow:pt-0">{ plural(lib.rules, "rule", "rules") } ›</span>
+		<span class="flex items-center gap-3 self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1 narrow:self-center narrow:pt-0">
+			if lib.stars > 0 && !lib.unvetted {
+				@starCount(lib.stars)
+			}
+			<span>{ plural(lib.rules, "rule", "rules") } ›</span>
+		</span>
 	</a>
 }
 
@@ -162,8 +167,8 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, current l
 	}
 }
 
-// libraryFrame is every page about a library: its name, its tabs with current on, and the tab's content, beside the
-// library's facts when withFacts, under the warning when the library isn't vetted.
+// libraryFrame is every page about a library: its name, its stars when it's vetted, its tabs with current on, and the
+// tab's content, beside the library's facts when withFacts, under the warning when the library isn't vetted.
 templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
 	@layout(c, libraryHead(h, lib)) {
 		<div class="page wrap">
@@ -179,6 +184,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 					}
 				</div>
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
+					if lib.star.shown {
+						@starControl(lib.star)
+					}
 					@smallButton(lib.githubURL) {
 						@githubMark("size-[15px] flex-none")
 						View on GitHub

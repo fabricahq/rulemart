@@ -4,6 +4,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
@@ -89,11 +90,14 @@ type visitor struct {
 	withGitHub bool
 	// signOut is where the sign-out form posts, with this page to return to.
 	signOut string
-	// onAccountPage and onListingsPage are true on the account page and the listings page, which the menu marks as
-	// current.
-	onAccountPage, onListingsPage bool
-	// listings is true when visitors can list libraries, so the menu links the listings page.
-	listings bool
+	// here is the page's own address, as a return path, which its forms return to.
+	here string
+	// onAccountPage, onListingsPage, and onStarsPage are true on the account page, the listings page, and the stars
+	// page, which the menu marks as current.
+	onAccountPage, onListingsPage, onStarsPage bool
+	// listings and stars are true when visitors can list and star libraries, so the menu links the listings and the
+	// stars pages.
+	listings, stars bool
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty.
@@ -133,8 +137,11 @@ func (s *server) signInAvailable() bool {
 // page as if they weren't.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		v := visitor{onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref, listings: s.listingAvailable()}
 		back := returnPath(r.URL.RequestURI())
+		v := visitor{
+			here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
+			onStarsPage: r.URL.Path == starsHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+		}
 		if s.signInAvailable() {
 			v.signIn = s.absolute(signInPageHref(back))
 			v.withGitHub = s.GitHub != nil
@@ -206,8 +213,8 @@ func returnQuery(back string) string {
 // returnPath returns target as a path on this site to return to after signing in or out, or / when it isn't one: an
 // absolute URL, a path another host could take, such as //evil.example or /\evil.example, one with a backslash or a
 // control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, or anything
-// under /account/, which holds the flow's callback and actions that take POST, except the listings page. The account
-// page itself is one.
+// under /account/, which holds the flow's callback and actions that take POST, except the listings and stars pages.
+// The account page itself is one.
 func returnPath(target string) string {
 	if target == "" || len(target) > maxReturnLength || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") ||
 		strings.ContainsFunc(target, func(r rune) bool { return r == '\\' || r < 0x20 || r == 0x7f }) {
@@ -217,23 +224,31 @@ func returnPath(target string) string {
 	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
 		return "/"
 	}
-	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && u.Path != listingsHref) {
+	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && accountPages[u.Path] == "") {
 		return "/"
 	}
 	u.Fragment, u.RawFragment = "", ""
 	return u.String()
 }
 
-// publicPath returns back, a return path, or / when back is the account or listings page, which a signed-out visitor
-// can't see.
+// accountPages are the pages under /account/ that only a signed-in visitor can see, which signing in may return to,
+// and what the sign-in page says to a visitor on their way to each.
+var accountPages = map[string]string{
+	listingsHref: "Sign in to see your listings.",
+	starsHref:    "Sign in to see your stars.",
+}
+
+// publicPath returns back, a return path, or / when back is the account page or one of accountPages, which a
+// signed-out visitor can't see.
 func publicPath(back string) string {
-	if path, _, _ := strings.Cut(back, "?"); path == accountHref || path == listingsHref {
+	if path, _, _ := strings.Cut(back, "?"); path == accountHref || accountPages[path] != "" {
 		return "/"
 	}
 	return back
 }
 
-// signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says.
+// signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says. Its to parameter
+// may say why the visitor is signing in, such as starPurpose, which the page says.
 func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
 	switch {
@@ -241,10 +256,11 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, back)
 	case !s.signInAvailable():
 		s.renderSignIn(w, r, http.StatusNotFound, back, "")
-	case publicPath(back) != back && strings.HasPrefix(back, listingsHref):
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your listings.")
 	case publicPath(back) != back:
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your account.")
+		path, _, _ := strings.Cut(back, "?")
+		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
+	case r.URL.Query().Get("to") == starPurpose:
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries. You'll come back to this one.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

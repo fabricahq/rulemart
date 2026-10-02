@@ -37,6 +37,8 @@ type libraryView struct {
 	latestTag, latestHref, updated string
 	// groups counts the groups that hold current rules, rules the current rules, and releases the releases.
 	groups, rules, releases int
+	// star is the library's star control, which server.libraryView fills in for a vetted library's pages.
+	star starView
 }
 
 // fullName returns the library's repository as owner/name.
@@ -67,6 +69,8 @@ func newLibraryView(lib views.Library) libraryView {
 type libraryCard struct {
 	href, owner, name, description, avatar string
 	rules                                  int
+	// stars counts the library's stars, which the card shows when there are any and the library is vetted.
+	stars int
 	// unvetted marks a library that's only listed, whose link carries nofollow.
 	unvetted bool
 }
@@ -77,7 +81,7 @@ func newLibraryCards(libraries []views.LibraryCard, unvetted bool) []libraryCard
 	for i, lib := range libraries {
 		cards[i] = libraryCard{
 			href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
-			avatar: lib.OwnerAvatarURL, rules: lib.Rules, unvetted: unvetted,
+			avatar: lib.OwnerAvatarURL, rules: lib.Rules, stars: lib.Stars, unvetted: unvetted,
 		}
 	}
 	return cards

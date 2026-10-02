@@ -1,9 +1,9 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
 // each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
-// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; and listing a library.
-// It reads the catalog from its page reads, which app.Pages implements, accounts from accounts/app.Sessions, and
-// listings from catalog/app.Listings.
+// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library; and
+// starring one. It reads the catalog from its page reads, which app.Pages implements, accounts from
+// accounts/app.Sessions, listings from catalog/app.Listings, and stars from catalog/app.Stars.
 package web
 
 import (
@@ -67,6 +67,9 @@ type Options struct {
 	GitHub GitHub
 	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
 	Listings Listings
+	// Stars stars vetted libraries for signed-in visitors, and pages count their stars. Nil leaves stars out; without a
+	// way to sign in, pages only count them.
+	Stars Stars
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -181,6 +184,11 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+listingsHref, s.listingsPage)
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
+		}
+		if options.Stars != nil {
+			handle("GET "+starsHref, s.starsPage)
+			handle("POST "+starsHref, s.starLibrary)
+			handle("POST "+unstarHref, s.unstarLibrary)
 		}
 	}
 	handle("GET /{owner}/{repo}", s.library)
@@ -363,7 +371,11 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		if !s.found(w, r, page.Library, "", err) {
 			return
 		}
-		view := newLibraryView(page.Library)
+		view, err := s.libraryView(r, page.Library)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
 		if tab != rulesTab {
 			tab = groupsTab
 		}
@@ -391,7 +403,11 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view := newLibraryView(page.Library)
+	view, err := s.libraryView(r, page.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	if release != 0 && page.Newer == 0 {
 		w.Header().Set("Cache-Control", pageCache)
 		http.Redirect(w, r, releasesHref(view), http.StatusFound)
@@ -407,7 +423,11 @@ func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner,
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view := newLibraryView(page.Library)
+	view, err := s.libraryView(r, page.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusNotFound, releasesNotFoundPage(s.chrome, view, newReleasesView(view, page),
 		"This library has no such release to show or compare."))
 }
@@ -430,7 +450,11 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 	if !s.found(w, r, comparison.Library, "", err) {
 		return
 	}
-	view := newLibraryView(comparison.Library)
+	view, err := s.libraryView(r, comparison.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
