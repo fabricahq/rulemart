@@ -25,8 +25,9 @@ type Writer interface {
 // Reader reads what the catalog's pages show. Each read sees one committed state of the catalog, so a page never
 // mixes two ingestions, and finds only the libraries in vetted.
 type Reader interface {
-	// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
-	Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
+	// HomePage returns the vetted libraries, ordered by owner and name without regard to case, and their groups, as
+	// Groups returns them.
+	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)
 	// LibraryPage returns the vetted library owner/name, matched without regard to case, or ErrNotFound.
 	LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error)
 	// RulePage returns the current rule at rulePath in the vetted library owner/name, matched as LibraryPage

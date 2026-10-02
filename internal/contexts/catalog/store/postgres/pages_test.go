@@ -92,10 +92,10 @@ func newCatalog(t *testing.T) *postgres.Store {
 	return postgres.New(databasetest.AsWebRole(t, connString))
 }
 
-func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
+func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	reader := newCatalog(t)
 
-	got, err := reader.Libraries(context.Background(), vetted)
+	got, groups, err := reader.HomePage(context.Background(), vetted)
 
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +103,11 @@ func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	ref := views.LibraryRef{Owner: "example", Name: "rules", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL}
+	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Rules: 1}, {Path: "techs/go", Library: ref, Rules: 1}}
+	if !slices.Equal(groups, wantGroups) {
+		t.Fatalf("got groups %+v, want %+v", groups, wantGroups)
 	}
 }
 

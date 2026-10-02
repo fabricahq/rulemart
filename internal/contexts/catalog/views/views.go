@@ -9,6 +9,12 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
+// HomePage is the vetted libraries, ordered by owner and name, and their groups.
+type HomePage struct {
+	Libraries []LibraryCard
+	Groups    GroupIndex
+}
+
 // LibraryCard is a vetted library in the list of libraries.
 type LibraryCard struct {
 	// Owner and Name are spelled as the code host spells them now.

@@ -34,9 +34,14 @@ type Pages struct {
 	Groups domain.CanonicalGroups
 }
 
-// Libraries returns the vetted libraries, ordered by owner and name.
-func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
-	return p.Store.Libraries(ctx, p.Vetted)
+// HomePage returns the vetted libraries, ordered by owner and name, and their groups, as GroupIndex orders them, from
+// one state of the catalog.
+func (p Pages) HomePage(ctx context.Context) (views.HomePage, error) {
+	libraries, groups, err := p.Store.HomePage(ctx, p.Vetted)
+	if err != nil {
+		return views.HomePage{}, err
+	}
+	return views.HomePage{Libraries: libraries, Groups: p.index(groups)}, nil
 }
 
 // LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups and current
@@ -71,6 +76,11 @@ func (p Pages) GroupIndex(ctx context.Context) (views.GroupIndex, error) {
 	if err != nil {
 		return views.GroupIndex{}, err
 	}
+	return p.index(groups), nil
+}
+
+// index turns each library's groups, in path order and then library order, into the index GroupIndex returns.
+func (p Pages) index(groups []views.LibraryGroup) views.GroupIndex {
 	var index views.GroupIndex
 	for _, summary := range p.summarize(groups) {
 		if strings.HasPrefix(summary.Path, "practices/") {
@@ -79,7 +89,7 @@ func (p Pages) GroupIndex(ctx context.Context) (views.GroupIndex, error) {
 			index.Techs = append(index.Techs, summary)
 		}
 	}
-	return index, nil
+	return index
 }
 
 // summarize turns each library's groups, in path order and then library order, into the index's entries, in its

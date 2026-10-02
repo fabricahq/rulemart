@@ -30,6 +30,10 @@ func (r *reads) Groups(context.Context, []domain.LibraryKey) ([]views.LibraryGro
 	return r.groups, nil
 }
 
+func (r *reads) HomePage(context.Context, []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
+	return []views.LibraryCard{{Owner: "acme", Name: "backend", Rules: 3}}, r.groups, nil
+}
+
 func (r *reads) GroupRules(_ context.Context, _ []domain.LibraryKey, path string) ([]views.GroupLibrary, error) {
 	r.ruleReads = append(r.ruleReads, path)
 	return r.groupRules, nil
@@ -95,6 +99,28 @@ func TestGroupIndexCombinesCanonicalGroupsAndKeepsOthersApart(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
+// The home page shows the libraries with the same index as the groups page.
+func TestHomePageShowsTheLibrariesAndTheGroupIndex(t *testing.T) {
+	r := &reads{groups: []views.LibraryGroup{
+		{Path: "techs/golang", Library: acmeRef, Rules: 1},
+		{Path: "techs/go", Library: acmeRef, Rules: 2},
+	}}
+	pages := app.Pages{Store: r, Groups: canonicalList(t)}
+
+	got, err := pages.HomePage(context.Background())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	index, err := pages.GroupIndex(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Libraries) != 1 || got.Libraries[0].Name != "backend" || !reflect.DeepEqual(got.Groups, index) {
+		t.Fatalf("got %+v, want acme/backend and %+v", got, index)
 	}
 }
 

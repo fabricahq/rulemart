@@ -14,12 +14,21 @@ import (
 // Groups returns each group that holds current rules in a vetted library, once for each library that holds it, in
 // path order and then the library's owner and name.
 func (s *Store) Groups(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryGroup, error) {
-	var rows []catalogdb.ListVettedGroupsRow
+	var groups []views.LibraryGroup
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		rows, err = q.ListVettedGroups(ctx, vettedKeys(vetted))
+		groups, err = libraryGroups(ctx, q, vetted)
 		return err
 	})
+	if err != nil {
+		return nil, fmt.Errorf("load groups: %v", err)
+	}
+	return groups, nil
+}
+
+// libraryGroups returns each group that holds current rules in a vetted library, as Groups does.
+func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey) ([]views.LibraryGroup, error) {
+	rows, err := q.ListVettedGroups(ctx, vettedKeys(vetted))
 	if err != nil {
 		return nil, fmt.Errorf("list groups: %v", err)
 	}
