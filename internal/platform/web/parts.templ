@@ -291,7 +291,7 @@ templ ruleRows() {
 templ ruleRow(r ruleRowView) {
 	<li>
 		<a
-			class={ "block rounded-card border px-4 py-[14px] no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface", templ.KV("border-border text-ink", !r.retired), templ.KV("border-border-subtle text-muted", r.retired) }
+			class={ "block rounded-card border px-4 py-[14px] no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface", templ.KV("border-border text-ink", !r.retired), templ.KV("border-border-subtle text-muted dark:border-border", r.retired) }
 			href={ templ.SafeURL(r.href) }
 			if r.unvetted {
 				rel="nofollow"
@@ -345,7 +345,7 @@ templ ruleRow(r ruleRowView) {
 				</p>
 			}
 			<div class={ "mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
-				<span class={ "flex min-w-0 items-center gap-[7px]", templ.KV("[&>:first-child]:opacity-60", r.retired) }>
+				<span class={ "flex min-w-0 items-center gap-[7px]", templ.KV("[&>:first-child]:opacity-75", r.retired) }>
 					@libraryMark(r.library)
 					<span class="min-w-0 [overflow-wrap:anywhere]">
 						{ r.library.fullName() }
@@ -377,9 +377,9 @@ templ unvettedBadge() {
 	<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
 }
 
-// retiredBadge marks a retired rule in a list.
+// retiredBadge marks a retired rule in a list, quieter than the rule's grayed title in both themes.
 templ retiredBadge() {
-	<span class="inline-flex items-center rounded-full border border-border px-2 text-[11.5px] leading-[18px] font-medium text-muted">Retired</span>
+	<span class="inline-flex items-center rounded-full border border-border-subtle px-2 text-[11.5px] leading-[18px] font-normal text-faint">Retired</span>
 }
 
 // pageFocus is the attributes of a control the page focuses after the visitor's click, such as the star button after
