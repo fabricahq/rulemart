@@ -34,7 +34,8 @@ func main() {
 	}
 }
 
-// run applies the pending migrations to the database at DATABASE_URL, and logs the schema version it reached.
+// run applies the pending migrations to the database at DATABASE_URL, and logs each one it applied and the schema
+// version the database reached. When a migration fails, it logs those applied before it.
 func run(logger *slog.Logger) error {
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
@@ -50,13 +51,14 @@ func run(logger *slog.Logger) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	if err := migrate.Up(ctx, connString); err != nil {
-		return err
+	result, err := migrate.Up(ctx, connString)
+	for _, migration := range result.Applied {
+		logger.Info("applied migration", "version", migration.Version, "file", migration.File,
+			"duration_ms", logging.Milliseconds(migration.Duration))
 	}
-	version, err := migrate.RequiredVersion()
 	if err != nil {
 		return err
 	}
-	logger.Info("migrated", "schema", version)
+	logger.Info("migrated", "schema", result.Version, "applied", len(result.Applied))
 	return nil
 }

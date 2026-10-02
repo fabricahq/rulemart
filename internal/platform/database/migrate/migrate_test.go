@@ -21,7 +21,7 @@ import (
 func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
-	if err := Up(ctx, connString); err != nil {
+	if _, err := Up(ctx, connString); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := pgx.Connect(ctx, postgrestest.AsWebRole(t, connString))
@@ -62,7 +62,7 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 func TestMigrationsGrantTheCatalogReaderRoleAndNotTheWebRole(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
-	if err := Up(ctx, connString); err != nil {
+	if _, err := Up(ctx, connString); err != nil {
 		t.Fatal(err)
 	}
 	conn, err := pgx.Connect(ctx, connString)
@@ -134,9 +134,12 @@ func TestMigrationsRefuseACatalogReaderRoleThatIsMissingOrPrivileged(t *testing.
 			}
 			connString := postgrestest.New(t)
 
-			err := up(ctx, connString, migrationsGrantingTo(t, role))
+			result, err := up(ctx, connString, migrationsGrantingTo(t, role))
 			if err == nil || !strings.Contains(err.Error(), role+" "+tc.want) || !strings.Contains(err.Error(), "infrastructure creates it") {
 				t.Fatalf("got %v, want a refusal saying %s %s and that infrastructure creates it", err, role, tc.want)
+			}
+			if got := appliedVersions(result); !slices.Equal(got, []int64{1, 2}) {
+				t.Errorf("reported %v applied, want the two before the refused migration", got)
 			}
 			var version int64
 			postgrestest.QueryRow(t, connString, "SELECT max(version_id) FROM goose_db_version", &version)
@@ -151,10 +154,50 @@ func TestMigrationsRefuseACatalogReaderRoleThatIsMissingOrPrivileged(t *testing.
 		role := "rulemart_reader_" + postgrestest.RandomHex(t, 6)
 		t.Cleanup(func() { postgrestest.Exec(t, server, "DROP ROLE IF EXISTS "+role) })
 		postgrestest.Exec(t, server, "CREATE ROLE "+role+" NOLOGIN")
-		if err := up(context.Background(), postgrestest.New(t), migrationsGrantingTo(t, role)); err != nil {
+		if _, err := up(context.Background(), postgrestest.New(t), migrationsGrantingTo(t, role)); err != nil {
 			t.Fatal(err)
 		}
 	})
+}
+
+// The migrate command logs what Up reports, which CI keeps: each migration it applied, oldest first, and the
+// version the database reached, even when it was already current.
+func TestUpReportsTheMigrationsItAppliedAndTheVersionReached(t *testing.T) {
+	ctx := context.Background()
+	connString := postgrestest.New(t)
+	required, err := RequiredVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := Up(ctx, connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Up(ctx, connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	applied := appliedVersions(first)
+	if len(applied) != int(required) || applied[0] != 1 || applied[len(applied)-1] != required || !slices.IsSorted(applied) {
+		t.Errorf("the first run reported %v applied, want 1 through %d", applied, required)
+	}
+	if first.Applied[0].File != "00001_create_hello_messages.sql" {
+		t.Errorf("the first migration's file is %q", first.Applied[0].File)
+	}
+	if first.Version != required || second.Version != required || len(second.Applied) != 0 {
+		t.Errorf("reported %+v, then %+v; want version %d both times, and nothing applied the second time", first, second, required)
+	}
+}
+
+// appliedVersions returns the version of each migration result reports applied, in order.
+func appliedVersions(result Result) []int64 {
+	var versions []int64
+	for _, migration := range result.Applied {
+		versions = append(versions, migration.Version)
+	}
+	return versions
 }
 
 // migrationsGrantingTo returns the embedded migrations with the catalog reader role's name replaced by role.

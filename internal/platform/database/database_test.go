@@ -81,7 +81,7 @@ func quote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'
 func migrated(t *testing.T) string {
 	t.Helper()
 	connString := postgrestest.New(t)
-	if err := migrate.Up(context.Background(), connString); err != nil {
+	if _, err := migrate.Up(context.Background(), connString); err != nil {
 		t.Fatalf("migrate test database: %v", err)
 	}
 	return connString
@@ -177,7 +177,7 @@ func TestRunRefusesADatabaseWithoutTheSchemaTheReleaseNeeds(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			connString := postgrestest.New(t)
 			if tc.migrate {
-				if err := migrate.Up(ctx, connString); err != nil {
+				if _, err := migrate.Up(ctx, connString); err != nil {
 					t.Fatal(err)
 				}
 			}
