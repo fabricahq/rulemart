@@ -537,6 +537,17 @@ func TestLibrariesPageListsTheVettedLibraries(t *testing.T) {
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/libraries"}) {
 		t.Errorf("the page names %q as its address", got)
 	}
+	// Each library heads its row, as on the home page, where they're under the Libraries heading.
+	if got := headings(t, page, "h2"); !slices.Equal(got, []string{"rules"}) {
+		t.Errorf("the libraries page's headings are %q", got)
+	}
+	home := get(t, handler, "/").Body.String()
+	if got := headings(t, home, "h3"); !slices.Contains(got, "rules") {
+		t.Errorf("the home page's library isn't a heading under Libraries: %q", got)
+	}
+	if got := links(t, home, "All libraries"); !slices.Equal(got, []string{"/libraries"}) {
+		t.Errorf("the home page links all libraries as %q", got)
+	}
 }
 
 // A failed search is logged with its route, never with what the visitor searched for.

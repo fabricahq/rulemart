@@ -26,6 +26,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 			<div class="wrap">
 				<div class="mb-[18px] flex items-baseline justify-between gap-4 max-narrow:flex-wrap">
 					<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Libraries</h2>
+					<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(librariesHref) }>All libraries ›</a>
 				</div>
 				if len(libraries) == 0 {
 					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
@@ -33,7 +34,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 					@rowList() {
 						for _, lib := range libraries {
 							@rowItem() {
-								@libraryRow(lib)
+								@libraryRow(lib, true)
 							}
 						}
 					}
@@ -75,29 +76,30 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 	}
 }
 
-templ libraryRow(lib libraryCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-x-[18px] gap-y-3 px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
-		<div class="flex items-start gap-[14px]">
+// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
+// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own.
+templ libraryRow(lib libraryCard, headed bool) {
+	<a class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+		<div class="flex min-w-0 items-start gap-3">
 			@avatar(lib.avatar, lib.owner, avatarMD)
-			<div>
-				<div class="leading-[1.35] font-semibold">{ lib.name }</div>
+			<div class="min-w-0">
+				if headed {
+					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
+				} else {
+					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
+				}
 				if lib.description != "" {
-					<div class="mt-0.5 text-[13px] text-muted">{ lib.description }</div>
+					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
 				}
 				<div class="mono mt-1 text-[12.5px] text-faint">
 					@breakable(lib.owner + "/" + lib.name)
 				</div>
 			</div>
 		</div>
-		<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-1 max-narrow:row-start-2 max-narrow:-mt-3 max-narrow:pl-[54px]">{ plural(lib.rules, "rule", "rules") }</span>
-		@chevron()
+		<span class="self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted narrow:self-center narrow:pt-0">{ plural(lib.rules, "rule", "rules") } ›</span>
 	</a>
 }
 
-// chevron appears at the end of a row while it's hovered or focused.
-templ chevron() {
-	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
-}
 
 // librariesPage lists every vetted library.
 templ librariesPage(c chrome, libraries []libraryCard) {
@@ -112,7 +114,7 @@ templ librariesPage(c chrome, libraries []libraryCard) {
 					@rowList() {
 						for _, lib := range libraries {
 							@rowItem() {
-								@libraryRow(lib)
+								@libraryRow(lib, false)
 							}
 						}
 					}
