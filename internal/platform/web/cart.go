@@ -913,7 +913,7 @@ func newCheckoutView(cart views.Cart) checkoutView {
 			view.unvetted = true
 			view.unvettedReviews = append(view.unvettedReviews, unvettedReview{
 				library: s.Library.FullName(), source: s.Name, scope: reviewScope(s),
-				command: "git clone --depth 1 --branch " + domain.ReleaseTag(s.Library.Release) + " " + s.Library.Repository(),
+				command: s.ReviewCommand(),
 			})
 		}
 	}

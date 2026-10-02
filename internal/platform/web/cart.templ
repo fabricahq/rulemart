@@ -463,7 +463,7 @@ templ checkoutPage(c chrome, view checkoutView) {
 						</li>
 						for _, review := range view.unvettedReviews {
 							<li>
-								<p>Rulemart hasn't vetted <span class="font-mono text-[.86em]">{ review.library }</span>. Before you add it, read { review.scope } in a clone outside your repository, made with this command, and leave its source, <code>{ review.source }</code>, out of the next step unless you approve them:</p>
+								<p>Rulemart hasn't vetted <span class="font-mono text-[.86em]">{ review.library }</span>. Before you add it, read { review.scope } outside your repository: this command fetches the commit Rulemart showed into a new temporary directory, and prints its path. Leave its source, <code>{ review.source }</code>, out of the next step unless you approve them; its <code>ref</code> there is that commit.</p>
 								@codeBlock("review-"+review.source, "Command that fetches "+review.library+" to review", review.command)
 							</li>
 						}

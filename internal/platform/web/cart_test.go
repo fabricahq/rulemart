@@ -879,7 +879,8 @@ func TestCheckoutShowsThePromptAndConfiguration(t *testing.T) {
 		"From your repository's root, create the configuration, unless .code-rules/config.yaml exists already: Copy code-rules project init",
 		"In .code-rules/config.yaml , replace sources: {} with these sources.",
 		"Import the rules, and check the generated files: Copy code-rules project sync code-rules project check",
-		"Rulemart hasn't vetted stranger/rules . Before you add it, read techs/go/return-errors.md in a clone outside your repository, made with this command, and leave its source, stranger-rules , out of the next step unless you approve them: Copy git clone --depth 1 --branch release/3 https://github.com/stranger/rules.git In .code-rules/config.yaml",
+		"Rulemart hasn't vetted stranger/rules . Before you add it, read techs/go/return-errors.md outside your repository:",
+		"git -C \"$d\" fetch -q --depth 1 https://github.com/stranger/rules.git refs/tags/release/3",
 		"If that source names another ref , decide before changing it",
 	)
 	for _, want := range []string{
