@@ -570,7 +570,7 @@ func TestTheCartPageListsTheVisitorsItems(t *testing.T) {
 		"Retry forever practices/testing/retry-forever Retired in release/2, so checkout leaves it out. See what replaced it",
 		"Return errors with context techs/go/return-errors Included with its group, techs/go.",
 		"stranger/rules Unvetted release/3",
-		"Rulemart no longer vets this library, so checkout leaves this out until you confirm it. Confirm",
+		"Rulemart doesn't vet this library, so checkout leaves this out until you confirm it. Confirm",
 		"6 items · 2 left out of checkout",
 	)
 	if content, _ := robots(t, page); content != "noindex" {

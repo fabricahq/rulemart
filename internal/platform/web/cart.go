@@ -439,6 +439,10 @@ func newCartItemView(lib cartLibraryView, it views.CartItem, iconURL func(string
 			item.href = lib.href + "/" + it.Item.Path
 		}
 	}
+	if item.title == item.id {
+		// A rule whose title the catalog doesn't have, such as one its library no longer has, shows its ID once.
+		item.id = ""
+	}
 	switch it.State {
 	case views.CartItemCovered:
 		item.note = "Included with its group, " + it.CoveredBy.Path + "."
@@ -454,7 +458,7 @@ func newCartItemView(lib cartLibraryView, it views.CartItem, iconURL func(string
 			item.note = "This library no longer has rules here, so checkout leaves it out."
 		}
 	case views.CartItemUnconfirmed:
-		item.note = "Rulemart no longer vets this library, so checkout leaves this out until you confirm it."
+		item.note = "Rulemart doesn't vet this library, so checkout leaves this out until you confirm it."
 		item.noteHref = confirmCartHref + "?" + cartQuery(it.Item, cartHref).Encode()
 		item.noteLink = "Confirm"
 	case views.CartItemGone:

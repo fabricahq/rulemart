@@ -191,19 +191,21 @@ templ cartItemRow(item cartItemView) {
 					{ item.title }
 				}
 			</h3>
-			<p class="text-[12.5px] leading-[20px] text-faint">
-				if item.id != "" {
-					<span class="mono">
-						@breakable(item.id)
-					</span>
-				}
-				if item.kind != domain.CartRule && item.rules > 0 {
+			if item.id != "" || (item.kind != domain.CartRule && item.rules > 0) {
+				<p class="text-[12.5px] leading-[20px] text-faint">
 					if item.id != "" {
-						{ " · " }
+						<span class="mono">
+							@breakable(item.id)
+						</span>
 					}
-					<span class="whitespace-nowrap">{ plural(item.rules, "rule", "rules") }</span>
-				}
-			</p>
+					if item.kind != domain.CartRule && item.rules > 0 {
+						if item.id != "" {
+							{ " · " }
+						}
+						<span class="whitespace-nowrap">{ plural(item.rules, "rule", "rules") }</span>
+					}
+				</p>
+			}
 			if item.note != "" {
 				<p class={ "mt-1 text-[13px]", templ.KV("text-muted", item.ready), templ.KV("text-ink", !item.ready) }>
 					{ item.note }
