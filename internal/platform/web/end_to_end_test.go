@@ -100,30 +100,73 @@ func TestRulePageShowsRawHTMLAsText(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	assertShows(t, resp.Body.String(), "<script>alert(1)</script>", "Press <img src=x onerror=alert(2)> to")
-	doc, err := html.Parse(strings.NewReader(resp.Body.String()))
+	assertRunsNothingFromRules(t, resp.Body.String())
+}
+
+// assertRunsNothingFromRules fails when an HTML body has an event handler, a javascript: URL, a script that isn't
+// Rulemart's own, or an image that isn't from an https host the policy allows, any of which a rule's text could add.
+func assertRunsNothingFromRules(t *testing.T, body string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var walk func(*html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode {
-			for _, attr := range n.Attr {
-				if strings.HasPrefix(attr.Key, "on") || strings.Contains(attr.Val, "javascript:") {
-					t.Errorf("<%s> has %s=%q", n.Data, attr.Key, attr.Val)
-				}
-			}
-			if n.Data == "script" && !strings.HasPrefix(attribute(n, "src"), "/_static/") {
-				t.Errorf("a script that isn't Rulemart's own: src=%q", attribute(n, "src"))
-			}
-			if n.Data == "img" && !strings.HasPrefix(attribute(n, "src"), "https://") {
-				t.Errorf("an image from the rule: src=%q", attribute(n, "src"))
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode {
+			continue
+		}
+		for _, attr := range n.Attr {
+			if strings.HasPrefix(attr.Key, "on") || strings.Contains(attr.Val, "javascript:") {
+				t.Errorf("<%s> has %s=%q", n.Data, attr.Key, attr.Val)
 			}
 		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			walk(child)
+		if n.Data == "script" && !strings.HasPrefix(attribute(n, "src"), "/_static/") {
+			t.Errorf("a script that isn't Rulemart's own: src=%q", attribute(n, "src"))
+		}
+		if n.Data == "img" && !strings.HasPrefix(attribute(n, "src"), "https://") {
+			t.Errorf("an image from the rule: src=%q", attribute(n, "src"))
 		}
 	}
-	walk(doc)
+}
+
+// An ingested library's releases and comparisons read as the web function's role, from what ingestion stored of
+// every version, and show a rule's raw HTML in a diff as text.
+func TestReleasesAndComparisonsShowAnIngestedLibrary(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.\n\n"+hostileHTML)
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	lib.Rule("techs/go/return-errors", "Return errors", "Wrap each returned error.\n\n"+hostileHTML+"\n\n<iframe src=x></iframe>")
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules: {techs/go/return-errors: 1.1.0}
+changes: {techs/go/return-errors: {change: minor, from: 1.0.0, summaries: [Name each error.]}}
+`)
+	handler := ingest(t, lib)
+
+	for path, want := range map[string]string{
+		library + "?tab=releases":                        "Library release 2 changes 1 rule: 1 minor. Minor changes Return errors techs/go/return-errors 1.0.0 → 1.1.0 Name each error.",
+		library + "?tab=releases&from=1&to=2":            "Wrap every each returned error.",
+		library + "?tab=releases&from=1&to=2&view=lines": "<iframe src=x></iframe>",
+		errorsRule + "?tab=versions&from=1.0.0&to=1.1.0": "1.1.0 release/2 2 Sep 2026 Name each error. Between release/1 and release/2.",
+	} {
+		t.Run(path, func(t *testing.T) {
+			resp := get(t, handler, path)
+
+			if resp.Code != http.StatusOK {
+				t.Fatalf("got %d", resp.Code)
+			}
+			assertShows(t, resp.Body.String(), want)
+			assertRunsNothingFromRules(t, resp.Body.String())
+			if strings.Contains(resp.Body.String(), "<iframe") {
+				t.Error("the page holds the rule's iframe")
+			}
+		})
+	}
 }
 
 // Pages name a group by the canonical list, never by the name its library declares: a library can't rename a group

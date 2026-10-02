@@ -30,6 +30,7 @@
   --primary: #1c1c1c; --on-primary: #ffffff; --focus: #333333;
   --code-keyword: #cc3344; --code-string: #032f62; --code-constant: #005cc5; --code-function: #6f42c1; --code-comment: #626b75;
   --icon-tile: #ffffff; --icon-ink: none;
+  --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #1a7f37; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #cf222e;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -38,6 +39,8 @@
   --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
   --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
   --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
+  --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
+  --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #f85149;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -47,11 +50,14 @@
     --primary: #e4e4e4; --on-primary: #1c1c1c; --focus: #c6c6c6;
     --code-keyword: #ff7b72; --code-string: #a5d6ff; --code-constant: #79c0ff; --code-function: #d2a8ff; --code-comment: #8b949e;
     --icon-tile: #242424; --icon-ink: invert(1) hue-rotate(180deg);
+    --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
+    --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #f85149;
     color-scheme: dark;
   }
 }
 
-/* Only the tokens are colors, so markup can't drift from the palette. */
+/* Only the tokens are colors, so markup can't drift from the palette. The palette is grays, except the green and red
+   that mark text a comparison adds and deletes, GitHub's diff colors. */
 @theme {
   --color-*: initial;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -76,6 +82,12 @@
   --color-icon-tile: var(--icon-tile);
   --color-on-primary: var(--on-primary);
   --color-white: #ffffff;
+  --color-add-line: var(--add-line);
+  --color-add-word: var(--add-word);
+  --color-add-ink: var(--add-ink);
+  --color-del-line: var(--del-line);
+  --color-del-word: var(--del-word);
+  --color-del-ink: var(--del-ink);
 }
 
 /* The prototype's layout primitives. */

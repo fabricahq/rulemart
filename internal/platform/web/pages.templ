@@ -95,9 +95,31 @@ templ chevron() {
 	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
 }
 
+// libraryTab names a tab of a library's page.
+type libraryTab string
+
+const (
+	groupsTab   libraryTab = "groups"
+	rulesTab    libraryTab = "rules"
+	releasesTab libraryTab = "releases"
+)
+
 // libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
-templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab bool) {
-	@layout(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}) {
+templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab) {
+	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}, lib, current, true) {
+		if current == rulesTab {
+			@allRules(contents)
+		} else {
+			@groupList("Technologies", lib, contents.techs)
+			@groupList("Practices", lib, contents.practices)
+		}
+	}
+}
+
+// libraryFrame is every page about a library: its name, its tabs with current on, and the tab's content, beside the
+// library's facts when withFacts.
+templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
+	@layout(c, h) {
 		<div class="page wrap">
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
 				@avatar(lib.avatar, lib.owner, avatarLG)
@@ -115,22 +137,22 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab 
 				</div>
 			</div>
 			@tabs([]tab{
-				{name: "Groups", href: lib.href, count: len(contents.techs) + len(contents.practices), on: !rulesTab},
-				{name: "All rules", href: lib.href + "?tab=rules", count: contents.ruleCount, on: rulesTab},
+				{name: "Groups", href: lib.href, count: lib.groups, on: current == groupsTab},
+				{name: "All rules", href: lib.href + "?tab=rules", count: lib.rules, on: current == rulesTab},
+				{name: "Library releases", href: releasesHref(lib), count: lib.releases, on: current == releasesTab},
 			})
-			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
-				<div>
-					if rulesTab {
-						@allRules(contents)
-					} else {
-						@groupList("Technologies", lib, contents.techs)
-						@groupList("Practices", lib, contents.practices)
-					}
+			if withFacts {
+				<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
+					<div class="min-w-0">
+						{ children... }
+					</div>
+					<aside class="grid content-start gap-[18px]">
+						@libraryFacts(lib)
+					</aside>
 				</div>
-				<aside class="grid content-start gap-[18px]">
-					@libraryFacts(lib)
-				</aside>
-			</div>
+			} else {
+				{ children... }
+			}
 		</div>
 	}
 }
@@ -182,11 +204,60 @@ templ allRules(contents libraryContents) {
 			@ruleCardLink(r)
 		}
 	}
+	if len(contents.retired) > 0 {
+		<div class="mt-8 mb-3 flex items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase" id="retired">
+			Retired
+		</div>
+		@rowList() {
+			for _, r := range contents.retired {
+				@retiredRuleRow(r)
+			}
+		}
+	}
 }
 
-// rulePage shows a rule's current version, or with versionsTab every version, newest first.
-templ rulePage(c chrome, r ruleView, versionsTab bool) {
-	@layout(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead}) {
+// retiredRuleRow is a retired rule in the All rules tab, leading to its page.
+templ retiredRuleRow(r retiredRuleCard) {
+	<a class="group grid grid-cols-[minmax(0,1fr)_14px] items-center gap-[18px] border-t border-border-subtle px-[18px] py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(r.href) }>
+		<div class="min-w-0">
+			<div class="text-[14px] leading-[1.35] font-semibold">{ r.title }</div>
+			<div class="mt-0.5 text-[12.5px] text-muted">
+				<span class="mono text-faint">{ r.id }</span> · last version <span class="mono">{ r.lastVersion }</span> · retired in <span class="mono">{ r.retiredTag }</span>
+				if r.replacedBy != "" {
+					· replaced by <span class="mono">{ r.replacedBy }</span>
+				}
+			</div>
+		</div>
+		@chevron()
+	</a>
+}
+
+// ruleTab names a tab of a rule's page.
+type ruleTab string
+
+const (
+	contentTab  ruleTab = "rule"
+	versionsTab ruleTab = "versions"
+)
+
+// rulePage shows a rule's current version, or with versionsTab every version, newest first. A retired rule's page
+// shows how it was retired and its versions instead.
+templ rulePage(c chrome, r ruleView, current ruleTab) {
+	@ruleFrame(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead}, r, current) {
+		if r.retired != nil {
+			@retiredRule(r)
+		} else if current == versionsTab {
+			@versions(r)
+		} else {
+			@ruleContent(r)
+		}
+	}
+}
+
+// ruleFrame is every page about a rule: where it is in its library, its title, its tabs with current on while it's
+// current, and the tab's content.
+templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
+	@layout(c, h) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				@avatar(r.library.avatar, r.library.owner, avatarSM)
@@ -204,22 +275,45 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 				<div>
 					<h1 class="title-xl max-w-[44rem]">{ r.title }</h1>
 					<div class="mt-2.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
-						@impact(r.impact)
-						<span class="mono" title="Latest version">{ r.version }</span>
+						if r.retired != nil {
+							<span class="rounded-full border border-border-strong px-2.5 text-[12px] font-medium text-ink">Retired</span>
+							<span>Last version <span class="mono">{ r.version }</span></span>
+						} else {
+							@impact(r.impact)
+							<span class="mono" title="Latest version">{ r.version }</span>
+						}
 					</div>
 				</div>
 			</div>
-			@tabs([]tab{
-				{name: "Rule", href: r.href, count: -1, on: !versionsTab},
-				{name: "Versions", href: r.href + "?tab=versions", count: len(r.versions), on: versionsTab},
-			})
-			if versionsTab {
-				@versions(r)
+			if r.retired == nil {
+				@tabs([]tab{
+					{name: "Rule", href: r.href, count: -1, on: current == contentTab},
+					{name: "Versions", href: r.href + "?tab=versions", count: len(r.versions), on: current == versionsTab},
+				})
 			} else {
-				@ruleContent(r)
+				<div class="mt-[26px]"></div>
 			}
+			{ children... }
 		</div>
 	}
+}
+
+// retiredRule says when and why a library release retired a rule, and what replaced it, then lists its versions.
+templ retiredRule(r ruleView) {
+	<div class="mb-7 max-w-[52rem] rounded-[10px] border border-l-[3px] border-border border-l-border-strong bg-surface px-[18px] py-[14px] text-[14px]">
+		<p><b class="font-semibold">Retired in <a class="mono font-normal" href={ templ.SafeURL(r.retired.href) }>{ r.retired.tag }</a></b> <span class="text-faint">· { r.retired.date }</span></p>
+		for _, summary := range r.retired.summaries {
+			<p class="mt-1 text-muted">{ summary }</p>
+		}
+		if r.retired.replacedBy != nil {
+			<p class="mt-1.5">Replaced by <a href={ templ.SafeURL(r.retired.replacedBy.href) }><b class="font-semibold">{ r.retired.replacedBy.title }</b></a> <span class="mono text-faint">{ r.retired.replacedBy.id }</span></p>
+		}
+		<p class="mt-1.5 text-[13px] text-faint">Projects that pin it keep its last version. Other projects drop it when they update.</p>
+	</div>
+	@label("mb-2") {
+		Versions · { strconv.Itoa(len(r.versions)) }
+	}
+	@versionList(r)
 }
 
 templ ruleContent(r ruleView) {
@@ -270,16 +364,35 @@ templ ruleContent(r ruleView) {
 	</div>
 }
 
-// versions lists every version of a rule, newest first.
+// versions lists every version of a rule, newest first, with what it replaced and a way to compare its versions.
 templ versions(r ruleView) {
+	for _, replaced := range r.replaces {
+		<div class="mb-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted">
+			Replaces <a href={ templ.SafeURL(replaced.rule.href) }>{ replaced.rule.title }</a> <span class="mono text-faint">{ replaced.rule.id }</span>, retired in <a class="mono" href={ templ.SafeURL(replaced.tagHref) }>{ replaced.tag }</a>.
+		</div>
+	}
 	<p class="mb-[14px] text-[13px] text-faint">
 		A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change">How versions work</a>
 	</p>
+	if r.compareHref != "" {
+		<div class="mb-3 flex items-center justify-between gap-4">
+			<span class="text-[13px] text-faint">{ plural(len(r.versions), "version", "versions") }</span>
+			@smallButton(r.compareHref) {
+				Compare versions
+			}
+		</div>
+	}
+	@versionList(r)
+}
+
+// versionList lists every version of a rule, newest first, each leading to its library release and comparing it with
+// the version before.
+templ versionList(r ruleView) {
 	@rowList() {
 		for _, v := range r.versions {
-			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle px-[18px] py-[14px] first:border-t-0 max-narrow:grid-cols-1 max-narrow:gap-2">
-				<div>
-					<div class="flex flex-wrap items-center gap-2.5">
+			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle px-[18px] py-[14px] first:border-t-0 max-narrow:grid-cols-1 max-narrow:gap-2.5">
+				<div class="min-w-0">
+					<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
 						<b class="mono">{ v.version }</b>
 						if v.latest {
 							@chip() {
@@ -287,9 +400,9 @@ templ versions(r ruleView) {
 							}
 						}
 						if v.major {
-							<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
+							@majorMark()
 						}
-						<span class="font-mono text-[13px] text-faint">{ v.tag }</span>
+						<a class="font-mono text-[13px] text-faint decoration-border-strong underline-offset-3 hover:text-muted" href={ templ.SafeURL(v.releaseHref) } title={ "What " + v.tag + " published" }>{ v.tag }</a>
 						<span class="text-[13px] text-faint">{ v.date }</span>
 					</div>
 					<div class="mt-1">
@@ -299,6 +412,11 @@ templ versions(r ruleView) {
 					</div>
 				</div>
 				<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
+					if v.compareHref != "" {
+						@smallButton(v.compareHref) {
+							Compare with { v.previous }
+						}
+					}
 					<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
 						@githubMark("size-3")
 						Release notes
@@ -307,6 +425,11 @@ templ versions(r ruleView) {
 			</div>
 		}
 	}
+}
+
+// majorMark flags a major change: work that complied with the previous version could fail the new one.
+templ majorMark() {
+	<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] leading-[18px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
 }
 
 // messagePage is a page that only says what happened, such as for a missing page or a failure.

@@ -1,5 +1,6 @@
-// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, each rule's current
-// version and version history, the groups across libraries, each canonical group's rules in every library, and search.
+// Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
+// current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
+// each canonical group's rules in every library, and search.
 // It reads them from the catalog's page reads, which app.Pages implements.
 package web
 
@@ -11,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -18,6 +20,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
@@ -72,9 +75,14 @@ func checkBaseURL(u *url.URL) error {
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
 type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
-	// LibraryPage and RulePage fail with app.ErrNotFound when there's no such library or current rule.
+	// LibraryPage, ReleasesPage, and RulePage fail with app.ErrNotFound when there's no such library or rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
+	ReleasesPage(ctx context.Context, owner, name string) (views.ReleasesPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
+	// when there's no such library, rule, release, or version.
+	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
+	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context) (views.GroupIndex, error)
 	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
 	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
@@ -172,23 +180,103 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, searchPage(s.chrome, newSearchView(query, tooLong, results, s.assets.iconURL)))
 }
 
+// library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases. With
+// releases to compare in the from and to parameters, the releases tab compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
-	if !s.found(w, r, page.Library, err) {
-		return
+	query := r.URL.Query()
+	owner, name := r.PathValue("owner"), r.PathValue("repo")
+	switch tab := libraryTab(query.Get("tab")); {
+	case tab == releasesTab && (query.Has("from") || query.Has("to")):
+		s.releaseComparison(w, r, owner, name)
+	case tab == releasesTab:
+		page, err := s.catalog.ReleasesPage(r.Context(), owner, name)
+		if !s.found(w, r, page.Library, err) {
+			return
+		}
+		view := newLibraryView(page.Library)
+		// The page lists releases newest first, and the picker takes them in number order.
+		releases := make([]views.Release, len(page.Releases))
+		for i, notes := range page.Releases {
+			releases[len(releases)-1-i] = notes.Release
+		}
+		from, to := releasePicker(releases)
+		s.render(w, r, http.StatusOK, releasesPage(s.pageChrome(view.href), view, newReleaseCards(view, page), from, to))
+	default:
+		page, err := s.catalog.LibraryPage(r.Context(), owner, name)
+		if !s.found(w, r, page.Library, err) {
+			return
+		}
+		view := newLibraryView(page.Library)
+		if tab != rulesTab {
+			tab = groupsTab
+		}
+		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, newLibraryContents(view, page, s.assets.iconURL), tab))
 	}
-	view := newLibraryView(page.Library)
-	contents := newLibraryContents(view, page, s.assets.iconURL)
-	s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, r.URL.Query().Get("tab") == "rules"))
 }
 
+// releaseComparison compares the library's releases that the from and to parameters number. Comparisons name no
+// canonical address and ask search engines not to index them, since every pair would be a page of its own.
+func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner, name string) {
+	query := r.URL.Query()
+	from, fromErr := parseReleaseNumber(query.Get("from"))
+	to, toErr := parseReleaseNumber(query.Get("to"))
+	if fromErr != nil || toErr != nil {
+		s.notFound(w, r)
+		return
+	}
+	comparison, err := s.catalog.ReleaseComparison(r.Context(), owner, name, from, to)
+	if !s.found(w, r, comparison.Library, err) {
+		return
+	}
+	view := newLibraryView(comparison.Library)
+	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
+}
+
+// parseReleaseNumber reads a release's number as its tag names it, such as 4, without a sign or leading zeros.
+func parseReleaseNumber(text string) (int, error) {
+	n, err := strconv.Atoi(text)
+	if err != nil || n < 1 || strconv.Itoa(n) != text {
+		return 0, fmt.Errorf("parse release number %q: want a positive number", text)
+	}
+	return n, nil
+}
+
+// rule shows a rule's page, or its Versions tab when the tab parameter names it. With versions to compare in the
+// from and to parameters, the Versions tab compares them.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	tab := ruleTab(query.Get("tab"))
+	if tab == versionsTab && (query.Has("from") || query.Has("to")) {
+		s.ruleComparison(w, r)
+		return
+	}
 	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
 	if !s.found(w, r, page.Library, err) {
 		return
 	}
+	if tab != versionsTab {
+		tab = contentTab
+	}
 	view := newRuleView(newLibraryView(page.Library), page)
-	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, r.URL.Query().Get("tab") == "versions"))
+	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
+}
+
+// ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
+// names no canonical address and asks search engines not to index it.
+func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	from, fromErr := coderules.ParseRuleVersion(query.Get("from"), "from")
+	to, toErr := coderules.ParseRuleVersion(query.Get("to"), "to")
+	if fromErr != nil || toErr != nil {
+		s.notFound(w, r)
+		return
+	}
+	comparison, err := s.catalog.RuleComparison(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"), from, to)
+	if !s.found(w, r, comparison.Page.Library, err) {
+		return
+	}
+	view := newRuleView(newLibraryView(comparison.Page.Library), comparison.Page)
+	s.render(w, r, http.StatusOK, ruleComparisonPage(s.chrome, view, newRuleComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on

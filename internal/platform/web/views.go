@@ -22,7 +22,18 @@ type libraryView struct {
 	// license is the declared SPDX expression, and licenseFile the declared license file, which licenseURL links;
 	// each is empty when the library declares none.
 	license, licenseFile, licenseURL string
-	latestTag, latestURL, updated    string
+	// latestHref leads to the latest release on the Library releases tab.
+	latestTag, latestHref, updated string
+	// groups counts the groups that hold current rules, rules the current rules, and releases the releases.
+	groups, rules, releases int
+}
+
+// fullName returns the library's repository as owner/name.
+func (l libraryView) fullName() string { return l.owner + "/" + l.name }
+
+// fileAtVersionURL returns file on GitHub at library release n.
+func (l libraryView) fileAtVersionURL(file string, n int) string {
+	return domain.BlobURL(l.fullName(), domain.ReleaseTag(n), file)
 }
 
 // newLibraryView describes lib.
@@ -30,10 +41,11 @@ func newLibraryView(lib views.Library) libraryView {
 	v := libraryView{
 		href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
 		avatar: lib.OwnerAvatarURL, githubURL: domain.RepositoryURL(lib.FullName()),
-		ownerURL: domain.OwnerURL(lib.Owner), latestTag: domain.ReleaseTag(lib.LatestRelease),
-		latestURL: domain.ReleaseNotesURL(lib.FullName(), lib.LatestRelease), updated: date(lib.LatestTaggedAt),
+		ownerURL: domain.OwnerURL(lib.Owner), latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
 		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
+		groups: lib.Groups, rules: lib.Rules, releases: lib.LatestRelease,
 	}
+	v.latestHref = releaseHref(v, lib.LatestRelease)
 	if lib.LicenseFile != "" {
 		v.licenseURL = domain.BlobURL(lib.FullName(), v.latestTag, lib.LicenseFile)
 	}
@@ -119,10 +131,19 @@ type ruleCard struct {
 	href, id, title, impact, version string
 }
 
-// libraryContents is a library's groups, split by kind, each with its rules in title order.
+// libraryContents is a library's groups, split by kind, each with its rules in title order, and its retired rules.
 type libraryContents struct {
 	techs, practices []groupView
-	ruleCount        int
+	retired          []retiredRuleCard
+}
+
+// retiredRuleCard is a retired rule's row on the All rules tab.
+type retiredRuleCard struct {
+	href, title, id, lastVersion string
+	// retiredTag is the release that retired the rule, which retiredHref shows.
+	retiredTag, retiredHref string
+	// replacedBy is the ID of the rule that replaced it, or empty.
+	replacedBy string
 }
 
 // newLibraryContents groups the page's rules under its groups, keeping both orders. iconURL returns where the site
@@ -145,7 +166,12 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 			result.techs = append(result.techs, view)
 		}
 	}
-	result.ruleCount = len(page.Rules)
+	for _, r := range page.Retired {
+		result.retired = append(result.retired, retiredRuleCard{
+			href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
+			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: r.ReplacedBy,
+		})
+	}
 	return result
 }
 
@@ -166,30 +192,76 @@ type ruleView struct {
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
 	fileURL, fileName string
 	versions          []versionView
+	// compareHref compares the oldest version with the newest; empty when there's only one.
+	compareHref string
+	// retired is nil while the rule is current.
+	retired *retiredView
+	// replaces are the retired rules this one replaced.
+	replaces []replacedRule
+}
+
+// retiredView is how a library release retired a rule.
+type retiredView struct {
+	tag, href, date string
+	summaries       []string
+	replacedBy      *ruleLink
+}
+
+// replacedRule is a retired rule that a rule replaced, and the release that retired it.
+type replacedRule struct {
+	rule         ruleLink
+	tag, tagHref string
 }
 
 // versionView is one row of a rule's Versions tab.
 type versionView struct {
 	version, tag, date, notesURL string
-	latest, major                bool
-	summaries                    []string
+	// releaseHref leads to the release on the library's Library releases tab, and compareHref compares the version
+	// with the one before it, previous; both compare fields are empty for the first version.
+	releaseHref, previous, compareHref string
+	latest, major                      bool
+	summaries                          []string
 }
 
 // newRuleView describes the rule on page, a rule of lib.
 func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
-		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
+		library: lib, href: ruleHref(lib, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
 		version: r.Version.String(), whenToRead: r.WhenToRead, html: r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
 		updated: date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}
 	for i, version := range page.Versions {
-		v.versions = append(v.versions, versionView{
+		row := versionView{
 			version: version.Version.String(), tag: domain.ReleaseTag(version.Release),
 			date: date(version.PublishedAt), notesURL: domain.ReleaseNotesURL(page.Library.FullName(), version.Release),
-			latest: i == 0, major: version.Change == coderules.ChangeMajor, summaries: version.Summaries,
+			releaseHref: releaseHref(lib, version.Release),
+			latest:      i == 0 && r.Retirement == nil, major: version.Change == coderules.ChangeMajor, summaries: version.Summaries,
+		}
+		if i+1 < len(page.Versions) {
+			previous := page.Versions[i+1].Version
+			row.previous, row.compareHref = previous.String(), ruleComparisonHref(lib, r.Path, previous, version.Version, diffWords)
+		}
+		v.versions = append(v.versions, row)
+	}
+	if n := len(page.Versions); n > 1 {
+		v.compareHref = ruleComparisonHref(lib, r.Path, page.Versions[n-1].Version, page.Versions[0].Version, diffWords)
+	}
+	if retirement := r.Retirement; retirement != nil {
+		v.retired = &retiredView{
+			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
+			date: date(retirement.RetiredAt), summaries: retirement.Summaries,
+		}
+		if retirement.ReplacedBy != nil {
+			link := newRuleLink(lib, *retirement.ReplacedBy)
+			v.retired.replacedBy = &link
+		}
+	}
+	for _, replaced := range page.Replaces {
+		v.replaces = append(v.replaces, replacedRule{
+			rule: newRuleLink(lib, replaced), tag: domain.ReleaseTag(replaced.RetiredIn), tagHref: releaseHref(lib, replaced.RetiredIn),
 		})
 	}
 	return v

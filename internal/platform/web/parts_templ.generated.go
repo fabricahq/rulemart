@@ -1252,7 +1252,7 @@ func libraryFacts(lib libraryView) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = factLink(lib.latestURL, lib.latestTag, "GitHub Release page for "+lib.latestTag).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = factLink(lib.latestHref, lib.latestTag, "What "+lib.latestTag+" published").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
