@@ -1,0 +1,17 @@
+sources:
+  code-rules-test-library:
+    repository: https://github.com/fabricahq/code-rules-test-library.git
+    groups: "*"
+    ref: release/6
+  public-rules:
+    repository: https://github.com/fabricahq/public-rules.git
+    groups:
+      - practices/testing
+    rules:
+      - techs/go/errors-include-useful-diagnostic-data
+    ref: release/1
+  rules:
+    repository: https://github.com/stranger/Rules.git
+    rules:
+      - techs/go/use-go
+    ref: release/3
