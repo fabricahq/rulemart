@@ -16,8 +16,9 @@ from `favicons/` unchanged, and so are `rulemart-horizontal-dark.svg` and `rulem
 `logos/`, which the home page's hero shows in the light and dark themes. The repository's README shows the same
 logos, dark or white with the reader's theme.
 
-`static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo centered on the
-surface color, made by `social.py`. Run it after changing the logo, with Pillow and `rsvg-convert` installed:
+`static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo over the
+tagline, centered on the surface color, made by `social.py`. Run it after changing the logo or the tagline, with
+Pillow and `rsvg-convert` installed:
 
 ```sh
 python3 brand/social.py
