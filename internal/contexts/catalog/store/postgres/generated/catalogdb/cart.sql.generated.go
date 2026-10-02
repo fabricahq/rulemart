@@ -39,6 +39,36 @@ func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error 
 	return err
 }
 
+const cartCovers = `-- name: CartCovers :one
+SELECT EXISTS (
+    SELECT 1 FROM cart_items
+    WHERE account_id = $1::bigint AND library_id = $2::bigint
+      AND (($3::text <> 'library' AND kind = 'library')
+        OR ($3::text = 'rule' AND kind = 'group' AND path = $4::text))
+)::boolean AS covers
+`
+
+type CartCoversParams struct {
+	AccountID int64
+	LibraryID int64
+	Kind      string
+	GroupPath string
+}
+
+// CartCovers reports whether the account's cart holds an item of the library that imports its item of kind at path
+// already: the whole library, for a group or a rule, or for a rule, its group, group_path.
+func (q *Queries) CartCovers(ctx context.Context, arg CartCoversParams) (bool, error) {
+	row := q.db.QueryRow(ctx, cartCovers,
+		arg.AccountID,
+		arg.LibraryID,
+		arg.Kind,
+		arg.GroupPath,
+	)
+	var covers bool
+	err := row.Scan(&covers)
+	return covers, err
+}
+
 const cartHolds = `-- name: CartHolds :one
 SELECT EXISTS (
     SELECT 1 FROM cart_items
@@ -159,6 +189,32 @@ func (q *Queries) FindCartTarget(ctx context.Context, arg FindCartTargetParams) 
 	return i, err
 }
 
+const foldCartItems = `-- name: FoldCartItems :exec
+DELETE FROM cart_items
+WHERE account_id = $1::bigint AND library_id = $2::bigint
+  AND (($3::text = 'library' AND kind <> 'library')
+    OR ($3::text = 'group' AND kind = 'rule' AND left(path, length($4::text) + 1) = $4::text || '/'))
+`
+
+type FoldCartItemsParams struct {
+	AccountID int64
+	LibraryID int64
+	Kind      string
+	Path      string
+}
+
+// FoldCartItems removes the account's items of the library that its item of kind at path covers, which that item
+// takes the place of: every group and rule, for the whole library, and every rule of it, for a group.
+func (q *Queries) FoldCartItems(ctx context.Context, arg FoldCartItemsParams) error {
+	_, err := q.db.Exec(ctx, foldCartItems,
+		arg.AccountID,
+		arg.LibraryID,
+		arg.Kind,
+		arg.Path,
+	)
+	return err
+}
+
 const listCartItems = `-- name: ListCartItems :many
 SELECT c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirmed, c.added_at,
        l.owner, l.name, l.owner_avatar_url,
@@ -261,49 +317,39 @@ func (q *Queries) ListCartItems(ctx context.Context, arg ListCartItemsParams) ([
 	return items, nil
 }
 
-const listLibraryCartItems = `-- name: ListLibraryCartItems :many
-SELECT l.owner, l.name, c.kind, c.path
+const listHeldCartItems = `-- name: ListHeldCartItems :many
+SELECT l.owner, l.name, c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirmed
 FROM cart_items c
 JOIN libraries l ON l.id = c.library_id
 WHERE c.account_id = $1::bigint
-  AND l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
-ORDER BY c.kind, c.path COLLATE "C"
+ORDER BY lower(l.owner), lower(l.name), l.id, c.kind, c.path COLLATE "C"
 `
 
-type ListLibraryCartItemsParams struct {
-	AccountID int64
-	Host      string
+type ListHeldCartItemsRow struct {
 	Owner     string
 	Name      string
+	Kind      string
+	Path      string
+	Confirmed bool
 }
 
-type ListLibraryCartItemsRow struct {
-	Owner string
-	Name  string
-	Kind  string
-	Path  string
-}
-
-// ListLibraryCartItems returns the account's items from the library owner/name, matched without regard to case.
-func (q *Queries) ListLibraryCartItems(ctx context.Context, arg ListLibraryCartItemsParams) ([]ListLibraryCartItemsRow, error) {
-	rows, err := q.db.Query(ctx, listLibraryCartItems,
-		arg.AccountID,
-		arg.Host,
-		arg.Owner,
-		arg.Name,
-	)
+// ListHeldCartItems returns the account's items, with their libraries as the host spells them now, and whether the
+// visitor confirmed each as unvetted, by library in owner and name order, then kind and ID.
+func (q *Queries) ListHeldCartItems(ctx context.Context, accountID int64) ([]ListHeldCartItemsRow, error) {
+	rows, err := q.db.Query(ctx, listHeldCartItems, accountID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListLibraryCartItemsRow
+	var items []ListHeldCartItemsRow
 	for rows.Next() {
-		var i ListLibraryCartItemsRow
+		var i ListHeldCartItemsRow
 		if err := rows.Scan(
 			&i.Owner,
 			&i.Name,
 			&i.Kind,
 			&i.Path,
+			&i.Confirmed,
 		); err != nil {
 			return nil, err
 		}

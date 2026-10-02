@@ -18,8 +18,8 @@ import (
 
 var _ store.Cart = (*Store)(nil)
 
-// AddToCart adds item to the account's cart, as store.Cart describes. It holds the account's row while it checks and
-// adds, so two items added at once can't both take the cart's last place, and it's safe to repeat after a failed
+// AddToCart adds item to the account's cart, as store.Cart describes. It holds the account's row while it checks,
+// folds, and adds, so two items added at once can't both take the cart's last place, and it's safe to repeat after a failed
 // connection, since the transaction either committed nothing or everything.
 func (s *Store) AddToCart(ctx context.Context, vetted []domain.LibraryKey, accountID int64, item domain.CartItem, confirmed bool) (domain.CartItem, error) {
 	var added domain.CartItem
@@ -44,6 +44,20 @@ func (s *Store) AddToCart(ctx context.Context, vetted []domain.LibraryKey, accou
 				return store.ErrUnvettedNotConfirmed
 			}
 			added = domain.CartItem{Owner: target.Owner, Name: target.Name, Kind: item.Kind, Path: target.Path}
+			covered, err := q.CartCovers(ctx, catalogdb.CartCoversParams{
+				AccountID: accountID, LibraryID: target.LibraryID, Kind: string(item.Kind), GroupPath: added.Group(),
+			})
+			if err != nil {
+				return fmt.Errorf("find what covers the item: %v", err)
+			}
+			if covered {
+				return nil
+			}
+			if err := q.FoldCartItems(ctx, catalogdb.FoldCartItemsParams{
+				AccountID: accountID, LibraryID: target.LibraryID, Kind: string(item.Kind), Path: target.Path,
+			}); err != nil {
+				return fmt.Errorf("remove what the item covers: %v", err)
+			}
 			key := catalogdb.CartHoldsParams{AccountID: accountID, LibraryID: target.LibraryID, Kind: string(item.Kind), Path: target.Path}
 			holds, err := q.CartHolds(ctx, key)
 			if err != nil {
@@ -105,35 +119,22 @@ func (s *Store) EmptyCart(ctx context.Context, accountID int64) error {
 	return nil
 }
 
-// CountCart returns how many items the account's cart holds.
-func (s *Store) CountCart(ctx context.Context, accountID int64) (int, error) {
-	var count int64
+// HeldCartItems returns the account's items, as store.Cart describes.
+func (s *Store) HeldCartItems(ctx context.Context, accountID int64) ([]views.HeldCartItem, error) {
+	var items []views.HeldCartItem
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		var err error
-		count, err = catalogdb.New(pool).CountCartItems(ctx, accountID)
-		return err
-	})
-	if err != nil {
-		return 0, fmt.Errorf("count cart accountID=%d: %v", accountID, err)
-	}
-	return int(count), nil
-}
-
-// LibraryCartItems returns the account's items from the library owner/name, as store.Cart describes.
-func (s *Store) LibraryCartItems(ctx context.Context, accountID int64, owner, name string) ([]domain.CartItem, error) {
-	var items []domain.CartItem
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		rows, err := catalogdb.New(pool).ListLibraryCartItems(ctx, catalogdb.ListLibraryCartItemsParams{
-			AccountID: accountID, Host: domain.GitHub, Owner: owner, Name: name,
-		})
-		items = make([]domain.CartItem, len(rows))
+		rows, err := catalogdb.New(pool).ListHeldCartItems(ctx, accountID)
+		items = make([]views.HeldCartItem, len(rows))
 		for i, row := range rows {
-			items[i] = domain.CartItem{Owner: row.Owner, Name: row.Name, Kind: domain.CartItemKind(row.Kind), Path: row.Path}
+			items[i] = views.HeldCartItem{
+				Item:      domain.CartItem{Owner: row.Owner, Name: row.Name, Kind: domain.CartItemKind(row.Kind), Path: row.Path},
+				Confirmed: row.Confirmed,
+			}
 		}
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("read cart library=%q accountID=%d: %v", owner+"/"+name, accountID, err)
+		return nil, fmt.Errorf("read cart accountID=%d: %v", accountID, err)
 	}
 	return items, nil
 }

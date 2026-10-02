@@ -37,20 +37,28 @@ func (c listingCatalog) add(t *testing.T, vetted []domain.LibraryKey, accountID 
 	}
 }
 
-// cartItems returns the account's items from every library the catalog has, as owner/name kind path.
+// cartItems returns the account's items, as owner/name kind path, with confirmed after one confirmed as unvetted.
 func (c listingCatalog) cartItems(t *testing.T, accountID int64) []string {
 	t.Helper()
-	var items []string
-	for _, name := range [][2]string{{"acme", "backend"}, {"Beta", "rules"}, {"stranger", "rules"}} {
-		found, err := c.web.LibraryCartItems(context.Background(), accountID, name[0], name[1])
-		if err != nil {
-			t.Fatal(err)
+	held, err := c.web.HeldCartItems(context.Background(), accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []string{}
+	for _, it := range held {
+		line := fmt.Sprintf("%s %s %s", it.Item.FullName(), it.Item.Kind, it.Item.Path)
+		if it.Confirmed {
+			line += " confirmed"
 		}
-		for _, it := range found {
-			items = append(items, fmt.Sprintf("%s %s %s", it.FullName(), it.Kind, it.Path))
-		}
+		items = append(items, line)
 	}
 	return items
+}
+
+// countCart returns how many items the account's cart holds.
+func (c listingCatalog) countCart(t *testing.T, accountID int64) int {
+	t.Helper()
+	return len(c.cartItems(t, accountID))
 }
 
 // An account adds a whole library, a group, or a rule, by any spelling, and the cart holds each once, as the library
@@ -65,21 +73,16 @@ func TestAnAccountAddsItemsToItsCartOnce(t *testing.T) {
 		t.Fatalf("got %+v, %v; want %+v, as the library spells it", added, err, acmeRetryLimit)
 	}
 	c.add(t, vettedBoth, account, acmeRetryLimit, false)
-	c.add(t, vettedBoth, account, cartItem("acme", "backend", domain.CartGroup, "PRACTICES/testing"), false)
-	c.add(t, vettedBoth, account, cartItem("Acme", "BACKEND", domain.CartLibrary, ""), false)
-	c.add(t, vettedBoth, account, betaPackages, false)
-	c.add(t, vettedBoth, other, acmeReturn, false)
+	c.add(t, vettedBoth, account, cartItem("acme", "backend", domain.CartGroup, "TECHS/go"), false)
+	c.add(t, vettedBoth, account, cartItem("Beta", "RULES", domain.CartLibrary, ""), false)
 
 	want := []string{
-		"acme/backend group practices/testing", "acme/backend library ", "acme/backend rule practices/testing/verify-retry-limits",
-		"Beta/rules rule techs/go/name-packages-plainly",
+		"acme/backend group techs/go", "acme/backend rule practices/testing/verify-retry-limits", "Beta/rules library ",
 	}
 	if got := c.cartItems(t, account); !slices.Equal(got, want) {
 		t.Errorf("the account's cart holds\n%q\nwant\n%q", got, want)
 	}
-	if count, err := c.web.CountCart(ctx, account); err != nil || count != 4 {
-		t.Errorf("counted %d, %v; want 4", count, err)
-	}
+	c.add(t, vettedBoth, other, acmeReturn, false)
 	if got := c.cartItems(t, other); !slices.Equal(got, []string{"acme/backend rule techs/go/return-errors"}) {
 		t.Errorf("the other account's cart holds %q", got)
 	}
@@ -107,8 +110,8 @@ func TestACartTakesOnlyCurrentItemsOfLibrariesPagesShow(t *testing.T) {
 			}
 		}
 	}
-	if count, err := c.web.CountCart(ctx, account); err != nil || count != 0 {
-		t.Errorf("counted %d, %v; want an empty cart", count, err)
+	if count := c.countCart(t, account); count != 0 {
+		t.Errorf("counted %d; want an empty cart", count)
 	}
 }
 
@@ -177,8 +180,8 @@ func TestACartHoldsAtMostMaxCartItems(t *testing.T) {
 	if full := errors.Is(errs[0], store.ErrCartFull) != errors.Is(errs[1], store.ErrCartFull); !full || (errs[0] != nil && errs[1] != nil) {
 		t.Fatalf("adding two items at once to a cart with one place left: %v and %v; want one added and one ErrCartFull", errs[0], errs[1])
 	}
-	if count, err := c.web.CountCart(ctx, account); err != nil || count != domain.MaxCartItems {
-		t.Fatalf("counted %d, %v; want %d", count, err, domain.MaxCartItems)
+	if count := c.countCart(t, account); count != domain.MaxCartItems {
+		t.Fatalf("counted %d; want %d", count, domain.MaxCartItems)
 	}
 	if _, err := c.web.AddToCart(ctx, vettedBoth, account, acmeTesting, false); !errors.Is(err, store.ErrCartFull) {
 		t.Errorf("adding to a full cart: got %v, want ErrCartFull", err)
@@ -216,11 +219,11 @@ func TestRemovingAndEmptyingTakeOnlyTheAccountsItems(t *testing.T) {
 	if err := c.web.EmptyCart(ctx, account); err != nil {
 		t.Fatal(err)
 	}
-	if count, err := c.web.CountCart(ctx, account); err != nil || count != 0 {
-		t.Errorf("counted %d, %v after emptying", count, err)
+	if count := c.countCart(t, account); count != 0 {
+		t.Errorf("counted %d after emptying", count)
 	}
-	if count, err := c.web.CountCart(ctx, other); err != nil || count != 3 {
-		t.Errorf("the other account's cart counts %d, %v; want its 3 items", count, err)
+	if count := c.countCart(t, other); count != 3 {
+		t.Errorf("the other account's cart counts %d; want its 3 items", count)
 	}
 	postgrestest.Exec(t, c.connString, fmt.Sprintf("DELETE FROM accounts WHERE id = %d", other))
 	var left int
@@ -243,8 +246,12 @@ func TestTheCartReadsItsItemsAsTheCatalogHasThemNow(t *testing.T) {
 	c.add(t, vettedBoth, account, acmeReturn, false)
 	c.add(t, vettedBoth, account, acmeRetryLimit, false)
 	c.add(t, vettedBoth, account, cartItem("acme", "backend", domain.CartGroup, "techs/golang"), false)
-	c.add(t, vettedBoth, account, acmeTesting, false)
-	c.add(t, vettedBoth, account, acmeLibrary, false)
+	// Adding the group and the whole library would take the place of what they cover, so they go in directly, as
+	// a cart from before folding might hold them.
+	postgrestest.Exec(t, c.connString, fmt.Sprintf(`
+		INSERT INTO cart_items (account_id, library_id, kind, path)
+		SELECT %d, l.id, k.kind, k.path FROM libraries l, (VALUES ('group', 'practices/testing'), ('library', '')) k (kind, path)
+		WHERE l.owner = 'acme'`, account))
 	// A second release retires verify-retry-limits and pass-context-first, which leaves techs/golang without
 	// current rules, and drops return-errors altogether.
 	next := acme
@@ -305,4 +312,55 @@ func join(lines []string) string {
 		text += line + "\n"
 	}
 	return text
+}
+
+// A group or whole library takes the place of the items it covers, and adding an item the cart covers already
+// changes nothing, so a cart never holds a rule twice.
+func TestAGroupOrLibraryTakesThePlaceOfWhatItCovers(t *testing.T) {
+	c := newListingCatalog(t)
+	account := c.account(t, 1)
+	coverEdges := cartItem("acme", "backend", domain.CartRule, "practices/testing/cover-boundary-cases")
+
+	c.add(t, vettedBoth, account, acmeRetryLimit, false)
+	c.add(t, vettedBoth, account, coverEdges, false)
+	c.add(t, vettedBoth, account, acmeReturn, false)
+	c.add(t, vettedBoth, account, betaPackages, false)
+	c.add(t, vettedBoth, account, acmeTesting, false)
+	want := []string{"acme/backend group practices/testing", "acme/backend rule techs/go/return-errors", "Beta/rules rule techs/go/name-packages-plainly"}
+	if got := c.cartItems(t, account); !slices.Equal(got, want) {
+		t.Fatalf("after adding the group, the cart holds\n%q\nwant\n%q", got, want)
+	}
+	added, err := c.web.AddToCart(context.Background(), vettedBoth, account, acmeRetryLimit, false)
+	if err != nil || added != acmeRetryLimit {
+		t.Fatalf("adding a covered rule: got %+v, %v", added, err)
+	}
+	if got := c.cartItems(t, account); !slices.Equal(got, want) {
+		t.Fatalf("adding a covered rule changed the cart to %q", got)
+	}
+	c.add(t, vettedBoth, account, acmeLibrary, false)
+	c.add(t, vettedBoth, account, acmeTesting, false)
+	c.add(t, vettedBoth, account, acmeReturn, false)
+	if got, want := c.cartItems(t, account), []string{"acme/backend library ", "Beta/rules rule techs/go/name-packages-plainly"}; !slices.Equal(got, want) {
+		t.Fatalf("after adding the library, the cart holds\n%q\nwant\n%q", got, want)
+	}
+}
+
+// A full cart takes a group in place of the rules of it that it holds, as long as the cart then fits, and refuses a
+// group that covers none of them.
+func TestAFullCartTakesAGroupInPlaceOfItsRules(t *testing.T) {
+	c := newListingCatalog(t)
+	account := c.account(t, 1)
+	postgrestest.Exec(t, c.connString, fmt.Sprintf(`
+		INSERT INTO cart_items (account_id, library_id, kind, path)
+		SELECT %d, l.id, 'rule', 'practices/testing/gone-' || n FROM libraries l, generate_series(1, %d) n
+		WHERE l.owner = 'acme'`, account, domain.MaxCartItems-1))
+	c.add(t, vettedBoth, account, acmeReturn, false)
+
+	if _, err := c.web.AddToCart(context.Background(), vettedBoth, account, betaPackages, false); !errors.Is(err, store.ErrCartFull) {
+		t.Fatalf("adding to a full cart: got %v, want ErrCartFull", err)
+	}
+	c.add(t, vettedBoth, account, acmeTesting, false)
+	if got, want := c.cartItems(t, account), []string{"acme/backend group practices/testing", "acme/backend rule techs/go/return-errors"}; !slices.Equal(got, want) {
+		t.Fatalf("the cart holds %d items:\n%q\nwant\n%q", len(got), got, want)
+	}
 }

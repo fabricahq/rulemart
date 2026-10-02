@@ -30,7 +30,8 @@ type Cart struct {
 // Add adds item to the account's cart, and returns it as its library spells it. confirmed says the visitor confirmed
 // adding it from a library Rulemart doesn't vet. It fails with ErrNotFound when the library's pages don't show the
 // item, ErrUnvettedNotConfirmed when the library isn't vetted and confirmed is false, and ErrCartFull when the cart
-// holds domain.MaxCartItems other items. Adding an item twice keeps one.
+// would hold more than domain.MaxCartItems items. Adding an item twice keeps one, and a group or whole library takes
+// the place of the items of it the cart holds.
 func (c Cart) Add(ctx context.Context, accountID int64, item domain.CartItem, confirmed bool) (domain.CartItem, error) {
 	return c.Store.AddToCart(ctx, c.Vetted, accountID, item, confirmed)
 }
@@ -45,14 +46,9 @@ func (c Cart) Empty(ctx context.Context, accountID int64) error {
 	return c.Store.EmptyCart(ctx, accountID)
 }
 
-// Count returns how many items the account's cart holds.
-func (c Cart) Count(ctx context.Context, accountID int64) (int, error) {
-	return c.Store.CountCart(ctx, accountID)
-}
-
-// LibraryItems returns the account's items from the library owner/name.
-func (c Cart) LibraryItems(ctx context.Context, accountID int64, owner, name string) ([]domain.CartItem, error) {
-	return c.Store.LibraryCartItems(ctx, accountID, owner, name)
+// Held returns the account's items, with whether the visitor confirmed each as unvetted.
+func (c Cart) Held(ctx context.Context, accountID int64) ([]views.HeldCartItem, error) {
+	return c.Store.HeldCartItems(ctx, accountID)
 }
 
 // Contents returns the account's cart, each item with its state, and the checkout of every item it can import, each

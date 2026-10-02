@@ -83,20 +83,20 @@ type Stars interface {
 type Cart interface {
 	// AddToCart adds item to the account's cart, its library and ID matched without regard to case, and returns it as
 	// the library spells it. confirmed records that the visitor confirmed adding it from a library vetted doesn't
-	// hold. Adding an item the cart holds keeps one, and records a confirmation it lacked. It fails with ErrNotFound
-	// when the library isn't vetted or listed, or has no such group with current rules, or current rule; with
-	// ErrUnvettedNotConfirmed when vetted doesn't hold the library and confirmed is false; and with ErrCartFull when
-	// the cart holds domain.MaxCartItems other items.
+	// hold. Adding an item the cart holds keeps one, and records a confirmation it lacked; adding one the cart's whole
+	// library or group imports already changes nothing; and a whole library or group takes the place of the items of
+	// it the cart holds. It fails with ErrNotFound when the library isn't vetted or listed, or has no such group with
+	// current rules, or current rule; with ErrUnvettedNotConfirmed when vetted doesn't hold the library and confirmed
+	// is false; and with ErrCartFull when the cart would hold more than domain.MaxCartItems items.
 	AddToCart(ctx context.Context, vetted []domain.LibraryKey, accountID int64, item domain.CartItem, confirmed bool) (domain.CartItem, error)
 	// RemoveFromCart removes item from the account's cart, matched as AddToCart matches it, and does nothing when the
 	// cart doesn't hold it.
 	RemoveFromCart(ctx context.Context, accountID int64, item domain.CartItem) error
 	// EmptyCart removes every item from the account's cart.
 	EmptyCart(ctx context.Context, accountID int64) error
-	// CountCart returns how many items the account's cart holds.
-	CountCart(ctx context.Context, accountID int64) (int, error)
-	// LibraryCartItems returns the account's items from the library owner/name, matched without regard to case.
-	LibraryCartItems(ctx context.Context, accountID int64, owner, name string) ([]domain.CartItem, error)
+	// HeldCartItems returns the account's items, each as its library spells it, with whether the visitor confirmed it
+	// as unvetted, by library in owner and name order.
+	HeldCartItems(ctx context.Context, accountID int64) ([]views.HeldCartItem, error)
 	// Cart returns the account's cart from one snapshot of the catalog: its libraries, in owner and name order, each
 	// with whether vetted holds it, and its items, as views.CartLibrary orders them, each with its group, title, and
 	// rules as the catalog has them now. It leaves each item's CanonicalGroup nil, and its State empty.

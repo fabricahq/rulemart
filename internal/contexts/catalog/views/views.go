@@ -521,6 +521,13 @@ type CartItem struct {
 	AddedAt   time.Time
 }
 
+// HeldCartItem is an item an account's cart holds, as pages that offer to add it read it.
+type HeldCartItem struct {
+	Item domain.CartItem
+	// Confirmed reports that the visitor confirmed adding the item from a library Rulemart didn't vet.
+	Confirmed bool
+}
+
 // CartItemState says whether checkout imports a cart's item, or why it leaves it out.
 type CartItemState string
 

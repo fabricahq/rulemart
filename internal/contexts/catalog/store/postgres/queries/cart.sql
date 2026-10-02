@@ -70,14 +70,32 @@ DELETE FROM cart_items WHERE account_id = @account_id::bigint;
 -- name: CountCartItems :one
 SELECT count(*) FROM cart_items WHERE account_id = @account_id::bigint;
 
--- ListLibraryCartItems returns the account's items from the library owner/name, matched without regard to case.
--- name: ListLibraryCartItems :many
-SELECT l.owner, l.name, c.kind, c.path
+-- CartCovers reports whether the account's cart holds an item of the library that imports its item of kind at path
+-- already: the whole library, for a group or a rule, or for a rule, its group, group_path.
+-- name: CartCovers :one
+SELECT EXISTS (
+    SELECT 1 FROM cart_items
+    WHERE account_id = @account_id::bigint AND library_id = @library_id::bigint
+      AND ((@kind::text <> 'library' AND kind = 'library')
+        OR (@kind::text = 'rule' AND kind = 'group' AND path = @group_path::text))
+)::boolean AS covers;
+
+-- FoldCartItems removes the account's items of the library that its item of kind at path covers, which that item
+-- takes the place of: every group and rule, for the whole library, and every rule of it, for a group.
+-- name: FoldCartItems :exec
+DELETE FROM cart_items
+WHERE account_id = @account_id::bigint AND library_id = @library_id::bigint
+  AND ((@kind::text = 'library' AND kind <> 'library')
+    OR (@kind::text = 'group' AND kind = 'rule' AND left(path, length(@path::text) + 1) = @path::text || '/'));
+
+-- ListHeldCartItems returns the account's items, with their libraries as the host spells them now, and whether the
+-- visitor confirmed each as unvetted, by library in owner and name order, then kind and ID.
+-- name: ListHeldCartItems :many
+SELECT l.owner, l.name, c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirmed
 FROM cart_items c
 JOIN libraries l ON l.id = c.library_id
 WHERE c.account_id = @account_id::bigint
-  AND l.host = @host AND lower(l.owner) = lower(@owner) AND lower(l.name) = lower(@name)
-ORDER BY c.kind, c.path COLLATE "C";
+ORDER BY lower(l.owner), lower(l.name), l.id, c.kind, c.path COLLATE "C";
 
 -- ListCartItems returns the account's cart items, by library in owner and name order, the whole library first, then
 -- groups, then rules, each in ID order. Each has its library, whether vetted holds it and a listing names it, and its
