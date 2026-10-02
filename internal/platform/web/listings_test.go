@@ -207,8 +207,47 @@ func TestUnvettedLibrariesAreReachedFromTheLibrariesPage(t *testing.T) {
 	}
 }
 
+// With no unvetted libraries, the page says so, without warning about libraries it doesn't show.
 func TestUnvettedPageSaysWhenThereAreNone(t *testing.T) {
-	assertShows(t, get(t, newSite(t, newCatalog()), "/unvetted").Body.String(), "No unvetted libraries yet.")
+	page := get(t, newSite(t, newCatalog()), "/unvetted").Body.String()
+
+	assertShows(t, page, "No unvetted libraries yet.")
+	if strings.Contains(page, "Tread carefully") {
+		t.Error("the empty page warns about libraries it doesn't show")
+	}
+}
+
+// Links an unvetted library's author wrote in a rule carry nofollow and ugc; a vetted library's don't.
+func TestLinksInAnUnvettedRuleAreMarkedAsItsAuthors(t *testing.T) {
+	c := unvettedCatalog()
+	for key, page := range c.rules {
+		page.Rule.HTML = `<p>See <a href="https://example.com/guide">the guide</a>.</p>`
+		c.rules[key] = page
+	}
+	handler := newSite(t, c)
+
+	if got := rels(t, get(t, handler, unvettedLibrary+"/techs/go/return-errors").Body.String(), "https://example.com/guide"); !slices.Equal(got, []string{"nofollow ugc"}) {
+		t.Errorf("the unvetted rule's link has rel %q, want nofollow ugc", got)
+	}
+	if got := rels(t, get(t, handler, library+"/techs/go/return-errors").Body.String(), "https://example.com/guide"); !slices.Equal(got, []string{""}) {
+		t.Errorf("the vetted rule's link has rel %q, want none", got)
+	}
+}
+
+// A refusal marks the field invalid, describes it with the refusal, and takes the focus, so it's read first.
+func TestListPageFocusesTheFieldARefusalDescribes(t *testing.T) {
+	site := newListingSite(t)
+
+	page := body(t, site.signedInGet(t, "/list?repository=example"))
+
+	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="repository-problem"`, "autofocus", `role="alert"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page has no %s", want)
+		}
+	}
+	if page := body(t, site.signedInGet(t, "/list?repository=example%2Fnew")); strings.Contains(page, `aria-invalid="true"`) || strings.Contains(page, " autofocus") {
+		t.Error("the page marks a repository it accepted invalid")
+	}
 }
 
 // fakeListings keeps listings in memory, as catalog/app.Listings does in Postgres, and refuses as told.
@@ -264,10 +303,20 @@ func (f *fakeListings) Retry(_ context.Context, accountID, id int64) error {
 		return f.retryRefusal
 	}
 	err := f.change(accountID, id, &f.retried, func(l views.AccountListing) bool { return l.Failure != "" })
+	if errors.Is(err, app.ErrNotFound) && f.has(accountID, id) {
+		return fmt.Errorf("retry listing id=%d: %w", id, app.ErrListingNotFailed)
+	}
 	if err == nil && f.notQueued {
 		return fmt.Errorf("%w: SQS is down", app.ErrNotQueued)
 	}
 	return err
+}
+
+// has reports whether the account has the listing id.
+func (f *fakeListings) has(accountID, id int64) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.ContainsFunc(f.byAccount[accountID], func(l views.AccountListing) bool { return l.ID == id })
 }
 
 // change records id in changed when the account has that listing and ok says it may change, and fails with
@@ -353,7 +402,7 @@ func TestListPageConfirmsARepositoryBeforeListingIt(t *testing.T) {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page = body(t, resp)
-	assertShows(t, page, "List this library? example/new", "Its pages say it hasn't been vetted", "List example/new")
+	assertShows(t, page, "List this library? example/new", "Its pages say it hasn't been vetted")
 	if got := formActions(t, page); !slices.Contains(got, "/list?repository=example%2Fnew") {
 		t.Fatalf("the page's forms post to %q, want /list?repository=example%%2Fnew", got)
 	}
@@ -403,12 +452,17 @@ func TestListPageSaysWhyARepositoryCantBeListed(t *testing.T) {
 		"vetted": {"example/rules", &app.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
 			"Rulemart has vetted this library already. See example/rules", []string{""}},
 		"listed": {"stranger/rules", &app.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
-			"This repository is listed already. See stranger/rules", []string{"nofollow"}},
-		"listed, not checked yet": {"someone/new", &app.ListingConflict{}, "This repository is listed already.", nil},
-		"at the account's limit":  {"someone/new", app.ErrAccountListingLimit, "You have 5 unvetted listings, as many as an account may.", nil},
-		"full":                    {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
-		"too often":               {"someone/new", app.ErrListingTooOften, "You've listed or retried 20 times in the last day", nil},
-		"busy":                    {"someone/new", app.ErrListingsBusy, "Rulemart is checking many listings right now. Try again in an hour.", nil},
+			"Someone listed this repository already. See stranger/rules", []string{"nofollow"}},
+		"listed by the visitor": {"stranger/rules", &app.ListingConflict{Own: true, Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
+			"You listed this repository already. See stranger/rules Your listings", []string{"nofollow"}},
+		"listed by the visitor, not checked yet": {"someone/new", &app.ListingConflict{Own: true}, "You listed this repository already. Your listings", nil},
+		"listed by someone else a moment ago": {"someone/new", &app.ListingConflict{Checking: true},
+			"Someone listed this repository a moment ago, and Rulemart is checking it.", nil},
+		"at the account's limit": {"someone/new", app.ErrAccountListingLimit,
+			"You have 5 listings Rulemart hasn't vetted, as many as an account may. Remove one, such as one that failed, to list another. Your listings", nil},
+		"full":      {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
+		"too often": {"someone/new", app.ErrListingTooOften, "You've listed or retried 20 times in the last day", nil},
+		"busy":      {"someone/new", app.ErrListingsBusy, "Rulemart is checking many listings right now. Try again in an hour.", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			site := newListingSite(t)
@@ -497,7 +551,8 @@ func listingsFor(site listingSite, requested time.Time) {
 }
 
 // The listings page shows each listing's state, links a listed library with nofollow and a vetted one without, offers
-// to try a failed one again, and reloads itself while a listing added just now is being checked.
+// to try a failed one again, and shows a listing being checked without reloading itself: a reload would move a
+// reader's focus and place.
 func TestListingsPageShowsEachListingsState(t *testing.T) {
 	site := newListingSite(t)
 	listingsFor(site, time.Now().Add(-time.Minute))
@@ -509,37 +564,40 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	}
 	page := body(t, resp)
 	assertShows(t, page,
-		"Your listings Libraries you listed. You have 3 unvetted listings, of the 5 an account may hold.",
-		"someone/new Checking Listed",
-		"someone/broken Failed Listed 3 Sep 2026 · GitHub repository 99 Rulemart couldn't list it The repository has no release/<number> tags",
+		"Your listings List a library Each listing takes one of your 5 places until Rulemart vets its library, failed ones too. You're using 3.",
+		"someone/new Checking Listed", "Rulemart is checking the repository on GitHub It usually takes a few seconds. You asked 1 minute ago. Check again",
+		"someone/broken Failed Listed 3 Sep 2026 Rulemart couldn't list it The repository has no release/<number> tags",
 		"stranger/rules Listed, unvetted", "example/rules Vetted")
+	if strings.Contains(page, `http-equiv="refresh"`) {
+		t.Error("the page reloads itself")
+	}
+	if strings.Contains(page, "GitHub repository 99") {
+		t.Error("the page shows a raw repository ID")
+	}
 	if got := rels(t, page, "/stranger/rules"); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("links the listed library with rel %q, want nofollow", got)
 	}
 	if got := rels(t, page, "/example/rules"); !slices.Equal(got, []string{""}) {
 		t.Errorf("links the vetted library with rel %q, want none", got)
 	}
-	actions := formActions(t, page)
-	if !slices.Contains(actions, "/account/listings/retry?listing=3") || slices.Contains(actions, "/account/listings/retry?listing=2") ||
-		!slices.Contains(actions, "/account/listings/remove?listing=4") {
-		t.Errorf("the page's forms post to %q", actions)
+	if got := rels(t, page, "https://github.com/stranger/rules"); !slices.Equal(got, []string{"nofollow"}) {
+		t.Errorf("links the listed library on GitHub with rel %q, want nofollow", got)
 	}
-	if !strings.Contains(page, `<meta http-equiv="refresh" content="5">`) {
-		t.Error("the page doesn't reload while a new listing is being checked")
+	if actions := formActions(t, page); !slices.Equal(actions, []string{"/sign-out", "/account/listings/retry?listing=3"}) {
+		t.Errorf("the page's forms post to %q, want signing out, and only a retry of the failed listing", actions)
+	}
+	if got := links(t, page, "Remove"); len(got) != 4 || got[0] != "/account/listings/remove?listing=4" {
+		t.Errorf("the Remove links lead to %q, want each listing's confirmation", got)
 	}
 }
 
-// A listing checked for longer than the queue takes waits for the hourly poll, which the page says, without reloading.
-func TestListingsPageStopsReloadingWhenACheckWaitsForThePoll(t *testing.T) {
+// A listing checked for a few minutes is taking longer than usual: the page says the hourly poll checks it.
+func TestListingsPageSaysWhenACheckIsTakingLonger(t *testing.T) {
 	site := newListingSite(t)
-	listingsFor(site, time.Now().Add(-time.Hour))
+	listingsFor(site, time.Now().Add(-5*time.Minute))
 
-	page := body(t, site.signedInGet(t, "/account/listings"))
-
-	assertShows(t, page, "Rulemart checks it within the hour.")
-	if strings.Contains(page, `http-equiv="refresh"`) {
-		t.Error("the page reloads while nothing will change for an hour")
-	}
+	assertShows(t, body(t, site.signedInGet(t, "/account/listings")),
+		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Check again")
 }
 
 func TestListingsPageSaysWhenThereAreNone(t *testing.T) {
@@ -561,21 +619,54 @@ func TestListingsPageAsksAVisitorToSignInFirst(t *testing.T) {
 	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: want})), "Sign in to see your listings.")
 }
 
-// Removing and trying again act on the visitor's own listing, and return to the listings page, saying so.
+// Removing a listing asks first, saying what removing does for its state, then removes it with an empty POST.
+func TestRemovingAListingAsksFirstAndSaysWhatItDoes(t *testing.T) {
+	site := newListingSite(t)
+	listingsFor(site, time.Now())
+
+	for id, want := range map[string]string{
+		"2": "Its library leaves Rulemart: its pages stop showing, and links to them stop working.",
+		"1": "Rulemart has vetted its library, so the library stays on Rulemart. Only your listing goes.",
+		"3": "Rulemart forgets it, and it stops taking one of your places.",
+		"4": "Rulemart stops checking it, so its library won't show on Rulemart",
+	} {
+		resp := site.signedInGet(t, "/account/listings/remove?listing="+id)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("listing %s: got %d", id, resp.StatusCode)
+		}
+		page := body(t, resp)
+		assertShows(t, page, "Remove this listing?", want)
+		if got := formActions(t, page); !slices.Contains(got, "/account/listings/remove?listing="+id) {
+			t.Errorf("listing %s: the page's forms post to %q", id, got)
+		}
+	}
+	if len(site.listings.removed) != 0 {
+		t.Fatalf("asking removed %v", site.listings.removed)
+	}
+	for _, target := range []string{"/account/listings/remove?listing=99", "/account/listings/remove?listing=x"} {
+		if resp := site.signedInGet(t, target); resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s answered %d, want 404", target, resp.StatusCode)
+		}
+	}
+}
+
+// Removing and trying again act on the visitor's own listing, and return to the listings page, saying so; trying a
+// listing again that isn't failing, from a page left open, says so too.
 func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	site := newListingSite(t)
 	listingsFor(site, time.Now())
 
-	for target, notice := range map[string]string{
-		"/account/listings/remove?listing=2": "listing-removed",
-		"/account/listings/retry?listing=3":  "listing-retried",
+	for _, test := range []struct{ target, notice string }{
+		{"/account/listings/remove?listing=2", "listing-removed"},
+		{"/account/listings/retry?listing=3", "listing-retried"},
+		{"/account/listings/retry?listing=4", "listing-not-failed"},
 	} {
-		resp := site.signedInPost(t, target)
+		resp := site.signedInPost(t, test.target)
 		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/account/listings" {
-			t.Fatalf("%s answered %d to %q", target, resp.StatusCode, resp.Header.Get("Location"))
+			t.Fatalf("%s answered %d to %q", test.target, resp.StatusCode, resp.Header.Get("Location"))
 		}
-		if got := cookie(resp, noticeCookie); got == nil || got.Value != notice {
-			t.Errorf("%s set the notice %v, want %s", target, got, notice)
+		if got := cookie(resp, noticeCookie); got == nil || got.Value != test.notice {
+			t.Errorf("%s set the notice %v, want %s", test.target, got, test.notice)
 		}
 	}
 	if !slices.Equal(site.listings.removed, []int64{2}) || !slices.Equal(site.listings.retried, []int64{3}) {
@@ -583,15 +674,22 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	}
 	for _, target := range []string{
 		"/account/listings/remove?listing=99", "/account/listings/remove?listing=x", "/account/listings/remove",
-		"/account/listings/retry?listing=2",
 	} {
-		if resp := site.signedInPost(t, target); resp.StatusCode != http.StatusNotFound {
+		resp := site.signedInPost(t, target)
+		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("%s answered %d, want 404", target, resp.StatusCode)
 		}
+		assertShows(t, body(t, resp), "You have no such listing. It may have been removed already. Your listings")
 	}
-	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/account/listings/remove?listing=2"})
-	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/" || len(site.listings.removed) != 1 {
-		t.Fatalf("removing signed out answered %d to %q, and removed %v", signedOut.StatusCode, signedOut.Header.Get("Location"), site.listings.removed)
+	for _, target := range []string{"/account/listings/remove?listing=3", "/account/listings/retry?listing=3"} {
+		signedOut := send(t, site.handler, request{method: http.MethodPost, target: target})
+		want := "/sign-in?" + url.Values{"return": {"/account/listings"}}.Encode()
+		if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != want {
+			t.Errorf("%s signed out answered %d to %q, want sign-in", target, signedOut.StatusCode, signedOut.Header.Get("Location"))
+		}
+	}
+	if len(site.listings.removed) != 1 || len(site.listings.retried) != 1 {
+		t.Fatalf("signed out, removed %v and retried %v", site.listings.removed, site.listings.retried)
 	}
 }
 

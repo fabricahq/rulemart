@@ -46,15 +46,17 @@ type Listings interface {
 	// together, asked for as many checks as it may.
 	CheckListing(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) error
 	// CreateListing lists the repository owner/name for the account, and returns the listing's ID, after the checks
-	// CheckListing makes, in the same transaction, which no other listing can change before it commits.
+	// CheckListing makes, in the same transaction, which no other listing can change before it commits. Another
+	// account's listing by that name that failed before its library ever ingested doesn't stand in the way: listing
+	// removes it.
 	CreateListing(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) (int64, error)
 	// AccountListings returns the account's listings, newest first.
 	AccountListings(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.AccountListing, error)
 	// RemoveListing removes the account's listing id, or fails with ErrNotFound when the account has no such listing.
 	RemoveListing(ctx context.Context, accountID, id int64) error
 	// RetryListing asks the worker to check the account's listing id again, or fails with ErrNotFound when the
-	// account has no such listing, or its last check didn't fail, or with ErrListingTooOften or ErrListingsBusy, as
-	// CheckListing does.
+	// account has no such listing, ErrListingNotFailed when its last check didn't fail, or ErrListingTooOften or
+	// ErrListingsBusy, as CheckListing does.
 	RetryListing(ctx context.Context, accountID, id int64) error
 }
 
@@ -79,6 +81,10 @@ type Stars interface {
 type ListingConflict struct {
 	// Vetted is true when the release's vetted list holds the library, and false when a listing names it.
 	Vetted bool
+	// Own is true when the listing is the account's own.
+	Own bool
+	// Checking is true when another account's listing names it, and the worker hasn't checked it yet.
+	Checking bool
 	// Library is the library already in the catalog under that name, or the zero LibraryRef when the catalog doesn't
 	// store it yet.
 	Library views.LibraryRef
@@ -90,6 +96,10 @@ func (c *ListingConflict) Error() string {
 	}
 	return "the library is listed already"
 }
+
+// ErrListingNotFailed reports a retry of the account's listing whose last check didn't fail, such as from a page
+// left open while it was checked.
+var ErrListingNotFailed = errors.New("the listing's last check didn't fail")
 
 // ErrAlreadyListed reports a repository another listing names.
 var ErrAlreadyListed = errors.New("another listing names the repository")

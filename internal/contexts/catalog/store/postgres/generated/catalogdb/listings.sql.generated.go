@@ -99,7 +99,7 @@ func (q *Queries) DeleteListing(ctx context.Context, arg DeleteListingParams) (i
 
 const findListingConflict = `-- name: FindListingConflict :one
 WITH named AS (
-    SELECT s.host_repository_id FROM listings s
+    SELECT s.account_id, s.host_repository_id, s.failure IS NOT NULL AS failed FROM listings s
     WHERE s.host = $1 AND lower(s.owner) = lower($3) AND lower(s.name) = lower($4)
 ),
 library AS (
@@ -110,14 +110,16 @@ library AS (
     )
     ORDER BY l.host_repository_id IN (SELECT n.host_repository_id FROM named n) DESC
     LIMIT 1
+),
+holder AS (
+    SELECT s.account_id FROM listings s JOIN library b ON s.host = $1 AND s.host_repository_id = b.host_repository_id
 )
-SELECT (
-           EXISTS (SELECT 1 FROM named)
-           OR EXISTS (
-               SELECT 1 FROM library b JOIN listings s ON s.host = $1 AND s.host_repository_id = b.host_repository_id
-           )
-       )::boolean AS listed,
-       EXISTS (SELECT 1 FROM library b WHERE $1 || ':' || b.host_repository_id = ANY ($2::text[]))::boolean AS vetted,
+SELECT EXISTS (SELECT 1 FROM named)::boolean AS named,
+       coalesce((SELECT n.account_id FROM named n), 0)::bigint AS named_account_id,
+       coalesce((SELECT n.failed FROM named n), false)::boolean AS named_failed,
+       EXISTS (SELECT 1 FROM holder)::boolean AS held,
+       coalesce((SELECT h.account_id FROM holder h), 0)::bigint AS holder_account_id,
+       EXISTS (SELECT 1 FROM library b WHERE $1::text || ':' || b.host_repository_id = ANY ($2::text[]))::boolean AS vetted,
        coalesce((SELECT b.owner FROM library b), '')::text AS library_owner,
        coalesce((SELECT b.name FROM library b), '')::text AS library_name
 `
@@ -130,16 +132,21 @@ type FindListingConflictParams struct {
 }
 
 type FindListingConflictRow struct {
-	Listed       bool
-	Vetted       bool
-	LibraryOwner string
-	LibraryName  string
+	Named           bool
+	NamedAccountID  int64
+	NamedFailed     bool
+	Held            bool
+	HolderAccountID int64
+	Vetted          bool
+	LibraryOwner    string
+	LibraryName     string
 }
 
 // FindListingConflict returns what already stands in the way of listing the repository owner/name, matched without
-// regard to case: a listing by that name, or a library by that name that a listing names or vetted holds. It also
-// returns the library a listing by that name names, or else the library by that name, as the host spells it now, or
-// empty names when the catalog stores neither.
+// regard to case: a listing by that name, with its account and whether its check failed; the library a listing
+// names, by that name or as the library a listing by that name names, with that listing's account; and whether
+// vetted holds a library by that name. Its library columns name that library as the host spells it now, or are empty
+// when the catalog stores none.
 func (q *Queries) FindListingConflict(ctx context.Context, arg FindListingConflictParams) (FindListingConflictRow, error) {
 	row := q.db.QueryRow(ctx, findListingConflict,
 		arg.Host,
@@ -149,7 +156,11 @@ func (q *Queries) FindListingConflict(ctx context.Context, arg FindListingConfli
 	)
 	var i FindListingConflictRow
 	err := row.Scan(
-		&i.Listed,
+		&i.Named,
+		&i.NamedAccountID,
+		&i.NamedFailed,
+		&i.Held,
+		&i.HolderAccountID,
 		&i.Vetted,
 		&i.LibraryOwner,
 		&i.LibraryName,
@@ -190,6 +201,22 @@ func (q *Queries) GetListing(ctx context.Context, id int64) (GetListingRow, erro
 		&i.Ingested,
 	)
 	return i, err
+}
+
+const hasListing = `-- name: HasListing :one
+SELECT EXISTS (SELECT 1 FROM listings WHERE id = $1 AND account_id = $2::bigint)::boolean
+`
+
+type HasListingParams struct {
+	ID        int64
+	AccountID int64
+}
+
+func (q *Queries) HasListing(ctx context.Context, arg HasListingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasListing, arg.ID, arg.AccountID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const listAccountListings = `-- name: ListAccountListings :many
@@ -373,6 +400,35 @@ type RetryListingParams struct {
 // RetryListing asks the worker to check the account's listing again, when its last check failed.
 func (q *Queries) RetryListing(ctx context.Context, arg RetryListingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, retryListing, arg.ID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const supersedeFailedListing = `-- name: SupersedeFailedListing :execrows
+DELETE FROM listings s
+WHERE s.host = $1 AND lower(s.owner) = lower($2) AND lower(s.name) = lower($3)
+  AND s.account_id <> $4::bigint AND s.failure IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id)
+`
+
+type SupersedeFailedListingParams struct {
+	Host      string
+	Owner     string
+	Name      string
+	AccountID int64
+}
+
+// SupersedeFailedListing removes another account's listing by the name owner/name whose check failed before its
+// library ever ingested, so a failed listing doesn't keep everyone else from listing the repository.
+func (q *Queries) SupersedeFailedListing(ctx context.Context, arg SupersedeFailedListingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, supersedeFailedListing,
+		arg.Host,
+		arg.Owner,
+		arg.Name,
+		arg.AccountID,
+	)
 	if err != nil {
 		return 0, err
 	}

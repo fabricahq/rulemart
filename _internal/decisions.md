@@ -14,8 +14,9 @@ than adding history.
   a vetted one takes none. The cap bounds the unvetted area, the worker's hourly checks, and what someone with many
   GitHub accounts can add. Ingestion's size and memory limits apply to every library, and nothing runs a library's
   files.
-- **A listing records who listed it, and pages don't say.** The lister can remove it at any time, which hides the
-  library again. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
+- **A listing records who listed it, and pages don't say.** The lister can remove it at any time, after a page that
+  says what removing does, which hides the library again. A listing that failed before its library ever ingested
+  doesn't reserve the repository: another account listing it replaces it. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
 - **An account lists or retries at most 20 times a day, and every account together at most 100 times an hour**,
   since each one makes the worker check a repository, and may cost a GitHub API call.
 - **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by its code host and

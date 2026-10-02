@@ -191,20 +191,24 @@ func TestCreateListingRefusesARepositoryListedOrVettedAlready(t *testing.T) {
 	c.resolve(t, c.list(t, first, "stranger", "old-rules"), "23")
 	c.list(t, first, "someone", "pending")
 
+	strangerRules := views.LibraryRef{Owner: "stranger", Name: "rules"}
 	for name, test := range map[string]struct {
+		account     int64
 		owner, name string
 		want        store.ListingConflict
 	}{
-		"the name a listing gave, in another case": {"Stranger", "OLD-RULES", store.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}}},
-		"the name of a library a listing names":    {"stranger", "rules", store.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}}},
-		"a listing not checked yet":                {"someone", "pending", store.ListingConflict{}},
-		"a vetted library":                         {"acme", "backend", store.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "acme", Name: "backend"}}},
+		"the name another's listing gave, in another case": {second, "Stranger", "OLD-RULES", store.ListingConflict{Library: strangerRules}},
+		"the name of a library another's listing names":    {second, "stranger", "rules", store.ListingConflict{Library: strangerRules}},
+		"another's listing not checked yet":                {second, "someone", "pending", store.ListingConflict{Checking: true}},
+		"one's own listing not checked yet":                {first, "someone", "pending", store.ListingConflict{Own: true}},
+		"the name of a library one's own listing names":    {first, "stranger", "rules", store.ListingConflict{Own: true, Library: strangerRules}},
+		"a vetted library":                                 {first, "acme", "backend", store.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "acme", Name: "backend"}}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			for _, check := range []func() error{
-				func() error { return c.web.CheckListing(ctx, vettedBoth, second, test.owner, test.name) },
+				func() error { return c.web.CheckListing(ctx, vettedBoth, test.account, test.owner, test.name) },
 				func() error {
-					_, err := c.web.CreateListing(ctx, vettedBoth, second, test.owner, test.name)
+					_, err := c.web.CreateListing(ctx, vettedBoth, test.account, test.owner, test.name)
 					return err
 				},
 			} {
@@ -217,6 +221,33 @@ func TestCreateListingRefusesARepositoryListedOrVettedAlready(t *testing.T) {
 	}
 	if err := c.web.CheckListing(ctx, vettedBoth, second, "someone", "else"); err != nil {
 		t.Errorf("a new repository: got %v", err)
+	}
+}
+
+// A listing whose check failed before its library ever ingested doesn't keep another account from listing the
+// repository: listing it removes the failed one. Its own lister still sees it, and is told it's theirs.
+func TestAFailedListingDoesntReserveItsRepository(t *testing.T) {
+	c := newListingCatalog(t)
+	ctx := context.Background()
+	first, second := c.account(t, 1), c.account(t, 2)
+	failed := c.list(t, first, "someone", "broken")
+	c.resolve(t, failed, "98")
+	c.record(t, failed, "The repository has no release/<number> tags.")
+
+	var conflict *store.ListingConflict
+	if err := c.web.CheckListing(ctx, vettedBoth, first, "someone", "broken"); !errors.As(err, &conflict) || !conflict.Own {
+		t.Fatalf("its own lister: got %v, want its own listing", err)
+	}
+	if err := c.web.CheckListing(ctx, vettedBoth, second, "Someone", "Broken"); err != nil {
+		t.Fatalf("another account's check: %v", err)
+	}
+	c.list(t, second, "Someone", "Broken")
+
+	if listings, err := c.web.AccountListings(ctx, vettedBoth, first); err != nil || len(listings) != 0 {
+		t.Fatalf("the first lister's listings are %+v, %v; want the failed one gone", listings, err)
+	}
+	if listings, err := c.web.AccountListings(ctx, vettedBoth, second); err != nil || len(listings) != 1 || listings[0].State != domain.ListingChecking {
+		t.Fatalf("the second lister's listings are %+v, %v; want one being checked", listings, err)
 	}
 }
 
@@ -343,8 +374,8 @@ func TestRemoveAndRetryActOnlyOnTheAccountsOwnListings(t *testing.T) {
 	account, other := c.account(t, 1), c.account(t, 2)
 	id := c.list(t, account, "someone", "rules")
 
-	if err := c.web.RetryListing(ctx, account, id); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("retry before a failure: got %v, want store.ErrNotFound", err)
+	if err := c.web.RetryListing(ctx, account, id); !errors.Is(err, store.ErrListingNotFailed) {
+		t.Errorf("retry before a failure: got %v, want store.ErrListingNotFailed", err)
 	}
 	c.record(t, id, "broken")
 	if err := c.web.RetryListing(ctx, other, id); !errors.Is(err, store.ErrNotFound) {

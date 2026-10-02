@@ -152,8 +152,8 @@ templ signInPage(c chrome, view signInView) {
 // accountPage shows the signed-in visitor what Rulemart keeps about them, and lets them sign out, everywhere at once,
 // or delete their account. Deleting asks first, by opening a disclosure, so it takes two deliberate clicks.
 templ accountPage(c chrome, account accountView) {
-	@layout(c, head{title: "Account · Rulemart", noindex: true}) {
-		<div class="page wrap max-w-[44rem]">
+	@layout(c, head{title: "Account · Rulemart", noindex: true, narrow: true}) {
+		<div class={ "page wrap", narrowPage }>
 			@label("") {
 				Account
 			}

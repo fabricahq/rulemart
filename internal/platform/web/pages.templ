@@ -134,10 +134,10 @@ templ librariesPage(c chrome, libraries []libraryCard, canList bool) {
 				}
 			</div>
 			<div class="mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border-subtle pt-6 text-[14px]">
-				<p class="max-w-[40rem] text-muted">Anyone signed in can list a library. Rulemart hasn't reviewed the ones it hasn't vetted.</p>
+				<p class="max-w-[40rem] text-muted">Libraries that people list show apart, under a warning, until Rulemart reviews and vets them.</p>
 				<div class="flex flex-wrap items-center gap-x-5 gap-y-2">
 					if canList {
-						<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(listHref) }>List a library ›</a>
+						<a class="text-ink no-underline hover:underline" href={ templ.SafeURL(listHref) }>List a library ›</a>
 					}
 					<a class="text-ink no-underline hover:underline" href={ templ.SafeURL(unvettedHref) } rel="nofollow">View unvetted libraries ›</a>
 				</div>

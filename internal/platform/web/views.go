@@ -305,6 +305,10 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	if n := len(page.Versions); n > 1 {
 		v.compareHref = ruleComparisonHref(lib, r.Path, page.Versions[n-1].Version, page.Versions[0].Version, diffWords)
 	}
+	if !lib.vetted {
+		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
+		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
+	}
 	if retirement := r.Retirement; retirement != nil {
 		v.retired = &retiredView{
 			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
@@ -448,6 +452,16 @@ func breakParts(text, separators string) []string {
 
 // labelStyle is the type of a label: small, uppercase, and spaced.
 const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercase"
+
+// linkTag matches the start of a link's tag.
+var linkTag = regexp.MustCompile(`<a\s`)
+
+// untrustedLinks returns rendered, HTML that ingestion's renderer wrote, with every link marked rel="nofollow ugc", as
+// links an unvetted library's author wrote. The renderer escapes every < in text and writes no rel, so only its link
+// tags match.
+func untrustedLinks(rendered string) string {
+	return linkTag.ReplaceAllLiteralString(rendered, `<a rel="nofollow ugc" `)
+}
 
 // headingTag matches the start or end tag of an HTML heading of levels 1 to 5.
 var headingTag = regexp.MustCompile(`<(/?)h([1-5])\b`)

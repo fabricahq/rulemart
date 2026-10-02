@@ -45,6 +45,11 @@ func (s *Store) CreateListing(ctx context.Context, vetted []domain.LibraryKey, a
 			if err := q.LockListings(ctx); err != nil {
 				return fmt.Errorf("lock listings: %v", err)
 			}
+			if _, err := q.SupersedeFailedListing(ctx, catalogdb.SupersedeFailedListingParams{
+				Host: domain.GitHub, Owner: owner, Name: name, AccountID: accountID,
+			}); err != nil {
+				return fmt.Errorf("supersede a failed listing: %v", err)
+			}
 			if err := checkListing(ctx, q, vetted, accountID, owner, name); err != nil {
 				return err
 			}
@@ -72,11 +77,7 @@ func checkListing(ctx context.Context, q *catalogdb.Queries, vetted []domain.Lib
 	if err != nil {
 		return fmt.Errorf("find listings by name: %v", err)
 	}
-	if conflict.Listed || conflict.Vetted {
-		c := &store.ListingConflict{Vetted: conflict.Vetted}
-		if conflict.LibraryOwner != "" {
-			c.Library = views.LibraryRef{Owner: conflict.LibraryOwner, Name: conflict.LibraryName}
-		}
+	if c := listingConflict(conflict, accountID); c != nil {
 		return c
 	}
 	counts, err := q.CountUnvettedListings(ctx, catalogdb.CountUnvettedListingsParams{AccountID: accountID, Vetted: keys})
@@ -101,6 +102,27 @@ func checkRequests(ctx context.Context, q *catalogdb.Queries, accountID int64) e
 		return store.ErrListingTooOften
 	case requests.AllRequests >= domain.MaxListingRequestsPerHour:
 		return store.ErrListingsBusy
+	}
+	return nil
+}
+
+// listingConflict returns what keeps the account from listing a repository, by what FindListingConflict found, or nil
+// when nothing does: no listing or vetted library has its name, or only another account's listing whose check
+// failed before its library ever ingested, which listing removes.
+func listingConflict(found catalogdb.FindListingConflictRow, accountID int64) *store.ListingConflict {
+	var library views.LibraryRef
+	if found.LibraryOwner != "" {
+		library = views.LibraryRef{Owner: found.LibraryOwner, Name: found.LibraryName}
+	}
+	switch {
+	case found.Vetted:
+		return &store.ListingConflict{Vetted: true, Library: library}
+	case (found.Named && found.NamedAccountID == accountID) || (found.Held && found.HolderAccountID == accountID):
+		return &store.ListingConflict{Own: true, Library: library}
+	case found.Held:
+		return &store.ListingConflict{Library: library}
+	case found.Named && !found.NamedFailed:
+		return &store.ListingConflict{Checking: true}
 	}
 	return nil
 }
@@ -141,7 +163,7 @@ func (s *Store) RemoveListing(ctx context.Context, accountID, id int64) error {
 }
 
 // RetryListing asks the worker to check the account's listing id again, or fails with store.ErrNotFound when the
-// account has no such listing, or its last check didn't fail, or as checkRequests does. It holds the lock every
+// account has no such listing, store.ErrListingNotFailed when its last check didn't fail, or as checkRequests does. It holds the lock every
 // listing takes, as CreateListing does.
 func (s *Store) RetryListing(ctx context.Context, accountID, id int64) error {
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
@@ -151,10 +173,17 @@ func (s *Store) RetryListing(ctx context.Context, accountID, id int64) error {
 				return fmt.Errorf("lock listings: %v", err)
 			}
 			retried, err := q.RetryListing(ctx, catalogdb.RetryListingParams{ID: id, AccountID: accountID})
-			switch {
-			case err != nil:
+			if err != nil {
 				return err
-			case retried == 0:
+			}
+			if retried == 0 {
+				has, err := q.HasListing(ctx, catalogdb.HasListingParams{ID: id, AccountID: accountID})
+				switch {
+				case err != nil:
+					return err
+				case has:
+					return store.ErrListingNotFailed
+				}
 				return store.ErrNotFound
 			}
 			if err := checkRequests(ctx, q, accountID); err != nil {

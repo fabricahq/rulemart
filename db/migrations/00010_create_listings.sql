@@ -15,8 +15,8 @@ CREATE TABLE listings (
     account_id bigint NOT NULL REFERENCES accounts ON DELETE CASCADE,
     host text NOT NULL CHECK (host IN ('github')),
     -- The repository's owner and name as the lister gave them, which GitHub's names allow.
-    owner text NOT NULL CHECK (owner ~ '^[A-Za-z0-9-]{1,39}$'),
-    name text NOT NULL CHECK (name ~ '^[A-Za-z0-9._-]{1,100}$' AND name NOT IN ('.', '..')),
+    owner text NOT NULL CHECK (owner ~ '^[A-Za-z0-9]([A-Za-z0-9-]{0,37}[A-Za-z0-9])?$'),
+    name text NOT NULL CHECK (name ~ '^[A-Za-z0-9._-]{1,100}$' AND name NOT IN ('.', '..') AND lower(name) NOT LIKE '%.git'),
     -- The host's ID for the repository, once the worker has looked it up: the key vetting and the catalog use.
     host_repository_id text CHECK (host_repository_id ~ '^[1-9][0-9]*$'),
     created_at timestamptz NOT NULL DEFAULT now(),

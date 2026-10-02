@@ -123,7 +123,7 @@ func searchPage(c chrome, v searchView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = example("jitter or backoff").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = example("testing or errors").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

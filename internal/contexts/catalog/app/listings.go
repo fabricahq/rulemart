@@ -24,6 +24,8 @@ var (
 	ErrAccountListingLimit = store.ErrAccountListingLimit
 	// ErrListingsFull reports that Rulemart holds domain.MaxUnvettedListings unvetted listings.
 	ErrListingsFull = store.ErrListingsFull
+	// ErrListingNotFailed reports a retry of a listing whose last check didn't fail.
+	ErrListingNotFailed = store.ErrListingNotFailed
 	// ErrListingTooOften reports an account that listed or retried domain.MaxAccountListingRequests times today.
 	ErrListingTooOften = store.ErrListingTooOften
 	// ErrListingsBusy reports that every account together listed or retried domain.MaxListingRequestsPerHour times in
@@ -97,8 +99,8 @@ func (l Listings) Remove(ctx context.Context, accountID, id int64) error {
 }
 
 // Retry asks the worker to check the account's listing id again, and queues the check, as List does. It fails with
-// ErrNotFound when the account has no such listing, or its last check didn't fail, and with ErrListingTooOften or
-// ErrListingsBusy as Check does.
+// ErrNotFound when the account has no such listing, ErrListingNotFailed when its last check didn't fail, and
+// ErrListingTooOften or ErrListingsBusy as Check does.
 func (l Listings) Retry(ctx context.Context, accountID, id int64) error {
 	if err := l.Store.RetryListing(ctx, accountID, id); err != nil {
 		return err
