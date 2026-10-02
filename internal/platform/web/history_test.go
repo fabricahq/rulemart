@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -175,7 +176,7 @@ func TestReleaseComparisonShowsWhatChangedAndTheText(t *testing.T) {
 		"<script>alert(1)</script>",
 	)
 	for _, want := range []string{
-		`<del class="rounded-[2px] bg-del-word decoration-del-ink">every</del><ins class="rounded-[2px] bg-add-word no-underline">each</ins>`,
+		`<del>every</del><ins>each</ins>`,
 		`&lt;script&gt;alert(1)&lt;/script&gt;`,
 		`<meta name="robots" content="noindex">`,
 	} {
@@ -250,6 +251,41 @@ func TestRuleComparisonSaysWhenItCantShowTheText(t *testing.T) {
 
 	assertShows(t, missing, "Rulemart doesn't have the text of these versions yet. It reads them the next time it updates the library.")
 	assertShows(t, same, "Choose two different versions to compare.")
+}
+
+// Short text can make a long diff: every line changed, or a few words in each of thousands of paragraphs. A page
+// renders a bounded number of a diff's rows and marks, so it stays far below what one response can hold, and says
+// when it can't show them.
+func TestRuleComparisonBoundsWhatItRenders(t *testing.T) {
+	var lines, oldBlocks, newBlocks strings.Builder
+	for i := range 10000 {
+		lines.WriteString("a\n")
+		if i < 3000 {
+			fmt.Fprintf(&oldBlocks, "Unchanged %d.\n\nx x x x\n\n", i)
+			fmt.Fprintf(&newBlocks, "Unchanged %d.\n\nx y x y\n\n", i)
+		}
+	}
+	for name, tc := range map[string]struct {
+		text views.ComparedText
+		view string
+	}{
+		"every line changed, as lines":                       {views.ComparedText{Old: lines.String(), New: strings.ReplaceAll(lines.String(), "a", "b")}, "lines"},
+		"changed words in thousands of paragraphs, as words": {views.ComparedText{Old: oldBlocks.String(), New: newBlocks.String()}, "words"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := historyCatalog()
+			comparison := c.ruleComparisons["example/rules/techs/go/return-errors 1.0.0...2.0.0"]
+			comparison.Text = tc.text
+			c.ruleComparisons["example/rules/techs/go/return-errors 1.0.0...2.0.0"] = comparison
+
+			resp := get(t, newSite(t, c), errorsRule+"?tab=versions&from=1.0.0&to=2.0.0&view="+tc.view)
+
+			if resp.Code != http.StatusOK || resp.Body.Len() > 256<<10 {
+				t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
+			}
+			assertShows(t, resp.Body.String(), "These changes are too large to show here.")
+		})
+	}
 }
 
 // A retired rule's page says when and why it was retired, and leads to what replaced it and to its versions.

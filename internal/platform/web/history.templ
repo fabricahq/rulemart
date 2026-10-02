@@ -307,9 +307,10 @@ templ diffUnavailable(d diffView, why string) {
 	</p>
 }
 
-// wordDiff shows the new Markdown with its changed words marked, folding unchanged blocks away from a change.
+// wordDiff shows the new Markdown with its changed words marked, folding unchanged blocks away from a change. A diff
+// repeats its blocks and marks for every change, so they take short markup that the stylesheet's diff rules style.
 templ wordDiff(parts []textdiff.Part) {
-	<div class="grid gap-[1.1em] px-4 py-3.5 font-mono text-[12.5px] leading-[1.65]">
+	<div class="diff diff-words grid gap-[1.1em] px-4 py-3.5 font-mono text-[12.5px] leading-[1.65]">
 		for _, part := range parts {
 			if part.Folded {
 				<details class="group">
@@ -318,22 +319,20 @@ templ wordDiff(parts []textdiff.Part) {
 					</summary>
 					<div class="grid gap-[1.1em]">
 						for _, block := range part.Blocks {
-							@diffBlock(block)
+							<div class="b">
+								@segments(block.Segments)
+							</div>
 						}
 					</div>
 				</details>
 			} else {
 				for _, block := range part.Blocks {
-					@diffBlock(block)
+					<div class="b">
+						@segments(block.Segments)
+					</div>
 				}
 			}
 		}
-	</div>
-}
-
-templ diffBlock(block textdiff.Block) {
-	<div class="whitespace-pre-wrap [overflow-wrap:anywhere]">
-		@segments(block.Segments)
 	</div>
 }
 
@@ -342,9 +341,9 @@ templ segments(list []textdiff.Segment) {
 	for _, s := range list {
 		switch s.Op {
 			case textdiff.Delete:
-				<del class="rounded-[2px] bg-del-word decoration-del-ink">{ s.Text }</del>
+				<del>{ s.Text }</del>
 			case textdiff.Insert:
-				<ins class="rounded-[2px] bg-add-word no-underline">{ s.Text }</ins>
+				<ins>{ s.Text }</ins>
 			default:
 				{ s.Text }
 		}
@@ -353,29 +352,22 @@ templ segments(list []textdiff.Segment) {
 
 // lineDiff shows a unified diff: each hunk's header, then its lines numbered on each side.
 templ lineDiff(d textdiff.LineDiff) {
-	<table class="w-full table-fixed border-collapse font-mono text-[12.5px] leading-[1.6]">
+	<table class="diff diff-lines">
 		<colgroup>
-			<col class="w-[3.4em] max-narrow:w-[2.8em]"/>
-			<col class="w-[3.4em] max-narrow:w-[2.8em]"/>
-			<col class="w-[1.6em]"/>
+			<col class="n"/>
+			<col class="n"/>
+			<col class="s"/>
 			<col/>
 		</colgroup>
 		for _, h := range d.Hunks {
-			<tr>
-				<td class="bg-surface px-4 py-1 text-faint" colspan="4">{ hunkHeader(h) }</td>
-			</tr>
+			<tr class="h"><td colspan="4">{ hunkHeader(h) }</td></tr>
 			for _, line := range h.Lines {
-				<tr class={ templ.KV("bg-add-line", line.Op == textdiff.Insert), templ.KV("bg-del-line", line.Op == textdiff.Delete) }>
-					<td class="px-2 text-right align-top text-faint select-none max-narrow:px-1">{ lineNumber(line.Old) }</td>
-					<td class="px-2 text-right align-top text-faint select-none max-narrow:px-1">{ lineNumber(line.New) }</td>
-					<td class="text-center align-top text-muted select-none">{ lineSign(line.Op) }</td>
-					<td class="pr-4 pl-2 align-top whitespace-pre-wrap [overflow-wrap:anywhere] [&_del]:no-underline">
-						if len(line.Segments) == 0 {
-							{ " " }
-						}
-						@segments(line.Segments)
-					</td>
-				</tr>
+				<tr class={ lineClass(line.Op) }><td>{ lineNumber(line.Old) }</td><td>{ lineNumber(line.New) }</td><td>{ lineSign(line.Op) }</td><td>
+					if len(line.Segments) == 0 {
+						{ " " }
+					}
+					@segments(line.Segments)
+				</td></tr>
 			}
 		}
 	</table>

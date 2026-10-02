@@ -274,6 +274,17 @@ func lineNumber(n int) string {
 	return strconv.Itoa(n)
 }
 
+// lineClass is the class of a deleted or inserted line's row, which the stylesheet colors; empty for any other.
+func lineClass(op textdiff.Op) string {
+	switch op {
+	case textdiff.Delete:
+		return "d"
+	case textdiff.Insert:
+		return "i"
+	}
+	return ""
+}
+
 // lineSign marks a deleted or inserted line, as a unified diff does.
 func lineSign(op textdiff.Op) string {
 	switch op {
@@ -343,10 +354,11 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 		v.summary = plural(len(comparison.Changes), "rule", "rules") + " changed between " + v.fromTag + " and " + v.toTag +
 			": " + countPhrase(comparison.Changes) + "."
 	}
+	budget := newDiffBudget()
 	for _, c := range comparison.Changes {
 		switch c.Change {
 		case coderules.ChangeMajor, coderules.ChangeMinor, coderules.ChangePatch:
-			d := newDiffView(lib, c.Rule.Path, c.From, c.To, c.Text, mode)
+			d := newDiffView(lib, c.Rule.Path, c.From, c.To, c.Text, mode, budget)
 			d.title = titleOrID(c.Rule.Title, c.Rule.Path)
 			v.diffs = append(v.diffs, d)
 		}
@@ -396,8 +408,54 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 		}
 	}
 	v.span = "Between " + domain.ReleaseTag(fromRelease) + " and " + domain.ReleaseTag(toRelease) + "."
-	v.diff = newDiffView(lib, r.id, from, to, comparison.Text, mode)
+	v.diff = newDiffView(lib, r.id, from, to, comparison.Text, mode, newDiffBudget())
 	return v
+}
+
+// maxDiffMarks bounds how many rows, blocks, and marks one page's diffs render. Short text can make a long diff, such
+// as every line of a file changed, so the text a page compares doesn't bound what it renders; this keeps a page's
+// diffs to a few hundred kilobytes of markup, well within what one response can hold, while showing ordinary changes
+// to dozens of rules.
+const maxDiffMarks = 10_000
+
+// diffBudget is what's left of maxDiffMarks for the diffs a page has yet to show.
+type diffBudget struct {
+	left int
+}
+
+func newDiffBudget() *diffBudget { return &diffBudget{left: maxDiffMarks} }
+
+// spend takes n marks from the budget, or reports false, taking none, when fewer are left.
+func (b *diffBudget) spend(n int) bool {
+	if n > b.left {
+		return false
+	}
+	b.left -= n
+	return true
+}
+
+// lineMarks counts what a line diff renders: each hunk's header, and each line with its segments.
+func lineMarks(d textdiff.LineDiff) int {
+	n := 0
+	for _, h := range d.Hunks {
+		n++
+		for _, line := range h.Lines {
+			n += 1 + len(line.Segments)
+		}
+	}
+	return n
+}
+
+// wordMarks counts what a word diff renders: each part, and each block with its segments.
+func wordMarks(parts []textdiff.Part) int {
+	n := 0
+	for _, p := range parts {
+		n++
+		for _, b := range p.Blocks {
+			n += 1 + len(b.Segments)
+		}
+	}
+	return n
 }
 
 // diffView is one rule file's changes between two versions.
@@ -417,8 +475,9 @@ type diffView struct {
 	lines          textdiff.LineDiff
 }
 
-// newDiffView compares rule rulePath's versions from and to in lib, whose text is text, as mode says.
-func newDiffView(lib libraryView, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode) diffView {
+// newDiffView compares rule rulePath's versions from and to in lib, whose text is text, as mode says, spending budget
+// on what it renders. A diff that needs more than is left shows as too large.
+func newDiffView(lib libraryView, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
 	file := domain.RuleFile(rulePath)
 	d := diffView{
 		path: file, href: ruleHref(lib, rulePath), from: from.String(), to: to.String(),
@@ -430,8 +489,13 @@ func newDiffView(lib libraryView, rulePath string, from, to coderules.RuleVersio
 	}
 	d.lines = textdiff.Lines(text.Old, text.New)
 	d.added, d.removed, d.unchanged = d.lines.Added, d.lines.Removed, len(d.lines.Hunks) == 0
+	marks := lineMarks(d.lines)
 	if mode == diffWords {
 		d.words = textdiff.Words(text.Old, text.New)
+		marks = wordMarks(d.words)
+	}
+	if !budget.spend(marks) {
+		d.state, d.lines, d.words = views.TextTooLarge, textdiff.LineDiff{}, nil
 	}
 	return d
 }

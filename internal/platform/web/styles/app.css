@@ -155,6 +155,27 @@
   .prose td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
   .prose > :first-child { margin-top: 0; }
 
+  /* A diff, which repeats its rows and marks for every changed line or word: short markup, styled here, keeps a
+     comparison's page small. */
+  .diff ins { background: var(--add-word); text-decoration: none; border-radius: 2px; }
+  .diff del { background: var(--del-word); text-decoration: line-through; text-decoration-color: var(--del-ink); border-radius: 2px; }
+  .diff-words .b { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff-lines { width: 100%; table-layout: fixed; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+  .diff-lines col.n { width: 3.4em; }
+  .diff-lines col.s { width: 1.6em; }
+  .diff-lines td { padding: 0 8px; vertical-align: top; }
+  .diff-lines td:nth-child(-n+2) { text-align: right; color: var(--faint); user-select: none; }
+  .diff-lines td:nth-child(3) { padding: 0; text-align: center; color: var(--muted); user-select: none; }
+  .diff-lines td:nth-child(4) { padding-right: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .diff-lines tr.i { background: var(--add-line); }
+  .diff-lines tr.d { background: var(--del-line); }
+  .diff-lines del { text-decoration: none; }
+  .diff-lines tr.h td { padding: 4px 16px; background: var(--surface); color: var(--faint); text-align: left; user-select: auto; }
+  @media (width < 45rem) {
+    .diff-lines col.n { width: 2.8em; }
+    .diff-lines td:nth-child(-n+2) { padding: 0 4px; }
+  }
+
   /* Highlighted code, in the docs site's code palette. Ingestion assigns these classes. */
   .hl-keyword { color: var(--code-keyword); }
   .hl-string { color: var(--code-string); }
