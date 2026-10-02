@@ -29,8 +29,8 @@ type Hunk struct {
 type Line struct {
 	Op       Op
 	Old, New int
-	// Segments are the line's text. A deleted line paired with an inserted one, its replacement, marks the words
-	// that changed: Delete segments on the deleted line, Insert segments on the inserted one. Any other line is one
+	// Segments are the line's text. A deleted line paired with an inserted one, its replacement, marks the words and
+	// whitespace that changed: Delete segments on the deleted line, Insert segments on the inserted one. Any other line is one
 	// Equal segment, or none when it's blank.
 	Segments []Segment
 }
@@ -162,7 +162,7 @@ func pairReplacedLines(edits []edit, a, b []string) map[int][]Segment {
 		}
 		for x := range min(len(deleted), len(inserted)) {
 			d, i := deleted[x], inserted[x]
-			marks[d], marks[i], _ = compareWords(a[edits[d].i], b[edits[i].j])
+			marks[d], marks[i], _ = compareWords(a[edits[d].i], b[edits[i].j], true)
 		}
 	}
 	return marks

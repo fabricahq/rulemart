@@ -24,13 +24,14 @@ type Block struct {
 	Segments []Segment
 }
 
-// Words compares old and new Markdown block by block, ignoring changes in whitespace alone, such as a rewrapped
-// paragraph, and marks the words that changed in each changed stretch. It shows the unchanged block on each side of
+// Words compares old and new Markdown block by block, ignoring changes in whitespace alone in prose, such as a
+// rewrapped paragraph, and marks the words that changed in each changed stretch. Whitespace can change what code
+// does, so a code block is compared, and marked, as it is. It shows the unchanged block on each side of
 // a change for context, unless it's the frontmatter, which says nothing about the change, and folds the other
 // unchanged blocks. Identical texts give one folded part, or none when they're empty.
 func Words(old, new string) []Part {
 	a, b := markdownBlocks(old), markdownBlocks(new)
-	edits := diff(normalized(a), normalized(b))
+	edits := diff(blockKeys(a), blockKeys(b))
 	var parts []Part
 	var unchanged []string
 	seenChange := false
@@ -43,14 +44,17 @@ func Words(old, new string) []Part {
 		parts = appendUnchanged(parts, unchanged, !seenChange, false)
 		unchanged, seenChange = nil, true
 		var deleted, inserted []string
+		code := false
 		for ; k < len(edits) && edits[k].op != Equal; k++ {
 			if edits[k].op == Delete {
 				deleted = append(deleted, a[edits[k].i])
+				code = code || isCode(a[edits[k].i])
 			} else {
 				inserted = append(inserted, b[edits[k].j])
+				code = code || isCode(b[edits[k].j])
 			}
 		}
-		_, _, both := compareWords(strings.Join(deleted, "\n\n"), strings.Join(inserted, "\n\n"))
+		_, _, both := compareWords(strings.Join(deleted, "\n\n"), strings.Join(inserted, "\n\n"), code)
 		parts = append(parts, Part{Blocks: []Block{{Changed: true, Segments: both}}})
 	}
 	return appendUnchanged(parts, unchanged, !seenChange, true)
@@ -114,33 +118,53 @@ func markdownBlocks(text string) []string {
 	return blocks
 }
 
-// normalized returns each block with its runs of whitespace collapsed to one space and trimmed, so blocks that
-// differ only in whitespace compare equal.
-func normalized(blocks []string) []string {
+// blockKeys returns what each block compares by: a code block as it is, and any other with its runs of whitespace
+// collapsed to one space and trimmed, so prose that differs only in whitespace compares equal.
+func blockKeys(blocks []string) []string {
 	keys := make([]string, len(blocks))
 	for i, block := range blocks {
-		keys[i] = strings.Join(strings.Fields(block), " ")
+		if isCode(block) {
+			keys[i] = block
+		} else {
+			keys[i] = strings.Join(strings.Fields(block), " ")
+		}
 	}
 	return keys
 }
 
+// isCode reports whether a block from markdownBlocks is code: fenced, or with every line indented by four spaces or
+// a tab.
+func isCode(block string) bool {
+	if strings.HasPrefix(block, "```") || strings.HasPrefix(block, "~~~") {
+		return true
+	}
+	for _, line := range strings.Split(block, "\n") {
+		if !strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "\t") {
+			return false
+		}
+	}
+	return true
+}
+
 // compareWords compares old and new as runs of words and whitespace, and returns three views of the result: old's
-// text with its deleted words marked, new's with its inserted words marked, and both together in reading order.
-// Whitespace always compares equal, so only words change, and a space between two changed words joins them into one
-// change.
-func compareWords(old, new string) (oldMarks, newMarks, both []Segment) {
+// text with its deleted words marked, new's with its inserted words marked, and both together in reading order. A
+// space between two changed words joins them into one change. Unless exact, whitespace always compares equal, so only
+// words change; exact compares and marks whitespace as it is.
+func compareWords(old, new string, exact bool) (oldMarks, newMarks, both []Segment) {
 	a, b := splitWords(old), splitWords(new)
-	edits := diff(wordKeys(a), wordKeys(b))
+	edits := diff(wordKeys(a, exact), wordKeys(b, exact))
 	var o, n, t segmentBuilder
 	var deleted, inserted strings.Builder
+	// marked reports whether a run of changed text shows as a change: unless exact, whitespace alone doesn't.
+	marked := func(text string) bool { return text != "" && (exact || strings.TrimSpace(text) != "") }
 	flush := func() {
-		if text := deleted.String(); strings.TrimSpace(text) != "" {
+		if text := deleted.String(); marked(text) {
 			o.add(Delete, text)
 			t.add(Delete, text)
 		} else {
 			o.add(Equal, text)
 		}
-		if text := inserted.String(); strings.TrimSpace(text) != "" {
+		if text := inserted.String(); marked(text) {
 			n.add(Insert, text)
 			t.add(Insert, text)
 		} else {
@@ -194,11 +218,12 @@ func isSpace(word string) bool {
 	return false
 }
 
-// wordKeys returns what each run compares by: whitespace as one space, so any two runs of it are equal.
-func wordKeys(words []string) []string {
+// wordKeys returns what each run compares by: itself when exact, and otherwise whitespace as one space, so any two
+// runs of it are equal.
+func wordKeys(words []string, exact bool) []string {
 	keys := make([]string, len(words))
 	for i, word := range words {
-		if isSpace(word) {
+		if isSpace(word) && !exact {
 			keys[i] = " "
 		} else {
 			keys[i] = word

@@ -195,6 +195,8 @@ func TestLinesShowsHunksWithContextAndChangedWords(t *testing.T) {
 		// As in git, a side with no lines starts at the line before the hunk.
 		"a new file":             {"", "one\ntwo\n", "+2 -0\n@@ -0,0 +1,2 @@\n0 1 +one\n0 2 +two\n"},
 		"lines added at the end": {"a\n", "a\nb\n", "+1 -0\n@@ -1,1 +1,2 @@\n1 1  a\n0 2 +b\n"},
+		// A line's text is compared as it is, so a change of indentation alone is marked.
+		"indentation alone": {"if x:\n    run()\n", "if x:\nrun()\n", "+1 -1\n@@ -1,2 +1,2 @@\n1 1  if x:\n2 0 -[-    -]run()\n0 2 +run()\n"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := describeLines(Lines(tc.old, tc.new)); got != tc.want {
@@ -246,6 +248,11 @@ func TestWordsMarksChangedWordsAndFoldsUnchangedBlocks(t *testing.T) {
 		// A space between two changed words joins them into one change.
 		"neighboring changed words are one change": {"Stop after three tries.\n", "Stop before four tries.\n",
 			"*Stop [-after three-]{+before four+} tries.\n"},
+		// Whitespace can change what code does, so in a code block it's compared, and marked, as it is.
+		"indentation in a fenced code block": {"Intro.\n\n```py\nif ready:\n    run()\n```\n", "Intro.\n\n```py\nif ready:\nrun()\n```\n",
+			" Intro.\n*```py⏎if ready:[-⏎    -]{+⏎+}run()⏎```\n"},
+		"indentation in an indented code block": {"Intro.\n\n    a\n      b\n", "Intro.\n\n    a\n    b\n",
+			" Intro.\n*    a[-⏎      -]{+⏎    +}b\n"},
 		// A fenced code block is one block, blank lines and all.
 		"a code block stays whole": {"```go\na := 1\n\nb := 2\n```\n", "```go\na := 1\n\nb := 3\n```\n",
 			"*```go⏎a := 1⏎⏎b := [-2-]{+3+}⏎```\n"},
