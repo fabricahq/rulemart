@@ -42,9 +42,10 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 | Without Rulemart | With Rulemart |
 | --- | --- |
-| Write every rule yourself, or search GitHub for libraries one repository at a time | Browse rules by technology and practice, and search across every vetted library |
-| Copy rules by hand and lose track of where they came from | Check out with a prompt that has your agent import them with Code Rules, which records each rule's source and version |
-| Read a library's history to see what changed | See each rule's versions, and what changed between any two |
+| Write every rule yourself | Pick rules other teams proved |
+| Search GitHub one repository at a time | Browse by technology and practice, search across libraries |
+| Copy rules by hand, lose their source | Check out a prompt; Code Rules records each rule's source and version |
+| Dig through a library's history | See each rule's versions and what changed |
 
 ## Quick start
 

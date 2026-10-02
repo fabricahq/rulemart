@@ -35,3 +35,5 @@ python3 brand/assets.py
 Install the packages in `requirements.txt` and `rsvg-convert`, then run `python3 brand/build.py`. It writes the large
 renders and the ZIP too, which `.gitignore` keeps out of the repository, and rewrites `SHA256SUMS` over every file
 in this directory; keep only the lines for committed files before committing it.
+
+`guide.html` differs from the package in one line: its package download link leads to this directory, since the repository holds no ZIP. `SHA256SUMS` records the checksum of that edited file.
