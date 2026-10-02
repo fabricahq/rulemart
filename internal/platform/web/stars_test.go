@@ -162,7 +162,7 @@ func TestALibrarysPagesOfferAVisitorWhoIsntSignedInToSignInAndStar(t *testing.T)
 
 	for _, path := range []string{library, library + "?tab=rules", library + "?tab=releases", library + "?tab=releases&from=1&to=3"} {
 		resp := send(t, site.handler, request{method: http.MethodGet, target: path})
-		if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "public, max-age=60" {
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "public, max-age=0, s-maxage=60" {
 			t.Fatalf("%s: got %d, cached as %q; want a public page", path, resp.StatusCode, resp.Header.Get("Cache-Control"))
 		}
 		page := body(t, resp)

@@ -636,7 +636,7 @@ func TestPagesAreCacheableForAMinute(t *testing.T) {
 	handler := newSite(t, newCatalog())
 	for _, path := range []string{"/", library, retryRule, retryRule + "?tab=versions", "/example/missing"} {
 		resp := get(t, handler, path)
-		if got := resp.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		if got := resp.Header().Get("Cache-Control"); got != "public, max-age=0, s-maxage=60" {
 			t.Errorf("%s: Cache-Control is %q", path, got)
 		}
 		if resp.Header().Get("Content-Security-Policy") == "" {
@@ -659,7 +659,7 @@ func TestStaticFilesAreCachedForAYearUnderTheirVersion(t *testing.T) {
 		!strings.HasPrefix(current.Header().Get("Content-Type"), "text/css") {
 		t.Fatalf("the current stylesheet answered %d with %v", current.Code, current.Header())
 	}
-	if stale.Code != http.StatusOK || stale.Header().Get("Cache-Control") != "public, max-age=60" {
+	if stale.Code != http.StatusOK || stale.Header().Get("Cache-Control") != "public, max-age=0, s-maxage=60" {
 		t.Fatalf("another version's stylesheet answered %d with %v", stale.Code, stale.Header())
 	}
 }

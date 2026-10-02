@@ -276,7 +276,7 @@ loopback callback. Run `make web` with its `GITHUB_CLIENT_ID` and `GITHUB_CLIENT
 - **In a browser, locally:** both libraries ingested, `make web-dev`, then signing in as a test user, the menu,
   the account page, signing out, and the GitHub button and an expired callback with a placeholder OAuth app, at
   1280 and 390 pixels, light and dark, with no console errors.
-- **After deployment:** `curl -sI https://rulemart.fabricahq.com/` shows `cache-control: public, max-age=60` and
+- **After deployment:** `curl -sI https://rulemart.fabricahq.com/` shows `cache-control: public, max-age=0, s-maxage=60` and
   `vary: Cookie`; after signing in, the same page shows `private, no-store` and `x-cache: Miss from cloudfront` on
   every reload; `curl -si -X POST https://rulemart.fabricahq.com/sign-out` answers 303, proving an empty POST reaches
   the function; and the web function's logs show `signed in` without a code or token.

@@ -29,10 +29,12 @@ import (
 // show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
 const maxPageBytes = 5 << 20
 
-// pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
-// of ingestion without every visit reaching the function. Only a page that's the same for every visitor gets it:
-// withPrivateResponses replaces it on any response to a signed-in browser.
-const pageCache = "public, max-age=60"
+// pageCache lets CloudFront keep a page for a minute, so a new library release, or a new star, shows within a
+// minute without every visit reaching the function. Browsers keep it too, but ask again before each use, which
+// CloudFront answers from its copy, so a browser that signs in or out never shows a page it kept from before, with
+// stale stars or listings. CloudFront's cache policy takes s-maxage over max-age. Only a page that's the same for
+// every visitor gets it: withPrivateResponses replaces it on any response to a signed-in browser.
+const pageCache = "public, max-age=0, s-maxage=60"
 
 // privateCache keeps a response out of every cache: one that depends on who asked, or that sets a cookie.
 const privateCache = "private, no-store"
