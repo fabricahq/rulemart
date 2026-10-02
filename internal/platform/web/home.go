@@ -30,7 +30,7 @@ type homeView struct {
 func newHomeView(libraries []libraryCard, index groupIndexView, listHref string) homeView {
 	techs, practices := byRuleCount(canonicalOnly(index.techs)), byRuleCount(canonicalOnly(index.practices))
 	return homeView{
-		popular:   append(firstOf(techs, popularPerKind), firstOf(practices, popularPerKind)...),
+		popular:   slices.Concat(firstOf(techs, popularPerKind), firstOf(practices, popularPerKind)),
 		techs:     techs,
 		practices: practices,
 		libraries: firstOf(libraries, homeLibraries),
@@ -45,7 +45,8 @@ func byRuleCount(groups []groupSummaryView) []groupSummaryView {
 	return sorted
 }
 
-// firstOf returns at most n of items, the first ones.
+// firstOf returns at most n of items, the first ones, sharing items' array: appending to the result would write
+// into items.
 func firstOf[T any](items []T, n int) []T {
 	return items[:min(n, len(items))]
 }

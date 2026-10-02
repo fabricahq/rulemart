@@ -126,6 +126,25 @@ func TestHomeNamesTheGroupsWithTheMostRulesAsPopularAndSortsTilesByCount(t *test
 	}
 }
 
+// Naming the popular groups leaves the tiles whole: with many technologies, the practices named as popular once
+// overwrote the third and fourth technology tiles.
+func TestHomeTilesStayWholeWhenPopularGroupsAreNamed(t *testing.T) {
+	c := newBrowsingCatalog()
+	var techs []views.GroupSummary
+	for i, name := range []string{"Go", "Rust", "TypeScript", "React", "Python", "Docker", "Terraform", "Kubernetes", "Next.js"} {
+		techs = append(techs, views.GroupSummary{Path: "techs/" + strings.ToLower(name), Canonical: &views.CanonicalGroup{Name: name, Icon: goGroup.Icon},
+			Rules: 20 - i, Libraries: []views.LibraryRef{exampleRef}})
+	}
+	c.index = views.GroupIndex{Techs: techs, Practices: []views.GroupSummary{
+		{Path: "practices/testing", Canonical: &views.CanonicalGroup{Name: "Testing", Icon: goGroup.Icon}, Rules: 30, Libraries: []views.LibraryRef{exampleRef}},
+		{Path: "practices/comments", Canonical: &views.CanonicalGroup{Name: "Comments", Icon: goGroup.Icon}, Rules: 29, Libraries: []views.LibraryRef{exampleRef}},
+	}}
+
+	page := get(t, newSite(t, c), "/").Body.String()
+
+	assertShows(t, page, "Popular Go Rust Testing Comments", "Technologies Browse all → Go 20 rules · 1 library Rust 19 rules · 1 library TypeScript 18 rules · 1 library React 17 rules · 1 library")
+}
+
 // The home page shows the first four libraries, in the catalog's order, and leads to them all.
 func TestHomeShowsTheFirstFourLibraries(t *testing.T) {
 	c := newBrowsingCatalog()
