@@ -73,6 +73,7 @@ func checkBaseURL(u *url.URL) error {
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
 type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
+	Libraries(ctx context.Context) ([]views.LibraryCard, error)
 	// LibraryPage and RulePage fail with app.ErrNotFound when there's no such library or current rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
@@ -119,7 +120,9 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	}
 	handle("GET /{$}", s.home)
 	handle("GET /_static/{version}/{file...}", assets.serve)
-	// GitHub has no account named groups or search, so these can't hide a library's page.
+	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
+	// segment, so it can't either, though GitHub has an account named libraries.
+	handle("GET /libraries", s.libraries)
 	handle("GET /groups", s.groups)
 	handle("GET /groups/{kind}/{name}", s.group)
 	handle("GET /search", s.search)
@@ -155,6 +158,15 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
+}
+
+func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
+	libraries, err := s.catalog.Libraries(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries)))
 }
 
 func (s *server) groups(w http.ResponseWriter, r *http.Request) {

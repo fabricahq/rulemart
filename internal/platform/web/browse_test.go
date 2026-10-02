@@ -467,15 +467,49 @@ func TestBrowsePagesAreCacheableForAMinute(t *testing.T) {
 	}
 }
 
-// The header's Groups link marks the part of the site a groups page belongs to.
-func TestHeaderMarksTheGroupsLinkOnGroupsPages(t *testing.T) {
+// The header links the libraries and the groups from every page, and marks the part of the site a page belongs to.
+func TestHeaderMarksThePartOfTheSiteAPageBelongsTo(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for path, current := range map[string]bool{"/groups": true, "/groups/techs/go": true, "/": false, "/search": false} {
+	for path, current := range map[string]string{
+		"/libraries": "/libraries", library: "/libraries", errorsRule: "/libraries",
+		"/groups": "/groups", "/groups/techs/go": "/groups", "/": "", "/search": "",
+	} {
 		page := get(t, handler, path).Body.String()
-		if got := strings.Contains(page, `href="/groups" aria-current="page"`); got != current {
-			t.Errorf("%s: the Groups link is current: %v, want %v", path, got, current)
+		for _, href := range []string{"/libraries", "/groups"} {
+			if !strings.Contains(page, `href="`+href+`"`) {
+				t.Errorf("%s: the header doesn't link %s", path, href)
+			}
+			if got, want := strings.Contains(page, `href="`+href+`" aria-current="true"`), href == current; got != want {
+				t.Errorf("%s: the %s link is current: %v, want %v", path, href, got, want)
+			}
 		}
+	}
+}
+
+// The libraries page lists every vetted library, as the home page does, under its own address.
+func TestLibrariesPageListsTheVettedLibraries(t *testing.T) {
+	base, err := web.ParseBaseURL("https://rulemart.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := web.New(newBrowsingCatalog(), web.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), BaseURL: base})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := get(t, handler, "/libraries")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d", resp.Code)
+	}
+	page := resp.Body.String()
+	assertShows(t, page, "Libraries Each library is a set of rules", "rules Example rules for tests. example/rules · 2 rules")
+	if got := links(t, page, "Example rules for tests."); !slices.Equal(got, []string{library}) {
+		t.Errorf("the library links %q", got)
+	}
+	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/libraries"}) {
+		t.Errorf("the page names %q as its address", got)
 	}
 }
 

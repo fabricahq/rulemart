@@ -41,6 +41,20 @@ func vettedKeys(vetted []domain.LibraryKey) []string {
 	return keys
 }
 
+// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
+func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
+	var cards []views.LibraryCard
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		cards, err = libraries(ctx, q, vetted)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load libraries: %v", err)
+	}
+	return cards, nil
+}
+
 // HomePage returns the vetted libraries, ordered by owner and name, and each group that holds current rules in them,
 // as Groups returns them.
 func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -51,6 +52,8 @@ type catalog struct {
 func (c catalog) HomePage(context.Context) (views.HomePage, error) {
 	return views.HomePage{Libraries: c.libraries, Groups: c.index}, c.err
 }
+
+func (c catalog) Libraries(context.Context) ([]views.LibraryCard, error) { return c.libraries, c.err }
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
 
@@ -707,8 +710,27 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	canonical := get(t, handler, returnErrorsGo).Body.String()
 	other := get(t, handler, passContext).Body.String()
 
-	assertShows(t, canonical, "mixed › Go techs/go")
+	assertShows(t, canonical, "mixed › Go techs/go Go rules in all libraries ›")
 	assertFlagsExplainThemselves(t, canonical, 0)
 	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
+	// A canonical group's rules in every library are a page of their own; any other group stands alone.
+	if got := links(t, canonical, "rules in all libraries"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+		t.Errorf("the rule page links %q across libraries", got)
+	}
+	if got := links(t, other, "rules in all libraries"); len(got) != 0 {
+		t.Errorf("a group that isn't canonical links %q across libraries", got)
+	}
+}
+
+// A library's canonical groups lead to their rules in the library, and to their page across libraries.
+func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
+	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
+
+	if got := links(t, page, "All libraries"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
+		t.Errorf("the groups link %q across libraries", got)
+	}
+	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {
+		t.Errorf("techs/golang links %q", got)
+	}
 }

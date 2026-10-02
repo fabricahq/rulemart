@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	// librariesHref is the path of the libraries page.
+	librariesHref = "/libraries"
 	// groupsHref is the path of the groups page.
 	groupsHref = "/groups"
 	// searchHref is the path of the search page, which takes the query in its q parameter.

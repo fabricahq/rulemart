@@ -144,7 +144,7 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go 1 rule › techs/golang not canonical 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go 1 rule › All libraries techs/golang not canonical 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},

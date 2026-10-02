@@ -48,6 +48,11 @@ func (p Pages) HomePage(ctx context.Context) (views.HomePage, error) {
 	return views.HomePage{Libraries: libraries, Groups: p.index(groups)}, nil
 }
 
+// Libraries returns the vetted libraries, ordered by owner and name.
+func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
+	return p.Store.Libraries(ctx, p.Vetted)
+}
+
 // LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups and current
 // rules, or ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {

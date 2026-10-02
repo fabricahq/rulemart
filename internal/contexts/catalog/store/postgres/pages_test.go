@@ -112,6 +112,21 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	}
 }
 
+// The libraries index lists the vetted libraries as the home page does, and no other.
+func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
+	reader := newCatalog(t)
+
+	got, err := reader.Libraries(context.Background(), vetted)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
 // all retired, and only current rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {

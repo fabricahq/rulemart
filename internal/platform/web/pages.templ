@@ -95,9 +95,30 @@ templ chevron() {
 	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
 }
 
+// librariesPage lists every vetted library.
+templ librariesPage(c chrome, libraries []libraryCard) {
+	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref}) {
+		<div class="page wrap">
+			<h1 class="title-xl">Libraries</h1>
+			<p class="mt-1.5 max-w-[46rem] text-muted">Each library is a set of rules a team publishes for coding agents to follow. Rulemart lists only the libraries it has vetted.</p>
+			<div class="mt-[26px]">
+				if len(libraries) == 0 {
+					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
+				} else {
+					@rowList() {
+						for _, lib := range libraries {
+							@libraryRow(lib)
+						}
+					}
+				}
+			</div>
+		</div>
+	}
+}
+
 // libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
 templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab bool) {
-	@layout(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}) {
+	@layout(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}) {
 		<div class="page wrap">
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
 				@avatar(lib.avatar, lib.owner, avatarLG)
@@ -135,7 +156,8 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab 
 	}
 }
 
-// groupList lists one kind of group, each leading to its rules on the All rules tab.
+// groupList lists one kind of group, each leading to its rules on the All rules tab, and a canonical group also to
+// its page across libraries. The row's main link covers the row, and the second link sits above it.
 templ groupList(kind string, lib libraryView, groups []groupView) {
 	if len(groups) > 0 {
 		@label("mt-[22px] mb-2 first:mt-0") {
@@ -143,15 +165,20 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		}
 		@rowList() {
 			for _, g := range groups {
-				<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+				<div class="relative grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 transition-colors duration-[120ms] first:border-t-0 hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]">
 					<div class="flex min-w-0 items-center gap-3">
 						@groupTile(g.label, g.icon, tileMD)
 						<div class="min-w-0">
+							<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+								if g.label.canonical {
+									{ g.label.name }
+								} else {
+									{ g.label.id }
+								}
+							</a>
 							if g.label.canonical {
-								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
 								<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
 							} else {
-								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
 								<span class="block leading-[20px]">
 									@notCanonical(flagMD)
 								</span>
@@ -159,8 +186,13 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 						</div>
 					</div>
 					<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-					<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
-				</a>
+					<div class="grid justify-items-end gap-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
+						<span>{ plural(len(g.rules), "rule", "rules") } ›</span>
+						if g.acrossHref != "" {
+							<a class="relative z-10 text-muted underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
+						}
+					</div>
+				</div>
 			}
 		}
 	}
@@ -186,7 +218,7 @@ templ allRules(contents libraryContents) {
 
 // rulePage shows a rule's current version, or with versionsTab every version, newest first.
 templ rulePage(c chrome, r ruleView, versionsTab bool) {
-	@layout(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead}) {
+	@layout(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead, section: librariesHref}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				@avatar(r.library.avatar, r.library.owner, avatarSM)
@@ -198,6 +230,9 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 				} else {
 					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
 					@notCanonical(flagSM)
+				}
+				if r.acrossHref != "" {
+					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in all libraries ›</a>
 				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">

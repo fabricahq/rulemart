@@ -67,7 +67,9 @@ type groupView struct {
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
-	rules  []ruleCard
+	// acrossHref is a canonical group's page across libraries, and empty for any other group.
+	acrossHref string
+	rules      []ruleCard
 }
 
 // groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
@@ -138,7 +140,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	for _, g := range page.Groups {
 		view := groupView{
 			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
-			rules: byGroup[g.Path],
+			rules: byGroup[g.Path], acrossHref: acrossHref(g.Path, g.Canonical),
 		}
 		if strings.HasPrefix(g.Path, "practices/") {
 			view.blurb = g.WhenToRead
@@ -158,14 +160,16 @@ func (c libraryContents) all() []groupView {
 
 // ruleView is what a rule's page shows.
 type ruleView struct {
-	library                   libraryView
-	href, id, title, impact   string
-	version, html             string
+	library                 libraryView
+	href, id, title, impact string
+	version, html           string
 	// whenToRead is the reading guidance as text, and whenToReadHTML as rendered Markdown, or empty when the catalog
 	// holds no HTML for it, so the page shows the text.
 	whenToRead, whenToReadHTML string
-	group                     groupLabel
-	groupHref                 string
+	group                      groupLabel
+	// groupHref is the group's section on the library's All rules tab, and acrossHref a canonical group's page
+	// across libraries, empty for any other group.
+	groupHref, acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
@@ -186,9 +190,10 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	v := ruleView{
 		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
-		html: r.HTML,
+		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
-		updated: date(r.PublishedAt), fileName: path.Base(file),
+		acrossHref: acrossHref(r.Group, r.CanonicalGroup),
+		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}
 	for i, version := range page.Versions {
@@ -204,6 +209,14 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 // libraryHref is the path of a library's page.
 func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
+}
+
+// acrossHref is the page of the group at path across libraries when it's canonical, and empty otherwise.
+func acrossHref(path string, canonical *views.CanonicalGroup) string {
+	if canonical == nil {
+		return ""
+	}
+	return groupHref(path)
 }
 
 // groupAnchor is the fragment of a group's section on the All rules tab.

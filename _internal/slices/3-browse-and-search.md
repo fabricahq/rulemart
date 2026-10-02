@@ -16,10 +16,13 @@ accepted them. **Existing** ones are already in [decisions.md](../decisions.md) 
 
 - **Search from any page.** Every page's header has a search field. On a phone it's a search link. The home page
   leads with a larger search field.
+- **Browse libraries.** Every page's header links Libraries and Groups, and marks the one the page belongs to: a
+  library's and a rule's pages belong to Libraries. `/libraries` lists every vetted library, as the home page does.
 - **Browse groups.** `/groups` lists every group that holds a current rule in a vetted library: technologies first,
   then practices. The home page shows the canonical ones as a grid of tiles, with a link to `/groups`.
 - **See one group across libraries.** `/groups/techs/go` shows every vetted library's current Go rules, under each
-  library's name, avatar, and a link to its page.
+  library's name, avatar, and a link to its page. A rule page's breadcrumb and a library page's group rows link a canonical group's page,
+  as "Go rules in all libraries" and "All libraries", beside their link to the group's rules in that library.
 - **Search.** `/search?q=retry limits` lists the best-matching current rules of vetted libraries, best first. Each
   result names its rule, its library, and its group.
 
@@ -90,8 +93,9 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 
 ### Browsing
 
-- **URLs. Proposed.** `/groups` is the index, `/groups/{techs|practices}/{name}` a group, and `/search` search.
-  `groups` and `search` aren't GitHub accounts, and `/search` has one segment, so it can't shadow a library. A
+- **URLs. Proposed.** `/libraries` lists the libraries, `/groups` is the index, `/groups/{techs|practices}/{name}` a group, and `/search` search.
+  `groups` and `search` aren't GitHub accounts, and `/search` and `/libraries` have one segment, so neither can shadow
+  a library, though `libraries` is a GitHub organization. A
   vetting review would notice a library owned by a future `groups` account, which would then need host-qualified
   URLs (**Existing**: the routing decision for a second host).
 - **One address per page. Proposed.** No page's address ends with a slash, so a path with one, such as `/groups/`,
@@ -182,6 +186,6 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 
 Typo tolerance and partial words, through trigram matching. Filtering search
 results by group or library, and highlighting the matched words. Search suggestions as you type. Unvetted libraries
-and the unvetted area, sign-in, listing libraries, stars, and the cart. The library releases tab and version
+and the unvetted area, sign-in, listing a library, stars, and the cart. The library releases tab and version
 comparison (slice 4). Dropping `hello_messages`, which slice 2 left for the release after v0.1.0, belongs in its own
 change.

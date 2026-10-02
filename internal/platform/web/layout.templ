@@ -23,7 +23,7 @@ type head struct {
 	title, description string
 	// noindex asks search engines not to index the page.
 	noindex bool
-	// section is the header's link to the part of the site the page belongs to, such as groupsHref, or empty.
+	// section is the header's link to the part of the site the page belongs to, librariesHref or groupsHref, or empty.
 	section string
 	// searchPage leaves the header's search out, since the page holds its own.
 	searchPage bool
@@ -61,7 +61,7 @@ templ layout(c chrome, h head) {
 	</html>
 }
 
-// header is the bar atop every page: Rulemart's name, a link to the groups, and a search field, which a phone's
+// header is the bar atop every page: Rulemart's name, links to the libraries and the groups, and a search field, which a phone's
 // narrow header replaces with a link to the search page.
 templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
@@ -75,13 +75,8 @@ templ header(h head) {
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
 			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1" aria-label="Rulemart">
-				<a
-					class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5", templ.KV("font-medium text-ink", h.section == groupsHref), templ.KV("text-muted", h.section != groupsHref) }
-					href={ templ.SafeURL(groupsHref) }
-					if h.section == groupsHref {
-						aria-current="page"
-					}
-				>Groups</a>
+				@navLink(librariesHref, "Libraries", h.section)
+				@navLink(groupsHref, "Groups", h.section)
 				if !h.searchPage {
 					<form class="relative max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
 						<label class="sr-only" for="header-search">Search rules</label>
@@ -95,6 +90,18 @@ templ header(h head) {
 			</nav>
 		</div>
 	</header>
+}
+
+// navLink is a header link to a part of the site, marked current on every page of section, since each belongs to
+// the part it links.
+templ navLink(href, name, section string) {
+	<a
+		class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5", templ.KV("font-medium text-ink", section == href), templ.KV("text-muted", section != href) }
+		href={ templ.SafeURL(href) }
+		if section == href {
+			aria-current="true"
+		}
+	>{ name }</a>
 }
 
 templ footer() {
