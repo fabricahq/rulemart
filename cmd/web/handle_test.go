@@ -94,3 +94,38 @@ func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 		})
 	}
 }
+
+// A Function URL delivers the browser's cookies apart from its headers, and takes the cookies a response sets apart
+// too, so a session cookie must cross both ways for anyone to stay signed in.
+func TestHandlePassesCookiesBothWays(t *testing.T) {
+	var event map[string]any
+	if err := json.Unmarshal([]byte(functionURLRequest), &event); err != nil {
+		t.Fatal(err)
+	}
+	event["cookies"] = []string{"__Host-rulemart-session=token-value", "other=1"}
+	raw, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	pages := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c, err := r.Cookie("__Host-rulemart-session"); err == nil {
+			got = c.Value
+		}
+		http.SetCookie(w, &http.Cookie{Name: "__Host-rulemart-session", Value: "new-value", Path: "/", Secure: true, HttpOnly: true})
+		w.WriteHeader(http.StatusSeeOther)
+	})
+
+	out, err := newFunction(pages).handle(context.Background(), raw)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "token-value" {
+		t.Errorf("the pages read the session cookie as %q", got)
+	}
+	resp := out.(events.APIGatewayV2HTTPResponse)
+	if len(resp.Cookies) != 1 || resp.Cookies[0] != "__Host-rulemart-session=new-value; Path=/; HttpOnly; Secure" {
+		t.Errorf("answered with cookies %q", resp.Cookies)
+	}
+}

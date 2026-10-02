@@ -3,8 +3,13 @@
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
 // LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes. RULEMART_BASE_URL, such
-// as https://rulemart.fabricahq.com, is the public origin each page names as its canonical address; unset, pages name
-// none.
+// as https://rulemart.fabricahq.com, is the public origin each page names as its canonical address, and where
+// sign-in happens; unset, pages name none.
+//
+// GITHUB_CLIENT_ID names the GitHub OAuth app visitors sign in with, and GITHUB_CLIENT_SECRET holds its client
+// secret, or GITHUB_CLIENT_SECRET_PARAMETER names the SSM parameter holding it, as on Lambda. Unset, visitors can't
+// sign in with GitHub, and pages offer no sign-in, except in a build with the rulemartdev tag, which offers test
+// users instead; such a build refuses to start on Lambda.
 package main
 
 import (
@@ -24,11 +29,15 @@ import (
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
 
 	"github.com/fabricahq/rulemart/catalog"
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	accountspostgres "github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
+	"github.com/fabricahq/rulemart/internal/platform/secret"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
@@ -75,6 +84,17 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 	if err != nil {
 		return nil, fmt.Errorf("read RULEMART_BASE_URL: %v", err)
 	}
+	onLambda := os.Getenv("AWS_LAMBDA_RUNTIME_API") != ""
+	if web.DevSignIn && onLambda {
+		return nil, errors.New("this build has the dev sign-in, which only local builds may have: build without the rulemartdev tag")
+	}
+	gitHub, err := newGitHub(ctx, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	if gitHub != nil && baseURL == nil && onLambda {
+		return nil, errors.New("set RULEMART_BASE_URL for GitHub sign-in: GitHub sends visitors back to it")
+	}
 	source, err := database.SourceFromEnv(ctx, os.Getenv)
 	if err != nil {
 		return nil, err
@@ -87,8 +107,34 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 	if err != nil {
 		return nil, err
 	}
-	pages := app.Pages{Store: postgres.New(source.Open(schemaVersion)), Vetted: vetted, Groups: groups}
-	return web.New(pages, web.Options{Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL})
+	db := source.Open(schemaVersion)
+	pages := app.Pages{Store: postgres.New(db), Vetted: vetted, Groups: groups}
+	options := web.Options{
+		Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL,
+		Accounts: accountsapp.Sessions{Store: accountspostgres.New(db)},
+	}
+	if gitHub != nil {
+		options.GitHub = gitHub
+	}
+	return web.New(pages, options)
+}
+
+// newGitHub returns the GitHub OAuth app that GITHUB_CLIENT_ID names, with the client secret GITHUB_CLIENT_SECRET or
+// GITHUB_CLIENT_SECRET_PARAMETER holds, or nil when none is named. getenv reads a variable, such as os.Getenv.
+func newGitHub(ctx context.Context, getenv func(string) string) (*github.Client, error) {
+	clientID := getenv("GITHUB_CLIENT_ID")
+	clientSecret, err := secret.FromEnv(ctx, getenv, "GITHUB_CLIENT_SECRET")
+	switch {
+	case err != nil:
+		return nil, err
+	case clientID == "" && clientSecret == nil:
+		return nil, nil
+	case clientID == "":
+		return nil, errors.New("set GITHUB_CLIENT_ID with GITHUB_CLIENT_SECRET or GITHUB_CLIENT_SECRET_PARAMETER")
+	case clientSecret == nil:
+		return nil, errors.New("set GITHUB_CLIENT_SECRET or GITHUB_CLIENT_SECRET_PARAMETER with GITHUB_CLIENT_ID")
+	}
+	return github.New(clientID, clientSecret), nil
 }
 
 // lambdaRequestID returns the Lambda request ID of a request the Function URL delivered, or "" for another.
