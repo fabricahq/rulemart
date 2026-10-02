@@ -42,6 +42,11 @@ func TestHandleRejectsRequestsTheAdapterCantConvertWithoutLoggingThem(t *testing
 			event["rawPath"] = "/alice@example.test/private%GG"
 			event["rawQueryString"] = "token=query-s3cr3t"
 		},
+		// The adapter builds the URL on GO_API_HOST when it's set; goAPIHost isn't part of the event.
+		"an invalid GO_API_HOST": func(event map[string]any) {
+			event["rawQueryString"] = "token=query-s3cr3t"
+			event["goAPIHost"] = "https://invalid%host"
+		},
 		"a body that isn't base64": func(event map[string]any) {
 			event["rawQueryString"] = "token=query-s3cr3t"
 			event["isBase64Encoded"] = true
@@ -60,6 +65,9 @@ func TestHandleRejectsRequestsTheAdapterCantConvertWithoutLoggingThem(t *testing
 			}
 			pages := &recorder{}
 			var out any
+			if host, ok := event["goAPIHost"].(string); ok {
+				t.Setenv("GO_API_HOST", host)
+			}
 
 			printed := captureStdout(t, func() {
 				out, err = newTestFunction(pages).handle(context.Background(), raw)

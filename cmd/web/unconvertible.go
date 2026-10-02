@@ -8,14 +8,17 @@ import (
 	"encoding/base64"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/awslabs/aws-lambda-go-api-proxy/core"
 )
 
 // convertible reports whether the adapter can turn request into an http.Request, checking what its conversion can
-// fail on: a body marked base64 that isn't, and a URL that doesn't parse, such as a path with an invalid escape. The
-// adapter prints a request it can't convert, path and query string included, straight to standard output.
+// fail on: a body marked base64 that isn't, and a URL that doesn't parse, such as a path with an invalid escape. It
+// builds the URL as the adapter does, on GO_API_HOST when that's set. The adapter prints a request it can't convert,
+// path and query string included, straight to standard output.
 func convertible(request events.APIGatewayV2HTTPRequest) bool {
 	if request.IsBase64Encoded {
 		if _, err := base64.StdEncoding.DecodeString(request.Body); err != nil {
@@ -26,7 +29,11 @@ func convertible(request events.APIGatewayV2HTTPRequest) bool {
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
 	}
-	target := "https://" + request.RequestContext.DomainName + path
+	server := "https://" + request.RequestContext.DomainName
+	if custom, ok := os.LookupEnv(core.CustomHostVariable); ok {
+		server = custom
+	}
+	target := server + path
 	if request.RawQueryString != "" {
 		target += "?" + request.RawQueryString
 	}
