@@ -42,30 +42,44 @@ func newFakeStars() *fakeStars {
 	}
 }
 
-func (f *fakeStars) change(accountID int64, library, rulePath string, star bool) error {
+// change stars or unstars the rule for the account, and reports whether a star is the account's first, as
+// catalog/app.Stars does: it had none, and now has this one.
+func (f *fakeStars) change(accountID int64, library, rulePath string, star bool) (first bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
-		return f.err
+		return false, f.err
 	}
 	key := strings.ToLower(library + "/" + rulePath)
 	if !f.current[key] {
-		return fmt.Errorf("star rule=%q: %w", key, app.ErrNotFound)
+		return false, fmt.Errorf("star rule=%q: %w", key, app.ErrNotFound)
 	}
-	if star {
-		f.starred[fmt.Sprintf("%d %s", accountID, key)] = true
-	} else {
-		delete(f.starred, fmt.Sprintf("%d %s", accountID, key))
+	account := fmt.Sprintf("%d ", accountID)
+	if !star {
+		delete(f.starred, account+key)
+		return false, nil
 	}
-	return nil
+	if f.starred[account+key] {
+		return false, nil
+	}
+	first = true
+	for k := range f.starred {
+		if strings.HasPrefix(k, account) {
+			first = false
+			break
+		}
+	}
+	f.starred[account+key] = true
+	return first, nil
 }
 
-func (f *fakeStars) Star(_ context.Context, accountID int64, library, rulePath string) error {
+func (f *fakeStars) Star(_ context.Context, accountID int64, library, rulePath string) (bool, error) {
 	return f.change(accountID, library, rulePath, true)
 }
 
 func (f *fakeStars) Unstar(_ context.Context, accountID int64, library, rulePath string) error {
-	return f.change(accountID, library, rulePath, false)
+	_, err := f.change(accountID, library, rulePath, false)
+	return err
 }
 
 func (f *fakeStars) Starred(_ context.Context, accountID int64, owner, name, rulePath string) (bool, error) {
@@ -181,6 +195,8 @@ const (
 	// starPath is where return-errors's Star button posts from its own page, and unstarPath where Starred posts.
 	starPath   = "/stars?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors"
 	unstarPath = "/stars/remove?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors"
+	// retryStarPath is where verify-retry-limits's Star button posts from its own page.
+	retryStarPath = "/stars?library=example%2Frules&rule=practices%2Ftesting%2Fverify-retry-limits"
 )
 
 // follow requests resp's redirect as the signed-in visitor would, with the notice it set, if any.
@@ -375,28 +391,44 @@ func TestStarringAndUnstarringTwiceIsLikeOnce(t *testing.T) {
 	}
 }
 
-// The star button says what starring or unstarring did on the page it returns to, with the button focused, so
-// keyboard and screen reader users land where they were, and hear its new state, and marked as focused by the page,
-// which draws its quiet ring. A later view doesn't repeat it.
-func TestStarringSaysWhatItDidAndKeepsFocusOnTheButton(t *testing.T) {
+// A visitor's first star says where their starred rules are on the page it returns to; a later star, and unstarring,
+// say nothing, since the button's own Starred or Star says what happened. Each focuses the button, marked as focused
+// by the page, which draws its quiet ring, so keyboard and screen reader users land where they were and hear its new
+// state. A later view of the page does neither.
+func TestOnlyTheFirstStarSaysWhereStarredRulesAreAndEachFocusesTheButton(t *testing.T) {
 	site := newStarSite(t)
+	focusedAfter := func(what, page, pressed string) {
+		t.Helper()
+		if button := starButton(t, page); button["aria-pressed"] != pressed || !hasKey(button, "autofocus") || !hasKey(button, "data-autofocused") {
+			t.Errorf("after %s, the button: %v, want aria-pressed %s, autofocus, and data-autofocused", what, button, pressed)
+		}
+	}
 
 	page := body(t, site.follow(t, site.signedInPost(t, starPath)))
-	if text, links := pageNotice(t, page); text != "You starred this rule. It's on your Starred rules." ||
+	if text, links := pageNotice(t, page); text != "You starred your first rule. Find all your starred rules under Starred rules." ||
 		!slices.Equal(links, []string{"Starred rules /account/stars"}) {
-		t.Errorf("the notice says %q and links %q, want Starred rules linked to the list", text, links)
+		t.Errorf("after the first star, the notice says %q and links %q, want Starred rules linked to the list", text, links)
 	}
-	if button := starButton(t, page); button["aria-pressed"] != "true" || !hasKey(button, "autofocus") || !hasKey(button, "data-autofocused") {
-		t.Fatalf("after starring, the button: %v, want aria-pressed true, autofocus, and data-autofocused", button)
+	focusedAfter("the first star", page, "true")
+	page = body(t, site.signedInGet(t, errorsRule))
+	if text, _ := pageNotice(t, page); text != "" {
+		t.Errorf("a later view of the page says %q", text)
 	}
-	if button := starButton(t, body(t, site.signedInGet(t, errorsRule))); hasKey(button, "autofocus") || hasKey(button, "data-autofocused") {
+	if button := starButton(t, page); hasKey(button, "autofocus") || hasKey(button, "data-autofocused") {
 		t.Errorf("a later view of the page still focuses the button: %v", button)
 	}
-	page = body(t, site.follow(t, site.signedInPost(t, unstarPath)))
-	assertShows(t, page, "You unstarred this rule.")
-	if button := starButton(t, page); button["aria-pressed"] != "false" || !hasKey(button, "autofocus") || !hasKey(button, "data-autofocused") {
-		t.Fatalf("after unstarring, the button: %v, want aria-pressed false, autofocus, and data-autofocused", button)
+
+	page = body(t, site.follow(t, site.signedInPost(t, retryStarPath)))
+	if text, _ := pageNotice(t, page); text != "" {
+		t.Errorf("a second star says %q, want nothing", text)
 	}
+	focusedAfter("a second star", page, "true")
+
+	page = body(t, site.follow(t, site.signedInPost(t, unstarPath)))
+	if text, _ := pageNotice(t, page); text != "" {
+		t.Errorf("unstarring says %q, want nothing", text)
+	}
+	focusedAfter("unstarring", page, "false")
 }
 
 // Signing in from a star link returns to the rule with the button focused and highlighted, and a one-time prompt to

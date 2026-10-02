@@ -20,21 +20,23 @@ import (
 var _ store.Stars = (*Store)(nil)
 
 // Star stars the current rule at rulePath in the vetted library owner/name for the account, as store.Stars describes,
-// in one statement, so it's safe to repeat after a failed connection.
-func (s *Store) Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) error {
+// in one statement, so it's safe to repeat after a failed connection, though a repeat reports first as false.
+func (s *Store) Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) (bool, error) {
+	var first bool
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := catalogdb.New(pool).StarRule(ctx, catalogdb.StarRuleParams{
+		row, err := catalogdb.New(pool).StarRule(ctx, catalogdb.StarRuleParams{
 			Host: domain.GitHub, Owner: owner, Name: name, Vetted: vettedKeys(vetted), Path: rulePath, AccountID: accountID,
 		})
+		first = row.First
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("star rule=%q accountID=%d: %w", owner+"/"+name+"/"+rulePath, accountID, store.ErrNotFound)
+		return false, fmt.Errorf("star rule=%q accountID=%d: %w", owner+"/"+name+"/"+rulePath, accountID, store.ErrNotFound)
 	}
 	if err != nil {
-		return fmt.Errorf("star rule=%q accountID=%d: %v", owner+"/"+name+"/"+rulePath, accountID, err)
+		return false, fmt.Errorf("star rule=%q accountID=%d: %v", owner+"/"+name+"/"+rulePath, accountID, err)
 	}
-	return nil
+	return first, nil
 }
 
 // Unstar removes the account's stars that count toward the rule, as store.Stars describes, in one statement.

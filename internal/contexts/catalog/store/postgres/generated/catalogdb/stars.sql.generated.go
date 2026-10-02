@@ -195,26 +195,35 @@ const starRule = `-- name: StarRule :one
 
 WITH target AS (
     SELECT r.id FROM rules r JOIN libraries l ON l.id = r.library_id
-    WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
-      AND l.host || ':' || l.host_repository_id = ANY ($4::text[])
-      AND lower(r.path) = lower($5) AND r.retired_in_release_id IS NULL
-    ORDER BY r.path = $5 DESC, r.path
+    WHERE l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+      AND l.host || ':' || l.host_repository_id = ANY ($5::text[])
+      AND lower(r.path) = lower($6) AND r.retired_in_release_id IS NULL
+    ORDER BY r.path = $6 DESC, r.path
     LIMIT 1
 ),
 starred AS (
-    INSERT INTO rule_stars (account_id, rule_id) SELECT $6::bigint, t.id FROM target t
+    INSERT INTO rule_stars (account_id, rule_id) SELECT $1::bigint, t.id FROM target t
     ON CONFLICT (account_id, rule_id) DO NOTHING
+    RETURNING rule_id
 )
-SELECT t.id FROM target t
+SELECT t.id,
+    (EXISTS (SELECT 1 FROM starred)
+        AND NOT EXISTS (SELECT 1 FROM rule_stars s WHERE s.account_id = $1::bigint))::boolean AS first
+FROM target t
 `
 
 type StarRuleParams struct {
+	AccountID int64
 	Host      string
 	Owner     string
 	Name      string
 	Vetted    []string
 	Path      string
-	AccountID int64
+}
+
+type StarRuleRow struct {
+	ID    int64
+	First bool
 }
 
 // Stars: the web function stars and unstars rules for accounts, lists the rules an account's stars count toward, and
@@ -229,19 +238,21 @@ type StarRuleParams struct {
 // is a tree, and no rule in it repeats.
 // StarRule stars the current rule at path, matched without regard to case and preferring the rule spelled exactly so,
 // in the library owner/name that vetted holds, matched without regard to case, for the account, and returns the
-// rule's id, or no row when there's no such rule. A rule the account starred already keeps its star.
-func (q *Queries) StarRule(ctx context.Context, arg StarRuleParams) (int64, error) {
+// rule's id, and first, true when this star is the account's only one: it had none, and now has this one. It returns no
+// row when there's no such rule. A rule the account starred already keeps its star, and isn't first.
+// The statement's own reads see rule_stars as it was before the insert.
+func (q *Queries) StarRule(ctx context.Context, arg StarRuleParams) (StarRuleRow, error) {
 	row := q.db.QueryRow(ctx, starRule,
+		arg.AccountID,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
 		arg.Vetted,
 		arg.Path,
-		arg.AccountID,
 	)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
+	var i StarRuleRow
+	err := row.Scan(&i.ID, &i.First)
+	return i, err
 }
 
 const unstarRule = `-- name: UnstarRule :one

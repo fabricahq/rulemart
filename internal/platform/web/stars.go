@@ -18,7 +18,8 @@ import (
 type Stars interface {
 	// Star stars the current rule at rulePath in the vetted library library names, as owner/name, for the account, or
 	// fails with app.ErrNotFound when there's no such rule. Starring a rule twice keeps one star.
-	Star(ctx context.Context, accountID int64, library, rulePath string) error
+	// first is true when the star is the account's only one: it had none, and now has this one.
+	Star(ctx context.Context, accountID int64, library, rulePath string) (first bool, err error)
 	// Unstar removes every star of the account's that counts toward the rule Star finds, if it has any, or fails with
 	// app.ErrNotFound as Star does.
 	Unstar(ctx context.Context, accountID int64, library, rulePath string) error
@@ -45,6 +46,9 @@ const (
 	starPromptParam = "star"
 	// starPromptKey is the notice that prompts a visitor who signed in to star a rule.
 	starPromptKey = "star-prompt"
+	// firstStarKey is the notice that follows a visitor's first star, which says where their starred rules are. Later
+	// stars say nothing, since the button reads Starred.
+	firstStarKey = "first-star"
 )
 
 // starExplanation says what a star is for, beside the star button, and on the pages that list stars.
@@ -112,7 +116,7 @@ func (s *server) starControl(req *http.Request, r ruleView, stars int) (starView
 		star.action = starAction(unstarHref, r.library.fullName(), r.id, v.here, r.href)
 	}
 	switch v.noticeKey {
-	case "starred", "unstarred":
+	case "starred", "unstarred", firstStarKey:
 		star.focused = true
 	case starPromptKey:
 		star.focused, star.prompt = !starred, !starred
@@ -136,22 +140,23 @@ func starAction(path, fullName, rulePath, here, rulePage string) string {
 }
 
 // starRule stars the rule the library and rule parameters name for the signed-in visitor, and returns to the return
-// parameter, or the rule's page, saying so.
+// parameter, or the rule's page, which says where starred rules are after the visitor's first star.
 func (s *server) starRule(w http.ResponseWriter, r *http.Request) {
-	s.changeStar(w, r, true, s.Stars.Star)
+	s.changeStar(w, r, true)
 }
 
 // unstarRule removes the signed-in visitor's stars from the rule the library and rule parameters name, and returns as
 // starRule does.
 func (s *server) unstarRule(w http.ResponseWriter, r *http.Request) {
-	s.changeStar(w, r, false, s.Stars.Unstar)
+	s.changeStar(w, r, false)
 }
 
-// changeStar applies change, which stars the rule the library and rule parameters name when star is true and
-// unstars it otherwise, for the signed-in visitor, and returns to the return parameter, or the rule's page, which says
-// what it did and focuses the star button. A visitor who isn't signed in, such as one whose session ended in another
-// tab, is sent to sign in and return there, and changes nothing; a rule that can't be starred is missing.
-func (s *server) changeStar(w http.ResponseWriter, r *http.Request, star bool, change func(ctx context.Context, accountID int64, library, rulePath string) error) {
+// changeStar stars the rule the library and rule parameters name when star is true, and unstars it otherwise, for the
+// signed-in visitor, and returns to the return parameter, or the rule's page, which focuses the star button, and after
+// the visitor's first star, says where starred rules are. A visitor who isn't signed in, such as one whose session
+// ended in another tab, is sent to sign in and return there, and changes nothing; a rule that can't be starred is
+// missing.
+func (s *server) changeStar(w http.ResponseWriter, r *http.Request, star bool) {
 	query := r.URL.Query()
 	back := starReturn(query)
 	v := visitorOf(r.Context())
@@ -163,7 +168,16 @@ func (s *server) changeStar(w http.ResponseWriter, r *http.Request, star bool, c
 		}
 		return
 	}
-	err := change(r.Context(), v.account.ID, query.Get("library"), query.Get("rule"))
+	library, rule := query.Get("library"), query.Get("rule")
+	var first bool
+	var err error
+	notice := "unstarred"
+	if star {
+		notice = "starred"
+		first, err = s.Stars.Star(r.Context(), v.account.ID, library, rule)
+	} else {
+		err = s.Stars.Unstar(r.Context(), v.account.ID, library, rule)
+	}
 	if errors.Is(err, app.ErrNotFound) {
 		s.renderPrivate(w, r, http.StatusNotFound, messagePage(s.chrome, "Not found",
 			"Rulemart has no rule here that can be starred. It stars only the current rules of vetted libraries."))
@@ -173,11 +187,10 @@ func (s *server) changeStar(w http.ResponseWriter, r *http.Request, star bool, c
 		s.fail(w, r, err)
 		return
 	}
-	if star {
-		setNotice(w, "starred")
-	} else {
-		setNotice(w, "unstarred")
+	if first {
+		notice = firstStarKey
 	}
+	setNotice(w, notice)
 	seeOther(w, r, back)
 }
 

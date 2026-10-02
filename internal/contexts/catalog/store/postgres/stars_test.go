@@ -24,7 +24,7 @@ const (
 // star stars the rule at rulePath of owner/name for the account as the web function does, and fails t if it can't.
 func (c listingCatalog) star(t *testing.T, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) {
 	t.Helper()
-	if err := c.web.Star(context.Background(), vetted, accountID, owner, name, rulePath); err != nil {
+	if _, err := c.web.Star(context.Background(), vetted, accountID, owner, name, rulePath); err != nil {
 		t.Fatalf("star %s/%s/%s for account %d: %v", owner, name, rulePath, accountID, err)
 	}
 }
@@ -101,7 +101,7 @@ func TestAnAccountStarsACurrentRuleOnce(t *testing.T) {
 	ctx := context.Background()
 	first, second, third := c.account(t, 1), c.account(t, 2), c.account(t, 3)
 
-	if err := c.web.Star(ctx, vettedBoth, first, "ACME", "Backend", "Techs/Go/Return-Errors"); err != nil {
+	if _, err := c.web.Star(ctx, vettedBoth, first, "ACME", "Backend", "Techs/Go/Return-Errors"); err != nil {
 		t.Fatal(err)
 	}
 	c.star(t, vettedBoth, first, "acme", "backend", acmeErrors)
@@ -133,6 +133,42 @@ func TestAnAccountStarsACurrentRuleOnce(t *testing.T) {
 	}
 }
 
+// A star is the account's first when the account had none and now has it: not a repeat of it, not a second star, and
+// again once unstarring leaves the account none. Another account's stars don't count.
+func TestAStarIsFirstOnlyWhenTheAccountHadNone(t *testing.T) {
+	c := newListingCatalog(t)
+	ctx := context.Background()
+	account, other := c.account(t, 1), c.account(t, 2)
+	c.star(t, vettedBoth, other, "acme", "backend", acmeRetry)
+
+	for _, step := range []struct {
+		what  string
+		star  bool
+		rule  string
+		first bool
+	}{
+		{"the first star", true, acmeErrors, true},
+		{"starring it again", true, acmeErrors, false},
+		{"a second star", true, acmeRetry, false},
+		{"unstarring the first", false, acmeErrors, false},
+		{"starring the first again beside the second", true, acmeErrors, false},
+		{"unstarring the first", false, acmeErrors, false},
+		{"unstarring the second", false, acmeRetry, false},
+		{"a star after unstarring every one", true, acmeErrors, true},
+	} {
+		if !step.star {
+			if err := c.web.Unstar(ctx, vettedBoth, account, "acme", "backend", step.rule); err != nil {
+				t.Fatalf("%s: %v", step.what, err)
+			}
+			continue
+		}
+		first, err := c.web.Star(ctx, vettedBoth, account, "acme", "backend", step.rule)
+		if err != nil || first != step.first {
+			t.Errorf("%s: first %v, %v; want %v", step.what, first, err, step.first)
+		}
+	}
+}
+
 // Only a current rule of a vetted library can be starred or unstarred: not a retired rule, a rule of a listed
 // library, or a library or rule the catalog doesn't have.
 func TestOnlyACurrentRuleOfAVettedLibraryCanBeStarred(t *testing.T) {
@@ -148,7 +184,7 @@ func TestOnlyACurrentRuleOfAVettedLibraryCanBeStarred(t *testing.T) {
 		{"acme", "backend", "techs/go/missing"},
 		{"acme", "backend", ""},
 	} {
-		if err := c.web.Star(ctx, vettedBoth, account, rule[0], rule[1], rule[2]); !errors.Is(err, store.ErrNotFound) {
+		if _, err := c.web.Star(ctx, vettedBoth, account, rule[0], rule[1], rule[2]); !errors.Is(err, store.ErrNotFound) {
 			t.Errorf("star %s/%s/%s: got %v, want ErrNotFound", rule[0], rule[1], rule[2], err)
 		}
 		if err := c.web.Unstar(ctx, vettedBoth, account, rule[0], rule[1], rule[2]); !errors.Is(err, store.ErrNotFound) {

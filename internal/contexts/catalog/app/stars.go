@@ -25,11 +25,12 @@ type Stars struct {
 
 // Star stars the current rule at rulePath in the library library names, as owner/name, for the account. It fails with
 // ErrNotFound when library isn't owner/name, Vetted holds no library by that name, or it has no current rule at
-// rulePath. Starring a rule twice keeps one star.
-func (s Stars) Star(ctx context.Context, accountID int64, library, rulePath string) error {
+// rulePath. Starring a rule twice keeps one star. first is true when the star is the account's only one: it had none,
+// and now has this one.
+func (s Stars) Star(ctx context.Context, accountID int64, library, rulePath string) (first bool, err error) {
 	owner, name, err := parseRuleAddress(library, rulePath)
 	if err != nil {
-		return err
+		return false, err
 	}
 	return s.Store.Star(ctx, s.Vetted, accountID, owner, name, rulePath)
 }

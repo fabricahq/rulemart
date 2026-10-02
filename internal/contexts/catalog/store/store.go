@@ -68,8 +68,8 @@ type Stars interface {
 	// Star stars the current rule at rulePath in the library owner/name for the account, the library matched without
 	// regard to case, and the rule too, preferring the rule spelled exactly so. It fails with ErrNotFound when vetted
 	// holds no library by that name, or it has no current rule at rulePath. A rule the account starred already keeps its
-	// one star.
-	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) error
+	// one star. first is true when the star is the account's only one: it had none, and now has this one.
+	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) (first bool, err error)
 	// Unstar removes every star of the account's that counts toward the rule Star finds: on the rule, and on the
 	// retired rules it replaced. It does nothing when the account has none, and fails with ErrNotFound as Star does.
 	Unstar(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) error

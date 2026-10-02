@@ -11,7 +11,8 @@
 
 -- StarRule stars the current rule at path, matched without regard to case and preferring the rule spelled exactly so,
 -- in the library owner/name that vetted holds, matched without regard to case, for the account, and returns the
--- rule's id, or no row when there's no such rule. A rule the account starred already keeps its star.
+-- rule's id, and first, true when this star is the account's only one: it had none, and now has this one. It returns no
+-- row when there's no such rule. A rule the account starred already keeps its star, and isn't first.
 -- name: StarRule :one
 WITH target AS (
     SELECT r.id FROM rules r JOIN libraries l ON l.id = r.library_id
@@ -24,8 +25,13 @@ WITH target AS (
 starred AS (
     INSERT INTO rule_stars (account_id, rule_id) SELECT @account_id::bigint, t.id FROM target t
     ON CONFLICT (account_id, rule_id) DO NOTHING
+    RETURNING rule_id
 )
-SELECT t.id FROM target t;
+-- The statement's own reads see rule_stars as it was before the insert.
+SELECT t.id,
+    (EXISTS (SELECT 1 FROM starred)
+        AND NOT EXISTS (SELECT 1 FROM rule_stars s WHERE s.account_id = @account_id::bigint))::boolean AS first
+FROM target t;
 
 -- UnstarRule removes the account's stars from the line of the current rule StarRule finds, so none of them counts
 -- toward it any more, and returns how many rules it found: none when there's no such rule.

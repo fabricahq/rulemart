@@ -28,7 +28,7 @@ func TestStarsStarOnlyARuleOfAVettedLibraryNamedAsOwnerAndName(t *testing.T) {
 	unvetted := app.Stars{Store: l.listings.Store.(store.Stars), Groups: groups}
 	vetted := app.Stars{Store: unvetted.Store, Vetted: []domain.LibraryKey{listingKey}, Groups: groups}
 
-	if err := unvetted.Star(ctx, l.account, "example/rules", returnErrors); !errors.Is(err, app.ErrNotFound) {
+	if _, err := unvetted.Star(ctx, l.account, "example/rules", returnErrors); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("starring a rule of a library the release doesn't vet: %v, want app.ErrNotFound", err)
 	}
 	for _, name := range [][2]string{
@@ -38,7 +38,7 @@ func TestStarsStarOnlyARuleOfAVettedLibraryNamedAsOwnerAndName(t *testing.T) {
 		{"example/rules", ""}, {"example/rules", "techs/go/return-errors\x00"}, {"example/rules", "techs/go/\xff"},
 		{"example/rules", "techs/go/missing"},
 	} {
-		if err := vetted.Star(ctx, l.account, name[0], name[1]); !errors.Is(err, app.ErrNotFound) {
+		if _, err := vetted.Star(ctx, l.account, name[0], name[1]); !errors.Is(err, app.ErrNotFound) {
 			t.Errorf("star %q in %q: %v, want app.ErrNotFound", name[1], name[0], err)
 		}
 		if err := vetted.Unstar(ctx, l.account, name[0], name[1]); !errors.Is(err, app.ErrNotFound) {
@@ -49,8 +49,8 @@ func TestStarsStarOnlyARuleOfAVettedLibraryNamedAsOwnerAndName(t *testing.T) {
 		t.Fatalf("got %+v, %v; want no stars", stars, err)
 	}
 
-	if err := vetted.Star(ctx, l.account, "Example/Rules", returnErrors); err != nil {
-		t.Fatal(err)
+	if first, err := vetted.Star(ctx, l.account, "Example/Rules", returnErrors); err != nil || !first {
+		t.Fatalf("the account's first star: first %v, %v; want first", first, err)
 	}
 	stars, err := vetted.AccountStars(ctx, l.account)
 	if err != nil || len(stars) != 1 || stars[0].Library.FullName() != "example/rules" || stars[0].Rule.Path != returnErrors ||

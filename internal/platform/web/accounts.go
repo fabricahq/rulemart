@@ -118,7 +118,8 @@ func accountMenuName(v visitor) string {
 	return "Account menu, signed in as " + v.account.Login
 }
 
-// notices are what a notice cookie may name, by key, and what each says.
+// notices are what a notice cookie may name, by key, and what each says: nothing for an action whose page shows what
+// it did itself, such as starring a rule, whose button then reads Starred, though the page still knows what happened.
 var notices = map[string]string{
 	"signed-out":               "You're signed out.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
@@ -130,8 +131,9 @@ var notices = map[string]string{
 	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
 	"listing-retried":          "Rulemart is checking the repository again.",
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
-	"starred":                  "You starred this rule. It's on your Starred rules.",
-	"unstarred":                "You unstarred this rule.",
+	"starred":                  "",
+	"unstarred":                "",
+	firstStarKey:               "You starred your first rule. Find all your starred rules under Starred rules.",
 	// A rule's page says what follows signing in to star it, naming the rule, as its star control does.
 	starPromptKey: "You're signed in.",
 	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or " +
@@ -144,7 +146,7 @@ type noticeLink struct{ phrase, href string }
 
 // noticeLinks are the phrases of notices' text that link to a page, by the notice's key in notices, such as the page
 // a notice says something is on.
-var noticeLinks = map[string]noticeLink{"starred": {phrase: "Starred rules", href: starredHref}}
+var noticeLinks = map[string]noticeLink{firstStarKey: {phrase: "Starred rules", href: starredHref}}
 
 // subjectNotices are the notices that name what they're about, which their page shows itself, rather than as
 // notices' text: the cart's, which name an item, as cartNoticeSubject encodes it: one added, removed, or offered after
@@ -154,6 +156,12 @@ var noticeLinks = map[string]noticeLink{"starred": {phrase: "Starred rules", hre
 var subjectNotices = map[string]func(string) bool{
 	addedToCartKey: namesCartItem, removedFromCartKey: namesCartItem, cartPromptKey: namesCartItem,
 	alreadyInCartKey: namesCartItem,
+}
+
+// hasNotice reports whether notices names key, which may say nothing.
+func hasNotice(key string) bool {
+	_, ok := notices[key]
+	return ok
 }
 
 // setNotice has the next page show the notice notices names by key, once.
@@ -216,7 +224,7 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 		switch {
 		case named && subjectNotices[key] != nil && subjectNotices[key](subject):
 			v.noticeKey, v.noticeSubject, v.notice = key, subject, cartSubjectNotices[key]
-		case !named && notices[key] != "":
+		case !named && hasNotice(key):
 			v.notice, v.noticeKey = notices[key], key
 		default:
 			clearCookie(w, noticeCookie)

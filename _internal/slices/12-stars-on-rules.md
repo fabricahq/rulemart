@@ -102,6 +102,13 @@ a decision under "Decided while building" says otherwise and why.
   visitor's first key, other than a shortcut with Control, Command, or Option, or when focus leaves the control, so
   Tab and back shows the keyboard's ring. Without JavaScript the ring stays quiet on that page. The cart control and
   the sign-in offer's button replace their lighter 2-pixel ring with the same attribute, so the two behave alike.
+- **Decided (Josh): only a visitor's first star says anything.** Starring and unstarring set no notice: the button
+  turning to Starred or Star, focused, is the feedback, and slice 7's "You starred this rule. It's on your Starred
+  rules." and "You unstarred this rule." are gone. The exception is a star that leaves the account with exactly one,
+  having had none, which the star statement reports as `first`: the page says "You starred your first rule. Find all
+  your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every rule
+  and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie still
+  names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
 
 ## Not in this slice
 
