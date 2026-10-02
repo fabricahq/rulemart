@@ -5,8 +5,8 @@ package web
 
 import "strconv"
 
-// browsePage lists a kind's canonical groups, one row each, with tabs between the kinds, and leads to the kind's
-// other groups when any library declares one.
+// browsePage lists a kind's canonical groups, one row each, by icon, name, and for a practice, description, with tabs
+// between the kinds, and leads to the kind's other groups when any library declares one.
 templ browsePage(c chrome, v browseView) {
 	@layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse Code Rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href()}) {
 		<div class="page wrap">
@@ -25,16 +25,15 @@ templ browsePage(c chrome, v browseView) {
 					for _, g := range v.groups {
 						@rowItem() {
 							@rowLink(g.href, false, rowStacked) {
-								<div class="flex min-w-0 items-center gap-[14px]">
+								// A practice's description keeps to one line on a wide screen, cut with an ellipsis if it must be. Below
+								// that it wraps, and the tile stands at the top of the text rather than beside its middle.
+								<div class={ "flex min-w-0 items-center gap-[14px]", templ.KV("max-wide:items-start", v.described(g)) }>
 									@groupTile(g.label, g.icon, tileRow)
-									<div class="min-w-0">
+									<div class="min-w-0 flex-1">
 										<div class="leading-[1.35] font-semibold">{ g.label.name }</div>
-										<div class="mt-0.5 text-[12.5px] text-faint">
-											@breakable(g.label.id)
-											if v.kind == practicesKind && g.blurb != "" {
-												{ " · " + g.blurb }
-											}
-										</div>
+										if v.described(g) {
+											<div class="mt-0.5 text-[12.5px] text-faint wide:truncate">{ g.blurb }</div>
+										}
 									</div>
 								</div>
 								// On a phone, the counts line up under the text, past the tile and the gap beside it.

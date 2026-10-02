@@ -216,6 +216,12 @@ type browseView struct {
 	others int
 }
 
+// described reports whether g's row shows its description: a practice's says which rules belong in it, while a
+// technology's name says what it is.
+func (v browseView) described(g groupSummaryView) bool {
+	return v.kind == practicesKind && g.blurb != ""
+}
+
 func newBrowseView(kind groupKind, index groupIndexView) browseView {
 	groups := index.ofKind(kind)
 	return browseView{kind: kind, groups: byRuleCount(canonicalOnly(groups)), others: len(othersOnly(groups))}

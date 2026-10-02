@@ -269,7 +269,7 @@ func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
 
 	for path, want := range map[string]string{
 		"/":               "Popular Go Testing Technologies Browse all → Go 2 rules · 2 libraries Practices Browse all → Testing 1 rule · 1 library",
-		"/browse/techs":   "Go techs/go 2 rules 2 libraries",
+		"/browse/techs":   "Go 2 rules 2 libraries",
 		"/g/techs/go":     "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
 		"/search?q=retry": "2 rules match “retry” Verify retry limits",
 		"/search?q=go":    "2 rules match “go”",

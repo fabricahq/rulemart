@@ -159,17 +159,13 @@ func TestBrowsePagesListEachKindsCanonicalGroupsAcrossLibraries(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
-	// A technology's row names it and its ID; its description is in its name. The other groups stand apart.
-	assertShows(t, page, "Browse Technologies Technologies Practices Go techs/go 3 rules 2 libraries", "View other technology groups (1) →")
+	// A technology's row names it; its description is in its name. The other groups stand apart.
+	assertShows(t, page, "Browse Technologies Technologies Practices Go 3 rules 2 libraries", "View other technology groups (1) →")
 	if strings.Contains(visibleText(t, page), "golang") || strings.Contains(visibleText(t, page), "The Go language.") {
 		t.Error("the technologies page lists a group that isn't canonical, or a technology's description")
 	}
-	if got := links(t, page, "Go techs/go"); !slices.Equal(got, []string{"/g/techs/go"}) {
+	if got := links(t, page, "Go 3 rules"); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("Go links %q", got)
-	}
-	// A narrow phone wraps an ID after its slash, rather than inside a word.
-	if !strings.Contains(page, `<span class="id-part">techs/</span><wbr><span class="id-part">go</span>`) {
-		t.Error("Go's ID doesn't wrap at its slash")
 	}
 	if got := links(t, page, "View other technology groups"); !slices.Equal(got, []string{"/browse/techs/other"}) {
 		t.Errorf("the other groups link %q", got)
@@ -179,8 +175,12 @@ func TestBrowsePagesListEachKindsCanonicalGroupsAcrossLibraries(t *testing.T) {
 	}
 
 	practices := get(t, handler, "/browse/practices").Body.String()
-	// A practice's row says which rules belong in it, and with no other practice group, nothing leads to them.
-	assertShows(t, practices, "Browse Practices", "Testing practices/testing · What to test and how. 1 rule 1 library")
+	// A practice's row says which rules belong in it, and with no other practice group, nothing leads to them. Neither
+	// kind's rows show a group's ID.
+	assertShows(t, practices, "Browse Practices", "Testing What to test and how. 1 rule 1 library")
+	if strings.Contains(visibleText(t, page), "techs/go") || strings.Contains(visibleText(t, practices), "practices/testing") {
+		t.Error("a browse row shows its group's ID")
+	}
 	if strings.Contains(practices, "View other practice groups") {
 		t.Error("the practices page leads to other groups when there are none")
 	}

@@ -26,8 +26,8 @@ decision.
   shelves / Have a public Code Rules library? / List it on Rulemart in a minute. Rulemart updates with every
   library release." with "List your library →".
 - **Browse** (`/browse/techs`, `/browse/practices`): the eyebrow "Browse", the title "Technologies" or "Practices",
-  tabs between the two, and a row list of canonical groups with current rules in a vetted library: icon, name, the
-  group's ID and, for practices, its description; "N rules", "M libraries", a chevron. Below, when any exist, "View
+  tabs between the two, and a row list of canonical groups with current rules in a vetted library: icon, name, and,
+  for practices, its description; "N rules", "M libraries", a chevron. Below, when any exist, "View
   other technology groups (N) →".
 - **Other groups** (`/browse/techs/other`, `/browse/practices/other`): crumbs "Technologies › Other groups", the title
   "Other technology groups", the prototype's two paragraphs explaining canonical groups, and a row per group a
@@ -100,8 +100,11 @@ decision.
   prototype lists groups by size too. Tiles with as many rules also sort by name, rather than by ID.
 - **Proposed: on a phone, a row's counts drop under its text**, in line with it, rather than stand beside it as the
   prototype's do, since beside it, "10 rules" and "2 libraries" squeezed a practice's description into a column about
-  120 pixels wide at 390 pixels and broke names mid-word at 320. Names and IDs wrap only between words and after a
-  slash.
+  120 pixels wide at 390 pixels and broke names mid-word at 320. Names wrap only between words.
+- **Decided (Josh): a browse row shows no group ID**, only the icon, the name, and a practice's description. On a
+  screen 1280 pixels wide or more, each row's text keeps to one line: the description takes the room left of the
+  counts and, as a safety, ends in an ellipsis rather than wrap. Where the text wraps, on a phone, the icon stands at
+  the top of the text rather than beside its middle.
 
 ### Header, footer, FAQ, feedback
 
