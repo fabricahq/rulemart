@@ -16,12 +16,17 @@ starred AS (
 )
 SELECT b.owner, b.name, b.owner_avatar_url FROM library b;
 
--- UnstarLibrary removes the account's star from the library owner/name, matched without regard to case.
--- name: UnstarLibrary :exec
-DELETE FROM stars s
-USING libraries l
-WHERE s.library_id = l.id AND s.account_id = @account_id::bigint
-  AND l.host = @host AND lower(l.owner) = lower(@owner) AND lower(l.name) = lower(@name);
+-- UnstarLibrary removes the account's star from the library owner/name, matched without regard to case, and
+-- returns how many libraries have that name: none when the catalog has no such library.
+-- name: UnstarLibrary :one
+WITH library AS (
+    SELECT l.id FROM libraries l
+    WHERE l.host = @host AND lower(l.owner) = lower(@owner) AND lower(l.name) = lower(@name)
+),
+unstarred AS (
+    DELETE FROM stars s USING library b WHERE s.library_id = b.id AND s.account_id = @account_id::bigint
+)
+SELECT count(*) FROM library;
 
 -- IsStarred reports whether the account starred the library owner/name, matched without regard to case.
 -- name: IsStarred :one

@@ -56,13 +56,14 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 	}
 }
 
-// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page.
+// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page: two across on a phone,
+// and one on a narrow phone, where two would cut off names such as Performance.
 templ groupTiles(kind string, groups []groupSummaryView) {
 	if len(groups) > 0 {
 		@labelSubheading("mt-[22px] mb-2 first:mt-0") {
 			{ kind }
 		}
-		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2">
+		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2 max-tiny:grid-cols-1">
 			for _, g := range groups {
 				<a class="flex min-w-0 items-center gap-3 rounded-card border border-border px-3.5 py-3 text-ink no-underline transition-colors duration-[120ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
 					@groupTile(g.label, g.icon, tileMD)
@@ -105,7 +106,7 @@ templ libraryRow(lib libraryCard, headed bool) {
 		</div>
 		<span class="flex items-center gap-3 self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1 narrow:self-center narrow:pt-0">
 			if lib.stars > 0 && !lib.unvetted {
-				@starCount(lib.stars)
+				@starCount(lib.stars, lib.starredByYou)
 			}
 			<span>{ plural(lib.rules, "rule", "rules") } ›</span>
 		</span>

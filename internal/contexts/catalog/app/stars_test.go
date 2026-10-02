@@ -25,7 +25,7 @@ func TestStarsStarOnlyAVettedLibraryNamedAsOwnerAndName(t *testing.T) {
 	if _, err := unvetted.Star(ctx, l.account, "example/rules"); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("starring a library the release doesn't vet: %v, want app.ErrNotFound", err)
 	}
-	for _, text := range []string{"", "example", "example/", "/rules", "example/rules/more", "https://github.com/example/rules"} {
+	for _, text := range []string{"", "example", "example/", "/rules", "example/rules/more", "https://github.com/example/rules", "example/rules\x00", "example\xff/rules"} {
 		if _, err := vetted.Star(ctx, l.account, text); !errors.Is(err, app.ErrNotFound) {
 			t.Errorf("star %q: %v, want app.ErrNotFound", text, err)
 		}

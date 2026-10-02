@@ -38,13 +38,19 @@ func (s *Store) Star(ctx context.Context, vetted []domain.LibraryKey, accountID 
 	return ref, nil
 }
 
-// Unstar removes the account's star from the library owner/name, as store.Stars describes.
+// Unstar removes the account's star from the library owner/name, as store.Stars describes, in one statement.
 func (s *Store) Unstar(ctx context.Context, accountID int64, owner, name string) error {
+	var libraries int64
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		return catalogdb.New(pool).UnstarLibrary(ctx, catalogdb.UnstarLibraryParams{
+		var err error
+		libraries, err = catalogdb.New(pool).UnstarLibrary(ctx, catalogdb.UnstarLibraryParams{
 			AccountID: accountID, Host: domain.GitHub, Owner: owner, Name: name,
 		})
+		return err
 	})
+	if err == nil && libraries == 0 {
+		return fmt.Errorf("unstar library=%q accountID=%d: %w", owner+"/"+name, accountID, store.ErrNotFound)
+	}
 	if err != nil {
 		return fmt.Errorf("unstar library=%q accountID=%d: %v", owner+"/"+name, accountID, err)
 	}

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // ManifestFile is the file every Code Rules library has at its root.
@@ -71,4 +72,11 @@ func ParseRepositoryURL(raw string) (owner, name string, err error) {
 		return "", "", fmt.Errorf("repository URL %q: expected https://github.com/<owner>/<repository>", raw)
 	}
 	return parts[0], parts[1], nil
+}
+
+// Storable reports whether text is text Postgres can hold: UTF-8 without a NUL byte. Every name the catalog stores,
+// of a library, rule, or group, is, so text that isn't names nothing in it, and looking it up would fail rather than
+// find nothing.
+func Storable(text string) bool {
+	return utf8.ValidString(text) && !strings.ContainsRune(text, 0)
 }

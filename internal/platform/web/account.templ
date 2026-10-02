@@ -215,10 +215,10 @@ templ accountPage(c chrome, account accountView) {
 				</dl>
 				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username and avatar each time you sign in, and keeps nothing else from GitHub. Each browser stays signed in for 30 days, or until you sign out.</p>
 				if visitorOf(ctx).stars {
-					<p class="mt-2 text-[13.5px] text-muted">Rulemart also keeps which libraries you star, and when, and shows others only how many stars each library has. <a href={ templ.SafeURL(starsHref) }>Your stars</a></p>
+					<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which libraries you starred, and when: a list of your own, of which others see only how many stars each library has. <a href={ templ.SafeURL(starsHref) }>Your stars</a></p>
 				}
 				if visitorOf(ctx).cart {
-					<p class="mt-2 text-[13.5px] text-muted">It keeps what you put in your cart until you remove it, and shows it to no one else. <a href={ templ.SafeURL(cartHref) }>Your cart</a></p>
+					<p class="mt-2 text-[13.5px] text-muted">For your cart, it keeps what you add until you remove it, and shows it to no one else. <a href={ templ.SafeURL(cartHref) }>Your cart</a></p>
 				}
 				if visitorOf(ctx).listings {
 					<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you list, and when you listed or retried them, and shows no one else who listed them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>

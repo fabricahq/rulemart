@@ -13,13 +13,14 @@ slice 5's note that deleting an account should remove them, so every choice here
 ## What a visitor can do
 
 - **Star a library.** A vetted library's pages, every tab and comparison, show a Star button with its count beside
-  View on GitHub. Signed in, it stars the library and returns to the same page, where it reads Starred, filled, and
-  unstars it. Signed out, it leads to the sign-in page, which says "Sign in to star libraries. You'll come back to this
-  one.", and returns to the page, where one more click stars it.
+  View on GitHub. Signed in, it stars the library and returns to the same page, saying "You starred this library.",
+  where it reads Starred, filled, and unstars it. Signed out, it leads to the sign-in page, which says "Sign in to star
+  libraries. You'll come back to this one.", and returns to the page, which says "You're signed in. Star owner/name?"
+  with the button focused and highlighted, one click from starring.
 - **See stars.** The libraries list, on the home page and `/libraries`, shows each vetted library's stars when it has
-  any.
+  any, filled when the visitor starred it.
 - **See their stars.** "Your stars" in the account menu leads to `/account/stars`: the libraries they starred, most
-  recent first, each with Unstar.
+  recent first, each with when, and Unstar. A library unstarred there stays named at the top, with Star again.
 
 ## Decisions
 
@@ -39,13 +40,18 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### Counts and caching
 
-- **Proposed: counts are public**, on a vetted library's pages and its row in the libraries list, where a row shows
-  none at zero.
+- **Proposed: counts are public**, on a vetted library's pages, whose button always shows its count, 0 included, and its
+  row in the libraries list, which shows none at 0, so lists stay quiet until a library has stars.
 - **Proposed: pages count stars as they read**, with `count(*)` on an index, rather than keeping a count column.
   Nothing can drift, and at Rulemart's size each count is an index lookup.
-- **Proposed: a count may be a minute old for visitors who aren't signed in.** Their pages are cached for a minute
-  (**Existing**), so a new star shows within a minute. A signed-in visitor's pages are never cached (**Existing**), so
-  whoever stars sees their own star and the new count at once.
+- **Proposed: a count may be a minute old for visitors who aren't signed in.** CloudFront keeps their pages for a
+  minute (**Existing**), so a new star shows within a minute. A signed-in visitor's pages are never cached
+  (**Existing**), so whoever stars sees their own star and the new count at once.
+- **Proposed: browsers ask again for every public page: `public, max-age=0, s-maxage=60`.** With `max-age=60`, a
+  browser that signed out showed the page it kept from before signing in, with a stale count. CloudFront's cache
+  policy honors `s-maxage` between its minimum TTL of 0 and maximum of a year, so it keeps pages a minute as before,
+  and answers browsers' requests from its copy; nothing in infrastructure changes. Each page view now reaches
+  CloudFront, which it did for any page not seen in the last minute anyway.
 
 ### Ordering and abuse
 
@@ -66,15 +72,23 @@ slice 5's note that deleting an account should remove them, so every choice here
   site starts them (**Existing**). Paths under `/account` can't hide a library's `/{owner}/{repo}` (**Existing**). The
   library is named as its pages' addresses name it, matched without regard to case.
 - **Proposed: two actions, not a toggle, so repeating one is harmless.** Starring a starred library keeps one star,
-  and unstarring what isn't starred does nothing, so a double click or a resent form lands where one does.
+  and unstarring what isn't starred does nothing, so a double click or a resent form lands where one does. Unstarring
+  a library the catalog doesn't have is missing, as starring one is, and the page names it.
 - **Proposed: each returns to its `return` parameter, or the library's page.** The button carries the page it's on,
   so starring from the All rules tab or a comparison returns there; a return path is checked as signing in checks one
-  (**Existing**). The stars page's Unstar returns to it.
+  (**Existing**), and one that fails the check returns to the library's page. The stars page's Unstar returns to it.
+- **Proposed: the page that follows says what happened, by the notice cookie** (**Existing**): "You starred this
+  library. It's on Your stars." or "You unstarred this library.", and it focuses the button with `autofocus`, so
+  keyboard and screen reader users land where they were and hear its new state, without a script.
 - **Proposed: a visitor who isn't signed in gets a link, not a form.** The page is the same for everyone and cached,
-  so its Star is a link to `/sign-in?return=<page>&to=star`. The sign-in page says why, and returns to the page. A POST
-  without a session, such as from a tab whose session ended, does the same and changes nothing.
-- **Known: starring after signing in takes a second click.** Starring on the way back would need the sign-in flow to
-  carry an action, or a GET that writes.
+  so its Star is a link to `/sign-in?return=<page>?star=1&to=star`, named "Sign in to star owner/name, N stars". The
+  sign-in page says why, and promises to come back only when the return path passed its check. A POST without a
+  session, such as from a tab whose session ended, does the same and changes nothing.
+- **Proposed: signing in to star prompts once, and never stars by itself.** The library's page takes `star=1` off its
+  address with a redirect that sets a notice, so the prompt shows once, and reloading or sharing the page doesn't
+  repeat it. The prompt names the library, and the button is focused and filled in the primary color, one click from
+  starring. A library the visitor starred already gets only "You're signed in." Starring on the way back would need
+  the sign-in flow to carry an action, or a GET that writes.
 - **Proposed: no JavaScript.** Each star is a form post and a redirect back, which reloads the page with the button at
   its top. A script could save the reload, but the page would then show a count it didn't read.
 - **Proposed: a failure to read whether the visitor starred a library fails the page**, with the usual 503, as a
@@ -84,15 +98,30 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 - **Proposed: `/account/stars`, newest first.** It's the visitor's own list, so recency fits better than the owner
   and name order public lists use. Signing in may return to it, as to the listings page; signing out from it returns
-  home (**Existing**, extended).
+  home (**Existing**, extended). Each star says when: minutes or hours ago within a day, so stars made the same day
+  show their order, and the date after that, with the exact time in UTC on hover.
+- **Proposed: unstarring there keeps the library named, with Star again.** Unstar returns to
+  `/account/stars?unstarred=owner/name`, which names the library at the top while the visitor hasn't starred it again;
+  the parameter must name a library as GitHub spells names, or the page ignores it.
 - **Proposed: the account page says Rulemart keeps which libraries you star, and when, and shows others only the
   counts; deleting the account says it removes your stars.**
 
 ### Accessibility
 
-- **Proposed: the button's name says what it does and the count in words**: "Star, 3 stars", or "Starred, 3 stars.
-  Unstar", while the eye reads a star, Star or Starred, and the count. The starred star is filled in ink, not a color:
-  the palette's one amber means caution and nothing else (**Existing**).
+- **Proposed: the button is a toggle, with `aria-pressed`, named "Star, 3 stars" or "Starred, 3 stars"**, while the
+  eye reads a star, Star or Starred, and the count. It's as wide either way, and starred, it's shaded and edged in
+  ink, with its star filled in ink, not a color: the palette's one amber means caution and nothing else
+  (**Existing**). Its hover text says what a star is for, as do the stars page and the account page.
+- **Proposed: tabs name their counts apart**, "Groups, 14" rather than "Groups14", with a visually hidden comma, and fit
+  a 320-pixel phone, wrapping rather than scrolling if they ever don't, so no tab or focus ring is hidden.
+
+### Text Postgres can't hold
+
+- **Proposed: a path with a NUL byte or bytes that aren't UTF-8 is missing, before any read**, since every name a path
+  holds is text the catalog stores, and Postgres would refuse the query. A library to star or unstar named with such
+  text is missing too. Other parameters are each page's to read, as search already cleans its query (**Existing**). An
+  end-to-end test sends such text in every part of every address, signed in and out, and wants no failure. Browser QA
+  found the 503s.
 
 ### Data and roles
 
@@ -128,14 +157,16 @@ and the session cookie is already in its cache key.
 - **Page tests:** the Star link for visitors who aren't signed in, on every tab, and the cached public page; the
   signed-in button and its private page; starring and unstarring returning where they started; repeating either;
   signing in first; return paths; cross-site posts refused; unvetted and unknown libraries; counts in the list; the
-  stars page and its sign-in; the menu and account page; a failed read; no sign-in; no stars.
+  stars page and its sign-in; the menu and account page; a failed read; no sign-in; no stars; the notices, focus, and
+  `aria-pressed` after starring; the prompt after signing in to star; tampered returns and names; the visitor's own
+  stars in lists; the stars page's times and Star again.
 - **End to end against Postgres:** two visitors star, the count shows for everyone, deleting one account takes its star
   away, and unstarring empties the stars page.
 - **In a browser, locally:** both libraries ingested, `make web-dev`, then starring signed out through sign-in, the
   starred page, the libraries list, the stars page and its Unstar, the menu, and the account page, at 1280, 390, and
   320 pixels, light and dark, with no console errors.
 - **After deployment:** `curl -sI https://rulemart.fabricahq.com/fabricahq/public-rules` shows
-  `cache-control: public, max-age=60`; signed in, starring returns to the page with Starred and the new count, and
+  `cache-control: public, max-age=0, s-maxage=60`; signed in, starring returns to the page with Starred and the new count, and
   signed out, the count catches up within a minute.
 
 ## Not in this slice

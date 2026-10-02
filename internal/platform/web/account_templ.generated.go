@@ -1088,14 +1088,14 @@ func accountPage(c chrome, account accountView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if visitorOf(ctx).stars {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<p class=\"mt-2 text-[13.5px] text-muted\">Rulemart also keeps which libraries you star, and when, and shows others only how many stars each library has. <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<p class=\"mt-2 text-[13.5px] text-muted\">For your stars, it keeps which libraries you starred, and when: a list of your own, of which others see only how many stars each library has. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var56 templ.SafeURL
 				templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(starsHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 218, Col: 191}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 218, Col: 222}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 				if templ_7745c5c3_Err != nil {
@@ -1107,14 +1107,14 @@ func accountPage(c chrome, account accountView) templ.Component {
 				}
 			}
 			if visitorOf(ctx).cart {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<p class=\"mt-2 text-[13.5px] text-muted\">It keeps what you put in your cart until you remove it, and shows it to no one else. <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<p class=\"mt-2 text-[13.5px] text-muted\">For your cart, it keeps what you add until you remove it, and shows it to no one else. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var57 templ.SafeURL
 				templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(cartHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 221, Col: 164}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 221, Col: 166}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 				if templ_7745c5c3_Err != nil {

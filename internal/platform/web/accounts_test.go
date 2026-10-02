@@ -593,7 +593,7 @@ func TestOnlyPagesForEveryoneCanBeCached(t *testing.T) {
 			cookie *http.Cookie
 			want   string
 		}{
-			"signed out":            {nil, "public, max-age=60"},
+			"signed out":            {nil, "public, max-age=0, s-maxage=60"},
 			"signed in":             {session, "private, no-store"},
 			"with an ended session": {ended, "private, no-store"},
 			"with a broken cookie":  {malformed, "private, no-store"},

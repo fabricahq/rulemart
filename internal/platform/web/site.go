@@ -30,10 +30,12 @@ import (
 // show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
 const maxPageBytes = 5 << 20
 
-// pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
-// of ingestion without every visit reaching the function. Only a page that's the same for every visitor gets it:
-// withPrivateResponses replaces it on any response to a signed-in browser.
-const pageCache = "public, max-age=60"
+// pageCache lets CloudFront keep a page for a minute, so a new library release, or a new star, shows within a
+// minute without every visit reaching the function. Browsers keep it too, but ask again before each use, which
+// CloudFront answers from its copy, so a browser that signs in or out never shows a page it kept from before, with
+// stale stars or listings. CloudFront's cache policy takes s-maxage over max-age. Only a page that's the same for
+// every visitor gets it: withPrivateResponses replaces it on any response to a signed-in browser.
+const pageCache = "public, max-age=0, s-maxage=60"
 
 // privateCache keeps a response out of every cache: one that depends on who asked, or that sets a cookie.
 const privateCache = "private, no-store"
@@ -150,9 +152,10 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
-			caretScript: assets.url("caret.js"), copyScript: assets.url("copy.js"),
-			icon: assets.url("favicon.svg"),
-			font: assets.url("fonts/inter-latin.woff2"),
+			caretScript: assets.url("caret.js"),
+			copyScript:  assets.url("copy.js"),
+			icon:        assets.url("favicon.svg"),
+			font:        assets.url("fonts/inter-latin.woff2"),
 		},
 	}
 	mux := http.NewServeMux()
@@ -266,7 +269,12 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), s.vettedCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
+	cards, err := s.vettedCards(r, page.Libraries)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), cards, newGroupIndexView(page.Groups, s.assets.iconURL)))
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
@@ -275,7 +283,12 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), s.vettedCards(libraries), s.listingAvailable()))
+	cards, err := s.vettedCards(r, libraries)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
 func (s *server) groups(w http.ResponseWriter, r *http.Request) {
@@ -370,8 +383,12 @@ func redirect(w http.ResponseWriter, r *http.Request, target string) {
 
 // library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
 // starting at the release the until parameter names, if any. With releases to compare in the from and to
-// parameters, the releases tab compares them.
+// parameters, the releases tab compares them. Returning from signing in to star the library, it prompts once to star
+// it.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
+	if s.withoutStarPrompt(w, r) {
+		return
+	}
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
 	switch tab := libraryTab(query.Get("tab")); {
@@ -674,7 +691,7 @@ func (s *server) renderWith(w http.ResponseWriter, r *http.Request, status int, 
 		}
 	}
 	// The page shows its notice, if any, so the next page mustn't again.
-	if visitorOf(r.Context()).notice != "" {
+	if visitorOf(r.Context()).noticeKey != "" {
 		clearCookie(w, noticeCookie)
 	}
 	write(w, r, status, cache, body.Bytes())

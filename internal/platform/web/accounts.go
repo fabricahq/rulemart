@@ -103,8 +103,9 @@ type visitor struct {
 	cartItems int
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
-	// notice is a notice for this page to show once, from noticeCookie, or empty.
-	notice string
+	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
+	// the cookie named, which the page clears as it renders.
+	notice, noticeKey string
 }
 
 // accountMenuName is what screen readers hear of the header's account menu: who is signed in, and how many items
@@ -129,6 +130,11 @@ var notices = map[string]string{
 	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
 	"listing-retried":          "Rulemart is checking the repository again.",
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
+	"starred":                  "You starred this library. It's on Your stars.",
+	"unstarred":                "You unstarred this library.",
+	// A library's page says what follows signing in to star it, naming the library, as starPromptNotice does.
+	starPromptKey:   "You're signed in.",
+	"added-to-cart": "Added to your cart.",
 	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or add " +
 		"a whole group instead of its rules.",
 	"cart-emptied": "Your cart is empty.",
@@ -152,53 +158,69 @@ func (s *server) signInAvailable() bool {
 	return s.Accounts != nil && (s.GitHub != nil || DevSignIn)
 }
 
-// withVisitor finds who r is from, by its session cookie, before next shows a page. A cookie that no longer signs
-// anyone in is cleared. A failure to read the session fails the request, rather than showing a signed-in visitor a
-// page as if they weren't.
+// withVisitor finds who r is from, by its session cookie, before next shows a page. A path that holds text Postgres
+// can't, which names nothing Rulemart has, is missing before next sees it; parameters are each handler's to read.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		back := returnPath(r.URL.RequestURI())
-		v := visitor{
-			here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
-			onStarsPage: r.URL.Path == starsHref, onCartPage: r.URL.Path == cartHref,
-			listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
+		r, ok := s.visit(w, r)
+		if !ok {
+			return
 		}
-		if s.signInAvailable() {
-			v.signIn = s.absolute(signInPageHref(back))
-			v.withGitHub = s.GitHub != nil
+		if !domain.Storable(r.URL.Path) {
+			s.notFound(w, r)
+			return
 		}
-		if cookie, err := r.Cookie(noticeCookie); err == nil {
-			// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
-			if v.notice = notices[cookie.Value]; v.notice == "" {
-				clearCookie(w, noticeCookie)
-			}
-		}
-		if s.Accounts != nil {
-			if token, ok := sessionToken(r); ok {
-				account, err := s.Accounts.Account(r.Context(), token)
-				switch {
-				case errors.Is(err, accountsapp.ErrSignedOut):
-					clearCookie(w, sessionCookie)
-				case err != nil:
-					s.fail(w, r, err)
-					return
-				default:
-					v.account, v.token = &account, token
-					v.signOut = signOutHref + returnQuery(publicPath(back))
-				}
-				if v.account != nil && v.cart {
-					// The header shows the count, so a failure to read it fails the page, as a failed session read does.
-					if v.cartItems, err = s.Cart.Count(r.Context(), account.ID); err != nil {
-						s.fail(w, r, err)
-						return
-					}
-				}
-			} else if hasCookie(r, sessionCookie) {
-				clearCookie(w, sessionCookie)
-			}
-		}
-		next(w, r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)))
+		next(w, r)
 	}
+}
+
+// visit returns r with who it's from in its context, by its session cookie, which visitorOf reads, so its page's
+// header shows them. A cookie that no longer signs anyone in is cleared. A failure to read the session fails the
+// request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
+func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	back := returnPath(r.URL.RequestURI())
+	v := visitor{
+		here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
+		onStarsPage: r.URL.Path == starsHref, onCartPage: r.URL.Path == cartHref,
+		listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
+	}
+	if s.signInAvailable() {
+		v.signIn = s.absolute(signInPageHref(back))
+		v.withGitHub = s.GitHub != nil
+	}
+	if cookie, err := r.Cookie(noticeCookie); err == nil {
+		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
+		if v.notice = notices[cookie.Value]; v.notice == "" {
+			clearCookie(w, noticeCookie)
+		} else {
+			v.noticeKey = cookie.Value
+		}
+	}
+	if s.Accounts != nil {
+		if token, ok := sessionToken(r); ok {
+			account, err := s.Accounts.Account(r.Context(), token)
+			switch {
+			case errors.Is(err, accountsapp.ErrSignedOut):
+				clearCookie(w, sessionCookie)
+			case err != nil:
+				s.fail(w, r, err)
+				return r, false
+			default:
+				v.account, v.token = &account, token
+				v.signOut = signOutHref + returnQuery(publicPath(back))
+			}
+			if v.account != nil && v.cart {
+				// The header shows the count, so a failure to read it fails the page, as a failed session read does.
+				if v.cartItems, err = s.Cart.Count(r.Context(), account.ID); err != nil {
+					s.fail(w, r, err)
+					return r, false
+				}
+			}
+		} else if hasCookie(r, sessionCookie) {
+			clearCookie(w, sessionCookie)
+		}
+	}
+	return r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)), true
 }
 
 // sessionToken returns r's session token, or false when it has none or the cookie can't hold one.
@@ -290,10 +312,15 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	case publicPath(back) != back:
 		path, _, _ := strings.Cut(back, "?")
 		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
-	case r.URL.Query().Get("to") == starPurpose:
+	case r.URL.Query().Get("to") == starPurpose && back != "/":
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries. You'll come back to this one.")
-	case r.URL.Query().Get("to") == cartPurpose:
+	case r.URL.Query().Get("to") == starPurpose:
+		// The return path was refused, so the page promises no return.
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries.")
+	case r.URL.Query().Get("to") == cartPurpose && back != "/":
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to collect rules in your cart. You'll come back to this page.")
+	case r.URL.Query().Get("to") == cartPurpose:
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to collect rules in your cart.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

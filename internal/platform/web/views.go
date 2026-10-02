@@ -73,8 +73,10 @@ func newLibraryView(lib views.Library) libraryView {
 type libraryCard struct {
 	href, owner, name, description, avatar string
 	rules                                  int
-	// stars counts the library's stars, which the card shows when there are any and the library is vetted.
-	stars int
+	// stars counts the library's stars, which the card shows when there are any and the library is vetted, and
+	// starredByYou is true when the signed-in visitor starred it.
+	stars        int
+	starredByYou bool
 	// unvetted marks a library that's only listed, whose link carries nofollow.
 	unvetted bool
 }

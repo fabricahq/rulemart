@@ -69,20 +69,20 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 			t.Fatalf("starring answered %d", resp.StatusCode)
 		}
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Star, 2 stars")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 2 stars")
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/libraries"})), "2 stars")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library, cookies: first})), "Starred, 2 stars. Unstar")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library, cookies: first})), "Starred, 2 stars")
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/stars", cookies: second})),
 		"example/rules · Starred")
 
 	if resp := send(t, handler, request{method: http.MethodPost, target: "/account/delete", cookies: first}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("deleting the account answered %d", resp.StatusCode)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Star, 1 star")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 1 star")
 	if resp := send(t, handler, request{method: http.MethodPost, target: unstarPath, cookies: second}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("unstarring answered %d", resp.StatusCode)
 	}
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/stars", cookies: second})),
-		"You haven't starred a library.")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Star, 0 stars")
+		"No stars yet.")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 0 stars")
 }

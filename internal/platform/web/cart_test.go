@@ -639,7 +639,7 @@ func TestTheHeaderAndAccountNameTheVisitorsCart(t *testing.T) {
 	if strings.Contains(body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"})), "/account/cart") {
 		t.Error("a page for everyone links a cart")
 	}
-	assertShows(t, body(t, site.signedInGet(t, "/account")), "It keeps what you put in your cart", "It removes your stars, your cart, and your listings")
+	assertShows(t, body(t, site.signedInGet(t, "/account")), "For your cart, it keeps what you add", "It removes your stars, your cart, and your listings")
 	signedOut := site.signedInPost(t, "/sign-out?return=%2Faccount%2Fcart%2Fcheckout")
 	if signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signing out of checkout returns to %q, want home", signedOut.Header.Get("Location"))

@@ -63,7 +63,8 @@ func TestAnAccountStarsAVettedLibraryOnce(t *testing.T) {
 	}
 }
 
-// Unstarring removes only the account's own star, and unstarring what it hasn't starred changes nothing.
+// Unstarring removes only the account's own star, and unstarring what it hasn't starred changes nothing; unstarring a
+// library the catalog doesn't have is missing.
 func TestUnstarringRemovesOnlyTheAccountsOwnStar(t *testing.T) {
 	c := newListingCatalog(t)
 	ctx := context.Background()
@@ -80,8 +81,8 @@ func TestUnstarringRemovesOnlyTheAccountsOwnStar(t *testing.T) {
 	if err := c.web.Unstar(ctx, second, "beta", "rules"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.web.Unstar(ctx, second, "nobody", "nothing"); err != nil {
-		t.Fatalf("unstarring a library that isn't there: %v", err)
+	if err := c.web.Unstar(ctx, second, "nobody", "nothing"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("unstarring a library that isn't there: %v, want ErrNotFound", err)
 	}
 	if cards, page := c.stars(t); cards["acme/backend"] != 1 || cards["Beta/rules"] != 1 || page != 1 {
 		t.Fatalf("got cards %v, page %d; want the first account's stars on both", cards, page)
