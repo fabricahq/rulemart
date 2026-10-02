@@ -95,6 +95,14 @@ func (p ListPage) Orders() []RuleOrder {
 	return nil
 }
 
+// OffersKind reports whether the page filters by the kind of group, techs or practices, as search does; a group's
+// page holds one kind.
+func (p ListPage) OffersKind() bool { return p == SearchListPage }
+
+// OffersRetired reports whether the page offers its retired rules as a choice, as a group's page does; search always
+// finds them.
+func (p ListPage) OffersRetired() bool { return p == GroupListPage }
+
 // ListChoices are what a visitor chose on a page that lists rules or libraries: which libraries it includes, what it
 // filters, and how it orders them. ParseListChoices reads them from an address, and Values writes them back.
 type ListChoices struct {
@@ -108,20 +116,17 @@ type ListChoices struct {
 	Order RuleOrder
 }
 
-// The query parameters that hold list choices.
+// The query parameters that hold list choices, which ListChoices reads and writes, and a page's form fields name. A
+// page's own address holds them only as Values writes them.
 const (
-	librariesParam = "libs"
-	impactParam    = "impact"
-	starsParam     = "stars"
-	kindParam      = "kind"
-	sortParam      = "sort"
-	unvettedParam  = "unvetted"
-	retiredParam   = "retired"
+	LibrariesParam = "libs"
+	ImpactParam    = "impact"
+	StarsParam     = "stars"
+	KindParam      = "kind"
+	SortParam      = "sort"
+	UnvettedParam  = "unvetted"
+	RetiredParam   = "retired"
 )
-
-// ListChoiceParams are the query parameters ListChoices reads and writes, which a page's address holds only as Values
-// writes them.
-var ListChoiceParams = []string{librariesParam, impactParam, starsParam, kindParam, sortParam, unvettedParam, retiredParam}
 
 // StarThresholds are the least stars the stars filter offers, besides any.
 var StarThresholds = []int{10, 50, 100}
@@ -136,27 +141,28 @@ const MaxLibraryFilters = 50
 // libraries with commas; a filter whose every value is chosen keeps every rule. Libraries are kept as
 // LibraryFilterValue spells them, in order, each once.
 func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
-	choices := ListChoices{Unvetted: has(values[unvettedParam], "1")}
+	choices := ListChoices{Unvetted: has(values[UnvettedParam], "1")}
 	if page == LibraryListPage {
 		return choices
 	}
 	choices.Order = page.Orders()[0]
 	for _, order := range page.Orders() {
-		if has(values[sortParam], string(order)) {
+		if has(values[SortParam], string(order)) {
 			choices.Order = order
 		}
 	}
-	choices.Filters.Libraries = libraryFilters(values[librariesParam])
-	choices.Filters.Impact = ImpactBand(oneOf(values[impactParam], string(HighImpact), string(LowerImpact)))
+	choices.Filters.Libraries = libraryFilters(values[LibrariesParam])
+	choices.Filters.Impact = ImpactBand(oneOf(values[ImpactParam], string(HighImpact), string(LowerImpact)))
 	for _, n := range StarThresholds {
-		if has(values[starsParam], strconv.Itoa(n)) {
+		if has(values[StarsParam], strconv.Itoa(n)) {
 			choices.Filters.MinStars = n
 		}
 	}
-	if page == SearchListPage {
-		choices.Filters.Kind = oneOf(values[kindParam], "techs", "practices")
-	} else {
-		choices.Retired = has(values[retiredParam], "1")
+	if page.OffersKind() {
+		choices.Filters.Kind = oneOf(values[KindParam], "techs", "practices")
+	}
+	if page.OffersRetired() {
+		choices.Retired = has(values[RetiredParam], "1")
 	}
 	return choices
 }
@@ -166,25 +172,25 @@ func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
 func (c ListChoices) Values(page ListPage) url.Values {
 	values := url.Values{}
 	if c.Unvetted {
-		values.Set(unvettedParam, "1")
+		values.Set(UnvettedParam, "1")
 	}
 	if c.Retired {
-		values.Set(retiredParam, "1")
+		values.Set(RetiredParam, "1")
 	}
 	if len(c.Filters.Libraries) > 0 {
-		values.Set(librariesParam, strings.Join(c.Filters.Libraries, ","))
+		values.Set(LibrariesParam, strings.Join(c.Filters.Libraries, ","))
 	}
 	if c.Filters.Impact != AnyImpact {
-		values.Set(impactParam, string(c.Filters.Impact))
+		values.Set(ImpactParam, string(c.Filters.Impact))
 	}
 	if c.Filters.MinStars > 0 {
-		values.Set(starsParam, strconv.Itoa(c.Filters.MinStars))
+		values.Set(StarsParam, strconv.Itoa(c.Filters.MinStars))
 	}
 	if c.Filters.Kind != "" {
-		values.Set(kindParam, c.Filters.Kind)
+		values.Set(KindParam, c.Filters.Kind)
 	}
 	if orders := page.Orders(); len(orders) > 0 && c.Order != orders[0] && c.Order != "" {
-		values.Set(sortParam, string(c.Order))
+		values.Set(SortParam, string(c.Order))
 	}
 	return values
 }

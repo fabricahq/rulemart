@@ -29,7 +29,7 @@ templ filterSidebar(v ruleListView) {
 			@filterGroup("Libraries", "") {
 				for _, l := range v.libraries {
 					<label class={ filterLabel, templ.KV("font-medium text-ink", l.fabrica) }>
-						<input class={ filterInput } type="checkbox" name="libs" value={ l.value } checked?={ l.checked }/>
+						<input class={ filterInput } type="checkbox" name={ domain.LibrariesParam } value={ l.value } checked?={ l.checked }/>
 						@libraryAvatar(l.avatar, l.owner, avatarXS, l.vetted)
 						<span class="min-w-0 flex-1 truncate" title={ l.fullName }>{ l.fullName }</span>
 						<span class="text-faint tabular-nums">{ strconv.Itoa(l.rules) }</span>
@@ -37,37 +37,37 @@ templ filterSidebar(v ruleListView) {
 				}
 			}
 		}
-		if v.page == domain.SearchListPage {
+		if v.page.OffersKind() {
 			@filterGroup("Kind", "") {
-				@exclusiveCheckbox("kind", "techs", "Technologies", v.choices.Filters.Kind == "techs")
-				@exclusiveCheckbox("kind", "practices", "Practices", v.choices.Filters.Kind == "practices")
+				@exclusiveCheckbox(domain.KindParam, "techs", "Technologies", v.choices.Filters.Kind == "techs")
+				@exclusiveCheckbox(domain.KindParam, "practices", "Practices", v.choices.Filters.Kind == "practices")
 			}
 		}
 		@filterGroup("Impact", "") {
-			@exclusiveCheckbox("impact", string(domain.HighImpact), "Critical and high", v.choices.Filters.Impact == domain.HighImpact)
-			@exclusiveCheckbox("impact", string(domain.LowerImpact), "Medium and lower", v.choices.Filters.Impact == domain.LowerImpact)
+			@exclusiveCheckbox(domain.ImpactParam, string(domain.HighImpact), "Critical and high", v.choices.Filters.Impact == domain.HighImpact)
+			@exclusiveCheckbox(domain.ImpactParam, string(domain.LowerImpact), "Medium and lower", v.choices.Filters.Impact == domain.LowerImpact)
 		}
 		@filterGroup("Stars", "") {
 			<label class={ filterLabel }>
-				<input class={ filterInput } type="radio" name="stars" value="" checked?={ v.minStars() == "" }/> Any
+				<input class={ filterInput } type="radio" name={ domain.StarsParam } value="" checked?={ v.minStars() == "" }/> Any
 			</label>
 			for _, n := range domain.StarThresholds {
 				<label class={ filterLabel }>
-					<input class={ filterInput } type="radio" name="stars" value={ strconv.Itoa(n) } checked?={ v.minStars() == strconv.Itoa(n) }/> { strconv.Itoa(n) }+
+					<input class={ filterInput } type="radio" name={ domain.StarsParam } value={ strconv.Itoa(n) } checked?={ v.minStars() == strconv.Itoa(n) }/> { strconv.Itoa(n) }+
 				</label>
 			}
 		}
-		if v.page == domain.GroupListPage {
+		if v.page.OffersRetired() {
 			@filterGroup("Retired", "") {
 				<label class={ filterLabel }>
-					<input class={ filterInput } type="checkbox" name="retired" value="1" checked?={ v.choices.Retired }/> Show retired rules
+					<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ v.choices.Retired }/> Show retired rules
 				</label>
 			}
 		}
 		// Its one long label takes the whole width where the sidebar has two columns.
 		@filterGroup("Unvetted", "max-wide:col-span-full") {
 			<label class={ filterLabel }>
-				<input class={ filterInput } type="checkbox" name="unvetted" value="1" checked?={ v.choices.Unvetted }/> Include unvetted libraries
+				<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ v.choices.Unvetted }/> Include unvetted libraries
 			</label>
 		}
 		<div class="flex flex-wrap items-center gap-2 max-wide:col-span-full">
@@ -144,7 +144,7 @@ templ noFilteredRules(v ruleListView) {
 templ unvettedOptIn(path string, unvetted bool) {
 	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" data-filters>
 		<label class={ filterLabel }>
-			<input class={ filterInput } type="checkbox" name="unvetted" value="1" checked?={ unvetted }/> Include unvetted libraries
+			<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ unvetted }/> Include unvetted libraries
 		</label>
 		<noscript>
 			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>

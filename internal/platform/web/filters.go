@@ -113,8 +113,8 @@ func (v ruleListView) formParams() []formParam {
 			params = append(params, formParam{name, value})
 		}
 	}
-	if order := v.choices.Values(v.page).Get("sort"); order != "" {
-		params = append(params, formParam{"sort", order})
+	if order := v.choices.Values(v.page).Get(domain.SortParam); order != "" {
+		params = append(params, formParam{domain.SortParam, order})
 	}
 	return params
 }
