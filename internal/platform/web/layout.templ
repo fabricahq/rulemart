@@ -9,10 +9,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
-// chrome is what the frame links: the stylesheet, the theme script, the icon, the font to preload, and the page's
-// canonical address.
+// chrome is what the frame links: the stylesheet, the theme and menu scripts, the icon, the font to preload, and the
+// page's canonical address.
 type chrome struct {
-	stylesheet, script, icon, font string
+	stylesheet, script, menuScript, icon, font string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -50,10 +50,16 @@ templ layout(c chrome, h head) {
 			<link rel="preload" href={ c.font } as="font" type="font/woff2" crossorigin/>
 			<link rel="stylesheet" href={ c.stylesheet }/>
 			<script src={ c.script }></script>
+			<script src={ c.menuScript } defer></script>
 		</head>
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
 			@header(h)
+			if notice := visitorOf(ctx).notice; notice != "" {
+				<div class="border-b border-border-subtle bg-surface" role="status">
+					<p class="wrap py-2.5 text-[14px] text-ink">{ notice }</p>
+				</div>
+			}
 			<main id="main" class="flex-1" tabindex="-1">
 				{ children... }
 			</main>
@@ -62,20 +68,22 @@ templ layout(c chrome, h head) {
 	</html>
 }
 
-// header is the bar atop every page: Rulemart's name, links to the libraries and the groups, and a search field, which a phone's
-// narrow header replaces with a link to the search page.
+// header is the bar atop every page: Rulemart's name, links to the libraries and the groups, a search field, which a phone's
+// narrow header replaces with a link to the search page, and the visitor's account menu or a link to sign in.
 templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper">
-		<div class="wrap flex h-[60px] items-center gap-[22px]">
-			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
-				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink" href="https://fabricahq.com">
-					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
-					Fabrica
+		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3 max-tiny:gap-2">
+			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap max-narrow:items-center max-narrow:gap-1.5">
+				// A phone's header has room for Fabrica's mark but not its name, which stays for screen readers, and a
+				// narrow phone's has room for Rulemart's name alone.
+				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-narrow:grid max-narrow:h-11 max-narrow:place-items-center max-narrow:pl-0 max-tiny:hidden" href="https://fabricahq.com">
+					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2 max-narrow:static max-narrow:translate-y-0")
+					<span class="max-narrow:sr-only">Fabrica</span>
 				</a>
-				<span class="font-normal text-muted">/</span>
+				<span class="font-normal text-muted max-tiny:hidden">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
-			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1" aria-label="Rulemart">
+			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1 max-tiny:gap-0" aria-label="Rulemart">
 				@navLink(librariesHref, "Libraries", h.section)
 				@navLink(groupsHref, "Groups", h.section)
 				if h.searchPage {
@@ -91,6 +99,7 @@ templ header(h head) {
 				<a class="grid size-11 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink narrow:hidden" href={ templ.SafeURL(searchHref) } aria-label="Search rules" title="Search rules">
 					@searchIcon("size-5")
 				</a>
+				@accountControl(visitorOf(ctx))
 			</nav>
 		</div>
 	</header>
@@ -100,7 +109,7 @@ templ header(h head) {
 // the part it links.
 templ navLink(href, name, section string) {
 	<a
-		class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5", templ.KV("font-medium text-ink", section == href), templ.KV("text-muted", section != href) }
+		class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5 max-tiny:px-1", templ.KV("font-medium text-ink", section == href), templ.KV("text-muted", section != href) }
 		href={ templ.SafeURL(href) }
 		if section == href {
 			aria-current="true"
@@ -135,10 +144,10 @@ var themeChoices = []themeChoice{
 // themeMenu is the Fabrica website's color theme menu: a round button showing the current choice's icon, and a
 // menu of the three choices with a check on the current one. Its focus rings are the website's, thinner than the
 // rest of Rulemart's. It opens upward, since it sits at the bottom of the
-// page. theme.js shows it, keeps it in step with the visitor's choice, and closes it; without JavaScript the page
-// follows the system theme and shows no menu.
+// page. theme.js shows it and keeps it in step with the visitor's choice, and menus.js closes it; without JavaScript
+// the page follows the system theme and shows no menu.
 templ themeMenu() {
-	<details id="theme-control" class="relative shrink-0" hidden>
+	<details id="theme-control" class="relative shrink-0" data-menu hidden>
 		<summary
 			class="flex size-11 cursor-pointer list-none items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink [&::-webkit-details-marker]:hidden"
 			aria-label="Color theme: System"

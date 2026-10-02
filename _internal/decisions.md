@@ -83,6 +83,25 @@ than adding history.
   versions. A rename, which Code Rules records as a retirement and a new rule under the same title, shows as one.
   Retired rules stay out of search.
 
+## Accounts and sign-in
+
+- **GitHub is the only sign-in provider, through an OAuth app that asks for no scopes.** Rulemart reads the user's
+  ID, login, and avatar once, discards the token, and keeps nothing else: an account is keyed by GitHub's numeric user
+  ID, since logins change. The flow uses state and PKCE, kept in a ten-minute `__Host-` cookie.
+  [Slice 5](slices/5-sign-in.md) explains the choices.
+- **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
+  HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
+  and an account keeps at most 20.
+- **A page for a signed-in visitor is never cached.** Any response to a request with the session cookie, or that sets
+  a cookie, is `private, no-store`; CloudFront keys its cache on the session cookie too; and other pages vary with
+  `Cookie` in browsers. Pages for everyone stay public and identical, so signed-out traffic keeps the cache. A notice
+  after signing out comes from a one-time cookie, which CloudFront also keys on, so it never needs a query string.
+- **Writes are POSTs with empty bodies, refused when another site starts them**, by `Sec-Fetch-Site` or `Origin`.
+  CloudFront can't forward a body a browser didn't hash for origin access control, so forms carry their input in the
+  action's query string, and there's no CSRF token.
+- **Without `GITHUB_CLIENT_ID`, pages offer no sign-in.** Local builds with the `rulemartdev` tag sign in test users
+  instead; release builds can't include that, and a test checks the release binary.
+
 ## Application
 
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone
@@ -92,10 +111,11 @@ than adding history.
   release records with Code Rules' own parser: a copy in `internal/lib/coderules` until Code Rules publishes a
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
-  membership in `rulemart_catalog_reader`.** Infrastructure owns the roles: it creates `rulemart_catalog_reader`
-  with SQL, as a NOLOGIN group role, creates the login, and makes the login a member, because a role made through
-  Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
-  databases. Migrations own the grants: they grant the group role what each table needs, never grant to a login,
+  membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
+  `rulemart_accounts_writer`, which writes only accounts and sessions.** Infrastructure owns the roles: it creates
+  each group role with SQL, as a NOLOGIN role, creates the login, and makes the login a member, because a role made
+  through Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
+  databases. Migrations own the grants: they grant each group role what each table needs, never grant to a login,
   and never create roles, so a release can't migrate before infrastructure has, and a login can be replaced or
   rotated without a migration. Migrations connect as the database's owner.
 - **Ingestion connects as `rulemart_worker`, a login that can only write the catalog, through its membership in
@@ -120,8 +140,9 @@ than adding history.
   that fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
   catalog's only SQL; and `views` for what pages read. `internal/platform` holds runtime that contexts share, such
   as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
-  `internal/lib` holds narrow libraries that own no product concept, such as the parser copy. Contexts added later,
-  such as accounts or the cart, get the same layout.
+  `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
+  `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
+  Contexts added later, such as the cart, get it too.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

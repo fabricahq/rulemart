@@ -1,0 +1,211 @@
+// The pages and header parts of accounts: the header's account menu or sign-in link, the sign-in page, and the
+// account page.
+
+package web
+
+// accountControl ends the header: the signed-in visitor's avatar, which opens their menu, or a link to sign in, or
+// nothing when sign-in isn't available. Its slot is as wide either way, and stays, empty, on the sign-in page, so the
+// links beside it never move. Its content sits at the page's edge.
+templ accountControl(v visitor) {
+	if v.account != nil || v.signIn != "" {
+		<div class={ accountSlotStyle }>
+			if v.account != nil {
+				@accountMenu(v)
+			} else if !v.onSignInPage {
+				@signInLink(v)
+			}
+		</div>
+	}
+}
+
+// accountSlotStyle sizes the header's account slot to its widest content at each width: the Sign in button, then
+// the Sign in link of a phone's header, then a narrow phone's icon.
+const accountSlotStyle = "flex shrink-0 justify-end w-[6.25rem] max-narrow:w-14 max-tiny:w-11"
+
+// signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, a link
+// like the others beside it in a phone's header, and an icon with a label in a narrow phone's.
+templ signInLink(v visitor) {
+	<a class="inline-flex min-h-9 items-center gap-2 rounded-full border border-border-strong px-3.5 text-[13.5px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface max-narrow:min-h-11 max-narrow:border-transparent max-narrow:px-1.5 max-narrow:text-[14px] max-narrow:hover:border-transparent max-narrow:hover:bg-transparent max-tiny:size-11 max-tiny:justify-center max-tiny:px-0" href={ templ.SafeURL(v.signIn) }>
+		if v.withGitHub {
+			@githubMark("size-4 max-narrow:hidden")
+		}
+		<span class="max-tiny:sr-only">Sign in</span>
+		@personIcon("hidden size-5 text-muted max-tiny:block")
+	</a>
+}
+
+// personIcon is a person's head and shoulders, in the current text color.
+templ personIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<circle cx="12" cy="8" r="4"></circle>
+		<path d="M4 21a8 8 0 0 1 16 0"></path>
+	</svg>
+}
+
+// accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account
+// and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the button's
+// shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar, just inside
+// its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves it.
+templ accountMenu(v visitor) {
+	<details class="group relative shrink-0" data-menu>
+		<summary class="-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span]:outline-2 [&:focus-visible>span]:-outline-offset-2 [&:focus-visible>span]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
+			@avatar(v.account.AvatarURL, v.account.Login, avatarSM)
+		</summary>
+		<div class="absolute top-[calc(100%+6px)] right-[7px] z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
+			<div class="mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5">
+				<p class="text-[12px] text-faint">Signed in as</p>
+				<p class="truncate text-[14px] font-medium text-ink">{ v.account.Login }</p>
+			</div>
+			<a
+				class={ menuItemStyle, "no-underline", templ.KV("font-medium text-ink", v.onAccountPage), templ.KV("text-muted", !v.onAccountPage) }
+				href={ templ.SafeURL(accountHref) }
+				if v.onAccountPage {
+					aria-current="page"
+				}
+			>Account</a>
+			<form method="post" action={ templ.SafeURL(v.signOut) }>
+				<button class={ menuItemStyle, "w-full cursor-pointer text-left text-muted" } type="submit">Sign out</button>
+			</form>
+		</div>
+	</details>
+}
+
+// menuItemStyle is a link or button in a menu. Its focus ring is drawn inside it, clear of the menu's border and of
+// the line under the menu's heading.
+const menuItemStyle = "flex min-h-11 items-center rounded-lg px-3 text-sm transition-colors hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:-outline-offset-2"
+
+// primaryButtonStyle is a page's main action, filled in the primary color.
+const primaryButtonStyle = "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-full bg-primary px-5 text-[15px] font-medium text-on-primary transition-opacity hover:opacity-85"
+
+// outlineButtonStyle is a secondary action, outlined.
+const outlineButtonStyle = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-border-strong px-4 text-[14px] font-medium whitespace-nowrap text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
+
+// dangerButtonStyle is an action that can't be undone, outlined in the color of deletion.
+const dangerButtonStyle = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-del-ink px-4 text-[14px] font-medium whitespace-nowrap text-del-ink transition-colors duration-[160ms] hover:bg-surface"
+
+// signInPage offers each way to sign in: GitHub, and in a local build, test users. It says what Rulemart reads of a
+// GitHub account, and why the last attempt failed, if it did. Search engines have no use for it.
+templ signInPage(c chrome, view signInView) {
+	@layout(c, head{title: "Sign in · Rulemart", noindex: true}) {
+		<div class="page wrap max-w-[30rem] pt-16 max-narrow:pt-10">
+			<div class="mx-auto size-11 text-ink">
+				@fabricaMark("size-11")
+			</div>
+			<h1 class="title-xl mt-[18px] mb-6 text-center">Sign in to Rulemart</h1>
+			if view.notice != "" {
+				<p class="mb-6 rounded-card border border-border-strong px-4 py-3 text-[14px] text-ink" role="alert">{ view.notice }</p>
+			}
+			if !view.available {
+				<p class="text-center text-muted">Sign-in isn't available yet. Browsing needs no account.</p>
+			} else {
+				<p class="text-center text-muted">Browsing Rulemart needs no account. Signing in lets Rulemart know who you are, with your GitHub account.</p>
+				if view.gitHub != "" {
+					<form class="mt-7" method="post" action={ templ.SafeURL(view.gitHub) }>
+						<button class={ primaryButtonStyle } type="submit">
+							@githubMark("size-[18px]")
+							Continue with GitHub
+						</button>
+					</form>
+					<p class="mt-4 text-center text-[13px] text-faint">Rulemart asks GitHub only for your public profile, and keeps your GitHub user ID, username, and avatar. It can't see your private repositories or act on GitHub for you.</p>
+				}
+				if len(view.testUsers) > 0 {
+					<section class="mt-9 rounded-card border border-dashed border-border-strong px-5 py-4" aria-labelledby="test-users">
+						@labelHeading("") {
+							<span id="test-users">Local build</span>
+						}
+						<p class="mt-1.5 text-[13.5px] text-muted">Sign in as a test user, without GitHub. Release builds don't include this.</p>
+						<ul class="mt-3 grid gap-2">
+							for _, user := range view.testUsers {
+								<li>
+									<form method="post" action={ templ.SafeURL(user.action) }>
+										<button class={ outlineButtonStyle + " w-full" } type="submit">Sign in as { user.login }</button>
+									</form>
+								</li>
+							}
+						</ul>
+					</section>
+				}
+			}
+		</div>
+	}
+}
+
+// accountPage shows the signed-in visitor what Rulemart keeps about them, and lets them sign out, everywhere at once,
+// or delete their account. Deleting asks first, by opening a disclosure, so it takes two deliberate clicks.
+templ accountPage(c chrome, account accountView) {
+	@layout(c, head{title: "Account · Rulemart", noindex: true}) {
+		<div class="page wrap max-w-[44rem]">
+			@label("") {
+				Account
+			}
+			<div class="mt-3 flex items-center gap-4">
+				@avatar(account.avatar, account.login, avatarLG)
+				<div class="min-w-0">
+					<h1 class="title-xl truncate">{ account.login }</h1>
+					if account.testUser {
+						<p class="text-[14px] text-muted">Local test user, signed in without GitHub</p>
+					} else {
+						<p class="text-[14px] text-muted">Signed in with GitHub as <a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a></p>
+					}
+				</div>
+			</div>
+			<section class="mt-10" aria-labelledby="kept">
+				@labelHeading("mb-3") {
+					<span id="kept">What Rulemart keeps</span>
+				}
+				<dl class="grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
+					@fact("GitHub user ID") {
+						<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
+					}
+					@fact("Username") {
+						{ account.login }
+					}
+					@fact("Avatar") {
+						if account.avatar != "" {
+							Your GitHub avatar
+						} else {
+							<span class="text-faint">None</span>
+						}
+					}
+					@fact("Account created") {
+						{ account.since }
+					}
+				</dl>
+				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username and avatar each time you sign in, and keeps nothing else from GitHub. Each browser stays signed in for 30 days, or until you sign out.</p>
+			</section>
+			<section class="mt-10" aria-labelledby="sign-out">
+				@labelHeading("mb-3") {
+					<span id="sign-out">Sign out</span>
+				}
+				<div class="flex flex-wrap gap-2.5">
+					<form method="post" action={ templ.SafeURL(signOutHref) }>
+						<button class={ outlineButtonStyle } type="submit">Sign out</button>
+					</form>
+					<form method="post" action={ templ.SafeURL(signOutEverywhereHref) }>
+						<button class={ outlineButtonStyle } type="submit">Sign out everywhere</button>
+					</form>
+				</div>
+				<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
+			</section>
+			<section class="mt-10 border-t border-border-subtle pt-8" aria-labelledby="delete">
+				@labelHeading("mb-3") {
+					<span id="delete">Delete your account</span>
+				}
+				<details class="group">
+					<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+						<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+						</svg>
+						<span class="underline underline-offset-4">What deleting does</span>
+					</summary>
+					<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
+						<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. Your GitHub account doesn't change. Signing in again starts a new account.</p>
+						<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
+							<button class={ dangerButtonStyle } type="submit">Delete my account</button>
+						</form>
+					</div>
+				</details>
+			</section>
+		</div>
+	}
+}

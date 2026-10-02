@@ -17,8 +17,9 @@ import (
 )
 
 // The web function connects as the web role, which may read the catalog and the schema version, through its
-// membership in the catalog reader role, and nothing else.
-func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
+// membership in the catalog reader role, and write accounts and sessions, through its membership in the accounts
+// writer role, and nothing else.
+func TestMigrationsLetTheWebRoleReadTheCatalogAndSignVisitorsInAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
 	if _, err := Up(ctx, connString); err != nil {
@@ -45,7 +46,21 @@ func TestMigrationsLetTheWebRoleReadTheCatalogAndNothingElse(t *testing.T) {
 		}
 	}
 	for name, statement := range map[string]string{
+		"add an account":     `INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (1, 'octocat', '')`,
+		"rename it":          `UPDATE accounts SET github_login = 'renamed' WHERE github_user_id = 1`,
+		"sign it in":         `INSERT INTO sessions (token_hash, account_id, expires_at) SELECT sha256('token'), id, now() + interval '1 day' FROM accounts`,
+		"find its session":   `SELECT a.github_login FROM sessions s JOIN accounts a ON a.id = s.account_id`,
+		"sign it out":        `DELETE FROM sessions`,
+		"delete the account": `DELETE FROM accounts`,
+	} {
+		if _, err := conn.Exec(ctx, statement); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, statement := range map[string]string{
 		"write the catalog":      `INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url) VALUES ('github', '1', 'o', 'n', '', '')`,
+		"extend a session":       `UPDATE sessions SET expires_at = expires_at + interval '1 year'`,
+		"empty the accounts":     `TRUNCATE accounts CASCADE`,
 		"change the schema":      `CREATE TABLE intruder (id integer)`,
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
 	} {
@@ -93,6 +108,8 @@ func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
 		"change the schema":      `CREATE TABLE intruder (id integer)`,
 		"change the version":     `DELETE FROM goose_db_version`,
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
+		"read the accounts":      `SELECT count(*) FROM accounts`,
+		"read the sessions":      `SELECT count(*) FROM sessions`,
 	} {
 		_, err := conn.Exec(ctx, statement)
 		var pgErr *pgconn.PgError
@@ -165,17 +182,27 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table rules SELECT",
 			"table rules UPDATE",
 		},
+		postgrestest.AccountsWriterRole: {
+			"schema public USAGE",
+			"table accounts DELETE",
+			"table accounts INSERT",
+			"table accounts SELECT",
+			"table accounts UPDATE",
+			"table sessions DELETE",
+			"table sessions INSERT",
+			"table sessions SELECT",
+		},
 	} {
 		if got := grants(role); !slices.Equal(got, want) {
 			t.Errorf("%s has %q, want %q", role, got, want)
 		}
 	}
-	for login, group := range map[string]string{
-		postgrestest.WebRole:    postgrestest.CatalogReaderRole,
+	for login, groups := range map[string]string{
+		postgrestest.WebRole:    postgrestest.CatalogReaderRole + " and " + postgrestest.AccountsWriterRole,
 		postgrestest.WorkerRole: postgrestest.CatalogWriterRole,
 	} {
 		if got := grants(login); len(got) > 0 {
-			t.Errorf("%s has its own grants %q; migrations must grant to %s", login, got, group)
+			t.Errorf("%s has its own grants %q; migrations must grant to %s", login, got, groups)
 		}
 	}
 }
@@ -193,6 +220,7 @@ func TestMigrationsRefuseAGroupRoleThatIsMissingOrPrivileged(t *testing.T) {
 	}{
 		{postgrestest.CatalogReaderRole, 2},
 		{postgrestest.CatalogWriterRole, 4},
+		{postgrestest.AccountsWriterRole, 8},
 	} {
 		t.Run(group.role, func(t *testing.T) {
 			for name, tc := range map[string]struct {

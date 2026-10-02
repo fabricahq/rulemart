@@ -15,8 +15,9 @@ Tests create their own databases on that server and drop them afterward. `make d
 ## Run the site locally
 
 `make db` also creates a `rulemart` database for local development, and the roles infrastructure creates in
-production: two group roles that can't log in, `rulemart_catalog_reader` and `rulemart_catalog_writer`, and the
-functions' login roles that are their members, `rulemart_web` and `rulemart_worker`. Migrate the database as its
+production: three group roles that can't log in, `rulemart_catalog_reader`, `rulemart_accounts_writer`, and
+`rulemart_catalog_writer`, and the functions' login roles that are their members: `rulemart_web` of the first two,
+and `rulemart_worker` of the third. Migrate the database as its
 owner, ingest a library as `rulemart_worker`, then serve the pages at <http://127.0.0.1:8080>:
 
 ```sh
@@ -25,6 +26,13 @@ make ingest URL=https://github.com/fabricahq/code-rules-test-library
 make ingest URL=https://github.com/fabricahq/public-rules
 make web
 ```
+
+To try signed-in pages, run `make web-dev` instead of `make web`: it builds the site with the `rulemartdev` tag, whose
+sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub.
+Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
+sign in with GitHub itself, create an OAuth app whose callback URL is `http://127.0.0.1/account/github/callback`, and
+run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> make web`. Rulemart's cookies are `Secure`,
+which Chrome accepts from `http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
 
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
 to show: `/groups` and a group such as `/groups/techs/go` across both, and `/search?q=retry`. The test library has
@@ -42,8 +50,8 @@ with `LOCAL_DATABASE_URL`, and `make ingest` and `make worker` as `rulemart_work
 the local database. `make ingest` and `make worker` read either one. `make migrate` needs a direct connection: it
 refuses a pooled `DATABASE_URL`, and from `DATABASE_URL_PARAMETER` it reads Neon's pooled connection string, as the
 functions do, and derives the direct one. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`. Each
-login may only do what its group role's grants allow, as the deployed functions do: `rulemart_web` reads the
-catalog, and `rulemart_worker` writes it. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
+login may only do what its group roles' grants allow, as the deployed functions do: `rulemart_web` reads the
+catalog and writes accounts and sessions, and `rulemart_worker` writes the catalog. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
 Pages show only the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
@@ -77,14 +85,15 @@ catalog stored, or when a release before every rule version kept its content sto
 sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
 so building needs none of them, and every generated file says so where it lives:
 
-- sqlc writes the catalog's queries into `internal/contexts/catalog/store/postgres/generated/catalogdb`, with files
-  named `*.generated.go`.
+- sqlc writes each context's queries beside its store: the catalog's into
+  `internal/contexts/catalog/store/postgres/generated/catalogdb`, and accounts' into
+  `internal/contexts/accounts/store/postgres/generated/accountsdb`, with files named `*.generated.go`.
 - Tailwind writes `internal/platform/web/static/generated/app.css`.
 - templ output must stay beside its `.templ` source, because Go needs it in the same package and so the same
   directory. `make generate` renames templ's `x_templ.go` to `x_templ.generated.go`.
 
 [.gitattributes](.gitattributes) marks `generated/` directories and `*.generated.*` files as generated, so GitHub
-collapses them in diffs. After changing a query in `internal/contexts/catalog/store/postgres/queries`, a migration,
+collapses them in diffs. After changing a query in a context's `store/postgres/queries`, a migration,
 a `.templ` file, or `internal/platform/web/styles/app.css`, run:
 
 ```sh
@@ -116,9 +125,13 @@ one they no longer generate, such as a file under an old name.
   - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
     and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
+- `internal/contexts/accounts` owns accounts and sessions, in the same layout: `domain` holds identities, accounts,
+  and session tokens; `app` signs visitors in and out; `github` signs them in with GitHub's OAuth app; and `store`
+  and `store/postgres` keep accounts and sessions, with sqlc's output in `generated/accountsdb`.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
-  `RULEMART_BASE_URL`, `logging` the JSON logger every command builds from
+  `RULEMART_BASE_URL`, and sign-in, sign-out, and the account page, `secret` reads a secret from the environment or
+  SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser, and `internal/lib/textdiff` compares two
   versions' text for the comparison pages, within bounded work.
@@ -143,7 +156,7 @@ go tool goose -dir db/migrations -s create add_libraries sql
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_catalog_reader` what the web function needs from each new table, usually `SELECT` on what the
   pages read, and nothing on tables the pages don't read. Grant `rulemart_catalog_writer` what ingestion writes,
-  and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
+  and `rulemart_accounts_writer` what signing in and out writes, and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
   the logins and their memberships, and migrations own the grants, so a login can be replaced or rotated without a
   migration. The site's tests read as `rulemart_web` and ingest as `rulemart_worker`, through their memberships, so
   a missing grant fails them.

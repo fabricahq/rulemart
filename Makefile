@@ -1,11 +1,11 @@
 # Local build and checks. dist builds the release assets Release Planner publishes: one ZIP per Lambda function, plus
 # SHA256SUMS and manifest.json. check needs the Postgres from db; CI provides its own.
-.PHONY: dist check generate check-generated db db-stop migrate ingest worker web clean
+.PHONY: dist check generate check-generated db db-stop migrate ingest worker web web-dev clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
 # rulemart database and the roles infrastructure creates in production: the NOLOGIN group roles that migrations grant
-# access to, rulemart_catalog_reader and rulemart_catalog_writer, and the functions' login roles that are their
-# members, rulemart_web and rulemart_worker.
+# access to, rulemart_catalog_reader, rulemart_accounts_writer, and rulemart_catalog_writer, and the functions' login
+# roles that are their members, rulemart_web, of the first two, and rulemart_worker, of the third.
 LOCAL_DB_IMAGE := postgres:18
 LOCAL_DB_CONTAINER := rulemart-postgres
 # IPv4, because make db publishes the port only on IPv4 loopback; localhost can resolve to ::1 first on macOS.
@@ -13,7 +13,8 @@ LOCAL_DB_HOST := 127.0.0.1
 LOCAL_DB_PORT := 55432
 # The rulemart database as its owner, which migrates it.
 LOCAL_DATABASE_URL ?= postgres://postgres:postgres@$(LOCAL_DB_HOST):$(LOCAL_DB_PORT)/rulemart?sslmode=disable
-# The web function's login role, which may only read the catalog, through its membership in rulemart_catalog_reader.
+# The web function's login role, which may only read the catalog, through its membership in rulemart_catalog_reader,
+# and sign visitors in and out, through its membership in rulemart_accounts_writer.
 # Infrastructure creates it in production; locally its password is a test value, which internal/platform/postgrestest also uses.
 LOCAL_WEB_ROLE_PASSWORD := rulemart-web-local
 # The rulemart database as rulemart_web, as the deployed web function connects.
@@ -53,10 +54,10 @@ TAILWIND_PLATFORM := $(TAILWIND_OS)-$(TAILWIND_ARCH)
 TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
 # Generated files, committed so builds need no generators. CI fails when they're stale. sqlc and Tailwind write into
-# generated/ directories; templ output must sit beside its source, in the same package, so it's named
-# *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed file shows as a
-# deletion.
-SQLC_OUT := internal/contexts/catalog/store/postgres/generated
+# generated/ directories, sqlc one for each context's store; templ output must sit beside its source, in the same
+# package, so it's named *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed
+# file shows as a deletion.
+SQLC_OUT := internal/contexts/catalog/store/postgres/generated internal/contexts/accounts/store/postgres/generated
 TEMPL_DIR := internal/platform/web
 STYLESHEET_OUT := internal/platform/web/static/generated
 GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go'
@@ -67,9 +68,15 @@ dist: $(LAMBDA_BUILD)
 	rm -rf dist
 	python3 $(LAMBDA_BUILD) package --output dist
 
+# Local builds may add the rulemartdev tag, which compiles in the dev sign-in, so check runs the packages that tag
+# changes with it too. Release builds never set it.
+DEV_TAG := rulemartdev
+
 check:
 	go vet ./...
+	go vet -tags $(DEV_TAG) ./...
 	go test -race ./...
+	go test -race -tags $(DEV_TAG) ./internal/platform/web/... ./cmd/web/...
 
 # Regenerates the sqlc queries, the templ components, and the stylesheet. templ always writes x_templ.go, so each is
 # renamed x_templ.generated.go.
@@ -107,13 +114,15 @@ db:
 	@docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'rulemart'" | grep -q 1 \
 		|| docker exec $(LOCAL_DB_CONTAINER) createdb -U postgres rulemart
 	@$(call local_role,rulemart_catalog_reader,NOLOGIN)
+	@$(call local_role,rulemart_accounts_writer,NOLOGIN)
 	@$(call local_role,rulemart_web,LOGIN PASSWORD '$(LOCAL_WEB_ROLE_PASSWORD)')
 	@$(call local_role,rulemart_catalog_writer,NOLOGIN)
 	@$(call local_role,rulemart_worker,LOGIN PASSWORD '$(LOCAL_WORKER_ROLE_PASSWORD)')
 	@# Granted every time, so a container whose logins predate their group roles gains the memberships too.
 	@docker exec -e PGOPTIONS='-c client_min_messages=warning' $(LOCAL_DB_CONTAINER) psql -U postgres -qc "GRANT rulemart_catalog_reader TO rulemart_web"
+	@docker exec -e PGOPTIONS='-c client_min_messages=warning' $(LOCAL_DB_CONTAINER) psql -U postgres -qc "GRANT rulemart_accounts_writer TO rulemart_web"
 	@docker exec -e PGOPTIONS='-c client_min_messages=warning' $(LOCAL_DB_CONTAINER) psql -U postgres -qc "GRANT rulemart_catalog_writer TO rulemart_worker"
-	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database, rulemart_web as a member of rulemart_catalog_reader, and rulemart_worker as a member of rulemart_catalog_writer for local development"
+	@echo "Postgres is ready at $(LOCAL_DB_HOST):$(LOCAL_DB_PORT), with a rulemart database, rulemart_web as a member of rulemart_catalog_reader and rulemart_accounts_writer, and rulemart_worker as a member of rulemart_catalog_writer for local development"
 
 # Creates role $(1) in the local container with the attributes $(2), unless it exists.
 local_role = docker exec $(LOCAL_DB_CONTAINER) psql -U postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = '$(1)'" | grep -q 1 \
@@ -140,9 +149,14 @@ worker:
 	$(LOCAL_WORKER_DATABASE_ENV) go run ./cmd/worker
 
 # Serves the pages at http://127.0.0.1:8080 from the local rulemart database, connecting as rulemart_web as the
-# deployed function does.
+# deployed function does. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to sign in with a GitHub OAuth app.
 web:
 	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run ./cmd/web
+
+# Serves the pages as make web does, built with the dev sign-in, so a browser can sign in as a test user without
+# GitHub. Only this local build has it.
+web-dev:
+	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run -tags $(DEV_TAG) ./cmd/web
 
 clean:
 	rm -rf dist bin

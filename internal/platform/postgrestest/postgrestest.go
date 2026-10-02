@@ -41,9 +41,14 @@ func Server(t *testing.T) string {
 // Infrastructure creates it in production; tests and local development create it too.
 const CatalogReaderRole = "rulemart_catalog_reader"
 
-// WebRole is the login role the web function connects as. It has no grants of its own, and reads the catalog through
-// its membership in CatalogReaderRole. Infrastructure creates it in production; tests and local development create it
-// with webRolePassword, a test value.
+// AccountsWriterRole is the group role migrations grant what signing in and out writes: accounts and sessions. It
+// can't log in; WebRole is its member. Infrastructure creates it in production; tests and local development create it
+// too.
+const AccountsWriterRole = "rulemart_accounts_writer"
+
+// WebRole is the login role the web function connects as. It has no grants of its own: it reads the catalog through
+// its membership in CatalogReaderRole, and signs visitors in and out through its membership in AccountsWriterRole.
+// Infrastructure creates it in production; tests and local development create it with webRolePassword, a test value.
 const WebRole = "rulemart_web"
 
 // webRolePassword is the role's local password, the Makefile's LOCAL_WEB_ROLE_PASSWORD, so tests and make db agree
@@ -62,20 +67,21 @@ const WorkerRole = "rulemart_worker"
 // workerRolePassword is the role's local password, the Makefile's LOCAL_WORKER_ROLE_PASSWORD.
 const workerRolePassword = "rulemart-worker-local"
 
-// login is a login role infrastructure creates, with its local password and the group role it's a member of.
+// login is a login role infrastructure creates, with its local password and the group roles it's a member of.
 type login struct {
-	name, password, group string
+	name, password string
+	groups         []string
 }
 
-// logins are the login roles New makes sure the server has, each with its group.
+// logins are the login roles New makes sure the server has, each with its groups.
 var logins = []login{
-	{WebRole, webRolePassword, CatalogReaderRole},
-	{WorkerRole, workerRolePassword, CatalogWriterRole},
+	{WebRole, webRolePassword, []string{CatalogReaderRole, AccountsWriterRole}},
+	{WorkerRole, workerRolePassword, []string{CatalogWriterRole}},
 }
 
 // New creates an empty database for t and returns a connection string for it, as the server's user. It first
-// makes sure the server has the roles infrastructure creates: CatalogReaderRole and WebRole, its member, and
-// CatalogWriterRole and WorkerRole, its member.
+// makes sure the server has the roles infrastructure creates: CatalogReaderRole and AccountsWriterRole, and WebRole,
+// their member, and CatalogWriterRole and WorkerRole, its member.
 func New(t *testing.T) string {
 	t.Helper()
 	server := Server(t)
@@ -101,9 +107,9 @@ func AsWorkerRole(t *testing.T, connString string) string {
 // rolesLock is the advisory lock key that serializes creating the shared roles.
 const rolesLock = 7_392_614_028
 
-// createRoles creates each login role and its group on server unless they exist, as infrastructure creates them: a
-// NOLOGIN group role, and a LOGIN role that signs in with its local password and is a member of it. It fails t unless
-// each has that shape. Roles span the server, and tests in several packages create them at once, so one transaction
+// createRoles creates each login role and its groups on server unless they exist, as infrastructure creates them:
+// NOLOGIN group roles, and a LOGIN role that signs in with its local password and is a member of them. It fails t
+// unless each has that shape. Roles span the server, and tests in several packages create them at once, so one transaction
 // at a time creates them, under an advisory lock.
 func createRoles(t *testing.T, server string) {
 	t.Helper()
@@ -125,11 +131,15 @@ func createRoles(t *testing.T, server string) {
 			return nil
 		}
 		for _, l := range logins {
-			group, name := pgx.Identifier{l.group}.Sanitize(), pgx.Identifier{l.name}.Sanitize()
-			if err := create(l.group, "CREATE ROLE "+group+" NOLOGIN"); err != nil {
-				return err
+			groups := make([]string, len(l.groups))
+			for i, group := range l.groups {
+				groups[i] = pgx.Identifier{group}.Sanitize()
+				if err := create(group, "CREATE ROLE "+groups[i]+" NOLOGIN"); err != nil {
+					return err
+				}
 			}
-			if err := create(l.name, "CREATE ROLE "+name+" LOGIN PASSWORD '"+l.password+"' IN ROLE "+group); err != nil {
+			name := pgx.Identifier{l.name}.Sanitize()
+			if err := create(l.name, "CREATE ROLE "+name+" LOGIN PASSWORD '"+l.password+"' IN ROLE "+strings.Join(groups, ", ")); err != nil {
 				return err
 			}
 		}
@@ -139,10 +149,12 @@ func createRoles(t *testing.T, server string) {
 		t.Fatal(err)
 	}
 	for _, l := range logins {
-		if err := checkRole(ctx, conn, l.group, false); err != nil {
-			t.Fatal(err)
+		for _, group := range l.groups {
+			if err := checkRole(ctx, conn, group, false); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err := checkRole(ctx, conn, l.name, true, l.group); err != nil {
+		if err := checkRole(ctx, conn, l.name, true, l.groups...); err != nil {
 			t.Fatal(err)
 		}
 		signedIn, err := pgx.Connect(ctx, WithUser(t, server, l.name, l.password))
@@ -159,7 +171,7 @@ const resetRoles = "recreate the test server with make db-stop and make db, or d
 	sharedRoles + " in each database, then DROP ROLE " + sharedRoles + ") so the tests create them again"
 
 // sharedRoles names the roles tests create, logins before their groups, so DROP ROLE can drop them in order.
-const sharedRoles = WebRole + ", " + WorkerRole + ", " + CatalogReaderRole + ", " + CatalogWriterRole
+const sharedRoles = WebRole + ", " + WorkerRole + ", " + CatalogReaderRole + ", " + CatalogWriterRole + ", " + AccountsWriterRole
 
 // checkRole returns an error unless role has the shape infrastructure gives it: it can log in only if login is true,
 // has no other attribute, and is a member of exactly memberOf.
