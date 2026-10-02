@@ -306,7 +306,7 @@ func breakable(text string) templ.Component {
 			if i > 0 {
 				out.WriteString("<wbr>")
 			}
-			out.WriteString(`<span class="inline-block">`)
+			out.WriteString(`<span class="id-part">`)
 			for j, piece := range breakParts(part, "_") {
 				if j > 0 {
 					out.WriteString("<wbr>")

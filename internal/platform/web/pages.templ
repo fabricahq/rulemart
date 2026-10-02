@@ -284,8 +284,10 @@ templ ruleContent(r ruleView) {
 			@aboutPanel(impactNote(r.impact)) {
 				@fact("Library") {
 					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
-						@avatar(r.library.avatar, r.library.owner, avatarXS)
-						<span class="min-w-0">
+						<span class="mt-0.5 inline-flex">
+							@avatar(r.library.avatar, r.library.owner, avatarXS)
+						</span>
+						<span class="min-w-0 underline underline-offset-4">
 							@breakable(r.library.owner + "/" + r.library.name)
 						</span>
 					</a>

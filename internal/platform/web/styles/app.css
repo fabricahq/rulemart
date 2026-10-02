@@ -142,6 +142,10 @@
   .prose th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   .prose td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
   .prose > :first-child { margin-top: 0; }
+  /* One part of an ID that breakable shows, kept whole on a line when it fits. Its own box would hide a link's
+     underline, so it draws the underline of the link it's in. */
+  .id-part { display: inline-block; text-decoration: inherit; }
+
   /* A rule's reading guidance, rendered as its body is, in the smaller type of the box it sits in. */
   .prose .when-to-apply p, .prose .when-to-apply li { color: inherit; }
   .prose .when-to-apply > :last-child { margin-bottom: 0; }
