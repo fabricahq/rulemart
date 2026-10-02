@@ -245,20 +245,30 @@ func (s *server) handler() http.Handler {
 	// An owner's page has one segment, like the site's own pages, which come first, so an owner whose login is one
 	// of theirs is at /o/{login} instead.
 	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
-	handle("GET /{owner}", s.owner)
-	handle("GET /{owner}/{repo}", s.library)
-	handle("GET /{owner}/{repo}/{rule...}", s.rule)
-	handle("/", s.notFound)
+	handle(ownerPattern, s.owner)
+	handle(libraryPattern, s.library)
+	handle(rulePattern, s.rule)
+	handle(notFoundPattern, s.notFound)
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux))))))
 }
 
-// siteSections are the first segments of the site's own pages, which no library owner shadows: browse, g, o, and the
-// old groups for every path under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback as a
-// whole path, since GitHub has an account named libraries, whose libraries' pages are /libraries/{repo}, and may have
-// others. With the account pages, they're the logins whose owner pages are under /o/.
-var siteSections = map[string]bool{
-	"browse": true, "g": true, "o": true, "groups": true,
-	"libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false, "faq": false, "feedback": false,
+// The routes that take every path the site's own pages don't: an owner's, a library's, and a rule's pages, which
+// GitHub's spelling of their names addresses, and the missing page.
+const (
+	ownerPattern    = "GET /{owner}"
+	libraryPattern  = "GET /{owner}/{repo}"
+	rulePattern     = "GET /{owner}/{repo}/{rule...}"
+	notFoundPattern = "/"
+)
+
+// catchAllPatterns are the routes of the paths the site's own pages don't take.
+var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true, rulePattern: true, notFoundPattern: true}
+
+// siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
+// old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
+// the account pages, they're the logins whose owner pages are under /o/.
+var siteSections = []string{
+	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
 }
 
 // accountSections are the first segments of the account pages, reserved like siteSections, which the account routes
@@ -269,30 +279,42 @@ var accountSections = []string{strings.TrimPrefix(accountHref, "/"), strings.Tri
 // owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
 func reservedOwner(login string) bool {
 	lower := strings.ToLower(login)
-	if _, ok := siteSections[lower]; ok {
-		return true
-	}
-	return slices.Contains(accountSections, lower)
+	return slices.Contains(siteSections, lower) || slices.Contains(accountSections, lower)
 }
 
-// withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
-// /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other
-// spellings redirect. The target starts with the section, so it stays on the site.
-func withSiteSectionsInLowercase(next http.Handler) http.Handler {
+// withSiteSectionsInLowercase redirects a path whose first segment spells one of the site's own pages in another case,
+// such as /Groups/techs/go or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a
+// library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
+// pages: a path a catch-all takes, such as /G/rules for a library whose owner's login is G, is left to that page's own
+// redirect to GitHub's spelling, which a lowercase redirect would send back and forth. The target starts with the
+// section, so it stays on the site.
+func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		first, rest, nested := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
-		section := strings.ToLower(first)
-		withSubpaths, ok := siteSections[section]
-		if !ok || first == section || (nested && !withSubpaths) {
-			next.ServeHTTP(w, r)
-			return
-		}
-		target := "/" + section
+		path := r.URL.EscapedPath()
+		first, rest, nested := strings.Cut(strings.TrimPrefix(path, "/"), "/")
+		target := "/" + strings.ToLower(first)
 		if nested {
 			target += "/" + rest
 		}
+		if target == path || catchAllPatterns[routeOf(mux, r, target)] {
+			mux.ServeHTTP(w, r)
+			return
+		}
 		redirect(w, r, withQuery(target, r))
 	})
+}
+
+// routeOf returns the pattern mux routes r to at the escaped path instead of r's own, or the missing page's when it
+// routes the path to none, such as one it would clean first.
+func routeOf(mux *http.ServeMux, r *http.Request, path string) string {
+	unescaped, err := url.PathUnescape(path)
+	if err != nil {
+		return notFoundPattern
+	}
+	at := r.Clone(r.Context())
+	at.URL.Path, at.URL.RawPath = unescaped, path
+	_, pattern := mux.Handler(at)
+	return cmp.Or(pattern, notFoundPattern)
 }
 
 // staticPattern is the route of the static files, which are the same for every visitor.
