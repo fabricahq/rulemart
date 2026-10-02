@@ -171,11 +171,14 @@
   .rule-changes a { text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
   .rule-changes a:hover { text-decoration-color: var(--ink); }
   .rule-changes .t { font-weight: 600; }
-  .rule-changes .id { margin-left: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
-  .rule-changes .v { margin-left: 4px; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+  /* The space between a change's title, ID, and versions widens after each, not before, so a part that wraps starts
+     flush with the line above. */
+  .rule-changes li > .t, .rule-changes li > .id, .rule-changes li > .l { margin-right: 4px; }
+  .rule-changes .id { font-family: var(--font-mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; }
+  .rule-changes .v { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
   .rule-changes div { font-size: 13px; color: var(--muted); }
   .rule-changes div a { color: var(--ink); }
-  .rule-changes .l { margin-left: 4px; font-size: 12px; color: var(--muted); }
+  .rule-changes .l { font-size: 12px; color: var(--muted); }
   .rule-changes .n { margin-right: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
   .rule-changes div > a[aria-label] { margin-right: 6px; }
   .rule-versions { width: 100%; margin-top: 8px; border-collapse: collapse; }

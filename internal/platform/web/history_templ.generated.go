@@ -795,14 +795,14 @@ func changeItemView(item changeItem) templ.Component {
 			}
 		}
 		if item.renamedFrom != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<div>Renamed from <span class=\"id ml-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<div>Renamed from <span class=\"id\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(item.renamedFrom.id)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `history.templ`, Line: 144, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `history.templ`, Line: 144, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -815,7 +815,7 @@ func changeItemView(item changeItem) templ.Component {
 			var templ_7745c5c3_Var41 templ.SafeURL
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(item.textHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `history.templ`, Line: 144, Col: 113}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `history.templ`, Line: 144, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {

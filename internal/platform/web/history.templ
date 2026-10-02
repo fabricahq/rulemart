@@ -141,7 +141,7 @@ templ changeItemView(item changeItem) {
 			<span class="v">{ item.versions }</span>
 		}
 		if item.renamedFrom != nil {
-			<div>Renamed from <span class="id ml-0">{ item.renamedFrom.id }</span>. <a href={ templ.SafeURL(item.textHref) }>Compare the text</a></div>
+			<div>Renamed from <span class="id">{ item.renamedFrom.id }</span>. <a href={ templ.SafeURL(item.textHref) }>Compare the text</a></div>
 		}
 		for _, note := range item.notes {
 			for i, summary := range note.summaries {
