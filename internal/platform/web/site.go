@@ -234,7 +234,7 @@ func (s *server) handler() http.Handler {
 		}
 		if s.Stars != nil {
 			handle("GET "+starredHref, s.starredPage)
-			// Reserved as accountSections lists, so an owner named stars would have their page under /o/.
+			// Reserved as signInSections lists, so an owner named stars would have their page under /o/.
 			handle("POST "+starsHref, s.starRule)
 			handle("POST "+unstarHref, s.unstarRule)
 		}
@@ -272,7 +272,7 @@ var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true,
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
 // old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
-// the account pages, they're the logins whose owner pages are under /o/.
+// signInSections, they're the logins whose owner pages are under /o/.
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
 // pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
@@ -283,9 +283,9 @@ var siteSections = []string{
 	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
 }
 
-// accountSections are the first segments of the account pages and actions, reserved like siteSections, which the
-// account routes take only when sign-in is available.
-var accountSections = []string{
+// signInSections are the first segments of the routes that exist only when sign-in is available: the account pages,
+// signing in and out, and starring rules. They're reserved like siteSections whether sign-in is available or not.
+var signInSections = []string{
 	strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/"),
 	strings.TrimPrefix(starsHref, "/"),
 }
@@ -294,7 +294,7 @@ var accountSections = []string{
 // owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
 func reservedOwner(login string) bool {
 	lower := strings.ToLower(login)
-	return slices.Contains(siteSections, lower) || slices.Contains(accountSections, lower)
+	return slices.Contains(siteSections, lower) || slices.Contains(signInSections, lower)
 }
 
 // libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in

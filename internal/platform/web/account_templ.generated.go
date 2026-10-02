@@ -284,7 +284,7 @@ func accountMenu(v visitor) templ.Component {
 			}
 		}
 		if v.stars {
-			templ_7745c5c3_Err = menuLink(starredHref, "Starred rules", v.onStarsPage).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = menuLink(starredHref, "Starred rules", v.onStarredPage).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

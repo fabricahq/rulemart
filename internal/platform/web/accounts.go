@@ -95,9 +95,9 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onAccountPage, onListPage, onListingsPage, onStarsPage, and onCartPage are true on the account page, the page
+	// onAccountPage, onListPage, onListingsPage, onStarredPage, and onCartPage are true on the account page, the page
 	// that lists a library, the listings page, Starred rules, and the cart, which the menu marks as current.
-	onAccountPage, onListPage, onListingsPage, onStarsPage, onCartPage bool
+	onAccountPage, onListPage, onListingsPage, onStarredPage, onCartPage bool
 	// listings, stars, and cart are true when visitors can list libraries, star rules, and collect rules in a cart, so
 	// the menu links the listings page, Starred rules, and the cart.
 	listings, stars, cart bool
@@ -196,7 +196,7 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 	back := returnPath(r.URL.RequestURI())
 	v := visitor{
 		here: back, onAccountPage: r.URL.Path == accountHref, onListPage: r.URL.Path == listHref, onListingsPage: r.URL.Path == listingsHref,
-		onStarsPage: r.URL.Path == starredHref, onCartPage: r.URL.Path == cartHref,
+		onStarredPage: r.URL.Path == starredHref, onCartPage: r.URL.Path == cartHref,
 		listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
 	}
 	if s.signInAvailable() {
