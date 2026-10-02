@@ -196,19 +196,31 @@ templ navLink(href, name, section string) {
 	>{ name }</a>
 }
 
-// footer is the bar at the bottom of every page: what Rulemart and Code Rules are, Rulemart's privacy notice, its
-// source, where to give feedback, and the theme menu.
+// footer is the bar at the bottom of every page: the header's links to the techs, the practices, the libraries, and
+// the FAQ, which a phone's header hides; what Rulemart and Code Rules are, Rulemart's privacy notice, its source, where
+// to give feedback; and the theme menu.
 templ footer() {
 	<footer class="border-t border-border pt-[22px] pb-10 text-[13px] text-muted">
 		<div class="wrap flex flex-wrap items-center gap-x-6">
 			<span>Fabrica / Rulemart</span>
-			// A phone's footer keeps the theme menu beside Rulemart's name, and its links on lines of their own below.
-			<nav class="ml-auto flex flex-wrap items-center gap-x-[18px] max-narrow:order-last max-narrow:ml-0 max-narrow:w-full max-narrow:gap-x-4" aria-label="About Rulemart">
-				@footerLink(aboutHref, "About Rulemart")
-				@footerLink(privacyHref, "Privacy")
-				@footerLink(codeRulesURL, "About Code Rules")
-				@footerLink(repositoryURL, "Source on GitHub")
-				@footerLink(feedbackHref, "Give us feedback")
+			// The links fill the room between Rulemart's name and the theme menu, wrapping onto a second line rather than
+			// pushing the menu onto one; the site's sections and the pages about Rulemart wrap apart, each kept together
+			// while it fits. A phone's footer keeps the theme menu beside Rulemart's name, and the links on lines of
+			// their own below.
+			<nav class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-[18px] max-narrow:order-last max-narrow:basis-full max-narrow:justify-start max-narrow:gap-x-4" aria-label="Site">
+				<div class="flex flex-wrap items-center gap-x-[18px] max-narrow:gap-x-4">
+					@footerLink(techsKind.href(), "Techs")
+					@footerLink(practicesKind.href(), "Practices")
+					@footerLink(librariesHref, "Libraries")
+					@footerLink(faqHref, "FAQ")
+				</div>
+				<div class="flex flex-wrap items-center justify-end gap-x-[18px] max-narrow:justify-start max-narrow:gap-x-4">
+					@footerLink(aboutHref, "About Rulemart")
+					@footerLink(privacyHref, "Privacy")
+					@footerLink(codeRulesURL, "About Code Rules")
+					@footerLink(repositoryURL, "Source on GitHub")
+					@footerLink(feedbackHref, "Give us feedback")
+				</div>
 			</nav>
 			<div class="max-narrow:ml-auto">
 				@themeMenu()

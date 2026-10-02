@@ -43,8 +43,8 @@ decision.
   today, and "Still have a question? Ask us." leading to feedback.
 - **Feedback** (`/feedback`): the prototype's topic rows under Rulemart, Code Rules, A specific rule, and Anything
   else. Each row opens a new GitHub issue, prefilled, in the repository that owns the topic, marked "↗ GitHub".
-- **The footer**: "Fabrica / Rulemart"; About Rulemart, Privacy, About Code Rules, Source on GitHub, Give us
-  feedback; the theme menu.
+- **The footer**: "Fabrica / Rulemart"; Techs, Practices, Libraries, FAQ; About Rulemart, Privacy, About Code Rules,
+  Source on GitHub, Give us feedback; the theme menu.
 
 ## Decisions
 
@@ -128,6 +128,9 @@ decision.
   moves to the feedback page.
 - **Proposed: the footer keeps About Rulemart, Privacy, About Code Rules, and Source on GitHub**, and replaces Report
   a problem with Give us feedback, which leads to the page that offers it.
+- **Proposed: the footer also links Techs, Practices, Libraries, and FAQ, at every width.** The prototype's footer has
+  only feedback and the theme, and its header hides those four links on a phone, which left a phone no way to browse
+  by kind or reach the libraries page or the FAQ.
 
 ## Not in this slice
 

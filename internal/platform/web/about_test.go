@@ -10,11 +10,15 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
-// Every page's footer leads to what Rulemart is, how it treats visitors' data, Code Rules, Rulemart's source, and
-// the feedback page.
-func TestEveryPagesFooterLeadsToAboutPrivacySourceAndFeedback(t *testing.T) {
+// Every page's footer leads to the techs, the practices, the libraries, and the FAQ, which a phone's header hides,
+// and to what Rulemart is, how it treats visitors' data, Code Rules, Rulemart's source, and the feedback page.
+func TestEveryPagesFooterLeadsToTheSectionsAboutPrivacySourceAndFeedback(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
 	want := map[string]string{
+		"Techs":            "/browse/techs",
+		"Practices":        "/browse/practices",
+		"Libraries":        "/libraries",
+		"FAQ":              "/faq",
 		"About Rulemart":   "/about",
 		"Privacy":          "/privacy",
 		"About Code Rules": "https://code-rules.fabricahq.com",
@@ -23,9 +27,10 @@ func TestEveryPagesFooterLeadsToAboutPrivacySourceAndFeedback(t *testing.T) {
 	}
 	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
+		footer := page[strings.Index(page, "<footer"):]
 		for text, href := range want {
-			if got := links(t, page, text); !slices.Contains(got, href) {
-				t.Errorf("%s: %q leads to %q, want %s", path, text, got, href)
+			if got := links(t, footer, text); !slices.Contains(got, href) {
+				t.Errorf("%s: the footer's %q leads to %q, want %s", path, text, got, href)
 			}
 		}
 	}
