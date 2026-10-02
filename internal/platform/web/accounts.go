@@ -153,6 +153,7 @@ var notices = map[string]string{
 var subjectNotices = map[string]func(string) bool{
 	starredHereKey: namesLibrary, unstarredHereKey: namesLibrary,
 	addedToCartKey: namesCartItem, removedFromCartKey: namesCartItem, cartPromptKey: namesCartItem,
+	alreadyInCartKey: namesCartItem,
 }
 
 // setNotice has the next page show the notice notices names by key, once.

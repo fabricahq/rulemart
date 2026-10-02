@@ -4,6 +4,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
@@ -63,14 +64,19 @@ const (
 	cartPromptParam = "add"
 	// addedToCartKey, removedFromCartKey, and cartPromptKey are the subjectNotices that the visitor added or removed an
 	// item, or signed in to add one.
-	addedToCartKey     = "added-to-cart"
+	addedToCartKey = "added-to-cart"
+	// alreadyInCartKey is the subjectNotice that an item the visitor added was in the cart already, with its group or
+	// whole library.
+	alreadyInCartKey   = "already-in-cart"
 	removedFromCartKey = "removed-from-cart"
 	cartPromptKey      = "cart-prompt"
 )
 
-// cartSubjectNotices are what a cart's subject notice says on a page that doesn't show its item.
+// cartSubjectNotices are what a cart's subject notice says on a page that doesn't show its item. An offer to add an
+// item says nothing there: a page that doesn't offer it has nothing to say.
 var cartSubjectNotices = map[string]string{
-	addedToCartKey: "Added to your cart.", removedFromCartKey: "Removed from your cart.", cartPromptKey: "You're signed in.",
+	addedToCartKey: "Added to your cart.", removedFromCartKey: "Removed from your cart.",
+	alreadyInCartKey: "Your cart has that already.",
 }
 
 // cartNoticeSubject returns item as a cart's subject notice, or cartPromptParam, names it: its library, kind, and
@@ -81,30 +87,55 @@ func cartNoticeSubject(item domain.CartItem) string {
 
 // parseCartNoticeSubject returns the item text names, as cartNoticeSubject writes it, or false when it names none.
 func parseCartNoticeSubject(text string) (domain.CartItem, bool) {
+	item, _, ok := parseAddedSubject(text)
+	return item, ok && strings.Count(text, "|") == 2
+}
+
+// addedSubject returns the subject of the notice that item was added, in place of replaced items of it the cart held,
+// when there were any.
+func addedSubject(item domain.CartItem, replaced int) string {
+	if replaced == 0 {
+		return cartNoticeSubject(item)
+	}
+	return cartNoticeSubject(item) + "|" + strconv.Itoa(replaced)
+}
+
+// parseAddedSubject returns the item and how many items it replaced that text names, as addedSubject writes it, or
+// false when it names none.
+func parseAddedSubject(text string) (domain.CartItem, int, bool) {
 	parts := strings.Split(text, "|")
+	replaced := 0
+	if len(parts) == 4 {
+		n, err := strconv.Atoi(parts[3])
+		if err != nil || n < 1 || n > domain.MaxCartItems || strconv.Itoa(n) != parts[3] {
+			return domain.CartItem{}, 0, false
+		}
+		replaced, parts = n, parts[:3]
+	}
 	if len(parts) != 3 {
-		return domain.CartItem{}, false
+		return domain.CartItem{}, 0, false
 	}
 	var group, rule string
 	switch domain.CartItemKind(parts[1]) {
 	case domain.CartLibrary:
 		if parts[2] != "" {
-			return domain.CartItem{}, false
+			return domain.CartItem{}, 0, false
 		}
 	case domain.CartGroup:
 		group = parts[2]
 	case domain.CartRule:
 		rule = parts[2]
 	default:
-		return domain.CartItem{}, false
+		return domain.CartItem{}, 0, false
 	}
 	item, err := domain.ParseCartItem(parts[0], group, rule)
-	return item, err == nil && item.Kind == domain.CartItemKind(parts[1])
+	return item, replaced, err == nil && item.Kind == domain.CartItemKind(parts[1])
 }
 
-// namesCartItem reports whether text names a cart item, as a cart's subject notice does.
+// namesCartItem reports whether text names a cart item, as a cart's subject notice does, with how many it replaced
+// for an addition.
 func namesCartItem(text string) bool {
-	_, ok := parseCartNoticeSubject(text)
+	_, _, ok := parseAddedSubject(text)
 	return ok
 }
 
@@ -304,12 +335,24 @@ func (s *server) newCartControl(r *http.Request, vetted, retired bool, item doma
 	default:
 		c.confirm = confirmCartHref + "?" + query
 	}
-	if subject, ok := parseCartNoticeSubject(v.noticeSubject); ok && sameItem(subject, item) {
+	if subject, replaced, ok := parseAddedSubject(v.noticeSubject); ok && sameItem(subject, item) {
 		switch v.noticeKey {
 		case addedToCartKey:
 			c.focused, c.notice = true, "Added "+what+" to your cart."
+			if replaced > 0 {
+				c.notice = "Added " + what + " to your cart, in place of " + plural(replaced, "item", "items") +
+					" of it you'd added before."
+			}
+		case alreadyInCartKey:
+			with := "its group"
+			if c.held == heldInLibrary {
+				with = "the library"
+			}
+			c.focused, c.notice = true, "Your cart has "+what+" already, with "+with+"."
 		case cartPromptKey:
-			c.focused, c.prompt = true, c.action != "" || c.confirm != ""
+			// The notice offers the item with a button of its own, which it focuses; one the cart holds, the control.
+			c.prompt = c.action != "" || c.confirm != ""
+			c.focused = !c.prompt
 			c.notice = "You're signed in. Add " + what + " to your cart?"
 			if !c.prompt {
 				c.notice = "You're signed in. Your cart has " + what + " already."
@@ -340,6 +383,20 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		added, err = s.Cart.Add(r.Context(), v.account.ID, item, query.Get("unvetted") == confirmedUnvetted)
 	}
+	// What the cart held before: an item that covers the new one already, so adding it changed nothing, or items the
+	// new one takes the place of.
+	heldItems := make([]domain.CartItem, len(v.held))
+	for i, h := range v.held {
+		heldItems[i] = h.Item
+	}
+	_, already := domain.Covering(added, heldItems)
+	replaced := 0
+	for _, h := range v.held {
+		if _, covered := domain.Covering(h.Item, []domain.CartItem{added}); covered && !sameItem(h.Item, added) &&
+			strings.EqualFold(h.Item.FullName(), added.FullName()) {
+			replaced++
+		}
+	}
 	switch {
 	case errors.Is(err, app.ErrUnvettedNotConfirmed):
 		seeOther(w, r, confirmCartHref+"?"+cartQuery(item, back).Encode())
@@ -351,7 +408,11 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.failCart(w, r, err)
 	default:
-		setSubjectNotice(w, addedToCartKey, cartNoticeSubject(added))
+		if already {
+			setSubjectNotice(w, alreadyInCartKey, cartNoticeSubject(added))
+		} else {
+			setSubjectNotice(w, addedToCartKey, addedSubject(added, replaced))
+		}
 		// A group's control is one of several on a page, which autofocus alone can't bring into view on a long one.
 		if added.Kind == domain.CartGroup && !strings.Contains(back, "#") {
 			back += "#" + cartControlID(added)
@@ -447,11 +508,39 @@ func (s *server) cartPage(w http.ResponseWriter, r *http.Request) {
 	view := newCartView(cart, s.assets.iconURL)
 	v := visitorOf(r.Context())
 	if removed, ok := parseCartNoticeSubject(v.noticeSubject); ok && v.noticeKey == removedFromCartKey {
-		view.notice = "Removed " + itemDescription(removed) + " from your cart."
+		view.notice = "Removed " + s.itemName(r, removed) + " from your cart."
 		view.focusAfter(removed)
 	}
 	view.focusBrowse = v.noticeKey == "cart-emptied" || view.notice != "" && view.items == 0
 	s.renderPrivate(w, r, http.StatusOK, cartPage(s.chrome, view))
+}
+
+// itemName says what item is by its name, as its library's page names it now: "every group of owner/name", "the group
+// Go of owner/name", or "the rule Return errors of owner/name", or by its ID, as itemDescription does, when the
+// catalog no longer has it.
+func (s *server) itemName(r *http.Request, item domain.CartItem) string {
+	page, err := s.catalog.LibraryPage(r.Context(), item.Owner, item.Name)
+	if err != nil {
+		return itemDescription(item)
+	}
+	of := " of " + page.Library.FullName()
+	switch item.Kind {
+	case domain.CartLibrary:
+		return "every group of " + page.Library.FullName()
+	case domain.CartGroup:
+		if i := slices.IndexFunc(page.Groups, func(g views.Group) bool { return strings.EqualFold(g.Path, item.Path) }); i >= 0 {
+			label := newGroupLabel(page.Groups[i].Path, page.Groups[i].Canonical)
+			return "the group " + cmp.Or(label.name, label.id) + of
+		}
+	case domain.CartRule:
+		if i := slices.IndexFunc(page.Rules, func(c views.RuleCard) bool { return strings.EqualFold(c.Path, item.Path) }); i >= 0 {
+			return "the rule " + titleOrID(page.Rules[i].Title, page.Rules[i].Path) + of
+		}
+		if i := slices.IndexFunc(page.Retired, func(c views.RetiredRuleCard) bool { return strings.EqualFold(c.Path, item.Path) }); i >= 0 {
+			return "the rule " + titleOrID(page.Retired[i].Title, page.Retired[i].Path) + of
+		}
+	}
+	return itemDescription(item)
 }
 
 // itemDescription says what item is by its ID, as a page that doesn't show it can: "every group of owner/name", "the
@@ -740,6 +829,32 @@ type checkoutView struct {
 	// where their files land, such as .code-rules/vendor/rules/.
 	unvetted        bool
 	unvettedSources []string
+}
+
+// unbrokenWords writes text, escaped, with each run of characters without a space that holds a hyphen, slash, or
+// colon, such as a URL or code-rules, kept on one line, so a wrapped prompt never breaks inside one. Copying reads the
+// text, which the spans don't change.
+func unbrokenWords(text string) templ.Component {
+	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+		var out strings.Builder
+		for i, line := range strings.Split(text, "\n") {
+			if i > 0 {
+				out.WriteString("\n")
+			}
+			for j, word := range strings.Split(line, " ") {
+				if j > 0 {
+					out.WriteString(" ")
+				}
+				if strings.ContainsAny(word, "-/:") {
+					out.WriteString(`<span class="whitespace-nowrap">` + templ.EscapeString(word) + "</span>")
+				} else {
+					out.WriteString(templ.EscapeString(word))
+				}
+			}
+		}
+		_, err := io.WriteString(w, out.String())
+		return err
+	})
 }
 
 // joinCode writes each of texts in code type, joined by commas and and.

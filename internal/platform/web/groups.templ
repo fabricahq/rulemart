@@ -83,7 +83,7 @@ templ groupIndexList(kind string, groups []groupSummaryView) {
 
 // groupPage shows a canonical group's current rules in every vetted library that holds it, a section per library.
 templ groupPage(c chrome, g groupPageView) {
-	@layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, section: groupsHref, notice: g.notice}) {
+	@layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, section: groupsHref, notice: g.notice, noticeAction: groupOffer(g)}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(groupsHref) }>Groups</a>

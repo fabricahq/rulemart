@@ -23,7 +23,7 @@ templ cartButton(c cartControl) {
 			</a>
 		case c.held == heldRetired:
 			<a id={ c.id } class={ cartButtonStyle, cartButtonWrapShape, "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ "In cart, left out of checkout because it's retired: " + c.what + ". See your cart" }>
-				@checkIcon("size-[15px] flex-none")
+				@leftOutIcon("size-[15px] flex-none")
 				In cart, left out of checkout because it's retired
 			</a>
 		case c.held != notHeld:
@@ -51,6 +51,31 @@ templ cartButton(c cartControl) {
 	}
 }
 
+// cartOffer is the button a notice holds that adds c's item, offered after signing in, focused.
+templ cartOffer(c cartControl) {
+	if c.action != "" {
+		<form method="post" action={ templ.SafeURL(c.action) }>
+			<button class={ cartButtonStyle, cartButtonShape, "cursor-pointer border-ink", autofocusRing } type="submit" autofocus aria-label={ "Add to cart: " + c.what }>
+				@cartIcon("size-[15px] flex-none")
+				Add to cart
+			</button>
+		</form>
+	} else if c.confirm != "" {
+		<a class={ cartButtonStyle, cartButtonShape, "border-ink no-underline", autofocusRing } href={ templ.SafeURL(c.confirm) } autofocus aria-label={ "Add to cart: " + c.what }>
+			@cartIcon("size-[15px] flex-none")
+			Add to cart
+		</a>
+	}
+}
+
+// groupOffer is the button a group page's notice holds, or nil when it offers nothing.
+func groupOffer(g groupPageView) templ.Component {
+	if g.offer == nil {
+		return nil
+	}
+	return cartOffer(*g.offer)
+}
+
 // heldText is what a cart control reads for an item the cart holds, or imports with another item.
 func heldText(held heldState) string {
 	switch held {
@@ -71,7 +96,7 @@ const autofocusRing = "focus-visible:outline-2 focus-visible:outline-offset-2"
 const cartPromptStyle = "border-ink ring-2 ring-ink ring-offset-2 ring-offset-paper"
 
 // cartButtonStyle is a cart control: a small outlined button, as the star's is.
-const cartButtonStyle = "inline-flex min-h-8 items-center gap-1.5 border border-border-strong px-[11px] py-1 text-left text-[13px] leading-[18px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
+const cartButtonStyle = "inline-flex min-h-8 scroll-mt-24 items-center gap-1.5 border border-border-strong px-[11px] py-1 text-left text-[13px] leading-[18px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
 
 // cartButtonShape is a cart control's shape on one line, which a long state's text, wrapping, trades for rounded
 // corners.
@@ -86,6 +111,14 @@ templ cartIcon(class string) {
 		<path d="M2.5 3.5h2.6l2.3 11.1a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 7.5H6"></path>
 		<circle cx="9.5" cy="20" r="1.4"></circle>
 		<circle cx="17.5" cy="20" r="1.4"></circle>
+	</svg>
+}
+
+// leftOutIcon is a circle with a bar, an item checkout leaves out, in the current text color.
+templ leftOutIcon(class string) {
+	<svg class={ class } viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+		<circle cx="8" cy="8" r="6"></circle>
+		<path d="M5.25 8h5.5"></path>
 	</svg>
 }
 
@@ -412,7 +445,7 @@ templ checkoutPage(c chrome, view checkoutView) {
 						}
 						@copyButton("prompt", "Copy prompt")
 					</div>
-					<pre id="prompt" class={ codeBlockStyle, "whitespace-pre-wrap" } tabindex="0" data-select-all aria-labelledby="prompt-heading">{ view.prompt }</pre>
+					<pre id="prompt" class={ codeBlockStyle, "whitespace-pre-wrap" } tabindex="0" data-select-all aria-labelledby="prompt-heading">@unbrokenWords(view.prompt)</pre>
 					<p class="mt-2 text-[13px] text-faint">One click selects the whole prompt. Your agent asks before it installs anything, and commits nothing until you ask.</p>
 				</section>
 				<details class="group mt-9 border-t border-border-subtle pt-6">
@@ -429,7 +462,7 @@ templ checkoutPage(c chrome, view checkoutView) {
 							@codeBlock("init-command", "Command that creates the configuration", initCommand)
 						</li>
 						<li>
-							<p>In <code>.code-rules/config.yaml</code>, replace <code>sources: {"{}"}</code> with these sources. If it lists sources already, add these under its <code>sources</code> instead, keeping the ones it has; for a repository it imports already, add the groups and rules to that source, leaving out any rule whose group it selects already.</p>
+							<p>In <code>.code-rules/config.yaml</code>, replace <code>sources: {"{}"}</code> with these sources. If it lists sources already, add these under its <code>sources</code> instead, keeping the ones it has; for a repository it imports already, add the groups and rules to that source, leaving out any rule whose group it selects already. If that source names another <code>ref</code>, decide before changing it: a new <code>ref</code> moves every rule the source imports to that release.</p>
 							@codeBlock("config", "Configuration", view.config)
 						</li>
 						<li>
@@ -446,6 +479,13 @@ templ checkoutPage(c chrome, view checkoutView) {
 								} else {
 									Rulemart hasn't vetted those libraries.
 								}
+								{ " " }Go on to the next step only if you approve them. If you don't, remove
+								if len(view.unvettedSources) == 1 {
+									{ " " }its source
+								} else {
+									{ " " }their sources
+								}
+								{ " " }from <code>.code-rules/config.yaml</code> and run the step 4 commands again.
 							</li>
 						}
 						<li>Have your coding agent read the rules: add the section that <code>.code-rules/README.md</code> gives under "Connect your coding agent" to <code>AGENTS.md</code>, or the instruction file your agent reads.</li>

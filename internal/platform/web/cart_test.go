@@ -286,17 +286,29 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 // keyboard and screen reader users land where they were; a group's, one of several on the page, the address's
 // fragment also brings into view.
 func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
-	site := newCartSite(t)
-
 	for _, c := range []struct {
+		held           []string
 		item           url.Values
 		back, location string
 		notice, id     string
 	}{
-		{errorsItem, errorsRule, errorsRule, "Added the rule Return errors with context to your cart.", "cart-rule"},
-		{wholeLibrary, library + "?tab=rules", library + "?tab=rules", "Added every group of example/rules to your cart.", "cart-library"},
-		{goGroupItem, library, library + "#cart-example-rules-group-techs-go", "Added the group Go to your cart.", "cart-example-rules-group-techs-go"},
+		{nil, errorsItem, errorsRule, errorsRule, "Added the rule Return errors with context to your cart.", "cart-rule"},
+		{nil, wholeLibrary, library + "?tab=rules", library + "?tab=rules", "Added every group of example/rules to your cart.", "cart-library"},
+		{nil, goGroupItem, library, library + "#cart-example-rules-group-techs-go", "Added the group Go to your cart.", "cart-example-rules-group-techs-go"},
+		{
+			[]string{"example/rules rule techs/go/return-errors"}, goGroupItem, library, library + "#cart-example-rules-group-techs-go",
+			"Added the group Go to your cart, in place of 1 item of it you'd added before.", "cart-example-rules-group-techs-go",
+		},
+		{
+			[]string{"example/rules group techs/go"}, errorsItem, errorsRule, errorsRule,
+			"Your cart has the rule Return errors with context already, with its group.", "cart-rule",
+		},
 	} {
+		site := newCartSite(t)
+		site.cart.items[octocatID] = map[string]bool{}
+		for _, held := range c.held {
+			site.cart.items[octocatID][held] = false
+		}
 		resp := site.signedInPost(t, cartPath("/account/cart", clone(c.item), c.back))
 		if resp.Header.Get("Location") != c.location {
 			t.Fatalf("adding %v returned to %q, want %q", c.item, resp.Header.Get("Location"), c.location)
@@ -310,6 +322,7 @@ func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
 			t.Errorf("adding %v: the page says so again on the next visit", c.item)
 		}
 	}
+	site := newCartSite(t)
 	// Another page, which doesn't show the item, says only that something was added.
 	resp := site.signedInPost(t, cartPath("/account/cart", clone(retryItem), "/"))
 	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
@@ -422,8 +435,13 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 	offer := cookie(resp, noticeCookie)
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}}))
 	assertShows(t, page, "You're signed in. Add the rule Return errors with context to your cart?")
+	// The notice holds a button that adds the rule, focused, so the offer and its answer are on screen together.
 	if strings.Count(page, " autofocus") != 1 || !strings.Contains(page, "ring-ink") {
-		t.Error("the offer doesn't focus and outline the control")
+		t.Error("the offer doesn't focus its button, and outline the control")
+	}
+	action := cartPath("/account/cart", clone(errorsItem), errorsRule)
+	if got := formActions(t, page); countOf(got, action) != 2 {
+		t.Errorf("the notice holds no button that adds the rule: %q", got)
 	}
 	if got := site.cart.all(); len(got) != 0 {
 		t.Fatalf("signing in added %q", got)
@@ -431,6 +449,11 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 	site.signedInPost(t, cartPath("/account/cart", clone(errorsItem), ""))
 	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}})),
 		"You're signed in. Your cart has the rule Return errors with context already.")
+	// An offer for an item the page doesn't show says nothing at all.
+	away := site.signedInGet(t, cartPath(library, url.Values{"add": {"example/rules|rule|techs/go/return-errors"}}, ""))
+	if page := body(t, send(t, site.handler, request{method: http.MethodGet, target: library, cookies: []*http.Cookie{site.session, cookie(away, noticeCookie)}})); strings.Contains(visibleText(t, page), "signed in.") {
+		t.Error("a page without the offered item says the visitor signed in")
+	}
 	// An offer the address names, and no cookie, says nothing: only this site's cookie can.
 	for _, bad := range []string{"nobody%7Crule%7Cx", "example%2Frules%7Crule%7Ctechs%2Fgo%2Freturn-errors%3Cscript%3E"} {
 		resp := site.signedInGet(t, errorsRule+"?add="+bad)
@@ -454,7 +477,7 @@ func TestRemovingFocusesTheNextItem(t *testing.T) {
 	cart.Libraries[0].Items = slices.Delete(cart.Libraries[0].Items, 1, 2)
 	site.cart.contents[octocatID] = cart
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account/cart", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
-	assertShows(t, page, "Removed the rule practices/testing/verify-retry-limits of example/rules from your cart.")
+	assertShows(t, page, "Removed the rule Verify retry limits of example/rules from your cart.")
 	// The store lists items by ID, so the item after the removed one is techs/go/return-errors.
 	next := `aria-label="Remove Return errors with context from your cart" autofocus`
 	if !strings.Contains(page, next) || strings.Count(page, " autofocus") != 1 {
@@ -837,10 +860,15 @@ func TestCheckoutShowsThePromptAndConfiguration(t *testing.T) {
 		"stranger/rules Unvetted 1 rule, pinned to release/3 Source stranger-rules",
 		"The prompt names each library Rulemart hasn't vetted",
 	)
-	for _, text := range []string{cart.Checkout.Prompt(), cart.Checkout.Config()} {
-		if !strings.Contains(page, htmlEscape(text)) {
-			t.Errorf("the page doesn't show\n%s", text)
-		}
+	if !strings.Contains(page, htmlEscape(cart.Checkout.Config())) {
+		t.Errorf("the page doesn't show\n%s", cart.Checkout.Config())
+	}
+	// The prompt keeps each word with a hyphen, slash, or colon on one line, in spans that leave its text as it is.
+	if text := strings.Join(strings.Fields(visibleText(t, page)), " "); !strings.Contains(text, strings.Join(strings.Fields(cart.Checkout.Prompt()), " ")) {
+		t.Errorf("the page doesn't show the prompt\n%s", cart.Checkout.Prompt())
+	}
+	if !strings.Contains(page, `<span class="whitespace-nowrap">(https://code-rules.fabricahq.com).</span>`) {
+		t.Error("the prompt may break inside its URLs")
 	}
 	if !strings.Contains(cart.Checkout.Prompt(), "Rulemart hasn't vetted this library") || !strings.Contains(cart.Checkout.Prompt(), "`stranger/rules`, source `stranger-rules`") {
 		t.Errorf("the prompt doesn't name the unvetted library:\n%s", cart.Checkout.Prompt())
@@ -852,6 +880,8 @@ func TestCheckoutShowsThePromptAndConfiguration(t *testing.T) {
 		"In .code-rules/config.yaml , replace sources: {} with these sources.",
 		"Import the rules, and check the generated files: Copy code-rules project sync code-rules project check",
 		"Read every rule in .code-rules/vendor/stranger-rules/ before your agent follows any: Rulemart hasn't vetted that library.",
+		"Go on to the next step only if you approve them. If you don't, remove its source from .code-rules/config.yaml and run the step 4 commands again.",
+		"If that source names another ref , decide before changing it",
 	)
 	for _, want := range []string{
 		`data-copy="prompt" hidden`, `data-copy="config" hidden`, `data-copy="init-command" hidden`, `data-copy="sync-commands" hidden`,
@@ -962,4 +992,15 @@ func TestWithoutCartsPagesOfferNone(t *testing.T) {
 			t.Errorf("%s: the cart answered %d, want 404", name, resp.StatusCode)
 		}
 	}
+}
+
+// countOf counts the elements of s that equal v.
+func countOf(s []string, v string) int {
+	n := 0
+	for _, e := range s {
+		if e == v {
+			n++
+		}
+	}
+	return n
 }

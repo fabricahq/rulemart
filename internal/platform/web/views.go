@@ -43,6 +43,8 @@ type libraryView struct {
 	// adding, or signing in to add, the library or one of its items the page shows.
 	cart       cartControl
 	cartNotice string
+	// cartOffer is the control the page offers, in its notice, to add after signing in, or nil.
+	cartOffer *cartControl
 }
 
 // fullName returns the library's repository as owner/name.
