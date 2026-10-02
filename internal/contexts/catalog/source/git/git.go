@@ -34,6 +34,15 @@ func Fetch(ctx context.Context, url string, limits domain.FetchLimits) ([]domain
 	return readReleases(repo, limits)
 }
 
+// ListReleaseTags returns the release/<number> tags the repository at url lists, with the IDs of the tag objects
+// they point to, as Fetch reads them, without fetching any object: one request, as git ls-remote makes. It fails as
+// Fetch does when the repository has no release tags, or more than limits allow. url is any address go-git can
+// fetch from, such as an HTTPS URL or, in tests, a local path.
+func ListReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error) {
+	remote := gogit.NewRemote(nil, &config.RemoteConfig{Name: "origin", URLs: []string{url}})
+	return listReleaseTags(ctx, remote, limits)
+}
+
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
 // history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.
@@ -46,7 +55,7 @@ func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits
 	if err != nil {
 		return nil, fmt.Errorf("add remote: %v", err)
 	}
-	if err := checkReleaseTagCount(ctx, remote, limits); err != nil {
+	if _, err := listReleaseTags(ctx, remote, limits); err != nil {
 		return nil, err
 	}
 	// Ingestion reads only the trees of tagged commits, so a shallow fetch leaves out every other commit's objects.
@@ -65,29 +74,32 @@ func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits
 	return repo, nil
 }
 
-// checkReleaseTagCount lists the remote's references and fails when it has no release/<number> tags, or more than
-// limits allow.
-func checkReleaseTagCount(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) error {
+// listReleaseTags lists the remote's references and returns its release/<number> tags, the names Code Rules
+// accepts, with the IDs they point to. It fails when there are none, or more than limits allow.
+func listReleaseTags(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) (domain.ReleaseTags, error) {
 	refs, err := remote.ListContext(ctx, &gogit.ListOptions{})
 	if errors.Is(err, transport.ErrEmptyRemoteRepository) {
-		return errNoReleases
+		return nil, errNoReleases
 	}
 	if err != nil {
-		return fmt.Errorf("list the repository's references: %v", err)
+		return nil, fmt.Errorf("list the repository's references: %v", err)
 	}
-	count := 0
+	tags := domain.ReleaseTags{}
 	for _, ref := range refs {
-		if _, err := coderules.ParseReleaseTag(ref.Name().Short()); ref.Name().IsTag() && err == nil {
-			count++
+		if !ref.Name().IsTag() {
+			continue
+		}
+		if number, err := coderules.ParseReleaseTag(ref.Name().Short()); err == nil {
+			tags[number] = ref.Hash().String()
 		}
 	}
 	switch {
-	case count == 0:
-		return errNoReleases
-	case count > limits.Tags:
-		return fmt.Errorf("the repository has %d release tags, more than the %d ingestion reads", count, limits.Tags)
+	case len(tags) == 0:
+		return nil, errNoReleases
+	case len(tags) > limits.Tags:
+		return nil, fmt.Errorf("the repository has %d release tags, more than the %d ingestion reads", len(tags), limits.Tags)
 	}
-	return nil
+	return tags, nil
 }
 
 // readReleases parses the record of every release/<number> tag in repo, in number order. Like Code Rules, it skips
@@ -154,8 +166,9 @@ func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load the tagged commit %s: %v", tag.Target, err)
 	}
 	return domain.ReleaseSnapshot{
-		Number: record.Release, Tag: name, TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(), Record: record,
-		Files: &files{commit: commit},
+		Number: record.Release, Tag: name, TagID: hash.String(), TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(),
+		Record: record,
+		Files:  &files{commit: commit},
 	}, nil
 }
 

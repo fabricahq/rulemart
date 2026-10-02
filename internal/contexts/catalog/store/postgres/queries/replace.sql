@@ -1,25 +1,29 @@
 -- name: UpsertLibrary :execrows
-INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url, license_expression, license_file)
-VALUES (@host, @host_repository_id, @owner, @name, @description, @owner_avatar_url, @license_expression, @license_file)
+INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url, license_expression,
+                       license_file, clone_url)
+VALUES (@host, @host_repository_id, @owner, @name, @description, @owner_avatar_url, @license_expression,
+        @license_file, @clone_url)
 ON CONFLICT (host, host_repository_id) DO UPDATE SET
     owner = excluded.owner, name = excluded.name, description = excluded.description,
     owner_avatar_url = excluded.owner_avatar_url, license_expression = excluded.license_expression,
-    license_file = excluded.license_file
+    license_file = excluded.license_file, clone_url = excluded.clone_url
 WHERE (libraries.owner, libraries.name, libraries.description, libraries.owner_avatar_url,
-       libraries.license_expression, libraries.license_file)
+       libraries.license_expression, libraries.license_file, libraries.clone_url)
     IS DISTINCT FROM (excluded.owner, excluded.name, excluded.description, excluded.owner_avatar_url,
-       excluded.license_expression, excluded.license_file);
+       excluded.license_expression, excluded.license_file, excluded.clone_url);
 
 -- name: GetLibraryID :one
 SELECT id FROM libraries WHERE host = @host AND host_repository_id = @host_repository_id;
 
 -- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, commit_id, tagged_at, updates_shared_files)
-VALUES (@library_id, @number, @commit_id, @tagged_at, @updates_shared_files)
+INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files)
+VALUES (@library_id, @number, @tag_object_id, @commit_id, @tagged_at, @updates_shared_files)
 ON CONFLICT (library_id, number) DO UPDATE SET
-    commit_id = excluded.commit_id, tagged_at = excluded.tagged_at, updates_shared_files = excluded.updates_shared_files
-WHERE (library_releases.commit_id, library_releases.tagged_at, library_releases.updates_shared_files)
-    IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files);
+    tag_object_id = excluded.tag_object_id, commit_id = excluded.commit_id, tagged_at = excluded.tagged_at,
+    updates_shared_files = excluded.updates_shared_files
+WHERE (library_releases.tag_object_id, library_releases.commit_id, library_releases.tagged_at,
+       library_releases.updates_shared_files)
+    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files);
 
 -- name: ListReleaseIDs :many
 SELECT id, number FROM library_releases WHERE library_id = @library_id;
@@ -79,3 +83,10 @@ WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, 
        rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html)
     IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
        excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html);
+
+-- name: GetCheckpoint :many
+-- One row per stored release of the library, or one row with a NULL number when it has none.
+SELECT l.clone_url, r.number, r.tag_object_id
+FROM libraries l
+LEFT JOIN library_releases r ON r.library_id = l.id
+WHERE l.host = @host AND l.host_repository_id = @host_repository_id;

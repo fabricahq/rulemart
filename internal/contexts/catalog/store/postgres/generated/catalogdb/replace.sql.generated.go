@@ -74,6 +74,45 @@ func (q *Queries) DeleteVersion(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const getCheckpoint = `-- name: GetCheckpoint :many
+SELECT l.clone_url, r.number, r.tag_object_id
+FROM libraries l
+LEFT JOIN library_releases r ON r.library_id = l.id
+WHERE l.host = $1 AND l.host_repository_id = $2
+`
+
+type GetCheckpointParams struct {
+	Host             string
+	HostRepositoryID string
+}
+
+type GetCheckpointRow struct {
+	CloneUrl    pgtype.Text
+	Number      pgtype.Int4
+	TagObjectID pgtype.Text
+}
+
+// One row per stored release of the library, or one row with a NULL number when it has none.
+func (q *Queries) GetCheckpoint(ctx context.Context, arg GetCheckpointParams) ([]GetCheckpointRow, error) {
+	rows, err := q.db.Query(ctx, getCheckpoint, arg.Host, arg.HostRepositoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCheckpointRow
+	for rows.Next() {
+		var i GetCheckpointRow
+		if err := rows.Scan(&i.CloneUrl, &i.Number, &i.TagObjectID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLibraryID = `-- name: GetLibraryID :one
 SELECT id FROM libraries WHERE host = $1 AND host_repository_id = $2
 `
@@ -250,16 +289,18 @@ func (q *Queries) UpsertGroup(ctx context.Context, arg UpsertGroupParams) (int64
 }
 
 const upsertLibrary = `-- name: UpsertLibrary :execrows
-INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url, license_expression, license_file)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO libraries (host, host_repository_id, owner, name, description, owner_avatar_url, license_expression,
+                       license_file, clone_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9)
 ON CONFLICT (host, host_repository_id) DO UPDATE SET
     owner = excluded.owner, name = excluded.name, description = excluded.description,
     owner_avatar_url = excluded.owner_avatar_url, license_expression = excluded.license_expression,
-    license_file = excluded.license_file
+    license_file = excluded.license_file, clone_url = excluded.clone_url
 WHERE (libraries.owner, libraries.name, libraries.description, libraries.owner_avatar_url,
-       libraries.license_expression, libraries.license_file)
+       libraries.license_expression, libraries.license_file, libraries.clone_url)
     IS DISTINCT FROM (excluded.owner, excluded.name, excluded.description, excluded.owner_avatar_url,
-       excluded.license_expression, excluded.license_file)
+       excluded.license_expression, excluded.license_file, excluded.clone_url)
 `
 
 type UpsertLibraryParams struct {
@@ -271,6 +312,7 @@ type UpsertLibraryParams struct {
 	OwnerAvatarUrl    string
 	LicenseExpression pgtype.Text
 	LicenseFile       pgtype.Text
+	CloneUrl          pgtype.Text
 }
 
 func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (int64, error) {
@@ -283,6 +325,7 @@ func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (i
 		arg.OwnerAvatarUrl,
 		arg.LicenseExpression,
 		arg.LicenseFile,
+		arg.CloneUrl,
 	)
 	if err != nil {
 		return 0, err
@@ -291,17 +334,20 @@ func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (i
 }
 
 const upsertRelease = `-- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, commit_id, tagged_at, updates_shared_files)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (library_id, number) DO UPDATE SET
-    commit_id = excluded.commit_id, tagged_at = excluded.tagged_at, updates_shared_files = excluded.updates_shared_files
-WHERE (library_releases.commit_id, library_releases.tagged_at, library_releases.updates_shared_files)
-    IS DISTINCT FROM (excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files)
+    tag_object_id = excluded.tag_object_id, commit_id = excluded.commit_id, tagged_at = excluded.tagged_at,
+    updates_shared_files = excluded.updates_shared_files
+WHERE (library_releases.tag_object_id, library_releases.commit_id, library_releases.tagged_at,
+       library_releases.updates_shared_files)
+    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files)
 `
 
 type UpsertReleaseParams struct {
 	LibraryID          int64
 	Number             int32
+	TagObjectID        pgtype.Text
 	CommitID           string
 	TaggedAt           pgtype.Timestamptz
 	UpdatesSharedFiles bool
@@ -311,6 +357,7 @@ func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (i
 	result, err := q.db.Exec(ctx, upsertRelease,
 		arg.LibraryID,
 		arg.Number,
+		arg.TagObjectID,
 		arg.CommitID,
 		arg.TaggedAt,
 		arg.UpdatesSharedFiles,
