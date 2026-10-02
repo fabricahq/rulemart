@@ -27,4 +27,4 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
 6. If `AGENTS.md`, `CLAUDE.md`, or the instruction file you read doesn't point to `.code-rules/generated/RULES.md` yet, add the section that `.code-rules/README.md` gives under "Connect your coding agent".
 7. Tell me what you changed. Don't commit unless I ask; when I do, commit `.code-rules/` and the instruction file together.
 
-To upgrade a library later, change its `ref` to a newer release's tag, such as `release/2`, and run `code-rules project sync`. To follow each rule's newest version instead, delete its `ref` line and run `code-rules project sync`; from then on, `code-rules project update` previews newer versions and applies them once I confirm.
+To upgrade a library later, change its `ref` to the tag of a later library release, `release/` and a higher number, and run `code-rules project sync`. To follow each rule's newest version instead, delete its `ref` line and run `code-rules project sync`; from then on, `code-rules project update` previews newer versions and applies them once I confirm.

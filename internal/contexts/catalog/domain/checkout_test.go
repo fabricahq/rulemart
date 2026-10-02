@@ -133,3 +133,21 @@ func TestAnEmptyCheckoutHasNothingToSay(t *testing.T) {
 		t.Errorf("got %+v, config %q, prompt %q", checkout.Sources, checkout.Config(), checkout.Prompt())
 	}
 }
+
+// Two repositories with the same name, of different owners, each get their owner's name too, in owner order.
+func TestCheckoutNamesSameNamedRepositoriesByOwner(t *testing.T) {
+	library := func(owner string) CheckoutLibrary {
+		return CheckoutLibrary{Owner: owner, Name: "engineering-rules", Release: 1, Vetted: true, Items: []CartItem{item(owner+"/engineering-rules", CartLibrary, "")}}
+	}
+	checkout := NewCheckout([]CheckoutLibrary{library("zeta"), library("Acme")})
+	var names []string
+	for _, source := range checkout.Sources {
+		names = append(names, source.Name)
+	}
+	if want := []string{"acme-engineering-rules", "zeta-engineering-rules"}; !slices.Equal(names, want) {
+		t.Errorf("got %q, want %q", names, want)
+	}
+	if config := checkout.Config(); strings.Count(config, "repository: https://github.com/") != 2 {
+		t.Errorf("the configuration doesn't import both:\n%s", config)
+	}
+}
