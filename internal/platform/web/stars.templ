@@ -73,8 +73,8 @@ templ starIcon(class string, filled bool) {
 // library the release no longer vets says so: a listed one links its unvetted page with nofollow, and one neither
 // vetted nor listed links nothing.
 templ starsPage(c chrome, stars []starredView) {
-	@layout(c, head{title: "Your stars · Rulemart", noindex: true}) {
-		<div class="page wrap max-w-[48rem]">
+	@layout(c, head{title: "Your stars · Rulemart", noindex: true, narrow: true}) {
+		<div class={ "page wrap", narrowPage }>
 			@label("") {
 				Account
 			}
