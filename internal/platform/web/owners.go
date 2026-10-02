@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
@@ -27,12 +26,12 @@ func ownerHref(login string) string {
 
 // ownerView is what an owner's page shows.
 type ownerView struct {
-	login, avatar, href, githubURL string
-	libraries                      []libraryCard
+	login, avatar, href string
+	libraries           []libraryCard
 }
 
 func newOwnerView(page views.OwnerPage, libraries []libraryCard) ownerView {
-	return ownerView{login: page.Login, avatar: page.AvatarURL, href: ownerHref(page.Login), githubURL: domain.OwnerURL(page.Login), libraries: libraries}
+	return ownerView{login: page.Login, avatar: page.AvatarURL, href: ownerHref(page.Login), libraries: libraries}
 }
 
 // owner shows the page of the owner the path names at /{owner}: the owner's login as GitHub spells it, their avatar,

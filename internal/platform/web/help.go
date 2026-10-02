@@ -21,7 +21,7 @@ const codeRulesRepositoryURL = "https://github.com/fabricahq/code-rules"
 type feedbackTopic struct {
 	// key names the topic's label, topic:<key>, which both repositories have.
 	key, label, example string
-	// repository is the GitHub repository, owner/name, that owns the topic.
+	// repository is the address of the GitHub repository that owns the topic, such as repositoryURL.
 	repository string
 }
 
@@ -35,15 +35,15 @@ type feedbackGroup struct {
 // and Code Rules topics in Code Rules'.
 var feedbackGroups = []feedbackGroup{
 	{name: "Rulemart", topics: []feedbackTopic{
-		{key: "hub", label: "Using Rulemart", example: "Finding rules, library and rule pages, checking out, and anything missing.", repository: "fabricahq/rulemart"},
+		{key: "hub", label: "Using Rulemart", example: "Finding rules, library and rule pages, checking out, and anything missing.", repository: repositoryURL},
 	}},
 	{name: "Code Rules", topics: []feedbackTopic{
-		{key: "cli", label: "The tool", example: "The code-rules CLI: commands, syncing, error messages, and config.", repository: "fabricahq/code-rules"},
-		{key: "format", label: "Rule format", example: "Frontmatter fields, groups, impact levels, and how rules are written.", repository: "fabricahq/code-rules"},
-		{key: "docs", label: "Documentation", example: "Anything unclear, wrong, or hard to find.", repository: "fabricahq/code-rules"},
+		{key: "cli", label: "The tool", example: "The code-rules CLI: commands, syncing, error messages, and config.", repository: codeRulesRepositoryURL},
+		{key: "format", label: "Rule format", example: "Frontmatter fields, groups, impact levels, and how rules are written.", repository: codeRulesRepositoryURL},
+		{key: "docs", label: "Documentation", example: "Anything unclear, wrong, or hard to find.", repository: codeRulesRepositoryURL},
 	}},
 	{name: "Anything else", topics: []feedbackTopic{
-		{key: "other", label: "Ideas and questions", example: "Anything that doesn't fit above.", repository: "fabricahq/rulemart"},
+		{key: "other", label: "Ideas and questions", example: "Anything that doesn't fit above.", repository: repositoryURL},
 	}},
 }
 
@@ -53,7 +53,7 @@ var feedbackGroups = []feedbackGroup{
 func (t feedbackTopic) issueURL() string {
 	body := "**Topic:** " + t.label + "\n\n**What happened, or what would you change?**\n\n\n**Why it matters to you:**\n\n\n---\nOpened from Rulemart"
 	q := url.Values{"title": {"[" + t.label + "] "}, "body": {body}, "labels": {"feedback,topic:" + t.key}}
-	return "https://github.com/" + t.repository + "/issues/new?" + q.Encode()
+	return t.repository + "/issues/new?" + q.Encode()
 }
 
 // faq shows the questions visitors ask most, and their answers.
