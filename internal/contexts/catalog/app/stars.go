@@ -27,7 +27,7 @@ type Stars struct {
 // ErrNotFound when library isn't owner/name, Vetted holds no library by that name, or it has no current rule at
 // rulePath. Starring a rule twice keeps one star.
 func (s Stars) Star(ctx context.Context, accountID int64, library, rulePath string) error {
-	owner, name, err := parseRuleName(library, rulePath)
+	owner, name, err := parseRuleAddress(library, rulePath)
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (s Stars) Star(ctx context.Context, accountID int64, library, rulePath stri
 // Unstar removes every star of the account's that counts toward the rule Star finds, and does nothing when it has
 // none. It fails with ErrNotFound as Star does.
 func (s Stars) Unstar(ctx context.Context, accountID int64, library, rulePath string) error {
-	owner, name, err := parseRuleName(library, rulePath)
+	owner, name, err := parseRuleAddress(library, rulePath)
 	if err != nil {
 		return err
 	}
@@ -64,9 +64,10 @@ func (s Stars) AccountStars(ctx context.Context, accountID int64) ([]views.Starr
 	return starred, nil
 }
 
-// parseRuleName returns the owner and name library names as owner/name, as page addresses name a library, or fails
-// with ErrNotFound when library names none, or rulePath is empty, as text the catalog can't hold names nothing.
-func parseRuleName(library, rulePath string) (owner, name string, err error) {
+// parseRuleAddress parses a rule's address: it returns the owner and name of library, which names a library as
+// owner/name, as page addresses do, and checks that rulePath is non-empty and that both are text the catalog can
+// store, as domain.Storable says. It fails with ErrNotFound otherwise, since such an address names no rule.
+func parseRuleAddress(library, rulePath string) (owner, name string, err error) {
 	owner, name, ok := strings.Cut(library, "/")
 	if !ok || owner == "" || name == "" || strings.Contains(name, "/") || !domain.Storable(library) ||
 		rulePath == "" || !domain.Storable(rulePath) {
