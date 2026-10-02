@@ -90,7 +90,9 @@ than adding history.
 ## Infrastructure and delivery
 
 - **One environment until launch**, at `rulemart.fabricahq.com`, with Neon branches for trying migrations on real
-  data. `rulemart.ai` redirects there through a Cloudflare rule set up by hand.
+  data. `rulemart.ai` and `www.rulemart.ai` redirect there permanently, keeping the path, through a Cloudflare
+  Single Redirect that infra-live manages in code with its DNS records, so the redirect is reviewed and can't drift
+  from the domain it points at.
 - **Pages name their address on `RULEMART_BASE_URL` as canonical.** CloudFront's own `cloudfront.net` domain serves
   the same pages, so each page links its address on the public origin, without a tab's query string, and search
   engines index that one. Infrastructure sets the variable; unset, as in local development, pages name none, and a
