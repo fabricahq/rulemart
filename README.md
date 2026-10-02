@@ -38,9 +38,9 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 | Without Rulemart | With Rulemart |
 | --- | --- |
 | Write every rule yourself | Pick rules other teams proved |
-| Search GitHub one repository at a time | Browse by technology and practice, search across libraries |
-| Copy rules by hand, lose their source | Check out a prompt; Code Rules records each rule's source and version |
-| Dig through a library's history | See each rule's versions and what changed |
+| Agent skills bundle many practices in one file | Each rule is one practice, so you adopt exactly what fits |
+| Skills change under you, with no versions | Each rule is versioned, and updates show what changed |
+| Skills live in one project or one person's folder | Libraries are shared across projects and teams, with their source recorded |
 
 ## Quick start
 
