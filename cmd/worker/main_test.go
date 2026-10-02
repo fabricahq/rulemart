@@ -19,6 +19,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 var (
@@ -214,4 +215,118 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 
 func (r repositories) RepositoryByID(context.Context, string) (domain.Repository, error) {
 	return r.repo, nil
+}
+
+// fakeListings checks listings as checks says, by ID, and lists toCheck for the poll, recording the IDs it checks.
+type fakeListings struct {
+	toCheck []int64
+	checks  map[int64]app.ListingCheck
+	failing map[int64]bool
+	checked []int64
+}
+
+func (f *fakeListings) CheckListing(_ context.Context, _ []domain.LibraryKey, id int64) (app.ListingCheck, error) {
+	f.checked = append(f.checked, id)
+	if f.failing[id] {
+		return app.ListingCheck{}, errors.New("the database is unreachable")
+	}
+	return f.checks[id], nil
+}
+
+func (f *fakeListings) ListingsToCheck(context.Context, []domain.LibraryKey) ([]int64, error) {
+	return f.toCheck, nil
+}
+
+func TestHandleQueuesEachListingToCheckAfterTheVettedLibraries(t *testing.T) {
+	queue := &memoryQueue{}
+	w := newTestWorker(&fakeUpdater{}, queue)
+	w.listings = &fakeListings{toCheck: []int64{7, 9}}
+
+	out, err := w.handle(context.Background(), json.RawMessage(`{"source":"schedule"}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`{"host":"github","repositoryID":"42"}`, `{"host":"github","repositoryID":"43"}`, `{"listing":7}`, `{"listing":9}`}
+	if !slices.Equal(queue.bodies, want) {
+		t.Fatalf("queued %q, want %q", queue.bodies, want)
+	}
+	if got, ok := out.(map[string]int); !ok || got["queued"] != 4 {
+		t.Fatalf("answered %#v, want 4 queued", out)
+	}
+}
+
+// A listing's check that the repository refused is the lister's to see, so the job succeeds; only a failure that isn't
+// the repository's reaches SQS.
+func TestHandleChecksEachListingAndReportsOnlyRulemartsFailures(t *testing.T) {
+	w := newTestWorker(&fakeUpdater{}, nil)
+	listed := &fakeListings{
+		checks: map[int64]app.ListingCheck{
+			7: {Outcome: app.ListingIngested, Update: app.Update{Ingested: true}},
+			8: {Outcome: app.ListingRefused, Failure: "the repository has no release/<number> tags"},
+			9: {Outcome: app.ListingSkipped},
+		},
+		failing: map[int64]bool{10: true},
+	}
+	w.listings = listed
+
+	out, err := w.handle(context.Background(), sqsEvent(`{"listing":7}`, `{"listing":8}`, `{"listing":9}`, `{"listing":10}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := failures(t, out); !slices.Equal(got, []string{"3"}) {
+		t.Fatalf("reported %q as failed, want only message 3", got)
+	}
+	if !slices.Equal(listed.checked, []int64{7, 8, 9, 10}) {
+		t.Fatalf("checked %v", listed.checked)
+	}
+}
+
+// A worker that checks no listings refuses their jobs rather than dropping them.
+func TestHandleRefusesAListingsJobWithoutListings(t *testing.T) {
+	out, err := newTestWorker(&fakeUpdater{}, nil).handle(context.Background(), sqsEvent(`{"listing":7}`))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := failures(t, out); !slices.Equal(got, []string{"0"}) {
+		t.Fatalf("reported %q as failed, want the job", got)
+	}
+}
+
+// The worker's path for a listing, from end to end: the poll queues the listing a visitor added, its job looks the
+// repository up and ingests it as the worker's role, and the next poll finds it unchanged.
+func TestPollIngestsAListedLibraryThenFindsItUnchanged(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	_, connString := databasetest.New(t)
+	postgrestest.Exec(t, connString, `INSERT INTO listings (host, owner, name) VALUES ('github', 'example', 'rules')`)
+	ingester := app.Ingester{
+		Repositories: repositories{lib.Repository(44)}, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Rule,
+		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,
+	}
+	w := &worker{updater: ingester, listings: ingester, vetted: nil, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+
+	for poll, wantIngested := range []bool{true, false} {
+		updates, err := w.runOnce(context.Background())
+
+		if err != nil {
+			t.Fatalf("poll %d: %v", poll+1, err)
+		}
+		if len(updates) != 1 || updates[0].Ingested != wantIngested {
+			t.Fatalf("poll %d updated %+v, want one update that ingested: %v", poll+1, updates, wantIngested)
+		}
+	}
+	var checked bool
+	postgrestest.QueryRow(t, connString, `SELECT checked_at IS NOT NULL AND failure IS NULL AND host_repository_id = '44' FROM listings`, &checked)
+	if !checked {
+		t.Fatal("the listing doesn't record a successful check of repository 44")
+	}
 }

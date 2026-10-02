@@ -117,5 +117,31 @@ func TestHandleLogsWhatAPollQueued(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("logged %d poll lines, want 1", len(lines))
 	}
-	want(t, lines[0], map[string]any{"libraries": 2.0, "queued": 1.0, "queue_failures": 1.0, "duration_ms": nil})
+	want(t, lines[0], map[string]any{"libraries": 2.0, "listings": 0.0, "queued": 1.0, "queue_failures": 1.0, "duration_ms": nil})
+}
+
+// A listing's job line names the listing, and once it's resolved, its library; a refused one says why, and the batch
+// line counts refused and skipped jobs.
+func TestHandleLogsEachListingsJob(t *testing.T) {
+	w, out := loggingWorker(timedUpdater{}, nil)
+	w.listings = &fakeListings{checks: map[int64]app.ListingCheck{
+		7: {Outcome: app.ListingRefused, Failure: "the repository has no release/<number> tags",
+			Listing: domain.Listing{ID: 7, Library: domain.LibraryKey{Host: domain.GitHub, RepositoryID: "50"}}},
+		8: {Outcome: app.ListingSkipped},
+	}}
+
+	if _, err := w.handle(context.Background(), sqsEvent(`{"listing":7}`, `{"listing":8}`)); err != nil {
+		t.Fatal(err)
+	}
+
+	lines := logLines(t, out)
+	if len(lines["listing refused"]) != 1 || len(lines["listing skipped"]) != 1 {
+		t.Fatalf("logged %v", lines)
+	}
+	want(t, lines["listing refused"][0], map[string]any{
+		"outcome": "refused", "listing": 7.0, "host": "github", "repository": "50",
+		"failure": "the repository has no release/<number> tags", "message_id": "0", "duration_ms": nil,
+	})
+	want(t, lines["listing skipped"][0], map[string]any{"outcome": "skipped", "listing": 8.0, "message_id": "1", "duration_ms": nil})
+	want(t, lines["batch processed"][0], map[string]any{"jobs": 2.0, "refused": 1.0, "skipped": 1.0, "failed": 0.0})
 }
