@@ -71,8 +71,8 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   orders them with the `C` collation, whatever the server's default.
 - **A page of releases holds whole releases, newest first, up to 2,000 rows. Proposed.** Each release's notes list
   every rule's version again, so a library's notes grow with rules times releases: 1,000 rules over 100 releases would
-  be 100,000 rows. A page counts each release's changes and versions, shows releases while they fit, and always at
-  least one, then links the older ones, from `?tab=releases&until=<n>`, and back to the newest. A link to a release
+  be 100,000 rows. A page counts each release's changes and versions, and ten rows more for its card, shows releases
+  while they fit, and always at least one, then links the older ones, from `?tab=releases&until=<n>`, and back to the newest. A link to a release
   elsewhere leads to the page that starts with it. A release of more than 1,000 rules, as large as its library, leaves
   out its table of every rule's version and links its GitHub Release page, which lists them, so even a release of
   10,000 rules, the most Code Rules allows, stays within one response.
@@ -110,9 +110,12 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   a pair past the limit says it's too large to show, and links both files on GitHub, as does a pair whose text the
   catalog doesn't have yet. The store reads only the texts that fit. Ordinary rules are a few KiB, so a comparison
   shows dozens in full. Short text can still make a long diff, such as every line of a file changed, so a page also
-  renders at most 10,000 diff rows, blocks, and marks, and a diff past that says it's too large to show. Diffs take
-  short markup the stylesheet styles. Together these keep a page well within a Lambda response, however large a
-  library's rules are.
+  renders at most 10,000 diff rows, blocks, and marks, each diff's panel counting 25 of them, and a diff past that says
+  it's too large to show. A comparison of releases that changed more rules than fit says how many it leaves to their
+  own comparisons. Diffs take short markup the stylesheet styles.
+- **Every page fits one response. Proposed.** A change summary shows at most 1,000 characters, since it's one line of
+  any length a library writes. And as a last guard, a page past 5 MiB, which only a library far past any Rulemart knows
+  could make, says it's too large instead, and the web function logs `page too large` with its route.
 - **Rule text in a diff is text. Existing rule.** A diff shows a rule's Markdown escaped, as segments the template
   escapes, never as HTML Rulemart assembles, so markup in a rule can't run or load.
 - **Diff colors are the first colors in the palette. Proposed.** Green and red, GitHub's diff colors, as tokens for
@@ -142,7 +145,9 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   the library doesn't have.
 - **Page tests:** each page's text and links, the forms, both views, noindex, retired rules, pages of releases, the
   states a comparison can't show, odd parameters, a rule's raw HTML shown as text in a diff of an ingested library,
-  and page sizes: a release of 10,000 rules, and diffs of every line changed or of thousands of changed paragraphs.
+  and page sizes: a release of 10,000 rules, thousands of releases that list no rules, a comparison of 4,000 changed
+  rules, diffs of every line changed or of thousands of changed paragraphs, a very long summary, and a page past 5
+  MiB.
 - **Real data, locally:** both production libraries ingested as `rulemart_worker`, a migration of a database slice 3
   stored, and `make worker` ingesting the test library again for its versions' content, then every new page in a
   browser at desktop and phone widths, in light and dark themes.
@@ -153,6 +158,6 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 
 Comparing a rule's assets, and showing a rule's assets at all. A rendered preview of changes. Storing tags' Markdown
 release notes. Comparing rules across libraries. A retired rule's last text on its page. Paging through a comparison
-of releases that changes thousands of rules, whose list of changes, unlike its diffs, isn't bounded below the
-library's size. Unvetted libraries, sign-in, listing libraries, stars, discussion, and the cart. Dropping
+of releases that changes thousands of rules, whose list of changes, unlike its diffs, grows with the library. Reading
+only one page's releases from the database, rather than a library's whole history. Unvetted libraries, sign-in, listing libraries, stars, discussion, and the cart. Dropping
 `hello_messages`, which belongs in its own change.
