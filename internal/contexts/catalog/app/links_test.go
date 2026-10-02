@@ -53,9 +53,8 @@ func linksOf(history views.LibraryHistory) []views.RuleLink {
 	return links
 }
 
-// A retired rule's replacement chain runs to the rule that's current at the end of what's shown: a release's card
-// names the replacement it had then, a comparison follows it to the release it compares, and a rename shows once,
-// under its new ID, from the old one.
+// A retired rule's replacement chain runs to the rule that's current now, on a release's card and in a comparison,
+// naming its first replacement by its title then; a rename shows once, under its new ID, from the old one.
 func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 	h := &histories{history: replacedTwice}
 	pages := app.Pages{Store: h}
@@ -75,7 +74,7 @@ func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 		byRelease[notes.Release.Number] = describeChanges(notes.Changes)
 	}
 	if got, want := byRelease[2], []string{
-		`practices/testing/check-retry-backoff "Check retry backoff" retired 1.0.0->0.0.0 [] [Covered by verify-retries.] by practices/testing/verify-retries "Verify retries"`,
+		`practices/testing/check-retry-backoff "Check retry backoff" retired 1.0.0->0.0.0 [] [Covered by verify-retries.] by practices/testing/verify-retries "Verify retries" by practices/testing/verify-retry-limits "Verify retry limits"`,
 		`practices/testing/verify-retries "Verify retries" new 0.0.0->1.0.0 [1.0.0]`,
 	}; !slices.Equal(got, want) {
 		t.Errorf("release/2 changes\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -98,15 +97,15 @@ func TestChangesFollowReplacementsAndShowRenames(t *testing.T) {
 	if want := "techs/go/name-tests-by-behavior techs/go/name-tests 1.0.0...techs/go/name-tests-by-behavior 1.0.0"; !strings.Contains(h.compared[0], want) {
 		t.Errorf("read the text of %q, want it to include %q", h.compared[0], want)
 	}
-	if !comparison.SharedFiles {
-		t.Error("the comparison doesn't say release/5 changed shared files")
+	if !slices.Equal(comparison.SharedFiles, []int{5}) {
+		t.Errorf("the comparison says releases %v changed shared files, want release/5", comparison.SharedFiles)
 	}
 }
 
 func TestComparisonSaysWhenOnlyEarlierReleasesChangedSharedFiles(t *testing.T) {
 	comparison, err := app.Pages{Store: &histories{history: replacedTwice}}.ReleaseComparison(context.Background(), "fabricahq", "code-rules-test-library", 1, 4)
 
-	if err != nil || comparison.SharedFiles {
+	if err != nil || len(comparison.SharedFiles) != 0 {
 		t.Fatalf("got shared files %v, %v; want none between release/1 and release/4", comparison.SharedFiles, err)
 	}
 }
@@ -144,13 +143,21 @@ func TestRulePagesFollowReplacementsAndRenames(t *testing.T) {
 		t.Fatal(err)
 	}
 	var renamed []string
+	replacements := map[string][]string{}
 	for _, r := range library.Retired {
 		if r.Renamed {
 			renamed = append(renamed, r.Path)
 		}
+		for _, ref := range r.Replacements {
+			replacements[r.Path] = append(replacements[r.Path], ref.Path)
+		}
 	}
 	if !slices.Equal(renamed, []string{"techs/go/name-tests"}) {
 		t.Errorf("renamed retired rules are %q", renamed)
+	}
+	// The All rules tab follows a retired rule's replacements to now, as its page does.
+	if got := replacements["practices/testing/check-retry-backoff"]; !slices.Equal(got, []string{"practices/testing/verify-retries", "practices/testing/verify-retry-limits"}) {
+		t.Errorf("check-retry-backoff's replacements on the All rules tab are %q", got)
 	}
 }
 

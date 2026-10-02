@@ -172,7 +172,8 @@ type searchView struct {
 	total, complete int
 	// noWords marks a query with no word to find, such as only "the", which matches nothing.
 	noWords bool
-	// page numbers the page of results shown, from 1, of pages.
+	// page numbers the page of results shown, from 1, of pages, which stops at app.MaxSearchPage, the last page a search
+	// reads.
 	page, pages int
 	results     []searchResultView
 }
@@ -194,7 +195,7 @@ type searchResultView struct {
 func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchResults, page int, iconURL func(file string) string) searchView {
 	v := searchView{
 		query: query.String(), tooLong: tooLong, total: results.Total, complete: results.Complete, noWords: results.NoWords,
-		page: page, pages: (results.Total + app.SearchPageSize - 1) / app.SearchPageSize,
+		page: page, pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
 	}
 	for _, r := range results.Results {
 		lib := newLibraryRefView(r.Library)
