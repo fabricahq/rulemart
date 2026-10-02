@@ -162,6 +162,36 @@ func TestOnlyACurrentRuleOfAVettedLibraryCanBeStarred(t *testing.T) {
 	}
 }
 
+// A library that loses its vetting but stays listed keeps its stars stored, uncounted: its page and its rules' pages
+// count none, and once it's vetted again, they count again.
+func TestAListedLibraryCountsNoStarsUntilItsVettedAgain(t *testing.T) {
+	c := newListingCatalog(t)
+	ctx := context.Background()
+	account := c.account(t, 1)
+	c.star(t, vettedBoth, account, "acme", "backend", acmeErrors)
+	onlyBeta := vettedBoth[1:]
+	listing, err := c.web.CreateListing(ctx, onlyBeta, account, "acme", "backend")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.resolve(t, listing, "21")
+
+	if got := c.ruleStars(t, onlyBeta, "acme", "backend"); got[acmeErrors] != 0 {
+		t.Errorf("unvetted, the library's page counts %v, want no stars", got)
+	}
+	page, err := c.web.RulePage(ctx, onlyBeta, "acme", "backend", acmeErrors)
+	if err != nil || page.Library.Vetted || page.Rule.Stars != 0 {
+		t.Errorf("unvetted, the rule's page counts %d, vetted %v, %v; want 0, unvetted", page.Rule.Stars, page.Library.Vetted, err)
+	}
+
+	if got := c.ruleStars(t, vettedBoth, "acme", "backend"); got[acmeErrors] != 1 {
+		t.Errorf("vetted again, the library's page counts %v, want one star on return-errors", got)
+	}
+	if page, err := c.web.RulePage(ctx, vettedBoth, "acme", "backend", acmeErrors); err != nil || page.Rule.Stars != 1 {
+		t.Errorf("vetted again, the rule's page counts %d, %v; want 1", page.Rule.Stars, err)
+	}
+}
+
 // Unstarring removes only the account's own star, and unstarring what it hasn't starred changes nothing.
 func TestUnstarringRemovesOnlyTheAccountsOwnStar(t *testing.T) {
 	c := newListingCatalog(t)

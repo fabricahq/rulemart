@@ -163,7 +163,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		if err != nil {
 			return err
 		}
-		stars, err := ruleStars(ctx, q, ruleIDs(rules, func(r catalogdb.ListCurrentRulesRow) int64 { return r.ID }))
+		stars, err := libraryRuleStars(ctx, q, lib, ruleIDs(rules, func(r catalogdb.ListCurrentRulesRow) int64 { return r.ID }))
 		if err != nil {
 			return err
 		}
@@ -283,7 +283,7 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	if r.RetiredIn.Valid {
 		page.Rule.Retirement = &views.Retirement{Release: int(r.RetiredIn.Int32), RetiredAt: r.RetiredAt.Time, Summaries: r.RetirementSummaries}
 	} else {
-		stars, err := ruleStars(ctx, q, []int64{r.ID})
+		stars, err := libraryRuleStars(ctx, q, lib, []int64{r.ID})
 		if err != nil {
 			return views.RulePage{}, nil, err
 		}

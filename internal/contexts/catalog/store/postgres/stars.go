@@ -116,6 +116,15 @@ func ruleIDs[R any](rows []R, id func(R) int64) []int64 {
 	return ids
 }
 
+// libraryRuleStars counts the stars of the rules ids names in lib, as ruleStars does, or none when lib isn't vetted:
+// stars on a listed library's rules stay stored, uncounted, until it's vetted again.
+func libraryRuleStars(ctx context.Context, q *catalogdb.Queries, lib views.Library, ids []int64) (map[int64]int, error) {
+	if !lib.Vetted {
+		return nil, nil
+	}
+	return ruleStars(ctx, q, ids)
+}
+
 // ruleStars returns how many accounts' stars count toward each of the rules ids names, by id, as store.Stars counts
 // them; a rule without stars is missing, so it reads as 0.
 func ruleStars(ctx context.Context, q *catalogdb.Queries, ids []int64) (map[int64]int, error) {

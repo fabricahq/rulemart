@@ -145,7 +145,7 @@ type RuleCard struct {
 	Title, Impact string
 	Version       coderules.RuleVersion
 	// Stars counts the accounts whose stars count toward the rule: on it, or on a retired rule whose chain of
-	// replacements reaches it.
+	// replacements reaches it. It's 0 in a library that isn't vetted, whose stars stay stored, uncounted.
 	Stars int
 }
 
@@ -183,7 +183,7 @@ type Rule struct {
 	// Retirement is nil while the rule is current.
 	Retirement *Retirement
 	// Stars counts the accounts whose stars count toward a current rule, as RuleCard's do; it's 0 for a retired rule,
-	// whose stars count toward its replacement.
+	// whose stars count toward its replacement, and in a library that isn't vetted.
 	Stars int
 }
 
