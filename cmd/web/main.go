@@ -133,6 +133,9 @@ func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error)
 		if err := json.Unmarshal(raw, &request); err != nil {
 			return nil, fmt.Errorf("decode Function URL request: %v", err)
 		}
+		if !convertible(request) {
+			return rejectUnconvertible(ctx, request), nil
+		}
 		return f.adapter.ProxyWithContext(ctx, request)
 	default:
 		return nil, errors.New("unrecognized invocation event: neither the schedule's event nor a Function URL request")
