@@ -8,6 +8,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Account struct {
+	ID           int64
+	GithubUserID int64
+	GithubLogin  string
+	AvatarUrl    string
+	CreatedAt    pgtype.Timestamptz
+	SignedInAt   pgtype.Timestamptz
+}
+
 type HelloMessage struct {
 	ID         int64
 	MessageID  string
@@ -78,4 +87,12 @@ type RuleVersion struct {
 	SearchDocument     interface{}
 	WhenToReadHtml     pgtype.Text
 	RenderedWhenToRead pgtype.Text
+}
+
+type Session struct {
+	ID        int64
+	TokenHash []byte
+	AccountID int64
+	CreatedAt pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
 }
