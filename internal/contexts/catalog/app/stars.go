@@ -51,10 +51,10 @@ func (s Stars) AccountStars(ctx context.Context, accountID int64) ([]views.Starr
 }
 
 // parseLibraryName returns the owner and name text names as owner/name, as page addresses name a library, or fails
-// with ErrNotFound when it names none.
+// with ErrNotFound when it names none, as text the catalog can't hold names none.
 func parseLibraryName(text string) (owner, name string, err error) {
 	owner, name, ok := strings.Cut(text, "/")
-	if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
+	if !ok || owner == "" || name == "" || strings.Contains(name, "/") || !domain.Storable(text) {
 		return "", "", fmt.Errorf("find library %q: want owner/name: %w", text, ErrNotFound)
 	}
 	return owner, name, nil

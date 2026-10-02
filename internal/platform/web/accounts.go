@@ -18,6 +18,7 @@ import (
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
@@ -136,7 +137,8 @@ func (s *server) signInAvailable() bool {
 	return s.Accounts != nil && (s.GitHub != nil || DevSignIn)
 }
 
-// withVisitor finds who r is from, by its session cookie, before next shows a page. A cookie that no longer signs
+// withVisitor finds who r is from, by its session cookie, before next shows a page. A path that holds text Postgres
+// can't, which names nothing Rulemart has, is missing before next sees it; parameters are each handler's to read. A cookie that no longer signs
 // anyone in is cleared. A failure to read the session fails the request, rather than showing a signed-in visitor a
 // page as if they weren't.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
@@ -173,7 +175,12 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 				clearCookie(w, sessionCookie)
 			}
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)))
+		r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, v))
+		if !domain.Storable(r.URL.Path) {
+			s.notFound(w, r)
+			return
+		}
+		next(w, r)
 	}
 }
 
