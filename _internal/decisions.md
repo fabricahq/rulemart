@@ -55,7 +55,7 @@ than adding history.
 ## Cart and checkout
 
 - **Anyone signed in collects rules in a cart, in Postgres**: a whole library, one of its groups, or one rule, at most
-  100 items. A cart in a cookie would need CloudFront to key every page on it. Visitors who aren't signed in get links
+  100 items, where a group or library takes the place of the items it covers. A cart in a cookie would need CloudFront to key every page on it. Visitors who aren't signed in get links
   that sign them in and return them, so public pages stay the same for everyone. [Slice 8](slices/8-cart-and-checkout.md)
   explains the choices.
 - **Adding is a POST to `/account/cart`, removing to `/account/cart/remove`**, each naming the item in its query
