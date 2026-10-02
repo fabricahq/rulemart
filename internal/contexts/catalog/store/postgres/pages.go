@@ -76,8 +76,8 @@ func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.Librar
 	return cards, nil
 }
 
-// LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups and current
-// rules. It fails with store.ErrNotFound when there's no such library.
+// LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
+// and retired rules. It fails with store.ErrNotFound when there's no such library.
 func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error) {
 	var page views.LibraryPage
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
@@ -93,7 +93,17 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		if err != nil {
 			return err
 		}
+		retired, err := q.ListRetiredRules(ctx, id)
+		if err != nil {
+			return err
+		}
 		page = views.LibraryPage{Library: lib}
+		for _, r := range retired {
+			page.Retired = append(page.Retired, views.RetiredRuleCard{
+				Path: r.Path, Title: r.Title.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
+				ReplacedBy: r.ReplacedBy.String,
+			})
+		}
 		for _, g := range groups {
 			page.Groups = append(page.Groups, views.Group{
 				Path: g.Path, Description: g.Description, WhenToRead: g.WhenToRead, Rules: int(g.RuleCount),
@@ -115,36 +125,14 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 	return page, nil
 }
 
-// RulePage returns the vetted library owner/name, matched as LibraryPage matches it, and its current rule at
-// rulePath with every version, newest first. It fails with store.ErrNotFound when there's no such library or
-// current rule.
+// RulePage returns the vetted library owner/name, matched as LibraryPage matches it, and its rule at rulePath, current
+// or retired, with every version, newest first. It fails with store.ErrNotFound when there's no such library or rule.
 func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error) {
 	var page views.RulePage
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		lib, id, err := library(ctx, q, vetted, owner, name)
-		if err != nil {
-			return err
-		}
-		r, err := q.GetRule(ctx, catalogdb.GetRuleParams{LibraryID: id, Path: rulePath})
-		if err != nil {
-			return err
-		}
-		versions, err := q.ListVersions(ctx, r.ID)
-		if err != nil {
-			return err
-		}
-		page = views.RulePage{Library: lib, Rule: views.Rule{
-			Path: r.Path, Group: r.GroupPath, Title: r.Title, Impact: r.Impact,
-			WhenToRead: r.WhenToRead, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
-			Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
-		}}
-		for _, v := range versions {
-			page.Versions = append(page.Versions, views.Version{
-				Version: version(v.Major, v.Minor, v.Patch), Release: int(v.Release), PublishedAt: v.PublishedAt.Time,
-				Change: coderules.Change(v.Change), Summaries: v.Summaries,
-			})
-		}
-		return nil
+		var err error
+		page, _, err = rulePage(ctx, q, vetted, owner, name, rulePath)
+		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return views.RulePage{}, fmt.Errorf("load rule %s/%s/%s: %w", owner, name, rulePath, store.ErrNotFound)
@@ -153,6 +141,247 @@ func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner,
 		return views.RulePage{}, fmt.Errorf("load rule %s/%s/%s: %v", owner, name, rulePath, err)
 	}
 	return page, nil
+}
+
+// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only when
+// both are stored and hold at most maxBytes together. It fails with store.ErrNotFound when there's no such library or
+// rule, or when either isn't a version of the rule.
+func (s *Store) RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error) {
+	comparison := views.RuleComparison{From: from, To: to}
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		page, stored, err := rulePage(ctx, q, vetted, owner, name, rulePath)
+		if err != nil {
+			return err
+		}
+		comparison.Page = page
+		pair := textPair{}
+		var found [2]bool
+		for i, v := range page.Versions {
+			if v.Version == from {
+				pair.old, found[0] = stored[i], true
+			}
+			if v.Version == to {
+				pair.new, found[1] = stored[i], true
+			}
+		}
+		if !found[0] || !found[1] {
+			return pgx.ErrNoRows
+		}
+		texts, err := compareTexts(ctx, q, []textPair{pair}, maxBytes)
+		if err != nil {
+			return err
+		}
+		comparison.Text = texts[0]
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return views.RuleComparison{}, fmt.Errorf("compare versions of rule %s/%s/%s: %w", owner, name, rulePath, store.ErrNotFound)
+	}
+	if err != nil {
+		return views.RuleComparison{}, fmt.Errorf("compare versions of rule %s/%s/%s: %v", owner, name, rulePath, err)
+	}
+	return comparison, nil
+}
+
+// rulePage reads the rule at rulePath in the vetted library owner/name, current or retired, with every version, newest
+// first, and what's stored of each version's text, in the same order. It returns pgx.ErrNoRows when there's no such
+// library or rule.
+func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, []storedText, error) {
+	lib, id, err := library(ctx, q, vetted, owner, name)
+	if err != nil {
+		return views.RulePage{}, nil, err
+	}
+	r, err := q.GetRule(ctx, catalogdb.GetRuleParams{LibraryID: id, Path: rulePath})
+	if err != nil {
+		return views.RulePage{}, nil, err
+	}
+	versions, err := q.ListVersions(ctx, r.ID)
+	if err != nil {
+		return views.RulePage{}, nil, err
+	}
+	replaced, err := q.ListReplacedRules(ctx, catalogdb.ListReplacedRulesParams{LibraryID: id, Path: r.Path})
+	if err != nil {
+		return views.RulePage{}, nil, err
+	}
+	page := views.RulePage{Library: lib, Rule: views.Rule{
+		Path: r.Path, Group: r.GroupPath, Title: r.Title.String, Impact: r.Impact.String,
+		WhenToRead: r.WhenToRead.String, HTML: r.Html.String, Version: version(r.Major, r.Minor, r.Patch),
+		Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
+	}}
+	if r.RetiredIn.Valid {
+		page.Rule.Retirement = &views.Retirement{Release: int(r.RetiredIn.Int32), RetiredAt: r.RetiredAt.Time, Summaries: r.RetirementSummaries}
+		if r.ReplacedBy.Valid {
+			page.Rule.Retirement.ReplacedBy = &views.RuleRef{
+				Path: r.ReplacedBy.String, Title: r.ReplacementTitle.String, RetiredIn: int(r.ReplacementRetiredIn.Int32),
+			}
+		}
+	}
+	stored := make([]storedText, len(versions))
+	for i, v := range versions {
+		page.Versions = append(page.Versions, views.Version{
+			Version: version(v.Major, v.Minor, v.Patch), Release: int(v.Release), PublishedAt: v.PublishedAt.Time,
+			Change: coderules.Change(v.Change), Summaries: v.Summaries,
+		})
+		stored[i] = storedText{id: v.ID, release: int(v.Release), present: v.HasMarkdown, bytes: int64(v.MarkdownBytes)}
+	}
+	for _, x := range replaced {
+		page.Replaces = append(page.Replaces, views.RuleRef{Path: x.Path, Title: x.Title.String, RetiredIn: int(x.RetiredIn)})
+	}
+	return page, stored, nil
+}
+
+// LibraryHistory returns the vetted library owner/name, matched as LibraryPage matches it, with its releases and every
+// rule's versions. It fails with store.ErrNotFound when there's no such library.
+func (s *Store) LibraryHistory(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryHistory, error) {
+	var history views.LibraryHistory
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		history, _, err = libraryHistory(ctx, q, vetted, owner, name)
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return views.LibraryHistory{}, fmt.Errorf("load library history %s/%s: %w", owner, name, store.ErrNotFound)
+	}
+	if err != nil {
+		return views.LibraryHistory{}, fmt.Errorf("load library history %s/%s: %v", owner, name, err)
+	}
+	return history, nil
+}
+
+// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each rule whose version
+// after release from differs from its version after release to, keyed by the rule's path. It reads the texts in
+// path order, each pair only when both are stored and hold, with the pairs before it, at most maxBytes. A rule added
+// or retired between the releases has no text.
+func (s *Store) ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, from, to int, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error) {
+	var history views.LibraryHistory
+	texts := map[string]views.ComparedText{}
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var stored [][]storedText
+		var err error
+		history, stored, err = libraryHistory(ctx, q, vetted, owner, name)
+		if err != nil {
+			return err
+		}
+		var pairs []textPair
+		var paths []string
+		for i, r := range history.Rules {
+			old, inFrom := r.VersionAt(from)
+			new, inTo := r.VersionAt(to)
+			if inFrom && inTo && old != new {
+				pairs = append(pairs, textPair{old: stored[i][old], new: stored[i][new]})
+				paths = append(paths, r.Path)
+			}
+		}
+		compared, err := compareTexts(ctx, q, pairs, maxBytes)
+		if err != nil {
+			return err
+		}
+		for i, path := range paths {
+			texts[path] = compared[i]
+		}
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return views.LibraryHistory{}, nil, fmt.Errorf("compare releases of library %s/%s: %w", owner, name, store.ErrNotFound)
+	}
+	if err != nil {
+		return views.LibraryHistory{}, nil, fmt.Errorf("compare releases of library %s/%s: %v", owner, name, err)
+	}
+	return history, texts, nil
+}
+
+// libraryHistory reads the vetted library owner/name with its releases and every rule's versions, and what's stored of
+// each version's text, by rule and version in the history's order. It returns pgx.ErrNoRows when there's no such
+// library.
+func libraryHistory(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, owner, name string) (views.LibraryHistory, [][]storedText, error) {
+	lib, id, err := library(ctx, q, vetted, owner, name)
+	if err != nil {
+		return views.LibraryHistory{}, nil, err
+	}
+	releases, err := q.ListReleases(ctx, id)
+	if err != nil {
+		return views.LibraryHistory{}, nil, err
+	}
+	rows, err := q.ListRuleHistories(ctx, id)
+	if err != nil {
+		return views.LibraryHistory{}, nil, err
+	}
+	history := views.LibraryHistory{Library: lib}
+	for _, r := range releases {
+		history.Releases = append(history.Releases, views.Release{
+			Number: int(r.Number), TaggedAt: r.TaggedAt.Time, UpdatesSharedFiles: r.UpdatesSharedFiles,
+		})
+	}
+	var stored [][]storedText
+	for _, row := range rows {
+		if n := len(history.Rules); n == 0 || history.Rules[n-1].Path != row.Path {
+			history.Rules = append(history.Rules, views.RuleHistory{
+				Path: row.Path, RetiredIn: int(row.RetiredIn.Int32), ReplacedBy: row.ReplacedBy.String,
+				RetirementSummaries: row.RetirementSummaries,
+			})
+			stored = append(stored, nil)
+		}
+		r, n := &history.Rules[len(history.Rules)-1], len(stored)-1
+		// Rows come oldest first, so the last one's title is the rule's newest.
+		r.Title = row.Title.String
+		r.Versions = append(r.Versions, views.Version{
+			Version: version(row.Major, row.Minor, row.Patch), Release: int(row.Release), PublishedAt: row.PublishedAt.Time,
+			Change: coderules.Change(row.Change), Summaries: row.Summaries,
+		})
+		stored[n] = append(stored[n], storedText{id: row.ID, release: int(row.Release), present: row.HasMarkdown, bytes: int64(row.MarkdownBytes)})
+	}
+	return history, stored, nil
+}
+
+// storedText is what the catalog stores of one version's text: whether it has it, and how large it is.
+type storedText struct {
+	// id is the version's row, and release the number of the library release that published it.
+	id      int64
+	release int
+	present bool
+	bytes   int64
+}
+
+// textPair is the stored text of two versions of a rule to compare, the older first.
+type textPair struct {
+	old, new storedText
+}
+
+// compareTexts returns, for each pair in order, the two versions' text, read when both are stored and together with
+// the pairs read before them hold at most maxBytes.
+func compareTexts(ctx context.Context, q *catalogdb.Queries, pairs []textPair, maxBytes int64) ([]views.ComparedText, error) {
+	texts := make([]views.ComparedText, len(pairs))
+	var ids []int64
+	var spent int64
+	for i, p := range pairs {
+		texts[i].OldRelease, texts[i].NewRelease = p.old.release, p.new.release
+		switch size := p.old.bytes + p.new.bytes; {
+		case !p.old.present || !p.new.present:
+			texts[i].State = views.TextMissing
+		case spent+size > maxBytes:
+			texts[i].State = views.TextTooLarge
+		default:
+			spent += size
+			ids = append(ids, p.old.id, p.new.id)
+		}
+	}
+	if len(ids) == 0 {
+		return texts, nil
+	}
+	rows, err := q.ListMarkdown(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	markdown := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		markdown[row.ID] = row.Markdown
+	}
+	for i, p := range pairs {
+		if texts[i].State == views.TextShown {
+			texts[i].Old, texts[i].New = markdown[p.old.id], markdown[p.new.id]
+		}
+	}
+	return texts, nil
 }
 
 // library returns the vetted library owner/name and its catalog id, or pgx.ErrNoRows when there's none.
@@ -165,6 +394,7 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 		Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
+		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
 	}, row.ID, nil
 }
 

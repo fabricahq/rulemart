@@ -125,7 +125,7 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 }
 
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
-// all retired, and only current rules.
+// all retired, its current rules, and apart from them, its retired rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	reader := newCatalog(t)
 
@@ -137,7 +137,7 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	}
 	wantLibrary := views.Library{
 		Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL,
-		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3),
+		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
 	}
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
 		t.Errorf("latest release tagged at %s, want %s", page.Library.LatestTaggedAt, day(3))
@@ -159,6 +159,14 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	}
 	if !slices.Equal(page.Rules, wantRules) {
 		t.Errorf("rules are %+v, want %+v", page.Rules, wantRules)
+	}
+	wantRetired := []views.RetiredRuleCard{
+		{Path: "practices/legacy/old-habit", Title: "Old habit", LastVersion: v(1, 0, 0), RetiredIn: 3},
+		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", LastVersion: v(1, 0, 0), RetiredIn: 3,
+			ReplacedBy: "practices/testing/verify-retry-limits"},
+	}
+	if !slices.Equal(page.Retired, wantRetired) {
+		t.Errorf("retired rules are %+v, want %+v", page.Retired, wantRetired)
 	}
 }
 
@@ -206,8 +214,16 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			_, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/missing")
 			return err
 		},
-		"a retired rule": func() error {
-			_, err := reader.RulePage(ctx, vetted, "example", "rules", "practices/testing/check-retry-backoff")
+		"an unvetted library's history": func() error {
+			_, err := reader.LibraryHistory(ctx, vetted, "stranger", "unvetted-rules")
+			return err
+		},
+		"an unvetted library's releases to compare": func() error {
+			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", 1, 3, 1<<20)
+			return err
+		},
+		"a version the rule doesn't have": func() error {
+			_, err := reader.RuleComparison(ctx, vetted, "example", "rules", "techs/go/return-errors", v(1, 0, 0), v(1, 1, 0), 1<<20)
 			return err
 		},
 		"a group": func() error { _, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go"); return err },
