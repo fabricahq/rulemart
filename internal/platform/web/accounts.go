@@ -86,7 +86,8 @@ type visitor struct {
 	account *accounts.Account
 	// token is the session cookie's token while account is signed in.
 	token accounts.SessionToken
-	// signIn is the sign-in page's address with this page to return to, or empty when sign-in isn't available.
+	// signIn is the sign-in page's address with this page to return to, or on the sign-in page, with the return that
+	// page was given; it's empty when sign-in isn't available.
 	signIn string
 	// withGitHub is true when signing in is with GitHub, rather than only as a local build's test users.
 	withGitHub bool
@@ -104,7 +105,7 @@ type visitor struct {
 	// read; cartItems counts them.
 	held      []views.HeldCartItem
 	cartItems int
-	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
+	// onSignInPage is true on the sign-in page, whose header marks its Sign in link as the current page.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
 	// the cookie named, which the page clears as it renders. noticeSubject is the library a notice of subjectNotices
@@ -359,9 +360,13 @@ func (s *server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	if s.Accounts != nil {
 		view.testUsers = testUserViews(back)
 	}
-	// The page is the way to sign in, so its header doesn't link to it again, but keeps its place.
+	// The header's Sign in leads to this page, as on every other, with the return this page was given rather than
+	// one to itself.
 	v := visitorOf(r.Context())
 	v.onSignInPage = true
+	if v.signIn != "" {
+		v.signIn = s.absolute(signInPageHref(back))
+	}
 	r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, v))
 	s.renderPrivate(w, r, status, signInPage(s.chrome, view))
 }

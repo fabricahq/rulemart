@@ -4,8 +4,7 @@
 package web
 
 // accountControl ends the header: the signed-in visitor's cart and avatar, which opens their menu, or a button to
-// sign in, or nothing when sign-in isn't available. On the sign-in page, the button's place stays, invisible, so the
-// links beside it don't move. Its content sits at the page's edge.
+// sign in, or nothing when sign-in isn't available. Its content sits at the page's edge.
 templ accountControl(v visitor) {
 	if v.account != nil || v.signIn != "" {
 		<div class="account-slot flex shrink-0 items-center gap-1">
@@ -25,18 +24,18 @@ templ accountControl(v visitor) {
 const signInButtonStyle = "inline-flex min-h-8 items-center justify-center gap-2 rounded-full border border-border-strong px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
 
 // signInLink is the header's way to sign in: a button showing GitHub's mark when signing in is with GitHub, which
-// says so beside a phone's width. On the sign-in page, it's a placeholder of the same size, so the links beside it
-// stay where every other page has them.
+// says so beside a phone's width. On the sign-in page it's there too, marked as the current page, so the header
+// doesn't change.
 templ signInLink(v visitor) {
-	if v.onSignInPage {
-		<span class={ signInButtonStyle, "invisible" } aria-hidden="true">
-			@signInLabel(v)
-		</span>
-	} else {
-		<a class={ signInButtonStyle } href={ templ.SafeURL(v.signIn) }>
-			@signInLabel(v)
-		</a>
-	}
+	<a
+		class={ signInButtonStyle }
+		href={ templ.SafeURL(v.signIn) }
+		if v.onSignInPage {
+			aria-current="page"
+		}
+	>
+		@signInLabel(v)
+	</a>
 }
 
 templ signInLabel(v visitor) {

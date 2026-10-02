@@ -871,14 +871,28 @@ func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
 	}
 }
 
-// The sign-in page keeps the header's account slot, empty, so the links beside it stay where every page has them.
-func TestTheSignInPageKeepsTheHeadersAccountSlot(t *testing.T) {
+// The sign-in page's header shows Sign in as every page's does, marked as the current page and leading to the page
+// itself, with the same return, so the header neither changes nor leaves a gap there.
+func TestTheSignInPagesHeaderShowsSignInAsCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	for _, path := range []string{"/browse/techs", "/sign-in"} {
-		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path}))
-		if !strings.Contains(page, accountSlotClass) {
-			t.Errorf("%s has no account slot", path)
-		}
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fbrowse%2Ftechs"}))
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	header := find(doc, func(n *html.Node) bool { return n.Data == "header" })
+	link := find(header, func(n *html.Node) bool { return n.Data == "a" && strings.HasPrefix(nodeText(n), "Sign in") })
+	if link == nil {
+		t.Fatal("the sign-in page's header has no Sign in link")
+	}
+	if href := attribute(link, "href"); !strings.HasSuffix(href, "/sign-in?return=%2Fbrowse%2Ftechs") {
+		t.Errorf("Sign in leads to %q, want the sign-in page returning to /browse/techs", href)
+	}
+	if attribute(link, "aria-current") != "page" {
+		t.Error("Sign in isn't marked as the current page")
+	}
+	if find(header, func(n *html.Node) bool { return strings.Contains(attribute(n, "class"), "invisible") }) != nil {
+		t.Error("the header holds an invisible placeholder")
 	}
 }
 
