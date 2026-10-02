@@ -68,7 +68,8 @@ type Stars interface {
 	// starred already keeps its one star.
 	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) (views.LibraryRef, error)
 	// Unstar removes the account's star from the library owner/name, matched as Star matches it, vetted or not, and
-	// does nothing when the account hasn't starred it.
+	// does nothing when the account hasn't starred it. It fails with ErrNotFound when the catalog has no library by
+	// that name.
 	Unstar(ctx context.Context, accountID int64, owner, name string) error
 	// Starred reports whether the account starred the library owner/name, matched as Star matches it.
 	Starred(ctx context.Context, accountID int64, owner, name string) (bool, error)
@@ -164,5 +165,6 @@ type Reader interface {
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor
-// listed, a library to star that isn't vetted, or an account's listing that it doesn't have.
+// listed, a library to star that isn't vetted, a library to unstar that the catalog doesn't have, or an account's
+// listing that it doesn't have.
 var ErrNotFound = errors.New("not found")

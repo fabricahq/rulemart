@@ -148,27 +148,34 @@ func (q *Queries) StarLibrary(ctx context.Context, arg StarLibraryParams) (StarL
 	return i, err
 }
 
-const unstarLibrary = `-- name: UnstarLibrary :exec
-DELETE FROM stars s
-USING libraries l
-WHERE s.library_id = l.id AND s.account_id = $1::bigint
-  AND l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4)
+const unstarLibrary = `-- name: UnstarLibrary :one
+WITH library AS (
+    SELECT l.id FROM libraries l
+    WHERE l.host = $1 AND lower(l.owner) = lower($2) AND lower(l.name) = lower($3)
+),
+unstarred AS (
+    DELETE FROM stars s USING library b WHERE s.library_id = b.id AND s.account_id = $4::bigint
+)
+SELECT count(*) FROM library
 `
 
 type UnstarLibraryParams struct {
-	AccountID int64
 	Host      string
 	Owner     string
 	Name      string
+	AccountID int64
 }
 
-// UnstarLibrary removes the account's star from the library owner/name, matched without regard to case.
-func (q *Queries) UnstarLibrary(ctx context.Context, arg UnstarLibraryParams) error {
-	_, err := q.db.Exec(ctx, unstarLibrary,
-		arg.AccountID,
+// UnstarLibrary removes the account's star from the library owner/name, matched without regard to case, and
+// returns how many libraries have that name: none when the catalog has no such library.
+func (q *Queries) UnstarLibrary(ctx context.Context, arg UnstarLibraryParams) (int64, error) {
+	row := q.db.QueryRow(ctx, unstarLibrary,
 		arg.Host,
 		arg.Owner,
 		arg.Name,
+		arg.AccountID,
 	)
-	return err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }

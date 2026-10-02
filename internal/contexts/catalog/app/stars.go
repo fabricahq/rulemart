@@ -30,7 +30,8 @@ func (s Stars) Star(ctx context.Context, accountID int64, library string) (views
 }
 
 // Unstar removes the account's star from the library library names, as owner/name, vetted or not, and does nothing
-// when the account hasn't starred it. It fails with ErrNotFound when library isn't owner/name.
+// when the account hasn't starred it. It fails with ErrNotFound when library isn't owner/name, or the catalog has no
+// library by that name.
 func (s Stars) Unstar(ctx context.Context, accountID int64, library string) error {
 	owner, name, err := parseLibraryName(library)
 	if err != nil {
