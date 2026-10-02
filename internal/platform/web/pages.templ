@@ -492,8 +492,9 @@ templ versionList(r ruleView) {
 							}
 						</div>
 					</div>
-					<div class="grid grid-cols-[10.5rem_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
-						<span class="justify-self-end max-narrow:empty:hidden">
+					// Each row's button is as wide as the widest a version usually needs, so their edges line up.
+					<div class="grid grid-cols-[auto_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
+						<span class="max-narrow:empty:hidden narrow:min-w-[10.5rem] narrow:[&>a]:w-full">
 							if v.compareHref != "" {
 								@smallButton(v.compareHref) {
 									Compare with { v.previous }
