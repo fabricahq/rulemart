@@ -83,17 +83,11 @@ templ label(class string) {
 	</p>
 }
 
-// labelHeading is a section's heading in a label's style, at level 2, and labelSubheading at level 3.
+// labelHeading is a section's heading in a label's style, at level 2.
 templ labelHeading(class string) {
 	<h2 class={ labelStyle, class }>
 		{ children... }
 	</h2>
-}
-
-templ labelSubheading(class string) {
-	<h3 class={ labelStyle, class }>
-		{ children... }
-	</h3>
 }
 
 // impact shows a rule's declared impact, explained on hover.
