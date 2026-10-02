@@ -179,6 +179,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+listHref, s.listPage)
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+listingsHref, s.listingsPage)
+			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
 		}

@@ -108,6 +108,7 @@ var notices = map[string]string{
 	"listed":                "Listed. Rulemart is checking the repository, which usually takes a few seconds.",
 	"listing-removed":       "Your listing is removed. Its library no longer shows on Rulemart.",
 	"listing-retried":       "Rulemart is checking the repository again.",
+	"listing-not-failed":    "That listing isn't failing any more, so there's nothing to try again.",
 }
 
 // setNotice has the next page show the notice notices names by key, once.

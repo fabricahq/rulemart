@@ -554,19 +554,19 @@ func librariesPage(c chrome, libraries []libraryCard, canList bool) templ.Compon
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div><div class=\"mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border-subtle pt-6 text-[14px]\"><p class=\"max-w-[40rem] text-muted\">Anyone signed in can list a library. Rulemart hasn't reviewed the ones it hasn't vetted.</p><div class=\"flex flex-wrap items-center gap-x-5 gap-y-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div><div class=\"mt-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t border-border-subtle pt-6 text-[14px]\"><p class=\"max-w-[40rem] text-muted\">Libraries that people list show apart, under a warning, until Rulemart reviews and vets them.</p><div class=\"flex flex-wrap items-center gap-x-5 gap-y-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if canList {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<a class=\"text-muted no-underline hover:text-ink hover:underline\" href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<a class=\"text-ink no-underline hover:underline\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var25 templ.SafeURL
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages.templ`, Line: 135, Col: 102}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages.templ`, Line: 135, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
