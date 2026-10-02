@@ -116,12 +116,22 @@ func (v searchView) pageHref(n int) string { return searchHrefFor(v.query, v.lis
 // searchHrefFor is the address of page of the search for query, or of every rule when it's empty, with choices,
 // leaving out the first page's number.
 func searchHrefFor(query string, choices domain.ListChoices, page int) string {
-	params := searchParams(query)
+	number := ""
 	if page > 1 {
+		number = strconv.Itoa(page)
+	}
+	return searchHrefNumbered(query, choices, number)
+}
+
+// searchHrefNumbered is the address of the page of the search for query, or of every rule when it's empty, with
+// choices, that number names, spelled as given, or of the first page, without a number, when number is empty.
+func searchHrefNumbered(query string, choices domain.ListChoices, number string) string {
+	params := searchParams(query)
+	if number != "" {
 		if params == nil {
 			params = url.Values{}
 		}
-		params.Set("page", strconv.Itoa(page))
+		params.Set("page", number)
 	}
 	return addressOf(searchHref, choices.Values(domain.SearchListPage), params)
 }
@@ -139,12 +149,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	own := searchHrefFor(params.Get("q"), choices, page)
 	if page > app.MaxSearchPage {
 		// A number too large to read keeps its spelling, so the page past the last says so rather than redirecting.
-		pageParams := searchParams(params.Get("q"))
-		if pageParams == nil {
-			pageParams = url.Values{}
-		}
-		pageParams.Set("page", params.Get("page"))
-		own = addressOf(searchHref, choices.Values(domain.SearchListPage), pageParams)
+		own = searchHrefNumbered(params.Get("q"), choices, params.Get("page"))
 	}
 	if !spelled || !spelledAs(r, own) {
 		redirect(w, r, own)

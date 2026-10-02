@@ -40,7 +40,13 @@ func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL 
 }
 
 // indexed reports whether search engines may index the page: only at its own address, with no choice in it.
-func (v groupPageView) indexed() bool { return v.list.href(v.list.choices) == v.href }
+func (v groupPageView) indexed() bool { return groupAddress(v.label.id, v.list.choices) == v.href }
+
+// groupAddress is the address of the page of the group whose ID is path, with choices, in the one spelling the page's
+// own address has.
+func groupAddress(path string, choices domain.ListChoices) string {
+	return addressOf(groupHref(path), choices.Values(domain.GroupListPage), nil)
+}
 
 // truncated reports whether more rules pass the filters than the page lists.
 func (v groupPageView) truncated() bool { return v.list.total > len(v.rows) }
@@ -71,11 +77,11 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 			s.fail(w, r, err)
 			return
 		}
-		view := newGroupPageView(page, choices, s.assets.iconURL)
-		if page.Path != id || !spelledAs(r, view.list.href(choices)) {
-			redirect(w, r, view.list.href(choices))
+		if own := groupAddress(page.Path, choices); page.Path != id || !spelledAs(r, own) {
+			redirect(w, r, own)
 			return
 		}
+		view := newGroupPageView(page, choices, s.assets.iconURL)
 		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 	}
 }
