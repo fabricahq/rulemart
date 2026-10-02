@@ -223,7 +223,7 @@ templ impactNote(level string) {
 
 // fact is one fact in an aboutPanel. A long value wraps at its parts.
 templ fact(name string) {
-	<div class="flex items-baseline justify-between gap-4">
+	<div class="flex items-start justify-between gap-4">
 		<dt class="shrink-0 text-muted">{ name }</dt>
 		<dd class="min-w-0 text-right [overflow-wrap:anywhere]">
 			{ children... }

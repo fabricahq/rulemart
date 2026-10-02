@@ -153,15 +153,40 @@ type word struct {
 // textWords splits text into runs of words and whitespace. Unless exact, whitespace compares as one space, so any
 // two runs of it are equal.
 func textWords(text string, exact bool) []word {
-	runs := splitWords(text)
-	words := make([]word, len(runs))
-	for i, run := range runs {
-		words[i] = word{text: run, key: run, exact: exact}
-		if isSpace(run) && !exact {
-			words[i].key = " "
+	var words []word
+	for _, run := range splitWords(text) {
+		switch {
+		case !isSpace(run):
+			words = append(words, word{text: run, key: run, exact: exact})
+		case !exact:
+			words = append(words, word{text: run, key: " "})
+		default:
+			// Exact whitespace splits at each line break, so a change of indentation leaves the break unmarked.
+			for _, piece := range splitLineBreaks(run) {
+				words = append(words, word{text: piece, key: piece, exact: true})
+			}
 		}
 	}
 	return words
+}
+
+// splitLineBreaks splits a run of whitespace into each line break and the runs between them.
+func splitLineBreaks(space string) []string {
+	var pieces []string
+	start := 0
+	for i := 0; i < len(space); i++ {
+		if space[i] != '\n' {
+			continue
+		}
+		if i > start {
+			pieces = append(pieces, space[start:i])
+		}
+		pieces, start = append(pieces, "\n"), i+1
+	}
+	if start < len(space) {
+		pieces = append(pieces, space[start:])
+	}
+	return pieces
 }
 
 // blockWords splits Markdown blocks, joined by blank lines, into runs of words and whitespace: a code block's
@@ -201,25 +226,42 @@ func compareWords(a, b []word) (oldMarks, newMarks, both []Segment) {
 		c.text.WriteString(w.text)
 		c.exact = c.exact || w.exact
 	}
-	// marked reports whether a run of changed text shows as a change: whitespace alone only where it's exact.
-	marked := func(c *changed) bool {
+	// split returns a run of changed text as the whitespace before it, what changed, and the whitespace after it. A
+	// run with exact whitespace changes whole; any other leaves the whitespace around its words unmarked, since that
+	// isn't what changed, and changes nothing when it's whitespace alone.
+	split := func(c *changed) (lead, core, trail string) {
 		text := c.text.String()
-		return text != "" && (c.exact || strings.TrimSpace(text) != "")
+		if c.exact {
+			return "", text, ""
+		}
+		core = strings.TrimFunc(text, unicode.IsSpace)
+		if core == "" {
+			return text, "", ""
+		}
+		start := strings.Index(text, core)
+		return text[:start], core, text[start+len(core):]
 	}
 	flush := func() {
-		if text := deleted.text.String(); marked(&deleted) {
-			o.add(Delete, text)
-			t.add(Delete, text)
-		} else {
-			o.add(Equal, text)
+		dLead, dCore, dTrail := split(&deleted)
+		iLead, iCore, iTrail := split(&inserted)
+		o.add(Equal, dLead)
+		o.add(Delete, dCore)
+		o.add(Equal, dTrail)
+		n.add(Equal, iLead)
+		n.add(Insert, iCore)
+		n.add(Equal, iTrail)
+		// Together, the text reads with the new text's whitespace, or the old's where the new has no words.
+		lead, trail := iLead, iTrail
+		if iCore == "" {
+			lead, trail = dLead, dTrail
+			if dCore == "" {
+				lead, trail = iLead, ""
+			}
 		}
-		if text := inserted.text.String(); marked(&inserted) {
-			n.add(Insert, text)
-			t.add(Insert, text)
-		} else {
-			n.add(Equal, text)
-			t.add(Equal, text)
-		}
+		t.add(Equal, lead)
+		t.add(Delete, dCore)
+		t.add(Insert, iCore)
+		t.add(Equal, trail)
 		deleted, inserted = changed{}, changed{}
 	}
 	for k, e := range edits {

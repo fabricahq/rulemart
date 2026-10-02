@@ -26,6 +26,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 			<div class="wrap">
 				<div class="mb-[18px] flex items-baseline justify-between gap-4 max-narrow:flex-wrap">
 					<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Libraries</h2>
+					<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(librariesHref) }>All libraries ›</a>
 				</div>
 				if len(libraries) == 0 {
 					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
@@ -33,7 +34,7 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 					@rowList() {
 						for _, lib := range libraries {
 							@rowItem() {
-								@libraryRow(lib)
+								@libraryRow(lib, true)
 							}
 						}
 					}
@@ -75,29 +76,30 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 	}
 }
 
-templ libraryRow(lib libraryCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-x-[18px] gap-y-3 px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
-		<div class="flex items-start gap-[14px]">
+// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
+// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own.
+templ libraryRow(lib libraryCard, headed bool) {
+	<a class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+		<div class="flex min-w-0 items-start gap-3">
 			@avatar(lib.avatar, lib.owner, avatarMD)
-			<div>
-				<div class="leading-[1.35] font-semibold">{ lib.name }</div>
+			<div class="min-w-0">
+				if headed {
+					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
+				} else {
+					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
+				}
 				if lib.description != "" {
-					<div class="mt-0.5 text-[13px] text-muted">{ lib.description }</div>
+					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
 				}
 				<div class="mono mt-1 text-[12.5px] text-faint">
 					@breakable(lib.owner + "/" + lib.name)
 				</div>
 			</div>
 		</div>
-		<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-1 max-narrow:row-start-2 max-narrow:-mt-3 max-narrow:pl-[54px]">{ plural(lib.rules, "rule", "rules") }</span>
-		@chevron()
+		<span class="self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted narrow:self-center narrow:pt-0">{ plural(lib.rules, "rule", "rules") } ›</span>
 	</a>
 }
 
-// chevron appears at the end of a row while it's hovered or focused.
-templ chevron() {
-	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
-}
 
 // librariesPage lists every vetted library.
 templ librariesPage(c chrome, libraries []libraryCard) {
@@ -112,7 +114,7 @@ templ librariesPage(c chrome, libraries []libraryCard) {
 					@rowList() {
 						for _, lib := range libraries {
 							@rowItem() {
-								@libraryRow(lib)
+								@libraryRow(lib, false)
 							}
 						}
 					}
@@ -214,13 +216,15 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 								}
 							</div>
 						</div>
-						<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-						<div class="grid justify-items-end gap-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-							<span>{ plural(len(g.rules), "rule", "rules") } ›</span>
+						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">
+							if g.blurb != "" {
+								<p>{ g.blurb }</p>
+							}
 							if g.acrossHref != "" {
-								<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
+								<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.name } rules in every library ›</a>
 							}
 						</div>
+						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
 					</div>
 				}
 			}
@@ -267,14 +271,18 @@ templ retiredRuleRow(r retiredRuleCard) {
 				<span class="mono text-faint">
 					@breakable(r.id)
 				</span> · last version <span class="mono">{ r.lastVersion }</span> · retired in <span class="mono">{ r.retiredTag }</span>
-				if r.replacedBy != "" {
+				if r.replacedBy != "" && r.renamed {
+					· renamed to <span class="mono">
+						@breakable(r.replacedBy)
+					</span>
+				} else if r.replacedBy != "" {
 					· replaced by <span class="mono">
 						@breakable(r.replacedBy)
 					</span>
 				}
 			</div>
 		</div>
-		@chevron()
+		<span class="text-[12.5px] text-muted" aria-hidden="true">›</span>
 	</a>
 }
 
@@ -317,7 +325,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					@notCanonical(flagSM)
 				}
 				if r.acrossHref != "" {
-					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in all libraries ›</a>
+					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in every library ›</a>
 				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">
@@ -348,25 +356,56 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 }
 
 
-// retiredRule says when and why a library release retired a rule, and what replaced it, then lists its versions.
+// retiredRule says when and why a library release retired a rule, and what replaced it, then shows its last
+// version's text and lists its versions.
 templ retiredRule(r ruleView) {
-	<div class="mb-7 max-w-[52rem] rounded-[10px] border border-l-[3px] border-border border-l-border-strong bg-surface px-[18px] py-[14px] text-[14px]">
-		<p><b class="font-semibold">Retired in <a class="mono font-normal" href={ templ.SafeURL(r.retired.href) }>{ r.retired.tag }</a></b> <span class="text-faint">· { r.retired.date }</span></p>
+	<div class="mb-7 rounded-[10px] border border-l-[3px] border-border border-l-border-strong bg-surface px-[18px] py-[14px] text-[14px]">
+		<p><b class="font-semibold">Retired in</b> <a class={ releaseTagClass } href={ templ.SafeURL(r.retired.href) }>{ r.retired.tag }</a> <span class="text-faint">· { r.retired.date }</span></p>
 		for _, summary := range r.retired.summaries {
 			<p class="mt-1 text-muted">{ summary }</p>
 		}
-		if r.retired.replacedBy != nil {
-			<p class="mt-1.5">Replaced by <a href={ templ.SafeURL(r.retired.replacedBy.href) }><b class="font-semibold">{ r.retired.replacedBy.title }</b></a> <span class="mono text-faint">{ r.retired.replacedBy.id }</span></p>
+		if len(r.retired.replacedBy) > 0 {
+			<p class="mt-1.5">
+				@replacementChain(r.retired.replacedBy, r.retired.renamed)
+			</p>
 		}
 		<p class="mt-1.5 text-[13px] text-faint">Projects that pin it keep its last version. Other projects drop it when they update.</p>
 	</div>
+	if r.html != "" {
+		<section aria-labelledby="last-text">
+			<div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+				@labelHeading("") {
+					<span id="last-text">Its last version, <span class="mono tracking-normal normal-case">{ r.version }</span></span>
+				}
+				@factLink(r.fileURL, "View " + r.fileName + " on GitHub", r.id+".md at "+r.version)
+			</div>
+			<div class="prose mb-9 max-w-[52rem]">
+				@templ.Raw(r.html)
+			</div>
+		</section>
+	}
 	@labelHeading("mb-2") {
 		Versions · { strconv.Itoa(len(r.versions)) }
 	}
 	@versionList(r)
 }
 
+// replacesNotes say which retired rules the rule replaced, or renamed.
+templ replacesNotes(r ruleView) {
+	if r.renamedFrom != nil {
+		<div class="mb-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted">
+			Renamed from <a href={ templ.SafeURL(r.renamedFrom.rule.href) }>{ r.renamedFrom.rule.id }</a> in <a class={ releaseTagClass } href={ templ.SafeURL(r.renamedFrom.tagHref) }>{ r.renamedFrom.tag }</a>.
+		</div>
+	}
+	for _, replaced := range r.replaces {
+		<div class="mb-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted">
+			Replaces <a href={ templ.SafeURL(replaced.rule.href) }>{ replaced.rule.title }</a> <span class="mono text-faint">{ replaced.rule.id }</span>, retired in <a class={ releaseTagClass } href={ templ.SafeURL(replaced.tagHref) }>{ replaced.tag }</a>.
+		</div>
+	}
+}
+
 templ ruleContent(r ruleView) {
+	@replacesNotes(r)
 	<div class="grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
 		<div class="prose">
 			<div class="when-to-apply mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
@@ -383,8 +422,10 @@ templ ruleContent(r ruleView) {
 			@aboutPanel(impactNote(r.impact)) {
 				@fact("Library") {
 					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
-						@avatar(r.library.avatar, r.library.owner, avatarXS)
-						<span class="min-w-0">
+						<span class="mt-0.5 inline-flex">
+							@avatar(r.library.avatar, r.library.owner, avatarXS)
+						</span>
+						<span class="min-w-0 underline underline-offset-4">
 							@breakable(r.library.owner + "/" + r.library.name)
 						</span>
 					</a>
@@ -411,13 +452,10 @@ templ ruleContent(r ruleView) {
 
 // versions lists every version of a rule, newest first, with what it replaced and a way to compare its versions.
 templ versions(r ruleView) {
-	for _, replaced := range r.replaces {
-		<div class="mb-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted">
-			Replaces <a href={ templ.SafeURL(replaced.rule.href) }>{ replaced.rule.title }</a> <span class="mono text-faint">{ replaced.rule.id }</span>, retired in <a class="mono" href={ templ.SafeURL(replaced.tagHref) }>{ replaced.tag }</a>.
-		</div>
-	}
+	@replacesNotes(r)
+	<h2 class="sr-only">Versions</h2>
 	<p class="mb-[14px] text-[13px] text-faint">
-		A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change">How versions work</a>
+		A version describes what work must do to comply with the rule. <b>Major:</b> work that complied with the previous version could fail this one. <b>Minor:</b> it still complies, and this version adds guidance. <b>Patch:</b> it still complies, and nothing is added. <a href={ templ.SafeURL(versionsDocs) }>How versions work</a>
 	</p>
 	if r.compareHref != "" {
 		<div class="mb-3 flex items-center justify-between gap-4">
@@ -430,8 +468,8 @@ templ versions(r ruleView) {
 	@versionList(r)
 }
 
-// versionList lists every version of a rule, newest first, each leading to its library release and comparing it with
-// the version before.
+// versionList lists every version of a rule, newest first, each under its own heading, leading to its library
+// release and comparing it with the version before.
 templ versionList(r ruleView) {
 	@rowList() {
 		for _, v := range r.versions {
@@ -439,16 +477,14 @@ templ versionList(r ruleView) {
 				<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-[18px] py-[14px] max-narrow:grid-cols-1 max-narrow:gap-2.5">
 					<div class="min-w-0">
 						<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-							<b class="mono">{ v.version }</b>
+							<h3 class="mono font-semibold">{ v.version }</h3>
 							if v.latest {
-								@chip() {
-									Latest
-								}
+								@latestBadge()
 							}
 							if v.major {
 								@majorMark()
 							}
-							<a class="font-mono text-[13px] text-faint decoration-border-strong underline-offset-3 hover:text-muted" href={ templ.SafeURL(v.releaseHref) } title={ "What " + v.tag + " published" }>{ v.tag }</a>
+							@releaseTagLink(v.releaseHref, v.tag)
 							<span class="text-[13px] text-faint">{ v.date }</span>
 						</div>
 						<div class="mt-1">
@@ -457,16 +493,15 @@ templ versionList(r ruleView) {
 							}
 						</div>
 					</div>
-					<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
-						if v.compareHref != "" {
-							@smallButton(v.compareHref) {
-								Compare with { v.previous }
+					<div class="grid grid-cols-[10.5rem_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
+						<span class="justify-self-end max-narrow:empty:hidden">
+							if v.compareHref != "" {
+								@smallButton(v.compareHref) {
+									Compare with { v.previous }
+								}
 							}
-						}
-						<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
-							@githubMark("size-3")
-							Release notes
-						</a>
+						</span>
+						@releaseNotesLink(v.notesURL, v.tag)
 					</div>
 				</div>
 			}
@@ -474,9 +509,20 @@ templ versionList(r ruleView) {
 	}
 }
 
-// majorMark flags a major change: work that complied with the previous version could fail the new one.
+// releaseTagLink leads to a library release, named by its tag, on the Library releases tab.
+templ releaseTagLink(href, tag string) {
+	<a class={ releaseTagClass } href={ templ.SafeURL(href) }>{ tag }</a>
+}
+
+// latestBadge marks a rule's latest version, or a library's latest release.
+templ latestBadge() {
+	<span class="inline-flex items-center rounded-full border border-border px-2 text-[11.5px] leading-[18px] font-medium whitespace-nowrap text-muted">Latest</span>
+}
+
+// majorMark flags a major change, and leads to what one means: work that complied with the previous version could
+// fail the new one. It says so to assistive technology too, so no one needs to hover to learn it.
 templ majorMark() {
-	<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] leading-[18px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
+	<a class="inline-flex items-center rounded-full border border-border-strong px-2 text-[11.5px] leading-[18px] font-medium whitespace-nowrap text-ink no-underline hover:bg-surface" href={ templ.SafeURL(versionsDocs) } title={ majorExplanation } aria-label={ majorExplanation + " How versions work." }>Major</a>
 }
 
 // messagePage is a page that only says what happened, such as for a missing page or a failure.

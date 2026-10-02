@@ -254,6 +254,9 @@ func TestSearchFindsRulesByTheIDsPagesShow(t *testing.T) {
 		"acme/backend:techs":      {acmeGo, golang},
 		"stranger/rules":          {},
 		"techs/go -return-errors": {betaGo},
+		// Only the alternative that joins words matches IDs: practices alone finds nothing, as techs does.
+		"practices or techs/golang": {golang},
+		"retry-limits -practices":   {retryLimits},
 	} {
 		got := sourceIDs(search(t, reader, query))
 		slices.Sort(got)

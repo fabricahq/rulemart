@@ -33,8 +33,9 @@ type Reader interface {
 	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)
 	// LibraryPage returns the vetted library owner/name, matched without regard to case, or ErrNotFound.
 	LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error)
-	// RulePage returns the rule at rulePath in the vetted library owner/name, matched as LibraryPage matches it,
-	// current or retired, or ErrNotFound.
+	// RulePage returns the rule at rulePath in the vetted library owner/name, current or retired, both matched without
+	// regard to case, as LibraryPage matches the library, with how every rule of the library was replaced, or
+	// ErrNotFound. The page's Rule.Path is the library's spelling.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
 	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.
@@ -42,10 +43,10 @@ type Reader interface {
 	// LibraryHistory returns the vetted library owner/name, matched as LibraryPage matches it, with its releases and
 	// every rule's versions, or ErrNotFound.
 	LibraryHistory(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryHistory, error)
-	// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each rule whose version
-	// after release from differs from its version after release to, keyed by the rule's path: in path order, each
-	// pair read only when both are stored and hold, with the pairs before it, at most maxBytes.
-	ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, from, to int, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error)
+	// ReleaseComparison returns the library's history, as LibraryHistory does, and the text of each pair of versions
+	// that pick chooses from it, keyed by the pair's key, read from the same snapshot: in pick's order, each pair read
+	// only when both are stored and hold, with the pairs before it, at most maxBytes.
+	ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, pick func(views.LibraryHistory) []views.VersionPair, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error)
 	// Groups returns each group that holds current rules in a vetted library, once for each library that holds it,
 	// in path order and then the library's owner and name, without regard to case.
 	Groups(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryGroup, error)

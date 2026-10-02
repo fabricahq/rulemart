@@ -189,7 +189,9 @@ libraryFiles: [techs/go/_group.yaml]
 	if older := retryLimits.Versions[0].Content.Markdown; !strings.Contains(older, "Stop after a fixed number of attempts.\n") || strings.Contains(older, "timeouts") {
 		t.Errorf("verify-retry-limits 1.0.0 is %q, want release/1's file", older)
 	}
-	if retired := lib.Rules[0]; retired.HTML != "" || retired.WhenToReadHTML != "" || !strings.Contains(retired.Current().Content.Markdown, "Retries wait longer after each attempt.") {
+	// A retired rule's page shows its last version's body, rendered at the release that published it.
+	if retired := lib.Rules[0]; !strings.Contains(retired.HTML, "Retries wait longer after each attempt.") || retired.WhenToReadHTML != "" ||
+		!strings.Contains(retired.Current().Content.Markdown, "Retries wait longer after each attempt.") {
 		t.Errorf("the retired rule is %+v", retired)
 	}
 	if lib.CurrentRules() != 2 {

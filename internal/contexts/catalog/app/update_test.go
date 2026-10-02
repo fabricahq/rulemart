@@ -198,7 +198,7 @@ func TestUpdateIngestsALibraryStoredWithoutItsVersionsContentOnce(t *testing.T) 
 		t.Fatal(err)
 	}
 	postgrestest.Exec(t, u.connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL,
-		when_to_read = NULL, markdown = NULL WHERE html IS NULL`)
+		when_to_read = NULL, markdown = NULL, retired_html = NULL WHERE html IS NULL`)
 
 	first, err := u.update(t)
 	if err != nil {

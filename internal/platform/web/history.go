@@ -19,15 +19,21 @@ const (
 	sharedFilesNote   = "This library release also updates shared files, such as group descriptions or shared assets."
 	onlySharedFiles   = "It updates shared files, such as group descriptions or shared assets."
 	releasesIntroText = "A library release publishes new versions of one or more rules at once. Each rule keeps its own version."
+	// versionsDocs explains rule versions and their change levels, which a Major mark links to.
+	versionsDocs = "https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change"
+	// majorExplanation says what a major change means, which a Major mark says to assistive technology too.
+	majorExplanation = "Major change: work that complied with the previous version could fail this one."
 )
 
 // changeKinds are the kinds of change, in the order Code Rules' release notes list them, with each section's title
-// and the word its count uses.
+// and the word its count uses. Code Rules records a rename as a new rule and a retired one; Rulemart lists it once,
+// after the new rules.
 var changeKinds = []struct {
 	change      coderules.Change
 	title, word string
 }{
 	{coderules.ChangeNew, "New rules", "new"},
+	{views.ChangeRenamed, "Renamed rules", "renamed"},
 	{coderules.ChangeMajor, "Major changes", "major"},
 	{coderules.ChangeMinor, "Minor changes", "minor"},
 	{coderules.ChangePatch, "Patch changes", "patch"},
@@ -53,19 +59,22 @@ func parseDiffMode(text string) diffMode {
 // releasesHref is the path of a library's Library releases tab, which starts at its latest release.
 func releasesHref(lib libraryView) string { return lib.href + "?tab=releases" }
 
-// releasesFromHref is the path of the page of a library's releases that starts at release n.
-func releasesFromHref(lib libraryView, n int) string {
-	if n == lib.releases {
+// releasesPageHref is the path of the page of a library's releases that holds release n, or the first page when n is
+// 0 or the latest release. The tab redirects a release on its first page to the first page's own address.
+func releasesPageHref(lib libraryView, n int) string {
+	if n == 0 || n == lib.releases {
 		return releasesHref(lib)
 	}
-	return releasesHref(lib) + "&until=" + strconv.Itoa(n)
+	return releasesHref(lib) + "&release=" + strconv.Itoa(n)
 }
 
-// releaseHref is the path of release n on a library's Library releases tab: on the page that starts with it, unless
-// that's the latest release's page.
+// releaseHref is the path of release n's card on a library's Library releases tab, on the page that holds it.
 func releaseHref(lib libraryView, n int) string {
-	return releasesFromHref(lib, n) + "#" + releaseAnchor(n)
+	return releasesPageHref(lib, n) + "#" + releaseAnchor(n)
 }
+
+// releaseTagClass styles a link to a release by its tag the same wherever a page shows one.
+const releaseTagClass = "font-mono text-[13px] text-muted decoration-border-strong underline-offset-3 hover:text-ink hover:decoration-ink"
 
 // releaseAnchor is the fragment of a release's card on the Library releases tab.
 func releaseAnchor(n int) string { return "release-" + strconv.Itoa(n) }
@@ -98,7 +107,9 @@ const maxVersionRows = 1000
 // releaseCard is one release on a library's Library releases tab, laid out like its generated release notes.
 type releaseCard struct {
 	anchor, tag, date, notesURL string
-	latest, major               bool
+	// compareHref compares the release with the one before it, previous; both are empty for the first release.
+	compareHref, previous string
+	latest, major         bool
 	// summary is the opening sentence, such as "Library release 2 changes 3 rules: 1 major and 2 new."
 	summary  string
 	sections []changeSection
@@ -117,25 +128,41 @@ type changeSection struct {
 	title string
 	// warning says to review major changes before updating.
 	warning bool
-	items   []changeItem
+	// items are shown, and more, when a long list folds them, follow behind a disclosure that counts them.
+	items, more []changeItem
+	// noun names the items more counts, such as "new rules".
+	noun string
 }
+
+// Long lists of changes, such as a first release's every rule, fold: past foldChangesAfter items, a section shows
+// shownBeforeFold and folds the rest.
+const (
+	foldChangesAfter = 20
+	shownBeforeFold  = 10
+)
 
 // changeItem is one rule in a changeSection.
 type changeItem struct {
 	href, title, id string
+	// versionsLabel is text before versions, such as "last version" for a retired rule.
+	versionsLabel string
 	// versions is "1.0.0 → 1.1.0", or one version for a new or retired rule, which compareHref links when Rulemart can
 	// compare them.
 	versions, compareHref string
 	// notes are the summaries of each version published between the releases, newest first, labeled with their
 	// version when there's more than one. A retired rule has its retirement's summaries as one note.
 	notes []versionNote
-	// replacedBy is the rule that replaced a retired one, or nil.
-	replacedBy *ruleLink
+	// replacedBy is the rule that replaced a retired one, then the one that replaced that one, and so on.
+	replacedBy []ruleLink
+	// renamedFrom is the ID a renamed rule had before, or nil.
+	renamedFrom *ruleLink
 }
 
-// versionNote is one version's change summaries; version is empty when the list needs no label.
+// versionNote is one version's change summaries; version is empty when the list needs no label, and major marks a
+// major change.
 type versionNote struct {
 	version   string
+	major     bool
 	summaries []string
 }
 
@@ -146,6 +173,48 @@ type ruleLink struct {
 
 func newRuleLink(lib libraryView, r views.RuleRef) ruleLink {
 	return ruleLink{href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path}
+}
+
+func newRuleLinks(lib libraryView, refs []views.RuleRef) []ruleLink {
+	links := make([]ruleLink, len(refs))
+	for i, r := range refs {
+		links[i] = newRuleLink(lib, r)
+	}
+	return links
+}
+
+// chainStep is one rule in a chain of replacements, with the words before it and after it, which pages show on one
+// line so no space comes before the period.
+type chainStep struct {
+	prefix, suffix string
+	link           ruleLink
+	// id is the rule's ID, shown beside its title for a rename, whose title is the same, and empty otherwise.
+	id string
+}
+
+// chainSteps words a chain of replacements: "Replaced by A, itself replaced by B.", or "Renamed to A." for a rename. A
+// chain of more than three names its first two rules and its last, and counts those between.
+func chainSteps(links []ruleLink, renamed bool) []chainStep {
+	steps := make([]chainStep, len(links))
+	for i, link := range links {
+		steps[i] = chainStep{prefix: ", itself replaced by ", link: link}
+		if i == 0 {
+			steps[i].prefix = "Replaced by "
+			if renamed {
+				steps[i].prefix, steps[i].id = "Renamed to ", link.id
+			}
+		}
+	}
+	// A long chain names its first two rules and its last, and counts the ones between.
+	if n := len(steps); n > 3 {
+		last := steps[n-1]
+		last.prefix = ", and after " + strconv.Itoa(n-3) + " more, by "
+		steps = append(steps[:2:2], last)
+	}
+	if n := len(steps); n > 0 {
+		steps[n-1].suffix = "."
+	}
+	return steps
 }
 
 // titleOrID returns a rule's title, or its ID when the catalog doesn't have its title yet.
@@ -171,10 +240,10 @@ func newReleasesView(lib libraryView, page views.ReleasesPage) releasesView {
 	v := releasesView{cards: newReleaseCards(lib, page)}
 	v.from, v.to = releasePicker(page.AllReleases)
 	if len(page.Releases) > 0 && page.Releases[0].Release.Number != lib.releases {
-		v.newerHref = releasesHref(lib)
+		v.newerHref = releasesPageHref(lib, page.Newer)
 	}
 	if page.Older != 0 {
-		v.olderHref = releasesFromHref(lib, page.Older)
+		v.olderHref = releasesPageHref(lib, page.Older)
 	}
 	return v
 }
@@ -187,7 +256,10 @@ func newReleaseCards(lib libraryView, page views.ReleasesPage) []releaseCard {
 		card := releaseCard{
 			anchor: releaseAnchor(n), tag: domain.ReleaseTag(n), date: date(notes.Release.TaggedAt),
 			notesURL: domain.ReleaseNotesURL(lib.fullName(), n), latest: n == page.Library.LatestRelease,
-			sections: newChangeSections(lib, notes.Changes, n == 1),
+			sections: newChangeSections(lib, notes.Changes, n == 1, n),
+		}
+		if n > 1 {
+			card.compareHref, card.previous = releaseComparisonHref(lib, n-1, n, diffWords), domain.ReleaseTag(n-1)
 		}
 		card.major = hasMajor(notes.Changes)
 		switch {
@@ -246,16 +318,21 @@ func countPhrase(changes []views.RuleChange) string {
 	return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
 }
 
-// newChangeSections sorts changes into sections by kind, in the order Code Rules' release notes use. A first release's
-// rules are all new, and its notes don't repeat each one's "Add the rule.", so firstRelease leaves out their notes.
-func newChangeSections(lib libraryView, changes []views.RuleChange, firstRelease bool) []changeSection {
+// newChangeSections sorts changes into sections by kind, in the order Code Rules' release notes use, folding a long
+// one. A first release's rules are all new, and its notes don't repeat each one's "Add the rule.", so firstRelease
+// leaves out their notes. release is the release a card shows, whose comparison with the one before shows a rename's
+// text, or 0 on a comparison's page, which shows it itself.
+func newChangeSections(lib libraryView, changes []views.RuleChange, firstRelease bool, release int) []changeSection {
 	var sections []changeSection
 	for _, kind := range changeKinds {
-		section := changeSection{title: kind.title, warning: kind.change == coderules.ChangeMajor}
+		section := changeSection{title: kind.title, warning: kind.change == coderules.ChangeMajor, noun: strings.ToLower(kind.title)}
 		for _, c := range changes {
 			if c.Change == kind.change {
-				section.items = append(section.items, newChangeItem(lib, c, firstRelease))
+				section.items = append(section.items, newChangeItem(lib, c, firstRelease, release))
 			}
+		}
+		if len(section.items) > foldChangesAfter {
+			section.items, section.more = section.items[:shownBeforeFold], section.items[shownBeforeFold:]
 		}
 		if len(section.items) > 0 {
 			sections = append(sections, section)
@@ -265,23 +342,29 @@ func newChangeSections(lib libraryView, changes []views.RuleChange, firstRelease
 }
 
 // newChangeItem describes how one rule changed. Its title leads to the rule's Versions tab, or to a retired rule's
-// page, which lists its versions.
-func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool) changeItem {
+// page, which lists its versions. A rename's versions lead to the diff of its old rule's last text with its new
+// rule's: on release's comparison with the release before, or on this page when release is 0.
+func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, release int) changeItem {
 	item := changeItem{href: ruleHref(lib, c.Rule.Path), title: titleOrID(c.Rule.Title, c.Rule.Path), id: c.Rule.Path}
 	if c.Rule.RetiredIn == 0 {
 		item.href += "?tab=versions"
 	}
 	switch c.Change {
 	case coderules.ChangeRetired:
-		item.versions = "last version " + c.From.String()
+		item.versionsLabel, item.versions = "last version", c.From.String()
 		item.notes = []versionNote{{summaries: shortened(c.RetirementSummaries)}}
-		if c.ReplacedBy != nil {
-			link := newRuleLink(lib, *c.ReplacedBy)
-			item.replacedBy = &link
-		}
+		item.replacedBy = newRuleLinks(lib, c.Replacements)
 		return item
 	case coderules.ChangeNew:
 		item.versions = c.To.String()
+	case views.ChangeRenamed:
+		from := newRuleLink(lib, *c.RenamedFrom)
+		item.renamedFrom = &from
+		item.versions = c.From.String() + " → " + c.To.String()
+		item.compareHref = "#" + diffAnchor(c.Rule.Path)
+		if release != 0 {
+			item.compareHref = releaseComparisonHref(lib, release-1, release, diffWords) + item.compareHref
+		}
 	default:
 		item.versions = c.From.String() + " → " + c.To.String()
 		item.compareHref = ruleComparisonHref(lib, c.Rule.Path, c.From, c.To, diffWords)
@@ -292,12 +375,17 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool) chang
 	for _, v := range c.Versions {
 		note := versionNote{summaries: shortened(v.Summaries)}
 		if len(c.Versions) > 1 {
-			note.version = v.Version.String()
+			note.version, note.major = v.Version.String(), v.Change == coderules.ChangeMajor
 		}
 		item.notes = append(item.notes, note)
 	}
 	return item
 }
+
+// diffAnchor is the fragment of a rule's diff on a comparison of releases. Its slashes become underscores, which a
+// Code Rules ID never holds, so IDs that differ in where a slash or hyphen is, such as techs/go-a/b and techs/go/a-b,
+// stay apart.
+func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "_") }
 
 // hunkHeader writes a hunk's header as git does, such as "@@ -6,14 +6,16 @@".
 func hunkHeader(h textdiff.Hunk) string {
@@ -339,6 +427,17 @@ func lineSign(op textdiff.Op) string {
 func releasePicker(releases []views.Release) (from, to []releaseOption) {
 	latest := len(releases)
 	return releaseOptions(releases, latest-1), releaseOptions(releases, latest)
+}
+
+// versionPicker returns the choices of a rule's versions, newest first, to compare, choosing the newest and the one
+// before it.
+func versionPicker(versions []views.Version) (from, to []releaseOption) {
+	for i, v := range versions {
+		value := v.Version.String()
+		from = append(from, releaseOption{value: value, label: value, selected: i == 1})
+		to = append(to, releaseOption{value: value, label: value, selected: i == 0})
+	}
+	return from, to
 }
 
 // releaseOptions returns every release as a choice, newest first, with release n chosen.
@@ -394,6 +493,8 @@ type releaseComparisonView struct {
 	diffs    []diffView
 	// omitted counts the changed rules whose diffs didn't fit the page.
 	omitted int
+	// sharedFiles says that a release between them changed library-wide files.
+	sharedFiles string
 	// backHref leads to the Library releases tab, and wordsHref and linesHref show this comparison each way.
 	backHref, wordsHref, linesHref string
 }
@@ -404,7 +505,7 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 	v := releaseComparisonView{
 		from: strconv.Itoa(from), to: strconv.Itoa(to), mode: string(mode),
 		fromTag: domain.ReleaseTag(from), toTag: domain.ReleaseTag(to), same: from == to,
-		sections: newChangeSections(lib, comparison.Changes, false), major: hasMajor(comparison.Changes),
+		sections: newChangeSections(lib, comparison.Changes, false, 0), major: hasMajor(comparison.Changes),
 		backHref: releasesHref(lib), wordsHref: releaseComparisonHref(lib, from, to, diffWords),
 		linesHref: releaseComparisonHref(lib, from, to, diffLines),
 	}
@@ -415,15 +516,23 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 		v.summary = plural(len(comparison.Changes), "rule", "rules") + " changed between " + v.fromTag + " and " + v.toTag +
 			": " + countPhrase(comparison.Changes) + "."
 	}
+	if comparison.SharedFiles {
+		v.sharedFiles = "Library releases after " + v.fromTag + ", up to " + v.toTag +
+			", update shared files, such as group descriptions or shared assets."
+	}
 	budget := newDiffBudget()
 	for _, c := range comparison.Changes {
 		switch c.Change {
-		case coderules.ChangeMajor, coderules.ChangeMinor, coderules.ChangePatch:
+		case coderules.ChangeMajor, coderules.ChangeMinor, coderules.ChangePatch, views.ChangeRenamed:
 			if !budget.spend(diffPanelMarks) {
 				v.omitted++
 				continue
 			}
-			d := newDiffView(lib, c.Rule.Path, c.From, c.To, c.Text, mode, budget)
+			oldPath := c.Rule.Path
+			if c.RenamedFrom != nil {
+				oldPath = c.RenamedFrom.Path
+			}
+			d := newDiffView(lib, oldPath, c.Rule.Path, c.From, c.To, c.Text, mode, budget)
 			d.title = titleOrID(c.Rule.Title, c.Rule.Path)
 			v.diffs = append(v.diffs, d)
 		}
@@ -473,7 +582,7 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 		}
 	}
 	v.span = "Between " + domain.ReleaseTag(fromRelease) + " and " + domain.ReleaseTag(toRelease) + "."
-	v.diff = newDiffView(lib, r.id, from, to, comparison.Text, mode, newDiffBudget())
+	v.diff = newDiffView(lib, r.id, r.id, from, to, comparison.Text, mode, newDiffBudget())
 	return v
 }
 
@@ -499,11 +608,12 @@ func (b *diffBudget) spend(n int) bool {
 	return true
 }
 
-// lineMarks counts what a line diff renders: each hunk's header, and each line with its segments.
+// lineMarks counts what a line diff renders: each hunk's header, each line with its segments, and the unchanged lines
+// it hides, which a reader can show.
 func lineMarks(d textdiff.LineDiff) int {
-	n := 0
+	n := len(d.After)
 	for _, h := range d.Hunks {
-		n++
+		n += 1 + len(h.Before)
 		for _, line := range h.Lines {
 			n += 1 + len(line.Segments)
 		}
@@ -525,9 +635,12 @@ func wordMarks(parts []textdiff.Part) int {
 
 // diffView is one rule file's changes between two versions.
 type diffView struct {
-	// path is the rule's file, href its page, and title its title, which only a comparison of releases shows.
-	path, href, title string
-	from, to          string
+	// path is the rule's file, href its page, and title its title, which only a comparison of releases shows. A
+	// renamed rule's old file is oldPath, which is path otherwise.
+	path, oldPath, href, title string
+	// anchor is the diff's fragment on its page.
+	anchor   string
+	from, to string
 	// fromURL and toURL are the file at each version's release on GitHub, where a reader can compare text the page
 	// can't show.
 	fromURL, toURL string
@@ -540,15 +653,16 @@ type diffView struct {
 	lines          textdiff.LineDiff
 }
 
-// newDiffView compares rule rulePath's versions from and to in lib, whose text is text, as mode says, spending budget
-// on what it renders. A diff that needs more than is left shows as too large.
-func newDiffView(lib libraryView, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
-	file := domain.RuleFile(rulePath)
+// newDiffView compares version from of rule oldPath, which is rulePath unless the rule was renamed, with version to of
+// rule rulePath in lib, whose text is text, as mode says, spending budget on what it renders. A diff that needs more
+// than is left shows as too large.
+func newDiffView(lib libraryView, oldPath, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
+	file, oldFile := domain.RuleFile(rulePath), domain.RuleFile(oldPath)
 	d := diffView{
-		path: file, href: ruleHref(lib, rulePath), from: from.String(), to: to.String(),
-		state: text.State, mode: mode,
+		path: file, oldPath: oldFile, href: ruleHref(lib, rulePath), anchor: diffAnchor(rulePath),
+		from: from.String(), to: to.String(), state: text.State, mode: mode,
 	}
-	d.fromURL, d.toURL = lib.fileAtVersionURL(file, text.OldRelease), lib.fileAtVersionURL(file, text.NewRelease)
+	d.fromURL, d.toURL = lib.fileAtVersionURL(oldFile, text.OldRelease), lib.fileAtVersionURL(file, text.NewRelease)
 	if text.State != views.TextShown {
 		return d
 	}

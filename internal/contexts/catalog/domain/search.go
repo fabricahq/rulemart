@@ -52,9 +52,11 @@ type SearchTerm struct {
 	// Query is the term in websearch_to_tsquery's syntax: a word, a quoted phrase, or either joined by or, quoted
 	// so that the database reads no other syntax in it.
 	Query string
-	// Identifier marks a term that joins words with -, /, or :, such as keep-tests-independent or techs/go. It
-	// matches the IDs and names pages show, a rule's, its group's, and its library's, as well as the rule's text.
-	Identifier bool
+	// IdentifierQuery holds the term's words or phrases that join words with -, /, or :, such as
+	// keep-tests-independent or techs/go, in Query's syntax, or is empty when there are none. They match the IDs and
+	// names pages show, a rule's, its group's, and its library's, as well as the rule's text. Of retry or techs/go,
+	// only techs/go matches IDs.
+	IdentifierQuery string
 }
 
 // Terms reads the query as the terms a matching rule holds, and the terms it doesn't, each in the visitor's order:
@@ -85,7 +87,7 @@ func (q SearchQuery) Terms() (find, exclude []SearchTerm) {
 			last := &find[len(find)-1]
 			last.Text += " or " + term.Text
 			last.Query += " or " + term.Query
-			last.Identifier = last.Identifier || term.Identifier
+			last.IdentifierQuery = joinAlternatives(last.IdentifierQuery, term.IdentifierQuery)
 			joining = false
 		default:
 			find = append(find, term)
@@ -158,12 +160,29 @@ func (t searchToken) term() (SearchTerm, bool) {
 	joined := strings.ContainsFunc(strings.Trim(t.text, " -/:"), isWordJoiner)
 	if t.phrase {
 		phrase := `"` + strings.Join(words, " ") + `"`
-		return SearchTerm{Text: `"` + strings.TrimSpace(t.text) + `"`, Query: phrase, Identifier: joined}, true
+		return SearchTerm{Text: `"` + strings.TrimSpace(t.text) + `"`, Query: phrase, IdentifierQuery: ifJoined(joined, phrase)}, true
 	}
 	if len(words) == 1 {
 		return SearchTerm{Text: strings.Trim(t.text, "-/:"), Query: words[0]}, true
 	}
-	return SearchTerm{Text: strings.Trim(t.text, "-/:"), Query: `"` + strings.Join(words, " ") + `"`, Identifier: joined}, true
+	phrase := `"` + strings.Join(words, " ") + `"`
+	return SearchTerm{Text: strings.Trim(t.text, "-/:"), Query: phrase, IdentifierQuery: ifJoined(joined, phrase)}, true
+}
+
+// ifJoined returns query when its words were joined with -, /, or :, and nothing otherwise.
+func ifJoined(joined bool, query string) string {
+	if joined {
+		return query
+	}
+	return ""
+}
+
+// joinAlternatives joins two queries with or, either of which may be empty.
+func joinAlternatives(a, b string) string {
+	if a == "" || b == "" {
+		return a + b
+	}
+	return a + " or " + b
 }
 
 // isWordJoiner reports whether r joins words into one, as in rule IDs, group IDs, and source-qualified IDs.

@@ -3,10 +3,12 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -151,8 +153,10 @@ type retiredRuleCard struct {
 	href, title, id, lastVersion string
 	// retiredTag is the release that retired the rule, which retiredHref shows.
 	retiredTag, retiredHref string
-	// replacedBy is the ID of the rule that replaced it, or empty.
+	// replacedBy is the ID of the rule that replaced it, or empty, and renamed reports that it's the same rule under a
+	// new ID.
 	replacedBy string
+	renamed    bool
 }
 
 // newLibraryContents groups the page's rules under its groups, keeping both orders. iconURL returns where the site
@@ -182,9 +186,27 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 		result.retired = append(result.retired, retiredRuleCard{
 			href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
 			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: r.ReplacedBy,
+			renamed: r.Renamed,
 		})
 	}
+	// Retired rules are in the order the current ones are: technologies first, by group, then by title.
+	slices.SortStableFunc(result.retired, func(a, b retiredRuleCard) int {
+		return cmp.Or(
+			cmp.Compare(kindOrder(a.id), kindOrder(b.id)),
+			strings.Compare(path.Dir(a.id), path.Dir(b.id)),
+			strings.Compare(strings.ToLower(a.title), strings.ToLower(b.title)),
+			strings.Compare(a.id, b.id),
+		)
+	})
 	return result
+}
+
+// kindOrder orders a rule or group ID by its kind: technologies, then practices.
+func kindOrder(id string) int {
+	if strings.HasPrefix(id, "practices/") {
+		return 1
+	}
+	return 0
 }
 
 // all returns every group, technologies first.
@@ -213,15 +235,19 @@ type ruleView struct {
 	compareHref string
 	// retired is nil while the rule is current.
 	retired *retiredView
-	// replaces are the retired rules this one replaced.
-	replaces []replacedRule
+	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
+	replaces    []replacedRule
+	renamedFrom *replacedRule
 }
 
 // retiredView is how a library release retired a rule.
 type retiredView struct {
 	tag, href, date string
 	summaries       []string
-	replacedBy      *ruleLink
+	// replacedBy is the rule that replaced it, then the one that replaced that one, and so on, to a current rule.
+	replacedBy []ruleLink
+	// renamed reports that the replacement is the same rule under a new ID.
+	renamed bool
 }
 
 // replacedRule is a retired rule that a rule replaced, and the release that retired it.
@@ -273,15 +299,17 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
 			date: date(retirement.RetiredAt), summaries: shortened(retirement.Summaries),
 		}
-		if retirement.ReplacedBy != nil {
-			link := newRuleLink(lib, *retirement.ReplacedBy)
-			v.retired.replacedBy = &link
-		}
+		v.retired.replacedBy, v.retired.renamed = newRuleLinks(lib, retirement.Replacements), retirement.Renamed
 	}
-	for _, replaced := range page.Replaces {
-		v.replaces = append(v.replaces, replacedRule{
-			rule: newRuleLink(lib, replaced), tag: domain.ReleaseTag(replaced.RetiredIn), tagHref: releaseHref(lib, replaced.RetiredIn),
-		})
+	replaced := func(r views.RuleRef) replacedRule {
+		return replacedRule{rule: newRuleLink(lib, r), tag: domain.ReleaseTag(r.RetiredIn), tagHref: releaseHref(lib, r.RetiredIn)}
+	}
+	for _, r := range page.Replaces {
+		v.replaces = append(v.replaces, replaced(r))
+	}
+	if page.RenamedFrom != nil {
+		from := replaced(*page.RenamedFrom)
+		v.renamedFrom = &from
 	}
 	return v
 }
@@ -378,7 +406,7 @@ func breakable(text string) templ.Component {
 			if i > 0 {
 				out.WriteString("<wbr>")
 			}
-			out.WriteString(`<span class="inline-block">`)
+			out.WriteString(`<span class="id-part">`)
 			for j, piece := range breakParts(part, "_") {
 				if j > 0 {
 					out.WriteString("<wbr>")

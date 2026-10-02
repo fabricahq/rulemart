@@ -77,7 +77,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 
 	for path, want := range map[string]string{
 		"/":                          "example/rules 1 rule",
-		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. 1 rule ›",
+		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
 		errorsRule:                   "Wrap every returned error.",
 		errorsRule + "?tab=versions": "1.0.0 Latest release/1 1 Sep 2026 Add the rule.",
@@ -152,7 +152,7 @@ changes: {techs/go/return-errors: {change: minor, from: 1.0.0, summaries: [Name 
 		library + "?tab=releases":                        "Library release 2 changes 1 rule: 1 minor. Minor changes Return errors techs/go/return-errors 1.0.0 → 1.1.0 Name each error.",
 		library + "?tab=releases&from=1&to=2":            "Wrap every each returned error.",
 		library + "?tab=releases&from=1&to=2&view=lines": "<iframe src=x></iframe>",
-		errorsRule + "?tab=versions&from=1.0.0&to=1.1.0": "1.1.0 release/2 2 Sep 2026 Name each error. Between release/1 and release/2.",
+		errorsRule + "?tab=versions&from=1.0.0&to=1.1.0": "1.1.0 release/2 2 Sep 2026 Name each error. Changed text Between release/1 and release/2.",
 	} {
 		t.Run(path, func(t *testing.T) {
 			resp := get(t, handler, path)
@@ -187,7 +187,7 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. 1 rule › All libraries techs/golang not canonical Go rules. 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},
@@ -297,5 +297,51 @@ func TestSearchAnswersOddInputWithAPage(t *testing.T) {
 		if resp.Code != http.StatusOK {
 			t.Errorf("%q: got %d", query, resp.Code)
 		}
+	}
+}
+
+// codeBefore and codeAfter are the bodies of two versions of a rule whose code example changes its indentation and a
+// call, and whose long unbroken line, a URL, gains a parameter.
+const (
+	codeBefore = "Wrap each error with the operation that failed.\n\n```go\nif err != nil {\n    return err\n}\n```\n\n" +
+		"See https://example.com/a/very/long/path/that/never/breaks/" + "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789 for more."
+	codeAfter = "Wrap each error with the operation that failed.\n\n```go\nif err != nil {\n\treturn fmt.Errorf(\"read config: %w\", err)\n}\n```\n\n" +
+		"See https://example.com/a/very/long/path/that/never/breaks/" + "abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789?page=2 for more."
+)
+
+// A change to a code example shows exactly, its indentation included, in both views, and a long unbroken line shows
+// whole, for the page's styles to wrap. The rule is also a fixture to look at a diff of code at a phone's width.
+func TestComparisonsShowChangedCodeAndLongLines(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule("techs/go/return-errors", "Return errors", codeBefore)
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`)
+	lib.Rule("techs/go/return-errors", "Return errors", codeAfter)
+	lib.Release(2, `formatVersion: 1
+release: 2
+rules: {techs/go/return-errors: 1.0.1}
+changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Wrap the error in the example.]}}
+`)
+	handler := ingest(t, lib)
+
+	words := get(t, handler, errorsRule+"?tab=versions&from=1.0.0&to=1.0.1").Body.String()
+	lines := get(t, handler, errorsRule+"?tab=versions&from=1.0.0&to=1.0.1&view=lines").Body.String()
+
+	for name, tc := range map[string]struct{ page, want string }{
+		"words: the indentation and call": {words, "if err != nil {\n<del>    </del><ins>\t</ins>return <del>err</del><ins>fmt.Errorf(&#34;read config: %w&#34;, err)</ins>"},
+		// A URL is one word, which changes whole.
+		"words: the long line":     {words, "<del>https://example.com/a/very/long/path/that/never/breaks/" + strings.Repeat("abcdefghijklmnopqrstuvwxyz0123456789", 2) + "</del><ins>"},
+		"lines: the old code line": {lines, "<td><del>    </del>return <del>err</del></td>"},
+		"lines: the new code line": {lines, "<td><ins>\t</ins>return <ins>fmt.Errorf(&#34;read config: %w&#34;, err)</ins></td>"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if !strings.Contains(tc.page, tc.want) {
+				t.Errorf("the page lacks %s", tc.want)
+			}
+		})
 	}
 }

@@ -255,9 +255,13 @@ func (w *writer) writeVersions(r domain.Rule) {
 			Title: present(c.Title), Impact: present(c.Impact), ImpactDescription: present(c.ImpactDescription),
 			WhenToRead: present(c.WhenToRead), Markdown: present(c.Markdown),
 		}
-		if r.IsCurrent() && i == len(r.Versions)-1 {
+		switch {
+		case i < len(r.Versions)-1:
+		case r.IsCurrent():
 			params.Html, params.WhenToReadHtml = present(r.HTML), present(r.WhenToReadHTML)
 			params.RenderedWhenToRead = present(c.WhenToRead)
+		default:
+			params.RetiredHtml = present(r.HTML)
 		}
 		w.exec(fmt.Sprintf("upsert %s %s", r.Path, v.Number), func() (int64, error) { return w.q.UpsertVersion(w.ctx, params) })
 	}

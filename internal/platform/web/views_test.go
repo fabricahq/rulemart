@@ -20,7 +20,7 @@ func TestEveryImpactLevelHasAnExplanation(t *testing.T) {
 // A long ID wraps after a / or : first, keeping the parts between them whole when they fit, and shows every character
 // it holds, escaped, in order.
 func TestBreakableLetsAnIDWrapAtItsParts(t *testing.T) {
-	part := func(text string) string { return `<span class="inline-block">` + text + "</span>" }
+	part := func(text string) string { return `<span class="id-part">` + text + "</span>" }
 	for text, want := range map[string]string{
 		"fabricahq/public-rules:techs/go": part("fabricahq/") + "<wbr>" + part("public-rules:") + "<wbr>" + part("techs/") + "<wbr>" + part("go"),
 		"use_template.md":                 part("use_<wbr>template.md"),

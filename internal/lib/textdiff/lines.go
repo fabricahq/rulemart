@@ -14,6 +14,8 @@ type LineDiff struct {
 	Hunks []Hunk
 	// Added and Removed count the inserted and deleted lines.
 	Added, Removed int
+	// After are the unchanged lines after the last hunk, which it leaves out.
+	After []Line
 }
 
 // Hunk is one stretch of a unified diff. OldStart and NewStart number its first line on each side, from 1, and
@@ -22,6 +24,9 @@ type LineDiff struct {
 type Hunk struct {
 	OldStart, OldLines, NewStart, NewLines int
 	Lines                                  []Line
+	// Before are the unchanged lines between the hunk and the one before it, or the start of the text, which the
+	// hunk leaves out; a reader can show them.
+	Before []Line
 }
 
 // Line is one line of a hunk. Old and New number it on each side, from 1; a deleted line has no New, and an
@@ -50,6 +55,8 @@ func Lines(old, new string) LineDiff {
 	shown := nearChanges(edits)
 	var result LineDiff
 	var hunk *Hunk
+	// hidden are the unchanged lines since the last hunk, which no hunk shows.
+	var hidden []Line
 	oldNumber, newNumber := 0, 0
 	for k, e := range edits {
 		if e.op != Insert {
@@ -66,11 +73,13 @@ func Lines(old, new string) LineDiff {
 		}
 		if !shown[k] {
 			hunk = nil
+			hidden = append(hidden, Line{Op: Equal, Old: oldNumber, New: newNumber, Segments: plain(a[e.i])})
 			continue
 		}
 		if hunk == nil {
 			result.Hunks = append(result.Hunks, startHunk(edits, shown, k, oldNumber, newNumber))
 			hunk = &result.Hunks[len(result.Hunks)-1]
+			hunk.Before, hidden = hidden, nil
 		}
 		line := Line{Op: e.op, Segments: marks[k]}
 		if e.op != Insert {
@@ -89,6 +98,9 @@ func Lines(old, new string) LineDiff {
 			line.Segments = plain(text)
 		}
 		hunk.Lines = append(hunk.Lines, line)
+	}
+	if len(result.Hunks) > 0 {
+		result.After = hidden
 	}
 	return result
 }

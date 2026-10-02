@@ -82,8 +82,8 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 		Vetted: vettedKeys(vetted), MaxResults: int32(limit), Skip: int32(skip),
 		CanonicalIds: make([]string, len(groups)), CanonicalNames: make([]string, len(groups)),
 	}
-	params.FindTerms, params.FindIdentifiers = termParams(find)
-	params.ExcludeTerms, params.ExcludeIdentifiers = termParams(exclude)
+	params.FindTerms, params.FindIdentifierTerms = termParams(find)
+	params.ExcludeTerms, params.ExcludeIdentifierTerms = termParams(exclude)
 	for i, g := range groups {
 		params.CanonicalIds[i], params.CanonicalNames[i] = g.ID, g.Name
 	}
@@ -118,13 +118,13 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 	return results, nil
 }
 
-// termParams returns terms' queries and identifier flags, in step, as search's parameters.
-func termParams(terms []domain.SearchTerm) (queries []string, identifiers []bool) {
-	queries, identifiers = make([]string, len(terms)), make([]bool, len(terms))
+// termParams returns terms' queries and identifier queries, in step, as search's parameters.
+func termParams(terms []domain.SearchTerm) (queries, identifierQueries []string) {
+	queries, identifierQueries = make([]string, len(terms)), make([]string, len(terms))
 	for i, t := range terms {
-		queries[i], identifiers[i] = t.Query, t.Identifier
+		queries[i], identifierQueries[i] = t.Query, t.IdentifierQuery
 	}
-	return queries, identifiers
+	return queries, identifierQueries
 }
 
 func libraryRef(owner, name, avatarURL string) views.LibraryRef {

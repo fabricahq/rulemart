@@ -130,10 +130,16 @@ func describeLines(d LineDiff) string {
 	var s strings.Builder
 	fmt.Fprintf(&s, "+%d -%d\n", d.Added, d.Removed)
 	for _, h := range d.Hunks {
+		if len(h.Before) > 0 {
+			fmt.Fprintf(&s, "~ %d-%d hidden\n", h.Before[0].Old, h.Before[len(h.Before)-1].Old)
+		}
 		fmt.Fprintf(&s, "@@ -%d,%d +%d,%d @@\n", h.OldStart, h.OldLines, h.NewStart, h.NewLines)
 		for _, line := range h.Lines {
 			fmt.Fprintf(&s, "%d %d %s%s\n", line.Old, line.New, map[Op]string{Equal: " ", Delete: "-", Insert: "+"}[line.Op], describeSegments(line.Segments))
 		}
+	}
+	if len(d.After) > 0 {
+		fmt.Fprintf(&s, "~ %d-%d hidden\n", d.After[0].Old, d.After[len(d.After)-1].Old)
 	}
 	return s.String()
 }
@@ -176,6 +182,7 @@ func TestLinesShowsHunksWithContextAndChangedWords(t *testing.T) {
 5 5  line 5
 6 6  line 6
 7 7  line 7
+~ 8-9 hidden
 `},
 		"changes far apart make two hunks": {numbered(1, 20), strings.Replace(strings.Replace(numbered(1, 20), "line 2\n", "", 1), "line 19", "line nineteen", 1), `+1 -2
 @@ -1,5 +1,4 @@
@@ -184,6 +191,7 @@ func TestLinesShowsHunksWithContextAndChangedWords(t *testing.T) {
 3 2  line 3
 4 3  line 4
 5 4  line 5
+~ 6-15 hidden
 @@ -16,5 +15,5 @@
 16 15  line 16
 17 16  line 17
@@ -246,13 +254,17 @@ func TestWordsMarksChangedWordsAndFoldsUnchangedBlocks(t *testing.T) {
 			"(1 folded)\n*Paragraph [-a.-]{+b.+}\n"},
 		"an added block": {paragraphs("a", "c"), paragraphs("a", "b", "c"), " Paragraph a.\n*{+Paragraph b.+}\n Paragraph c.\n"},
 		// A space between two changed words joins them into one change.
+		// A word's mark leaves out the space beside it, which isn't what changed.
+		"a removed word": {"Stop after its limit.\n", "Stop after limit.\n", "*Stop after [-its-] limit.\n"},
+		"an added word":  {"Stop at limit.\n", "Stop at the limit.\n", "*Stop at {+the+} limit.\n"},
 		"neighboring changed words are one change": {"Stop after three tries.\n", "Stop before four tries.\n",
 			"*Stop [-after three-]{+before four+} tries.\n"},
 		// Whitespace can change what code does, so in a code block it's compared, and marked, as it is.
+		// A line break stays unmarked; only the indentation after it changes.
 		"indentation in a fenced code block": {"Intro.\n\n```py\nif ready:\n    run()\n```\n", "Intro.\n\n```py\nif ready:\nrun()\n```\n",
-			" Intro.\n*```py⏎if ready:[-⏎    -]{+⏎+}run()⏎```\n"},
+			" Intro.\n*```py⏎if ready:⏎[-    -]run()⏎```\n"},
 		"indentation in an indented code block": {"Intro.\n\n    a\n      b\n", "Intro.\n\n    a\n    b\n",
-			" Intro.\n*    a[-⏎      -]{+⏎    +}b\n"},
+			" Intro.\n*    a⏎[-      -]{+    +}b\n"},
 		// Prose beside changed code still ignores whitespace: only its changed word is marked, not its rewrapping.
 		"rewrapped prose beside changed code": {"Use foo here.\n\n```go\nfoo()\n```\n", "Use bar\nhere.\n\n```go\nbar()\n```\n",
 			"*Use [-foo-]{+bar+}⏎here.⏎⏎```go⏎[-foo()-]{+bar()+}⏎```\n"},

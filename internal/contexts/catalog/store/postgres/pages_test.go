@@ -31,15 +31,16 @@ func content(title string, version coderules.RuleVersion) domain.Content {
 	}
 }
 
-// withContent returns r with each version's content, titled title, and while r is current, its current version's
-// HTML.
+// withContent returns r with each version's content, titled title, its newest version's HTML, and while r is current,
+// its reading guidance's.
 func withContent(r domain.Rule, title string) domain.Rule {
 	r.Versions = slices.Clone(r.Versions)
 	for i, version := range r.Versions {
 		r.Versions[i].Content = content(title, version.Number)
 	}
+	r.HTML = "<p>" + title + ".</p>\n"
 	if r.IsCurrent() {
-		r.HTML, r.WhenToReadHTML = "<p>"+title+".</p>\n", "<p>When changing <code>"+title+"</code>.</p>\n"
+		r.WhenToReadHTML = "<p>When changing <code>" + title + "</code>.</p>\n"
 	}
 	return r
 }
@@ -139,6 +140,18 @@ func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	}
 }
 
+// A rule's address may spell its ID in any case, as a library's may spell its owner and name; the page names the ID
+// as the library spells it, so the site can redirect to it.
+func TestRulePageMatchesTheRuleIDWithoutRegardToCase(t *testing.T) {
+	reader := newCatalog(t)
+
+	page, err := reader.RulePage(context.Background(), vetted, "example", "rules", "Techs/Go/Return-Errors")
+
+	if err != nil || page.Rule.Path != "techs/go/return-errors" {
+		t.Fatalf("got %q, %v; want techs/go/return-errors", page.Rule.Path, err)
+	}
+}
+
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
 // all retired, its current rules, and apart from them, its retired rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
@@ -235,7 +248,7 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 			return err
 		},
 		"an unvetted library's releases to compare": func() error {
-			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", 1, 3, 1<<20)
+			_, _, err := reader.ReleaseComparison(ctx, vetted, "stranger", "unvetted-rules", pickChanged(1, 3), 1<<20)
 			return err
 		},
 		"a version the rule doesn't have": func() error {

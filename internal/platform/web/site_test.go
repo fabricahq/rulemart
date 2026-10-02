@@ -35,7 +35,7 @@ const (
 type catalog struct {
 	libraries []views.LibraryCard
 	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
-	// page of releases that doesn't start at the latest adds " until=<n>" to its key.
+	// page of releases after the first adds " release=<n>" to its key, once for each release it holds.
 	pages    map[string]views.LibraryPage
 	releases map[string]views.ReleasesPage
 	rules    map[string]views.RulePage
@@ -97,21 +97,29 @@ func (c catalog) LibraryPage(_ context.Context, owner, name string) (views.Libra
 	return page, c.err
 }
 
+// RulePage matches the rule's ID without regard to case, as the store does.
 func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (views.RulePage, error) {
 	page, ok := c.rules[strings.ToLower(owner+"/"+name)+"/"+rulePath]
+	for key, p := range c.rules {
+		if !ok && strings.EqualFold(key, strings.ToLower(owner+"/"+name)+"/"+rulePath) {
+			page, ok = p, true
+		}
+	}
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load rule %s/%s/%s: %w", owner, name, rulePath, app.ErrNotFound)
 	}
 	return page, c.err
 }
 
-// ReleasesPage finds a page that starts at a release other than the latest under the library's key, then " until=<n>".
-func (c catalog) ReleasesPage(_ context.Context, owner, name string, until int) (views.ReleasesPage, error) {
+// ReleasesPage finds the page that holds a release after the first page's under the library's key, then
+// " release=<n>"; any other release of the library finds the first page, as app.Pages does.
+func (c catalog) ReleasesPage(_ context.Context, owner, name string, release int) (views.ReleasesPage, error) {
 	key := strings.ToLower(owner + "/" + name)
-	if until != 0 {
-		key += fmt.Sprintf(" until=%d", until)
+	page, ok := c.releases[key+fmt.Sprintf(" release=%d", release)]
+	if !ok {
+		page, ok = c.releases[key]
+		ok = ok && release <= page.Library.LatestRelease
 	}
-	page, ok := c.releases[key]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load library history %s/%s: %w", owner, name, app.ErrNotFound)
 	}
@@ -300,8 +308,8 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	assertShows(t, resp.Body.String(),
 		"example / rules Example rules for tests.",
 		"Groups 2", "All rules 2", "Library releases 3",
-		"Technologies · 1 Go techs/go The Go language. 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
 	)
 	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
@@ -451,6 +459,33 @@ func TestPagesRedirectToTheLibrarysSpelling(t *testing.T) {
 
 	if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != errorsRule+"?tab=versions" {
 		t.Fatalf("got %d to %q", resp.Code, resp.Header().Get("Location"))
+	}
+}
+
+// A rule's ID may be spelled in any case too, and the site's own sections, and each redirects to its own spelling in
+// one step, keeping the query.
+func TestPagesRedirectOtherCasesToTheirSpelling(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, location := range map[string]string{
+		"/Example/Rules/Techs/Go/Return-Errors?tab=versions": errorsRule + "?tab=versions",
+		"/example/rules/techs/go/RETURN-errors":              errorsRule,
+		"/Groups":                                            "/groups",
+		"/GROUPS/techs/go":                                   "/groups/techs/go",
+		"/LIBRARIES":                                         "/libraries",
+		"/Search?q=retry&page=2":                             "/search?q=retry&page=2",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
+		}
+	}
+	// A library owned by an account named like a section keeps its address: GitHub has one named libraries.
+	if resp := get(t, handler, "/Libraries/rules"); resp.Code != http.StatusNotFound {
+		t.Errorf("/Libraries/rules: got %d to %q, want the library's own missing page", resp.Code, resp.Header().Get("Location"))
+	}
+	if resp := get(t, handler, "/Search/x"); resp.Code != http.StatusNotFound {
+		t.Errorf("/Search/x: got %d to %q, want a missing page", resp.Code, resp.Header().Get("Location"))
 	}
 }
 
@@ -756,10 +791,10 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 	assertShows(t, page,
 		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
 		// its library.
-		"Technologies · 3 Go techs/go The Go language. 1 rule ›",
+		"Technologies · 3 Go techs/go The Go language. Go rules in every library › 1 rule ›",
 		"techs/golang not canonical More Go rules. 1 rule ›",
-		"Goose techs/goose 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Goose techs/goose Goose rules in every library › 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 	)
 	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") {
 		t.Error("the page shows a group's reading guidance")
@@ -798,15 +833,15 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	canonical := get(t, handler, returnErrorsGo).Body.String()
 	other := get(t, handler, passContext).Body.String()
 
-	assertShows(t, canonical, "mixed › Go techs/go Go rules in all libraries ›")
+	assertShows(t, canonical, "mixed › Go techs/go Go rules in every library ›")
 	assertFlagsExplainThemselves(t, canonical, 0)
 	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
 	// A canonical group's rules in every library are a page of their own; any other group stands alone.
-	if got := links(t, canonical, "rules in all libraries"); !slices.Equal(got, []string{"/groups/techs/go"}) {
+	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
-	if got := links(t, other, "rules in all libraries"); len(got) != 0 {
+	if got := links(t, other, "rules in every library"); len(got) != 0 {
 		t.Errorf("a group that isn't canonical links %q across libraries", got)
 	}
 }
@@ -815,7 +850,7 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
 
-	if got := links(t, page, "All libraries"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
+	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/groups/techs/go", "/groups/techs/goose", "/groups/practices/testing"}) {
 		t.Errorf("the groups link %q across libraries", got)
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {

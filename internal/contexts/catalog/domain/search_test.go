@@ -62,28 +62,31 @@ func TestSearchQueryTermsReadWordsPhrasesAlternativesAndExclusions(t *testing.T)
 		`jitter "retry limits`: {find: []SearchTerm{word("jitter"), {Text: `"retry limits"`, Query: `"retry limits"`}}},
 		// A word that joins words with -, /, or : is a phrase of them that also matches the IDs pages show.
 		"keep-tests-independent": {find: []SearchTerm{
-			{Text: "keep-tests-independent", Query: `"keep tests independent"`, Identifier: true},
+			{Text: "keep-tests-independent", Query: `"keep tests independent"`, IdentifierQuery: `"keep tests independent"`},
 		}},
 		"fabricahq/public-rules:practices/testing/keep-tests-independent": {find: []SearchTerm{{
-			Text:       "fabricahq/public-rules:practices/testing/keep-tests-independent",
-			Query:      `"fabricahq public rules practices testing keep tests independent"`,
-			Identifier: true,
+			Text:            "fabricahq/public-rules:practices/testing/keep-tests-independent",
+			Query:           `"fabricahq public rules practices testing keep tests independent"`,
+			IdentifierQuery: `"fabricahq public rules practices testing keep tests independent"`,
 		}}},
-		`"techs/go errors"`: {find: []SearchTerm{{Text: `"techs/go errors"`, Query: `"techs go errors"`, Identifier: true}}},
+		`"techs/go errors"`: {find: []SearchTerm{{Text: `"techs/go errors"`, Query: `"techs go errors"`, IdentifierQuery: `"techs go errors"`}}},
 		// A hyphen leaves a word out only at the start of a word.
 		"testing -react": {find: []SearchTerm{word("testing")}, exclude: []SearchTerm{word("react")}},
 		`retry -"error boundary" --techs/react`: {
 			find: []SearchTerm{word("retry")},
 			exclude: []SearchTerm{
 				{Text: `"error boundary"`, Query: `"error boundary"`},
-				{Text: "techs/react", Query: `"techs react"`, Identifier: true},
+				{Text: "techs/react", Query: `"techs react"`, IdentifierQuery: `"techs react"`},
 			},
 		},
 		`retry"jitter"`: {find: []SearchTerm{word("retry"), {Text: `"jitter"`, Query: `"jitter"`}}},
 		`"a"-b`:         {find: []SearchTerm{{Text: `"a"`, Query: `"a"`}, word("b")}},
 		// or joins the terms on either side into one that either satisfies.
 		"retry or jitter limits": {find: []SearchTerm{{Text: "retry or jitter", Query: "retry or jitter"}, word("limits")}},
-		"a OR b or public-rules": {find: []SearchTerm{{Text: "a or b or public-rules", Query: `a or b or "public rules"`, Identifier: true}}},
+		// Only an alternative that joins words matches IDs.
+		"a OR b or public-rules": {find: []SearchTerm{{Text: "a or b or public-rules", Query: `a or b or "public rules"`, IdentifierQuery: `"public rules"`}}},
+		"techs/go or x or retry-limits": {find: []SearchTerm{{Text: "techs/go or x or retry-limits", Query: `"techs go" or x or "retry limits"`,
+			IdentifierQuery: `"techs go" or "retry limits"`}}},
 		// or with nothing to join on one side is a word, which search ignores as it does "the".
 		"or retry":    {find: []SearchTerm{word("or"), word("retry")}},
 		"retry or":    {find: []SearchTerm{word("retry"), word("or")}},

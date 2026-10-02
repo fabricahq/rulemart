@@ -40,37 +40,47 @@ JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
 WHERE r.library_id = @library_id
 ORDER BY g.path, lower(v.title), r.path;
 
--- GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
--- current, and the last once retired. A retired rule also has its retirement, and the newest title of the rule that
--- replaced it, when the retirement named one. when_to_read_html is empty unless it was rendered from the reading
--- guidance the version holds now, since a release that didn't render it may have changed it since.
+-- GetRule returns the rule at path, current or retired, matched without regard to case, preferring the rule spelled
+-- exactly so, with its newest version: the current version while it's current, and the last once retired, and a
+-- retired rule's retirement. Its html is the newest version's body. when_to_read_html is empty unless it was rendered
+-- from the reading guidance the version holds now, since a release that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
        v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries, r.replaced_by, replacement.title AS replacement_title,
-       replacement.retired_in AS replacement_retired_in
+       r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
     SELECT v.title, v.impact, v.when_to_read,
            coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
                AS when_to_read_html,
-           v.html, v.major, v.minor, v.patch, p.number AS release, p.tagged_at AS published_at
+           coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
+           p.tagged_at AS published_at
     FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-LEFT JOIN LATERAL (
-    SELECT newest.title, replaced_retired.number AS retired_in
-    FROM rules other
-    JOIN LATERAL (
-        SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-        WHERE v.rule_id = other.id ORDER BY p.number DESC LIMIT 1
-    ) newest ON true
-    LEFT JOIN library_releases replaced_retired ON replaced_retired.id = other.retired_in_release_id
-    WHERE other.library_id = r.library_id AND other.path = r.replaced_by
-) replacement ON true
-WHERE r.library_id = @library_id AND r.path = @path;
+WHERE r.library_id = @library_id AND lower(r.path) = lower(@path)
+ORDER BY r.path = @path DESC, r.path
+LIMIT 1;
+
+-- ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
+-- added it with its first title, and its last title, in path order.
+-- name: ListRuleLinks :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, first.release AS first_release, first.title AS first_title,
+       last.title AS last_title
+FROM rules r
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT p.number AS release, v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number LIMIT 1
+) first ON true
+JOIN LATERAL (
+    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = @library_id
+ORDER BY r.path COLLATE "C";
 
 -- ListVersions returns each version of a rule, newest first, with whether it has its Markdown, which a release that
 -- stored only current versions' content left out, and how many bytes it holds.
@@ -93,19 +103,6 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) last ON true
 WHERE r.library_id = @library_id
-ORDER BY r.path COLLATE "C";
-
--- ListReplacedRules returns the retired rules whose retirement named the rule at path as their replacement, in path
--- order, each with its last version's title.
--- name: ListReplacedRules :many
-SELECT r.path, retired.number AS retired_in, last.title
-FROM rules r
-JOIN library_releases retired ON retired.id = r.retired_in_release_id
-JOIN LATERAL (
-    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
-) last ON true
-WHERE r.library_id = @library_id AND r.replaced_by = @path::text
 ORDER BY r.path COLLATE "C";
 
 -- name: ListReleases :many
@@ -159,33 +156,35 @@ ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path;
 --
 -- A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
 -- the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
--- but never what its library calls the group. A term the identifiers flags mark, such as keep tests independent from
--- keep-tests-independent, also matches the words of the rule's source-qualified ID, owner/name:rule-ID, whose rule ID
--- starts with its group's.
+-- but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+-- with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+-- source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 --
--- Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
--- impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
--- average, scaled by the square of the share of terms it holds, so a rule that holds every term usually comes first,
--- but one whose title holds some can pass one whose body holds all. A title made mostly of the terms it matches adds up
--- to 0.25, so "Verify retry limits" outranks a longer title for retry. Equal scores fall back to ts_rank, then title,
--- the library's owner and name, and rule ID, so the order is stable.
+-- Rules that hold every term come first, then those that hold some, each by score. Each term scores by the best
+-- place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact description 0.5, and anywhere
+-- else, the body or the library's name, 0.1. A rule's score is its terms' average, scaled by the square of the share
+-- of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so "Verify retry limits" outranks a
+-- longer title for retry. Equal scores fall back to ts_rank, then title, the library's owner and name, and rule ID, so
+-- the order is stable.
 -- name: SearchRules :many
 WITH find_terms AS (
-    SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifiers::boolean[])[i] AS identifier
+    SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
     FROM generate_subscripts(@find_terms::text[], 1) AS i
 ),
 find AS (
-    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query, t.identifier,
+    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
            tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
     FROM find_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 exclude_terms AS (
-    SELECT (@exclude_terms::text[])[i] AS query, (@exclude_identifiers::boolean[])[i] AS identifier
+    SELECT (@exclude_terms::text[])[i] AS query, (@exclude_identifier_terms::text[])[i] AS identifier_query
     FROM generate_subscripts(@exclude_terms::text[], 1) AS i
 ),
 exclude AS (
-    SELECT websearch_to_tsquery('english', t.query) AS query, t.identifier
+    SELECT websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
     FROM exclude_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
@@ -209,7 +208,7 @@ documents AS (
 places AS (
     SELECT d.id, f.ordinal, f.lexemes,
            CASE WHEN d.title @@ f.query THEN 1.0
-                WHEN d.group_names @@ f.query OR (f.identifier AND d.identifiers @@ f.query) THEN 0.8
+                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
                 WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
                 WHEN d.text @@ f.query THEN 0.1
            END AS score
@@ -227,7 +226,8 @@ scored AS (
     FROM documents d
     WHERE NOT EXISTS (
         SELECT 1 FROM exclude e
-        WHERE d.text @@ e.query OR d.group_names @@ e.query OR (e.identifier AND d.identifiers @@ e.query)
+        WHERE d.text @@ e.query OR d.group_names @@ e.query
+           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
     )
 ),
 ranked AS (
@@ -249,7 +249,7 @@ JOIN rule_versions v ON v.id = ranked.id
 JOIN rules r ON r.id = v.rule_id
 JOIN library_groups g ON g.id = r.group_id
 JOIN libraries l ON l.id = r.library_id
-ORDER BY ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
+ORDER BY cardinality(ranked.missing) > 0, ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
 LIMIT @max_results OFFSET @skip;
 
 -- CountSearchableTerms counts the terms that hold a word search looks for, rather than only stop words, such as

@@ -90,30 +90,22 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 const getRule = `-- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
        v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries, r.replaced_by, replacement.title AS replacement_title,
-       replacement.retired_in AS replacement_retired_in
+       r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
     SELECT v.title, v.impact, v.when_to_read,
            coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
                AS when_to_read_html,
-           v.html, v.major, v.minor, v.patch, p.number AS release, p.tagged_at AS published_at
+           coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
+           p.tagged_at AS published_at
     FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-LEFT JOIN LATERAL (
-    SELECT newest.title, replaced_retired.number AS retired_in
-    FROM rules other
-    JOIN LATERAL (
-        SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-        WHERE v.rule_id = other.id ORDER BY p.number DESC LIMIT 1
-    ) newest ON true
-    LEFT JOIN library_releases replaced_retired ON replaced_retired.id = other.retired_in_release_id
-    WHERE other.library_id = r.library_id AND other.path = r.replaced_by
-) replacement ON true
-WHERE r.library_id = $1 AND r.path = $2
+WHERE r.library_id = $1 AND lower(r.path) = lower($2)
+ORDER BY r.path = $2 DESC, r.path
+LIMIT 1
 `
 
 type GetRuleParams struct {
@@ -122,31 +114,28 @@ type GetRuleParams struct {
 }
 
 type GetRuleRow struct {
-	ID                   int64
-	Path                 string
-	GroupPath            string
-	Title                pgtype.Text
-	Impact               pgtype.Text
-	WhenToRead           pgtype.Text
-	WhenToReadHtml       string
-	Html                 pgtype.Text
-	Major                int32
-	Minor                int32
-	Patch                int32
-	Release              int32
-	PublishedAt          pgtype.Timestamptz
-	RetiredIn            pgtype.Int4
-	RetiredAt            pgtype.Timestamptz
-	RetirementSummaries  []string
-	ReplacedBy           pgtype.Text
-	ReplacementTitle     pgtype.Text
-	ReplacementRetiredIn pgtype.Int4
+	ID                  int64
+	Path                string
+	GroupPath           string
+	Title               pgtype.Text
+	Impact              pgtype.Text
+	WhenToRead          pgtype.Text
+	WhenToReadHtml      string
+	Html                pgtype.Text
+	Major               int32
+	Minor               int32
+	Patch               int32
+	Release             int32
+	PublishedAt         pgtype.Timestamptz
+	RetiredIn           pgtype.Int4
+	RetiredAt           pgtype.Timestamptz
+	RetirementSummaries []string
 }
 
-// GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
-// current, and the last once retired. A retired rule also has its retirement, and the newest title of the rule that
-// replaced it, when the retirement named one. when_to_read_html is empty unless it was rendered from the reading
-// guidance the version holds now, since a release that didn't render it may have changed it since.
+// GetRule returns the rule at path, current or retired, matched without regard to case, preferring the rule spelled
+// exactly so, with its newest version: the current version while it's current, and the last once retired, and a
+// retired rule's retirement. Its html is the newest version's body. when_to_read_html is empty unless it was rendered
+// from the reading guidance the version holds now, since a release that didn't render it may have changed it since.
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
 	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow
@@ -167,9 +156,6 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.RetiredIn,
 		&i.RetiredAt,
 		&i.RetirementSummaries,
-		&i.ReplacedBy,
-		&i.ReplacementTitle,
-		&i.ReplacementRetiredIn,
 	)
 	return i, err
 }
@@ -429,51 +415,6 @@ func (q *Queries) ListReleases(ctx context.Context, libraryID int64) ([]ListRele
 	return items, nil
 }
 
-const listReplacedRules = `-- name: ListReplacedRules :many
-SELECT r.path, retired.number AS retired_in, last.title
-FROM rules r
-JOIN library_releases retired ON retired.id = r.retired_in_release_id
-JOIN LATERAL (
-    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
-    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
-) last ON true
-WHERE r.library_id = $1 AND r.replaced_by = $2::text
-ORDER BY r.path COLLATE "C"
-`
-
-type ListReplacedRulesParams struct {
-	LibraryID int64
-	Path      string
-}
-
-type ListReplacedRulesRow struct {
-	Path      string
-	RetiredIn int32
-	Title     pgtype.Text
-}
-
-// ListReplacedRules returns the retired rules whose retirement named the rule at path as their replacement, in path
-// order, each with its last version's title.
-func (q *Queries) ListReplacedRules(ctx context.Context, arg ListReplacedRulesParams) ([]ListReplacedRulesRow, error) {
-	rows, err := q.db.Query(ctx, listReplacedRules, arg.LibraryID, arg.Path)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListReplacedRulesRow
-	for rows.Next() {
-		var i ListReplacedRulesRow
-		if err := rows.Scan(&i.Path, &i.RetiredIn, &i.Title); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRetiredRules = `-- name: ListRetiredRules :many
 SELECT r.path, retired.number AS retired_in, r.replaced_by, last.title, last.major, last.minor, last.patch
 FROM rules r
@@ -595,6 +536,61 @@ func (q *Queries) ListRuleHistories(ctx context.Context, libraryID int64) ([]Lis
 	return items, nil
 }
 
+const listRuleLinks = `-- name: ListRuleLinks :many
+SELECT r.path, retired.number AS retired_in, r.replaced_by, first.release AS first_release, first.title AS first_title,
+       last.title AS last_title
+FROM rules r
+LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
+JOIN LATERAL (
+    SELECT p.number AS release, v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number LIMIT 1
+) first ON true
+JOIN LATERAL (
+    SELECT v.title FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+) last ON true
+WHERE r.library_id = $1
+ORDER BY r.path COLLATE "C"
+`
+
+type ListRuleLinksRow struct {
+	Path         string
+	RetiredIn    pgtype.Int4
+	ReplacedBy   pgtype.Text
+	FirstRelease int32
+	FirstTitle   pgtype.Text
+	LastTitle    pgtype.Text
+}
+
+// ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
+// added it with its first title, and its last title, in path order.
+func (q *Queries) ListRuleLinks(ctx context.Context, libraryID int64) ([]ListRuleLinksRow, error) {
+	rows, err := q.db.Query(ctx, listRuleLinks, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleLinksRow
+	for rows.Next() {
+		var i ListRuleLinksRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.RetiredIn,
+			&i.ReplacedBy,
+			&i.FirstRelease,
+			&i.FirstTitle,
+			&i.LastTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVersions = `-- name: ListVersions :many
 SELECT v.id, v.major, v.minor, v.patch, published.number AS release, v.change, v.summaries,
        published.tagged_at AS published_at, (v.markdown IS NOT NULL)::boolean AS has_markdown, coalesce(octet_length(v.markdown), 0)::integer AS markdown_bytes
@@ -698,21 +694,23 @@ func (q *Queries) ListVettedGroups(ctx context.Context, vetted []string) ([]List
 
 const searchRules = `-- name: SearchRules :many
 WITH find_terms AS (
-    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::boolean[])[i] AS identifier
+    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::text[])[i] AS identifier_query
     FROM generate_subscripts($3::text[], 1) AS i
 ),
 find AS (
-    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query, t.identifier,
+    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
            tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
     FROM find_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 exclude_terms AS (
-    SELECT ($5::text[])[i] AS query, ($6::boolean[])[i] AS identifier
+    SELECT ($5::text[])[i] AS query, ($6::text[])[i] AS identifier_query
     FROM generate_subscripts($5::text[], 1) AS i
 ),
 exclude AS (
-    SELECT websearch_to_tsquery('english', t.query) AS query, t.identifier
+    SELECT websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
     FROM exclude_terms t
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
@@ -736,7 +734,7 @@ documents AS (
 places AS (
     SELECT d.id, f.ordinal, f.lexemes,
            CASE WHEN d.title @@ f.query THEN 1.0
-                WHEN d.group_names @@ f.query OR (f.identifier AND d.identifiers @@ f.query) THEN 0.8
+                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
                 WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
                 WHEN d.text @@ f.query THEN 0.1
            END AS score
@@ -754,7 +752,8 @@ scored AS (
     FROM documents d
     WHERE NOT EXISTS (
         SELECT 1 FROM exclude e
-        WHERE d.text @@ e.query OR d.group_names @@ e.query OR (e.identifier AND d.identifiers @@ e.query)
+        WHERE d.text @@ e.query OR d.group_names @@ e.query
+           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
     )
 ),
 ranked AS (
@@ -776,20 +775,20 @@ JOIN rule_versions v ON v.id = ranked.id
 JOIN rules r ON r.id = v.rule_id
 JOIN library_groups g ON g.id = r.group_id
 JOIN libraries l ON l.id = r.library_id
-ORDER BY ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
+ORDER BY cardinality(ranked.missing) > 0, ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
 LIMIT $2 OFFSET $1
 `
 
 type SearchRulesParams struct {
-	Skip               int32
-	MaxResults         int32
-	FindTerms          []string
-	FindIdentifiers    []bool
-	ExcludeTerms       []string
-	ExcludeIdentifiers []bool
-	CanonicalNames     []string
-	CanonicalIds       []string
-	Vetted             []string
+	Skip                   int32
+	MaxResults             int32
+	FindTerms              []string
+	FindIdentifierTerms    []string
+	ExcludeTerms           []string
+	ExcludeIdentifierTerms []string
+	CanonicalNames         []string
+	CanonicalIds           []string
+	Vetted                 []string
 }
 
 type SearchRulesRow struct {
@@ -817,24 +816,24 @@ type SearchRulesRow struct {
 //
 // A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
 // the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
-// but never what its library calls the group. A term the identifiers flags mark, such as keep tests independent from
-// keep-tests-independent, also matches the words of the rule's source-qualified ID, owner/name:rule-ID, whose rule ID
-// starts with its group's.
+// but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+// with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+// source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 //
-// Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
-// impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
-// average, scaled by the square of the share of terms it holds, so a rule that holds every term usually comes first,
-// but one whose title holds some can pass one whose body holds all. A title made mostly of the terms it matches adds up
-// to 0.25, so "Verify retry limits" outranks a longer title for retry. Equal scores fall back to ts_rank, then title,
-// the library's owner and name, and rule ID, so the order is stable.
+// Rules that hold every term come first, then those that hold some, each by score. Each term scores by the best
+// place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact description 0.5, and anywhere
+// else, the body or the library's name, 0.1. A rule's score is its terms' average, scaled by the square of the share
+// of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so "Verify retry limits" outranks a
+// longer title for retry. Equal scores fall back to ts_rank, then title, the library's owner and name, and rule ID, so
+// the order is stable.
 func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]SearchRulesRow, error) {
 	rows, err := q.db.Query(ctx, searchRules,
 		arg.Skip,
 		arg.MaxResults,
 		arg.FindTerms,
-		arg.FindIdentifiers,
+		arg.FindIdentifierTerms,
 		arg.ExcludeTerms,
-		arg.ExcludeIdentifiers,
+		arg.ExcludeIdentifierTerms,
 		arg.CanonicalNames,
 		arg.CanonicalIds,
 		arg.Vetted,
