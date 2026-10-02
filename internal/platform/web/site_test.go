@@ -313,7 +313,7 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	}
 	assertShows(t, resp.Body.String(),
 		"example / rules Example rules for tests.",
-		"Groups 2", "All rules 2", "Library releases 3",
+		"Groups , 2", "All rules , 2", "Library releases , 3",
 		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
 		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
 		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
@@ -344,7 +344,7 @@ func TestRulePageShowsTheCurrentVersion(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"rules › Go techs/go", "Return errors with context", "HIGH 2.0.0", "Rule Versions 2",
+		"rules › Go techs/go", "Return errors with context", "HIGH 2.0.0", "Rule Versions , 2",
 		"When to apply When changing return errors with context.", "Wrap every returned error.",
 		"Updated 3 Sep 2026", "File return-errors.md",
 	)
@@ -861,5 +861,44 @@ func TestLibraryPageLinksCanonicalGroupsAcrossLibraries(t *testing.T) {
 	}
 	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang"}) {
 		t.Errorf("techs/golang links %q", got)
+	}
+}
+
+// accessibleNames returns the name a screen reader gives each link in body that leads to an address starting with
+// prefix: its text nodes joined as they are, with whitespace collapsed.
+func accessibleNames(t *testing.T, body, prefix string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "a" || !strings.HasPrefix(attribute(n, "href"), prefix) {
+			continue
+		}
+		var text strings.Builder
+		for d := range n.Descendants() {
+			if d.Type == html.TextNode {
+				text.WriteString(d.Data)
+			}
+		}
+		names = append(names, strings.Join(strings.Fields(text.String()), " "))
+	}
+	return names
+}
+
+// A tab's name says its count apart from its label, as "Groups, 2", rather than running them together.
+func TestTabsNameTheirCountsApart(t *testing.T) {
+	handler := newSite(t, historyCatalog())
+
+	got := accessibleNames(t, get(t, handler, library).Body.String(), library)
+	for _, want := range []string{"Groups, 2", "All rules, 2", "Library releases, 3"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("the library's links are named %q, want %q among them", got, want)
+		}
+	}
+	if got := accessibleNames(t, get(t, handler, errorsRule).Body.String(), errorsRule+"?tab=versions"); !slices.Equal(got, []string{"Versions, 2"}) {
+		t.Errorf("the rule's Versions tab is named %q", got)
 	}
 }
