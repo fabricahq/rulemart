@@ -214,6 +214,48 @@ func TestReleasesTabShowsTheLargestReleaseWithinAResponse(t *testing.T) {
 		"This library release holds 10000 rules. Its GitHub Release page lists every rule's version.")
 }
 
+// A comparison of distant releases can change thousands of rules. A page shows diffs while they fit what it renders,
+// each counting toward it, and then says how many more it leaves to their own comparisons.
+func TestReleaseComparisonShowsDiffsWhileTheyFit(t *testing.T) {
+	c := historyCatalog()
+	comparison := views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3}
+	for i := range 4000 {
+		comparison.Changes = append(comparison.Changes, views.RuleChange{
+			Rule: views.RuleRef{Path: fmt.Sprintf("techs/go/rule-%04d", i), Title: "A rule"}, Change: coderules.ChangeMinor, From: v100, To: v110,
+			Versions: []views.Version{{Version: v110, Release: 3, Change: coderules.ChangeMinor, Summaries: []string{"Add an example."}}},
+			Text:     views.ComparedText{Old: "Text.\n", New: "Text, longer.\n", OldRelease: 1, NewRelease: 3},
+		})
+	}
+	c.releaseComparisons["example/rules 1...3"] = comparison
+
+	resp := get(t, newSite(t, c), library+"?tab=releases&from=1&to=3")
+
+	if resp.Code != http.StatusOK || resp.Body.Len() > 4<<20 {
+		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
+	}
+	shown := strings.Count(resp.Body.String(), `<section class="mt-3 overflow-hidden`)
+	if shown == 0 || shown >= 4000 {
+		t.Fatalf("showed %d diffs, want some, not all", shown)
+	}
+	assertShows(t, resp.Body.String(), fmt.Sprintf("The text of %d more rules is more than one page shows.", 4000-shown))
+}
+
+// A change's summary is one line, of any length a library writes, so pages shorten a very long one.
+func TestPagesShortenAVeryLongSummary(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Versions = slices.Clone(page.Versions)
+	page.Versions[0].Summaries = []string{strings.Repeat("Long summary ", 1000)}
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	body := get(t, newSite(t, c), errorsRule+"?tab=versions").Body.String()
+
+	if n := strings.Count(body, "Long summary"); n == 0 || n > 100 {
+		t.Fatalf("shows the summary's words %d times, want a shortened summary", n)
+	}
+	assertShows(t, body, "Long summary…")
+}
+
 // Comparing releases lists every change between them, then each changed rule's text with the changed words marked,
 // as text, or says why it can't show it.
 func TestReleaseComparisonShowsWhatChangedAndTheText(t *testing.T) {

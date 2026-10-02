@@ -238,7 +238,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 			version: version.Version.String(), tag: domain.ReleaseTag(version.Release),
 			date: date(version.PublishedAt), notesURL: domain.ReleaseNotesURL(page.Library.FullName(), version.Release),
 			releaseHref: releaseHref(lib, version.Release),
-			latest:      i == 0 && r.Retirement == nil, major: version.Change == coderules.ChangeMajor, summaries: version.Summaries,
+			latest:      i == 0 && r.Retirement == nil, major: version.Change == coderules.ChangeMajor, summaries: shortened(version.Summaries),
 		}
 		if i+1 < len(page.Versions) {
 			previous := page.Versions[i+1].Version
@@ -252,7 +252,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	if retirement := r.Retirement; retirement != nil {
 		v.retired = &retiredView{
 			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
-			date: date(retirement.RetiredAt), summaries: retirement.Summaries,
+			date: date(retirement.RetiredAt), summaries: shortened(retirement.Summaries),
 		}
 		if retirement.ReplacedBy != nil {
 			link := newRuleLink(lib, *retirement.ReplacedBy)

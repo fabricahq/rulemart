@@ -23,6 +23,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
+// maxPageBytes bounds a page Rulemart sends: a Lambda function's response holds at most 6 MB. Pages bound what they
+// show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
+const maxPageBytes = 5 << 20
+
 // pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
 // of ingestion without every visit reaching the function.
 const pageCache = "public, max-age=60"
@@ -354,12 +358,21 @@ func (s *server) unavailable(w http.ResponseWriter, r *http.Request) {
 }
 
 // render writes page with status, cacheable for a minute. It renders the whole page before writing, so a failure
-// leaves no partial page.
+// leaves no partial page, and a page larger than maxPageBytes is replaced by one that says so.
 func (s *server) render(w http.ResponseWriter, r *http.Request, status int, page templ.Component) {
 	var body bytes.Buffer
 	if err := page.Render(r.Context(), &body); err != nil {
 		s.fail(w, r, err)
 		return
+	}
+	if body.Len() > maxPageBytes {
+		s.Log.WarnContext(r.Context(), "page too large", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
+			"bytes", body.Len())
+		body.Reset()
+		if err := messagePage(s.chrome, "Too large", "This page is too large to show.").Render(r.Context(), &body); err != nil {
+			s.fail(w, r, err)
+			return
+		}
 	}
 	write(w, r, status, pageCache, body.Bytes())
 }

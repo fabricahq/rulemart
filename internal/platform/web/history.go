@@ -274,7 +274,7 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool) chang
 	switch c.Change {
 	case coderules.ChangeRetired:
 		item.versions = "last version " + c.From.String()
-		item.notes = []versionNote{{summaries: c.RetirementSummaries}}
+		item.notes = []versionNote{{summaries: shortened(c.RetirementSummaries)}}
 		if c.ReplacedBy != nil {
 			link := newRuleLink(lib, *c.ReplacedBy)
 			item.replacedBy = &link
@@ -290,7 +290,7 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool) chang
 		return item
 	}
 	for _, v := range c.Versions {
-		note := versionNote{summaries: v.Summaries}
+		note := versionNote{summaries: shortened(v.Summaries)}
 		if len(c.Versions) > 1 {
 			note.version = v.Version.String()
 		}
@@ -359,6 +359,26 @@ type releaseOption struct {
 	selected     bool
 }
 
+// diffPanelMarks is what a diff's panel counts toward maxDiffMarks besides its diff: its header and links, so a page
+// shows a bounded number of panels however many rules changed.
+const diffPanelMarks = 25
+
+// maxSummaryRunes bounds a change summary as pages show it. A summary is one line a library writes, of any length, so
+// a very long one is cut short.
+const maxSummaryRunes = 1000
+
+// shortened returns summaries, each cut to maxSummaryRunes, with an ellipsis where it's cut.
+func shortened(summaries []string) []string {
+	result := make([]string, len(summaries))
+	for i, summary := range summaries {
+		if runes := []rune(summary); len(runes) > maxSummaryRunes {
+			summary = strings.TrimRight(string(runes[:maxSummaryRunes]), " ") + "…"
+		}
+		result[i] = summary
+	}
+	return result
+}
+
 // releaseComparisonView is what changed in a library between two releases, and the changed rules' text.
 type releaseComparisonView struct {
 	from, to, mode string
@@ -372,6 +392,8 @@ type releaseComparisonView struct {
 	// sections list the changes, and diffs the changed rules' text, in path order.
 	sections []changeSection
 	diffs    []diffView
+	// omitted counts the changed rules whose diffs didn't fit the page.
+	omitted int
 	// backHref leads to the Library releases tab, and wordsHref and linesHref show this comparison each way.
 	backHref, wordsHref, linesHref string
 }
@@ -397,6 +419,10 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 	for _, c := range comparison.Changes {
 		switch c.Change {
 		case coderules.ChangeMajor, coderules.ChangeMinor, coderules.ChangePatch:
+			if !budget.spend(diffPanelMarks) {
+				v.omitted++
+				continue
+			}
 			d := newDiffView(lib, c.Rule.Path, c.From, c.To, c.Text, mode, budget)
 			d.title = titleOrID(c.Rule.Title, c.Rule.Path)
 			v.diffs = append(v.diffs, d)

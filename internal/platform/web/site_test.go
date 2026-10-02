@@ -344,6 +344,22 @@ func TestRuleVersionsTabListsEveryVersionNewestFirst(t *testing.T) {
 	}
 }
 
+// Whatever a library holds, a page must fit one response: past the most a response may hold, the page says it's too
+// large instead.
+func TestPagesTooLargeForAResponseSaySo(t *testing.T) {
+	c := newCatalog()
+	page := c.pages["example/rules"]
+	page.Library.Description = strings.Repeat("A very long description. ", 300000)
+	c.pages["example/rules"] = page
+
+	resp := get(t, newSite(t, c), library)
+
+	if resp.Code != http.StatusOK || resp.Body.Len() > 64<<10 {
+		t.Fatalf("got %d with %d bytes", resp.Code, resp.Body.Len())
+	}
+	assertShows(t, resp.Body.String(), "Too large", "This page is too large to show. Go home")
+}
+
 func TestPagesAnswerNotFound(t *testing.T) {
 	handler := newSite(t, newCatalog())
 	for name, path := range map[string]string{
