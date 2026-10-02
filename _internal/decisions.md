@@ -70,10 +70,18 @@ than adding history.
 
 - **One environment until launch**, at `rulemart.fabricahq.com`, with Neon branches for trying migrations on real
   data. `rulemart.ai` redirects there through a Cloudflare rule set up by hand.
-- **Migrations run in CI on each `v*` release tag**, before assets are published (planned). The job assumes an AWS
-  role through GitHub OIDC, reads the pooled connection string from SSM, and derives the direct one. It runs in a
-  `production` environment limited to `v*` tags, which only admins can create.
+- **Releases are published by [Release Planner](https://release-planner.fabricahq.com)**, and merging a release
+  pull request approves one. Nothing else tags or publishes a release.
+- **Migrations are the application's concern, and run after a release is approved and before it's published**, as
+  Release Planner's pre-publish workflow, "Migrate the database". If they fail, nothing is published. They never
+  run at deploy time or from the infrastructure repository. The job runs in a `production` environment that only
+  `main` can use, assumes an AWS role that trusts only that environment through GitHub OIDC, reads the pooled
+  connection string from SSM, and derives the direct one. The environment's variables name the role and parameter,
+  so this public repository names no account details.
+- **Migrations are safe to run again, late, and twice at once**: goose skips applied migrations and takes a Postgres
+  session lock. They work with the release that's still running: expand in one release, contract in a later one.
 - **GitHub repositories are created by hand**, and their rulesets, environments, and Pages are managed in code.
-- **Lambda packaging moves to a public, shared tool** (planned), and a release is pinned for deployment only after
-  a matching rebuild or a verified build attestation.
+- **Lambda packaging uses [lambda-build](https://github.com/fabricahq/lambda-build)**, a public, shared tool, as
+  Release Planner's release-assets workflow. A release is pinned for deployment only after a matching rebuild or a
+  verified build attestation.
 - **Local development and tests use Postgres 18 in Docker.**
