@@ -241,7 +241,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 		if g.Canonical != nil {
 			view.blurb = g.Canonical.Description
 		}
-		if strings.HasPrefix(g.Path, "practices/") {
+		if kindOf(g.Path) == practicesKind {
 			result.practices = append(result.practices, view)
 		} else {
 			result.techs = append(result.techs, view)
@@ -257,21 +257,13 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	// Retired rules are in the order the current ones are: technologies first, by group, then by title.
 	slices.SortStableFunc(result.retired, func(a, b retiredRuleCard) int {
 		return cmp.Or(
-			cmp.Compare(kindOrder(a.id), kindOrder(b.id)),
+			cmp.Compare(kindOf(a.id).order(), kindOf(b.id).order()),
 			strings.Compare(path.Dir(a.id), path.Dir(b.id)),
 			strings.Compare(strings.ToLower(a.title), strings.ToLower(b.title)),
 			strings.Compare(a.id, b.id),
 		)
 	})
 	return result
-}
-
-// kindOrder orders a rule or group ID by its kind: technologies, then practices.
-func kindOrder(id string) int {
-	if strings.HasPrefix(id, "practices/") {
-		return 1
-	}
-	return 0
 }
 
 // all returns every group, technologies first.

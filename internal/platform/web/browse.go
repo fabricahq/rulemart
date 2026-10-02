@@ -6,6 +6,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -36,7 +37,7 @@ const (
 	practicesKind groupKind = "practices"
 )
 
-// groupKinds are the kinds, as the browse pages' tabs order them.
+// groupKinds are the kinds in the order pages list them: the browse pages' tabs, and a library's groups and rules.
 var groupKinds = []groupKind{techsKind, practicesKind}
 
 // parseGroupKind returns the kind that segment names, matched without regard to case, or false when it names none.
@@ -78,6 +79,17 @@ func (k groupKind) href() string { return browsePrefix + string(k) }
 
 // othersHref is the page of the kind's groups that aren't canonical.
 func (k groupKind) othersHref() string { return k.href() + "/other" }
+
+// exampleGroup is a canonical group ID of the kind, which the other-groups page names to show what one looks like.
+func (k groupKind) exampleGroup() string {
+	if k == practicesKind {
+		return "practices/testing"
+	}
+	return "techs/go"
+}
+
+// order is the kind's place in groupKinds, by which pages list technologies before practices.
+func (k groupKind) order() int { return slices.Index(groupKinds, k) }
 
 // searchHrefFor is the address of page of the search for query, which leaves out the first page's number.
 func searchHrefFor(query string, page int) string {
@@ -206,14 +218,6 @@ type otherGroupsView struct {
 
 func newOtherGroupsView(kind groupKind, index groupIndexView) otherGroupsView {
 	return otherGroupsView{kind: kind, groups: othersOnly(index.ofKind(kind))}
-}
-
-// example is a canonical group ID of the kind, which the page names to show what one looks like.
-func (v otherGroupsView) example() string {
-	if v.kind == practicesKind {
-		return "practices/testing"
-	}
-	return "techs/go"
 }
 
 // browse shows the browse page of the kind the path names, techs or practices, and is missing for any other.

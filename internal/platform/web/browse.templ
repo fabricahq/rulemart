@@ -65,7 +65,7 @@ templ otherGroupsPage(c chrome, v otherGroupsView) {
 			</div>
 			<h1 class="title-xl">Other { v.kind.noun() } groups</h1>
 			<div class="mt-2.5 mb-[22px] max-w-[46rem] text-muted">
-				<p class="mb-2.5">Rulemart defines canonical “rule groups” like <code>{ v.example() }</code> so that all rules from many user libraries can be aggregated in one place.</p>
+				<p class="mb-2.5">Rulemart defines canonical “rule groups” like <code>{ v.kind.exampleGroup() }</code> so that all rules from many user libraries can be aggregated in one place.</p>
 				<p>All other groups that are not canonical are shown here. Their rules are searchable and appear on each library's page, but they aren't combined with rules from other libraries.</p>
 			</div>
 			if len(v.groups) == 0 {
