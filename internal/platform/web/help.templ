@@ -69,10 +69,14 @@ templ faqPage(c chrome) {
 	}
 }
 
-// faqItem is one question of the FAQ, a disclosure that opens its answer.
+// faqItem is one question of the FAQ, a disclosure that opens its answer. Its + or − marker is hidden from screen
+// readers, which name the disclosure by its question alone and announce whether it's open themselves.
 templ faqItem(question string) {
 	<details class="group border-t border-border py-1 last-of-type:border-b">
-		<summary class="flex cursor-pointer list-none justify-between gap-4 py-[14px] text-[17px] font-medium tracking-[-.02em] after:font-normal after:text-faint after:content-['+'] group-open:after:content-['−'] [&::-webkit-details-marker]:hidden">{ question }</summary>
+		<summary class="flex cursor-pointer list-none justify-between gap-4 py-[14px] text-[17px] font-medium tracking-[-.02em] [&::-webkit-details-marker]:hidden">
+			{ question }
+			<span class="font-normal text-faint after:content-['+'] group-open:after:content-['−']" aria-hidden="true"></span>
+		</summary>
 		<div class="faq-answer pb-4 text-muted">
 			{ children... }
 		</div>

@@ -32,6 +32,17 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 	if got := summaries(t, page); !slices.Equal(got, questions) {
 		t.Errorf("the questions are %q, want %q", got, questions)
 	}
+	// Each question's + or − marker, which CSS draws, is hidden from screen readers, so the disclosure's name is the
+	// question alone.
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Data == "summary" && find(n, func(c *html.Node) bool { return attribute(c, "aria-hidden") == "true" }) == nil {
+			t.Errorf("%q doesn't hide its marker from screen readers", nodeText(n))
+		}
+	}
 	for text, want := range map[string]string{
 		"Ask us":              "/feedback",
 		"feedback page":       "/feedback",

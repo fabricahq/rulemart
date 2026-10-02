@@ -386,7 +386,8 @@ func faqPage(c chrome) templ.Component {
 	})
 }
 
-// faqItem is one question of the FAQ, a disclosure that opens its answer.
+// faqItem is one question of the FAQ, a disclosure that opens its answer. Its + or − marker is hidden from screen
+// readers, which name the disclosure by its question alone and announce whether it's open themselves.
 func faqItem(question string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -408,20 +409,20 @@ func faqItem(question string) templ.Component {
 			templ_7745c5c3_Var20 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<details class=\"group border-t border-border py-1 last-of-type:border-b\"><summary class=\"flex cursor-pointer list-none justify-between gap-4 py-[14px] text-[17px] font-medium tracking-[-.02em] after:font-normal after:text-faint after:content-['+'] group-open:after:content-['−'] [&::-webkit-details-marker]:hidden\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<details class=\"group border-t border-border py-1 last-of-type:border-b\"><summary class=\"flex cursor-pointer list-none justify-between gap-4 py-[14px] text-[17px] font-medium tracking-[-.02em] [&::-webkit-details-marker]:hidden\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(question)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 75, Col: 256}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 77, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</summary><div class=\"faq-answer pb-4 text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, " <span class=\"font-normal text-faint after:content-['+'] group-open:after:content-['−']\" aria-hidden=\"true\"></span></summary><div class=\"faq-answer pb-4 text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -518,7 +519,7 @@ func feedbackPage(c chrome) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(group.name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 94, Col: 17}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 98, Col: 17}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -692,7 +693,7 @@ func feedbackRow(href, label, example string) templ.Component {
 			var templ_7745c5c3_Var33 string
 			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 123, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 127, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 			if templ_7745c5c3_Err != nil {
@@ -705,7 +706,7 @@ func feedbackRow(href, label, example string) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(example)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 124, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 128, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
