@@ -5,40 +5,6 @@ package web
 
 import "strconv"
 
-// libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, its name, its
-// description, and its repository with its rule count, leading to its page, with its stars when it's vetted and has
-// any. The library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A
-// link to an unvetted library's page carries nofollow.
-templ libraryRow(lib libraryCard, headed bool) {
-	@rowLink(lib.href, lib.unvetted) {
-		<div class="flex min-w-0 items-start gap-[14px]">
-			@avatar(lib.avatar, lib.owner, avatarMD)
-			<div class="min-w-0">
-				if headed {
-					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
-				} else {
-					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
-				}
-				if lib.description != "" {
-					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
-				}
-				<div class="mt-1 text-[12.5px] text-faint">
-					<span class="mono">
-						@breakable(lib.owner + "/" + lib.name)
-					</span>
-					· { plural(lib.rules, "rule", "rules") }
-				</div>
-			</div>
-		</div>
-		<span class="text-[12.5px] whitespace-nowrap text-muted">
-			if lib.stars > 0 && !lib.unvetted {
-				@starCount(lib.stars, lib.starredByYou)
-			}
-		</span>
-	}
-}
-
-
 // librariesPage lists every vetted library, under a lede that says anyone can list a public library, leading to
 // listing one when canList is true, and where the unvetted ones are.
 templ librariesPage(c chrome, libraries []libraryCard, canList bool) {
