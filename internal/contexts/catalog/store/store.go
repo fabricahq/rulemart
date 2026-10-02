@@ -17,8 +17,8 @@ type Writer interface {
 	// changed. Rows that still exist keep their ids, and a row whose values didn't change isn't written, so
 	// replacing a library with itself changes nothing.
 	ReplaceLibrary(ctx context.Context, lib domain.Library) (changed int64, err error)
-	// Checkpoint returns where the library was last fetched from and the tags of its stored releases, or found false
-	// when the catalog has no such library.
+	// Checkpoint returns where the library was last fetched from, the tags of its stored releases, and whether any of
+	// its stored versions lacks content, or found false when the catalog has no such library.
 	Checkpoint(ctx context.Context, library domain.LibraryKey) (checkpoint domain.Checkpoint, found bool, err error)
 }
 

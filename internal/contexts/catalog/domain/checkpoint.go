@@ -15,14 +15,17 @@ type Checkpoint struct {
 	CloneURL string
 	// Tags are the stored releases' tags. A release whose tag ID wasn't recorded maps to "".
 	Tags ReleaseTags
+	// MissingContent reports that a stored rule version lacks its content: a release before every version's file
+	// was stored, which stored only the current version's, ingested the library.
+	MissingContent bool
 }
 
 // Current reports whether listed, the release tags the library's repository lists now, are exactly the ones the
 // catalog stored: the same numbers, each pointing to the same tag object. Ingesting the library again would then
-// read the same releases. It's false when the checkpoint lacks the clone URL or a tag ID, so a library a release
-// before these were recorded stored is ingested again.
+// read the same releases. It's false when the checkpoint lacks the clone URL, a tag ID, or a version's content, so a
+// library a release before these were recorded stored is ingested again.
 func (c Checkpoint) Current(listed ReleaseTags) bool {
-	if c.CloneURL == "" || len(listed) == 0 {
+	if c.CloneURL == "" || c.MissingContent || len(listed) == 0 {
 		return false
 	}
 	return maps.EqualFunc(c.Tags, listed, func(stored, listed string) bool { return stored != "" && stored == listed })

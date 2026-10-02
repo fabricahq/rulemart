@@ -75,7 +75,8 @@ func (q *Queries) DeleteVersion(ctx context.Context, id int64) (int64, error) {
 }
 
 const getCheckpoint = `-- name: GetCheckpoint :many
-SELECT l.clone_url, r.number, r.tag_object_id
+SELECT l.clone_url, r.number, r.tag_object_id,
+       EXISTS (SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NULL) AS missing_content
 FROM libraries l
 LEFT JOIN library_releases r ON r.library_id = l.id
 WHERE l.host = $1 AND l.host_repository_id = $2
@@ -87,12 +88,14 @@ type GetCheckpointParams struct {
 }
 
 type GetCheckpointRow struct {
-	CloneUrl    pgtype.Text
-	Number      pgtype.Int4
-	TagObjectID pgtype.Text
+	CloneUrl       pgtype.Text
+	Number         pgtype.Int4
+	TagObjectID    pgtype.Text
+	MissingContent bool
 }
 
-// One row per stored release of the library, or one row with a NULL number when it has none.
+// One row per stored release of the library, or one row with a NULL number when it has none. missing_content reports
+// whether a release that stored content only on current versions left any version without it.
 func (q *Queries) GetCheckpoint(ctx context.Context, arg GetCheckpointParams) ([]GetCheckpointRow, error) {
 	rows, err := q.db.Query(ctx, getCheckpoint, arg.Host, arg.HostRepositoryID)
 	if err != nil {
@@ -102,7 +105,12 @@ func (q *Queries) GetCheckpoint(ctx context.Context, arg GetCheckpointParams) ([
 	var items []GetCheckpointRow
 	for rows.Next() {
 		var i GetCheckpointRow
-		if err := rows.Scan(&i.CloneUrl, &i.Number, &i.TagObjectID); err != nil {
+		if err := rows.Scan(
+			&i.CloneUrl,
+			&i.Number,
+			&i.TagObjectID,
+			&i.MissingContent,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -85,8 +85,10 @@ WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, 
        excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html);
 
 -- name: GetCheckpoint :many
--- One row per stored release of the library, or one row with a NULL number when it has none.
-SELECT l.clone_url, r.number, r.tag_object_id
+-- One row per stored release of the library, or one row with a NULL number when it has none. missing_content reports
+-- whether a release that stored content only on current versions left any version without it.
+SELECT l.clone_url, r.number, r.tag_object_id,
+       EXISTS (SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NULL) AS missing_content
 FROM libraries l
 LEFT JOIN library_releases r ON r.library_id = l.id
 WHERE l.host = @host AND l.host_repository_id = @host_repository_id;

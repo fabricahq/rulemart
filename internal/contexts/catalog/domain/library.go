@@ -24,7 +24,7 @@ type Library struct {
 func (l Library) CurrentRules() int {
 	current := 0
 	for _, r := range l.Rules {
-		if r.Content != nil {
+		if r.IsCurrent() {
 			current++
 		}
 	}
@@ -53,7 +53,7 @@ type Group struct {
 	Name, Description, WhenToRead string
 }
 
-// Rule is a rule's history, with its current content while it's current.
+// Rule is a rule's history, with what each version published.
 type Rule struct {
 	// Path is the rule's ID, its file's path without .md, such as techs/go/return-errors.
 	Path string
@@ -68,11 +68,14 @@ type Rule struct {
 	ReplacedBy string
 	// RetirementSummaries holds one summary per change note that retired the rule; nil while the rule is current.
 	RetirementSummaries []string
-	// Content is the current version's content; nil when the rule is retired.
-	Content *Content
+	// HTML is the current version's body as the rule's page shows it; empty when the rule is retired.
+	HTML string
 }
 
-// Current returns the rule's newest version.
+// IsCurrent reports whether the rule is current: no library release has retired it.
+func (r Rule) IsCurrent() bool { return r.RetiredIn == 0 }
+
+// Current returns the rule's newest version: its current version while it's current, and its last once retired.
 func (r Rule) Current() Version { return r.Versions[len(r.Versions)-1] }
 
 // Version is one version of a rule, as the library release that published it records it.
@@ -82,11 +85,13 @@ type Version struct {
 	Release   int
 	Change    coderules.Change
 	Summaries []string
+	// Content is the rule's file as the version's release published it.
+	Content Content
 }
 
 // Content is a rule as one version published it.
 type Content struct {
 	Title, Impact, ImpactDescription, WhenToRead string
-	// Markdown is the rule's whole file, and HTML its body as the page shows it.
-	Markdown, HTML string
+	// Markdown is the rule's whole file: its frontmatter and its body.
+	Markdown string
 }

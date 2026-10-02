@@ -43,8 +43,9 @@ func (s *Store) ReplaceLibrary(ctx context.Context, lib domain.Library) (int64, 
 	return changed, nil
 }
 
-// Checkpoint returns where library was last fetched from and the tags of its stored releases, in one statement, so
-// it reads one committed state. found is false when the catalog has no such library.
+// Checkpoint returns where library was last fetched from, the tags of its stored releases, and whether any of its
+// stored versions lacks content, in one statement, so it reads one committed state. found is false when the catalog
+// has no such library.
 func (s *Store) Checkpoint(ctx context.Context, library domain.LibraryKey) (domain.Checkpoint, bool, error) {
 	var rows []catalogdb.GetCheckpointRow
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
@@ -58,7 +59,7 @@ func (s *Store) Checkpoint(ctx context.Context, library domain.LibraryKey) (doma
 	if len(rows) == 0 {
 		return domain.Checkpoint{}, false, nil
 	}
-	checkpoint := domain.Checkpoint{CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}}
+	checkpoint := domain.Checkpoint{CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}, MissingContent: rows[0].MissingContent}
 	for _, row := range rows {
 		if row.Number.Valid {
 			checkpoint.Tags[int(row.Number.Int32)] = row.TagObjectID.String
@@ -240,18 +241,19 @@ func (w *writer) writeRule(r domain.Rule) {
 	})
 }
 
-// writeVersions upserts a rule's versions, oldest first, so a version that stops being current loses its content
-// before the new current version gains it.
+// writeVersions upserts a rule's versions, each with its content, oldest first, so a version that stops being
+// current loses its HTML before the new current version gains it.
 func (w *writer) writeVersions(r domain.Rule) {
 	for i, v := range r.Versions {
+		c := v.Content
 		params := catalogdb.UpsertVersionParams{
 			LibraryID: w.library, RuleID: w.rules[r.Path], ReleaseID: w.releases[v.Release], Change: string(v.Change), Summaries: v.Summaries,
 			Major: int32(v.Number.Major), Minor: int32(v.Number.Minor), Patch: int32(v.Number.Patch),
+			Title: present(c.Title), Impact: present(c.Impact), ImpactDescription: present(c.ImpactDescription),
+			WhenToRead: present(c.WhenToRead), Markdown: present(c.Markdown),
 		}
-		if c := r.Content; c != nil && i == len(r.Versions)-1 {
-			params.Title, params.Impact = present(c.Title), present(c.Impact)
-			params.ImpactDescription, params.WhenToRead = present(c.ImpactDescription), present(c.WhenToRead)
-			params.Markdown, params.Html = present(c.Markdown), present(c.HTML)
+		if r.IsCurrent() && i == len(r.Versions)-1 {
+			params.Html = present(r.HTML)
 		}
 		w.exec(fmt.Sprintf("upsert %s %s", r.Path, v.Number), func() (int64, error) { return w.q.UpsertVersion(w.ctx, params) })
 	}

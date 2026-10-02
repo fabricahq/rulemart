@@ -40,7 +40,7 @@ func goRules(releases int, rules ...domain.Rule) domain.Library {
 
 // current returns the current rule at path in techs/go, with versions.
 func current(path string, versions ...domain.Version) domain.Rule {
-	return domain.Rule{Path: path, Group: "techs/go", Versions: versions, Content: content(path)}
+	return withContent(domain.Rule{Path: path, Group: "techs/go", Versions: versions}, path)
 }
 
 // newStore returns a Store on a new, migrated database, and the database's connection string.
@@ -71,8 +71,8 @@ func TestReplaceLibraryKeepsTheIDsOfRowsThatSurvive(t *testing.T) {
 	next.Rules = slices.Clone(exampleRules.Rules)
 	next.Rules[2].Versions = append(slices.Clone(next.Rules[2].Versions),
 		domain.Version{Number: v(1, 2, 0), Release: 4, Change: coderules.ChangeMinor, Summaries: []string{"Count retries."}})
-	next.Rules = append(next.Rules, domain.Rule{Path: "techs/go/close-what-you-open", Group: "techs/go",
-		Versions: []domain.Version{added(4)}, Content: content("Close what you open")})
+	next.Rules = append(next.Rules, withContent(domain.Rule{Path: "techs/go/close-what-you-open", Group: "techs/go",
+		Versions: []domain.Version{added(4)}}, "Close what you open"))
 
 	replace(t, s, next)
 
@@ -169,14 +169,37 @@ func TestReplaceLibraryChangesNothingWhenRepeated(t *testing.T) {
 	}
 }
 
+// Every version keeps the file its release published, so pages can compare versions and name a retired rule, but
+// only a current rule's current version has the HTML its page shows.
+func TestReplaceLibraryStoresEveryVersionsContentAndOnlyTheCurrentHTML(t *testing.T) {
+	s, connString := newStore(t)
+
+	replace(t, s, exampleRules)
+
+	got := lines(t, connString, `SELECT r.path || ' ' || v.major || '.' || v.minor || '.' || v.patch || ' ' || v.title || ': ' ||
+		v.markdown || coalesce(' ' || v.html, '')
+		FROM rule_versions v JOIN rules r ON r.id = v.rule_id ORDER BY r.path, v.major, v.minor`)
+	want := []string{
+		"practices/legacy/old-habit 1.0.0 Old habit: ---\ntitle: Old habit\n---\n\nOld habit, version 1.0.0.\n",
+		"practices/testing/check-retry-backoff 1.0.0 Check retry backoff: ---\ntitle: Check retry backoff\n---\n\nCheck retry backoff, version 1.0.0.\n",
+		"practices/testing/verify-retry-limits 1.0.0 Verify retry limits: ---\ntitle: Verify retry limits\n---\n\nVerify retry limits, version 1.0.0.\n",
+		"practices/testing/verify-retry-limits 1.1.0 Verify retry limits: ---\ntitle: Verify retry limits\n---\n\nVerify retry limits, version 1.1.0.\n <p>Verify retry limits.</p>\n",
+		"techs/go/return-errors 1.0.0 Return errors: ---\ntitle: Return errors\n---\n\nReturn errors, version 1.0.0.\n",
+		"techs/go/return-errors 2.0.0 Return errors: ---\ntitle: Return errors\n---\n\nReturn errors, version 2.0.0.\n <p>Return errors.</p>\n",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("stored versions\n%q\nwant\n%q", got, want)
+	}
+}
+
 // A replacement that fails writes nothing: the library's rows are replaced in one transaction.
 func TestReplaceLibraryWritesNothingWhenItFails(t *testing.T) {
 	s, connString := newStore(t)
 	replace(t, s, exampleRules)
 	before := dump(t, connString)
-	broken := goRules(4, current("techs/go/return-errors", added(1)), domain.Rule{
-		Path: "practices/missing/rule", Group: "practices/missing", Versions: []domain.Version{added(4)}, Content: content("Missing"),
-	})
+	broken := goRules(4, current("techs/go/return-errors", added(1)), withContent(domain.Rule{
+		Path: "practices/missing/rule", Group: "practices/missing", Versions: []domain.Version{added(4)},
+	}, "Missing"))
 
 	_, err := s.ReplaceLibrary(context.Background(), broken)
 

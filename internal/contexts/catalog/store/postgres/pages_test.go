@@ -23,12 +23,25 @@ func v(major, minor, patch int) coderules.RuleVersion {
 	return coderules.RuleVersion{Major: major, Minor: minor, Patch: patch}
 }
 
-// content returns a current version's content with title.
-func content(title string) *domain.Content {
-	return &domain.Content{
+// content returns what version of a rule titled title published: a file whose body names the version.
+func content(title string, version coderules.RuleVersion) domain.Content {
+	return domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
-		Markdown: "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
+		Markdown: "---\ntitle: " + title + "\n---\n\n" + title + ", version " + version.String() + ".\n",
 	}
+}
+
+// withContent returns r with each version's content, titled title, and while r is current, its current version's
+// HTML.
+func withContent(r domain.Rule, title string) domain.Rule {
+	r.Versions = slices.Clone(r.Versions)
+	for i, version := range r.Versions {
+		r.Versions[i].Content = content(title, version.Number)
+	}
+	if r.IsCurrent() {
+		r.HTML = "<p>" + title + ".</p>\n"
+	}
+	return r
 }
 
 // exampleRules is a library of three releases. Release 2 changed verify-retry-limits; release 3 changed
@@ -51,21 +64,21 @@ var exampleRules = domain.Library{
 		{Path: "techs/go", Name: "Go", Description: "Go rules.", WhenToRead: "When writing Go."},
 	},
 	Rules: []domain.Rule{
-		{Path: "practices/legacy/old-habit", Group: "practices/legacy", RetiredIn: 3, RetirementSummaries: []string{"Drop it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
-		{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", RetiredIn: 3,
+		withContent(domain.Rule{Path: "practices/legacy/old-habit", Group: "practices/legacy", RetiredIn: 3, RetirementSummaries: []string{"Drop it."},
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Old habit"),
+		withContent(domain.Rule{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", RetiredIn: 3,
 			ReplacedBy: "practices/testing/verify-retry-limits", RetirementSummaries: []string{"Merge it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
-		{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Content: content("Verify retry limits"),
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Check retry backoff"),
+		withContent(domain.Rule{Path: "practices/testing/verify-retry-limits", Group: "practices/testing",
 			Versions: []domain.Version{
 				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
 				{Number: v(1, 1, 0), Release: 2, Change: coderules.ChangeMinor, Summaries: []string{"Count timeouts."}},
-			}},
-		{Path: "techs/go/return-errors", Group: "techs/go", Content: content("Return errors"),
+			}}, "Verify retry limits"),
+		withContent(domain.Rule{Path: "techs/go/return-errors", Group: "techs/go",
 			Versions: []domain.Version{
 				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
 				{Number: v(2, 0, 0), Release: 3, Change: coderules.ChangeMajor, Summaries: []string{"Require context.", "Add an example."}},
-			}},
+			}}, "Return errors"),
 	},
 }
 
