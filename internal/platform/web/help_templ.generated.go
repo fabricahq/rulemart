@@ -200,7 +200,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p>A <b>rule</b> is a single instruction for your agents, like \"Wrap errors with the operation that failed.\"</p><p>Rules are organized into <b>groups</b>, and every group is one of two kinds:</p><ul><li><b>Techs</b> cover a specific language, framework, or tool, like Go, React, or PostgreSQL. Pick the techs your project is built with.</li><li><b>Practices</b> cover concerns that apply whatever your stack, like testing, error handling, or observability. Pick the practices you want your agents to follow.</li></ul><p>For example, \"Wrap errors with the operation that failed\" is in the Go group because it only makes sense in Go, while \"Test failure paths, not just success\" is in the Testing group because it applies in any language.</p><p>A <b>library</b> is a GitHub repo that publishes groups of rules.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p>A <b>rule</b> is a single instruction for your agents, like \"Add operation and identifier context to errors at boundaries.\"</p><p>Rules are organized into <b>groups</b>, and every group is one of two kinds:</p><ul><li><b>Techs</b> cover a specific language, framework, or tool, like Go, React, or Playwright. Pick the techs your project is built with.</li><li><b>Practices</b> cover concerns that apply whatever your stack, like testing, code design, or performance. Pick the practices you want your agents to follow.</li></ul><p>For example, \"Add operation and identifier context to errors at boundaries\" is in the Go group because it's written for Go's errors, while \"Keep tests independent\" is in the Testing group because it applies in any language.</p><p>A <b>library</b> is a GitHub repo that publishes groups of rules.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -222,7 +222,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p>Rules you add from Rulemart stay in sync with their library. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p>To manage a rule yourself, fork it with Code Rules. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p>Rules you add from Rulemart come from the library release you saw: the checkout prompt pins each library to it, so its rules don't change until you choose. To upgrade, point the library at a later release. To stay in sync instead, remove the pin; from then on, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews each new version with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p>To manage a rule yourself, fork it with Code Rules. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -257,7 +257,7 @@ func faqPage(c chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p><p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change and asks about each major change and retired rule before applying it.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p><p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change, with each version's summary, and applies them once you confirm.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

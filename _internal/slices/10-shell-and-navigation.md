@@ -114,7 +114,12 @@ decision.
 - **Proposed: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a
   public library and that Rulemart vets the ones it shows by default; "Do I need a Rulemart account?" names the
   perks that exist, with project tracking and the picker added by slice R7; "How do I give feedback?" points a rule's
-  feedback at the library's repository, since Discuss comes later (rulemart#27).
+  feedback at the library's repository, since Discuss comes later (rulemart#27); "Should I stay in sync with a rule
+  or fork it?" says the checkout prompt pins each library to the release the visitor saw, until slice R5's checkout
+  stops pinning; and "How are rules versioned?" says an update applies every change once confirmed, as
+  `code-rules project update` does. "What are rules, groups, and libraries?" names real rules from
+  fabricahq/public-rules, "Add operation and identifier context to errors at boundaries" in Go and "Keep tests
+  independent" in Testing, and groups that hold rules today, rather than the prototype's invented ones.
 - **Proposed: feedback topics open prefilled GitHub issues**: Rulemart topics in fabricahq/rulemart, Code Rules
   topics in fabricahq/code-rules, and "Anything else" in fabricahq/rulemart, the page's owner, with the title prefix
   `[<topic label>] `, the prototype's body, and the labels `feedback` and `topic:<key>`, which both repositories
