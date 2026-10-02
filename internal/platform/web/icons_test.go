@@ -81,21 +81,22 @@ func TestActiveSVGContentFindsWhatCouldRunOrLoad(t *testing.T) {
 		}
 	}
 	for name, svg := range map[string]string{
-		"a script":               `<svg><script>alert(1)</script></svg>`,
-		"an event handler":       `<svg onload="alert(1)"><path d="M0 0"/></svg>`,
-		"an embedded document":   `<svg><foreignObject><div>hi</div></foreignObject></svg>`,
-		"a link to a page":       `<svg><a href="https://example.com"><path d="M0 0"/></a></svg>`,
-		"another file":           `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="https://example.com/x.png"/></svg>`,
-		"a script URL":           `<svg><use href="javascript:alert(1)"/></svg>`,
-		"a style loading a URL":  `<svg><path style="fill:url(https://example.com/x)" d="M0 0"/></svg>`,
-		"a URL after a fragment": `<svg><path style="fill:url(#a);stroke:url('https://example.com/x')" d="M0 0"/></svg>`,
-		"a stylesheet import":    `<svg><style>@import url(https://example.com/x.css);</style></svg>`,
-		"a bare import":          `<svg><style>@IMPORT "x.css";</style></svg>`,
-		"a stylesheet URL":       `<svg><style>path{fill:url(https://example.com/x)}</style></svg>`,
-		"an escaped stylesheet":  `<svg><style>path{fill:u\72l(https://example.com/x)}</style></svg>`,
-		"an element in a style":  `<svg><style><script>alert(1)</script></style></svg>`,
-		"an entity declaration":  `<!DOCTYPE svg [<!ENTITY x "y">]><svg></svg>`,
-		"malformed XML":          `<svg><path></svg>`,
+		"a script":                `<svg><script>alert(1)</script></svg>`,
+		"an event handler":        `<svg onload="alert(1)"><path d="M0 0"/></svg>`,
+		"an embedded document":    `<svg><foreignObject><div>hi</div></foreignObject></svg>`,
+		"a link to a page":        `<svg><a href="https://example.com"><path d="M0 0"/></a></svg>`,
+		"another file":            `<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="https://example.com/x.png"/></svg>`,
+		"a script URL":            `<svg><use href="javascript:alert(1)"/></svg>`,
+		"a style loading a URL":   `<svg><path style="fill:url(https://example.com/x)" d="M0 0"/></svg>`,
+		"a URL after a fragment":  `<svg><path style="fill:url(#a);stroke:url('https://example.com/x')" d="M0 0"/></svg>`,
+		"a stylesheet import":     `<svg><style>@import url(https://example.com/x.css);</style></svg>`,
+		"a bare import":           `<svg><style>@IMPORT "x.css";</style></svg>`,
+		"a stylesheet URL":        `<svg><style>path{fill:url(https://example.com/x)}</style></svg>`,
+		"an escaped stylesheet":   `<svg><style>path{fill:u\72l(https://example.com/x)}</style></svg>`,
+		"an element in a style":   `<svg><style><script>alert(1)</script></style></svg>`,
+		"a style's event handler": `<svg><style onload="alert(1)">path{stroke:red}</style></svg>`,
+		"an entity declaration":   `<!DOCTYPE svg [<!ENTITY x "y">]><svg></svg>`,
+		"malformed XML":           `<svg><path></svg>`,
 	} {
 		if activeSVGContent([]byte(svg)) == "" {
 			t.Errorf("%s was accepted", name)
@@ -124,25 +125,33 @@ func activeSVGContent(svg []byte) string {
 			switch t.Name.Local {
 			case "script", "foreignObject", "a", "iframe", "embed", "object", "image", "feImage":
 				return "a <" + t.Name.Local + "> element"
-			case "style":
+			}
+			if problem := activeAttribute(t.Attr); problem != "" {
+				return problem
+			}
+			if t.Name.Local == "style" {
 				if problem := activeStyle(decoder); problem != "" {
 					return problem
-				}
-				continue
-			}
-			for _, attr := range t.Attr {
-				name, value := strings.ToLower(attr.Name.Local), strings.TrimSpace(attr.Value)
-				switch {
-				case strings.HasPrefix(name, "on"):
-					return "an event handler, " + attr.Name.Local
-				case name == "href" && !strings.HasPrefix(value, "#"):
-					return "a reference to " + value
-				case externalURL.MatchString(value):
-					return "a URL in " + attr.Name.Local
 				}
 			}
 		}
 	}
+}
+
+// activeAttribute returns what among an element's attributes could run code or load anything, or "" when none can.
+func activeAttribute(attrs []xml.Attr) string {
+	for _, attr := range attrs {
+		name, value := strings.ToLower(attr.Name.Local), strings.TrimSpace(attr.Value)
+		switch {
+		case strings.HasPrefix(name, "on"):
+			return "an event handler, " + attr.Name.Local
+		case name == "href" && !strings.HasPrefix(value, "#"):
+			return "a reference to " + value
+		case externalURL.MatchString(value):
+			return "a URL in " + attr.Name.Local
+		}
+	}
+	return ""
 }
 
 // activeStyle reads a <style> element's content from decoder, just past its start, and returns what in it could load
