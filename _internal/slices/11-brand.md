@@ -70,10 +70,13 @@ ones describe what the site already does.
   `rsvg-convert` for the logo and Pillow for the rest. Pillow reads the package's `source/inter-latin.woff2`
   directly and sets its Regular instance. It centers the logo by what it draws rather than its padding, and the
   tagline by its capitals and baseline, and it gives the same bytes on every run.
-- **Proposed: the README's logo is 240 pixels wide, above the plain `# Rulemart` title**, with the README's text
-  unchanged. The guide asks for the horizontal logo at 120 pixels or wider; the README is secondary (**Existing**), so
-  the logo is left-aligned rather than a centered title block. It names the SVGs in `brand/logos/` by relative path,
-  which GitHub renders.
+- **Decided (Josh): the README is primary-tier**, a landing page for people who might use Rulemart, as
+  `AGENTS.md` now says.
+- **Proposed: the README's logo is its title.** The logo, 240 pixels wide, is the centered `<h1>`, with the alt text
+  Rulemart, so the name reads once rather than as a logo over a second "Rulemart" heading; the hero's tagline and a
+  one-line promise follow, as the primary tier's title block asks. The guide asks for the horizontal logo at 120
+  pixels or wider. It names the SVGs in `brand/logos/` by relative path, which GitHub renders, and, centered, the
+  logo's built-in padding needs no cropping.
 - **Proposed: the Code Rules companion mark in `brand/code-rules/` stays in the package but is not used**, since the
   Code Rules site owns its own mark.
 
