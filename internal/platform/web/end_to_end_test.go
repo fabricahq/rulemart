@@ -2,7 +2,9 @@ package web_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -74,8 +76,8 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 	handler := newIngestedSite(t)
 
 	for path, want := range map[string]string{
-		"/":                          "example/rules · 1 rule",
-		library:                      "Technologies · 1 Go techs/go 1 rule ›",
+		"/":                          "example/rules 1 rule",
+		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
 		errorsRule:                   "Wrap every returned error.",
 		errorsRule + "?tab=versions": "1.0.0 Latest release/1 1 Sep 2026 Add the rule.",
@@ -142,7 +144,7 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go 1 rule › techs/golang not canonical 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},
@@ -151,6 +153,106 @@ changes:
 		assertShows(t, page, want...)
 		if text := visibleText(t, page); strings.Contains(text, "Golang") || strings.Contains(text, "Go techs/golang") {
 			t.Errorf("%s shows a name the library declared: %s", path, text)
+		}
+	}
+}
+
+// byName describes each repository as the code host would, by owner/name or by ID.
+type byName map[string]domain.Repository
+
+func (r byName) Repository(_ context.Context, owner, name string) (domain.Repository, error) {
+	return r[owner+"/"+name], nil
+}
+
+func (r byName) RepositoryByID(_ context.Context, id string) (domain.Repository, error) {
+	for _, repo := range r {
+		if repo.ID == id {
+			return repo, nil
+		}
+	}
+	return domain.Repository{}, errors.New("no such repository")
+}
+
+// newTwoLibrarySite ingests two vetted libraries, example/rules and acme/go-rules, which both hold techs/go, into a
+// new database, and returns the pages' handler, reading as the web function's role and naming groups by the
+// canonical group list Rulemart ships.
+func newTwoLibrarySite(t *testing.T) http.Handler {
+	t.Helper()
+	example := gittest.NewLibrary(t)
+	example.Group("techs/go", "Go")
+	example.Group("practices/testing", "Testing")
+	example.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
+	example.Rule("practices/testing/verify-retry-limits", "Verify retry limits", "Stop after a fixed number of attempts.")
+	example.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0, practices/testing/verify-retry-limits: 1.0.0}
+changes:
+  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+  practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
+`)
+	acme := gittest.NewLibrary(t)
+	acme.Group("techs/go", "Go")
+	acme.Rule("techs/go/close-bodies", "Close response bodies", "Close every body, even on retry.")
+	acme.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/go/close-bodies: 1.0.0}
+changes: {techs/go/close-bodies: {change: new, summaries: [Add the rule.]}}
+`)
+	exampleRepo, acmeRepo := example.Repository(7), acme.Repository(8)
+	acmeRepo.Owner, acmeRepo.Name = "acme", "go-rules"
+	repos := byName{"example/rules": exampleRepo, "acme/go-rules": acmeRepo}
+	db, connString := databasetest.New(t)
+	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	for name := range repos {
+		if _, err := ingester.Ingest(context.Background(), "https://github.com/"+name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages := app.Pages{
+		Store:  postgres.New(databasetest.AsWebRole(t, connString)),
+		Vetted: []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}, {Host: domain.GitHub, RepositoryID: "8"}},
+		Groups: groups,
+	}
+	return newSite(t, pages)
+}
+
+// Browsing and search read every vetted library, as the web function's role, and attribute each rule to its library.
+func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
+	handler := newTwoLibrarySite(t)
+
+	for path, want := range map[string]string{
+		"/":                "Technologies Go 2 rules Practices Testing 1 rule",
+		"/groups":          "Go techs/go The Go programming language and its standard tooling. 2 rules · 2 libraries ›",
+		"/groups/techs/go": "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
+		"/search?q=retry":  "2 rules match “retry” Verify retry limits",
+		"/search?q=go":     "2 rules match “go”",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.Code)
+		}
+		assertShows(t, resp.Body.String(), want)
+	}
+	assertShows(t, get(t, handler, "/search?q=retry").Body.String(),
+		"example/rules:practices/testing/verify-retry-limits", "acme/go-rules:techs/go/close-bodies")
+}
+
+// Whatever a visitor types, search answers with a page, never a failure: Postgres refuses NUL bytes and invalid
+// UTF-8, and search syntax can be unbalanced.
+func TestSearchAnswersOddInputWithAPage(t *testing.T) {
+	handler := newTwoLibrarySite(t)
+
+	for _, query := range []string{
+		"\x00", "retry\x00limits", "\xff\xfe", "​", `"retry`, `"`, "-", "!!! && | :* <->", "or", "the a an",
+		"<script>alert(1)</script>", "'; DROP TABLE rules; --", strings.Repeat("retry ", 33), strings.Repeat("x", 10000),
+	} {
+		resp := get(t, handler, "/search?q="+url.QueryEscape(query))
+		if resp.Code != http.StatusOK {
+			t.Errorf("%q: got %d", query, resp.Code)
 		}
 	}
 }

@@ -1,6 +1,13 @@
-// The frame every page shares: the document head, the header with Rulemart's name, and the footer.
+// The frame every page shares: the document head, the header with Rulemart's name, its links, and search, and the
+// footer.
 
 package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
 
 // chrome is what the frame links: the stylesheet, the theme script, the icon, the font to preload, and the page's
 // canonical address.
@@ -11,9 +18,15 @@ type chrome struct {
 	canonical string
 }
 
-// head is a page's title and description.
+// head is a page's title and description, and how its frame differs from other pages'.
 type head struct {
 	title, description string
+	// noindex asks search engines not to index the page.
+	noindex bool
+	// section is the header's link to the part of the site the page belongs to, librariesHref or groupsHref, or empty.
+	section string
+	// searchPage leaves the header's search field out, keeping its space, since the page holds its own.
+	searchPage bool
 }
 
 // layout renders a page's document around its main content.
@@ -27,6 +40,9 @@ templ layout(c chrome, h head) {
 			if h.description != "" {
 				<meta name="description" content={ h.description }/>
 			}
+			if h.noindex {
+				<meta name="robots" content="noindex"/>
+			}
 			if c.canonical != "" {
 				<link rel="canonical" href={ c.canonical }/>
 			}
@@ -36,8 +52,9 @@ templ layout(c chrome, h head) {
 			<script src={ c.script }></script>
 		</head>
 		<body class="flex min-h-screen flex-col">
-			@header()
-			<main class="flex-1">
+			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
+			@header(h)
+			<main id="main" class="flex-1" tabindex="-1">
 				{ children... }
 			</main>
 			@footer()
@@ -45,8 +62,10 @@ templ layout(c chrome, h head) {
 	</html>
 }
 
-templ header() {
-	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
+// header is the bar atop every page: Rulemart's name, links to the libraries and the groups, and a search field, which a phone's
+// narrow header replaces with a link to the search page.
+templ header(h head) {
+	<header class="sticky top-0 z-30 border-b border-border bg-paper">
 		<div class="wrap flex h-[60px] items-center gap-[22px]">
 			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
 				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink" href="https://fabricahq.com">
@@ -56,8 +75,37 @@ templ header() {
 				<span class="font-normal text-muted">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
+			<nav class="ml-auto flex items-center gap-[18px] max-narrow:gap-1" aria-label="Rulemart">
+				@navLink(librariesHref, "Libraries", h.section)
+				@navLink(groupsHref, "Groups", h.section)
+				if h.searchPage {
+					// The page holds its own search field; the space keeps the links where every other page has them.
+					<div class="w-[15rem] max-narrow:hidden" aria-hidden="true"></div>
+				} else {
+					<form class="relative max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
+						<label class="sr-only" for="header-search">Search rules</label>
+						@searchIcon("pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint")
+						<input id="header-search" class="h-9 w-[15rem] rounded-full border border-border bg-paper pr-3 pl-9 text-[14px] text-ink placeholder:text-faint hover:border-border-strong focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
+					</form>
+				}
+				<a class="grid size-11 place-items-center rounded-full text-muted no-underline hover:bg-surface hover:text-ink narrow:hidden" href={ templ.SafeURL(searchHref) } aria-label="Search rules" title="Search rules">
+					@searchIcon("size-5")
+				</a>
+			</nav>
 		</div>
 	</header>
+}
+
+// navLink is a header link to a part of the site, marked current on every page of section, since each belongs to
+// the part it links.
+templ navLink(href, name, section string) {
+	<a
+		class={ "inline-flex min-h-11 items-center text-[14px] no-underline hover:text-ink max-narrow:px-1.5", templ.KV("font-medium text-ink", section == href), templ.KV("text-muted", section != href) }
+		href={ templ.SafeURL(href) }
+		if section == href {
+			aria-current="true"
+		}
+	>{ name }</a>
 }
 
 templ footer() {
@@ -119,6 +167,14 @@ templ themeMenu() {
 			}
 		</div>
 	</details>
+}
+
+// searchIcon is a magnifying glass, in the current text color.
+templ searchIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<circle cx="11" cy="11" r="7"></circle>
+		<path d="m20 20-3.5-3.5"></path>
+	</svg>
 }
 
 templ sunIcon() {

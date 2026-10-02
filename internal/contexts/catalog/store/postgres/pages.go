@@ -41,14 +41,42 @@ func vettedKeys(vetted []domain.LibraryKey) []string {
 	return keys
 }
 
-// Libraries returns the vetted libraries, ordered by owner and name.
+// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
 func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
-	var rows []catalogdb.ListLibrariesRow
+	var cards []views.LibraryCard
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		rows, err = q.ListLibraries(ctx, vettedKeys(vetted))
+		cards, err = libraries(ctx, q, vetted)
 		return err
 	})
+	if err != nil {
+		return nil, fmt.Errorf("load libraries: %v", err)
+	}
+	return cards, nil
+}
+
+// HomePage returns the vetted libraries, ordered by owner and name, and each group that holds current rules in them,
+// as Groups returns them.
+func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
+	var cards []views.LibraryCard
+	var groups []views.LibraryGroup
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		if cards, err = libraries(ctx, q, vetted); err != nil {
+			return err
+		}
+		groups, err = libraryGroups(ctx, q, vetted)
+		return err
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("load home page: %v", err)
+	}
+	return cards, groups, nil
+}
+
+// libraries returns the vetted libraries, ordered by owner and name.
+func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
+	rows, err := q.ListLibraries(ctx, vettedKeys(vetted))
 	if err != nil {
 		return nil, fmt.Errorf("list libraries: %v", err)
 	}
@@ -121,7 +149,7 @@ func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner,
 		}
 		page = views.RulePage{Library: lib, Rule: views.Rule{
 			Path: r.Path, Group: r.GroupPath, Title: r.Title, Impact: r.Impact,
-			WhenToRead: r.WhenToRead, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
+			WhenToRead: r.WhenToRead, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
 			Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
 		}}
 		for _, v := range versions {

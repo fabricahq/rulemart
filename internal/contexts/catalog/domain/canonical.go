@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
@@ -14,6 +15,9 @@ import (
 // group, under the list's display name.
 type CanonicalGroup struct {
 	ID, Name string
+	// Description is the list's one line saying which rules belong in the group, which pages show rather than what
+	// any one library says about it.
+	Description string
 	// Icon is zero when Rulemart has no icon for the group.
 	Icon GroupIcon
 }
@@ -27,6 +31,9 @@ type GroupIcon struct {
 	// Narrow marks an icon whose drawing is much narrower than its square, such as Go's gopher, which pages draw
 	// larger so it looks as big as square logos.
 	Narrow bool
+	// LightTile marks a colored icon drawn mostly in dark colors, such as Zustand's bear, which pages show on a light
+	// tile in dark themes too, so it stays visible without inverting its colors.
+	LightTile bool
 }
 
 // CanonicalGroups is Code Rules' canonical group list, with Rulemart's icons for its groups. Its zero value is an
@@ -40,7 +47,7 @@ type CanonicalGroups struct {
 func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]GroupIcon) (CanonicalGroups, error) {
 	byID := make(map[string]CanonicalGroup, len(groups))
 	for _, g := range groups {
-		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Icon: icons[g.ID]}
+		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Description: g.Description, Icon: icons[g.ID]}
 	}
 	for _, id := range slices.Sorted(maps.Keys(icons)) {
 		if _, ok := byID[id]; !ok {
@@ -55,4 +62,28 @@ func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]Grou
 func (c CanonicalGroups) Find(id string) (CanonicalGroup, bool) {
 	g, ok := c.byID[id]
 	return g, ok
+}
+
+// FindIgnoringCase returns the canonical group whose ID is id under Unicode case folding, such as techs/go for
+// Techs/GO, and whether there's one. It's for addresses a visitor types; whether a library's group is canonical
+// depends on Find's exact match.
+func (c CanonicalGroups) FindIgnoringCase(id string) (CanonicalGroup, bool) {
+	if g, ok := c.byID[id]; ok {
+		return g, true
+	}
+	for _, candidate := range slices.Sorted(maps.Keys(c.byID)) {
+		if strings.EqualFold(candidate, id) {
+			return c.byID[candidate], true
+		}
+	}
+	return CanonicalGroup{}, false
+}
+
+// All returns every group on the list, in ID order.
+func (c CanonicalGroups) All() []CanonicalGroup {
+	groups := make([]CanonicalGroup, 0, len(c.byID))
+	for _, id := range slices.Sorted(maps.Keys(c.byID)) {
+		groups = append(groups, c.byID[id])
+	}
+	return groups
 }

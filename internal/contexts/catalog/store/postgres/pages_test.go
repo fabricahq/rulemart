@@ -27,7 +27,8 @@ func v(major, minor, patch int) coderules.RuleVersion {
 func content(title string) *domain.Content {
 	return &domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
-		Markdown: "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
+		WhenToReadHTML: "<p>When changing <code>" + title + "</code>.</p>\n",
+		Markdown:       "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
 	}
 }
 
@@ -92,6 +93,26 @@ func newCatalog(t *testing.T) *postgres.Store {
 	return postgres.New(databasetest.AsWebRole(t, connString))
 }
 
+func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
+	reader := newCatalog(t)
+
+	got, groups, err := reader.HomePage(context.Background(), vetted)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	ref := views.LibraryRef{Owner: "example", Name: "rules", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL}
+	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Rules: 1}, {Path: "techs/go", Library: ref, Rules: 1}}
+	if !slices.Equal(groups, wantGroups) {
+		t.Fatalf("got groups %+v, want %+v", groups, wantGroups)
+	}
+}
+
+// The libraries index lists the vetted libraries as the home page does, and no other.
 func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	reader := newCatalog(t)
 
@@ -103,6 +124,18 @@ func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
+// A rule's address may spell its ID in any case, as a library's may spell its owner and name; the page names the ID
+// as the library spells it, so the site can redirect to it.
+func TestRulePageMatchesTheRuleIDWithoutRegardToCase(t *testing.T) {
+	reader := newCatalog(t)
+
+	page, err := reader.RulePage(context.Background(), vetted, "example", "rules", "Techs/Go/Return-Errors")
+
+	if err != nil || page.Rule.Path != "techs/go/return-errors" {
+		t.Fatalf("got %q, %v; want techs/go/return-errors", page.Rule.Path, err)
 	}
 }
 
@@ -159,7 +192,8 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	r.PublishedAt = day(3)
 	want := views.Rule{
 		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
-		WhenToRead: "When changing Return errors.", HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
+		WhenToRead: "When changing Return errors.", WhenToReadHTML: "<p>When changing <code>Return errors</code>.</p>\n",
+		HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
 	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {
 		t.Errorf("rule is %+v, want %+v", page.Rule, want)

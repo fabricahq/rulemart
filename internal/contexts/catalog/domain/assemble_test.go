@@ -179,6 +179,7 @@ libraryFiles: [techs/go/_group.yaml]
 		t.Errorf("the current version's HTML is %s", retryLimits.HTML)
 	}
 	if retryLimits.Impact != "HIGH" || retryLimits.WhenToRead != "When changing verify retry limits." ||
+		retryLimits.WhenToReadHTML != "<p>When changing verify retry limits.</p>\n" ||
 		!strings.HasPrefix(retryLimits.Markdown, "---\ntitle: Verify retry limits\n") {
 		t.Errorf("the current version's content is %+v", retryLimits)
 	}
@@ -299,7 +300,7 @@ var sharedRule = "---\ntitle: Shared rule\nwhenToRead: When testing budgets.\nim
 	strings.Repeat("A paragraph that every rule repeats, so the release is small in Git and large once read.\n\n", 40)
 
 // sharedRuleBytes returns the content assembly holds for one rule with sharedRule's content at path: its Markdown,
-// its title, impact description, and reading guidance, and its HTML.
+// its title, impact description, and reading guidance, and the HTML of its body and reading guidance.
 func sharedRuleBytes(t *testing.T, path string) int64 {
 	t.Helper()
 	parsed, err := coderules.Parse(sharedRule, path, repo.FullName())
@@ -314,7 +315,12 @@ func sharedRuleBytes(t *testing.T, path string) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return int64(len(sharedRule) + len(parsed.Title) + len(parsed.ImpactDescription) + len(parsed.WhenToRead) + len(html))
+	whenToReadHTML, _, err := markup(strings.TrimSpace(parsed.WhenToRead), RulePage{}, 1<<40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int64(len(sharedRule) + len(parsed.Title) + len(parsed.ImpactDescription) + len(parsed.WhenToRead) + len(html) +
+		len(whenToReadHTML))
 }
 
 // sharedRules returns release/1 of a library with count rules that share sharedRule's content, and when
@@ -402,9 +408,10 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 		"practices/testing/verify-retry-limits.md": rule("Verify retry limits", "Stop after a fixed number of attempts."),
 	}))
 	var pages []RulePage
+	var texts []string
 	var allowances []int64
 	record := func(body string, page RulePage, allowance int64) (string, int64, error) {
-		pages, allowances = append(pages, page), append(allowances, allowance)
+		pages, texts, allowances = append(pages, page), append(texts, body), append(allowances, allowance)
 		return markup(body, page, allowance)
 	}
 
@@ -412,13 +419,15 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 		t.Fatal(err)
 	}
 
-	want := []RulePage{
-		{Repository: "example/rules", Path: "practices/testing/check-retry-backoff.md", Title: "Check retry backoff", Tag: "release/1", LatestTag: "release/2"},
-		{Repository: "example/rules", Path: "practices/testing/verify-retry-limits.md", Title: "Verify retry limits", Tag: "release/2", LatestTag: "release/2"},
-		{Repository: "example/rules", Path: "techs/go/return-errors.md", Title: "Return errors", Tag: "release/1", LatestTag: "release/2"},
-	}
-	if !slices.Equal(pages, want) {
+	backoff := RulePage{Repository: "example/rules", Path: "practices/testing/check-retry-backoff.md", Title: "Check retry backoff", Tag: "release/1", LatestTag: "release/2"}
+	retryLimits := RulePage{Repository: "example/rules", Path: "practices/testing/verify-retry-limits.md", Title: "Verify retry limits", Tag: "release/2", LatestTag: "release/2"}
+	returnErrors := RulePage{Repository: "example/rules", Path: "techs/go/return-errors.md", Title: "Return errors", Tag: "release/1", LatestTag: "release/2"}
+	// Each rule's body, then its reading guidance, which is Markdown too.
+	if want := []RulePage{backoff, backoff, retryLimits, retryLimits, returnErrors, returnErrors}; !slices.Equal(pages, want) {
 		t.Errorf("rendered for %+v, want %+v", pages, want)
+	}
+	if !strings.Contains(texts[0], "## Check retry backoff") || texts[1] != "When changing check retry backoff." {
+		t.Errorf("rendered %q", texts[:2])
 	}
 	if !slices.IsSortedFunc(allowances, func(a, b int64) int { return int(b - a) }) || allowances[0] >= limits.ContentBytes {
 		t.Errorf("allowances are %v, want what's left of the budget, shrinking", allowances)

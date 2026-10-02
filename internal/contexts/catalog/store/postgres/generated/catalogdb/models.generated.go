@@ -60,19 +60,22 @@ type Rule struct {
 }
 
 type RuleVersion struct {
-	ID                int64
-	LibraryID         int64
-	RuleID            int64
-	ReleaseID         int64
-	Major             int32
-	Minor             int32
-	Patch             int32
-	Change            string
-	Summaries         []string
-	Title             pgtype.Text
-	Impact            pgtype.Text
-	ImpactDescription pgtype.Text
-	WhenToRead        pgtype.Text
-	Markdown          pgtype.Text
-	Html              pgtype.Text
+	ID                 int64
+	LibraryID          int64
+	RuleID             int64
+	ReleaseID          int64
+	Major              int32
+	Minor              int32
+	Patch              int32
+	Change             string
+	Summaries          []string
+	Title              pgtype.Text
+	Impact             pgtype.Text
+	ImpactDescription  pgtype.Text
+	WhenToRead         pgtype.Text
+	Markdown           pgtype.Text
+	Html               pgtype.Text
+	SearchDocument     interface{}
+	WhenToReadHtml     pgtype.Text
+	RenderedWhenToRead pgtype.Text
 }

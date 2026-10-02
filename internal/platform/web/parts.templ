@@ -1,10 +1,12 @@
-// Pieces several pages share: avatars, labels, chips, tabs, panels, and lists.
+// Pieces several pages share: avatars, labels, chips, tabs, panels, lists, rule cards, and the search form.
 
 package web
 
 import (
 	"strconv"
 	"strings"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // avatarSize is an avatar's box: its size, corner radius, and initial's size.
@@ -34,14 +36,16 @@ type tileSize string
 const (
 	tileXS tileSize = "size-[18px] rounded-[4px] text-[9px]"
 	tileMD tileSize = "size-7 rounded-[7px] text-[12px]"
+	tileLG tileSize = "size-14 rounded-[14px] text-[22px]"
 )
 
 // groupTile marks a group in a list: a canonical group with its icon, or with its name's initial when Rulemart has
 // no icon for it, and any other group with an empty dashed tile, so names line up either way. Monochrome icons are
-// inverted in dark themes, and narrow icons fill more of the tile so they look as big as square logos.
+// inverted in dark themes, colored icons drawn mostly in dark colors keep a light tile in dark themes, and narrow icons
+// fill more of the tile so they look as big as square logos.
 templ groupTile(label groupLabel, icon groupIcon, size tileSize) {
 	if icon.src != "" {
-		<span class={ "inline-grid flex-none place-items-center border border-border-subtle bg-icon-tile", string(size) }>
+		<span class={ "inline-grid flex-none place-items-center border border-border-subtle", string(size), templ.KV("bg-icon-tile", !icon.lightTile), templ.KV("bg-white", icon.lightTile) }>
 			<img class={ "object-contain", templ.KV("size-[64%]", !icon.narrow), templ.KV("size-[88%]", icon.narrow), templ.KV("icon-ink", icon.monochrome) } src={ icon.src } alt=""/>
 		</span>
 	} else if label.canonical {
@@ -67,11 +71,24 @@ templ notCanonical(size flagSize) {
 	<span class={ "inline-block flex-none rounded-[4px] border border-dashed border-border-strong px-1.5 align-middle font-mono font-normal tracking-normal whitespace-nowrap text-faint normal-case", string(size) } title={ notCanonicalExplanation }>not canonical</span>
 }
 
-// label is a small uppercase heading, such as a list's or a panel's.
+// label is small uppercase text that names what follows, such as a page's eyebrow.
 templ label(class string) {
-	<p class={ "text-[12px] font-medium tracking-[.12em] text-muted uppercase", class }>
+	<p class={ labelStyle, class }>
 		{ children... }
 	</p>
+}
+
+// labelHeading is a section's heading in a label's style, at level 2, and labelSubheading at level 3.
+templ labelHeading(class string) {
+	<h2 class={ labelStyle, class }>
+		{ children... }
+	</h2>
+}
+
+templ labelSubheading(class string) {
+	<h3 class={ labelStyle, class }>
+		{ children... }
+	</h3>
 }
 
 // impact shows a rule's declared impact, explained on hover.
@@ -123,37 +140,107 @@ templ tabCount(count int) {
 	}
 }
 
-// rowList frames rows that are each one full-width target.
+// rowList frames rows that are each one full-width target, as a list whose items rowItem makes, divided by lines.
 templ rowList() {
-	<div class="overflow-hidden rounded-card border border-border bg-paper">
+	<ul class="divide-y divide-border-subtle overflow-hidden rounded-card border border-border bg-paper">
 		{ children... }
+	</ul>
+}
+
+// rowItem is one row of a rowList.
+templ rowItem() {
+	<li>
+		{ children... }
+	</li>
+}
+
+// ruleCards lists rule cards, each a ruleCardLink.
+templ ruleCards() {
+	<ul class="grid gap-2.5">
+		{ children... }
+	</ul>
+}
+
+// cardTitle is a rule's title on its card, with its impact after the last word, so the impact sits on the title's
+// last line however the title wraps.
+templ cardTitle(title, level string) {
+	<div class="text-[15.5px] leading-[1.35] font-semibold">
+		<h3 class="mr-2 inline font-semibold">{ title }</h3>
+		@impact(level)
 	</div>
 }
 
-// facts lists a library's or rule's facts as label and value pairs.
-templ facts() {
-	<div class="grid gap-[7px] px-0.5 text-[13px]">
-		{ children... }
-	</div>
+// ruleCardLink is a rule's card in ruleCards, leading to its page, under a heading of level 2.
+templ ruleCardLink(r ruleCard) {
+	<li>
+		<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
+			@cardTitle(r.title, r.impact)
+			<div class="mt-1.5 flex flex-wrap items-baseline gap-x-[14px] gap-y-1 text-[13px] text-muted">
+				<span class="mono" title="Latest version">{ r.version }</span>
+				<span class="mono min-w-0 text-faint max-narrow:basis-full">
+					@breakable(r.id)
+				</span>
+			</div>
+		</a>
+	</li>
 }
 
-templ fact(name string) {
-	<div class="flex justify-between gap-3">
-		<span class="whitespace-nowrap text-muted">{ name }</span>
-		<span class="min-w-0 text-right [overflow-wrap:anywhere]">
+// searchForm is a search field with its button, which searches the rules of every vetted library. query fills the
+// field, and autofocus focuses it when the page loads. The field's focus thickens the form's own border into one ring,
+// and the button keeps its own focus ring.
+templ searchForm(id, query string, autofocus bool) {
+	<form class="flex w-full items-center gap-2 rounded-full border border-border-strong bg-paper py-1 pr-1 pl-4 has-[input:focus-visible]:border-(--focus) has-[input:focus-visible]:shadow-[0_0_0_1px_var(--focus)]" action={ templ.SafeURL(searchHref) } method="get" role="search">
+		@searchIcon("size-[18px] flex-none text-faint")
+		<label class="sr-only" for={ id }>Search rules</label>
+		<input id={ id } class="h-10 min-w-0 flex-1 bg-transparent text-[16px] text-ink placeholder:text-faint focus-visible:outline-none [&::-webkit-search-cancel-button]:hidden" type="search" name="q" value={ query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off" autofocus?={ autofocus }/>
+		<button class="min-h-10 flex-none cursor-pointer rounded-full bg-primary px-5 text-[14px] font-medium text-on-primary transition-opacity hover:opacity-85" type="submit">Search</button>
+	</form>
+}
+
+// aboutPanel frames a library's or rule's facts beside its content, as label and value pairs, each fact a fact, and
+// a note under them when note isn't nil.
+templ aboutPanel(note templ.Component) {
+	<section class="rounded-card border border-border" aria-labelledby="about">
+		<h2 id="about" class="border-b border-border px-4 py-2.5 text-[12px] font-medium tracking-[.12em] text-muted uppercase">About</h2>
+		<dl class="grid gap-2.5 px-4 py-3.5 text-[13px]">
 			{ children... }
-		</span>
+		</dl>
+		if note != nil {
+			<div class="border-t border-border px-4 py-3 text-[12.5px] text-muted">
+				@note
+			</div>
+		}
+	</section>
+}
+
+// impactNote says what a rule's impact level means, where a touch or a keyboard reaches it, as the impact label's
+// hover text does, and links Code Rules' explanation of the levels.
+templ impactNote(level string) {
+	<p id="impact-meaning">
+		{ impactExplanation(level) } <a class="whitespace-nowrap" href={ templ.SafeURL(impactLevelsDocs) }>Impact levels</a>
+	</p>
+}
+
+// fact is one fact in an aboutPanel. A long value wraps at its parts.
+templ fact(name string) {
+	<div class="flex items-start justify-between gap-4">
+		<dt class="shrink-0 text-muted">{ name }</dt>
+		<dd class="min-w-0 text-right [overflow-wrap:anywhere]">
+			{ children... }
+		</dd>
 	</div>
 }
 
-// factLink is a fact's value that links elsewhere, in code type, shortened to fit.
+// factLink is a fact's value that links elsewhere, in code type, which wraps at its parts.
 templ factLink(href, text, title string) {
-	<a class="inline-block max-w-full overflow-hidden align-bottom font-mono text-[.86em] text-ellipsis whitespace-nowrap" href={ templ.SafeURL(href) } title={ title }>{ text }</a>
+	<a class="font-mono text-[.86em]" href={ templ.SafeURL(href) } title={ title }>
+		@breakable(text)
+	</a>
 }
 
 // libraryFacts is the facts every library page shows beside its content.
 templ libraryFacts(lib libraryView) {
-	@facts() {
+	@aboutPanel(nil) {
 		@fact("Owner") {
 			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
 		}

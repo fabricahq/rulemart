@@ -4,10 +4,10 @@ Rulemart helps you find and adopt [Code Rules](https://code-rules.fabricahq.com)
 coding agents follow while they write and review your code. It will be at
 [rulemart.fabricahq.com](https://rulemart.fabricahq.com).
 
-This repository is the site's source. Right now it shows one vetted library, built from its Code Rules release
-tags: the library's groups and rules, and each rule's current version and version history. Every hour, it checks
-the library's release tags and ingests a new release. Browsing by technology, search, and adding libraries
-come later.
+This repository is the site's source. It shows the vetted libraries, built from their Code Rules release tags: each
+library's groups and rules, each rule's current version and version history, every library's rules by technology or
+practice, and search across them. Every hour, it checks each library's release tags and ingests a new release.
+Adding libraries comes later.
 
 ```text
 CloudFront -> web Lambda (Function URL) -> Neon Postgres

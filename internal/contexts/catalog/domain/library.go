@@ -87,6 +87,8 @@ type Version struct {
 // Content is a rule as one version published it.
 type Content struct {
 	Title, Impact, ImpactDescription, WhenToRead string
+	// WhenToReadHTML is WhenToRead as the page shows it, rendered as Markdown as the body is.
+	WhenToReadHTML string
 	// Markdown is the rule's whole file, and HTML its body as the page shows it.
 	Markdown, HTML string
 }

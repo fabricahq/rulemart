@@ -64,12 +64,17 @@ func accessLine(t *testing.T, handler http.Handler, logs *bytes.Buffer, r *http.
 // Paths name libraries and rules, so grouping traffic by route needs the pattern a request matched, and a missing
 // page must not put the path someone asked for into the logs.
 func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
-	handler, logs := loggedSite(t, newCatalog())
+	handler, logs := loggedSite(t, newBrowsingCatalog())
 	for _, tc := range []struct {
 		path, route string
 		status      int
 	}{
 		{"/", "/{$}", http.StatusOK},
+		{"/groups", "/groups", http.StatusOK},
+		{"/groups/techs/go", "/groups/{kind}/{name}", http.StatusOK},
+		{"/groups/techs/golang", "/groups/{kind}/{name}", http.StatusNotFound},
+		{"/search?q=errors", "/search", http.StatusOK},
+		{"/search?q=private+words", "/search", http.StatusOK},
 		{library, "/{owner}/{repo}", http.StatusOK},
 		{errorsRule + "?tab=versions", "/{owner}/{repo}/{rule...}", http.StatusOK},
 		{"/Example/Rules", "/{owner}/{repo}", http.StatusMovedPermanently},
@@ -87,7 +92,7 @@ func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
 			t.Errorf("%s: logged no duration_ms: %v", tc.path, line)
 		}
 	}
-	for _, path := range []string{"missing", "nothing-here", "Example", "return-errors", "tab="} {
+	for _, path := range []string{"missing", "nothing-here", "Example", "return-errors", "tab=", "golang", "private", "q="} {
 		if strings.Contains(logs.String(), path) {
 			t.Errorf("the logs hold the path %q:\n%s", path, logs)
 		}
@@ -159,16 +164,16 @@ func TestAccessLogLeavesOutHeadersAndQueryStrings(t *testing.T) {
 	}
 }
 
-// panicking is a catalog whose list of libraries panics with a runtime error, as a bug in a page's read would, and
-// whose library pages panic with value.
+// panicking is a catalog whose home page panics with a runtime error, as a bug in a page's read would, and whose
+// library pages panic with value.
 type panicking struct {
 	catalog
 	value any
 }
 
-func (panicking) Libraries(context.Context) ([]views.LibraryCard, error) {
+func (panicking) HomePage(context.Context) (views.HomePage, error) {
 	var cards []views.LibraryCard
-	return cards[:len(cards)+3], nil
+	return views.HomePage{Libraries: cards[:len(cards)+3]}, nil
 }
 
 func (p panicking) LibraryPage(context.Context, string, string) (views.LibraryPage, error) {
@@ -216,7 +221,7 @@ func TestPagesRecoverFromAPanicWithTheUnavailablePage(t *testing.T) {
 	stack, _ := panicLine["stack"].(string)
 	if panicLine["msg"] != "panic" || panicLine["route"] != "/{$}" || panicLine["requestID"] != "request-123" ||
 		!strings.HasPrefix(panicLine["panic"].(string), "runtime error: slice bounds out of range") ||
-		!strings.Contains(stack, "panicking.Libraries") {
+		!strings.Contains(stack, "panicking.HomePage") {
 		t.Fatalf("logged %v", panicLine)
 	}
 

@@ -1,72 +1,137 @@
-// The pages: home, a library, a rule, and the pages for a missing page or a failure.
+// The pages: home, a library, a rule, and the pages for a missing page or a failure. groups.templ and search.templ
+// hold the pages across libraries.
 
 package web
 
 import "strconv"
 
-// homePage lists the vetted libraries.
-templ homePage(c chrome, libraries []libraryCard) {
+// homePage leads with search, then lists the vetted libraries, and the canonical groups they hold.
+templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 	@layout(c, head{title: "Rulemart: Code Rules libraries", description: "Find and adopt Code Rules libraries: the engineering rules coding agents follow while they write and review your code."}) {
 		<section class="wrap pt-20 pb-12 text-center max-narrow:pt-14 max-narrow:pb-9">
 			@label("") {
-				Fabrica / Rulemart
+				The Code Rules library catalog
 			}
 			<h1 class="mt-[22px] mb-[18px] text-[clamp(2.25rem,4.6vw,3.6rem)] leading-[1.08] font-normal tracking-[-.06em]">
-				Agent coding best practices,
+				Agent coding best practices,{ " " }
 				<br class="max-narrow:hidden"/>
 				off the shelf
 			</h1>
 			<p class="mx-auto max-w-[50rem] text-[18px] text-balance text-muted">No need to reinvent the wheel. Pick proven rules from other teams and add them straight to your codebase.</p>
+			<div class="mx-auto mt-8 max-w-[36rem] text-left">
+				@searchForm("home-search", "", false)
+			</div>
 		</section>
 		<section class="border-t border-border-subtle py-11">
 			<div class="wrap">
 				<div class="mb-[18px] flex items-baseline justify-between gap-4 max-narrow:flex-wrap">
 					<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Libraries</h2>
+					<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(librariesHref) }>All libraries ›</a>
 				</div>
 				if len(libraries) == 0 {
 					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
 				} else {
 					@rowList() {
 						for _, lib := range libraries {
-							@libraryRow(lib)
+							@rowItem() {
+								@libraryRow(lib, true)
+							}
 						}
 					}
 				}
 			</div>
 		</section>
+		if !groups.empty() {
+			<section class="border-t border-border-subtle py-11">
+				<div class="wrap">
+					<div class="mb-[18px] flex items-baseline justify-between gap-4">
+						<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Browse by group</h2>
+						<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(groupsHref) }>All groups ›</a>
+					</div>
+					@groupTiles("Technologies", canonicalOnly(groups.techs))
+					@groupTiles("Practices", canonicalOnly(groups.practices))
+				</div>
+			</section>
+		}
 	}
 }
 
-templ libraryRow(lib libraryCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] border-t border-border-subtle px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
-		<div class="flex items-start gap-[14px]">
+// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page.
+templ groupTiles(kind string, groups []groupSummaryView) {
+	if len(groups) > 0 {
+		@labelSubheading("mt-[22px] mb-2 first:mt-0") {
+			{ kind }
+		}
+		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2">
+			for _, g := range groups {
+				<a class="flex min-w-0 items-center gap-3 rounded-card border border-border px-3.5 py-3 text-ink no-underline transition-colors duration-[120ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
+					@groupTile(g.label, g.icon, tileMD)
+					<span class="grid min-w-0">
+						<span class="text-[14px] leading-[20px] font-semibold">{ g.label.name }</span>
+						<span class="text-[12.5px] leading-[18px] text-muted">{ plural(g.rules, "rule", "rules") }</span>
+					</span>
+				</a>
+			}
+		</div>
+	}
+}
+
+// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
+// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own.
+templ libraryRow(lib libraryCard, headed bool) {
+	<a class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(lib.href) }>
+		<div class="flex min-w-0 items-start gap-3">
 			@avatar(lib.avatar, lib.owner, avatarMD)
-			<div>
-				<div class="leading-[1.35] font-semibold">{ lib.name }</div>
-				if lib.description != "" {
-					<div class="mt-0.5 text-[13px] text-muted">{ lib.description }</div>
+			<div class="min-w-0">
+				if headed {
+					<h3 class="leading-[1.35] font-semibold">{ lib.name }</h3>
+				} else {
+					<h2 class="leading-[1.35] font-semibold">{ lib.name }</h2>
 				}
-				<div class="mt-1 text-[12.5px] text-faint"><span class="mono">{ lib.owner }/{ lib.name }</span> · { plural(lib.rules, "rule", "rules") }</div>
+				if lib.description != "" {
+					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
+				}
+				<div class="mono mt-1 text-[12.5px] text-faint">
+					@breakable(lib.owner + "/" + lib.name)
+				</div>
 			</div>
 		</div>
-		<span></span>
-		@chevron()
+		<span class="self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted narrow:self-center narrow:pt-0">{ plural(lib.rules, "rule", "rules") } ›</span>
 	</a>
 }
 
-// chevron appears at the end of a row while it's hovered or focused.
-templ chevron() {
-	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
+
+// librariesPage lists every vetted library.
+templ librariesPage(c chrome, libraries []libraryCard) {
+	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref}) {
+		<div class="page wrap">
+			<h1 class="title-xl">Libraries</h1>
+			<p class="mt-1.5 max-w-[46rem] text-muted">Each library is a set of rules a team publishes for coding agents to follow. Rulemart lists only the libraries it has vetted.</p>
+			<div class="mt-[26px]">
+				if len(libraries) == 0 {
+					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
+				} else {
+					@rowList() {
+						for _, lib := range libraries {
+							@rowItem() {
+								@libraryRow(lib, false)
+							}
+						}
+					}
+				}
+			</div>
+		</div>
+	}
 }
 
 // libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
 templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab bool) {
-	@layout(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description}) {
+	@layout(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}) {
 		<div class="page wrap">
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
 				@avatar(lib.avatar, lib.owner, avatarLG)
 				<div>
-					<h1 class="title-xl flex flex-wrap items-center gap-2.5">{ lib.name }</h1>
+					<h1 class="title-xl"><span class="text-faint">{ lib.owner } /</span> <span class="inline-block">{ lib.name }</span></h1>
 					if lib.description != "" {
 						<p class="mt-1.5 mb-2.5 text-muted">{ lib.description }</p>
 					}
@@ -99,32 +164,47 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, rulesTab 
 	}
 }
 
-// groupList lists one kind of group, each leading to its rules on the All rules tab.
+// groupList lists one kind of group, each leading to its rules on the All rules tab, and a canonical group also to
+// its page across libraries. The row's main link covers the row, and the second link sits above it.
 templ groupList(kind string, lib libraryView, groups []groupView) {
 	if len(groups) > 0 {
-		@label("mt-[22px] mb-2 first:mt-0") {
+		@labelHeading("mt-[22px] mb-2 first:mt-0") {
 			{ kind } · { strconv.Itoa(len(groups)) }
 		}
 		@rowList() {
 			for _, g := range groups {
-				<a class="grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] border-t border-border-subtle px-4 py-3 text-ink no-underline transition-colors duration-[120ms] first:border-t-0 hover:bg-surface focus-visible:outline-offset-[-3px] max-narrow:grid-cols-[minmax(0,1fr)_auto]" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
-					<div class="flex min-w-0 items-center gap-3">
-						@groupTile(g.label, g.icon, tileMD)
-						<div class="min-w-0">
-							if g.label.canonical {
-								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.name }</b>
-								<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
-							} else {
-								<b class="block text-[14px] leading-[22px] font-semibold">{ g.label.id }</b>
-								<span class="block leading-[20px]">
-									@notCanonical(flagMD)
-								</span>
+				@rowItem() {
+					<div class="relative grid grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]">
+						<div class="flex min-w-0 items-center gap-3">
+							@groupTile(g.label, g.icon, tileMD)
+							<div class="min-w-0">
+								<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+									if g.label.canonical {
+										{ g.label.name }
+									} else {
+										{ g.label.id }
+									}
+								</a>
+								if g.label.canonical {
+									<span class="block font-mono text-[12px] leading-[20px] text-faint">{ g.label.id }</span>
+								} else {
+									<span class="block leading-[20px]">
+										@notCanonical(flagMD)
+									</span>
+								}
+							</div>
+						</div>
+						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">
+							if g.blurb != "" {
+								<p>{ g.blurb }</p>
+							}
+							if g.acrossHref != "" {
+								<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.name } rules in every library ›</a>
 							}
 						</div>
+						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
 					</div>
-					<p class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">{ g.blurb }</p>
-					<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
-				</a>
+				}
 			}
 		}
 	}
@@ -133,7 +213,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {
-		<div class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
+		<h2 class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
 			@groupTile(g.label, g.icon, tileXS)
 			if g.label.canonical {
 				<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
@@ -141,25 +221,18 @@ templ allRules(contents libraryContents) {
 				<span class="mono tracking-normal normal-case">{ g.label.id }</span>
 				@notCanonical(flagSM)
 			}
-		</div>
-		for _, r := range g.rules {
-			<a class="mb-2.5 block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
-				<div class="mb-1.5 flex flex-wrap items-center gap-2 text-[15.5px] leading-[1.35] font-semibold">
-					<span>{ r.title }</span>
-					@impact(r.impact)
-				</div>
-				<div class="flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
-					<span class="mono" title="Latest version">{ r.version }</span>
-					<span class="mono text-faint">{ r.id }</span>
-				</div>
-			</a>
+		</h2>
+		@ruleCards() {
+			for _, r := range g.rules {
+				@ruleCardLink(r)
+			}
 		}
 	}
 }
 
 // rulePage shows a rule's current version, or with versionsTab every version, newest first.
 templ rulePage(c chrome, r ruleView, versionsTab bool) {
-	@layout(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead}) {
+	@layout(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead, section: librariesHref}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				@avatar(r.library.avatar, r.library.owner, avatarSM)
@@ -171,6 +244,9 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 				} else {
 					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
 					@notCanonical(flagSM)
+				}
+				if r.acrossHref != "" {
+					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.name } rules in every library ›</a>
 				}
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-6">
@@ -198,36 +274,27 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 templ ruleContent(r ruleView) {
 	<div class="grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
 		<div class="prose">
-			<div class="mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
+			<div class="when-to-apply mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
 				<b class="mb-0.5 block text-[11px] font-semibold tracking-[.1em] text-ink uppercase">When to apply</b>
-				{ r.whenToRead }
+				if r.whenToReadHTML != "" {
+					@templ.Raw(r.whenToReadHTML)
+				} else {
+					{ r.whenToRead }
+				}
 			</div>
 			@templ.Raw(r.html)
 		</div>
 		<aside class="grid content-start gap-[18px]">
-			<div class="overflow-hidden rounded-panel border border-border bg-surface">
-				<div class="flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3">
-					@label("") {
-						About
-					}
-				</div>
-				<div class="grid gap-[14px] px-[18px] py-4">
-					<a class="group flex items-center gap-2.5 text-ink no-underline" href={ templ.SafeURL(r.library.href) }>
-						@avatar(r.library.avatar, r.library.owner, avatarMD)
-						<span class="grid min-w-0 gap-px">
-							<span class="text-[14px] font-medium group-hover:underline group-hover:underline-offset-3">{ r.library.name }</span>
-							<span class="text-[12px] text-faint">Published by { r.library.owner }</span>
+			@aboutPanel(impactNote(r.impact)) {
+				@fact("Library") {
+					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
+						<span class="mt-0.5 inline-flex">
+							@avatar(r.library.avatar, r.library.owner, avatarXS)
+						</span>
+						<span class="min-w-0 underline underline-offset-4">
+							@breakable(r.library.owner + "/" + r.library.name)
 						</span>
 					</a>
-					<div class="flex justify-between border-t border-border pt-3 text-[13px]">
-						<span class="text-muted">Updated</span>
-						<span>{ r.updated }</span>
-					</div>
-				</div>
-			</div>
-			@facts() {
-				@fact("Owner") {
-					<a href={ templ.SafeURL(r.library.ownerURL) }>{ r.library.owner }</a>
 				}
 				@fact("Repository") {
 					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.owner+"/"+r.library.name)
@@ -237,6 +304,12 @@ templ ruleContent(r ruleView) {
 				}
 				@fact("File") {
 					@factLink(r.fileURL, r.fileName, r.id+".md")
+				}
+				@fact("Updated") {
+					{ r.updated }
+				}
+				@fact("Impact") {
+					@impact(r.impact)
 				}
 			}
 		</aside>
@@ -250,34 +323,36 @@ templ versions(r ruleView) {
 	</p>
 	@rowList() {
 		for _, v := range r.versions {
-			<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle px-[18px] py-[14px] first:border-t-0 max-narrow:grid-cols-1 max-narrow:gap-2">
-				<div>
-					<div class="flex flex-wrap items-center gap-2.5">
-						<b class="mono">{ v.version }</b>
-						if v.latest {
-							@chip() {
-								Latest
+			@rowItem() {
+				<div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-[18px] py-[14px] max-narrow:grid-cols-1 max-narrow:gap-2">
+					<div>
+						<div class="flex flex-wrap items-center gap-2.5">
+							<b class="mono">{ v.version }</b>
+							if v.latest {
+								@chip() {
+									Latest
+								}
 							}
-						}
-						if v.major {
-							<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
-						}
-						<span class="font-mono text-[13px] text-faint">{ v.tag }</span>
-						<span class="text-[13px] text-faint">{ v.date }</span>
+							if v.major {
+								<span class="rounded-[4px] border border-border-strong px-1.5 text-[11px] font-semibold tracking-[.02em] whitespace-nowrap text-muted" title="Work that complied with the previous version could fail this one.">Major</span>
+							}
+							<span class="font-mono text-[13px] text-faint">{ v.tag }</span>
+							<span class="text-[13px] text-faint">{ v.date }</span>
+						</div>
+						<div class="mt-1">
+							for _, summary := range v.summaries {
+								<div class="text-[13px] text-muted">{ summary }</div>
+							}
+						</div>
 					</div>
-					<div class="mt-1">
-						for _, summary := range v.summaries {
-							<div class="text-[13px] text-muted">{ summary }</div>
-						}
+					<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
+						<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
+							@githubMark("size-3")
+							Release notes
+						</a>
 					</div>
 				</div>
-				<div class="flex flex-wrap items-center justify-end gap-[14px] max-narrow:justify-start">
-					<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline" href={ templ.SafeURL(v.notesURL) } title={ "GitHub Release page for " + v.tag }>
-						@githubMark("size-3")
-						Release notes
-					</a>
-				</div>
-			</div>
+			}
 		}
 	}
 }

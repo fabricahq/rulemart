@@ -3,11 +3,16 @@
 package web
 
 import (
+	"context"
+	"io"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/a-h/templ"
+	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
@@ -61,11 +66,14 @@ func newLibraryCards(libraries []views.LibraryCard) []libraryCard {
 type groupView struct {
 	label groupLabel
 	icon  groupIcon
-	// blurb tells a reader when the group applies. Technology names explain themselves, so only practices have one.
+	// blurb says which rules belong in the group: the canonical list's description of a canonical group, as the
+	// groups page shows it, and the library's of any other.
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
-	rules  []ruleCard
+	// acrossHref is a canonical group's page across libraries, and empty for any other group.
+	acrossHref string
+	rules      []ruleCard
 }
 
 // groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
@@ -100,8 +108,19 @@ const notCanonicalExplanation = "Not on Code Rules' canonical group list, which 
 type groupIcon struct {
 	// src is empty when the group has no icon.
 	src string
-	// monochrome icons are inverted in dark themes, and narrow ones drawn larger.
-	monochrome, narrow bool
+	// monochrome icons are inverted in dark themes, narrow ones drawn larger, and lightTile ones shown on a light tile
+	// in every theme.
+	monochrome, narrow, lightTile bool
+}
+
+// newGroupIcon returns the icon pages show beside a group: a canonical group's when Rulemart has one, and otherwise
+// none. iconURL returns where the site serves an icon file.
+func newGroupIcon(canonical *views.CanonicalGroup, iconURL func(file string) string) groupIcon {
+	if canonical == nil || canonical.Icon.File == "" {
+		return groupIcon{}
+	}
+	icon := canonical.Icon
+	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow, lightTile: icon.LightTile}
 }
 
 // ruleCard is a rule's entry in a library's list of rules.
@@ -120,19 +139,19 @@ type libraryContents struct {
 func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
 	byGroup := map[string][]ruleCard{}
 	for _, r := range page.Rules {
-		byGroup[r.Group] = append(byGroup[r.Group], ruleCard{
-			href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact, version: r.Version.String(),
-		})
+		byGroup[r.Group] = append(byGroup[r.Group], newRuleCard(lib.href, r))
 	}
 	var result libraryContents
 	for _, g := range page.Groups {
-		view := groupView{label: newGroupLabel(g.Path, g.Canonical), anchor: groupAnchor(g.Path), rules: byGroup[g.Path]}
-		if g.Canonical != nil && g.Canonical.Icon.File != "" {
-			icon := g.Canonical.Icon
-			view.icon = groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow}
+		view := groupView{
+			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
+			rules: byGroup[g.Path], acrossHref: acrossHref(g.Path, g.Canonical),
+		}
+		view.blurb = g.Description
+		if g.Canonical != nil {
+			view.blurb = g.Canonical.Description
 		}
 		if strings.HasPrefix(g.Path, "practices/") {
-			view.blurb = g.WhenToRead
 			result.practices = append(result.practices, view)
 		} else {
 			result.techs = append(result.techs, view)
@@ -149,11 +168,16 @@ func (c libraryContents) all() []groupView {
 
 // ruleView is what a rule's page shows.
 type ruleView struct {
-	library                   libraryView
-	href, id, title, impact   string
-	version, whenToRead, html string
-	group                     groupLabel
-	groupHref                 string
+	library                 libraryView
+	href, id, title, impact string
+	version, html           string
+	// whenToRead is the reading guidance as text, and whenToReadHTML as rendered Markdown, or empty when the catalog
+	// holds no HTML for it, so the page shows the text.
+	whenToRead, whenToReadHTML string
+	group                      groupLabel
+	// groupHref is the group's section on the library's All rules tab, and acrossHref a canonical group's page
+	// across libraries, empty for any other group.
+	groupHref, acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
@@ -173,9 +197,11 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
 		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
-		version: r.Version.String(), whenToRead: r.WhenToRead, html: r.HTML,
+		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
+		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
-		updated: date(r.PublishedAt), fileName: path.Base(file),
+		acrossHref: acrossHref(r.Group, r.CanonicalGroup),
+		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}
 	for i, version := range page.Versions {
@@ -191,6 +217,14 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 // libraryHref is the path of a library's page.
 func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
+}
+
+// acrossHref is the page of the group at path across libraries when it's canonical, and empty otherwise.
+func acrossHref(path string, canonical *views.CanonicalGroup) string {
+	if canonical == nil {
+		return ""
+	}
+	return groupHref(path)
 }
 
 // groupAnchor is the fragment of a group's section on the All rules tab.
@@ -211,6 +245,9 @@ func plural(n int, one, many string) string {
 	return strconv.Itoa(n) + " " + many
 }
 
+// impactLevelsDocs is Code Rules' explanation of impact levels.
+const impactLevelsDocs = "https://code-rules.fabricahq.com/reference/rule-authoring/#describe-impact-through-consequences"
+
 // impactExplanations say what each impact level means, following Code Rules' rule-authoring reference: how serious
 // the problem is that a rule helps prevent, not how much code applying it changes.
 var impactExplanations = map[string]string{
@@ -230,3 +267,71 @@ func impactExplanation(level string) string {
 	}
 	return level + " impact, as the library declares it."
 }
+
+// plainText returns a rule's reading guidance as text, for places that show no markup, such as a search result or a
+// page's description: the text of html, the guidance rendered as Markdown, or when there's none, text as written.
+// Ingestion's renderer wrote html, escaping every character of the guidance that markup would read, so its text is the
+// text nodes, unescaped, with runs of spaces collapsed.
+func plainText(text, rendered string) string {
+	if rendered == "" {
+		return text
+	}
+	var out strings.Builder
+	tokens := html.NewTokenizer(strings.NewReader(rendered))
+	for {
+		switch tokens.Next() {
+		case html.ErrorToken:
+			return strings.Join(strings.Fields(out.String()), " ")
+		case html.TextToken:
+			out.Write(tokens.Text())
+		case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
+			// Block elements, such as paragraphs and list items, separate words.
+			if name, _ := tokens.TagName(); !inlineElements[string(name)] {
+				out.WriteByte(' ')
+			}
+		}
+	}
+}
+
+// inlineElements are the elements Markdown renders within a line of text, which separate no words.
+var inlineElements = map[string]bool{"a": true, "code": true, "em": true, "strong": true, "del": true, "img": true, "span": true}
+
+// breakable shows text, such as an ID or a file name, so it wraps at its parts: each part up to a / or : stays whole
+// on a line unless it's longer than the line, and then breaks after a hyphen or _, as words do. It writes the parts
+// escaped, with no space between them, which a templ template would add.
+func breakable(text string) templ.Component {
+	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+		var out strings.Builder
+		for i, part := range breakParts(text, "/:") {
+			if i > 0 {
+				out.WriteString("<wbr>")
+			}
+			out.WriteString(`<span class="id-part">`)
+			for j, piece := range breakParts(part, "_") {
+				if j > 0 {
+					out.WriteString("<wbr>")
+				}
+				out.WriteString(templ.EscapeString(piece))
+			}
+			out.WriteString("</span>")
+		}
+		_, err := io.WriteString(w, out.String())
+		return err
+	})
+}
+
+// breakParts splits text after each of separators, except at its end. Joined, the parts are text.
+func breakParts(text, separators string) []string {
+	var parts []string
+	for len(text) > 0 {
+		i := strings.IndexAny(text, separators)
+		if i < 0 || i == len(text)-1 {
+			break
+		}
+		parts, text = append(parts, text[:i+1]), text[i+1:]
+	}
+	return append(parts, text)
+}
+
+// labelStyle is the type of a label: small, uppercase, and spaced.
+const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercase"

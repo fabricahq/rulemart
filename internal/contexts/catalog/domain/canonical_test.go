@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,12 +29,31 @@ func TestFindReturnsTheListsNameAndAnyIconForACanonicalID(t *testing.T) {
 	groups := newCanonicalGroups(t)
 
 	for id, want := range map[string]CanonicalGroup{
-		"techs/go":          {ID: "techs/go", Name: "Go", Icon: goIcon},
-		"practices/testing": {ID: "practices/testing", Name: "Testing"}, // canonical, without an icon
+		"techs/go":          {ID: "techs/go", Name: "Go", Description: "The Go language.", Icon: goIcon},
+		"practices/testing": {ID: "practices/testing", Name: "Testing", Description: "What to test."}, // canonical, without an icon
 	} {
 		if group, ok := groups.Find(id); !ok || group != want {
 			t.Errorf("Find(%q) = %+v, %v; want %+v", id, group, ok, want)
 		}
+	}
+}
+
+// Cross-library reads, such as search, pass the whole list as a parameter, in an order that doesn't depend on the
+// map that holds it.
+func TestAllReturnsEveryCanonicalGroupInIDOrder(t *testing.T) {
+	groups := newCanonicalGroups(t)
+
+	got := groups.All()
+
+	want := []CanonicalGroup{
+		{ID: "practices/testing", Name: "Testing", Description: "What to test."},
+		{ID: "techs/go", Name: "Go", Description: "The Go language.", Icon: goIcon},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if all := (CanonicalGroups{}).All(); len(all) != 0 {
+		t.Fatalf("the zero value holds %+v", all)
 	}
 }
 
@@ -78,6 +98,22 @@ func TestFindReportsNoGroupWhenTheListIsEmpty(t *testing.T) {
 	for name, groups := range map[string]CanonicalGroups{"the zero value": {}, "an empty list": empty} {
 		if group, ok := groups.Find("techs/go"); ok {
 			t.Errorf("%s: found %+v", name, group)
+		}
+	}
+}
+
+// An address may spell a group's ID in any case, and names the group the list spells that way.
+func TestFindIgnoringCaseReturnsTheListsSpelling(t *testing.T) {
+	groups := newCanonicalGroups(t)
+
+	for id, want := range map[string]string{"techs/go": "techs/go", "Techs/GO": "techs/go", "PRACTICES/Testing": "practices/testing"} {
+		if g, ok := groups.FindIgnoringCase(id); !ok || g.ID != want {
+			t.Errorf("FindIgnoringCase(%q) = %q, %v; want %q", id, g.ID, ok, want)
+		}
+	}
+	for _, id := range []string{"techs/golang", "techs/go/", "techs", ""} {
+		if g, ok := groups.FindIgnoringCase(id); ok {
+			t.Errorf("FindIgnoringCase(%q) found %q", id, g.ID)
 		}
 	}
 }

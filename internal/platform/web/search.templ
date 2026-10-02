@@ -1,0 +1,154 @@
+// The search page: a search field, and the vetted libraries' rules that match.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
+
+// searchPage shows the search field and, once a visitor has searched, what matched, best first.
+templ searchPage(c chrome, v searchView) {
+	@layout(c, head{title: v.title(), noindex: true, searchPage: true}) {
+		<div class="page wrap">
+			<h1 class="title-xl">Search</h1>
+			<p class="mt-1.5 text-muted">Find rules in every vetted library by their title, text, or group.</p>
+			<div class="mt-[22px] max-w-[44rem]">
+				@searchForm("search", v.query, !v.searched())
+				<p class="mt-2 px-4 text-[12.5px] text-faint">
+					Search for{ " " }
+					@example(`"retry limits"`)
+					{ " " }to find the phrase,{ " " }
+					@example("testing -react")
+					{ " " }to leave out a word, or{ " " }
+					@example("jitter or backoff")
+					{ " " }to find either word.
+				</p>
+			</div>
+			if v.searched() {
+				<div class="mt-[30px] max-w-[52rem]">
+					if v.pageMissing() {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">The results for “{ v.query }” don't reach this page.</p>
+							<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
+						</div>
+					} else if v.tooLong {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
+						</div>
+					} else if v.noWords {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">Nothing to search for in “{ v.query }”.</p>
+							<p class="mt-1">Search skips common words, such as “the”, “and”, and “of”, and words left out with a hyphen. Add a word to look for.</p>
+						</div>
+					} else if len(v.results) == 0 {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+							<p class="font-medium text-ink">No rules match “{ v.query }”.</p>
+							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(groupsHref) }>browse rules by group</a>.</p>
+						</div>
+					} else {
+						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">
+							@searchSummary(v)
+						</h2>
+						@searchResults(v.completeResults())
+						if partial := v.partialResults(); len(partial) > 0 {
+							if v.complete > 0 {
+								<h3 class="mt-7 mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">Rules that match some of your words</h3>
+							}
+							@searchResults(partial)
+						}
+						@searchPages(v)
+					}
+				</div>
+			}
+		</div>
+	}
+}
+
+// example is a search a hint shows, as code, kept on one line with its quotes.
+templ example(query string) {
+	<code class="rounded-[4px] border border-border-subtle bg-surface px-1 whitespace-nowrap text-muted">{ query }</code>
+}
+
+// searchSummary says how many rules matched the query, and how many of them hold every word of it.
+templ searchSummary(v searchView) {
+	if v.complete == v.total {
+		{ plural(v.total, "rule matches", "rules match") } <span class="text-ink">“{ v.query }”</span>
+	} else if v.complete == 0 {
+		No rule matches every word of <span class="text-ink">“{ v.query }”</span>; { plural(v.total, "rule matches", "rules match") } some of them
+	} else {
+		{ plural(v.complete, "rule matches", "rules match") } every word of <span class="text-ink">“{ v.query }”</span>, and { strconv.Itoa(v.total - v.complete) } more match some of them
+	}
+	if v.pages > 1 {
+		<span>· Page { strconv.Itoa(v.page) } of { strconv.Itoa(v.pages) }</span>
+	}
+}
+
+// searchPages links the previous and next pages of a search's results, when there's more than one.
+templ searchPages(v searchView) {
+	if v.pages > 1 {
+		<nav class="mt-5 flex items-center justify-between gap-4 text-[14px]" aria-label="Search result pages">
+			if v.page > 1 {
+				<a class="inline-flex min-h-11 items-center no-underline hover:underline" href={ templ.SafeURL(v.pageHref(v.page - 1)) } rel="prev">‹ Previous</a>
+			} else {
+				<span></span>
+			}
+			<span class="text-muted">Page { strconv.Itoa(v.page) } of { strconv.Itoa(v.pages) }</span>
+			if v.page < v.pages {
+				<a class="inline-flex min-h-11 items-center no-underline hover:underline" href={ templ.SafeURL(v.pageHref(v.page + 1)) } rel="next">Next ›</a>
+			} else {
+				<span></span>
+			}
+		</nav>
+	}
+}
+
+// searchResults lists rules that matched, in order.
+templ searchResults(results []searchResultView) {
+	if len(results) > 0 {
+		<ol class="grid gap-2.5">
+			for _, r := range results {
+				<li>
+					@searchResult(r)
+				</li>
+			}
+		</ol>
+	}
+}
+
+// searchResult is a rule that matched, with its library and group, leading to its page.
+templ searchResult(r searchResultView) {
+	<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
+		@cardTitle(r.rule.title, r.rule.impact)
+		if r.whenToRead != "" {
+			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
+		}
+		if len(r.missing) > 0 {
+			<p class="mt-1 text-[12.5px] text-muted">
+				Missing:
+				for _, word := range r.missing {
+					{ " " }<s>{ word }</s>
+				}
+			</p>
+		}
+		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
+			<span class="flex min-w-0 items-start gap-1.5 max-narrow:basis-full">
+				@avatar(r.library.avatar, r.library.owner, avatarXS)
+				<span class="mono min-w-0 text-muted">
+					@breakable(r.sourceID)
+				</span>
+			</span>
+			<span class="flex items-center gap-1.5">
+				@groupTile(r.group, r.icon, tileXS)
+				if r.group.canonical {
+					<span>{ r.group.name }</span>
+				} else {
+					<span class="mono">{ r.group.id }</span>
+					@notCanonical(flagSM)
+				}
+			</span>
+			<span class="mono" title="Latest version">{ r.rule.version }</span>
+		</div>
+	</a>
+}

@@ -45,6 +45,7 @@ type groupIcon struct {
 	File       string `yaml:"file"`
 	Monochrome bool   `yaml:"monochrome"`
 	Narrow     bool   `yaml:"narrow"`
+	LightTile  bool   `yaml:"lightTile"`
 }
 
 // iconFile matches an icon's path under the site's icons: an SVG file directly in one icon set's directory.
@@ -74,7 +75,10 @@ func parseGroupIcons(input []byte) (map[string]domain.GroupIcon, error) {
 		if !iconFile.MatchString(entry.File) {
 			return nil, fmt.Errorf("read group icons: %s: expected file to name an SVG in an icon set's directory, such as devicon/go-original.svg", id)
 		}
-		icons[id] = domain.GroupIcon{File: entry.File, Monochrome: entry.Monochrome, Narrow: entry.Narrow}
+		if entry.Monochrome && entry.LightTile {
+			return nil, fmt.Errorf("read group icons: %s: expected monochrome or lightTile, not both: a monochrome icon is inverted on the dark tile", id)
+		}
+		icons[id] = domain.GroupIcon{File: entry.File, Monochrome: entry.Monochrome, Narrow: entry.Narrow, LightTile: entry.LightTile}
 	}
 	return icons, nil
 }

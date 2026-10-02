@@ -1,5 +1,6 @@
-// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, and each rule's
-// current version and version history. It reads them from the catalog's page reads, which app.Pages implements.
+// Package web serves Rulemart's pages: the vetted libraries, each library's groups and rules, each rule's current
+// version and version history, the groups across libraries, each canonical group's rules in every library, and search.
+// It reads them from the catalog's page reads, which app.Pages implements.
 package web
 
 import (
@@ -10,11 +11,13 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
@@ -23,11 +26,11 @@ import (
 const pageCache = "public, max-age=60"
 
 // contentSecurityPolicy allows only Rulemart's own files, plus images from GitHub's avatar and raw file hosts,
-// which rules and library owners use. Rule content comes from repositories Rulemart doesn't control, so nothing
-// else may load or run.
+// which rules and library owners use, and forms that submit to Rulemart, such as search. Rule content comes from
+// repositories Rulemart doesn't control, so nothing else may load or run.
 const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; " +
 	"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; " +
-	"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
 // Options configures the handler.
 type Options struct {
@@ -69,10 +72,17 @@ func checkBaseURL(u *url.URL) error {
 
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
 type Catalog interface {
+	HomePage(ctx context.Context) (views.HomePage, error)
 	Libraries(ctx context.Context) ([]views.LibraryCard, error)
 	// LibraryPage and RulePage fail with app.ErrNotFound when there's no such library or current rule.
 	LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+	GroupIndex(ctx context.Context) (views.GroupIndex, error)
+	// GroupPage fails with app.ErrNotFound when id isn't a canonical group's.
+	GroupPage(ctx context.Context, id string) (views.GroupPage, error)
+	// Search returns page, from 1 to app.MaxSearchPage, of what query finds. It fails with
+	// app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
+	Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error)
 }
 
 // server answers page requests.
@@ -110,24 +120,176 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	}
 	handle("GET /{$}", s.home)
 	handle("GET /_static/{version}/{file...}", assets.serve)
+	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
+	// segment, so it can't either, though GitHub has an account named libraries.
+	handle("GET /libraries", s.libraries)
+	handle("GET /groups", s.groups)
+	handle("GET /groups/{kind}/{name}", s.group)
+	handle("GET /search", s.search)
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(mux)), nil
+	return s.logRequests(withSecurityHeaders(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))), nil
+}
+
+// siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
+// path under it, and libraries and search as a whole path, since GitHub has an account named libraries, whose
+// libraries' pages are /libraries/{repo}.
+var siteSections = map[string]bool{"groups": true, "libraries": false, "search": false}
+
+// withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
+// /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other
+// spellings redirect. The target starts with the section, so it stays on the site.
+func withSiteSectionsInLowercase(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		first, rest, nested := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+		section := strings.ToLower(first)
+		withSubpaths, ok := siteSections[section]
+		if !ok || first == section || (nested && !withSubpaths) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		target := "/" + section
+		if nested {
+			target += "/" + rest
+		}
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+	})
+}
+
+// withoutTrailingSlash redirects a path that ends with a slash, such as /groups/, to the same path without it,
+// keeping the query, since no page's address ends with one. A path whose trimmed form starts with two slashes, or a
+// slash and a backslash, would name another host, so next answers it: the mux cleans it to a path on this site.
+func withoutTrailingSlash(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.EscapedPath()
+		trimmed := strings.TrimRight(path, "/")
+		if trimmed == path || trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, `/\`) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		target := trimmed
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+	})
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.HomePage(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
+}
+
+func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 	libraries, err := s.catalog.Libraries(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(libraries)))
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries)))
+}
+
+func (s *server) groups(w http.ResponseWriter, r *http.Request) {
+	index, err := s.catalog.GroupIndex(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, groupsPage(s.pageChrome(groupsHref), newGroupIndexView(index, s.assets.iconURL)))
+}
+
+func (s *server) group(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("kind") + "/" + r.PathValue("name")
+	page, err := s.catalog.GroupPage(r.Context(), id)
+	if errors.Is(err, app.ErrNotFound) {
+		s.notFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	view := newGroupPageView(page, s.assets.iconURL)
+	if page.Path != id {
+		target := view.href
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+		return
+	}
+	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
+}
+
+// search shows a page of the results of the query in the q parameter, the page the page parameter numbers, from 1.
+// Its page names no canonical address and asks search engines not to index it, since each query would otherwise be a
+// page of its own. A page number that isn't one, the first page's number, and a page number without a query redirect
+// to the address without it, another spelling of a page's number, such as 02, to its own, and a page past the last
+// is missing.
+func (s *server) search(w http.ResponseWriter, r *http.Request) {
+	params := r.URL.Query()
+	query := domain.ParseSearchQuery(params.Get("q"))
+	page, spelled := searchPageNumber(params)
+	if query.IsZero() {
+		page = 1
+	}
+	if !spelled || (query.IsZero() && params.Has("page")) {
+		redirect(w, r, searchHrefFor(params.Get("q"), page))
+		return
+	}
+	var results views.SearchResults
+	var err error
+	if page <= app.MaxSearchPage {
+		results, err = s.catalog.Search(r.Context(), query, page)
+	}
+	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
+	if err != nil && !tooLong {
+		s.fail(w, r, err)
+		return
+	}
+	view := newSearchView(query, tooLong, results, page, s.assets.iconURL)
+	status := http.StatusOK
+	if view.pageMissing() {
+		status = http.StatusNotFound
+	}
+	s.render(w, r, status, searchPage(s.chrome, view))
+}
+
+// searchPageNumber returns the page params number, and whether they spell it as its address does: the first page
+// by no number, and any other in digits without a sign or leading zeros. A number that isn't a page's is 1, and a
+// number too large to hold is past app.MaxSearchPage.
+func searchPageNumber(params url.Values) (page int, spelled bool) {
+	if !params.Has("page") {
+		return 1, true
+	}
+	text := params.Get("page")
+	page, err := strconv.Atoi(text)
+	switch {
+	case errors.Is(err, strconv.ErrRange) && text[0] >= '1' && text[0] <= '9':
+		return app.MaxSearchPage + 1, strings.Trim(text, "0123456789") == ""
+	case err != nil || page < 1:
+		return 1, false
+	}
+	return page, page > 1 && text == strconv.Itoa(page)
+}
+
+// redirect answers with a permanent redirect to target, cacheable as pages are.
+func redirect(w http.ResponseWriter, r *http.Request, target string) {
+	w.Header().Set("Cache-Control", pageCache)
+	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
 	view := newLibraryView(page.Library)
@@ -137,7 +299,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
 	view := newRuleView(newLibraryView(page.Library), page)
@@ -156,10 +318,10 @@ func (s *server) pageChrome(href string) chrome {
 	return c
 }
 
-// found reports whether a page's data loaded, for the library lib, and is at the path GitHub's spelling of the
-// library's owner and name gives. Otherwise it answers the request itself: with a missing page, a failure, or a
-// redirect to that path.
-func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, err error) bool {
+// found reports whether a page's data loaded, for the library lib and, on a rule's page, the rule at rulePath, and is
+// at the path that GitHub's spelling of the library's owner and name, and the library's of the rule's ID, give.
+// Otherwise it answers the request itself: with a missing page, a failure, or a redirect to that path.
+func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, rulePath string, err error) bool {
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
 		return false
@@ -168,13 +330,12 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		s.fail(w, r, err)
 		return false
 	}
-	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") {
+	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != r.PathValue("rule") {
 		canonical := url.URL{Path: libraryHref(lib.Owner, lib.Name), RawQuery: r.URL.RawQuery}
-		if rule := r.PathValue("rule"); rule != "" {
-			canonical.Path += "/" + rule
+		if rulePath != "" {
+			canonical.Path += "/" + rulePath
 		}
-		w.Header().Set("Cache-Control", pageCache)
-		http.Redirect(w, r, canonical.String(), http.StatusMovedPermanently)
+		redirect(w, r, canonical.String())
 		return false
 	}
 	return true
