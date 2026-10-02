@@ -325,6 +325,9 @@ func TestPagesNameTheirAddressOnTheBaseURLAsCanonical(t *testing.T) {
 		"/":                          "https://rulemart.example/",
 		library + "?tab=rules":       "https://rulemart.example" + library,
 		errorsRule + "?tab=versions": "https://rulemart.example" + errorsRule,
+		// Percent-encoded spellings of the same page name the page's own address, not the request's spelling.
+		"/%65xample/rules":                        "https://rulemart.example" + library,
+		"/example/rules/techs/go/return-%65rrors": "https://rulemart.example" + errorsRule,
 	} {
 		t.Run(path, func(t *testing.T) {
 			resp := get(t, handler, path)

@@ -122,7 +122,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome(r), newLibraryCards(libraries)))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(libraries)))
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +132,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	}
 	view := newLibraryView(page.Library)
 	contents := newLibraryContents(view, page, s.assets.iconURL)
-	s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(r), view, contents, r.URL.Query().Get("tab") == "rules"))
+	s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, r.URL.Query().Get("tab") == "rules"))
 }
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
@@ -140,16 +140,18 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, err) {
 		return
 	}
-	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(r), newRuleView(newLibraryView(page.Library), page), r.URL.Query().Get("tab") == "versions"))
+	view := newRuleView(newLibraryView(page.Library), page)
+	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, r.URL.Query().Get("tab") == "versions"))
 }
 
-// pageChrome returns the frame for the page at r's path, which names that path on BaseURL as its canonical address.
-// Call it only once found has accepted the path's spelling. A tab's query string shows the same page, so the address
-// leaves it out.
-func (s *server) pageChrome(r *http.Request) chrome {
+// pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on
+// BaseURL as its canonical address. Built from what the page shows rather than the request, every spelling of the
+// page's path, such as a percent-encoded one, names the same address. A tab's query string shows the same page, so
+// the address leaves it out.
+func (s *server) pageChrome(href string) chrome {
 	c := s.chrome
 	if s.BaseURL != nil {
-		c.canonical = s.BaseURL.String() + r.URL.EscapedPath()
+		c.canonical = s.BaseURL.String() + href
 	}
 	return c
 }
