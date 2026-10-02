@@ -61,21 +61,31 @@ const maxSummary = 200
 // characters, with an ellipsis when it's cut.
 func summary(text string) string {
 	words := strings.Fields(text)
+	if whole := strings.Join(words, " "); utf8.RuneCountInString(whole) <= maxSummary {
+		return whole
+	}
+	// Cut to the words that fit with room for the ellipsis.
 	var out strings.Builder
+	length := 0
 	for _, word := range words {
-		if n := utf8.RuneCountInString(out.String()) + 1 + utf8.RuneCountInString(word); n > maxSummary-1 && out.Len() > 0 {
-			return out.String() + "…"
+		n := utf8.RuneCountInString(word)
+		if length > 0 {
+			n++
 		}
-		if out.Len() > 0 {
+		if length+n > maxSummary-1 {
+			break
+		}
+		if length > 0 {
 			out.WriteByte(' ')
 		}
 		out.WriteString(word)
+		length += n
 	}
-	if utf8.RuneCountInString(out.String()) > maxSummary {
-		// One word longer than a description: cut it.
-		return string([]rune(out.String())[:maxSummary-1]) + "…"
+	if length == 0 {
+		// A first word longer than a description: cut it.
+		return string([]rune(words[0])[:maxSummary-1]) + "…"
 	}
-	return out.String()
+	return out.String() + "…"
 }
 
 // summary returns what a library's pages say about it to search engines: its own description, or else what it

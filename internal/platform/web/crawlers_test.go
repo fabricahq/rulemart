@@ -3,6 +3,7 @@ package web_test
 import (
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -46,7 +47,7 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]bool{
-		"/account": false, "/account/cart": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
+		"/account": true, "/account?x=1": true, "/account/cart": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
@@ -196,5 +197,41 @@ func TestSitemapFailsUncachedWhenTheCatalogFails(t *testing.T) {
 
 	if resp.Code != http.StatusServiceUnavailable || resp.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("answered %d, %q", resp.Code, resp.Header().Get("Cache-Control"))
+	}
+}
+
+// A sitemap whose rules would pass the most a response can hold stops before it, still valid, and says so in the
+// log: a Lambda function's response holds at most 6 MB, and 45,000 long rule addresses take more.
+func TestSitemapStaysWithinAResponsesSize(t *testing.T) {
+	c := newBrowsingCatalog()
+	lib := views.SitemapLibrary{Owner: "example", Name: "rules", Updated: day(3)}
+	for i := range 45_000 {
+		lib.Rules = append(lib.Rules, views.SitemapRule{
+			Path: fmt.Sprintf("practices/testing/%s-%05d", strings.Repeat("keep-tests-independent-", 4), i), Updated: day(2),
+		})
+	}
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{lib}}
+	var logs bytes.Buffer
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewJSONHandler(&logs, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := get(t, handler, "/sitemap.xml")
+
+	if resp.Code != http.StatusOK || resp.Body.Len() > 5<<20 {
+		t.Fatalf("answered %d with %d bytes", resp.Code, resp.Body.Len())
+	}
+	var got urlset
+	if err := xml.Unmarshal(resp.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(got.URLs); n < 20_000 || n >= 45_006 {
+		t.Errorf("lists %d addresses", n)
+	}
+	if !strings.Contains(logs.String(), `"msg":"sitemap truncated"`) {
+		t.Errorf("logged %s", logs.String())
 	}
 }

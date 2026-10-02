@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -113,5 +114,34 @@ func TestTheSiteServesItsIcons(t *testing.T) {
 	}
 	if resp := get(t, handler, attribute(touch, "href")); resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "image/png" {
 		t.Errorf("the touch icon answered %d, %q", resp.Code, resp.Header().Get("Content-Type"))
+	}
+}
+
+// A word longer than a description, alone or before others, is cut to fit.
+func TestALongWordIsCutToADescriptionsLength(t *testing.T) {
+	for name, guidance := range map[string]string{"alone": strings.Repeat("a", 250), "before another": strings.Repeat("a", 250) + " b"} {
+		c := newCatalog()
+		rule := c.rules["example/rules/techs/go/return-errors"]
+		rule.Rule.WhenToRead, rule.Rule.WhenToReadHTML = guidance, ""
+		c.rules["example/rules/techs/go/return-errors"] = rule
+
+		got := metas(t, get(t, newSite(t, c), errorsRule).Body.String())["description"]
+
+		if n := utf8.RuneCountInString(got); n != 200 || !strings.HasSuffix(got, "…") {
+			t.Errorf("%s: the description is %d characters: %q", name, n, got)
+		}
+	}
+}
+
+// The root icon is the same for every visitor, so a signed-in request for it stays cacheable, as static files do.
+func TestTheRootIconStaysCacheableForSignedInVisitors(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/favicon.ico", nil)
+	req.AddCookie(&http.Cookie{Name: "__Host-rulemart-session", Value: "anything"})
+	resp := httptest.NewRecorder()
+
+	newSite(t, newCatalog()).ServeHTTP(resp, req)
+
+	if got := resp.Header().Get("Cache-Control"); got != "public, max-age=86400" {
+		t.Errorf("Cache-Control is %q", got)
 	}
 }

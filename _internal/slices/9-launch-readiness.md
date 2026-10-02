@@ -28,7 +28,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 
 - **Proposed: `robots.txt` disallows `/account/`, `/sign-in`, `/list`, `/search`, `/unvetted`, and `/*from=`**, the
   query parameter only comparisons use, and names the sitemap on `RULEMART_BASE_URL`. Each one-segment page is
-  disallowed alone and with a query, as `/list$` and `/list?`, since a rule matches every path it starts: `/list`
+  disallowed alone and with a query, as `/list$` and `/list?`, and so is `/account`, since a rule matches every path it starts: `/list`
   alone would also keep crawlers off `/listr/rules`, a library's page. Each of those pages already
   says `noindex` (**Existing**), for crawlers that ignore `robots.txt`; disallowing them saves crawling search's and
   comparisons' endless addresses. An unvetted library's own pages can't be disallowed by path, since they share
@@ -37,8 +37,9 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   page, and each vetted library and its current rules**, by their canonical addresses, with `lastmod` from the release
   that last changed each library or rule. Never an unvetted library, a search, a comparison, or a group that isn't
   canonical, which has no page of its own. One snapshot read, at most 45,000 rules, which leaves room in the
-  protocol's 50,000 addresses; past that it logs `sitemap truncated`, which alarms, and the next step is a sitemap
-  index. Retired rules' pages stay out: they're for people following an old link.
+  protocol's 50,000 addresses, and at most 5 MiB, under the 6 MB a Lambda function's response holds, which long rule
+  IDs reach first, at around 25,000 rules. Past either it lists what fits and logs `sitemap truncated`, which alarms,
+  and the next step is a sitemap index. Retired rules' pages stay out: they're for people following an old link.
 - **Proposed: without `RULEMART_BASE_URL` there's no sitemap**, since its addresses must be absolute, and pages name no
   canonical address either (**Existing**).
 - **Proposed: Open Graph tags, which X reads too, on exactly the pages that name a canonical address**: title,
