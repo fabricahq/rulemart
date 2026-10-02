@@ -27,6 +27,7 @@ func v(major, minor, patch int) coderules.RuleVersion {
 func content(title string) *domain.Content {
 	return &domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
+		WhenToReadHTML: "<p>When changing <code>" + title + "</code>.</p>\n",
 		Markdown: "---\ntitle: " + title + "\n---\n", HTML: "<p>" + title + ".</p>\n",
 	}
 }
@@ -164,7 +165,8 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	r.PublishedAt = day(3)
 	want := views.Rule{
 		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
-		WhenToRead: "When changing Return errors.", HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
+		WhenToRead: "When changing Return errors.", WhenToReadHTML: "<p>When changing <code>Return errors</code>.</p>\n",
+		HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
 	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {
 		t.Errorf("rule is %+v, want %+v", page.Rule, want)

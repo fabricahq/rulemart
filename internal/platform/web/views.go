@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
@@ -158,7 +160,10 @@ func (c libraryContents) all() []groupView {
 type ruleView struct {
 	library                   libraryView
 	href, id, title, impact   string
-	version, whenToRead, html string
+	version, html             string
+	// whenToRead is the reading guidance as text, and whenToReadHTML as rendered Markdown, or empty when the catalog
+	// holds no HTML for it, so the page shows the text.
+	whenToRead, whenToReadHTML string
 	group                     groupLabel
 	groupHref                 string
 	// updated is when the release that published the current version was tagged.
@@ -180,7 +185,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
 		library: lib, href: lib.href + "/" + r.Path, id: r.Path, title: r.Title, impact: r.Impact,
-		version: r.Version.String(), whenToRead: r.WhenToRead, html: r.HTML,
+		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
+		html: r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
 		updated: date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
@@ -237,3 +243,31 @@ func impactExplanation(level string) string {
 	}
 	return level + " impact, as the library declares it."
 }
+
+// plainText returns a rule's reading guidance as text, for places that show no markup, such as a search result or a
+// page's description: the text of html, the guidance rendered as Markdown, or when there's none, text as written.
+// Ingestion's renderer wrote html, escaping every character of the guidance that markup would read, so its text is the
+// text nodes, unescaped, with runs of spaces collapsed.
+func plainText(text, rendered string) string {
+	if rendered == "" {
+		return text
+	}
+	var out strings.Builder
+	tokens := html.NewTokenizer(strings.NewReader(rendered))
+	for {
+		switch tokens.Next() {
+		case html.ErrorToken:
+			return strings.Join(strings.Fields(out.String()), " ")
+		case html.TextToken:
+			out.Write(tokens.Text())
+		case html.StartTagToken, html.EndTagToken, html.SelfClosingTagToken:
+			// Block elements, such as paragraphs and list items, separate words.
+			if name, _ := tokens.TagName(); !inlineElements[string(name)] {
+				out.WriteByte(' ')
+			}
+		}
+	}
+}
+
+// inlineElements are the elements Markdown renders within a line of text, which separate no words.
+var inlineElements = map[string]bool{"a": true, "code": true, "em": true, "strong": true, "del": true, "img": true, "span": true}

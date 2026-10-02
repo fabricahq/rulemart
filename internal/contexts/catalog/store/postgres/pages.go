@@ -135,7 +135,7 @@ func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner,
 		}
 		page = views.RulePage{Library: lib, Rule: views.Rule{
 			Path: r.Path, Group: r.GroupPath, Title: r.Title, Impact: r.Impact,
-			WhenToRead: r.WhenToRead, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
+			WhenToRead: r.WhenToRead, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html, Version: version(r.Major, r.Minor, r.Patch),
 			Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
 		}}
 		for _, v := range versions {

@@ -17,7 +17,7 @@ import (
 // rule returns a current rule at path, in the group its path names, with one version and the given content.
 func rule(path, title, whenToRead, body string) domain.Rule {
 	c := content(title)
-	c.WhenToRead = whenToRead
+	c.WhenToRead, c.WhenToReadHTML = whenToRead, "<p>"+whenToRead+"</p>\n"
 	c.Markdown = "---\ntitle: " + title + "\n---\n\n" + body + "\n"
 	group := path[:strings.LastIndex(path, "/")]
 	return domain.Rule{Path: path, Group: group, Content: c, Versions: []domain.Version{
@@ -135,7 +135,7 @@ func TestSearchRanksTitleMatchesThenSummaryMatchesThenBodyMatches(t *testing.T) 
 		Library: views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL},
 		Rule: views.RuleCard{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Title: "Verify retry limits",
 			Impact: "HIGH", Version: v(1, 0, 0)},
-		WhenToRead: "When code calls a service.",
+		WhenToRead: "When code calls a service.", WhenToReadHTML: "<p>When code calls a service.</p>\n",
 	}
 	if !reflect.DeepEqual(first, wantFirst) {
 		t.Fatalf("the first result is %+v, want %+v", first, wantFirst)

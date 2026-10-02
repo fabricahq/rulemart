@@ -280,6 +280,40 @@ func TestRulePageShowsTheCurrentVersion(t *testing.T) {
 	}
 }
 
+// Reading guidance is Markdown, rendered at ingestion as the body is: the page shows its markup, and places that show
+// text, such as the page's description and search results, show its text. Guidance a release stored without HTML
+// shows as written.
+func TestReadingGuidanceShowsAsRenderedMarkdownOrAsText(t *testing.T) {
+	c := newBrowsingCatalog()
+	key := "example/rules/techs/go/return-errors"
+	page := c.rules[key]
+	page.Rule.WhenToRead = "When JSX renders with `&&` and <b>a number</b>."
+	page.Rule.WhenToReadHTML = "<p>When JSX renders with <code>&amp;&amp;</code> and &lt;b&gt;a number&lt;/b&gt;.</p>\n"
+	c.rules[key] = page
+	results := c.results["errors"]
+	results.Results[0].WhenToRead, results.Results[0].WhenToReadHTML = page.Rule.WhenToRead, page.Rule.WhenToReadHTML
+	c.results["errors"] = results
+	handler := newSite(t, c)
+
+	body := get(t, handler, errorsRule).Body.String()
+
+	if !strings.Contains(body, "When to apply</b> <p>When JSX renders with <code>&amp;&amp;</code> and &lt;b&gt;a number&lt;/b&gt;.</p>") {
+		t.Error("the page doesn't show the guidance's HTML")
+	}
+	if !strings.Contains(body, `<meta name="description" content="When JSX renders with &amp;&amp; and &lt;b&gt;a number&lt;/b&gt;.">`) {
+		t.Error("the page's description isn't the guidance's text")
+	}
+	search := get(t, handler, "/search?q=errors").Body.String()
+	assertShows(t, search, "When JSX renders with && and <b>a number</b>. example/rules")
+	if strings.Contains(search, "`") || strings.Contains(search, "<code>&amp;") {
+		t.Error("the search result shows the guidance's Markdown or markup")
+	}
+
+	page.Rule.WhenToReadHTML = ""
+	c.rules[key] = page
+	assertShows(t, get(t, newSite(t, c), errorsRule).Body.String(), "When to apply When JSX renders with `&&` and <b>a number</b>.")
+}
+
 func TestRuleVersionsTabListsEveryVersionNewestFirst(t *testing.T) {
 	handler := newSite(t, newCatalog())
 

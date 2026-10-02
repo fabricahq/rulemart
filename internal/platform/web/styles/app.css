@@ -142,6 +142,9 @@
   .prose th { text-align: left; font-weight: 500; color: var(--faint); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   .prose td { padding: 11px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--muted); }
   .prose > :first-child { margin-top: 0; }
+  /* A rule's reading guidance, rendered as its body is, in the smaller type of the box it sits in. */
+  .prose .when-to-apply p, .prose .when-to-apply li { color: inherit; }
+  .prose .when-to-apply > :last-child { margin-bottom: 0; }
 
   /* Highlighted code, in the docs site's code palette. Ingestion assigns these classes. */
   .hl-keyword { color: var(--code-keyword); }

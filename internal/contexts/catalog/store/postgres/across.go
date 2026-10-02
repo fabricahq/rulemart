@@ -109,7 +109,7 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 				Path: row.Path, Group: row.GroupPath, Title: row.Title, Impact: row.Impact,
 				Version: version(row.Major, row.Minor, row.Patch),
 			},
-			WhenToRead: row.WhenToRead,
+			WhenToRead: row.WhenToRead, WhenToReadHTML: row.WhenToReadHtml,
 		}
 		for _, ordinal := range row.Missing {
 			results.Results[i].Missing = append(results.Results[i].Missing, find[ordinal-1].Text)

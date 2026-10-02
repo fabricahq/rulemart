@@ -79,7 +79,9 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 
 const getRule = `-- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact,
-       v.when_to_read::text AS when_to_read, v.html::text AS html, v.major, v.minor, v.patch,
+       v.when_to_read::text AS when_to_read,
+       coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text AS when_to_read_html,
+       v.html::text AS html, v.major, v.minor, v.patch,
        published.number AS release, published.tagged_at AS published_at
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
@@ -94,20 +96,23 @@ type GetRuleParams struct {
 }
 
 type GetRuleRow struct {
-	ID          int64
-	Path        string
-	GroupPath   string
-	Title       string
-	Impact      string
-	WhenToRead  string
-	Html        string
-	Major       int32
-	Minor       int32
-	Patch       int32
-	Release     int32
-	PublishedAt pgtype.Timestamptz
+	ID             int64
+	Path           string
+	GroupPath      string
+	Title          string
+	Impact         string
+	WhenToRead     string
+	WhenToReadHtml string
+	Html           string
+	Major          int32
+	Minor          int32
+	Patch          int32
+	Release        int32
+	PublishedAt    pgtype.Timestamptz
 }
 
+// GetRule returns a library's current rule. when_to_read_html is empty unless it was rendered from the reading
+// guidance the version holds now, since a release that didn't render it may have changed it since.
 func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, error) {
 	row := q.db.QueryRow(ctx, getRule, arg.LibraryID, arg.Path)
 	var i GetRuleRow
@@ -118,6 +123,7 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.Title,
 		&i.Impact,
 		&i.WhenToRead,
+		&i.WhenToReadHtml,
 		&i.Html,
 		&i.Major,
 		&i.Minor,
@@ -486,8 +492,9 @@ ranked AS (
     WHERE cardinality(s.missing) < search.terms
 )
 SELECT l.owner, l.name, l.owner_avatar_url, r.path, g.path AS group_path, v.title::text AS title,
-       v.impact::text AS impact, v.when_to_read::text AS when_to_read, v.major, v.minor, v.patch,
-       ranked.missing, count(*) OVER () AS total,
+       v.impact::text AS impact, v.when_to_read::text AS when_to_read,
+       coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text AS when_to_read_html,
+       v.major, v.minor, v.patch, ranked.missing, count(*) OVER () AS total,
        count(*) FILTER (WHERE cardinality(ranked.missing) = 0) OVER () AS complete
 FROM ranked
 JOIN rule_versions v ON v.id = ranked.id
@@ -519,6 +526,7 @@ type SearchRulesRow struct {
 	Title          string
 	Impact         string
 	WhenToRead     string
+	WhenToReadHtml string
 	Major          int32
 	Minor          int32
 	Patch          int32
@@ -529,7 +537,7 @@ type SearchRulesRow struct {
 
 // SearchRules returns the vetted libraries' current rules that hold at least one of the find terms and none of the
 // exclude terms, best first, skipping skip of them and returning at most max_results, each with how many matched in
-// all and how many of those hold every find term. Each term is in websearch_to_tsquery's syntax, which accepts any
+// all and how many of those hold every find term, and with its reading guidance's HTML as GetRule returns it. Each term is in websearch_to_tsquery's syntax, which accepts any
 // text, and a term of only stop words, such as "the", is ignored.
 //
 // A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
@@ -572,6 +580,7 @@ func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]Sea
 			&i.Title,
 			&i.Impact,
 			&i.WhenToRead,
+			&i.WhenToReadHtml,
 			&i.Major,
 			&i.Minor,
 			&i.Patch,

@@ -102,10 +102,13 @@ type Rule struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group string
 	// CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
-	CanonicalGroup   *CanonicalGroup
-	Title, Impact    string
-	WhenToRead, HTML string
-	Version          coderules.RuleVersion
+	CanonicalGroup *CanonicalGroup
+	Title, Impact  string
+	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty when the catalog holds no HTML rendered from it,
+	// so the page shows WhenToRead as text.
+	WhenToRead, WhenToReadHTML string
+	HTML                       string
+	Version                    coderules.RuleVersion
 	// Release is the number of the library release that published the current version, tagged at PublishedAt.
 	Release     int
 	PublishedAt time.Time
@@ -190,7 +193,8 @@ type SearchResult struct {
 	Rule    RuleCard
 	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
-	WhenToRead     string
+	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty, as Rule's is.
+	WhenToRead, WhenToReadHTML string
 	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
 	// holds every one.
 	Missing []string

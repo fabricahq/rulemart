@@ -140,11 +140,22 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   rewrites `rule_versions` under a brief exclusive lock, milliseconds at this size.
 - **No new grants. Proposed.** `rulemart_catalog_reader` reads the new column through its `SELECT` on
   `rule_versions` (**Existing**, migration 00003), and `rulemart_catalog_writer` never writes it. Tests read as `rulemart_web` and ingest as `rulemart_worker`, so a missing grant would fail them.
+- **Reading guidance is Markdown, rendered at ingestion. Proposed.** A rule's reading guidance can hold inline
+  Markdown, such as `` `&&` ``, so ingestion renders it with the body's renderer, within the same content budget, and
+  the rule page shows the HTML in "When to apply". Places that show text, such as search results and the page's
+  description, show the HTML's text, without Markdown syntax. Migration 00007 adds `rule_versions.when_to_read_html`
+  and `rendered_when_to_read`, the guidance the HTML was rendered from. It only adds nullable columns, so the running
+  release keeps ingesting, and the grants on `rule_versions` cover them. That release stores guidance without HTML,
+  and could change a version's guidance after this one rendered it, so pages show the HTML only while
+  `rendered_when_to_read` matches `when_to_read`, and show the guidance as text otherwise. The worker's checkpoint
+  counts a library with such a version as not current, so it's ingested again within the hour after this release
+  deploys, without an operator.
 
 ## Verification
 
 - **Migration tests:** a rule stored before 00006 is searchable after it, and a rule too long to search in full is
-  still stored.
+  still stored; the running release's writes work after 00007, and leave no HTML that could disagree with the
+  guidance.
 - **Store tests**, against Postgres as `rulemart_web`:
   - a title match ranks above a match only in the reading guidance, which ranks above a match only in the body
   - a group's canonical name finds its rules, and a name a library declares doesn't

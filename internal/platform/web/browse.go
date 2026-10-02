@@ -200,7 +200,7 @@ func newSearchView(query domain.SearchQuery, tooLong bool, results views.SearchR
 	for _, r := range results.Results {
 		lib := newLibraryRefView(r.Library)
 		v.results = append(v.results, searchResultView{
-			rule: newRuleCard(lib.href, r.Rule), whenToRead: r.WhenToRead, sourceID: lib.fullName() + ":" + r.Rule.Path,
+			rule: newRuleCard(lib.href, r.Rule), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), sourceID: lib.fullName() + ":" + r.Rule.Path,
 			library: lib, group: newGroupLabel(r.Rule.Group, r.CanonicalGroup), icon: newGroupIcon(r.CanonicalGroup, iconURL),
 			missing: r.Missing,
 		})

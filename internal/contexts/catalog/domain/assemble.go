@@ -149,7 +149,7 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 }
 
 // readRule returns history's rule in its group, with the content of the rule's file at the release that published
-// its current version while it's current.
+// its current version while it's current, its body and reading guidance rendered.
 func (a *assembly) readRule(history Rule) (Rule, error) {
 	path := RuleFile(history.Path)
 	group, err := coderules.GroupFromPath(path, path)
@@ -178,17 +178,24 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 	if err != nil {
 		return Rule{}, fmt.Errorf("%s: %v", published.Tag, err)
 	}
-	html, err := a.render(document.Body, RulePage{
+	page := RulePage{
 		Repository: a.repo.FullName(), Path: path, Title: parsed.Title,
 		Tag: published.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
-	})
+	}
+	html, err := a.render(document.Body, page)
 	if err != nil {
 		return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
 	}
+	// The reading guidance is Markdown too, whose links resolve against the rule's file as the body's do.
+	whenToRead := strings.TrimSpace(parsed.WhenToRead)
+	whenToReadHTML, err := a.render(whenToRead, page)
+	if err != nil {
+		return Rule{}, fmt.Errorf("%s: %s: reading guidance: %v", published.Tag, path, err)
+	}
 	r.Content = &Content{
 		Title: strings.TrimSpace(parsed.Title), Impact: string(parsed.Impact),
-		ImpactDescription: strings.TrimSpace(parsed.ImpactDescription), WhenToRead: strings.TrimSpace(parsed.WhenToRead),
-		Markdown: parsed.Document, HTML: html,
+		ImpactDescription: strings.TrimSpace(parsed.ImpactDescription), WhenToRead: whenToRead,
+		WhenToReadHTML: whenToReadHTML, Markdown: parsed.Document, HTML: html,
 	}
 	return r, nil
 }

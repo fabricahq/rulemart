@@ -225,9 +225,13 @@ templ rulePage(c chrome, r ruleView, versionsTab bool) {
 templ ruleContent(r ruleView) {
 	<div class="grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
 		<div class="prose">
-			<div class="mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
+			<div class="when-to-apply mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
 				<b class="mb-0.5 block text-[11px] font-semibold tracking-[.1em] text-ink uppercase">When to apply</b>
-				{ r.whenToRead }
+				if r.whenToReadHTML != "" {
+					@templ.Raw(r.whenToReadHTML)
+				} else {
+					{ r.whenToRead }
+				}
 			</div>
 			@templ.Raw(r.html)
 		</div>
