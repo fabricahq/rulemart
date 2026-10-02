@@ -3,7 +3,10 @@
 How to put Rulemart's slices 3 to 9 live, from the open pull requests to the announcement, in order. Production runs
 v0.1.0, slices 1, 1b, and 2, at <https://rulemart.fabricahq.com>, and `rulemart.ai` redirects there.
 
-Every step names who does it. Nothing here was merged, released, or applied. The infra-live stack is
+Every step names who does it. **Status, 2026-10-02:** the seven Rulemart pull requests are merged to `main` (#21 as
+#28, since GitHub closed it when slice 3's branch was deleted); both GitHub apps exist; and the
+[realignment](realignment.md) with the prototype comes before the release, so steps 2 onward wait for its slices.
+Nothing in infra-live or infra-catalog is merged or applied. The infra-live stack is
 `aws/rulemart/us-west-2/rulemart-prod`; run its commands from that folder with the `rulemart` AWS profile and the Neon
 credentials its README's [Configure Neon](https://github.com/fabricahq/infra-live/blob/main/aws/rulemart/us-west-2/rulemart-prod/README.md#configure-neon)
 describes. The `domain_redirect` unit doesn't change, so no step needs `CLOUDFLARE_API_TOKEN`; apply units one at a
