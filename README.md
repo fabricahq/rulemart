@@ -5,8 +5,8 @@ coding agents follow while they write and review your code. It will be at
 [rulemart.fabricahq.com](https://rulemart.fabricahq.com).
 
 This repository is the site's source. It shows the vetted libraries, built from their Code Rules release tags: each
-library's groups and rules, each rule's current version and version history, every library's rules by technology or
-practice, and search across them. Every hour, it checks each library's release tags and ingests a new release.
+library's groups, rules, and releases, each rule's current version and version history, what changed between two
+releases or two versions of a rule, every library's rules by technology or practice, and search across them. Every hour, it checks each library's release tags and ingests a new release.
 Adding libraries comes later.
 
 ```text

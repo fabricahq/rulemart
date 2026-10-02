@@ -60,6 +60,20 @@ than adding history.
 - **Search result pages carry `noindex` and name no canonical address.** Each query would otherwise be a page of
   its own to a search engine.
 
+## Releases and comparison
+
+- **Every rule version keeps the file its release published**, with its title, impact, and reading guidance, so pages
+  can compare any two versions and name a retired rule. Only a current rule's current version keeps the HTML its page
+  shows. The worker ingests again a library stored before this, so production fills in older versions by itself.
+- **A library's releases are built from their stored release records**, laid out as Code Rules' generated release
+  notes are, rather than from the tags' Markdown notes, which a library could fill with text Rulemart can't check.
+- **Comparisons are the Library releases and Versions tabs with `from` and `to` parameters**, chosen with a GET form,
+  and carry `noindex` without a canonical address, as search does, since every pair would be a page of its own.
+- **Diffs are computed when a page is read**, by `internal/lib/textdiff`, a bounded diff that marks changed words in
+  Markdown blocks or shows a unified diff of lines, within 512 KiB of rule text per page. A rule's text in a diff is
+  always escaped. [Slice 4](slices/4-releases-and-comparison.md) explains the choices.
+- **A retired rule has a page**: its retirement, its replacement, and its versions, but not its text.
+
 ## Application
 
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone
