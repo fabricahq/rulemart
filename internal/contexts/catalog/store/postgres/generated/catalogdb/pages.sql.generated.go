@@ -399,6 +399,60 @@ func (q *Queries) ListMarkdown(ctx context.Context, ids []int64) ([]ListMarkdown
 	return items, nil
 }
 
+const listOwnerLibraries = `-- name: ListOwnerLibraries :many
+SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
+FROM libraries l
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[]) AND lower(l.owner) = lower($2)
+ORDER BY lower(l.owner), lower(l.name)
+`
+
+type ListOwnerLibrariesParams struct {
+	Vetted []string
+	Login  string
+}
+
+type ListOwnerLibrariesRow struct {
+	ID             int64
+	Owner          string
+	Name           string
+	Description    string
+	OwnerAvatarUrl string
+	RuleCount      int64
+	StarCount      int64
+}
+
+// ListOwnerLibraries returns the libraries vetted holds whose owner is login, matched without regard to case, as
+// ListLibraries returns them.
+func (q *Queries) ListOwnerLibraries(ctx context.Context, arg ListOwnerLibrariesParams) ([]ListOwnerLibrariesRow, error) {
+	rows, err := q.db.Query(ctx, listOwnerLibraries, arg.Vetted, arg.Login)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOwnerLibrariesRow
+	for rows.Next() {
+		var i ListOwnerLibrariesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Owner,
+			&i.Name,
+			&i.Description,
+			&i.OwnerAvatarUrl,
+			&i.RuleCount,
+			&i.StarCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReleases = `-- name: ListReleases :many
 SELECT number, tagged_at, updates_shared_files FROM library_releases WHERE library_id = $1 ORDER BY number
 `

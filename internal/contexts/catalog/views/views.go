@@ -1,4 +1,4 @@
-// Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and rules, its
+// Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its groups and rules, its
 // releases and what changed between two of them, a rule with its versions and what changed between two of them, the
 // groups across libraries, one group's rules in every library, search results, the sitemap, and an account's
 // listings, starred libraries, and cart. They're plain values, read from one state of the catalog, with nothing of how
@@ -28,6 +28,16 @@ type LibraryCard struct {
 	Rules int
 	// Stars counts the accounts that starred the library.
 	Stars int
+}
+
+// OwnerPage is an owner's page: the vetted libraries they publish.
+type OwnerPage struct {
+	// Login is the owner's login as the code host spells it now, and AvatarURL their avatar, empty when the host
+	// reported none; both are read from the owner's libraries.
+	Login, AvatarURL string
+	// Libraries are the owner's vetted libraries, ordered by name without regard to case, and never empty: an owner
+	// without one has no page.
+	Libraries []LibraryCard
 }
 
 // Library is a vetted or listed library, as every page about it describes it.

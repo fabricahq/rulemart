@@ -55,6 +55,20 @@ func (p Pages) Libraries(ctx context.Context) ([]views.LibraryCard, error) {
 	return p.Store.Libraries(ctx, p.Vetted)
 }
 
+// OwnerPage returns the owner login, matched without regard to case, with their vetted libraries, ordered by name, or
+// ErrNotFound when no vetted library is theirs: a listed, unvetted library gives its owner no page. The page's Login
+// is the code host's spelling.
+func (p Pages) OwnerPage(ctx context.Context, login string) (views.OwnerPage, error) {
+	libraries, err := p.Store.OwnerLibraries(ctx, p.Vetted, login)
+	if err != nil {
+		return views.OwnerPage{}, err
+	}
+	if len(libraries) == 0 {
+		return views.OwnerPage{}, fmt.Errorf("load owner: %w", ErrNotFound)
+	}
+	return views.OwnerPage{Login: libraries[0].Owner, AvatarURL: libraries[0].OwnerAvatarURL, Libraries: libraries}, nil
+}
+
 // UnvettedLibraries returns the libraries listings name that aren't vetted, ordered by owner and name.
 func (p Pages) UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, error) {
 	return p.Store.UnvettedLibraries(ctx, p.Vetted)

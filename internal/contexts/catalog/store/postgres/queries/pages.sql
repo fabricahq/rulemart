@@ -8,6 +8,16 @@ FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
 ORDER BY lower(l.owner), lower(l.name);
 
+-- ListOwnerLibraries returns the libraries vetted holds whose owner is login, matched without regard to case, as
+-- ListLibraries returns them.
+-- name: ListOwnerLibraries :many
+SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
+FROM libraries l
+WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[]) AND lower(l.owner) = lower(@login)
+ORDER BY lower(l.owner), lower(l.name);
+
 -- ListUnvettedLibraries returns the libraries a listing names that vetted doesn't hold, as ListLibraries returns the
 -- vetted ones.
 -- name: ListUnvettedLibraries :many
