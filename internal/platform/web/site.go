@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -138,6 +139,16 @@ type server struct {
 
 // New returns the handler for Rulemart's pages, reading them from catalog.
 func New(catalog Catalog, options Options) (http.Handler, error) {
+	s, err := newServer(catalog, options)
+	if err != nil {
+		return nil, err
+	}
+	return s.handler(), nil
+}
+
+// newServer returns the server of Rulemart's pages, reading them from catalog, before it routes any. It refuses
+// options it can't serve pages with.
+func newServer(catalog Catalog, options Options) (*server, error) {
 	if options.BaseURL != nil {
 		if err := checkBaseURL(options.BaseURL); err != nil {
 			return nil, fmt.Errorf("serve pages at base URL %q: %v", options.BaseURL, err)
@@ -151,7 +162,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &server{
+	return &server{
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{}, policies: newPolicies(beacon != ""),
 		chrome: chrome{
 			beacon:     beacon,
@@ -161,17 +172,22 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
-	}
+	}, nil
+}
+
+// handler routes each page's pattern to its handler, recording every pattern in s.routes, and returns the routes behind
+// what every request passes through first, such as the access log and the security headers.
+func (s *server) handler() http.Handler {
 	mux := http.NewServeMux()
 	// Every page's handler first finds who the request is from, which the frame shows.
 	handle := func(pattern string, handler http.HandlerFunc) {
 		mux.HandleFunc(pattern, s.withVisitor(handler))
 		s.routes[pattern] = true
 	}
-	mux.HandleFunc(staticPattern, assets.serve)
+	mux.HandleFunc(staticPattern, s.assets.serve)
 	s.routes[staticPattern] = true
 	// Browsers ask for /favicon.ico wherever a page names no icon they take, such as for a file that isn't a page.
-	mux.HandleFunc(faviconPattern, assets.serveFavicon)
+	mux.HandleFunc(faviconPattern, s.assets.serveFavicon)
 	s.routes[faviconPattern] = true
 	handle("GET /{$}", s.home)
 	// One segment each, so neither can hide a library's page.
@@ -193,7 +209,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /search", s.search)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
-	if options.Accounts != nil {
+	if s.Accounts != nil {
 		// Single segments can't hide a library's page, and GitHub has no account named account.
 		handle("GET "+signInHref, s.signInPage)
 		handle("POST "+signInHref, s.startSignIn)
@@ -203,7 +219,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
-		if options.Listings != nil {
+		if s.Listings != nil {
 			handle("GET "+listHref, s.listPage)
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+listingsHref, s.listingsPage)
@@ -211,12 +227,12 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
 		}
-		if options.Stars != nil {
+		if s.Stars != nil {
 			handle("GET "+starsHref, s.starsPage)
 			handle("POST "+starsHref, s.starLibrary)
 			handle("POST "+unstarHref, s.unstarLibrary)
 		}
-		if options.Cart != nil {
+		if s.Cart != nil {
 			handle("GET "+cartHref, s.cartPage)
 			handle("POST "+cartHref, s.addToCart)
 			handle("POST "+removeFromCartHref, s.removeFromCart)
@@ -233,7 +249,7 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))))), nil
+	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux))))))
 }
 
 // siteSections are the first segments of the site's own pages, which no library owner shadows: browse, g, o, and the
@@ -243,6 +259,20 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 var siteSections = map[string]bool{
 	"browse": true, "g": true, "o": true, "groups": true,
 	"libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false, "faq": false, "feedback": false,
+}
+
+// accountSections are the first segments of the account pages, reserved like siteSections, which the account routes
+// take only when sign-in is available.
+var accountSections = []string{strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/")}
+
+// reservedOwner reports whether login, in any case, is the first segment of one of the site's own pages, so its
+// owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
+func reservedOwner(login string) bool {
+	lower := strings.ToLower(login)
+	if _, ok := siteSections[lower]; ok {
+		return true
+	}
+	return slices.Contains(accountSections, lower)
 }
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as

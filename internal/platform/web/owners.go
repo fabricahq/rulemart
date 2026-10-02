@@ -7,8 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"slices"
-	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -18,20 +16,6 @@ import (
 // ownerAliasPrefix starts every owner's other address, /o/{login}, the canonical one for an owner whose login a
 // site page reserves.
 const ownerAliasPrefix = "/o/"
-
-// accountSections are the first segments of the account pages, reserved like siteSections, which the account routes
-// take only when sign-in is available.
-var accountSections = []string{strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/")}
-
-// reservedOwner reports whether login, in any case, is the first segment of one of the site's own pages, so its
-// owner's page can't be at /{login}. GitHub has users named g, faq, browse, list, and o, among others.
-func reservedOwner(login string) bool {
-	lower := strings.ToLower(login)
-	if _, ok := siteSections[lower]; ok {
-		return true
-	}
-	return slices.Contains(accountSections, lower)
-}
 
 // ownerHref is the path of an owner's page: /{login}, or /o/{login} when a site page reserves the login.
 func ownerHref(login string) string {
