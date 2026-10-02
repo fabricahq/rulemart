@@ -58,6 +58,18 @@ type LibraryRelease struct {
 	TagObjectID        pgtype.Text
 }
 
+type Listing struct {
+	ID               int64
+	AccountID        pgtype.Int8
+	Host             string
+	Owner            string
+	Name             string
+	HostRepositoryID pgtype.Text
+	CreatedAt        pgtype.Timestamptz
+	CheckedAt        pgtype.Timestamptz
+	Failure          pgtype.Text
+}
+
 type Rule struct {
 	ID                  int64
 	LibraryID           int64
