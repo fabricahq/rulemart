@@ -8,8 +8,8 @@ for the plan that brings the site to the `prototype` branch's user experience,
 which is the spec for every page. Run `make db`, then `make check`, to vet and test the
 code.
 
-README tier: secondary. The site is the product's landing page; the README
-serves people working on this repository.
+README tier: primary, Josh's decision on 2026-10-02: Rulemart is a product
+people adopt for its own sake, so its README presents it as one.
 
 ## Engineering rules
 

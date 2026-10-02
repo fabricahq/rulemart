@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
@@ -18,6 +20,44 @@ func TestHomeListsTheLibraries(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules · 2 rules")
+}
+
+// The hero opens with Rulemart's horizontal logo, in place of an eyebrow, as Code Rules' home page does: one image for
+// each theme, both named Rulemart, both served.
+func TestHomeHeroOpensWithRulemartsLogo(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+	doc, err := html.Parse(get(t, handler, "/").Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hero := find(doc, func(n *html.Node) bool { return n.Data == "section" })
+	if hero == nil {
+		t.Fatal("the home page has no hero")
+	}
+
+	var logos []*html.Node
+	for n := range hero.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "img" {
+			logos = append(logos, n)
+		}
+	}
+	if len(logos) != 2 {
+		t.Fatalf("the hero has %d images, want the logo for each theme", len(logos))
+	}
+	for _, logo := range logos {
+		if attribute(logo, "alt") != "Rulemart" || attribute(logo, "width") == "" || attribute(logo, "height") == "" {
+			t.Errorf("a logo has alt %q and size %qx%q", attribute(logo, "alt"), attribute(logo, "width"), attribute(logo, "height"))
+		}
+		if resp := get(t, handler, attribute(logo, "src")); resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "image/svg+xml" {
+			t.Errorf("%s answered %d, %q", attribute(logo, "src"), resp.Code, resp.Header().Get("Content-Type"))
+		}
+	}
+	if attribute(logos[0], "src") == attribute(logos[1], "src") {
+		t.Error("both themes show the same logo")
+	}
+	if text := strings.Join(strings.Fields(visibleTextOf(hero)), " "); strings.Contains(text, "Fabrica / Rulemart") {
+		t.Errorf("the hero still has its eyebrow: %q", text)
+	}
 }
 
 func TestHomeLeadsWithSearchAndBrowsesCanonicalGroups(t *testing.T) {

@@ -170,6 +170,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			caretScript: assets.url("caret.js"),
 			copyScript:  assets.url("copy.js"),
 			icon:        assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
+			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}, nil
