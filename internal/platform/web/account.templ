@@ -4,14 +4,14 @@
 package web
 
 // accountControl ends the header: the signed-in visitor's avatar, which opens their menu, or a link to sign in, or
-// nothing when sign-in isn't available. Its slot is as wide either way, so signing in or out doesn't move the links
-// beside it.
+// nothing when sign-in isn't available. Its slot is as wide either way, and stays, empty, on the sign-in page, so the
+// links beside it never move. Its content sits at the page's edge.
 templ accountControl(v visitor) {
 	if v.account != nil || v.signIn != "" {
 		<div class={ accountSlotStyle }>
 			if v.account != nil {
 				@accountMenu(v)
-			} else {
+			} else if !v.onSignInPage {
 				@signInLink(v)
 			}
 		</div>
@@ -43,15 +43,16 @@ templ personIcon(class string) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account,
-// their listings, and to sign out. Sign-out is a form, since it changes state. The button stays shaded while the menu is open, and its
-// focus ring follows its rounded square inside the page's edge. menus.js closes the menu when focus or a click leaves
+// their listings, and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the
+// button's shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar,
+// just inside its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves
 // it.
 templ accountMenu(v visitor) {
 	<details class="group relative shrink-0" data-menu>
-		<summary class="grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 group-open:bg-surface [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
+		<summary class="-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span]:outline-2 [&:focus-visible>span]:-outline-offset-2 [&:focus-visible>span]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ "Account menu, signed in as " + v.account.Login } title={ "Signed in as " + v.account.Login }>
 			@avatar(v.account.AvatarURL, v.account.Login, avatarSM)
 		</summary>
-		<div class="absolute top-[calc(100%+6px)] right-0 z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
+		<div class="absolute top-[calc(100%+6px)] right-[7px] z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg">
 			<div class="mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5">
 				<p class="text-[12px] text-faint">Signed in as</p>
 				<p class="truncate text-[14px] font-medium text-ink">{ v.account.Login }</p>
@@ -205,7 +206,7 @@ templ accountPage(c chrome, account accountView) {
 				}
 				<details class="group">
 					<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-						<svg class="size-3.5 shrink-0 transition-transform group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 							<path d="m6 3.5 4.5 4.5L6 12.5"></path>
 						</svg>
 						<span class="underline underline-offset-4">What deleting does</span>

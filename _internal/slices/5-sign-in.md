@@ -17,7 +17,10 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 - **Sign in with GitHub.** Every page's header has a Sign in link, which leads to `/sign-in` and returns to the page.
   Continue with GitHub sends the visitor to GitHub to authorize Rulemart, and GitHub sends them back to
   `/account/github/callback`, which signs them in and returns them where they started. A visitor who cancels on
-  GitHub, takes too long, or comes back in another browser gets the sign-in page again, saying what happened.
+  GitHub, takes too long, or comes back in another browser gets the sign-in page again, saying what happened: a code
+  GitHub refuses, such as one already used, says "That sign-in didn't complete", and GitHub failing to answer says to
+  try again in a minute. A visitor already signed in who reaches a callback that can't complete, such as by going Back
+  to it, simply goes on, still signed in.
 - **See they're signed in.** The header shows their GitHub avatar, or their initial, which opens a menu with their
   login, Account, and Sign out.
 - **Sign out.** Sign out ends the session in the database and clears the cookie, then returns to the page, or home
@@ -180,7 +183,9 @@ endpoint can come later without changing the session model.
 ### Header
 
 - **Proposed: the account slot is as wide as its widest content at each width**, the Sign in button, a phone's Sign in
-  link, or a narrow phone's icon, so signing in or out never moves Libraries, Groups, or search.
+  link, or a narrow phone's icon, and stays, empty, on the sign-in page, so signing in or out never moves Libraries,
+  Groups, or search. Its content sits at the page's edge: the avatar's button shades past it, into the margin, and its
+  focus ring is drawn just inside the avatar.
 - **Proposed: below 384 pixels, the header drops Fabrica's mark and shows Sign in as a labeled person icon**, so it
   fits down to 320 pixels; between 384 and 720 it keeps the mark, without Fabrica's name, and a Sign in link.
 

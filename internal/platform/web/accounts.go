@@ -94,6 +94,8 @@ type visitor struct {
 	onAccountPage, onListingsPage bool
 	// listings is true when visitors can list libraries, so the menu links the listings page.
 	listings bool
+	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
+	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty.
 	notice string
 }
@@ -259,9 +261,9 @@ func (s *server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	if s.Accounts != nil {
 		view.testUsers = testUserViews(back)
 	}
-	// The page is the way to sign in, so its header doesn't link to it again.
+	// The page is the way to sign in, so its header doesn't link to it again, but keeps its place.
 	v := visitorOf(r.Context())
-	v.signIn = ""
+	v.onSignInPage = true
 	r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, v))
 	s.renderPrivate(w, r, status, signInPage(s.chrome, view))
 }
@@ -290,6 +292,9 @@ func (s *server) gitHubCallback(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	flow, ok := readSignInFlow(r)
 	clearCookie(w, signInCookie)
+	if !ok {
+		flow.back = "/"
+	}
 	switch {
 	case !ok:
 		s.refuseSignIn(w, r, "no sign-in in progress", "/", expiredNotice)
@@ -299,19 +304,36 @@ func (s *server) gitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	case query.Get("error") == "access_denied":
 		s.Log.InfoContext(r.Context(), "sign-in canceled", "route", s.route(r), "requestID", s.requestID(r))
-		s.renderSignIn(w, r, http.StatusOK, flow.back, canceledNotice)
+		if !s.goOnSignedIn(w, r, flow.back) {
+			s.renderSignIn(w, r, http.StatusOK, flow.back, canceledNotice)
+		}
 		return
 	case query.Get("error") != "" || query.Get("code") == "":
 		s.refuseSignIn(w, r, "GitHub returned no code", flow.back, failedNotice)
 		return
 	}
 	identity, err := s.GitHub.Identify(r.Context(), query.Get("code"), flow.verifier, s.callbackURL(r))
-	if err != nil {
+	switch {
+	case errors.Is(err, github.ErrCodeRefused):
+		s.refuseSignIn(w, r, "GitHub refused the code", flow.back, incompleteNotice)
+	case err != nil:
 		s.Log.WarnContext(r.Context(), "sign-in failed", "route", s.route(r), "requestID", s.requestID(r), "error", err.Error())
-		s.renderSignIn(w, r, http.StatusBadGateway, flow.back, failedNotice)
-		return
+		if !s.goOnSignedIn(w, r, flow.back) {
+			s.renderSignIn(w, r, http.StatusBadGateway, flow.back, failedNotice)
+		}
+	default:
+		s.signIn(w, r, identity, flow.back)
 	}
-	s.signIn(w, r, identity, flow.back)
+}
+
+// goOnSignedIn sends a visitor who is already signed in to back, and reports whether it did. A callback that can't
+// complete leaves nothing for a signed-in visitor to do, such as one who went Back to it, so they go on as they were.
+func (s *server) goOnSignedIn(w http.ResponseWriter, r *http.Request, back string) bool {
+	if visitorOf(r.Context()).account == nil {
+		return false
+	}
+	seeOther(w, r, back)
+	return true
 }
 
 // signIn signs identity in, replacing the session the browser held, if any, and returns it to back.
@@ -327,10 +349,13 @@ func (s *server) signIn(w http.ResponseWriter, r *http.Request, identity account
 	seeOther(w, r, back)
 }
 
-// refuseSignIn logs why a callback was refused, and shows the sign-in page with notice.
+// refuseSignIn logs why a callback was refused, and shows the sign-in page with notice, or sends a visitor who is
+// already signed in on to back.
 func (s *server) refuseSignIn(w http.ResponseWriter, r *http.Request, reason, back, notice string) {
 	s.Log.WarnContext(r.Context(), "sign-in refused", "route", s.route(r), "requestID", s.requestID(r), "reason", reason)
-	s.renderSignIn(w, r, http.StatusBadRequest, back, notice)
+	if !s.goOnSignedIn(w, r, back) {
+		s.renderSignIn(w, r, http.StatusBadRequest, back, notice)
+	}
 }
 
 // What the sign-in page says when the last attempt failed.
@@ -338,6 +363,8 @@ const (
 	expiredNotice  = "That sign-in expired, or started in another browser. Sign in again."
 	canceledNotice = "You didn't authorize Rulemart on GitHub, so you're not signed in."
 	failedNotice   = "GitHub couldn't confirm who you are. Try again in a minute."
+	// incompleteNotice is for a code GitHub refused, such as one used already.
+	incompleteNotice = "That sign-in didn't complete. Sign in again."
 )
 
 // callbackURL returns where GitHub sends the visitor back: on BaseURL, or without one, as locally, on the host the

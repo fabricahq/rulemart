@@ -36,6 +36,10 @@ const requestTimeout = 5 * time.Second
 // maxResponseBytes bounds what Rulemart reads of each response. GitHub's are under a few KiB.
 const maxResponseBytes = 64 << 10
 
+// ErrCodeRefused reports that GitHub refused the code a visitor came back with, such as one already used or
+// expired, rather than failing: the visitor can sign in again.
+var ErrCodeRefused = errors.New("GitHub refused the code")
+
 // Secret holds the OAuth app's client secret, such as from an SSM parameter. Value may be called on every sign-in;
 // Forget drops a value GitHub refused, so the next sign-in reads the secret again, such as after a rotation.
 type Secret interface {
@@ -79,7 +83,7 @@ func (c *Client) AuthorizationURL(state, challenge, redirectURI string) string {
 func (c *Client) Identify(ctx context.Context, code, verifier, redirectURI string) (domain.Identity, error) {
 	token, err := c.exchange(ctx, code, verifier, redirectURI)
 	if err != nil {
-		return domain.Identity{}, fmt.Errorf("sign in with GitHub: exchange the code: %v", err)
+		return domain.Identity{}, fmt.Errorf("sign in with GitHub: exchange the code: %w", err)
 	}
 	identity, err := c.user(ctx, token)
 	if err != nil {
@@ -119,8 +123,11 @@ func (c *Client) exchange(ctx context.Context, code, verifier, redirectURI strin
 	case response.Error == "incorrect_client_credentials":
 		c.secret.Forget()
 		return "", errors.New("GitHub refused the client ID or secret: incorrect_client_credentials")
+	case response.Error == "redirect_uri_mismatch":
+		// The OAuth app's callback URL isn't the one Rulemart sent: a configuration mistake, not the visitor's.
+		return "", errors.New("GitHub refused the callback URL: redirect_uri_mismatch")
 	case response.Error != "":
-		return "", fmt.Errorf("GitHub refused it: %s", safeCode(response.Error))
+		return "", fmt.Errorf("%w: %s", ErrCodeRefused, safeCode(response.Error))
 	case response.AccessToken == "":
 		return "", errors.New("GitHub returned no token")
 	}

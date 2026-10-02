@@ -102,7 +102,7 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 	}{
 		"GitHub refuses the code": {
 			`{"error":"bad_verification_code","error_description":"The code passed is incorrect or expired."}`, octocatUser,
-			"GitHub refused it: bad_verification_code",
+			"GitHub refused the code: bad_verification_code",
 		},
 		"GitHub refuses with text that isn't a code": {
 			`{"error":"<script>` + testCode + `</script>"}`, octocatUser, "an unrecognized error",
@@ -128,6 +128,39 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// GitHub refusing the code, such as one already used or expired, is the visitor's to retry by signing in again; a
+// misconfigured app or an unreachable GitHub isn't.
+func TestIdentifyTellsARefusedCodeFromAFailureOfGitHubOrRulemart(t *testing.T) {
+	for name, tc := range map[string]struct {
+		tokenBody string
+		refused   bool
+	}{
+		"a code GitHub doesn't know":   {`{"error":"bad_verification_code"}`, true},
+		"an unusual refusal":           {`{"error":"unverified_user_email"}`, true},
+		"the app's wrong secret":       {`{"error":"incorrect_client_credentials"}`, false},
+		"the app's wrong callback URL": {`{"error":"redirect_uri_mismatch"}`, false},
+		"no token":                     {`{}`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := fakeGitHub(t, tc.tokenBody, octocatUser)
+			_, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+			if err == nil || errors.Is(err, ErrCodeRefused) != tc.refused {
+				t.Errorf("got %v; want refused: %v", err, tc.refused)
+			}
+		})
+	}
+	// GitHub failing to answer is never a refusal.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	c := New("client-id", fixedSecret("client-secret"))
+	c.tokenURL = server.URL
+	if _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect); err == nil || errors.Is(err, ErrCodeRefused) {
+		t.Errorf("GitHub answering 503: got %v, want an error that isn't a refusal", err)
 	}
 }
 
