@@ -192,7 +192,7 @@ func TestUnvettedLibrariesAreReachedFromTheLibrariesPage(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "These libraries have not been vetted. Tread carefully.", "rules Stranger's rules. stranger/rules 2 rules ›")
+	assertShows(t, page, "These libraries have not been vetted. Tread carefully.", "rules Stranger's rules. stranger/rules · 2 rules ›")
 	if got := rels(t, page, unvettedLibrary); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("the unvetted page links the library with rel %q, want nofollow", got)
 	}

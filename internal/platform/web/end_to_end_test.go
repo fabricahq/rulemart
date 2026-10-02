@@ -76,7 +76,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 	handler := newIngestedSite(t)
 
 	for path, want := range map[string]string{
-		"/":                          "example/rules 1 rule",
+		"/":                          "example/rules · 1 rule",
 		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH 1.0.0 techs/go/return-errors",
 		errorsRule:                   "Wrap every returned error.",
@@ -268,7 +268,7 @@ func TestBrowseAndSearchShowEveryIngestedLibrary(t *testing.T) {
 	handler := newTwoLibrarySite(t)
 
 	for path, want := range map[string]string{
-		"/":               "Technologies Go 2 rules Practices Testing 1 rule",
+		"/":               "Popular Go Testing Technologies Browse all → Go 2 rules · 2 libraries Practices Browse all → Testing 1 rule · 1 library",
 		"/browse/techs":   "Go techs/go 2 rules 2 libraries",
 		"/g/techs/go":     "Rules 2 in 2 libraries acme/go-rules 1 rule View in library › Close response bodies HIGH 1.0.0 techs/go/close-bodies example/rules 1 rule",
 		"/search?q=retry": "2 rules match “retry” Verify retry limits",

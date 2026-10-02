@@ -304,7 +304,7 @@ func TestHomeListsTheLibraries(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d", resp.Code)
 	}
-	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules 2 rules")
+	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules · 2 rules")
 }
 
 func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {

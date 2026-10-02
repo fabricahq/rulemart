@@ -1,16 +1,17 @@
-// The pages: home, a library, a rule, and the pages for a missing page or a failure. groups.templ and search.templ
-// hold the pages across libraries.
+// The pages: home, the libraries, a library, a rule, and the pages for a missing page or a failure. browse.templ,
+// groups.templ, and search.templ hold the pages across libraries.
 
 package web
 
 import "strconv"
 
-// homePage leads with search, then lists the vetted libraries, and the canonical groups they hold.
-templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
+// homePage is the prototype's: the hero with its search and the popular groups, each kind's groups as tiles, the
+// first libraries, and the band that invites a library's owner to list it.
+templ homePage(c chrome, v homeView) {
 	@layout(c, head{title: "Rulemart: Code Rules libraries", description: "Find and adopt Code Rules libraries: the engineering rules coding agents follow while they write and review your code."}) {
 		<section class="wrap pt-20 pb-12 text-center max-narrow:pt-14 max-narrow:pb-9">
 			@label("") {
-				The Code Rules library catalog
+				Fabrica / Rulemart
 			}
 			<h1 class="mt-[22px] mb-[18px] text-[clamp(2.25rem,4.6vw,3.6rem)] leading-[1.08] font-normal tracking-[-.06em]">
 				Agent coding best practices,{ " " }
@@ -18,21 +19,36 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 				off the shelf
 			</h1>
 			<p class="mx-auto max-w-[50rem] text-[18px] text-balance text-muted">No need to reinvent the wheel. Pick proven rules from other teams and add them straight to your codebase.</p>
-			<div class="mx-auto mt-8 max-w-[36rem] text-left">
-				@searchForm("home-search", "", false)
-			</div>
+			@bigSearch("home-search")
+			if len(v.popular) > 0 {
+				<div class="mt-[14px] flex flex-wrap items-center justify-center gap-2 text-[13px] text-faint">
+					Popular
+					for _, g := range v.popular {
+						@chipLink(g.href) {
+							{ g.label.name }
+						}
+					}
+				</div>
+			}
 		</section>
+		if !v.empty() {
+			<section class="border-t border-border-subtle py-11">
+				<div class="wrap">
+					@bandHeading("Technologies", techsKind.href(), "Browse all →", "")
+					@groupTiles(v.techs)
+					@bandHeading("Practices", practicesKind.href(), "Browse all →", "mt-[34px]")
+					@groupTiles(v.practices)
+				</div>
+			</section>
+		}
 		<section class="border-t border-border-subtle py-11">
 			<div class="wrap">
-				<div class="mb-[18px] flex items-baseline justify-between gap-4 max-narrow:flex-wrap">
-					<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Libraries</h2>
-					<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(librariesHref) }>All libraries ›</a>
-				</div>
-				if len(libraries) == 0 {
+				@bandHeading("Libraries", librariesHref, "All libraries →", "")
+				if len(v.libraries) == 0 {
 					<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No libraries yet.</div>
 				} else {
 					@rowList() {
-						for _, lib := range libraries {
+						for _, lib := range v.libraries {
 							@rowItem() {
 								@libraryRow(lib, true)
 							}
@@ -41,54 +57,54 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 				}
 			</div>
 		</section>
-		if !groups.empty() {
-			<section class="border-t border-border-subtle py-11">
-				<div class="wrap">
-					<div class="mb-[18px] flex items-baseline justify-between gap-4">
-						<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">Browse by group</h2>
-						<a class="text-[13px] whitespace-nowrap text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(techsKind.href()) }>All groups ›</a>
+		<section class="border-t border-border-subtle py-11">
+			<div class="wrap">
+				<div class="flex flex-wrap items-center justify-between gap-5 rounded-panel border border-border bg-surface p-7">
+					<div>
+						@label("mb-1.5") {
+							Stock the shelves
+						}
+						<h3 class="text-[1.35rem] tracking-[-.035em]">Have a public Code Rules library?</h3>
+						<p class="mt-1.5 text-muted">List it on Rulemart in a minute. Rulemart updates with every library release.</p>
 					</div>
-					@groupTiles("Technologies", canonicalOnly(groups.techs))
-					@groupTiles("Practices", canonicalOnly(groups.practices))
+					<a class="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[18px] py-2 text-[14px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85" href={ templ.SafeURL(v.listHref) }>List your library →</a>
 				</div>
-			</section>
-		}
+			</div>
+		</section>
 	}
 }
 
-// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page: two across on a phone,
-// and one on a narrow phone, where two would cut off names such as Performance.
-templ groupTiles(kind string, groups []groupSummaryView) {
-	if len(groups) > 0 {
-		@labelSubheading("mt-[22px] mb-2 first:mt-0") {
-			{ kind }
-		}
-		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2 max-tiny:grid-cols-1">
-			for _, g := range groups {
-				<a class="flex min-w-0 items-center gap-3 rounded-card border border-border px-3.5 py-3 text-ink no-underline transition-colors duration-[120ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
-					@groupTile(g.label, g.icon, tileMD)
-					<span class="grid min-w-0">
-						<span class="text-[14px] leading-[20px] font-semibold">{ g.label.name }</span>
-						<span class="text-[12.5px] leading-[18px] text-muted">{ plural(g.rules, "rule", "rules") }</span>
-					</span>
-				</a>
-			}
-		</div>
-	}
+// bandHeading heads a band of the home page: its name, and a link to all of what it shows.
+templ bandHeading(name, href, linkText, class string) {
+	<div class={ "mb-[18px] flex items-baseline justify-between gap-4 max-narrow:flex-wrap", class }>
+		<h2 class="text-[1.6rem] font-medium tracking-[-.045em] max-narrow:text-[1.35rem]">{ name }</h2>
+		<a class="whitespace-nowrap" href={ templ.SafeURL(href) }>{ linkText }</a>
+	</div>
 }
 
-// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules,
-// with its stars when it's vetted and has any, under its rules on a phone. The library's name is a heading of level 2, or 3 when headed is true,
-// under a heading of the page's own. A link to an unvetted library's page carries nofollow.
+// groupTiles shows one kind's canonical groups as the prototype's grid of tiles, four across, two on a phone, each
+// leading to its page.
+templ groupTiles(groups []groupSummaryView) {
+	<div class="grid grid-cols-4 gap-3 max-narrow:grid-cols-2">
+		for _, g := range groups {
+			<a class="flex min-w-0 items-center gap-3 rounded-card border border-border bg-paper px-[18px] py-4 text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
+				@groupTile(g.label, g.icon, tileMD)
+				<span class="grid min-w-0">
+					<span class="text-[15px] font-semibold">{ g.label.name }</span>
+					<span class="mt-0.5 text-[12.5px] text-muted">{ plural(g.rules, "rule", "rules") } · { plural(len(g.libraries), "library", "libraries") }</span>
+				</span>
+			</a>
+		}
+	</div>
+}
+
+// libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, its name, its
+// description, and its repository with its rule count, leading to its page, with its stars when it's vetted and has
+// any. The library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A
+// link to an unvetted library's page carries nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
-	<a
-		class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
-		href={ templ.SafeURL(lib.href) }
-		if lib.unvetted {
-			rel="nofollow"
-		}
-	>
-		<div class="flex min-w-0 items-start gap-3">
+	@rowLink(lib.href, lib.unvetted) {
+		<div class="flex min-w-0 items-start gap-[14px]">
 			@avatar(lib.avatar, lib.owner, avatarMD)
 			<div class="min-w-0">
 				if headed {
@@ -99,18 +115,20 @@ templ libraryRow(lib libraryCard, headed bool) {
 				if lib.description != "" {
 					<p class="mt-0.5 text-[13px] text-muted">{ lib.description }</p>
 				}
-				<div class="mono mt-1 text-[12.5px] text-faint">
-					@breakable(lib.owner + "/" + lib.name)
+				<div class="mt-1 text-[12.5px] text-faint">
+					<span class="mono">
+						@breakable(lib.owner + "/" + lib.name)
+					</span>
+					· { plural(lib.rules, "rule", "rules") }
 				</div>
 			</div>
 		</div>
-		<span class="flex items-center gap-3 self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1 narrow:self-center narrow:pt-0">
+		<span class="text-[12.5px] whitespace-nowrap text-muted">
 			if lib.stars > 0 && !lib.unvetted {
 				@starCount(lib.stars, lib.starredByYou)
 			}
-			<span>{ plural(lib.rules, "rule", "rules") } ›</span>
 		</span>
-	</a>
+	}
 }
 
 
