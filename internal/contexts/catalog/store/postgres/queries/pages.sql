@@ -306,7 +306,18 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 -- max_results. A library is in the list when vetted holds it, or, with include_unvetted, when a listing names it. The
 -- list holds the current rules of the group at group_path, or of every group when it's empty, and their retired rules
 -- too with include_retired, each by its newest version. With match_all, it holds every one of them; otherwise those
--- that hold at least one of the find terms and none of the exclude terms, matched and scored as SearchRules does.
+-- that hold at least one of the find terms and none of the exclude terms. Each term is in websearch_to_tsquery's
+-- syntax, which accepts any text, and a term of only stop words, such as "the", is ignored.
+--
+-- A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
+-- the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
+-- but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+-- with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+-- source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID. Each term
+-- scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact
+-- description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms' average,
+-- scaled by the square of the share of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so
+-- "Verify retry limits" outranks a longer title for retry.
 --
 -- Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
 -- they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
@@ -314,16 +325,18 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 -- or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
 -- both when it's empty.
 --
--- Rules that hold every find term come first. Then order_by orders them: best by score as SearchRules ranks them,
--- stars by stars, and new by when the release that first published each rule was tagged, newest first. A retired rule
--- comes after the current rules it ties with, and then rules fall to best's text rank, stars, the libraries first_owner
--- owns, owner, name, title, and rule ID, so the order is stable. Each group's rules then come together, in the order
--- of each group's first rule.
+-- Rules that hold every find term come first. Then order_by orders them: best by score, stars by stars, and new by
+-- when the release that first published each rule was tagged, newest first. A retired rule comes after the current
+-- rules it ties with, and a rule of a library vetted doesn't hold after the vetted ones it ties with; then rules fall
+-- to best's ts_rank, stars, the libraries first_owner owns, best's title, owner, name, title, and rule ID, so the order
+-- is stable. Then each group's rules come together, among the rules that hold every term and among the rest apart, in
+-- the order of each group's first rule.
 --
 -- Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
--- libraries; how many rules of its group pass them; and, the same on every row, how many rules the list holds before
--- its filters, and the libraries those come from, in step, first_owner's first and then by owner and name, each with
--- whether vetted holds it and how many of the rules it holds.
+-- libraries; how many rules of its group pass them, among the rules that hold every term or the rest, as the row is;
+-- and, the same on every row, how many rules the list holds before its filters, and the libraries those come from, in
+-- step, first_owner's first and then by owner and name, each with whether vetted holds it and how many of the rules it
+-- holds.
 -- name: ListRules :many
 WITH find_terms AS (
     SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
@@ -357,11 +370,18 @@ stars AS (
 documents AS (
     SELECT r.id, newest.id AS version_id, (r.retired_in_release_id IS NOT NULL)::boolean AS retired,
            (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
-           newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D') AS text,
-           ts_filter(newest.search_document, '{a}') AS title,
-           to_tsvector('english', coalesce((@canonical_names::text[])[array_position(@canonical_ids::text[], g.path)], '')
-               || ' ' || split_part(g.path, '/', 2)) AS group_names,
-           to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   ')) AS identifiers
+           -- A list without a query matches nothing, so it builds no documents to match.
+           CASE WHEN NOT @match_all::boolean
+               THEN newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D')
+           END AS text,
+           CASE WHEN NOT @match_all::boolean THEN ts_filter(newest.search_document, '{a}') END AS title,
+           CASE WHEN NOT @match_all::boolean
+               THEN to_tsvector('english', coalesce((@canonical_names::text[])[array_position(@canonical_ids::text[], g.path)], '')
+                   || ' ' || split_part(g.path, '/', 2))
+           END AS group_names,
+           CASE WHEN NOT @match_all::boolean
+               THEN to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   '))
+           END AS identifiers
     FROM rules r
     JOIN library_groups g ON g.id = r.group_id
     JOIN libraries l ON l.id = r.library_id
@@ -461,16 +481,18 @@ positioned AS (
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
                         f.retired,
+                        f.vetted DESC,
                         CASE WHEN @order_by::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
-                        lower(f.owner) = lower(@first_owner::text) DESC, lower(f.owner), lower(f.name),
-                        lower(coalesce(f.title, '')), f.path
+                        lower(f.owner) = lower(@first_owner::text) DESC,
+                        CASE WHEN @order_by::text = 'best' THEN lower(coalesce(f.title, '')) END,
+                        lower(f.owner), lower(f.name), lower(coalesce(f.title, '')), f.path
            ) AS position
     FROM filtered f
 ),
 grouped AS (
-    SELECT p.*, min(p.position) OVER (PARTITION BY p.group_path) AS group_position,
-           count(*) OVER (PARTITION BY p.group_path) AS group_rules
+    SELECT p.*, min(p.position) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_position,
+           count(*) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_rules
     FROM positioned p
 )
 SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,

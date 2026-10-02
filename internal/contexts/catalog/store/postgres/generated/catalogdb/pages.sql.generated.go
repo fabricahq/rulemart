@@ -791,11 +791,18 @@ stars AS (
 documents AS (
     SELECT r.id, newest.id AS version_id, (r.retired_in_release_id IS NOT NULL)::boolean AS retired,
            (l.host || ':' || l.host_repository_id = ANY ($9::text[]))::boolean AS vetted,
-           newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D') AS text,
-           ts_filter(newest.search_document, '{a}') AS title,
-           to_tsvector('english', coalesce(($10::text[])[array_position($11::text[], g.path)], '')
-               || ' ' || split_part(g.path, '/', 2)) AS group_names,
-           to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   ')) AS identifiers
+           -- A list without a query matches nothing, so it builds no documents to match.
+           CASE WHEN NOT $10::boolean
+               THEN newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D')
+           END AS text,
+           CASE WHEN NOT $10::boolean THEN ts_filter(newest.search_document, '{a}') END AS title,
+           CASE WHEN NOT $10::boolean
+               THEN to_tsvector('english', coalesce(($11::text[])[array_position($12::text[], g.path)], '')
+                   || ' ' || split_part(g.path, '/', 2))
+           END AS group_names,
+           CASE WHEN NOT $10::boolean
+               THEN to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   '))
+           END AS identifiers
     FROM rules r
     JOIN library_groups g ON g.id = r.group_id
     JOIN libraries l ON l.id = r.library_id
@@ -803,11 +810,11 @@ documents AS (
         SELECT v.id, v.search_document FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
         WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
     ) newest ON true
-    WHERE (r.retired_in_release_id IS NULL OR $12::boolean)
-      AND ($13::text = '' OR g.path = $13::text)
+    WHERE (r.retired_in_release_id IS NULL OR $13::boolean)
+      AND ($14::text = '' OR g.path = $14::text)
       AND (
           l.host || ':' || l.host_repository_id = ANY ($9::text[])
-          OR ($14::boolean
+          OR ($15::boolean
               AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
       )
 ),
@@ -845,7 +852,7 @@ ranked AS (
            CASE WHEN search.terms = 0 THEN 0 ELSE ts_rank(s.document, search.any_query) END::float AS text_rank
     FROM scored s
     CROSS JOIN search
-    WHERE $15::boolean OR (search.terms > 0 AND cardinality(s.missing) < search.terms)
+    WHERE $10::boolean OR (search.terms > 0 AND cardinality(s.missing) < search.terms)
 ),
 base AS (
     SELECT rk.id, rk.missing, rk.score, rk.text_rank, d.retired, d.vetted, l.id AS library_id, l.owner, l.name,
@@ -895,16 +902,18 @@ positioned AS (
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
                         f.retired,
+                        f.vetted DESC,
                         CASE WHEN $21::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
-                        lower(f.owner) = lower($16::text) DESC, lower(f.owner), lower(f.name),
-                        lower(coalesce(f.title, '')), f.path
+                        lower(f.owner) = lower($16::text) DESC,
+                        CASE WHEN $21::text = 'best' THEN lower(coalesce(f.title, '')) END,
+                        lower(f.owner), lower(f.name), lower(coalesce(f.title, '')), f.path
            ) AS position
     FROM filtered f
 ),
 grouped AS (
-    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.replaced_by, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.position, min(p.position) OVER (PARTITION BY p.group_path) AS group_position,
-           count(*) OVER (PARTITION BY p.group_path) AS group_rules
+    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.replaced_by, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.position, min(p.position) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_position,
+           count(*) OVER (PARTITION BY cardinality(p.missing) > 0, p.group_path) AS group_rules
     FROM positioned p
 )
 SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
@@ -938,12 +947,12 @@ type ListRulesParams struct {
 	StarRuleIds            []int64
 	StarCounts             []int32
 	Vetted                 []string
+	MatchAll               bool
 	CanonicalNames         []string
 	CanonicalIds           []string
 	IncludeRetired         bool
 	GroupPath              string
 	IncludeUnvetted        bool
-	MatchAll               bool
 	FirstOwner             string
 	Libraries              []string
 	Impact                 string
@@ -987,7 +996,18 @@ type ListRulesRow struct {
 // max_results. A library is in the list when vetted holds it, or, with include_unvetted, when a listing names it. The
 // list holds the current rules of the group at group_path, or of every group when it's empty, and their retired rules
 // too with include_retired, each by its newest version. With match_all, it holds every one of them; otherwise those
-// that hold at least one of the find terms and none of the exclude terms, matched and scored as SearchRules does.
+// that hold at least one of the find terms and none of the exclude terms. Each term is in websearch_to_tsquery's
+// syntax, which accepts any text, and a term of only stop words, such as "the", is ignored.
+//
+// A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
+// the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
+// but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+// with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+// source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID. Each term
+// scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact
+// description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms' average,
+// scaled by the square of the share of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so
+// "Verify retry limits" outranks a longer title for retry.
 //
 // Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
 // they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
@@ -995,16 +1015,18 @@ type ListRulesRow struct {
 // or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
 // both when it's empty.
 //
-// Rules that hold every find term come first. Then order_by orders them: best by score as SearchRules ranks them,
-// stars by stars, and new by when the release that first published each rule was tagged, newest first. A retired rule
-// comes after the current rules it ties with, and then rules fall to best's text rank, stars, the libraries first_owner
-// owns, owner, name, title, and rule ID, so the order is stable. Each group's rules then come together, in the order
-// of each group's first rule.
+// Rules that hold every find term come first. Then order_by orders them: best by score, stars by stars, and new by
+// when the release that first published each rule was tagged, newest first. A retired rule comes after the current
+// rules it ties with, and a rule of a library vetted doesn't hold after the vetted ones it ties with; then rules fall
+// to best's ts_rank, stars, the libraries first_owner owns, best's title, owner, name, title, and rule ID, so the order
+// is stable. Then each group's rules come together, among the rules that hold every term and among the rest apart, in
+// the order of each group's first rule.
 //
 // Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
-// libraries; how many rules of its group pass them; and, the same on every row, how many rules the list holds before
-// its filters, and the libraries those come from, in step, first_owner's first and then by owner and name, each with
-// whether vetted holds it and how many of the rules it holds.
+// libraries; how many rules of its group pass them, among the rules that hold every term or the rest, as the row is;
+// and, the same on every row, how many rules the list holds before its filters, and the libraries those come from, in
+// step, first_owner's first and then by owner and name, each with whether vetted holds it and how many of the rules it
+// holds.
 func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRulesRow, error) {
 	rows, err := q.db.Query(ctx, listRules,
 		arg.Skip,
@@ -1016,12 +1038,12 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 		arg.StarRuleIds,
 		arg.StarCounts,
 		arg.Vetted,
+		arg.MatchAll,
 		arg.CanonicalNames,
 		arg.CanonicalIds,
 		arg.IncludeRetired,
 		arg.GroupPath,
 		arg.IncludeUnvetted,
-		arg.MatchAll,
 		arg.FirstOwner,
 		arg.Libraries,
 		arg.Impact,
