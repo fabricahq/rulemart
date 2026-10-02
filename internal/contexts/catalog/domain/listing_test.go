@@ -91,7 +91,10 @@ func TestStateOfAListingPrefersVettedThenIngested(t *testing.T) {
 }
 
 func TestFailureKeepsAShortReasonAsASentenceAndCutsALongOneAtACharacter(t *testing.T) {
-	if got := Failure("  the repository has no release tags \n"); got != "The repository has no release tags" {
+	if got := Failure("Check its name."); got != "Check its name." {
+		t.Errorf("got %q", got)
+	}
+	if got := Failure("  the repository has no release tags \n"); got != "The repository has no release tags." {
 		t.Errorf("got %q", got)
 	}
 	long := Failure(strings.Repeat("é", MaxFailureLength))

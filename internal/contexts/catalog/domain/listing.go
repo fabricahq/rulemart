@@ -126,15 +126,17 @@ func ParseListedRepository(text string) (owner, name string, err error) {
 	return owner, name, nil
 }
 
-// Failure returns text as a listing stores why its check failed: trimmed, starting with a capital letter, and within
-// MaxFailureLength bytes, cut at a character's boundary.
+// Failure returns text as a listing stores why its check failed: a sentence, trimmed, starting with a capital letter
+// and ending with a period, within MaxFailureLength bytes, cut at a character's boundary.
 func Failure(text string) string {
 	text = strings.TrimSpace(text)
-	if first, size := utf8.DecodeRuneInString(text); size > 0 {
-		text = string(unicode.ToUpper(first)) + text[size:]
-	}
 	if text == "" {
-		return "the check failed"
+		return "The check failed."
+	}
+	first, size := utf8.DecodeRuneInString(text)
+	text = string(unicode.ToUpper(first)) + text[size:]
+	if !strings.ContainsAny(text[len(text)-1:], ".!?") {
+		text += "."
 	}
 	if len(text) <= MaxFailureLength {
 		return text
