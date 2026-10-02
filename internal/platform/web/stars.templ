@@ -9,7 +9,7 @@ import "strconv"
 // signed-in visitor; a link that signs anyone else in and returns them, on a page that's the same for everyone; or the
 // count alone when no one can sign in. Screen readers hear its state, what it does, and the count in words; the
 // button's name starts with its visible label, Star or Starred, so a visitor who speaks that label reaches it. The page
-// that follows starring, unstarring, or signing in to star focuses it, which needs no script.
+// that follows starring, unstarring, or signing in to star focuses it, with pageFocus's quiet ring.
 templ starControl(star starView) {
 	if star.action != "" {
 		<form method="post" action={ templ.SafeURL(star.action) }>
@@ -19,7 +19,7 @@ templ starControl(star starView) {
 				type="submit"
 				aria-pressed={ strconv.FormatBool(star.starred) }
 				title={ starTitle(star.starred) }
-				autofocus?={ star.focused }
+				{ pageFocus(star.focused)... }
 				if star.prompt {
 					data-prompt
 				}

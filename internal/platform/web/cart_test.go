@@ -318,7 +318,10 @@ func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
 		if got := strings.Count(page, " autofocus"); got != 1 || !strings.Contains(page, `id="`+c.id+`"`) {
 			t.Errorf("adding %v: the page has %d autofocused controls, and wants one, %s", c.item, got, c.id)
 		}
-		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(visibleText(t, again), "Added") {
+		if got := strings.Count(page, " data-autofocused"); got != 1 {
+			t.Errorf("adding %v: the page marks %d controls as focused by the page, and wants one", c.item, got)
+		}
+		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(again, " data-autofocused") || strings.Contains(visibleText(t, again), "Added") {
 			t.Errorf("adding %v: the page says so again on the next visit", c.item)
 		}
 	}

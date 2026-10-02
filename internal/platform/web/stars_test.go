@@ -376,7 +376,8 @@ func TestStarringAndUnstarringTwiceIsLikeOnce(t *testing.T) {
 }
 
 // The star button says what starring or unstarring did on the page it returns to, with the button focused, so
-// keyboard and screen reader users land where they were, and hear its new state. A later view doesn't repeat it.
+// keyboard and screen reader users land where they were, and hear its new state, and marked as focused by the page,
+// which draws its quiet ring. A later view doesn't repeat it.
 func TestStarringSaysWhatItDidAndKeepsFocusOnTheButton(t *testing.T) {
 	site := newStarSite(t)
 
@@ -385,16 +386,16 @@ func TestStarringSaysWhatItDidAndKeepsFocusOnTheButton(t *testing.T) {
 		!slices.Equal(links, []string{"Starred rules /account/stars"}) {
 		t.Errorf("the notice says %q and links %q, want Starred rules linked to the list", text, links)
 	}
-	if button := starButton(t, page); button["aria-pressed"] != "true" || !hasKey(button, "autofocus") {
-		t.Fatalf("after starring, the button: %v, want aria-pressed true and autofocus", button)
+	if button := starButton(t, page); button["aria-pressed"] != "true" || !hasKey(button, "autofocus") || !hasKey(button, "data-autofocused") {
+		t.Fatalf("after starring, the button: %v, want aria-pressed true, autofocus, and data-autofocused", button)
 	}
-	if hasKey(starButton(t, body(t, site.signedInGet(t, errorsRule))), "autofocus") {
-		t.Error("a later view of the page still focuses the button")
+	if button := starButton(t, body(t, site.signedInGet(t, errorsRule))); hasKey(button, "autofocus") || hasKey(button, "data-autofocused") {
+		t.Errorf("a later view of the page still focuses the button: %v", button)
 	}
 	page = body(t, site.follow(t, site.signedInPost(t, unstarPath)))
 	assertShows(t, page, "You unstarred this rule.")
-	if button := starButton(t, page); button["aria-pressed"] != "false" || !hasKey(button, "autofocus") {
-		t.Fatalf("after unstarring, the button: %v, want aria-pressed false and autofocus", button)
+	if button := starButton(t, page); button["aria-pressed"] != "false" || !hasKey(button, "autofocus") || !hasKey(button, "data-autofocused") {
+		t.Fatalf("after unstarring, the button: %v, want aria-pressed false, autofocus, and data-autofocused", button)
 	}
 }
 

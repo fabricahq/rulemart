@@ -13,33 +13,33 @@ import (
 // it from an unvetted library, or signs a visitor in and returns them, each reading c.label. Once the cart holds the
 // item, it says how, with a check, and leads to the cart, or to the confirmation the item needs. Screen readers hear
 // the visible text first, then what it adds or holds. After adding, or signing in to add, the page focuses it, with
-// a lighter ring than a keyboard's, and a prompt to add after signing in outlines it in ink.
+// pageFocus's quiet ring, and a prompt to add after signing in outlines it in ink.
 templ cartButton(c cartControl) {
 	switch {
 		case c.held == heldUnconfirmed:
-			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "border-warn-border text-warn-ink no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ "In cart, needs confirming: " + c.what + ". Confirm it" }>
+			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "border-warn-border text-warn-ink no-underline" } href={ templ.SafeURL(c.href) } { pageFocus(c.focused)... } aria-label={ "In cart, needs confirming: " + c.what + ". Confirm it" }>
 				@warningIcon("size-[15px] flex-none")
 				In cart, needs confirming
 			</a>
 		case c.held == heldRetired:
-			<a id={ c.id } class={ cartButtonStyle, cartButtonWrapShape, "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ "In cart, left out of checkout because it's retired: " + c.what + ". See your cart" }>
+			<a id={ c.id } class={ cartButtonStyle, cartButtonWrapShape, "no-underline" } href={ templ.SafeURL(c.href) } { pageFocus(c.focused)... } aria-label={ "In cart, left out of checkout because it's retired: " + c.what + ". See your cart" }>
 				@leftOutIcon("size-[15px] flex-none")
 				In cart, left out of checkout because it's retired
 			</a>
 		case c.held != notHeld:
-			<a id={ c.id } class={ cartButtonStyle, heldShape(c.held), "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ heldText(c.held) + ": " + c.what + ". See your cart" }>
+			<a id={ c.id } class={ cartButtonStyle, heldShape(c.held), "no-underline" } href={ templ.SafeURL(c.href) } { pageFocus(c.focused)... } aria-label={ heldText(c.held) + ": " + c.what + ". See your cart" }>
 				@checkIcon("size-[15px] flex-none")
 				{ heldText(c.held) }
 			</a>
 		case c.action != "":
 			<form method="post" action={ templ.SafeURL(c.action) }>
-				<button id={ c.id } class={ cartButtonStyle, cartButtonShape, "cursor-pointer", templ.KV(cartPromptStyle, c.prompt), templ.KV(autofocusRing, c.focused) } type="submit" autofocus?={ c.focused } aria-label={ c.label + ": " + c.what }>
+				<button id={ c.id } class={ cartButtonStyle, cartButtonShape, "cursor-pointer", templ.KV(cartPromptStyle, c.prompt) } type="submit" { pageFocus(c.focused)... } aria-label={ c.label + ": " + c.what }>
 					@cartIcon("size-[15px] flex-none")
 					{ c.label }
 				</button>
 			</form>
 		case c.confirm != "":
-			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "no-underline", templ.KV(cartPromptStyle, c.prompt), templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.confirm) } autofocus?={ c.focused } aria-label={ c.label + ": " + c.what }>
+			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "no-underline", templ.KV(cartPromptStyle, c.prompt) } href={ templ.SafeURL(c.confirm) } { pageFocus(c.focused)... } aria-label={ c.label + ": " + c.what }>
 				@cartIcon("size-[15px] flex-none")
 				{ c.label }
 			</a>
@@ -55,13 +55,13 @@ templ cartButton(c cartControl) {
 templ cartOffer(c cartControl) {
 	if c.action != "" {
 		<form method="post" action={ templ.SafeURL(c.action) }>
-			<button class={ cartButtonStyle, cartButtonShape, "cursor-pointer border-ink", autofocusRing } type="submit" autofocus aria-label={ "Add to cart: " + c.what }>
+			<button class={ cartButtonStyle, cartButtonShape, "cursor-pointer border-ink" } type="submit" { pageFocus(true)... } aria-label={ "Add to cart: " + c.what }>
 				@cartIcon("size-[15px] flex-none")
 				Add to cart
 			</button>
 		</form>
 	} else if c.confirm != "" {
-		<a class={ cartButtonStyle, cartButtonShape, "border-ink no-underline", autofocusRing } href={ templ.SafeURL(c.confirm) } autofocus aria-label={ "Add to cart: " + c.what }>
+		<a class={ cartButtonStyle, cartButtonShape, "border-ink no-underline" } href={ templ.SafeURL(c.confirm) } { pageFocus(true)... } aria-label={ "Add to cart: " + c.what }>
 			@cartIcon("size-[15px] flex-none")
 			Add to cart
 		</a>
@@ -95,10 +95,6 @@ func heldShape(held heldState) string {
 	}
 	return cartButtonShape
 }
-
-// autofocusRing is a lighter focus ring for a control the page focuses after a click, rather than the visitor's
-// keyboard, which would otherwise wear a keyboard's heavy ring.
-const autofocusRing = "focus-visible:outline-2 focus-visible:outline-offset-2"
 
 // cartPromptStyle outlines the control that offers to add an item after signing in, in ink inside a ring, as the star
 // button's prompt does.

@@ -268,6 +268,17 @@ templ ruleCardLink(r ruleCard) {
 	</li>
 }
 
+// pageFocus is the attributes of a control the page focuses after the visitor's click, such as the star button after
+// starring, or none when focused is false: autofocus, which focuses it without a script, and data-autofocused, which
+// draws a quiet ring in place of the keyboard's, since the visitor clicked, until menus.js takes it off at their first
+// key or when focus leaves the control. Without JavaScript the ring stays quiet on that page.
+func pageFocus(focused bool) templ.Attributes {
+	if !focused {
+		return nil
+	}
+	return templ.Attributes{"autofocus": true, "data-autofocused": true}
+}
+
 // searchForm is a search field with its button, which searches the rules of every vetted library. query fills the
 // field, and autofocus focuses it when the page loads. The field's focus thickens the form's own border into one ring,
 // and the button keeps its own focus ring.

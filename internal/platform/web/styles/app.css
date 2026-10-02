@@ -142,6 +142,10 @@
   code, .font-mono { font-family: var(--font-mono); }
   code { font-size: .86em; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+  /* A control the page focused after a click wears a quiet ring until the visitor presses a key, see pageFocus, or
+     none when the star button's prompt rings it already. */
+  [data-autofocused]:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 2px; }
+  [data-autofocused][data-prompt]:focus-visible { outline: none; }
   :where(p, h1, h2, h3, h4, li, td) { overflow-wrap: anywhere; }
   h1, h2, h3, h4 { font-weight: 500; color: var(--ink); }
   /* Search fields draw no browser clear button, which would show in the browser's own color. */

@@ -94,6 +94,14 @@ a decision under "Decided while building" says otherwise and why.
   only when it has stars; rows always show the counts the catalog reads.
 - **Proposed: Starred rules is as wide as search's results**, which list rules the same way, so a row's library,
   group, version, and stars fit one line at 1280 pixels.
+- **Decided (Josh): a control the page focuses after a click wears a quiet ring.** After starring, unstarring, or
+  signing in to star, and after adding to the cart, the page still focuses the control with `autofocus`, as slice 7
+  decided, but the keyboard's 3-pixel ring around it read as too loud after a mouse click or a tap. Such a control
+  carries `data-autofocused` (`pageFocus` in `parts.templ` adds both), which draws a 1-pixel ring in the
+  border-strong color, or none when the star's prompt rings it already. `menus.js` takes the attribute off at the
+  visitor's first key, other than a shortcut with Control, Command, or Option, or when focus leaves the control, so
+  Tab and back shows the keyboard's ring. Without JavaScript the ring stays quiet on that page. The cart control and
+  the sign-in offer's button replace their lighter 2-pixel ring with the same attribute, so the two behave alike.
 
 ## Not in this slice
 
