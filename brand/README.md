@@ -11,17 +11,23 @@ Run `shasum -a 256 -c SHA256SUMS` in this directory to check them.
 
 ## Where the site uses it
 
-The site's `favicon.svg`, `favicon.ico`, and `apple-touch-icon.png` in `internal/platform/web/static/` are copied
-from `favicons/` unchanged, and so are `rulemart-horizontal-dark.svg` and `rulemart-horizontal-white.svg` from
-`logos/`, which the home page's hero shows in the light and dark themes. The repository's README shows the same
-logos, dark or white with the reader's theme.
+The site's `favicon.svg` and `apple-touch-icon.png` in `internal/platform/web/static/` are copied from `favicons/`
+unchanged, and so are `rulemart-horizontal-dark.svg` and `rulemart-horizontal-white.svg` from `logos/`, which the
+home page's hero shows in the light and dark themes. The repository's README shows the same logos, dark or white
+with the reader's theme.
 
-`static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo over the
-tagline, centered on the surface color, made by `social.py`. Run it after changing the logo or the tagline, with
-Pillow and `rsvg-convert` installed:
+`assets.py` makes the two site files the package doesn't ship as the site needs them:
+
+- `static/favicon.ico` holds `favicons/rulemart-dark-16.png`, `-32.png`, and `-48.png`, one frame a size. It
+  departs from the package's own `favicons/favicon.ico`, which scales the 256-pixel app tile down and blurs at 16
+  pixels.
+- `static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo over the
+  tagline, centered on the surface color.
+
+Run it after changing the logo, the favicon artwork, or the tagline, with Pillow and `rsvg-convert` installed:
 
 ```sh
-python3 brand/social.py
+python3 brand/assets.py
 ```
 
 ## Regenerating the package

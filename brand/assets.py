@@ -1,6 +1,11 @@
-"""Make the site's social image: the dark horizontal logo over the tagline, centered on the surface color, at 1200x630.
+"""Make the site's files that the package doesn't ship as the site needs them: the social image and favicon.ico.
 
-Requires Pillow and rsvg-convert. Run from anywhere: python3 brand/social.py
+The social image is the dark horizontal logo over the tagline, centered on the surface color, at 1200x630.
+favicon.ico holds the package's dedicated favicon artwork, favicons/rulemart-dark-{16,32,48}.png, one frame a size:
+the package's own ICO scales its 256-pixel app tile down, which leaves a gray smudge at 16 pixels.
+
+Requires Pillow and rsvg-convert. Run from anywhere: python3 brand/assets.py
+Both outputs are the same bytes on every run with the same Pillow and rsvg-convert.
 """
 
 from io import BytesIO
@@ -11,7 +16,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent
 LOGO = ROOT / "logos/rulemart-horizontal-dark.svg"
-OUTPUT = ROOT.parent / "internal/platform/web/static/social.png"
+STATIC = ROOT.parent / "internal/platform/web/static"
 
 SIZE = (1200, 630)
 SURFACE = "#f6f6f6"
@@ -27,6 +32,8 @@ GAP = 36
 # wide image to.
 LOGO_WIDTH = 520
 
+FAVICON_SIZES = (16, 32, 48)
+
 
 def render(svg, width):
     """Render an SVG at a width, by rsvg-convert, as an RGBA image."""
@@ -39,7 +46,7 @@ def drawn(image):
     return image.crop(image.getchannel("A").getbbox())
 
 
-def main():
+def social_image():
     # Render big enough that the drawn part, without the logo's padding, is at least LOGO_WIDTH wide, then scale it
     # down to exactly that width, so the logo is centered by what is drawn rather than by its padding.
     logo = drawn(render(LOGO, LOGO_WIDTH * 2))
@@ -58,8 +65,15 @@ def main():
     baseline = y + logo.height + GAP + cap
     x = (SIZE[0] - (right - left)) // 2 - left
     ImageDraw.Draw(card).text((x, baseline), TAGLINE, font=font, fill=INK, anchor="ls")
-    card.save(OUTPUT, optimize=True)
+    card.save(STATIC / "social.png", optimize=True)
+
+
+def favicon_ico():
+    frames = [Image.open(ROOT / f"favicons/rulemart-dark-{size}.png") for size in FAVICON_SIZES]
+    largest = frames[-1]
+    largest.save(STATIC / "favicon.ico", sizes=[f.size for f in frames], append_images=frames[:-1])
 
 
 if __name__ == "__main__":
-    main()
+    social_image()
+    favicon_ico()

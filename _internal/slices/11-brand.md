@@ -18,7 +18,7 @@ ones describe what the site already does.
   Rulemart" eyebrow was, as Code Rules' home page opens with its own: the ink logo in the light theme and the white
   one in the dark, 56 pixels tall, 48 on a phone. The heading, lede, search, and Popular chips below it are unchanged.
 - **The browser tab** shows the package's adaptive favicon, whose stroke is dark in the browser's light theme and
-  light in its dark theme, with the ICO, the symbol on a dark tile, for browsers that take no SVG.
+  light in its dark theme, with an ICO of the package's dark favicon artwork for browsers that take no SVG.
 - **A phone's home screen** shows the package's apple-touch-icon, the symbol on a dark tile.
 - **A link shared** on a social site shows a 1200x630 image of the dark horizontal logo, symbol and wordmark, over
   the tagline "Agent coding best practices, off the shelf", centered on the surface color.
@@ -37,11 +37,16 @@ ones describe what the site already does.
   one and hides the other by the same rule as the color tokens: dark when the visitor chose dark in the footer, or
   chose nothing and their system prefers dark. A `<picture>` with a `prefers-color-scheme` source would ignore the
   footer's choice. The hidden image isn't rendered, so screen readers read Rulemart once.
-- **Proposed: the favicons and touch icon are the package's files, copied unchanged** into
-  `internal/platform/web/static/` under the names the pages and the `/favicon.ico` route already use (**Existing**):
-  `favicon.svg` (adaptive), `favicon.ico`, and `apple-touch-icon.png`. Static files are served under hashed names
-  and cached for a year, so replacing them needs no infrastructure change (**Existing**); `/favicon.ico` is cached a
-  day.
+- **Proposed: `favicon.svg` and `apple-touch-icon.png` are the package's files, copied unchanged** into
+  `internal/platform/web/static/` under the names the pages and the `/favicon.ico` route already use (**Existing**).
+  Static files are served under hashed names and cached for a year, so replacing them needs no infrastructure change
+  (**Existing**); `/favicon.ico` is cached a day.
+- **Proposed: `favicon.ico` is built from the package's dedicated favicon artwork, not copied.** The package's ICO
+  scales its 256-pixel app tile, the symbol on #202020, down to each size, which leaves a gray smudge at 16 pixels
+  and looks nothing like the SVG favicon. `brand/assets.py` instead puts `favicons/rulemart-dark-16.png`, `-32.png`,
+  and `-48.png`, drawn for those sizes with the heavier stroke, into the ICO unchanged, one frame a size. Like
+  those files, its stroke is the ink color on transparency, so a browser that shows the ICO in a dark tab strip
+  shows a dark mark on dark; every current browser takes the adaptive SVG instead.
 - **Proposed: a static SVG may hold a `<style>` that loads nothing.** The adaptive favicon switches its stroke with a
   `prefers-color-scheme` rule, which the check for static SVGs rejected outright. A stylesheet runs no code; it can
   only load through an `@import` or a URL. So the check takes a `<style>` with neither, nor an escape that could spell
@@ -59,7 +64,7 @@ ones describe what the site already does.
   of margin on each side, and fits inside the middle 630-pixel square that some apps crop a wide image to; the
   tagline, 684 pixels wide, is clipped at its ends by such a crop. The alt text is "Rulemart: agent coding best
   practices, off the shelf", as it was.
-- **Proposed: `brand/social.py` makes the social image**, beside the package's `build.py`, with `rsvg-convert` for
+- **Proposed: `brand/assets.py` makes the social image and `favicon.ico`**, beside the package's `build.py`, with `rsvg-convert` for
   the logo and Pillow for the tagline, which reads the package's `source/inter-latin.woff2` directly and sets its
   Regular instance, so it can be regenerated when the brand changes and gives the same bytes on every run. It
   centers the logo by what it draws rather than its padding, and the tagline by its capitals and baseline.
