@@ -68,13 +68,14 @@ const (
 // the count's formatting, formatCount, such as 1,234, and its words, starCountText.
 
 // starFace is the face of a rule's star button or sign-in link: a star, filled once starred, then label, then the
-// count unless it's 0. Screen readers skip it, since the control names itself to them.
+// count unless it's 0, in the faint color at the label's weight, as the prototype draws it. Screen readers skip it,
+// since the control names itself to them.
 templ starFace(count int, starred bool, label string) {
 	<span class="inline-flex items-center gap-2" aria-hidden="true">
 		@starIcon("size-[15px] flex-none", starred)
 		<span>{ label }</span>
 		if count > 0 {
-			<span class="font-normal text-faint tabular-nums">{ formatCount(count) }</span>
+			<span class="text-faint tabular-nums">{ formatCount(count) }</span>
 		}
 	</span>
 }

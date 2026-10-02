@@ -292,7 +292,8 @@ const (
 // the count's formatting, formatCount, such as 1,234, and its words, starCountText.
 
 // starFace is the face of a rule's star button or sign-in link: a star, filled once starred, then label, then the
-// count unless it's 0. Screen readers skip it, since the control names itself to them.
+// count unless it's 0, in the faint color at the label's weight, as the prototype draws it. Screen readers skip it,
+// since the control names itself to them.
 func starFace(count int, starred bool, label string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -329,7 +330,7 @@ func starFace(count int, starred bool, label string) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 75, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 76, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -340,14 +341,14 @@ func starFace(count int, starred bool, label string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if count > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"font-normal text-faint tabular-nums\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"text-faint tabular-nums\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(formatCount(count))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 77, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 78, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -416,7 +417,7 @@ func starCount(count int, filled bool, class string) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(starCountText(count))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 87, Col: 130}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 88, Col: 130}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 			if templ_7745c5c3_Err != nil {
@@ -437,7 +438,7 @@ func starCount(count int, filled bool, class string) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(formatCount(count))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 89, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 90, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -450,7 +451,7 @@ func starCount(count int, filled bool, class string) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(starCountText(count))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 90, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 91, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -611,7 +612,7 @@ func starredPage(c chrome, starred []ruleResultView) templ.Component {
 				var templ_7745c5c3_Var31 templ.SafeURL
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(techsKind.href()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 124, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `stars.templ`, Line: 125, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
