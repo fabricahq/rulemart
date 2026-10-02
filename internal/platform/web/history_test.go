@@ -113,7 +113,7 @@ func TestReleasesTabListsWhatEachReleaseChanged(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"Groups 2 All rules 2 Library releases 3",
+		"Groups , 2 All rules , 2 Library releases , 3",
 		"release/3 Latest Major 3 Sep 2026 Compare with release/2 Release notes Library release 3 changes 3 rules: 1 new, 1 major, and 1 retired. "+
 			"New rules Close bodies techs/go/close-bodies 1.0.0 Add the rule. "+
 			"Major changes Code that complied with the previous rule version could fail the new one, so review these before updating. "+
@@ -207,7 +207,7 @@ func TestReleasesAnswerNotFoundWithinTheLibrary(t *testing.T) {
 			if resp.Code != http.StatusNotFound {
 				t.Fatalf("got %d", resp.Code)
 			}
-			assertShows(t, resp.Body.String(), "example / rules", "Library releases 3", "Compare",
+			assertShows(t, resp.Body.String(), "example / rules", "Library releases , 3", "Compare",
 				"Not found This library has no such release to show or compare. See all of this library's releases")
 			if !strings.Contains(resp.Body.String(), `<meta name="robots" content="noindex">`) {
 				t.Error("the page is indexed")
@@ -364,7 +364,7 @@ func TestRuleComparisonShowsWhatChangedAndTheText(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"Rule Versions 2 ← All versions Compare",
+		"Rule Versions , 2 ← All versions Compare",
 		"What changed 1 version Includes a major change. Work that complied with 1.0.0 could fail 2.0.0, so review the changes before updating. "+
 			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. Changed text Between release/1 and release/3. "+
 			"techs/go/return-errors.md 1.0.0 → 2.0.0 +4 −2 View at 2.0.0",

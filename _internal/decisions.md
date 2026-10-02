@@ -37,6 +37,20 @@ than adding history.
   reputation in search engines. Their robots tag says `noindex, nofollow`, which covers every link on them, the
   repository's own included, and they name no canonical address.
 
+## Stars
+
+- **Anyone signed in can star a vetted library, and only a vetted one.** A star is an account's mark on a library,
+  never a rule, since a library's identity survives renames and a rule's may not. An unvetted library's pages show no
+  stars, so listing a repository can't borrow a count either. [Slice 7](slices/7-stars.md) explains the choices.
+- **Counts are public, counted as pages read, and sort nothing.** A vetted library's pages and its row in the
+  libraries list show how many accounts starred it, up to a minute old for visitors who aren't signed in, as every
+  cached page is. Libraries stay listed by owner and name, so inflating a count wins no place.
+- **Starring is a POST to `/account/stars`, and unstarring to `/account/stars/remove`**, each naming the library in
+  its query string and returning to the page, which says what it did and focuses the button; repeating either changes
+  nothing. A visitor who isn't signed in gets a link that signs them in and returns them, prompted once to star the
+  library. `/account/stars` lists a visitor's stars, newest first.
+- **Deleting an account removes its stars**, so they stop counting.
+
 ## Groups
 
 - **Code Rules owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
@@ -108,6 +122,8 @@ than adding history.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
   and an account keeps at most 20.
+- **Public pages are `public, max-age=0, s-maxage=60`**: CloudFront keeps them a minute, and browsers ask it again
+  each time, so a browser that signs in or out never shows a page it kept from before.
 - **A page for a signed-in visitor is never cached.** Any response to a request with the session cookie, or that sets
   a cookie, is `private, no-store`; CloudFront keys its cache on the session cookie too; and other pages vary with
   `Cookie` in browsers. Pages for everyone stay public and identical, so signed-out traffic keeps the cache. A notice
@@ -128,7 +144,7 @@ than adding history.
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
-  `rulemart_accounts_writer`, which writes only accounts, sessions, and listings.** Infrastructure owns the roles: it creates
+  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, and stars.** Infrastructure owns the roles: it creates
   each group role with SQL, as a NOLOGIN role, creates the login, and makes the login a member, because a role made
   through Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
   databases. Migrations own the grants: they grant each group role what each table needs, never grant to a login,

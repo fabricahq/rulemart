@@ -3,7 +3,6 @@
 package web
 
 import (
-	"bytes"
 	"net/http"
 )
 
@@ -68,9 +67,11 @@ func (s *server) withSameOriginWrites(next http.Handler) http.Handler {
 	}
 	protection.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.Log.WarnContext(r.Context(), "cross-origin request refused", "method", r.Method, "requestID", s.requestID(r))
-		var page bytes.Buffer
-		_ = messagePage(s.chrome, "Refused", "Rulemart refused this request because another site sent it.").Render(r.Context(), &page)
-		write(w, r, http.StatusForbidden, privateCache, page.Bytes())
+		// The refusal has every page's header, with the visitor's account slot, so the header doesn't move.
+		r, ok := s.visit(w, r)
+		if ok {
+			s.renderPrivate(w, r, http.StatusForbidden, messagePage(s.chrome, "Refused", "Rulemart refused this request because another site sent it."))
+		}
 	}))
 	return protection.Handler(next)
 }

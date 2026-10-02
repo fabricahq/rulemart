@@ -116,3 +116,9 @@ type Session struct {
 	CreatedAt pgtype.Timestamptz
 	ExpiresAt pgtype.Timestamptz
 }
+
+type Star struct {
+	AccountID int64
+	LibraryID int64
+	CreatedAt pgtype.Timestamptz
+}

@@ -126,6 +126,7 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL,
 		Accounts: accountsapp.Sessions{Store: accountspostgres.New(db)},
 		Listings: listings,
+		Stars:    app.Stars{Store: catalogStore, Vetted: vetted},
 	}
 	if gitHub != nil {
 		options.GitHub = gitHub

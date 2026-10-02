@@ -60,6 +60,24 @@ type Listings interface {
 	RetryListing(ctx context.Context, accountID, id int64) error
 }
 
+// Stars stars and unstars libraries for accounts, and lists an account's stars, as the web function does. Only a
+// library vetted holds can be starred.
+type Stars interface {
+	// Star stars the library owner/name for the account, matched without regard to case, and returns it as the code
+	// host spells it now. It fails with ErrNotFound when vetted holds no library by that name. A library the account
+	// starred already keeps its one star.
+	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) (views.LibraryRef, error)
+	// Unstar removes the account's star from the library owner/name, matched as Star matches it, vetted or not, and
+	// does nothing when the account hasn't starred it. It fails with ErrNotFound when the catalog has no library by
+	// that name.
+	Unstar(ctx context.Context, accountID int64, owner, name string) error
+	// Starred reports whether the account starred the library owner/name, matched as Star matches it.
+	Starred(ctx context.Context, accountID int64, owner, name string) (bool, error)
+	// AccountStars returns the libraries the account starred, most recently starred first, each with whether vetted
+	// holds it, and whether a listing names it.
+	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredLibrary, error)
+}
+
 // ListingConflict reports a repository that can't be listed because it already is, or is vetted.
 type ListingConflict struct {
 	// Vetted is true when the release's vetted list holds the library, and false when a listing names it.
@@ -147,5 +165,6 @@ type Reader interface {
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor
-// listed, or an account's listing that it doesn't have.
+// listed, a library to star that isn't vetted, a library to unstar that the catalog doesn't have, or an account's
+// listing that it doesn't have.
 var ErrNotFound = errors.New("not found")

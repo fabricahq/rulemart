@@ -28,7 +28,8 @@ func (q *Queries) CountSearchableTerms(ctx context.Context, terms []string) (int
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
-       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
 FROM libraries l
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
@@ -64,10 +65,11 @@ type GetLibraryRow struct {
 	RuleCount         int64
 	GroupCount        int64
 	Vetted            bool
+	StarCount         int64
 }
 
 // GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
-// latest release, and how many current rules it holds and in how many groups.
+// latest release, how many current rules it holds and in how many groups, and how many accounts starred it.
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
 	row := q.db.QueryRow(ctx, getLibrary,
 		arg.Vetted,
@@ -89,6 +91,7 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 		&i.RuleCount,
 		&i.GroupCount,
 		&i.Vetted,
+		&i.StarCount,
 	)
 	return i, err
 }
@@ -319,7 +322,8 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 
 const listLibraries = `-- name: ListLibraries :many
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
 FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
 ORDER BY lower(l.owner), lower(l.name)
@@ -332,8 +336,11 @@ type ListLibrariesRow struct {
 	Description    string
 	OwnerAvatarUrl string
 	RuleCount      int64
+	StarCount      int64
 }
 
+// ListLibraries returns the libraries vetted holds, each with how many current rules it holds and how many accounts
+// starred it.
 func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLibrariesRow, error) {
 	rows, err := q.db.Query(ctx, listLibraries, vetted)
 	if err != nil {
@@ -350,6 +357,7 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLib
 			&i.Description,
 			&i.OwnerAvatarUrl,
 			&i.RuleCount,
+			&i.StarCount,
 		); err != nil {
 			return nil, err
 		}

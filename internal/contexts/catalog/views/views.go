@@ -1,7 +1,7 @@
 // Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and rules, its
 // releases and what changed between two of them, a rule with its versions and what changed between two of them, the
-// groups across libraries, one group's rules in every library, and search results. They're plain values, read from
-// one state of the catalog, with nothing of how it's stored.
+// groups across libraries, one group's rules in every library, search results, and an account's listings and starred
+// libraries. They're plain values, read from one state of the catalog, with nothing of how it's stored.
 package views
 
 import (
@@ -25,6 +25,8 @@ type LibraryCard struct {
 	OwnerAvatarURL string
 	// Rules counts the library's current rules.
 	Rules int
+	// Stars counts the accounts that starred the library.
+	Stars int
 }
 
 // Library is a vetted or listed library, as every page about it describes it.
@@ -43,6 +45,8 @@ type Library struct {
 	LatestTaggedAt time.Time
 	// Groups counts the groups that hold current rules, and Rules the current rules.
 	Groups, Rules int
+	// Stars counts the accounts that starred the library.
+	Stars int
 }
 
 // FullName returns the library's repository as owner/name.
@@ -454,4 +458,14 @@ type AccountListing struct {
 	// ListedAt is when the account listed it, RequestedAt when it last asked for a check, by listing it or trying it
 	// again, and CheckedAt when the worker last finished checking it, or the zero time until it does.
 	ListedAt, RequestedAt, CheckedAt time.Time
+}
+
+// StarredLibrary is a library an account starred, on the account's list of its stars.
+type StarredLibrary struct {
+	Library LibraryCard
+	// Vetted is false for a library the release no longer vets, which can't be starred again, and Listed is true for
+	// one of those that a listing names, whose pages still show it as unvetted. A library neither vetted nor listed has
+	// no page.
+	Vetted, Listed bool
+	StarredAt      time.Time
 }

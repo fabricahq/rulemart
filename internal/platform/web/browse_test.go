@@ -509,7 +509,7 @@ func TestBrowsePagesAreCacheableForAMinute(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for _, path := range []string{"/groups", "/groups/techs/go", "/search", "/search?q=errors", "/search?q=nothing"} {
-		if got := get(t, handler, path).Header().Get("Cache-Control"); got != "public, max-age=60" {
+		if got := get(t, handler, path).Header().Get("Cache-Control"); got != "public, max-age=0, s-maxage=60" {
 			t.Errorf("%s: Cache-Control is %q", path, got)
 		}
 	}

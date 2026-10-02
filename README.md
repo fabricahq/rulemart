@@ -7,8 +7,8 @@ coding agents follow while they write and review your code. It will be at
 This repository is the site's source. It shows the vetted libraries, built from their Code Rules release tags: each
 library's groups, rules, and releases, each rule's current version and version history, what changed between two
 releases or two versions of a rule, every library's rules by technology or practice, and search across them. Visitors
-can sign in with GitHub, and browsing needs no account; anyone signed in can list a library, which shows apart, with
-a warning, until it's vetted. An account holds at most 5 unvetted listings, and the site 500, and listings come from
+can sign in with GitHub, and browsing needs no account; anyone signed in can star a vetted library, and list a
+library, which shows apart, with a warning, until it's vetted. An account holds at most 5 unvetted listings, and the site 500, and listings come from
 GitHub only. Every hour, it checks each library's release tags and ingests a new release.
 
 ```text

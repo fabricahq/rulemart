@@ -56,13 +56,14 @@ templ homePage(c chrome, libraries []libraryCard, groups groupIndexView) {
 	}
 }
 
-// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page.
+// groupTiles shows one kind of canonical group as a grid of tiles, each leading to its page: two across on a phone,
+// and one on a narrow phone, where two would cut off names such as Performance.
 templ groupTiles(kind string, groups []groupSummaryView) {
 	if len(groups) > 0 {
 		@labelSubheading("mt-[22px] mb-2 first:mt-0") {
 			{ kind }
 		}
-		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2">
+		<div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-2.5 max-narrow:grid-cols-2 max-tiny:grid-cols-1">
 			for _, g := range groups {
 				<a class="flex min-w-0 items-center gap-3 rounded-card border border-border px-3.5 py-3 text-ink no-underline transition-colors duration-[120ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
 					@groupTile(g.label, g.icon, tileMD)
@@ -76,9 +77,9 @@ templ groupTiles(kind string, groups []groupSummaryView) {
 	}
 }
 
-// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules. The
-// library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A link to an
-// unvetted library's page carries nofollow.
+// libraryRow is a library's row in a list of libraries, leading to its page, as a group's row leads to its rules,
+// with its stars when it's vetted and has any, under its rules on a phone. The library's name is a heading of level 2, or 3 when headed is true,
+// under a heading of the page's own. A link to an unvetted library's page carries nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
 	<a
 		class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3.5 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
@@ -103,7 +104,12 @@ templ libraryRow(lib libraryCard, headed bool) {
 				</div>
 			</div>
 		</div>
-		<span class="self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted narrow:self-center narrow:pt-0">{ plural(lib.rules, "rule", "rules") } ›</span>
+		<span class="flex items-center gap-3 self-start pt-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1 narrow:self-center narrow:pt-0">
+			if lib.stars > 0 && !lib.unvetted {
+				@starCount(lib.stars, lib.starredByYou)
+			}
+			<span>{ plural(lib.rules, "rule", "rules") } ›</span>
+		</span>
 	</a>
 }
 
@@ -162,8 +168,8 @@ templ libraryPage(c chrome, lib libraryView, contents libraryContents, current l
 	}
 }
 
-// libraryFrame is every page about a library: its name, its tabs with current on, and the tab's content, beside the
-// library's facts when withFacts, under the warning when the library isn't vetted.
+// libraryFrame is every page about a library: its name, its stars when it's vetted, its tabs with current on, and the
+// tab's content, beside the library's facts when withFacts, under the warning when the library isn't vetted.
 templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
 	@layout(c, libraryHead(h, lib)) {
 		<div class="page wrap">
@@ -179,6 +185,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 					}
 				</div>
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
+					if lib.star.shown {
+						@starControl(lib.star)
+					}
 					@smallButton(lib.githubURL) {
 						@githubMark("size-[15px] flex-none")
 						View on GitHub

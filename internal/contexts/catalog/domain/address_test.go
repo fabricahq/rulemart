@@ -29,3 +29,14 @@ func TestParseRepositoryURLRejectsOtherURLs(t *testing.T) {
 		}
 	}
 }
+
+func TestStorableRefusesNULAndInvalidUTF8(t *testing.T) {
+	for text, want := range map[string]bool{
+		"": true, "fabricahq/public-rules": true, "règles/中文": true,
+		"a\x00b": false, "\x00": false, "a\xffb": false, "\xc3\x28": false,
+	} {
+		if got := Storable(text); got != want {
+			t.Errorf("Storable(%q) = %v, want %v", text, got, want)
+		}
+	}
+}

@@ -1,9 +1,9 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
 // each canonical group's rules in every library, and search; the unvetted libraries, whose pages warn that they
-// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; and listing a library.
-// It reads the catalog from its page reads, which app.Pages implements, accounts from accounts/app.Sessions, and
-// listings from catalog/app.Listings.
+// aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing a library; and
+// starring one. It reads the catalog from its page reads, which app.Pages implements, accounts from
+// accounts/app.Sessions, listings from catalog/app.Listings, and stars from catalog/app.Stars.
 package web
 
 import (
@@ -29,10 +29,12 @@ import (
 // show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
 const maxPageBytes = 5 << 20
 
-// pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
-// of ingestion without every visit reaching the function. Only a page that's the same for every visitor gets it:
-// withPrivateResponses replaces it on any response to a signed-in browser.
-const pageCache = "public, max-age=60"
+// pageCache lets CloudFront keep a page for a minute, so a new library release, or a new star, shows within a
+// minute without every visit reaching the function. Browsers keep it too, but ask again before each use, which
+// CloudFront answers from its copy, so a browser that signs in or out never shows a page it kept from before, with
+// stale stars or listings. CloudFront's cache policy takes s-maxage over max-age. Only a page that's the same for
+// every visitor gets it: withPrivateResponses replaces it on any response to a signed-in browser.
+const pageCache = "public, max-age=0, s-maxage=60"
 
 // privateCache keeps a response out of every cache: one that depends on who asked, or that sets a cookie.
 const privateCache = "private, no-store"
@@ -67,6 +69,9 @@ type Options struct {
 	GitHub GitHub
 	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
 	Listings Listings
+	// Stars stars vetted libraries for signed-in visitors, and pages count their stars. Nil leaves stars out; without a
+	// way to sign in, pages only count them.
+	Stars Stars
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -145,8 +150,8 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 		chrome: chrome{
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
-			icon: assets.url("favicon.svg"),
-			font: assets.url("fonts/inter-latin.woff2"),
+			icon:        assets.url("favicon.svg"),
+			font:        assets.url("fonts/inter-latin.woff2"),
 		},
 	}
 	mux := http.NewServeMux()
@@ -183,6 +188,11 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
+		}
+		if options.Stars != nil {
+			handle("GET "+starsHref, s.starsPage)
+			handle("POST "+starsHref, s.starLibrary)
+			handle("POST "+unstarHref, s.unstarLibrary)
 		}
 	}
 	handle("GET /{owner}/{repo}", s.library)
@@ -247,7 +257,12 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries, false), newGroupIndexView(page.Groups, s.assets.iconURL)))
+	cards, err := s.vettedCards(r, page.Libraries)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), cards, newGroupIndexView(page.Groups, s.assets.iconURL)))
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
@@ -256,7 +271,12 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries, false), s.listingAvailable()))
+	cards, err := s.vettedCards(r, libraries)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), cards, s.listingAvailable()))
 }
 
 func (s *server) groups(w http.ResponseWriter, r *http.Request) {
@@ -351,8 +371,12 @@ func redirect(w http.ResponseWriter, r *http.Request, target string) {
 
 // library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
 // starting at the release the until parameter names, if any. With releases to compare in the from and to
-// parameters, the releases tab compares them.
+// parameters, the releases tab compares them. Returning from signing in to star the library, it prompts once to star
+// it.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
+	if s.withoutStarPrompt(w, r) {
+		return
+	}
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
 	switch tab := libraryTab(query.Get("tab")); {
@@ -365,7 +389,11 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		if !s.found(w, r, page.Library, "", err) {
 			return
 		}
-		view := newLibraryView(page.Library)
+		view, err := s.libraryView(r, page.Library)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
 		if tab != rulesTab {
 			tab = groupsTab
 		}
@@ -393,7 +421,11 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view := newLibraryView(page.Library)
+	view, err := s.libraryView(r, page.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	if release != 0 && page.Newer == 0 {
 		w.Header().Set("Cache-Control", pageCache)
 		http.Redirect(w, r, releasesHref(view), http.StatusFound)
@@ -409,7 +441,11 @@ func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner,
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view := newLibraryView(page.Library)
+	view, err := s.libraryView(r, page.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusNotFound, releasesNotFoundPage(s.chrome, view, newReleasesView(view, page),
 		"This library has no such release to show or compare."))
 }
@@ -432,7 +468,11 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 	if !s.found(w, r, comparison.Library, "", err) {
 		return
 	}
-	view := newLibraryView(comparison.Library)
+	view, err := s.libraryView(r, comparison.Library)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
 	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
@@ -596,7 +636,7 @@ func (s *server) renderWith(w http.ResponseWriter, r *http.Request, status int, 
 		}
 	}
 	// The page shows its notice, if any, so the next page mustn't again.
-	if visitorOf(r.Context()).notice != "" {
+	if visitorOf(r.Context()).noticeKey != "" {
 		clearCookie(w, noticeCookie)
 	}
 	write(w, r, status, cache, body.Bytes())

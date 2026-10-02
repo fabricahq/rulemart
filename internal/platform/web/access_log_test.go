@@ -117,7 +117,7 @@ func TestAccessLogRecordsStatusBytesAndCaching(t *testing.T) {
 		status  int
 		cache   string
 	}{
-		{"a page", handler, logs, httptest.NewRequest(http.MethodGet, errorsRule, nil), http.StatusOK, "public, max-age=60"},
+		{"a page", handler, logs, httptest.NewRequest(http.MethodGet, errorsRule, nil), http.StatusOK, "public, max-age=0, s-maxage=60"},
 		{"a static file", handler, logs, httptest.NewRequest(http.MethodGet, stylesheet[1], nil), http.StatusOK, "public, max-age=31536000, immutable"},
 		{"a failure", failing, failingLogs, httptest.NewRequest(http.MethodGet, library, nil), http.StatusServiceUnavailable, "no-store"},
 	} {

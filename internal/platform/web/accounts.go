@@ -4,6 +4,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
@@ -17,6 +18,7 @@ import (
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
@@ -89,15 +91,20 @@ type visitor struct {
 	withGitHub bool
 	// signOut is where the sign-out form posts, with this page to return to.
 	signOut string
-	// onAccountPage and onListingsPage are true on the account page and the listings page, which the menu marks as
-	// current.
-	onAccountPage, onListingsPage bool
-	// listings is true when visitors can list libraries, so the menu links the listings page.
-	listings bool
+	// here is the page's own address, as a return path, which its forms return to.
+	here string
+	// onAccountPage, onListingsPage, and onStarsPage are true on the account page, the listings page, and the stars
+	// page, which the menu marks as current.
+	onAccountPage, onListingsPage, onStarsPage bool
+	// listings and stars are true when visitors can list and star libraries, so the menu links the listings and the
+	// stars pages.
+	listings, stars bool
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
-	// notice is a notice for this page to show once, from noticeCookie, or empty.
-	notice string
+	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
+	// the cookie named, which the page clears as it renders. noticeSubject is the library a notice of subjectNotices
+	// names, as owner/name, which the page that shows it checks again.
+	notice, noticeKey, noticeSubject string
 }
 
 // notices are what a notice cookie may name, by key, and what each says.
@@ -112,11 +119,26 @@ var notices = map[string]string{
 	"listing-removed-checking": "Your listing is removed, and Rulemart stopped checking it.",
 	"listing-retried":          "Rulemart is checking the repository again.",
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
+	"starred":                  "You starred this library. It's on Your stars.",
+	"unstarred":                "You unstarred this library.",
+	// A library's page says what follows signing in to star it, naming the library, as starPromptNotice does.
+	starPromptKey: "You're signed in.",
 }
+
+// subjectNotices are the notices that name a library, which their page shows itself, rather than as notices' text:
+// that the visitor starred or unstarred it on their stars page. The library comes from the cookie, which only this
+// site sets, never from the address, so no link can make a page say it.
+var subjectNotices = map[string]bool{starredHereKey: true, unstarredHereKey: true}
 
 // setNotice has the next page show the notice notices names by key, once.
 func setNotice(w http.ResponseWriter, key string) {
 	setCookie(w, noticeCookie, key, noticeLifetime)
+}
+
+// setSubjectNotice has the next page show the notice of subjectNotices named by key, about the library subject, as
+// owner/name, once.
+func setSubjectNotice(w http.ResponseWriter, key, subject string) {
+	setCookie(w, noticeCookie, key+":"+subject, noticeLifetime)
 }
 
 type visitorKey struct{}
@@ -132,42 +154,65 @@ func (s *server) signInAvailable() bool {
 	return s.Accounts != nil && (s.GitHub != nil || DevSignIn)
 }
 
-// withVisitor finds who r is from, by its session cookie, before next shows a page. A cookie that no longer signs
-// anyone in is cleared. A failure to read the session fails the request, rather than showing a signed-in visitor a
-// page as if they weren't.
+// withVisitor finds who r is from, by its session cookie, before next shows a page. A path that holds text Postgres
+// can't, which names nothing Rulemart has, is missing before next sees it; parameters are each handler's to read.
 func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		v := visitor{onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref, listings: s.listingAvailable()}
-		back := returnPath(r.URL.RequestURI())
-		if s.signInAvailable() {
-			v.signIn = s.absolute(signInPageHref(back))
-			v.withGitHub = s.GitHub != nil
+		r, ok := s.visit(w, r)
+		if !ok {
+			return
 		}
-		if cookie, err := r.Cookie(noticeCookie); err == nil {
-			// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
-			if v.notice = notices[cookie.Value]; v.notice == "" {
-				clearCookie(w, noticeCookie)
-			}
+		if !domain.Storable(r.URL.Path) {
+			s.notFound(w, r)
+			return
 		}
-		if s.Accounts != nil {
-			if token, ok := sessionToken(r); ok {
-				account, err := s.Accounts.Account(r.Context(), token)
-				switch {
-				case errors.Is(err, accountsapp.ErrSignedOut):
-					clearCookie(w, sessionCookie)
-				case err != nil:
-					s.fail(w, r, err)
-					return
-				default:
-					v.account, v.token = &account, token
-					v.signOut = signOutHref + returnQuery(publicPath(back))
-				}
-			} else if hasCookie(r, sessionCookie) {
-				clearCookie(w, sessionCookie)
-			}
-		}
-		next(w, r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)))
+		next(w, r)
 	}
+}
+
+// visit returns r with who it's from in its context, by its session cookie, which visitorOf reads, so its page's
+// header shows them. A cookie that no longer signs anyone in is cleared. A failure to read the session fails the
+// request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
+func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
+	back := returnPath(r.URL.RequestURI())
+	v := visitor{
+		here: back, onAccountPage: r.URL.Path == accountHref, onListingsPage: r.URL.Path == listingsHref,
+		onStarsPage: r.URL.Path == starsHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+	}
+	if s.signInAvailable() {
+		v.signIn = s.absolute(signInPageHref(back))
+		v.withGitHub = s.GitHub != nil
+	}
+	if cookie, err := r.Cookie(noticeCookie); err == nil {
+		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
+		key, subject, named := strings.Cut(cookie.Value, ":")
+		switch {
+		case named && subjectNotices[key] && namesLibrary(subject):
+			v.noticeKey, v.noticeSubject = key, subject
+		case !named && notices[key] != "":
+			v.notice, v.noticeKey = notices[key], key
+		default:
+			clearCookie(w, noticeCookie)
+		}
+	}
+	if s.Accounts != nil {
+		if token, ok := sessionToken(r); ok {
+			account, err := s.Accounts.Account(r.Context(), token)
+			switch {
+			case errors.Is(err, accountsapp.ErrSignedOut):
+				clearCookie(w, sessionCookie)
+			case err != nil:
+				s.fail(w, r, err)
+				return r, false
+			default:
+				v.account, v.token = &account, token
+				v.signOut = signOutHref + returnQuery(publicPath(back))
+			}
+		} else if hasCookie(r, sessionCookie) {
+			clearCookie(w, sessionCookie)
+		}
+	}
+	return r.WithContext(context.WithValue(r.Context(), visitorKey{}, v)), true
 }
 
 // sessionToken returns r's session token, or false when it has none or the cookie can't hold one.
@@ -210,8 +255,8 @@ func returnQuery(back string) string {
 // returnPath returns target as a path on this site to return to after signing in or out, or / when it isn't one: an
 // absolute URL, a path another host could take, such as //evil.example or /\evil.example, one with a backslash or a
 // control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, or anything
-// under /account/, which holds the flow's callback and actions that take POST, except the listings page. The account
-// page itself is one.
+// under /account/, which holds the flow's callback and actions that take POST, except the listings and stars pages.
+// The account page itself is one.
 func returnPath(target string) string {
 	if target == "" || len(target) > maxReturnLength || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") ||
 		strings.ContainsFunc(target, func(r rune) bool { return r == '\\' || r < 0x20 || r == 0x7f }) {
@@ -221,23 +266,31 @@ func returnPath(target string) string {
 	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
 		return "/"
 	}
-	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && u.Path != listingsHref) {
+	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && accountPages[u.Path] == "") {
 		return "/"
 	}
 	u.Fragment, u.RawFragment = "", ""
 	return u.String()
 }
 
-// publicPath returns back, a return path, or / when back is the account or listings page, which a signed-out visitor
-// can't see.
+// accountPages are the pages under /account/ that only a signed-in visitor can see, which signing in may return to,
+// and what the sign-in page says to a visitor on their way to each.
+var accountPages = map[string]string{
+	listingsHref: "Sign in to see your listings.",
+	starsHref:    "Sign in to see your stars.",
+}
+
+// publicPath returns back, a return path, or / when back is the account page or one of accountPages, which a
+// signed-out visitor can't see.
 func publicPath(back string) string {
-	if path, _, _ := strings.Cut(back, "?"); path == accountHref || path == listingsHref {
+	if path, _, _ := strings.Cut(back, "?"); path == accountHref || accountPages[path] != "" {
 		return "/"
 	}
 	return back
 }
 
-// signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says.
+// signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says. Its to parameter
+// may say why the visitor is signing in, such as starPurpose, which the page says.
 func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
 	switch {
@@ -245,10 +298,14 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, back)
 	case !s.signInAvailable():
 		s.renderSignIn(w, r, http.StatusNotFound, back, "")
-	case publicPath(back) != back && strings.HasPrefix(back, listingsHref):
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your listings.")
 	case publicPath(back) != back:
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to see your account.")
+		path, _, _ := strings.Cut(back, "?")
+		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
+	case r.URL.Query().Get("to") == starPurpose && back != "/":
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries. You'll come back to this one.")
+	case r.URL.Query().Get("to") == starPurpose:
+		// The return path was refused, so the page promises no return.
+		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star libraries.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

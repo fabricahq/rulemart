@@ -4,6 +4,7 @@
 package web
 
 import (
+	"cmp"
 	"strconv"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -34,6 +35,8 @@ type head struct {
 	searchPage bool
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
+	// notice is the page's own notice, which takes the place of the notice cookie's, or empty.
+	notice string
 	// caret loads the script that puts the caret at the end of a field the page focuses.
 	caret bool
 }
@@ -41,9 +44,11 @@ type head struct {
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
 const narrowPage = "max-w-[44rem]"
 
-// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted.
+// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted, with the notice its star control
+// gives, if any.
 func libraryHead(h head, lib libraryView) head {
 	h.unvetted = !lib.vetted
+	h.notice = lib.star.notice
 	return h
 }
 
@@ -78,7 +83,7 @@ templ layout(c chrome, h head) {
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
 			@header(h)
-			if notice := visitorOf(ctx).notice; notice != "" {
+			if notice := cmp.Or(h.notice, visitorOf(ctx).notice); notice != "" {
 				<div class="border-b border-border-subtle bg-surface" role="status">
 					<p class={ "wrap py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>{ notice }</p>
 				</div>

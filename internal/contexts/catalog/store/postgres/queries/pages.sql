@@ -1,6 +1,9 @@
+-- ListLibraries returns the libraries vetted holds, each with how many current rules it holds and how many accounts
+-- starred it.
 -- name: ListLibraries :many
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
-       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
+       (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
 FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
 ORDER BY lower(l.owner), lower(l.name);
@@ -16,11 +19,12 @@ WHERE NOT l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
 ORDER BY lower(l.owner), lower(l.name);
 
 -- GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
--- latest release, and how many current rules it holds and in how many groups.
+-- latest release, how many current rules it holds and in how many groups, and how many accounts starred it.
 -- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
-       (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted
+       (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
+       (SELECT count(*) FROM stars s WHERE s.library_id = l.id) AS star_count
 FROM libraries l
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
