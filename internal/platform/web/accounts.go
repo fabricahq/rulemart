@@ -133,8 +133,11 @@ var notices = map[string]string{
 	"starred":                  "You starred this library. It's on Your stars.",
 	"unstarred":                "You unstarred this library.",
 	// A library's page says what follows signing in to star it, naming the library, as starPromptNotice does.
-	starPromptKey:   "You're signed in.",
-	"added-to-cart": "Added to your cart.",
+	starPromptKey:           "You're signed in.",
+	"added-library-to-cart": "Added to your cart.",
+	"added-group-to-cart":   "Added to your cart.",
+	"added-rule-to-cart":    "Added to your cart.",
+	"removed-from-cart":     "Removed from your cart.",
 	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or add " +
 		"a whole group instead of its rules.",
 	"cart-emptied": "Your cart is empty.",

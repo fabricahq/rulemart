@@ -14,7 +14,7 @@ import (
 // reads In cart, with a check, and leads to the cart. Screen readers hear what it adds.
 templ cartButton(c cartControl, label string) {
 	if c.held {
-		<a class={ cartButtonStyle, "no-underline" } href={ templ.SafeURL(cartHref) } title="Your cart holds this">
+		<a id={ c.id } class={ cartButtonStyle, "no-underline" } href={ templ.SafeURL(cartHref) } title="Your cart holds this" autofocus?={ c.focused }>
 			@checkIcon("size-[15px] flex-none")
 			<span class="sr-only">In your cart. See your cart</span>
 			<span aria-hidden="true">In cart</span>

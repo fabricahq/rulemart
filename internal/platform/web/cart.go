@@ -117,6 +117,25 @@ type cartControl struct {
 	action, confirm, signIn string
 	// name says what the control adds, to screen readers, such as "Add rule Return errors to your cart".
 	name string
+	// id is the control's element ID, which an addition's return address names as its fragment, and focused is true
+	// when the page that follows adding the item focuses it, which only one control on a page can be.
+	id      string
+	focused bool
+}
+
+// addedNotices are the notice that says an item was added, by its kind. The page that follows focuses the control of
+// a rule, or a whole library, of which a page has one; a group's is one of several, which the address's fragment
+// names instead.
+var addedNotices = map[domain.CartItemKind]string{
+	domain.CartLibrary: "added-library-to-cart", domain.CartGroup: "added-group-to-cart", domain.CartRule: "added-rule-to-cart",
+}
+
+// cartControlID returns the element ID of item's control on its page, unique among the controls a page has.
+func cartControlID(item domain.CartItem) string {
+	if item.Kind == domain.CartGroup {
+		return "cart-" + groupAnchor(item.Path)
+	}
+	return "cart-" + string(item.Kind)
 }
 
 // newCartControl returns the control that adds item, of a library vetted or not, named name, from the page r asks
@@ -126,12 +145,13 @@ func (s *server) newCartControl(r *http.Request, vetted bool, items []domain.Car
 		return cartControl{}
 	}
 	v := visitorOf(r.Context())
-	c := cartControl{shown: true, name: name}
+	c := cartControl{shown: true, name: name, id: cartControlID(item)}
 	switch query := cartQuery(item, v.here).Encode(); {
 	case v.account == nil:
 		c.signIn = s.cartSignIn(v.here)
 	case holds(items, item):
 		c.held = true
+		c.focused = item.Kind != domain.CartGroup && v.noticeKey == addedNotices[item.Kind]
 	case vetted:
 		c.action = cartHref + "?" + query
 	default:
@@ -177,6 +197,10 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.fail(w, r, err)
 	default:
+		setNotice(w, addedNotices[item.Kind])
+		if item.Kind == domain.CartGroup && !strings.Contains(back, "#") {
+			back += "#" + cartControlID(item)
+		}
 		seeOther(w, r, back)
 	}
 }
@@ -205,6 +229,7 @@ func (s *server) removeFromCart(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	setNotice(w, "removed-from-cart")
 	seeOther(w, r, back)
 }
 

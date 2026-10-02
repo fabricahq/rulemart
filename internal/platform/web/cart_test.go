@@ -207,7 +207,7 @@ func TestPagesOfferAVisitorWhoIsntSignedInToSignInAndAddToTheirCart(t *testing.T
 		unvettedLibrary + "/techs/go/return-errors": {"Add to cart"},
 	} {
 		resp := send(t, site.handler, request{method: http.MethodGet, target: path})
-		if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "public, max-age=60" {
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "public, max-age=0, s-maxage=60" {
 			t.Fatalf("%s: got %d, cached as %q; want a public page", path, resp.StatusCode, resp.Header.Get("Cache-Control"))
 		}
 		page := body(t, resp)
@@ -248,7 +248,7 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 		}
 	}
 	added := site.signedInPost(t, cartPath("/account/cart", clone(goGroupItem), library))
-	if added.StatusCode != http.StatusSeeOther || added.Header.Get("Location") != library || added.Header.Get("Cache-Control") != "private, no-store" {
+	if added.StatusCode != http.StatusSeeOther || added.Header.Get("Location") != library+"#cart-group-techs-go" || added.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("adding answered %d to %q, cached as %q", added.StatusCode, added.Header.Get("Location"), added.Header.Get("Cache-Control"))
 	}
 	ruleForm := cartPath("/account/cart", clone(retryItem), retryRule)
@@ -262,6 +262,7 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 	}) {
 		t.Fatalf("the cart holds %q", got)
 	}
+
 	for _, path := range []string{retryRule, errorsRule} {
 		page := body(t, site.signedInGet(t, path))
 		assertShows(t, page, "In your cart. See your cart")
@@ -273,6 +274,42 @@ func TestASignedInVisitorAddsToTheirCartFromPages(t *testing.T) {
 	if got := links(t, page, "In cart"); len(got) != 1 {
 		t.Errorf("the library's page shows %d items in the cart, want its Go group", len(got))
 	}
+}
+
+// The page an addition returns to says so, once, and focuses the control that says the cart holds it, so keyboard
+// and screen reader users land where they were: a rule's or the whole library's by autofocus, and a group's, one of
+// several on the page, by the address's fragment.
+func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
+	site := newCartSite(t)
+
+	for _, c := range []struct {
+		item              url.Values
+		back, location    string
+		autofocusedOnPage bool
+	}{
+		{errorsItem, errorsRule, errorsRule, true},
+		{wholeLibrary, library + "?tab=rules", library + "?tab=rules", true},
+		{goGroupItem, library, library + "#cart-group-techs-go", false},
+	} {
+		resp := site.signedInPost(t, cartPath("/account/cart", clone(c.item), c.back))
+		if resp.Header.Get("Location") != c.location {
+			t.Fatalf("adding %v returned to %q, want %q", c.item, resp.Header.Get("Location"), c.location)
+		}
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: c.back, cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
+		assertShows(t, page, "Added to your cart.")
+		if got := strings.Count(page, " autofocus"); got != map[bool]int{true: 1, false: 0}[c.autofocusedOnPage] {
+			t.Errorf("adding %v: the page has %d autofocused controls", c.item, got)
+		}
+		if !c.autofocusedOnPage && !strings.Contains(page, `id="cart-group-techs-go"`) {
+			t.Errorf("adding %v: the page has no element the fragment names", c.item)
+		}
+		if again := body(t, site.signedInGet(t, c.back)); strings.Contains(again, " autofocus") || strings.Contains(visibleText(t, again), "Added to your cart.") {
+			t.Errorf("adding %v: the page says so again on the next visit", c.item)
+		}
+	}
+	removed := site.signedInPost(t, cartPath("/account/cart/remove", clone(errorsItem), "/account/cart"))
+	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account/cart", cookies: []*http.Cookie{site.session, cookie(removed, noticeCookie)}})),
+		"Removed from your cart.")
 }
 
 // Adding twice, as a double click or a reload might, lands where once does.
@@ -362,6 +399,7 @@ func TestAddingWhatPagesDontShowIsMissing(t *testing.T) {
 	for _, query := range []string{
 		"library=example%2Frules&rule=techs%2Fgo%2Fnothing", "library=nobody%2Fnothing", "library=example", "",
 		"library=example%2Frules&group=techs%2Fgo&rule=techs%2Fgo%2Freturn-errors",
+		"library=exa%00mple%2Frules", "library=example%2Frul%FFes", "library=example%2Frules&rule=techs%2Fgo%2Fre%00turn",
 	} {
 		resp := site.signedInPost(t, "/account/cart?"+query)
 		if resp.StatusCode != http.StatusNotFound || resp.Header.Get("Cache-Control") != "private, no-store" {

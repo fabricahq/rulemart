@@ -41,6 +41,10 @@ func TestParseCartItemRefusesWhatNamesNoItem(t *testing.T) {
 		{"acme/backend", "", "techs/go/return errors"},
 		{"acme/backend", "", "techs/go/" + strings.Repeat("a", MaxCartPathLength)},
 		{"acme/backend", "techs/go\n", ""},
+		{"ac\x00me/backend", "", ""},
+		{"acme/back\xffend", "", ""},
+		{"acme/back end", "", ""},
+		{"acme/backend", "", "techs/go/return-\x00errors"},
 	} {
 		if got, err := ParseCartItem(c[0], c[1], c[2]); !errors.Is(err, ErrNotCartItem) {
 			t.Errorf("ParseCartItem(%q, %q, %q) = %+v, %v; want ErrNotCartItem", c[0], c[1], c[2], got, err)

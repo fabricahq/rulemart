@@ -59,12 +59,16 @@ var ErrNotCartItem = errors.New("not a cart item")
 // Rulemart matches them without regard to case.
 var idPart = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
+// gitHubNamePart matches a GitHub owner's or repository's name, as a cart names its library: every library is on
+// GitHub.
+var gitHubNamePart = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
 // ParseCartItem returns the item a form names: its library as owner/name, and at most one of a group's ID and a
-// rule's, or the whole library when it names neither. It fails with ErrNotCartItem when they name no item, without
-// checking that the item exists.
+// rule's, or the whole library when it names neither. It fails with ErrNotCartItem when they name no item, such as
+// text no library or ID can hold, without checking that the item exists.
 func ParseCartItem(library, group, rule string) (CartItem, error) {
 	owner, name, ok := strings.Cut(library, "/")
-	if !ok || owner == "" || name == "" || strings.Contains(name, "/") || (group != "" && rule != "") {
+	if !ok || !gitHubNamePart.MatchString(owner) || !gitHubNamePart.MatchString(name) || (group != "" && rule != "") {
 		return CartItem{}, fmt.Errorf("parse cart item library=%q group=%q rule=%q: %w", library, group, rule, ErrNotCartItem)
 	}
 	item := CartItem{Owner: owner, Name: name, Kind: CartLibrary}
