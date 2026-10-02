@@ -151,9 +151,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 							if g.blurb != "" {
 								<p>{ g.blurb }</p>
 							}
-							if g.acrossHref != "" {
-								<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
-							}
+							<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
 						</div>
 						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
 						if g.cart.shown {
@@ -269,9 +267,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
 					@notCanonical(flagSM)
 				}
-				if r.acrossHref != "" {
-					<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.display() } rules in every library ›</a>
-				}
+				<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.display() } rules in every library ›</a>
 			</div>
 			<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
 				<div>

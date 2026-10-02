@@ -95,7 +95,8 @@ func checkBaseURL(u *url.URL) error {
 	return nil
 }
 
-// Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
+// Catalog reads what the pages show. app.Pages implements it, finding the vetted libraries, and the ones listings name
+// too on a library's own pages and in lists that include unvetted libraries.
 type Catalog interface {
 	HomePage(ctx context.Context) (views.HomePage, error)
 	// Libraries and GroupIndex find the libraries listings name too when unvetted is true.

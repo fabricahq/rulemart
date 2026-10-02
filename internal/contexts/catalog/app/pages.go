@@ -1,5 +1,5 @@
-// Read what the pages show, finding only the vetted libraries across libraries, and listed ones too on a library's own
-// pages, and show each group as canonical or not.
+// Read what the pages show, finding the vetted libraries across libraries, and listed ones too on a library's own pages
+// and in lists that include unvetted libraries, and show each group as canonical or not.
 
 package app
 
@@ -30,8 +30,9 @@ const SearchPageSize = 20
 // read: 200 pages of 20 is many times the catalog.
 const MaxSearchPage = 200
 
-// Pages reads what the catalog's pages show, each page from one state of the catalog. Pages across libraries find only
-// the libraries in Vetted; a library's own pages also find one a listing names, and say it isn't vetted.
+// Pages reads what the catalog's pages show, each page from one state of the catalog. Pages across libraries find the
+// libraries in Vetted, and with the choice to include unvetted libraries, the ones listings name too; a library's own
+// pages also find one a listing names, and say it isn't vetted.
 type Pages struct {
 	Store  store.Reader
 	Vetted []domain.LibraryKey
