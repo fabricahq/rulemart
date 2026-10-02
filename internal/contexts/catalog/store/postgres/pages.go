@@ -68,7 +68,7 @@ func (s *Store) OwnerLibraries(ctx context.Context, vetted []domain.LibraryKey, 
 		for i, row := range rows {
 			cards[i] = views.LibraryCard{
 				Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
-				Rules: int(row.RuleCount), Stars: int(row.StarCount),
+				Rules: int(row.RuleCount),
 			}
 		}
 		return nil
@@ -132,7 +132,7 @@ func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.Librar
 	for i, row := range rows {
 		cards[i] = views.LibraryCard{
 			Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
-			Rules: int(row.RuleCount), Stars: int(row.StarCount),
+			Rules: int(row.RuleCount),
 		}
 	}
 	return cards, nil
@@ -163,6 +163,14 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		if err != nil {
 			return err
 		}
+		ids := make([]int64, len(rules))
+		for i, r := range rules {
+			ids[i] = r.ID
+		}
+		stars, err := ruleStars(ctx, q, ids)
+		if err != nil {
+			return err
+		}
 		page = views.LibraryPage{Library: lib, Links: links}
 		for _, r := range retired {
 			page.Retired = append(page.Retired, views.RetiredRuleCard{
@@ -178,6 +186,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		for _, r := range rules {
 			page.Rules = append(page.Rules, views.RuleCard{
 				Path: r.Path, Group: r.GroupPath, Title: r.Title, Impact: r.Impact, Version: version(r.Major, r.Minor, r.Patch),
+				Stars: stars[r.ID],
 			})
 		}
 		return nil
@@ -277,6 +286,12 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	}, Links: links}
 	if r.RetiredIn.Valid {
 		page.Rule.Retirement = &views.Retirement{Release: int(r.RetiredIn.Int32), RetiredAt: r.RetiredAt.Time, Summaries: r.RetirementSummaries}
+	} else {
+		stars, err := ruleStars(ctx, q, []int64{r.ID})
+		if err != nil {
+			return views.RulePage{}, nil, err
+		}
+		page.Rule.Stars = stars[r.ID]
 	}
 	stored := make([]storedText, len(versions))
 	for i, v := range versions {
@@ -464,7 +479,7 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
-		Groups: int(row.GroupCount), Rules: int(row.RuleCount), Stars: int(row.StarCount),
+		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
 	}, row.ID, nil
 }
 

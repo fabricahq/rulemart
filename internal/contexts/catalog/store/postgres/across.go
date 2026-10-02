@@ -45,9 +45,17 @@ func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.Li
 // and name order, and each library's in title order.
 func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error) {
 	var rows []catalogdb.ListGroupRulesRow
+	var stars map[int64]int
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		rows, err = q.ListGroupRules(ctx, catalogdb.ListGroupRulesParams{Path: path, Vetted: vettedKeys(vetted)})
+		if rows, err = q.ListGroupRules(ctx, catalogdb.ListGroupRulesParams{Path: path, Vetted: vettedKeys(vetted)}); err != nil {
+			return err
+		}
+		ids := make([]int64, len(rows))
+		for i, row := range rows {
+			ids[i] = row.ID
+		}
+		stars, err = ruleStars(ctx, q, ids)
 		return err
 	})
 	if err != nil {
@@ -62,6 +70,7 @@ func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path
 		last := &libraries[len(libraries)-1]
 		last.Rules = append(last.Rules, views.RuleCard{
 			Path: row.Path, Group: path, Title: row.Title, Impact: row.Impact, Version: version(row.Major, row.Minor, row.Patch),
+			Stars: stars[row.ID],
 		})
 	}
 	return libraries, nil
@@ -89,12 +98,21 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 	}
 	var rows []catalogdb.SearchRulesRow
 	var searchable int64
+	var stars map[int64]int
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		if rows, err = q.SearchRules(ctx, params); err != nil || len(rows) > 0 {
+		if rows, err = q.SearchRules(ctx, params); err != nil {
 			return err
 		}
-		searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
+		if len(rows) == 0 {
+			searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
+			return err
+		}
+		ids := make([]int64, len(rows))
+		for i, row := range rows {
+			ids[i] = row.ID
+		}
+		stars, err = ruleStars(ctx, q, ids)
 		return err
 	})
 	if err != nil {
@@ -107,7 +125,7 @@ func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups [
 			Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl),
 			Rule: views.RuleCard{
 				Path: row.Path, Group: row.GroupPath, Title: row.Title, Impact: row.Impact,
-				Version: version(row.Major, row.Minor, row.Patch),
+				Version: version(row.Major, row.Minor, row.Patch), Stars: stars[row.ID],
 			},
 			WhenToRead: row.WhenToRead, WhenToReadHTML: row.WhenToReadHtml,
 		}

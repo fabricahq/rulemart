@@ -60,22 +60,27 @@ type Listings interface {
 	RetryListing(ctx context.Context, accountID, id int64) error
 }
 
-// Stars stars and unstars libraries for accounts, and lists an account's stars, as the web function does. Only a
-// library vetted holds can be starred.
+// Stars stars and unstars rules for accounts, and lists the rules an account's stars count toward, as the web function
+// does. Only a current rule of a library vetted holds can be starred. A star stays on its rule, and counts toward it
+// while it's current; once it's retired, toward the current rule its chain of replacements reaches, in the same
+// library, within domain.MaxReplacements rules, so a renamed rule keeps its stars.
 type Stars interface {
-	// Star stars the library owner/name for the account, matched without regard to case, and returns it as the code
-	// host spells it now. It fails with ErrNotFound when vetted holds no library by that name. A library the account
-	// starred already keeps its one star.
-	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) (views.LibraryRef, error)
-	// Unstar removes the account's star from the library owner/name, matched as Star matches it, vetted or not, and
-	// does nothing when the account hasn't starred it. It fails with ErrNotFound when the catalog has no library by
-	// that name.
-	Unstar(ctx context.Context, accountID int64, owner, name string) error
-	// Starred reports whether the account starred the library owner/name, matched as Star matches it.
-	Starred(ctx context.Context, accountID int64, owner, name string) (bool, error)
-	// AccountStars returns the libraries the account starred, most recently starred first, each with whether vetted
-	// holds it, and whether a listing names it.
-	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredLibrary, error)
+	// Star stars the current rule at rulePath in the library owner/name for the account, the library matched without
+	// regard to case, and the rule too, preferring the rule spelled exactly so. It fails with ErrNotFound when vetted
+	// holds no library by that name, or it has no current rule at rulePath. A rule the account starred already keeps its
+	// one star.
+	Star(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) error
+	// Unstar removes every star of the account's that counts toward the rule Star finds: on the rule, and on the
+	// retired rules it replaced. It does nothing when the account has none, and fails with ErrNotFound as Star does.
+	Unstar(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name, rulePath string) error
+	// Starred reports whether one of the account's stars counts toward the current rule at rulePath in the library
+	// owner/name, matched as Star matches them, vetted or not; it's false when there's no such rule.
+	Starred(ctx context.Context, accountID int64, owner, name, rulePath string) (bool, error)
+	// AccountStars returns each current rule of a vetted library that the account's stars count toward, once, most
+	// recently starred first, with its stars, and which retired rule the account starred in its place, if any. It
+	// leaves each rule's CanonicalGroup nil. A star that counts toward no such rule, such as one on a rule retired
+	// without a replacement, or in a library that lost its vetting, isn't listed.
+	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredRule, error)
 }
 
 // Cart adds and removes an account's cart items, and reads its cart, as the web function does. An item can be added
@@ -155,7 +160,8 @@ var ErrListingsBusy = errors.New("Rulemart took as many listings this hour as it
 
 // Reader reads what the catalog's pages show. Each read sees one committed state of the catalog, so a page never
 // mixes two ingestions. Reads across libraries find only the libraries in vetted; a library's own pages also find a
-// library a listing names, and say whether it's vetted.
+// library a listing names, and say whether it's vetted. Every current rule a read returns carries its stars, counted as
+// Stars describes, from the same state.
 type Reader interface {
 	// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
 	Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
@@ -203,6 +209,6 @@ type Reader interface {
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor
-// listed, a library to star that isn't vetted, a library to unstar that the catalog doesn't have, an account's listing
-// that it doesn't have, or an item to add to a cart that its library doesn't have.
+// listed, a rule to star or unstar that isn't a current rule of a vetted library, an account's listing that it doesn't
+// have, or an item to add to a cart that its library doesn't have.
 var ErrNotFound = errors.New("not found")

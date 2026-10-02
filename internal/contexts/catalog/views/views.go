@@ -1,7 +1,7 @@
 // Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
 // groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
 // between two of them, the groups across libraries, one group's rules in every library, search results, the sitemap,
-// and an account's listings, starred libraries, and cart. They're plain values, read from one state of the catalog,
+// and an account's listings, starred rules, and cart. They're plain values, read from one state of the catalog,
 // with nothing of how it's stored.
 package views
 
@@ -26,8 +26,6 @@ type LibraryCard struct {
 	OwnerAvatarURL string
 	// Rules counts the library's current rules.
 	Rules int
-	// Stars counts the accounts that starred the library.
-	Stars int
 }
 
 // OwnerPage is an owner's page: the vetted libraries they publish.
@@ -56,8 +54,6 @@ type Library struct {
 	LatestTaggedAt time.Time
 	// Groups counts the groups that hold current rules, and Rules the current rules.
 	Groups, Rules int
-	// Stars counts the accounts that starred the library.
-	Stars int
 }
 
 // FullName returns the library's repository as owner/name.
@@ -142,12 +138,15 @@ type GroupIcon struct {
 	LightTile bool
 }
 
-// RuleCard is a current rule in a library's list of rules.
+// RuleCard is a current rule in a list of rules.
 type RuleCard struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group   string
 	Title, Impact string
 	Version       coderules.RuleVersion
+	// Stars counts the accounts whose stars count toward the rule: on it, or on a retired rule whose chain of
+	// replacements reaches it.
+	Stars int
 }
 
 // RulePage is a rule of a library, current or retired, with every version, newest first.
@@ -183,6 +182,9 @@ type Rule struct {
 	PublishedAt time.Time
 	// Retirement is nil while the rule is current.
 	Retirement *Retirement
+	// Stars counts the accounts whose stars count toward a current rule, as RuleCard's do; it's 0 for a retired rule,
+	// whose stars count toward its replacement.
+	Stars int
 }
 
 // Retirement is how a library release retired a rule.
@@ -471,14 +473,17 @@ type AccountListing struct {
 	ListedAt, RequestedAt, CheckedAt time.Time
 }
 
-// StarredLibrary is a library an account starred, on the account's list of its stars.
-type StarredLibrary struct {
-	Library LibraryCard
-	// Vetted is false for a library the release no longer vets, which can't be starred again, and Listed is true for
-	// one of those that a listing names, whose pages still show it as unvetted. A library neither vetted nor listed has
-	// no page.
-	Vetted, Listed bool
-	StarredAt      time.Time
+// StarredRule is a current rule of a vetted library that an account's stars count toward, on its Starred rules.
+type StarredRule struct {
+	Library LibraryRef
+	Rule    RuleCard
+	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
+	CanonicalGroup *CanonicalGroup
+	// StarredAs is the ID of the retired rule the account starred, which Rule replaced, directly or through other
+	// retired rules; it's empty when the account starred Rule itself.
+	StarredAs string
+	// StarredAt is when the account last starred Rule or a rule it replaced.
+	StarredAt time.Time
 }
 
 // Cart is an account's cart: what it holds from each library, and what checking it out imports.

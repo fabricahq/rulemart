@@ -96,6 +96,12 @@ type Rule struct {
 	RetirementSummaries []string
 }
 
+type RuleStar struct {
+	AccountID int64
+	RuleID    int64
+	CreatedAt pgtype.Timestamptz
+}
+
 type RuleVersion struct {
 	ID                 int64
 	LibraryID          int64
@@ -124,10 +130,4 @@ type Session struct {
 	AccountID int64
 	CreatedAt pgtype.Timestamptz
 	ExpiresAt pgtype.Timestamptz
-}
-
-type Star struct {
-	AccountID int64
-	LibraryID int64
-	CreatedAt pgtype.Timestamptz
 }
