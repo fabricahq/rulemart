@@ -94,17 +94,6 @@ library that isn't vetted appears only under Unvetted libraries: every page warn
 engines are asked not to index it, and adding its rules to the cart takes a second confirmation. Checkout then has
 your agent review its rules and wait for your approval before adding them.
 
-## What Rulemart doesn't do
-
-- **It doesn't check your code.** Rulemart helps you pick rules and Code Rules delivers them to your agent. Your
-  agent's prompts, your reviews, and your own tools decide how they're enforced.
-- **Vetting isn't a review of every rule.** It means Fabrica chose to show a library, including its future releases,
-  not that it checked each rule. Read the rules you adopt, as you would any code you add.
-- **It lists public GitHub repositories only.** Libraries hosted elsewhere, and private repositories, can't be listed.
-- **It holds a limited number of unvetted libraries:** 5 per GitHub account, and 500 in all.
-- **Checkout pins each library to the release you saw.** Your project gets newer rules only when you change the pin;
-  the checkout prompt explains how.
-
 ## Learn more
 
 - [Code Rules documentation](https://code-rules.fabricahq.com): rules, groups, libraries, and the `code-rules`

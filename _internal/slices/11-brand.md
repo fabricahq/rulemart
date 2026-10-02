@@ -94,3 +94,5 @@ ones describe what the site already does.
 - Before-and-after screenshots of the home page, a library page, and a rule page at 1280 and 390 pixels, light and
   dark, plus the favicon set in both themes and the social image, in the pull request.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.
+
+- **Decided (Josh): the README has no "What Rulemart doesn't do" section.** The README rules ask for limits; Josh dropped the section on 2026-10-02 after reading it, keeping the README to what Rulemart does, how to start, and where to read more. The limits stay in `/about` and the FAQ.
