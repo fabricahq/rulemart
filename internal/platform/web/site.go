@@ -254,7 +254,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), newLibraryCards(page.Libraries, false), newGroupIndexView(page.Groups, s.assets.iconURL)))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), s.vettedCards(page.Libraries), newGroupIndexView(page.Groups, s.assets.iconURL)))
 }
 
 func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
@@ -263,7 +263,7 @@ func (s *server) libraries(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), newLibraryCards(libraries, false), s.listingAvailable()))
+	s.render(w, r, http.StatusOK, librariesPage(s.pageChrome(librariesHref), s.vettedCards(libraries), s.listingAvailable()))
 }
 
 func (s *server) groups(w http.ResponseWriter, r *http.Request) {

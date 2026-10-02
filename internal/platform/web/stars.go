@@ -73,6 +73,18 @@ func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, e
 	return view, nil
 }
 
+// vettedCards describes vetted libraries for a list of them, with their stars only when Rulemart has stars, as their
+// own pages show them.
+func (s *server) vettedCards(libraries []views.LibraryCard) []libraryCard {
+	cards := newLibraryCards(libraries, false)
+	if s.Stars == nil {
+		for i := range cards {
+			cards[i].stars = 0
+		}
+	}
+	return cards
+}
+
 // starAction returns where a form posts to star or unstar the library fullName, whose page is libraryPage, from the
 // page here: path, starsHref or unstarHref, with the library, and here to return to unless it's the library's page,
 // where a star returns anyway.

@@ -422,12 +422,17 @@ func TestWithoutSignInPagesOnlyCountStars(t *testing.T) {
 	}
 }
 
-// Without stars, pages show none, and their addresses are missing.
+// Without stars, pages show none, not even the counts the catalog reads, and their addresses are missing.
 func TestWithoutStarsPagesShowNone(t *testing.T) {
 	site := newStarSiteWith(t, func(o *web.Options) { o.Stars = nil })
 
 	if page := body(t, site.signedInGet(t, library)); strings.Contains(visibleText(t, page), "Star") {
 		t.Error("the library's page offers a star")
+	}
+	for _, path := range []string{"/", "/libraries"} {
+		if page := body(t, site.signedInGet(t, path)); strings.Contains(visibleText(t, page), "3 stars") {
+			t.Errorf("%s counts stars", path)
+		}
 	}
 	if resp := site.signedInGet(t, "/account/stars"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("the stars page answered %d, want 404", resp.StatusCode)
