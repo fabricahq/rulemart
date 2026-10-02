@@ -159,7 +159,7 @@ func TestCheckoutPinsAnUnvettedLibraryToTheReviewedCommit(t *testing.T) {
 	lib := CheckoutLibrary{Owner: "stranger", Name: "rules", Release: 3, Commit: "3333333333333333333333333333333333333333",
 		Items: []CartItem{item("stranger/rules", CartLibrary, "")}}
 	source := NewCheckout([]CheckoutLibrary{lib}).Sources[0]
-	if got, want := source.ref(), "3333333333333333333333333333333333333333 # release/3"; got != want {
+	if got, want := source.ref(), `"3333333333333333333333333333333333333333" # release/3`; got != want {
 		t.Errorf("ref %q, want %q", got, want)
 	}
 	if got := source.ReviewCommand(); !strings.Contains(got, "fetch -q --depth 1 https://github.com/stranger/rules.git 3333333333333333333333333333333333333333 ") {

@@ -299,7 +299,8 @@ var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // pointed to, named by the tag in a comment, so the project imports exactly what the visitor reviewed.
 func (s CheckoutSource) ref() string {
 	if !s.Library.Vetted && commitID.MatchString(s.Library.Commit) {
-		return s.Library.Commit + " # " + ReleaseTag(s.Library.Release)
+		// Quoted, since YAML would read an ID of digits alone, or one like 1e5…, as a number.
+		return strconv.Quote(s.Library.Commit) + " # " + ReleaseTag(s.Library.Release)
 	}
 	return ReleaseTag(s.Library.Release)
 }

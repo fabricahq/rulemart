@@ -27,7 +27,7 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
        repository: https://github.com/stranger/Rules.git
        rules:
          - techs/go/use-go
-       ref: 3333333333333333333333333333333333333333 # release/3
+       ref: "3333333333333333333333333333333333333333" # release/3
    ```
 
    If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, leaving out any rule whose group it selects already, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
