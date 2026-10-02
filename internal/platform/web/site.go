@@ -1,7 +1,8 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries,
-// each canonical group's rules in every library, and search.
-// It reads them from the catalog's page reads, which app.Pages implements.
+// each canonical group's rules in every library, and search; and signing in with GitHub, signing out, and the
+// signed-in visitor's account.
+// It reads the catalog from its page reads, which app.Pages implements, and accounts from accounts/app.Sessions.
 package web
 
 import (
@@ -28,8 +29,12 @@ import (
 const maxPageBytes = 5 << 20
 
 // pageCache lets CloudFront and browsers keep a page for a minute, so a new library release shows within a minute
-// of ingestion without every visit reaching the function.
+// of ingestion without every visit reaching the function. Only a page that's the same for every visitor gets it:
+// withPrivateResponses replaces it on any response to a signed-in browser.
 const pageCache = "public, max-age=60"
+
+// privateCache keeps a response out of every cache: one that depends on who asked, or that sets a cookie.
+const privateCache = "private, no-store"
 
 // contentSecurityPolicy allows only Rulemart's own files, plus images from GitHub's avatar and raw file hosts,
 // which rules and library owners use, and forms that submit to Rulemart, such as search. Rule content comes from
@@ -47,8 +52,12 @@ type Options struct {
 	RequestID func(*http.Request) string
 	// BaseURL is Rulemart's public origin, such as https://rulemart.fabricahq.com, which each page names as its
 	// canonical address, so search engines index that one address for it whichever host served it. It has no path.
-	// Nil names none. ParseBaseURL makes one from text.
+	// Nil names none. ParseBaseURL makes one from text. Sign-in links and GitHub's callback are on it too.
 	BaseURL *url.URL
+	// Accounts signs visitors in and out. Nil leaves accounts out: pages offer no sign-in.
+	Accounts Accounts
+	// GitHub signs visitors in with GitHub. Nil, with Accounts, leaves only a local build's test users to sign in as.
+	GitHub GitHub
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
@@ -122,28 +131,45 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	s := &server{
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{},
 		chrome: chrome{
-			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), icon: assets.url("favicon.svg"),
+			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
+			icon: assets.url("favicon.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}
 	mux := http.NewServeMux()
+	// Every page's handler first finds who the request is from, which the frame shows.
 	handle := func(pattern string, handler http.HandlerFunc) {
-		mux.HandleFunc(pattern, handler)
+		mux.HandleFunc(pattern, s.withVisitor(handler))
 		s.routes[pattern] = true
 	}
+	mux.HandleFunc(staticPattern, assets.serve)
+	s.routes[staticPattern] = true
 	handle("GET /{$}", s.home)
-	handle("GET /_static/{version}/{file...}", assets.serve)
 	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
 	// segment, so it can't either, though GitHub has an account named libraries.
 	handle("GET /libraries", s.libraries)
 	handle("GET /groups", s.groups)
 	handle("GET /groups/{kind}/{name}", s.group)
 	handle("GET /search", s.search)
+	if options.Accounts != nil {
+		// Single segments can't hide a library's page, and GitHub has no account named account.
+		handle("GET "+signInHref, s.signInPage)
+		handle("POST "+signInHref, s.startSignIn)
+		handle("GET "+gitHubCallbackHref, s.gitHubCallback)
+		handle("POST "+signOutHref, s.signOut)
+		handle("GET "+accountHref, s.accountPage)
+		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
+		handle("POST "+deleteAccountHref, s.deleteAccount)
+		s.registerDevSignIn(handle)
+	}
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(withoutTrailingSlash(mux))), nil
+	return s.logRequests(withSecurityHeaders(withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(mux))))), nil
 }
+
+// staticPattern is the route of the static files, which are the same for every visitor.
+const staticPattern = "GET /_static/{version}/{file...}"
 
 // withoutTrailingSlash redirects a path that ends with a slash, such as /groups/, to the same path without it,
 // keeping the query, since no page's address ends with one. A path whose trimmed form starts with two slashes, or a
@@ -445,6 +471,16 @@ func (s *server) unavailable(w http.ResponseWriter, r *http.Request) {
 // render writes page with status, cacheable for a minute. It renders the whole page before writing, so a failure
 // leaves no partial page, and a page larger than maxPageBytes is replaced by one that says so.
 func (s *server) render(w http.ResponseWriter, r *http.Request, status int, page templ.Component) {
+	s.renderWith(w, r, status, pageCache, page)
+}
+
+// renderPrivate writes page as render does, but uncacheable, for a page that belongs to one visitor.
+func (s *server) renderPrivate(w http.ResponseWriter, r *http.Request, status int, page templ.Component) {
+	s.renderWith(w, r, status, privateCache, page)
+}
+
+// renderWith writes page with status and the Cache-Control cache, as render describes.
+func (s *server) renderWith(w http.ResponseWriter, r *http.Request, status int, cache string, page templ.Component) {
 	var body bytes.Buffer
 	if err := page.Render(r.Context(), &body); err != nil {
 		s.fail(w, r, err)
@@ -459,7 +495,7 @@ func (s *server) render(w http.ResponseWriter, r *http.Request, status int, page
 			return
 		}
 	}
-	write(w, r, status, pageCache, body.Bytes())
+	write(w, r, status, cache, body.Bytes())
 }
 
 func write(w http.ResponseWriter, r *http.Request, status int, cache string, body []byte) {

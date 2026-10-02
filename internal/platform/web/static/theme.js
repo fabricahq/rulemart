@@ -1,6 +1,7 @@
 /** @fileoverview Applies the visitor's color theme before the page paints, and runs the footer's theme menu, the
  * Fabrica website's: a button showing the current choice, and a menu of light, dark, and system. The choice stays
- * in this browser only. System leaves the page to the prefers-color-scheme rules in the stylesheet. */
+ * in this browser only. System leaves the page to the prefers-color-scheme rules in the stylesheet. menus.js closes
+ * the menu when focus or a click leaves it. */
 (() => {
   const key = 'rulemart-theme';
   /** Return light, dark, or system; treat an absent or unrecognized value as system. */
@@ -41,11 +42,6 @@
     apply();
     const trigger = control.querySelector('summary');
     control.hidden = false;
-    /** Close the menu and, when asked, return focus to its button. */
-    const close = (restoreFocus = false) => {
-      control.open = false;
-      if (restoreFocus) trigger.focus();
-    };
     control.querySelectorAll('[data-theme-choice]').forEach((button) => {
       button.addEventListener('click', () => {
         preference = normalize(button.dataset.themeChoice);
@@ -55,20 +51,9 @@
           /* Storage may be blocked: keep the choice for this page. */
         }
         apply();
-        close(true);
+        control.open = false;
+        trigger.focus();
       });
-    });
-    document.addEventListener('click', (event) => {
-      if (!control.contains(event.target)) close();
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && control.open) {
-        event.preventDefault();
-        close(true);
-      }
-    });
-    control.addEventListener('focusout', (event) => {
-      if (!control.contains(event.relatedTarget)) close();
     });
   });
 })();

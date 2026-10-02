@@ -1,0 +1,809 @@
+package web_test
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"golang.org/x/net/html"
+
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
+	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	"github.com/fabricahq/rulemart/internal/platform/web"
+)
+
+const (
+	sessionCookie = "__Host-rulemart-session"
+	signInCookie  = "__Host-rulemart-sign-in"
+)
+
+// fakeAccounts keeps accounts and sessions in memory, as accounts/app.Sessions does in Postgres.
+type fakeAccounts struct {
+	mu sync.Mutex
+	// sessions maps each live token to its account's GitHub user ID.
+	sessions map[accounts.SessionToken]int64
+	accounts map[int64]accounts.Account
+	// replaced records the token each sign-in replaced, "" for none.
+	replaced []accounts.SessionToken
+	// deleted records the accounts deleted, by ID.
+	deleted []int64
+	// err, when set, fails every call.
+	err error
+}
+
+func newFakeAccounts() *fakeAccounts {
+	return &fakeAccounts{sessions: map[accounts.SessionToken]int64{}, accounts: map[int64]accounts.Account{}}
+}
+
+func (f *fakeAccounts) SignIn(_ context.Context, identity accounts.Identity, replacing accounts.SessionToken) (accounts.Account, accounts.Session, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return accounts.Account{}, accounts.Session{}, f.err
+	}
+	f.replaced = append(f.replaced, replacing)
+	delete(f.sessions, replacing)
+	account, ok := f.accounts[identity.GitHubUserID]
+	if !ok {
+		account = accounts.Account{ID: int64(len(f.accounts) + 1), CreatedAt: time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)}
+	}
+	account.Identity = identity
+	f.accounts[identity.GitHubUserID] = account
+	token := accounts.NewSessionToken()
+	f.sessions[token] = identity.GitHubUserID
+	return account, accounts.Session{Token: token, ExpiresAt: time.Now().Add(accounts.SessionLifetime)}, nil
+}
+
+func (f *fakeAccounts) Account(_ context.Context, token accounts.SessionToken) (accounts.Account, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return accounts.Account{}, f.err
+	}
+	id, ok := f.sessions[token]
+	if !ok {
+		return accounts.Account{}, accountsapp.ErrSignedOut
+	}
+	return f.accounts[id], nil
+}
+
+func (f *fakeAccounts) SignOut(_ context.Context, token accounts.SessionToken) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sessions, token)
+	return f.err
+}
+
+func (f *fakeAccounts) SignOutEverywhere(_ context.Context, accountID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for token, githubID := range f.sessions {
+		if f.accounts[githubID].ID == accountID {
+			delete(f.sessions, token)
+		}
+	}
+	return f.err
+}
+
+func (f *fakeAccounts) DeleteAccount(ctx context.Context, accountID int64) error {
+	if err := f.SignOutEverywhere(ctx, accountID); err != nil {
+		return err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deleted = append(f.deleted, accountID)
+	return nil
+}
+
+// signedIn adds a session for identity directly, and returns its token.
+func (f *fakeAccounts) signedIn(t *testing.T, identity accounts.Identity) accounts.SessionToken {
+	t.Helper()
+	_, session, err := f.SignIn(context.Background(), identity, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session.Token
+}
+
+func (f *fakeAccounts) live(token accounts.SessionToken) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.sessions[token]
+	return ok
+}
+
+// fakeGitHub stands in for GitHub: it hands out authorization URLs, and identifies whoever it was told authorized,
+// as GitHub would, only for the code it issued and the verifier whose challenge the authorization carried.
+type fakeGitHub struct {
+	mu sync.Mutex
+	// challenge and redirect are what the last authorization carried.
+	challenge, redirect string
+	// identity is who authorizes; err, when set, fails Identify as a refused code would.
+	identity accounts.Identity
+	err      error
+	// identified counts calls to Identify.
+	identified int
+}
+
+const authorizedCode = "code-from-github"
+
+func (g *fakeGitHub) AuthorizationURL(state, challenge, redirectURI string) string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.challenge, g.redirect = challenge, redirectURI
+	return "https://github.com/login/oauth/authorize?" + url.Values{"state": {state}, "code_challenge": {challenge}, "redirect_uri": {redirectURI}}.Encode()
+}
+
+func (g *fakeGitHub) Identify(_ context.Context, code, verifier, redirectURI string) (accounts.Identity, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.identified++
+	switch {
+	case g.err != nil:
+		return accounts.Identity{}, g.err
+	case code != authorizedCode:
+		return accounts.Identity{}, errors.New("bad_verification_code")
+	case github.Challenge(verifier) != g.challenge:
+		return accounts.Identity{}, errors.New("the verifier doesn't match the challenge")
+	case redirectURI != g.redirect:
+		return accounts.Identity{}, errors.New("the redirect URI differs from the authorization's")
+	}
+	return g.identity, nil
+}
+
+var octocat = accounts.Identity{GitHubUserID: 583231, Login: "octocat", AvatarURL: "https://avatars.githubusercontent.com/u/583231?v=4"}
+
+// accountsSite is the pages' handler with sign-in, its fakes, and its logs.
+type accountsSite struct {
+	handler  http.Handler
+	accounts *fakeAccounts
+	gitHub   *fakeGitHub
+	logs     *bytes.Buffer
+}
+
+// newAccountsSite returns the pages with sign-in through fakes, adjusting its options with adjust, if not nil.
+func newAccountsSite(t *testing.T, adjust func(*web.Options)) accountsSite {
+	t.Helper()
+	site := accountsSite{accounts: newFakeAccounts(), gitHub: &fakeGitHub{identity: octocat}, logs: &bytes.Buffer{}}
+	options := web.Options{Log: slog.New(slog.NewJSONHandler(site.logs, nil)), Accounts: site.accounts, GitHub: site.gitHub}
+	if adjust != nil {
+		adjust(&options)
+	}
+	handler, err := web.New(newCatalog(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site.handler = handler
+	return site
+}
+
+// request is a request to send to a site: a method and target, the cookies the browser holds, and its headers.
+type request struct {
+	method, target string
+	cookies        []*http.Cookie
+	header         http.Header
+}
+
+// send sends r to handler as a browser would on the same site, unless r's header says otherwise.
+func send(t *testing.T, handler http.Handler, r request) *http.Response {
+	t.Helper()
+	req := httptest.NewRequest(r.method, r.target, nil)
+	if r.method != http.MethodGet && r.method != http.MethodHead {
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+	}
+	for name, values := range r.header {
+		req.Header[name] = values
+	}
+	for _, cookie := range r.cookies {
+		req.AddCookie(cookie)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	return recorder.Result()
+}
+
+// cookie returns the cookie resp sets named name, or nil.
+func cookie(resp *http.Response, name string) *http.Cookie {
+	for _, c := range resp.Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// body returns resp's body as text.
+func body(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// assertCookieAttributes fails unless c is set the way every Rulemart cookie is: secure, for the whole site, out of
+// scripts' reach, and sent across sites only with top-level navigations, for maxAge seconds.
+func assertCookieAttributes(t *testing.T, c *http.Cookie, maxAge int) {
+	t.Helper()
+	if c == nil {
+		t.Fatal("the cookie isn't set")
+	}
+	if !c.Secure || !c.HttpOnly || c.SameSite != http.SameSiteLaxMode || c.Path != "/" || c.Domain != "" || c.MaxAge != maxAge {
+		t.Errorf("the cookie %s is set as %q, want Secure, HttpOnly, SameSite=Lax, Path=/, no Domain, and Max-Age=%d", c.Name, c.Raw, maxAge)
+	}
+}
+
+// startSignIn starts signing in from the page back, and returns the flow's cookie and GitHub's authorization URL.
+func startSignIn(t *testing.T, site accountsSite, back string, cookies ...*http.Cookie) (*http.Cookie, *url.URL) {
+	t.Helper()
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-in?" + url.Values{"return": {back}}.Encode(), cookies: cookies})
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("starting sign-in answered %d", resp.StatusCode)
+	}
+	location, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cookie(resp, signInCookie), location
+}
+
+// callback returns from GitHub with query, holding cookies, as GitHub's redirect makes the browser do.
+func callback(t *testing.T, site accountsSite, query url.Values, cookies ...*http.Cookie) *http.Response {
+	t.Helper()
+	header := http.Header{"Sec-Fetch-Site": {"cross-site"}}
+	return send(t, site.handler, request{method: http.MethodGet, target: "/account/github/callback?" + query.Encode(), cookies: cookies, header: header})
+}
+
+func TestSignInSendsTheVisitorToGitHubWithStateAndAChallenge(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	flow, location := startSignIn(t, site, "/groups")
+
+	if location.Host != "github.com" || location.Query().Get("state") == "" || location.Query().Get("code_challenge") == "" {
+		t.Fatalf("sent the visitor to %s", location)
+	}
+	if got := location.Query().Get("redirect_uri"); got != "http://example.com/account/github/callback" {
+		t.Errorf("GitHub sends the visitor back to %q", got)
+	}
+	assertCookieAttributes(t, flow, int((10 * time.Minute).Seconds()))
+	for _, secret := range []string{location.Query().Get("code_challenge")} {
+		if strings.Contains(flow.Value, secret) {
+			t.Error("the flow's cookie holds the challenge instead of the verifier")
+		}
+	}
+	if !strings.HasPrefix(flow.Value, location.Query().Get("state")+".") {
+		t.Error("the flow's cookie doesn't hold the state GitHub returns")
+	}
+}
+
+func TestSignInWithGitHubSignsTheVisitorInAndReturnsThemWhereTheyStarted(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	flow, location := startSignIn(t, site, "/groups?tab=all")
+
+	resp := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow)
+
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups?tab=all" {
+		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	session := cookie(resp, sessionCookie)
+	assertCookieAttributes(t, session, int(accounts.SessionLifetime.Seconds()))
+	if cleared := cookie(resp, signInCookie); cleared == nil || cleared.MaxAge >= 0 {
+		t.Error("the flow's cookie wasn't cleared")
+	}
+	if got := resp.Header.Get("Cache-Control"); got != "private, no-store" {
+		t.Errorf("Cache-Control is %q", got)
+	}
+	page := send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{session}})
+	assertShows(t, body(t, page), "Signed in as octocat")
+	for _, leak := range []string{authorizedCode, location.Query().Get("state"), session.Value} {
+		if strings.Contains(site.logs.String(), leak) {
+			t.Errorf("the logs hold %q: %s", leak, site.logs)
+		}
+	}
+}
+
+// A session planted in the browser before sign-in, say by someone who could set its cookies, ends at sign-in: the
+// browser gets a new token, and the old one signs no one in.
+func TestSignInReplacesTheSessionTheBrowserHeld(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	planted := site.accounts.signedIn(t, accounts.Identity{GitHubUserID: 1, Login: "mallory"})
+	held := &http.Cookie{Name: sessionCookie, Value: string(planted)}
+	flow, location := startSignIn(t, site, "/", held)
+
+	resp := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow, held)
+
+	session := cookie(resp, sessionCookie)
+	if session == nil || session.Value == string(planted) {
+		t.Fatal("the browser kept its token")
+	}
+	if site.accounts.live(planted) {
+		t.Error("the replaced session still signs someone in")
+	}
+}
+
+// Every way a callback fails leaves the visitor signed out, clears the flow, and says what happened, without asking
+// GitHub about a code the browser didn't start.
+func TestSignInCallbackRefusesWhatThisBrowserDidNotStart(t *testing.T) {
+	for name, tc := range map[string]struct {
+		query      func(state string) url.Values
+		flow       func(*http.Cookie) *http.Cookie
+		gitHubErr  error
+		wantStatus int
+		wantNotice string
+		wantAsked  bool
+	}{
+		"no sign-in in progress": {
+			query:      func(state string) url.Values { return url.Values{"code": {authorizedCode}, "state": {state}} },
+			flow:       func(*http.Cookie) *http.Cookie { return nil },
+			wantStatus: http.StatusBadRequest, wantNotice: "That sign-in expired",
+		},
+		"another state": {
+			query:      func(string) url.Values { return url.Values{"code": {authorizedCode}, "state": {github.NewState()}} },
+			wantStatus: http.StatusBadRequest, wantNotice: "That sign-in expired",
+		},
+		"no state": {
+			query:      func(string) url.Values { return url.Values{"code": {authorizedCode}} },
+			wantStatus: http.StatusBadRequest, wantNotice: "That sign-in expired",
+		},
+		"a flow cookie someone edited": {
+			query:      func(state string) url.Values { return url.Values{"code": {authorizedCode}, "state": {state}} },
+			flow:       func(c *http.Cookie) *http.Cookie { return &http.Cookie{Name: c.Name, Value: "not.a-flow"} },
+			wantStatus: http.StatusBadRequest, wantNotice: "That sign-in expired",
+		},
+		"the visitor canceled on GitHub": {
+			query: func(state string) url.Values {
+				return url.Values{"error": {"access_denied"}, "error_description": {"The user has denied your application access."}, "state": {state}}
+			},
+			wantStatus: http.StatusOK, wantNotice: "You didn't authorize Rulemart",
+		},
+		"GitHub returned no code": {
+			query:      func(state string) url.Values { return url.Values{"state": {state}} },
+			wantStatus: http.StatusBadRequest, wantNotice: "GitHub couldn't confirm who you are",
+		},
+		"GitHub refused the code": {
+			query:      func(state string) url.Values { return url.Values{"code": {"another-code"}, "state": {state}} },
+			wantStatus: http.StatusBadGateway, wantNotice: "GitHub couldn't confirm who you are", wantAsked: true,
+		},
+		"GitHub is down": {
+			query:      func(state string) url.Values { return url.Values{"code": {authorizedCode}, "state": {state}} },
+			gitHubErr:  errors.New("GitHub answered 503 Service Unavailable"),
+			wantStatus: http.StatusBadGateway, wantNotice: "GitHub couldn't confirm who you are", wantAsked: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newAccountsSite(t, nil)
+			site.gitHub.err = tc.gitHubErr
+			flow, location := startSignIn(t, site, "/groups")
+			if tc.flow != nil {
+				flow = tc.flow(flow)
+			}
+			var cookies []*http.Cookie
+			if flow != nil {
+				cookies = append(cookies, flow)
+			}
+
+			resp := callback(t, site, tc.query(location.Query().Get("state")), cookies...)
+
+			if resp.StatusCode != tc.wantStatus {
+				t.Errorf("answered %d, want %d", resp.StatusCode, tc.wantStatus)
+			}
+			if session := cookie(resp, sessionCookie); session != nil && session.MaxAge >= 0 {
+				t.Error("signed the visitor in")
+			}
+			if cleared := cookie(resp, signInCookie); cleared == nil || cleared.MaxAge >= 0 {
+				t.Error("the flow's cookie wasn't cleared")
+			}
+			page := body(t, resp)
+			assertShows(t, page, tc.wantNotice)
+			if got := resp.Header.Get("Cache-Control"); got != "private, no-store" {
+				t.Errorf("Cache-Control is %q", got)
+			}
+			if asked := site.gitHub.identified > 0; asked != tc.wantAsked {
+				t.Errorf("asked GitHub: %v, want %v", asked, tc.wantAsked)
+			}
+			if strings.Contains(site.logs.String(), authorizedCode) || strings.Contains(site.logs.String(), location.Query().Get("state")) {
+				t.Errorf("the logs hold the code or state: %s", site.logs)
+			}
+		})
+	}
+}
+
+// Where to return comes from the visitor's URL, so it may only be a path on this site.
+func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
+	for target, want := range map[string]string{
+		"/groups":                       "/groups",
+		"/search?q=retry&page=2":        "/search?q=retry&page=2",
+		"/example/rules?tab=releases":   "/example/rules?tab=releases",
+		"/groups#techs":                 "/groups",
+		"":                              "/",
+		"https://evil.example/":         "/",
+		"//evil.example/":               "/",
+		"///evil.example/":              "/",
+		`/\evil.example/`:               "/",
+		`/groups\..\evil`:               "/",
+		"/%09/evil.example":             "/%09/evil.example",
+		"/\t/evil.example":              "/",
+		"/\n/evil.example":              "/",
+		"javascript:alert(1)":           "/",
+		"groups":                        "/",
+		"/sign-in":                      "/",
+		"/sign-out?return=/":            "/",
+		"/account/github/callback?x=1":  "/",
+		"/" + strings.Repeat("a", 2000): "/",
+	} {
+		t.Run(target, func(t *testing.T) {
+			site := newAccountsSite(t, nil)
+			out := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?" + url.Values{"return": {target}}.Encode()})
+			if got := out.Header.Get("Location"); out.StatusCode != http.StatusSeeOther || got != want {
+				t.Errorf("signing out returned %d to %q, want %q", out.StatusCode, got, want)
+			}
+
+			flow, location := startSignIn(t, site, target)
+			in := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow)
+			if got := in.Header.Get("Location"); got != want {
+				t.Errorf("signing in returned to %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+// A flow cookie is the browser's to change, so the return path it holds is checked again when it comes back.
+func TestSignInChecksTheReturnPathItsCookieHoldsAgain(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	flow, location := startSignIn(t, site, "/groups")
+	parts := strings.Split(flow.Value, ".")
+	flow.Value = parts[0] + "." + parts[1] + "." + "Ly9ldmlsLmV4YW1wbGU" // base64url of //evil.example
+
+	resp := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow)
+
+	if got := resp.Header.Get("Location"); got != "/" {
+		t.Errorf("returned to %q, want /", got)
+	}
+}
+
+func TestSignOutEndsTheSessionAndClearsItsCookie(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	held := &http.Cookie{Name: sessionCookie, Value: string(token)}
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-out?return=%2Fgroups", cookies: []*http.Cookie{held}})
+
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups" {
+		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if cleared := cookie(resp, sessionCookie); cleared == nil || cleared.MaxAge >= 0 || !cleared.Secure {
+		t.Error("the session cookie wasn't cleared")
+	}
+	if site.accounts.live(token) {
+		t.Error("the session still signs the visitor in")
+	}
+}
+
+// Another site can't make a visitor's browser sign out or act as them: browsers say where a request came from.
+func TestStateChangingRequestsFromAnotherSiteAreRefused(t *testing.T) {
+	baseURL, err := web.ParseBaseURL("https://rulemart.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, tc := range map[string]struct {
+		header http.Header
+		want   int
+	}{
+		"from another site":                    {http.Header{"Sec-Fetch-Site": {"cross-site"}}, http.StatusForbidden},
+		"from a sibling site":                  {http.Header{"Sec-Fetch-Site": {"same-site"}}, http.StatusForbidden},
+		"from another origin, by Origin alone": {http.Header{"Sec-Fetch-Site": nil, "Origin": {"https://evil.example"}}, http.StatusForbidden},
+		"from this site":                       {http.Header{"Sec-Fetch-Site": {"same-origin"}}, http.StatusSeeOther},
+		"typed in the address bar":             {http.Header{"Sec-Fetch-Site": {"none"}}, http.StatusSeeOther},
+		"from the public origin, by Origin":    {http.Header{"Sec-Fetch-Site": nil, "Origin": {"https://rulemart.example"}}, http.StatusSeeOther},
+		"from no browser":                      {http.Header{"Sec-Fetch-Site": nil}, http.StatusSeeOther},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newAccountsSite(t, func(o *web.Options) { o.BaseURL = baseURL })
+			token := site.accounts.signedIn(t, octocat)
+			for _, target := range []string{"/sign-out", "/account/sign-out-everywhere", "/account/delete", "/sign-in"} {
+				// Every request to the function arrives at the Function URL's host, not the public origin.
+				resp := send(t, site.handler, request{method: http.MethodPost, target: "https://abc.lambda-url.us-west-2.on.aws" + target,
+					cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, header: tc.header})
+				if resp.StatusCode != tc.want {
+					t.Errorf("POST %s answered %d, want %d", target, resp.StatusCode, tc.want)
+				}
+				if tc.want == http.StatusForbidden && (!site.accounts.live(token) || resp.Header.Get("Cache-Control") != "private, no-store") {
+					t.Errorf("POST %s ended the session, or its refusal can be cached", target)
+				}
+			}
+		})
+	}
+}
+
+// CloudFront caches what the function marks public, keyed without cookies, so a page for one signed-in visitor must
+// never be marked public, and a page for everyone must vary with cookies in browsers.
+func TestOnlyPagesForEveryoneCanBeCached(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	session := &http.Cookie{Name: sessionCookie, Value: string(token)}
+	ended := &http.Cookie{Name: sessionCookie, Value: string(accounts.NewSessionToken())}
+	malformed := &http.Cookie{Name: sessionCookie, Value: "not-a-token"}
+	for _, path := range []string{"/", library, retryRule, "/groups", "/search?q=retry", "/example/missing", "/libraries/"} {
+		for name, tc := range map[string]struct {
+			cookie *http.Cookie
+			want   string
+		}{
+			"signed out":            {nil, "public, max-age=60"},
+			"signed in":             {session, "private, no-store"},
+			"with an ended session": {ended, "private, no-store"},
+			"with a broken cookie":  {malformed, "private, no-store"},
+		} {
+			var cookies []*http.Cookie
+			if tc.cookie != nil {
+				cookies = append(cookies, tc.cookie)
+			}
+			resp := send(t, site.handler, request{method: http.MethodGet, target: path, cookies: cookies})
+			if got := resp.Header.Get("Cache-Control"); got != tc.want {
+				t.Errorf("%s %s: Cache-Control is %q, want %q", path, name, got, tc.want)
+			}
+			if got := resp.Header.Get("Vary"); got != "Cookie" {
+				t.Errorf("%s %s: Vary is %q, want Cookie", path, name, got)
+			}
+		}
+	}
+	for _, path := range []string{"/sign-in", "/account"} {
+		resp := send(t, site.handler, request{method: http.MethodGet, target: path})
+		if got := resp.Header.Get("Cache-Control"); got != "private, no-store" {
+			t.Errorf("%s: Cache-Control is %q", path, got)
+		}
+	}
+}
+
+func TestACookieThatSignsNoOneInIsCleared(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	for name, value := range map[string]string{
+		"an ended session": string(accounts.NewSessionToken()),
+		"a broken cookie":  "not-a-token",
+	} {
+		resp := send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{{Name: sessionCookie, Value: value}}})
+		if cleared := cookie(resp, sessionCookie); cleared == nil || cleared.MaxAge >= 0 {
+			t.Errorf("%s: the cookie wasn't cleared", name)
+		}
+		assertShows(t, body(t, resp), "Sign in")
+	}
+}
+
+// Static files are the same for everyone and set no cookie, so they stay cacheable for a year even for a signed-in
+// browser.
+func TestStaticFilesStayCacheableForASignedInBrowser(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"}))
+	start := strings.Index(page, "/_static/")
+	stylesheet := page[start : start+strings.Index(page[start:], `"`)]
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: stylesheet, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	if got := resp.Header.Get("Cache-Control"); resp.StatusCode != http.StatusOK || got != "public, max-age=31536000, immutable" {
+		t.Errorf("%s answered %d with Cache-Control %q", stylesheet, resp.StatusCode, got)
+	}
+}
+
+// A failure to read who's signed in fails the page, rather than showing a signed-in visitor a signed-out one.
+func TestAPageFailsWhenItCantReadTheSession(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	site.accounts.err = errors.New("connect to the database: timeout")
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Cache-Control") != "private, no-store" {
+		t.Errorf("answered %d with Cache-Control %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}
+
+func TestTheHeaderOffersSignInReturningToThePage(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/search?q=retry"}))
+
+	link := findLink(t, page, "Sign in")
+	if link != "/sign-in?return=%2Fsearch%3Fq%3Dretry" {
+		t.Errorf("Sign in leads to %q", link)
+	}
+	// On the home page it needs no return.
+	if link := findLink(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"})), "Sign in"); link != "/sign-in" {
+		t.Errorf("on the home page, Sign in leads to %q", link)
+	}
+}
+
+// On CloudFront's own domain, sign-in still happens on the public origin, where GitHub sends visitors back.
+func TestSignInLinksAndGitHubsCallbackAreOnTheBaseURL(t *testing.T) {
+	baseURL, err := web.ParseBaseURL("https://rulemart.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := newAccountsSite(t, func(o *web.Options) { o.BaseURL = baseURL })
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "https://d111111abcdef8.cloudfront.net/groups"}))
+	_, location := startSignIn(t, site, "/groups")
+
+	if link := findLink(t, page, "Sign in"); link != "https://rulemart.example/sign-in?return=%2Fgroups" {
+		t.Errorf("Sign in leads to %q", link)
+	}
+	if got := location.Query().Get("redirect_uri"); got != "https://rulemart.example/account/github/callback" {
+		t.Errorf("GitHub sends the visitor back to %q", got)
+	}
+}
+
+func TestTheHeaderShowsTheSignedInVisitorsMenu(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/groups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+
+	assertShows(t, page, "Signed in as octocat", "Account", "Sign out")
+	if strings.Contains(visibleText(t, page), "Sign in ") {
+		t.Error("a signed-in visitor is offered sign-in")
+	}
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := find(doc, func(n *html.Node) bool { return n.Data == "form" && attribute(n, "method") == "post" })
+	if form == nil || attribute(form, "action") != "/sign-out?return=%2Fgroups" {
+		t.Errorf("the sign-out form is %v", form)
+	}
+	if find(form, func(n *html.Node) bool { return n.Data == "input" }) != nil {
+		t.Error("the sign-out form sends a body, which CloudFront can't forward")
+	}
+	if img := find(doc, func(n *html.Node) bool { return n.Data == "img" && attribute(n, "src") == octocat.AvatarURL }); img == nil {
+		t.Error("the header doesn't show the visitor's avatar")
+	}
+}
+
+func TestTheAccountPageShowsWhatRulemartKeepsOnlyToItsOwner(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/account"})
+	signedIn := send(t, site.handler, request{method: http.MethodGet, target: "/account", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/sign-in?return=%2Faccount" {
+		t.Errorf("signed out, the account page answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
+	}
+	page := body(t, signedIn)
+	assertShows(t, page, "octocat", "GitHub user ID 583231", "Username octocat", "Account created 2 Oct 2026", "Sign out everywhere", "Delete my account")
+	if !strings.Contains(page, `<meta name="robots" content="noindex">`) {
+		t.Error("the account page can be indexed")
+	}
+}
+
+func TestSignOutEverywhereEndsEverySessionOfTheAccount(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	here := site.accounts.signedIn(t, octocat)
+	elsewhere := site.accounts.signedIn(t, octocat)
+	other := site.accounts.signedIn(t, accounts.Identity{GitHubUserID: 2, Login: "hubot"})
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/sign-out-everywhere", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(here)}}})
+
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/" {
+		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if site.accounts.live(here) || site.accounts.live(elsewhere) || !site.accounts.live(other) {
+		t.Error("didn't end exactly the account's sessions")
+	}
+	if cleared := cookie(resp, sessionCookie); cleared == nil || cleared.MaxAge >= 0 {
+		t.Error("the session cookie wasn't cleared")
+	}
+}
+
+func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/account/delete"})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/delete", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	if signedOut.StatusCode != http.StatusSeeOther {
+		t.Errorf("signed out, deleting answered %d", signedOut.StatusCode)
+	}
+	if resp.StatusCode != http.StatusOK || len(site.accounts.deleted) != 1 || site.accounts.deleted[0] != 1 {
+		t.Fatalf("answered %d, deleting %v", resp.StatusCode, site.accounts.deleted)
+	}
+	page := body(t, resp)
+	assertShows(t, page, "Account deleted", "Sign in")
+	if strings.Contains(visibleText(t, page), "Signed in as") {
+		t.Error("the page still shows the deleted account signed in")
+	}
+}
+
+func TestASignedInVisitorIsSentOnFromTheSignInPage(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fgroups", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/groups" {
+		t.Errorf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+func TestTheSignInPageSaysWhatRulemartReadsFromGitHub(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fgroups"}))
+
+	assertShows(t, page, "Sign in to Rulemart", "Continue with GitHub", "your GitHub user ID, username, and avatar")
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	form := find(doc, func(n *html.Node) bool {
+		return n.Data == "form" && attribute(n, "action") == "/sign-in?return=%2Fgroups"
+	})
+	if form == nil || attribute(form, "method") != "post" {
+		t.Error("the GitHub button doesn't post to start signing in, returning to /groups")
+	}
+}
+
+// Without accounts, or without GitHub in a release build, pages offer no way to sign in that doesn't work.
+func TestPagesOfferNoSignInThatIsNotAvailable(t *testing.T) {
+	without := map[string]func(*web.Options){
+		"accounts": func(o *web.Options) { o.Accounts, o.GitHub = nil, nil },
+		"GitHub":   func(o *web.Options) { o.GitHub = nil },
+	}
+	for name, adjust := range without {
+		t.Run("without "+name, func(t *testing.T) {
+			if web.DevSignIn && name == "GitHub" {
+				t.Skip("a dev build offers test users without GitHub")
+			}
+			site := newAccountsSite(t, adjust)
+			page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"}))
+			if strings.Contains(visibleText(t, page), "Sign in") {
+				t.Error("the header offers sign-in")
+			}
+			if resp := send(t, site.handler, request{method: http.MethodPost, target: "/sign-in"}); resp.StatusCode != http.StatusNotFound {
+				t.Errorf("POST /sign-in answered %d", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// findLink returns the href of the first link in page whose text is text, or fails the test.
+func findLink(t *testing.T, page, text string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := find(doc, func(n *html.Node) bool {
+		return n.Data == "a" && strings.TrimSpace(visibleTextOf(n)) == text
+	})
+	if link == nil {
+		t.Fatalf("no link reads %q", text)
+	}
+	return attribute(link, "href")
+}
+
+// visibleTextOf returns the text under n.
+func visibleTextOf(n *html.Node) string {
+	var text strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			text.WriteString(n.Data)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(n)
+	return text.String()
+}
