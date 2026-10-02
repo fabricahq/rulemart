@@ -139,6 +139,13 @@ var notices = map[string]string{
 	"cart-emptied": "You emptied your cart.",
 }
 
+// noticeLink is a phrase of a notice's text that links to a page, at href.
+type noticeLink struct{ phrase, href string }
+
+// noticeLinks are the phrases of notices' text that link to a page, by the notice's key in notices, such as the page
+// a notice says something is on.
+var noticeLinks = map[string]noticeLink{"starred": {phrase: "Starred rules", href: starredHref}}
+
 // subjectNotices are the notices that name what they're about, which their page shows itself, rather than as
 // notices' text: the cart's, which name an item, as cartNoticeSubject encodes it: one added, removed, or offered after
 // signing in to add it. The page that shows the item names it, from its own data; any other page says what

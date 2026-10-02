@@ -193,6 +193,28 @@ func (s starSite) follow(t *testing.T, resp *http.Response) *http.Response {
 	return send(t, s.handler, request{method: http.MethodGet, target: resp.Header.Get("Location"), cookies: cookies})
 }
 
+// pageNotice returns the text of the page's notice, its text nodes joined as they are, and each link in it as its
+// text, a space, and its href.
+func pageNotice(t *testing.T, page string) (text string, links []string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || attribute(n, "role") != "status" {
+			continue
+		}
+		text = accessibleName(n)
+		for a := range n.Descendants() {
+			if a.Type == html.ElementNode && a.Data == "a" {
+				links = append(links, nodeText(a)+" "+attribute(a, "href"))
+			}
+		}
+	}
+	return text, links
+}
+
 // starButton returns the attributes of the page's star button, or nil when it has none.
 func starButton(t *testing.T, page string) map[string]string {
 	t.Helper()
@@ -359,7 +381,10 @@ func TestStarringSaysWhatItDidAndKeepsFocusOnTheButton(t *testing.T) {
 	site := newStarSite(t)
 
 	page := body(t, site.follow(t, site.signedInPost(t, starPath)))
-	assertShows(t, page, "You starred this rule. It's on your Starred rules.")
+	if text, links := pageNotice(t, page); text != "You starred this rule. It's on your Starred rules." ||
+		!slices.Equal(links, []string{"Starred rules /account/stars"}) {
+		t.Errorf("the notice says %q and links %q, want Starred rules linked to the list", text, links)
+	}
 	if button := starButton(t, page); button["aria-pressed"] != "true" || !hasKey(button, "autofocus") {
 		t.Fatalf("after starring, the button: %v, want aria-pressed true and autofocus", button)
 	}

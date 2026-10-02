@@ -4,8 +4,8 @@
 package web
 
 import (
-	"cmp"
 	"strconv"
+	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
@@ -80,6 +80,24 @@ func ruleHead(h head, r ruleView) head {
 	return h
 }
 
+// shownNotice returns the notice the page shows, its own or else the notice cookie's, and for the cookie's, the phrase
+// of it that links to a page, if any.
+func shownNotice(h head, v visitor) (string, noticeLink) {
+	if h.notice != "" {
+		return h.notice, noticeLink{}
+	}
+	return v.notice, noticeLinks[v.noticeKey]
+}
+
+// noticeText is a notice's text, with link's phrase, when it has one, linking to its page.
+templ noticeText(text string, link noticeLink) {
+	if before, after, ok := strings.Cut(text, link.phrase); ok && link.phrase != "" {
+		{ before }<a href={ templ.SafeURL(link.href) }>{ link.phrase }</a>{ after }
+	} else {
+		{ text }
+	}
+}
+
 // layout renders a page's document around its main content.
 templ layout(c chrome, h head) {
 	<!DOCTYPE html>
@@ -118,10 +136,12 @@ templ layout(c chrome, h head) {
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
 			@header(h)
-			if notice := cmp.Or(h.notice, visitorOf(ctx).notice); notice != "" {
+			if notice, link := shownNotice(h, visitorOf(ctx)); notice != "" {
 				<div class="border-b border-border-subtle bg-surface" role="status">
 					<div class={ "wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>
-						<p>{ notice }</p>
+						<p>
+							@noticeText(notice, link)
+						</p>
 						if h.noticeAction != nil {
 							@h.noticeAction
 						}
