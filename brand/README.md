@@ -9,6 +9,19 @@ records them. This directory keeps the SVGs and the PNGs up to 400 pixels wide; 
 ZIP are left out, since `build.py` makes them again from the SVGs, so `SHA256SUMS` lists only the files kept here.
 Run `shasum -a 256 -c SHA256SUMS` in this directory to check them.
 
+## Where the site uses it
+
+The site's `favicon.svg`, `favicon.ico`, and `apple-touch-icon.png` in `internal/platform/web/static/` are copied
+from `favicons/` unchanged. The header draws the symbol's path from `source/rulemart.svg` inline, in the text's color,
+with the heavier stroke `guide.html` gives the site's small sizes.
+
+`static/social.png`, the image a link to Rulemart shows on social sites, is the dark horizontal logo centered on the
+surface color, made by `social.py`. Run it after changing the logo, with Pillow and `rsvg-convert` installed:
+
+```sh
+python3 brand/social.py
+```
+
 ## Regenerating the package
 
 Install the packages in `requirements.txt` and `rsvg-convert`, then run `python3 brand/build.py`. It writes the large
