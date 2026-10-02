@@ -54,10 +54,10 @@ TAILWIND_PLATFORM := $(TAILWIND_OS)-$(TAILWIND_ARCH)
 TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
 # Generated files, committed so builds need no generators. CI fails when they're stale. sqlc and Tailwind write into
-# generated/ directories; templ output must sit beside its source, in the same package, so it's named
-# *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed file shows as a
-# deletion.
-SQLC_OUT := internal/contexts/catalog/store/postgres/generated
+# generated/ directories, sqlc one for each context's store; templ output must sit beside its source, in the same
+# package, so it's named *_templ.generated.go instead. make generate deletes all of them first, so a stale or renamed
+# file shows as a deletion.
+SQLC_OUT := internal/contexts/catalog/store/postgres/generated internal/contexts/accounts/store/postgres/generated
 TEMPL_DIR := internal/platform/web
 STYLESHEET_OUT := internal/platform/web/static/generated
 GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go'
