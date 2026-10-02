@@ -17,7 +17,13 @@ templ searchPage(c chrome, v searchView) {
 			<div class="mt-[22px] max-w-[44rem]">
 				@searchForm("search", v.query, !v.searched())
 				<p class="mt-2 px-4 text-[12.5px] text-faint">
-					Search for <code>"retry limits"</code> to find the phrase, <code>testing -react</code> to leave out a word, or <code>jitter or backoff</code> to find either word.
+					Search for{ " " }
+					@example(`"retry limits"`)
+					{ " " }to find the phrase,{ " " }
+					@example("testing -react")
+					{ " " }to leave out a word, or{ " " }
+					@example("jitter or backoff")
+					{ " " }to find either word.
 				</p>
 			</div>
 			if v.searched() {
@@ -58,6 +64,11 @@ templ searchPage(c chrome, v searchView) {
 			}
 		</div>
 	}
+}
+
+// example is a search a hint shows, as code, kept on one line with its quotes.
+templ example(query string) {
+	<code class="rounded-[4px] border border-border-subtle bg-surface px-1 whitespace-nowrap text-muted">{ query }</code>
 }
 
 // searchSummary says how many rules matched the query, and how many of them hold every word of it.
