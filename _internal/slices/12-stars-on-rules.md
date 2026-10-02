@@ -109,6 +109,19 @@ a decision under "Decided while building" says otherwise and why.
   your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every rule
   and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie still
   names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
+- **Decided (Josh): a one-time notice that only reports shows as a toast**, so it no longer pushes the page down: the
+  first star's, the cart's after adding, removing, or emptying, signing out, signing out everywhere, deleting the
+  account, the listings', and the rest the layout renders from the notice cookie or a page's own notice. It's the
+  prototype's toast, a pill in the primary color with a shadow, at the viewport's bottom right rather than its bottom
+  center, 24 pixels in, or 16 on a phone, for every toast alike. It holds about as long as reading it takes, at least
+  2.2 seconds (50 ms a character after the first 1.2 s, so a long cart notice holds about 6), then fades, and pauses
+  while hovered or focused. The first star's notice, which links Starred rules, is an info toast: an info icon, a
+  close button, and at least 6 seconds. A notice that asks the visitor to act stays a banner in the page's flow, since
+  a toast can't hold a control: the cart's offer after signing in, with its button, and the star's prompt after
+  signing in, which highlights the button. The server renders every notice as before, a `role="status"` banner, marked
+  `data-toast` when it can be a toast; the stylesheet draws it as a toast under `@media (scripting: enabled)` before the
+  page paints, so nothing moves, and `toast.js` sets how long it holds, shows the close button, and takes it off the
+  page when it fades. Without JavaScript the banner stays, as the accessible fallback.
 
 ## Not in this slice
 

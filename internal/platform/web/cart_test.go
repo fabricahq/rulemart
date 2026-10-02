@@ -442,6 +442,10 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 	if strings.Count(page, " autofocus") != 1 || !strings.Contains(page, "ring-ink") {
 		t.Error("the offer doesn't focus its button, and outline the control")
 	}
+	// A toast can't hold the button, so the offer stays a banner where scripts run.
+	if kind := noticeToast(t, page); kind != "" {
+		t.Errorf("the offer is a %q toast, want a banner", kind)
+	}
 	action := cartPath("/account/cart", clone(errorsItem), errorsRule)
 	if got := formActions(t, page); countOf(got, action) != 2 {
 		t.Errorf("the notice holds no button that adds the rule: %q", got)
@@ -450,8 +454,12 @@ func TestSigningInToAddOffersTheItemOnce(t *testing.T) {
 		t.Fatalf("signing in added %q", got)
 	}
 	site.signedInPost(t, cartPath("/account/cart", clone(errorsItem), ""))
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}})),
-		"You're signed in. Your cart has the rule Return errors with context already.")
+	page = body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule, cookies: []*http.Cookie{site.session, offer}}))
+	assertShows(t, page, "You're signed in. Your cart has the rule Return errors with context already.")
+	// With nothing to offer, it only reports, as a toast.
+	if kind := noticeToast(t, page); kind != "status" {
+		t.Errorf("the notice is a %q toast, want a status toast", kind)
+	}
 	// An offer for an item the page doesn't show says nothing at all.
 	away := site.signedInGet(t, cartPath(library, url.Values{"add": {"example/rules|rule|techs/go/return-errors"}}, ""))
 	if page := body(t, send(t, site.handler, request{method: http.MethodGet, target: library, cookies: []*http.Cookie{site.session, cookie(away, noticeCookie)}})); strings.Contains(visibleText(t, page), "signed in.") {

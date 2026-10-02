@@ -19,8 +19,8 @@ type chrome struct {
 	// logo and darkLogo are Rulemart's horizontal logo, drawn in ink for the light theme and in white for the dark.
 	logo, darkLogo string
 	// caretScript puts the caret at the end of a field the page focuses, and copyScript shows Copy buttons and copies,
-	// on a page that asks for each.
-	caretScript, copyScript string
+	// on a page that asks for each. toastScript times a notice shown as a toast, on a page that shows one.
+	caretScript, copyScript, toastScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -48,9 +48,12 @@ type head struct {
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
 	// notice is the page's own notice, which takes the place of the notice cookie's, or empty, and noticeAction what
-	// the notice offers to do, such as add an item to the cart after signing in, or nil.
-	notice       string
-	noticeAction templ.Component
+	// the notice offers to do, such as add an item to the cart after signing in, or nil. noticePrompts is true when
+	// the notice asks the visitor to use a control the page highlights instead, such as the star button after signing
+	// in to star.
+	notice        string
+	noticeAction  templ.Component
+	noticePrompts bool
 	// caret loads the script that puts the caret at the end of a field the page focuses, and copy the one that shows
 	// Copy buttons.
 	caret, copy bool
@@ -75,18 +78,46 @@ func libraryHead(h head, lib libraryView) head {
 func ruleHead(h head, r ruleView) head {
 	h = libraryHead(h, r.library)
 	if r.star.notice != "" {
-		h.notice, h.noticeAction = r.star.notice, nil
+		h.notice, h.noticeAction, h.noticePrompts = r.star.notice, nil, r.star.prompt
 	}
 	return h
 }
 
-// shownNotice returns the notice the page shows, its own or else the notice cookie's, and for the cookie's, the phrase
-// of it that links to a page, if any.
-func shownNotice(h head, v visitor) (string, noticeLink) {
-	if h.notice != "" {
-		return h.notice, noticeLink{}
+// notice is what a page says once, after something the visitor did, in a banner under the header. Where scripts run,
+// a notice that only reports, rather than asking the visitor to act, shows as a toast instead, at the viewport's
+// bottom right, so it doesn't push the page down, and fades.
+type notice struct {
+	text string
+	// link is the phrase of text that links to a page, if any.
+	link noticeLink
+	// toast is how the notice shows where scripts run: toastStatus or toastInfo, or empty for a banner, for a notice
+	// that asks the visitor to act.
+	toast string
+}
+
+// How a notice shows as a toast: toastStatus reports what happened, and toastInfo, a notice with a link, adds an icon
+// and a close button, and holds longer, so the visitor has time to follow its link.
+const (
+	toastStatus = "status"
+	toastInfo   = "info"
+)
+
+// shownNotice returns the notice the page shows, its own or else the notice cookie's, which may link a phrase to a
+// page, or one with no text, which shows nothing.
+func shownNotice(h head, v visitor) notice {
+	n := notice{text: h.notice}
+	if n.text == "" {
+		n.text, n.link = v.notice, noticeLinks[v.noticeKey]
 	}
-	return v.notice, noticeLinks[v.noticeKey]
+	switch {
+	case h.noticeAction != nil || h.noticePrompts:
+		// It asks the visitor to act, so it stays a banner.
+	case n.link.phrase != "":
+		n.toast = toastInfo
+	default:
+		n.toast = toastStatus
+	}
+	return n
 }
 
 // noticeText is a notice's text, with link's phrase, when it has one, linking to its page.
@@ -96,6 +127,38 @@ templ noticeText(text string, link noticeLink) {
 	} else {
 		{ text }
 	}
+}
+
+// noticeBanner shows n in a banner under the header, with what h's notice offers to do. A toast's banner carries
+// data-toast, which the stylesheet draws as a toast where scripts run, and toast.js times and closes; without
+// scripts it stays a banner. An info toast's icon shows in both, and its close button only as a toast.
+templ noticeBanner(n notice, h head) {
+	<div
+		class="border-b border-border-subtle bg-surface"
+		role="status"
+		if n.toast != "" {
+			data-toast={ n.toast }
+		}
+	>
+		<div class={ "wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>
+			<p class="flex items-start gap-2">
+				if n.toast == toastInfo {
+					@infoIcon("mt-[3px] size-4 flex-none")
+				}
+				<span>
+					@noticeText(n.text, n.link)
+				</span>
+			</p>
+			if h.noticeAction != nil {
+				@h.noticeAction
+			}
+			if n.toast == toastInfo {
+				<button class="-my-1 -mr-2 ml-auto inline-grid size-7 flex-none cursor-pointer place-items-center rounded-full opacity-80 hover:opacity-100" type="button" aria-label="Dismiss" data-toast-close hidden>
+					@closeIcon("size-4")
+				</button>
+			}
+		</div>
+	</div>
 }
 
 // layout renders a page's document around its main content.
@@ -132,21 +195,15 @@ templ layout(c chrome, h head) {
 			if h.copy {
 				<script src={ c.copyScript } defer></script>
 			}
+			if n := shownNotice(h, visitorOf(ctx)); n.text != "" && n.toast != "" {
+				<script src={ c.toastScript } defer></script>
+			}
 		</head>
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
 			@header(h)
-			if notice, link := shownNotice(h, visitorOf(ctx)); notice != "" {
-				<div class="border-b border-border-subtle bg-surface" role="status">
-					<div class={ "wrap flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 text-[14px] text-ink", templ.KV(narrowPage, h.narrow) }>
-						<p>
-							@noticeText(notice, link)
-						</p>
-						if h.noticeAction != nil {
-							@h.noticeAction
-						}
-					</div>
-				</div>
+			if n := shownNotice(h, visitorOf(ctx)); n.text != "" {
+				@noticeBanner(n, h)
 			}
 			<main id="main" class="flex-1" tabindex="-1">
 				{ children... }
@@ -350,6 +407,21 @@ templ themeMenu() {
 			}
 		</div>
 	</details>
+}
+
+// infoIcon is a circle with an i, in the current text color.
+templ infoIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<circle cx="12" cy="12" r="9"></circle>
+		<path d="M12 11v5.5M12 7.5h.01"></path>
+	</svg>
+}
+
+// closeIcon is an x, in the current text color.
+templ closeIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+		<path d="M6 6l12 12M18 6 6 18"></path>
+	</svg>
 }
 
 // searchIcon is a magnifying glass, in the current text color.

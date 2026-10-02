@@ -231,6 +231,26 @@ func pageNotice(t *testing.T, page string) (text string, links []string) {
 	return text, links
 }
 
+// noticeToast returns how the page's notice shows where scripts run, as its data-toast says: status or info for a
+// toast, or empty for a banner. It fails t unless the page loads toast.js exactly when its notice is a toast.
+func noticeToast(t *testing.T, page string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	kind := ""
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && attribute(n, "role") == "status" && attribute(n, "data-toast") != "" {
+			kind = attribute(n, "data-toast")
+		}
+	}
+	if loads := strings.Contains(page, "/toast.js"); loads != (kind != "") {
+		t.Errorf("the page loads toast.js: %v, and its notice is a %q toast", loads, kind)
+	}
+	return kind
+}
+
 // starButton returns the attributes of the page's star button, or nil when it has none.
 func starButton(t *testing.T, page string) map[string]string {
 	t.Helper()
@@ -409,6 +429,10 @@ func TestOnlyTheFirstStarSaysWhereStarredRulesAreAndEachFocusesTheButton(t *test
 		!slices.Equal(links, []string{"Starred rules /account/stars"}) {
 		t.Errorf("after the first star, the notice says %q and links %q, want Starred rules linked to the list", text, links)
 	}
+	// Where scripts run, it's an info toast, with a link to follow, and a button that closes it.
+	if kind := noticeToast(t, page); kind != "info" || !strings.Contains(page, `aria-label="Dismiss" data-toast-close hidden`) {
+		t.Errorf("the first star's notice is a %q toast, want an info toast with a hidden close button", kind)
+	}
 	focusedAfter("the first star", page, "true")
 	page = body(t, site.signedInGet(t, errorsRule))
 	if text, _ := pageNotice(t, page); text != "" {
@@ -442,6 +466,10 @@ func TestSigningInToStarPromptsOnceToStar(t *testing.T) {
 	}
 	page := body(t, site.follow(t, back))
 	assertShows(t, page, "You're signed in. Star Return errors with context?")
+	// It asks the visitor to use the button it highlights, so it stays a banner where scripts run.
+	if kind := noticeToast(t, page); kind != "" {
+		t.Errorf("the prompt is a %q toast, want a banner", kind)
+	}
 	if button := starButton(t, page); button["aria-pressed"] != "false" || !hasKey(button, "autofocus") || !hasKey(button, "data-prompt") {
 		t.Fatalf("the prompted button: %v, want unpressed, focused, and highlighted", button)
 	}
