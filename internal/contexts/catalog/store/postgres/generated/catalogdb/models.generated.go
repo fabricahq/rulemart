@@ -27,6 +27,7 @@ type Library struct {
 	OwnerAvatarUrl    string
 	LicenseExpression pgtype.Text
 	LicenseFile       pgtype.Text
+	CloneUrl          pgtype.Text
 }
 
 type LibraryGroup struct {
@@ -45,6 +46,7 @@ type LibraryRelease struct {
 	CommitID           string
 	TaggedAt           pgtype.Timestamptz
 	UpdatesSharedFiles bool
+	TagObjectID        pgtype.Text
 }
 
 type Rule struct {

@@ -34,6 +34,8 @@ func (l Library) CurrentRules() int {
 // Release is one library release, as its annotated release/<number> tag records it.
 type Release struct {
 	Number int
+	// TagID is the hash of the annotated tag object, which a rewritten tag changes even when it tags the same commit.
+	TagID string
 	// CommitID is the hash of the commit the release tags.
 	CommitID string
 	TaggedAt time.Time

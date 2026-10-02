@@ -58,3 +58,36 @@ func serve(t *testing.T, status int, body string) *httptest.Server {
 	t.Cleanup(server.Close)
 	return server
 }
+
+// Vetting names a repository by its ID, which survives renames, so the worker looks it up by ID and gets its current
+// name.
+func TestGitHubRepositoryByIDLooksTheRepositoryUpByItsID(t *testing.T) {
+	var path string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		_, _ = w.Write([]byte(`{"id": 1234, "name": "renamed", "private": false, "description": "Rules.",
+			"clone_url": "https://github.com/example/renamed.git", "owner": {"login": "example"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	repo, err := github.Client{Client: server.Client(), BaseURL: server.URL}.RepositoryByID(context.Background(), "1234")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/repositories/1234" || repo.ID != "1234" || repo.FullName() != "example/renamed" || repo.CloneURL != "https://github.com/example/renamed.git" {
+		t.Fatalf("requested %s and got %+v", path, repo)
+	}
+}
+
+func TestGitHubRepositoryByIDRejectsAnotherRepositoryOrAnInvalidID(t *testing.T) {
+	server := serve(t, http.StatusOK, `{"id": 99, "name": "r", "clone_url": "https://github.com/o/r.git", "owner": {"login": "o"}}`)
+	client := github.Client{Client: server.Client(), BaseURL: server.URL}
+	for _, id := range []string{"1234", "", "0", "12a", "../repos/o/r"} {
+		t.Run(id, func(t *testing.T) {
+			if repo, err := client.RepositoryByID(context.Background(), id); err == nil {
+				t.Fatalf("accepted %+v for ID %q", repo, id)
+			}
+		})
+	}
+}

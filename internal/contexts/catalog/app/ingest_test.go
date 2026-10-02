@@ -33,7 +33,12 @@ func firstRelease(t *testing.T) *gittest.Library {
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts.")
 	lib.Rule(retryBackoff, "Check retry backoff", "Retries wait longer after each attempt.")
 	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, firstReleaseRecord)
+	return lib
+}
+
+// firstReleaseRecord is the record of firstRelease's release/1.
+const firstReleaseRecord = `formatVersion: 1
 release: 1
 rules:
   practices/testing/check-retry-backoff: 1.0.0
@@ -44,9 +49,7 @@ changes:
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
 libraryFiles: [LICENSE, practices/testing/_group.yaml, rule-library.yaml, techs/go/_group.yaml]
-`)
-	return lib
-}
+`
 
 // laterReleases adds three releases to firstRelease's library: a minor change, then a patch and a major change and
 // a retirement, then a release that only edits a rule's file without a change, which must not show.
@@ -211,6 +214,10 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 	return r.repo, nil
 }
 
+func (r repositories) RepositoryByID(context.Context, string) (domain.Repository, error) {
+	return r.repo, nil
+}
+
 // newCatalog returns an Ingester that fetches with go-git and writes to a new database, and the Pages that read it,
 // where example/rules with GitHub repository ID 42 is vetted.
 func newCatalog(t *testing.T) (app.Ingester, app.Pages) {
@@ -245,4 +252,32 @@ func read(t *testing.T, pages app.Pages) page {
 		t.Fatal(err)
 	}
 	return page{library, rule}
+}
+
+// Rendering is what an ingestion spends its time on, and a job has a deadline, so ingestion must stop rendering when
+// its context ends rather than run on until Lambda stops the function.
+func TestIngestStopsRenderingWhenItsContextEnds(t *testing.T) {
+	ingester, pages := newCatalog(t)
+	lib := firstRelease(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rendered := 0
+	ingester.Render = func(body string, page domain.RulePage, allowance int64) (string, int64, error) {
+		rendered++
+		cancel()
+		return render.Rule(body, page, allowance)
+	}
+	ingester.Repositories = repositories{lib.Repository(42)}
+
+	_, err := ingester.IngestRepository(ctx, lib.Repository(42))
+
+	if !errors.Is(err, context.Canceled) && (err == nil || !strings.Contains(err.Error(), context.Canceled.Error())) {
+		t.Fatalf("got error %v, want the context's", err)
+	}
+	if rendered != 1 {
+		t.Fatalf("rendered %d rules after the context ended, want to stop after the first", rendered)
+	}
+	if _, err := pages.LibraryPage(context.Background(), "example", "rules"); !errors.Is(err, app.ErrNotFound) {
+		t.Fatalf("a stopped ingestion stored the library: %v", err)
+	}
 }

@@ -50,8 +50,32 @@ const WebRole = "rulemart_web"
 // on the role they create.
 const webRolePassword = "rulemart-web-local"
 
+// CatalogWriterRole is the group role migrations grant what ingestion writes. It can't log in; WorkerRole is its
+// member. Infrastructure creates it in production; tests and local development create it too.
+const CatalogWriterRole = "rulemart_catalog_writer"
+
+// WorkerRole is the login role the worker function and the ingest command connect as. It has no grants of its own,
+// and writes the catalog through its membership in CatalogWriterRole. Infrastructure creates it in production; tests
+// and local development create it with workerRolePassword, a test value.
+const WorkerRole = "rulemart_worker"
+
+// workerRolePassword is the role's local password, the Makefile's LOCAL_WORKER_ROLE_PASSWORD.
+const workerRolePassword = "rulemart-worker-local"
+
+// login is a login role infrastructure creates, with its local password and the group role it's a member of.
+type login struct {
+	name, password, group string
+}
+
+// logins are the login roles New makes sure the server has, each with its group.
+var logins = []login{
+	{WebRole, webRolePassword, CatalogReaderRole},
+	{WorkerRole, workerRolePassword, CatalogWriterRole},
+}
+
 // New creates an empty database for t and returns a connection string for it, as the server's user. It first
-// makes sure the server has CatalogReaderRole, which migrations grant access to, and WebRole, its member.
+// makes sure the server has the roles infrastructure creates: CatalogReaderRole and WebRole, its member, and
+// CatalogWriterRole and WorkerRole, its member.
 func New(t *testing.T) string {
 	t.Helper()
 	server := Server(t)
@@ -68,12 +92,18 @@ func AsWebRole(t *testing.T, connString string) string {
 	return WithUser(t, connString, WebRole, webRolePassword)
 }
 
+// AsWorkerRole returns connString with WorkerRole as its user, to connect as the worker function does.
+func AsWorkerRole(t *testing.T, connString string) string {
+	t.Helper()
+	return WithUser(t, connString, WorkerRole, workerRolePassword)
+}
+
 // rolesLock is the advisory lock key that serializes creating the shared roles.
 const rolesLock = 7_392_614_028
 
-// createRoles creates CatalogReaderRole and WebRole on server unless they exist, as infrastructure creates them: a
-// NOLOGIN group role, and a LOGIN role that signs in with webRolePassword and is a member of it. It fails t unless
-// both have that shape. Roles span the server, and tests in several packages create them at once, so one transaction
+// createRoles creates each login role and its group on server unless they exist, as infrastructure creates them: a
+// NOLOGIN group role, and a LOGIN role that signs in with its local password and is a member of it. It fails t unless
+// each has that shape. Roles span the server, and tests in several packages create them at once, so one transaction
 // at a time creates them, under an advisory lock.
 func createRoles(t *testing.T, server string) {
 	t.Helper()
@@ -83,49 +113,53 @@ func createRoles(t *testing.T, server string) {
 		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", rolesLock); err != nil {
 			return fmt.Errorf("lock the shared roles: %v", err)
 		}
-		exists := func(role string) (bool, error) {
+		create := func(role, statement string) error {
 			var found bool
 			err := tx.QueryRow(ctx, "SELECT EXISTS (SELECT FROM pg_roles WHERE rolname = $1)", role).Scan(&found)
-			return found, err
+			if err == nil && !found {
+				_, err = tx.Exec(ctx, statement)
+			}
+			if err != nil {
+				return fmt.Errorf("create role %s: %v", role, err)
+			}
+			return nil
 		}
-		reader, web := pgx.Identifier{CatalogReaderRole}.Sanitize(), pgx.Identifier{WebRole}.Sanitize()
-		found, err := exists(CatalogReaderRole)
-		if err == nil && !found {
-			_, err = tx.Exec(ctx, "CREATE ROLE "+reader+" NOLOGIN")
-		}
-		if err != nil {
-			return fmt.Errorf("create role %s: %v", CatalogReaderRole, err)
-		}
-		found, err = exists(WebRole)
-		if err == nil && !found {
-			_, err = tx.Exec(ctx, "CREATE ROLE "+web+" LOGIN PASSWORD '"+webRolePassword+"' IN ROLE "+reader)
-		}
-		if err != nil {
-			return fmt.Errorf("create role %s: %v", WebRole, err)
+		for _, l := range logins {
+			group, name := pgx.Identifier{l.group}.Sanitize(), pgx.Identifier{l.name}.Sanitize()
+			if err := create(l.group, "CREATE ROLE "+group+" NOLOGIN"); err != nil {
+				return err
+			}
+			if err := create(l.name, "CREATE ROLE "+name+" LOGIN PASSWORD '"+l.password+"' IN ROLE "+group); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := checkRole(ctx, conn, CatalogReaderRole, false); err != nil {
-		t.Fatal(err)
+	for _, l := range logins {
+		if err := checkRole(ctx, conn, l.group, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := checkRole(ctx, conn, l.name, true, l.group); err != nil {
+			t.Fatal(err)
+		}
+		signedIn, err := pgx.Connect(ctx, WithUser(t, server, l.name, l.password))
+		if err != nil {
+			t.Fatalf("sign in as %s with the test password: %v; %s", l.name, err, resetRoles)
+		}
+		_ = signedIn.Close(ctx)
 	}
-	if err := checkRole(ctx, conn, WebRole, true, CatalogReaderRole); err != nil {
-		t.Fatal(err)
-	}
-	web, err := pgx.Connect(ctx, AsWebRole(t, server))
-	if err != nil {
-		t.Fatalf("sign in as %s with the test password: %v; %s", WebRole, err, resetRoles)
-	}
-	_ = web.Close(ctx)
 }
 
 // resetRoles tells a developer how to replace a test server's shared roles that tests can't use. Tests never change
 // or drop the shared roles themselves.
 const resetRoles = "recreate the test server with make db-stop and make db, or drop the roles (DROP OWNED BY " +
-	WebRole + ", " + CatalogReaderRole + " in each database, then DROP ROLE " + WebRole + ", " + CatalogReaderRole +
-	") so the tests create them again"
+	sharedRoles + " in each database, then DROP ROLE " + sharedRoles + ") so the tests create them again"
+
+// sharedRoles names the roles tests create, logins before their groups, so DROP ROLE can drop them in order.
+const sharedRoles = WebRole + ", " + WorkerRole + ", " + CatalogReaderRole + ", " + CatalogWriterRole
 
 // checkRole returns an error unless role has the shape infrastructure gives it: it can log in only if login is true,
 // has no other attribute, and is a member of exactly memberOf.

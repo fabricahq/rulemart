@@ -9,11 +9,14 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -31,13 +34,23 @@ func Fetch(ctx context.Context, url string, limits domain.FetchLimits) ([]domain
 	if err != nil {
 		return nil, err
 	}
-	return readReleases(repo, limits)
+	return readReleases(ctx, repo, limits)
+}
+
+// ListReleaseTags returns the release/<number> tags the repository at url lists, with the IDs of the tag objects
+// they point to, as Fetch reads them, without fetching any object: one request, as git ls-remote makes. It fails as
+// Fetch does when the repository has no release tags, or more than limits allow. url is any address go-git can
+// fetch from, such as an HTTPS URL or, in tests, a local path.
+func ListReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error) {
+	remote := gogit.NewRemote(nil, &config.RemoteConfig{Name: "origin", URLs: []string{url}})
+	return listReleaseTags(withRefsLimit(ctx, limits.RefsBytes), remote, limits)
 }
 
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
 // history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.
 func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (*gogit.Repository, error) {
+	ctx = withRefsLimit(ctx, limits.RefsBytes)
 	repo, err := gogit.Init(newBoundedStorage(limits), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create in-memory repository: %v", err)
@@ -46,7 +59,7 @@ func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits
 	if err != nil {
 		return nil, fmt.Errorf("add remote: %v", err)
 	}
-	if err := checkReleaseTagCount(ctx, remote, limits); err != nil {
+	if _, err := listReleaseTags(ctx, remote, limits); err != nil {
 		return nil, err
 	}
 	// Ingestion reads only the trees of tagged commits, so a shallow fetch leaves out every other commit's objects.
@@ -65,47 +78,55 @@ func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits
 	return repo, nil
 }
 
-// checkReleaseTagCount lists the remote's references and fails when it has no release/<number> tags, or more than
-// limits allow.
-func checkReleaseTagCount(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) error {
+// listReleaseTags lists the remote's references and returns its release/<number> tags, the names Code Rules
+// accepts, with the IDs they point to. It fails when there are none, or more than limits allow.
+func listReleaseTags(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) (domain.ReleaseTags, error) {
 	refs, err := remote.ListContext(ctx, &gogit.ListOptions{})
 	if errors.Is(err, transport.ErrEmptyRemoteRepository) {
-		return errNoReleases
+		return nil, errNoReleases
 	}
 	if err != nil {
-		return fmt.Errorf("list the repository's references: %v", err)
+		return nil, fmt.Errorf("list the repository's references: %v", err)
 	}
-	count := 0
+	tags := domain.ReleaseTags{}
 	for _, ref := range refs {
-		if _, err := coderules.ParseReleaseTag(ref.Name().Short()); ref.Name().IsTag() && err == nil {
-			count++
+		if !ref.Name().IsTag() {
+			continue
+		}
+		if number, err := coderules.ParseReleaseTag(ref.Name().Short()); err == nil {
+			tags[number] = ref.Hash().String()
 		}
 	}
 	switch {
-	case count == 0:
-		return errNoReleases
-	case count > limits.Tags:
-		return fmt.Errorf("the repository has %d release tags, more than the %d ingestion reads", count, limits.Tags)
+	case len(tags) == 0:
+		return nil, errNoReleases
+	case len(tags) > limits.Tags:
+		return nil, fmt.Errorf("the repository has %d release tags, more than the %d ingestion reads", len(tags), limits.Tags)
 	}
-	return nil
+	return tags, nil
 }
 
-// readReleases parses the record of every release/<number> tag in repo, in number order. Like Code Rules, it skips
-// other names under release/, such as release/01, and fails when no tag remains. Each tag must be an annotated tag
-// of a commit, no larger than limits.TagBytes, whose message is release notes followed by a record for that
-// release.
-func readReleases(repo *gogit.Repository, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
+// readReleases parses the record of every release/<number> tag in repo, in number order, until ctx ends. Like Code
+// Rules, it skips other names under release/, such as release/01, and fails when no tag remains. Each tag must be an
+// annotated tag of a commit, no larger than limits.TagBytes, whose message is release notes followed by a record for
+// that release.
+func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error) {
 	refs, err := repo.Tags()
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %v", err)
 	}
 	var releases []domain.ReleaseSnapshot
+	shared := &trees{storer: repo.Storer, decoded: map[plumbing.Hash]*object.Tree{}}
 	err = refs.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
 		if _, err := coderules.ParseReleaseTag(name); err != nil {
 			return nil
 		}
-		r, err := readRelease(repo, name, ref.Hash(), limits)
+		// Parsing a record is the work here, so stop between records once ctx ends.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		r, err := readRelease(repo, shared, name, ref.Hash(), limits)
 		if err != nil {
 			return fmt.Errorf("read %s: %v", name, err)
 		}
@@ -123,7 +144,7 @@ func readReleases(repo *gogit.Repository, limits domain.FetchLimits) ([]domain.R
 }
 
 // readRelease reads the annotated tag object hash, which the tag named name points to.
-func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
+func readRelease(repo *gogit.Repository, shared *trees, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
 	encoded, err := repo.Storer.EncodedObject(plumbing.AnyObject, hash)
 	if err != nil {
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load tag object: %v", err)
@@ -154,8 +175,9 @@ func readRelease(repo *gogit.Repository, name string, hash plumbing.Hash, limits
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load the tagged commit %s: %v", tag.Target, err)
 	}
 	return domain.ReleaseSnapshot{
-		Number: record.Release, Tag: name, TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(), Record: record,
-		Files: &files{commit: commit},
+		Number: record.Release, Tag: name, TagID: hash.String(), TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(),
+		Record: record,
+		Files:  files{root: commit.TreeHash, trees: shared},
 	}, nil
 }
 
@@ -175,28 +197,66 @@ func readObject(encoded plumbing.EncodedObject) ([]byte, error) {
 
 // files reads a tagged commit's files from the fetched objects in memory.
 type files struct {
-	commit *object.Commit
-	// tree is the commit's tree, once a file was opened.
-	tree *object.Tree
+	// root is the commit's tree.
+	root  plumbing.Hash
+	trees *trees
 }
 
 // Open returns the file at path in the commit, or domain.ErrFileMissing when there's none.
-func (f *files) Open(path string) (domain.File, error) {
-	if f.tree == nil {
-		tree, err := f.commit.Tree()
+func (f files) Open(path string) (domain.File, error) {
+	tree, err := f.trees.get(f.root)
+	if err != nil {
+		return nil, fmt.Errorf("load tree: %v", err)
+	}
+	segments := strings.Split(path, "/")
+	for i, segment := range segments {
+		entry, err := tree.FindEntry(segment)
+		if errors.Is(err, object.ErrEntryNotFound) || errors.Is(err, object.ErrDirectoryNotFound) {
+			return nil, domain.ErrFileMissing
+		}
 		if err != nil {
+			return nil, fmt.Errorf("find file: %v", err)
+		}
+		if i == len(segments)-1 {
+			if !entry.Mode.IsFile() {
+				return nil, domain.ErrFileMissing
+			}
+			found, err := tree.TreeEntryFile(entry)
+			if err != nil {
+				return nil, fmt.Errorf("find file: %v", err)
+			}
+			return file{found}, nil
+		}
+		if entry.Mode != filemode.Dir {
+			return nil, domain.ErrFileMissing
+		}
+		if tree, err = f.trees.get(entry.Hash); err != nil {
 			return nil, fmt.Errorf("load tree: %v", err)
 		}
-		f.tree = tree
 	}
-	found, err := f.tree.File(path)
-	if errors.Is(err, object.ErrFileNotFound) || errors.Is(err, object.ErrDirectoryNotFound) || errors.Is(err, object.ErrEntryNotFound) {
-		return nil, domain.ErrFileMissing
+	return nil, domain.ErrFileMissing
+}
+
+// trees decodes each tree object of one fetch once, however many releases or paths reach it. Releases share most of
+// their trees, so decoding them per release would hold a large shared directory once for every release that reads
+// it. The objects a fetch holds are bounded, so the trees decoded from them are too. It isn't safe for concurrent
+// use.
+type trees struct {
+	storer  storer.EncodedObjectStorer
+	decoded map[plumbing.Hash]*object.Tree
+}
+
+// get returns the tree object hash, decoding it the first time it's asked for.
+func (t *trees) get(hash plumbing.Hash) (*object.Tree, error) {
+	if tree, ok := t.decoded[hash]; ok {
+		return tree, nil
 	}
+	tree, err := object.GetTree(t.storer, hash)
 	if err != nil {
-		return nil, fmt.Errorf("find file: %v", err)
+		return nil, err
 	}
-	return file{found}, nil
+	t.decoded[hash] = tree
+	return tree, nil
 }
 
 // file is one file of a commit, read only when asked.

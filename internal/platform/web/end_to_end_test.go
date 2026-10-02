@@ -27,6 +27,10 @@ func (r repositories) Repository(context.Context, string, string) (domain.Reposi
 	return r.repo, nil
 }
 
+func (r repositories) RepositoryByID(context.Context, string) (domain.Repository, error) {
+	return r.repo, nil
+}
+
 // newIngestedSite ingests a library whose rule holds hostileHTML into a new database, and returns the pages'
 // handler, reading as the web function's role, so a table the migrations don't grant it fails these tests.
 func newIngestedSite(t *testing.T) http.Handler {
