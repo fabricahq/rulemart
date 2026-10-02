@@ -73,8 +73,8 @@ type groupSummaryView struct {
 	icon  groupIcon
 	// href is a canonical group's page, or for any other group, its section on its library's All rules tab.
 	href string
-	// blurb says which rules belong in a canonical practice, from the canonical list. Technology names explain
-	// themselves, and a group that isn't canonical has no description every library shares, so neither has one.
+	// blurb says which rules belong in a canonical group, from the canonical list. A group that isn't canonical has
+	// no description every library shares, so it has none.
 	blurb string
 	rules int
 	// libraries hold the group, in owner and name order.
@@ -97,13 +97,10 @@ func newGroupSummaryViews(groups []views.GroupSummary, iconURL func(file string)
 		for _, lib := range g.Libraries {
 			v.libraries = append(v.libraries, newLibraryRefView(lib))
 		}
-		switch {
-		case g.Canonical == nil:
+		if g.Canonical == nil {
 			v.href = v.libraries[0].href + "?tab=rules#" + groupAnchor(g.Path)
-		case strings.HasPrefix(g.Path, "practices/"):
+		} else {
 			v.href, v.blurb = groupHref(g.Path), g.Canonical.Description
-		default:
-			v.href = groupHref(g.Path)
 		}
 		summaries[i] = v
 	}

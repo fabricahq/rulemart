@@ -172,7 +172,7 @@ func TestGroupsPageListsTechnologiesThenPracticesAcrossLibraries(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page,
-		"Technologies · 2 Go techs/go 3 rules · 2 libraries › techs/golang not canonical in other/go-rules 1 rule ›",
+		"Technologies · 2 Go techs/go The Go language. 3 rules · 2 libraries › techs/golang not canonical in other/go-rules 1 rule ›",
 		"Practices · 1 Testing practices/testing What to test and how. 1 rule · 1 library ›",
 	)
 	assertFlagsExplainThemselves(t, page, 1)

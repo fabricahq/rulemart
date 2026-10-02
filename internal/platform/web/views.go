@@ -66,7 +66,8 @@ func newLibraryCards(libraries []views.LibraryCard) []libraryCard {
 type groupView struct {
 	label groupLabel
 	icon  groupIcon
-	// blurb tells a reader when the group applies. Technology names explain themselves, so only practices have one.
+	// blurb says which rules belong in the group: the canonical list's description of a canonical group, as the
+	// groups page shows it, and the library's of any other.
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
@@ -145,8 +146,11 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
 			rules: byGroup[g.Path], acrossHref: acrossHref(g.Path, g.Canonical),
 		}
+		view.blurb = g.Description
+		if g.Canonical != nil {
+			view.blurb = g.Canonical.Description
+		}
 		if strings.HasPrefix(g.Path, "practices/") {
-			view.blurb = g.WhenToRead
 			result.practices = append(result.practices, view)
 		} else {
 			result.techs = append(result.techs, view)

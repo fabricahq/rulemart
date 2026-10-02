@@ -112,8 +112,8 @@ var exampleRules = views.Library{
 
 // goGroup and testingGroup are how the canonical group list shows techs/go and practices/testing.
 var (
-	goGroup      = &views.CanonicalGroup{Name: "Go", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}
-	testingGroup = &views.CanonicalGroup{Name: "Testing", Icon: views.GroupIcon{File: "lucide/flask-conical.svg", Monochrome: true}}
+	goGroup      = &views.CanonicalGroup{Name: "Go", Description: "The Go language.", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}
+	testingGroup = &views.CanonicalGroup{Name: "Testing", Description: "What to test and how.", Icon: views.GroupIcon{File: "lucide/flask-conical.svg", Monochrome: true}}
 )
 
 // newCatalog returns a catalog that holds exampleRules.
@@ -256,8 +256,8 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 	assertShows(t, resp.Body.String(),
 		"example / rules Example rules for tests.",
 		"Groups 2", "All rules 2",
-		"Technologies · 1 Go techs/go 1 rule ›",
-		"Practices · 1 Testing practices/testing When the work involves testing. 1 rule ›",
+		"Technologies · 1 Go techs/go The Go language. 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
 		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
 	)
 	if !strings.Contains(resp.Body.String(), `href="https://github.com/example/rules/releases/tag/release/3"`) {
@@ -625,7 +625,7 @@ func newMixedCatalog() catalog {
 	page := views.LibraryPage{Library: lib, Groups: []views.Group{
 		{Path: "practices/testing", Canonical: testingGroup, WhenToRead: "When testing.", Rules: 1},
 		{Path: "techs/go", Canonical: goGroup, Rules: 1},
-		{Path: "techs/golang", Rules: 1},
+		{Path: "techs/golang", Description: "More Go rules.", WhenToRead: "When writing Go.", Rules: 1},
 		{Path: "techs/goose", Canonical: goose, Rules: 1},
 	}}
 	c := catalog{pages: map[string]views.LibraryPage{}, rules: map[string]views.RulePage{}}
@@ -682,11 +682,16 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 	page := get(t, handler, mixed).Body.String()
 
 	assertShows(t, page,
-		"Technologies · 3 Go techs/go 1 rule ›",
-		"techs/golang not canonical 1 rule ›",
+		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
+		// its library.
+		"Technologies · 3 Go techs/go The Go language. 1 rule ›",
+		"techs/golang not canonical More Go rules. 1 rule ›",
 		"Goose techs/goose 1 rule ›",
-		"Practices · 1 Testing practices/testing When testing. 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
 	)
+	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") {
+		t.Error("the page shows a group's reading guidance")
+	}
 	assertFlagsExplainThemselves(t, page, 1)
 	icons := regexp.MustCompile(`<img[^>]* src="(/_static/[^"]+)"`).FindAllStringSubmatch(page, -1)
 	if len(icons) != 2 || !strings.HasSuffix(icons[0][1], "/icons/devicon/go-original.svg") ||

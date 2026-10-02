@@ -16,7 +16,7 @@ templ groupsPage(c chrome, index groupIndexView) {
 		<div class="page wrap">
 			<h1 class="title-xl">Groups</h1>
 			<p class="mt-1.5 max-w-[46rem] text-muted">
-				Rules by the technology or practice they cover, from every vetted library. A group on Code Rules' <a href={ templ.SafeURL(canonicalGroupsDocs) }>canonical list</a> combines every library's rules; any other group stands alone in its library.
+				Find rules by the technology or practice they cover. Each group gathers its rules from every library that has them. A group marked “not canonical” is one library's own, so it stands alone; <a href={ templ.SafeURL(canonicalGroupsDocs) }>why groups are shared</a>.
 			</p>
 			<div class="mt-[26px]">
 				if index.empty() {
@@ -65,12 +65,13 @@ templ groupIndexList(kind string, groups []groupSummaryView) {
 									<span class="mono min-w-0 [overflow-wrap:anywhere]">{ g.libraries[0].fullName() }</span>
 								</p>
 							}
-							<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-								{ plural(g.rules, "rule", "rules") }
+							<span class="flex items-baseline justify-end gap-x-1 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1 max-narrow:flex-col max-narrow:items-end">
 								if g.label.canonical {
-									<span class="max-narrow:hidden">· { plural(len(g.libraries), "library", "libraries") }</span>
+									<span>{ plural(g.rules, "rule", "rules") }</span>
+									<span><span class="max-narrow:hidden">·</span> { plural(len(g.libraries), "library", "libraries") } ›</span>
+								} else {
+									<span>{ plural(g.rules, "rule", "rules") } ›</span>
 								}
-								›
 							</span>
 						</a>
 					}

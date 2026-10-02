@@ -109,10 +109,12 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   section for it. A canonical group with no current rule in a vetted library shows its page with an empty state, so
   its URL works before and after a library adopts it.
 - **What the index shows. Proposed.** Canonical groups by the list's name and icon (**Existing**), with how many
-  current rules they hold, and in how many libraries. A practice also shows the list's one-line description, as a
-  library's page shows a practice's reading guidance and a technology's name explains itself. The description is
-  Code Rules', not a library's, so no library can describe a group every library shares. A group that isn't
-  canonical shows the library that holds it.
+  current rules they hold, and in how many libraries, at every width. Every canonical group, technology or practice,
+  shows the list's one-line description, and a library's page shows the same description for it, so a group reads the
+  same everywhere. The description is Code Rules', not a library's, so no library can describe a group every library
+  shares. A group that isn't canonical shows the library that holds it on the index, and its library's description on
+  that library's page. Neither page shows a group's reading guidance, which is written for agents choosing what to
+  read and can run to several lines.
 - **Order. Proposed.** Technologies, then practices. Within each, canonical groups by name, then groups that aren't
   canonical by ID and library. On a group's page, libraries are in owner and name order, as on the home page, and
   each library's rules in title order.

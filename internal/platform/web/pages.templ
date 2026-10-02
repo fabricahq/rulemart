@@ -194,7 +194,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 						<div class="grid justify-items-end gap-0.5 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
 							<span>{ plural(len(g.rules), "rule", "rules") } ›</span>
 							if g.acrossHref != "" {
-								<a class="relative z-10 text-muted underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
+								<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) } aria-label={ "All libraries' " + g.label.name + " rules" }>All libraries</a>
 							}
 						</div>
 					</div>
