@@ -67,11 +67,12 @@ templ layout(c chrome, h head) {
 // narrow header replaces with a link to the search page, and the visitor's account menu or a link to sign in.
 templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper">
-		<div class="wrap flex h-[60px] items-center gap-[22px]">
-			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
-				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink" href="https://fabricahq.com">
-					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
-					Fabrica
+		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3">
+			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap max-narrow:items-center max-narrow:gap-1.5">
+				// A phone's header has room for Fabrica's mark but not its name, which stays for screen readers.
+				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-narrow:grid max-narrow:h-11 max-narrow:place-items-center max-narrow:pl-0" href="https://fabricahq.com">
+					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2 max-narrow:static max-narrow:translate-y-0")
+					<span class="max-narrow:sr-only">Fabrica</span>
 				</a>
 				<span class="font-normal text-muted">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>

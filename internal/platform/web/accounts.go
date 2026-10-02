@@ -202,6 +202,10 @@ func (s *server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	if s.Accounts != nil {
 		view.testUsers = testUserViews(back)
 	}
+	// The page is the way to sign in, so its header doesn't link to it again.
+	v := visitorOf(r.Context())
+	v.signIn = ""
+	r = r.WithContext(context.WithValue(r.Context(), visitorKey{}, v))
 	s.renderPrivate(w, r, status, signInPage(s.chrome, view))
 }
 
