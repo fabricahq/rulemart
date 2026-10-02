@@ -23,11 +23,17 @@ DELETE FROM sessions s
 WHERE s.account_id = @account_id
   AND s.id NOT IN (SELECT n.id FROM sessions n WHERE n.account_id = @account_id ORDER BY n.id DESC LIMIT @keep::bigint);
 
+-- DeleteAccountSessions ends every session of the account signed in with the live session whose token hashes to
+-- token_hash, in one statement, so a session that ended in the meantime ends nothing.
 -- name: DeleteAccountSessions :execrows
-DELETE FROM sessions WHERE account_id = @account_id;
+DELETE FROM sessions
+WHERE account_id = (SELECT s.account_id FROM sessions s WHERE s.token_hash = @token_hash AND s.expires_at > now());
 
+-- DeleteAccount deletes the account signed in with the live session whose token hashes to token_hash, in one
+-- statement, so a session that ended in the meantime deletes nothing.
 -- name: DeleteAccount :execrows
-DELETE FROM accounts WHERE id = @id;
+DELETE FROM accounts
+WHERE id = (SELECT s.account_id FROM sessions s WHERE s.token_hash = @token_hash AND s.expires_at > now());
 
 -- GetSessionAccount returns the account signed in with the session whose token hashes to token_hash, while the
 -- session lasts.

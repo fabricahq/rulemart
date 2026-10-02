@@ -26,8 +26,10 @@ type Accounts interface {
 	// Account returns the account token signs in, or fails with accountsapp.ErrSignedOut.
 	Account(ctx context.Context, token accounts.SessionToken) (accounts.Account, error)
 	SignOut(ctx context.Context, token accounts.SessionToken) error
-	SignOutEverywhere(ctx context.Context, accountID int64) error
-	DeleteAccount(ctx context.Context, accountID int64) error
+	// SignOutEverywhere and DeleteAccount act on the account token signs in, only while its session lasts, and fail
+	// with accountsapp.ErrSignedOut once it has ended.
+	SignOutEverywhere(ctx context.Context, token accounts.SessionToken) error
+	DeleteAccount(ctx context.Context, token accounts.SessionToken) error
 }
 
 // GitHub sends visitors to GitHub to sign in, and learns who they are from the code GitHub sends back.
@@ -316,11 +318,11 @@ func (s *server) accountPage(w http.ResponseWriter, r *http.Request) {
 
 // signOutEverywhere ends every session of the signed-in account, this browser's too.
 func (s *server) signOutEverywhere(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r)
-	if !ok {
+	if _, ok := s.signedIn(w, r); !ok {
 		return
 	}
-	if err := s.Accounts.SignOutEverywhere(r.Context(), account.ID); err != nil {
+	err := s.Accounts.SignOutEverywhere(r.Context(), visitorOf(r.Context()).token)
+	if err != nil && !errors.Is(err, accountsapp.ErrSignedOut) {
 		s.fail(w, r, err)
 		return
 	}
@@ -334,7 +336,14 @@ func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := s.Accounts.DeleteAccount(r.Context(), account.ID); err != nil {
+	err := s.Accounts.DeleteAccount(r.Context(), visitorOf(r.Context()).token)
+	if errors.Is(err, accountsapp.ErrSignedOut) {
+		// The session ended after this request began, so it may no longer act for the account.
+		clearCookie(w, sessionCookie)
+		seeOther(w, r, s.absolute(signInPageHref(accountHref)))
+		return
+	}
+	if err != nil {
 		s.fail(w, r, err)
 		return
 	}

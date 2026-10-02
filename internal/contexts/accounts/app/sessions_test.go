@@ -56,12 +56,12 @@ func TestSignInGivesATokenThatSignsTheAccountInUntilSignOut(t *testing.T) {
 func TestSignOutEverywhereAndDeleteAccountEndEverySession(t *testing.T) {
 	ctx := context.Background()
 	s := newSessions(t)
-	for name, end := range map[string]func(accountID int64) error{
-		"sign out everywhere": func(id int64) error { return s.SignOutEverywhere(ctx, id) },
-		"delete the account":  func(id int64) error { return s.DeleteAccount(ctx, id) },
+	for name, end := range map[string]func(domain.SessionToken) error{
+		"sign out everywhere": func(token domain.SessionToken) error { return s.SignOutEverywhere(ctx, token) },
+		"delete the account":  func(token domain.SessionToken) error { return s.DeleteAccount(ctx, token) },
 	} {
 		t.Run(name, func(t *testing.T) {
-			account, first, err := s.SignIn(ctx, octocat, "")
+			_, first, err := s.SignIn(ctx, octocat, "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +69,7 @@ func TestSignOutEverywhereAndDeleteAccountEndEverySession(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := end(account.ID); err != nil {
+			if err := end(first.Token); err != nil {
 				t.Fatal(err)
 			}
 			for _, session := range []domain.Session{first, second} {

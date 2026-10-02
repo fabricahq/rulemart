@@ -31,11 +31,14 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (p
 }
 
 const deleteAccount = `-- name: DeleteAccount :execrows
-DELETE FROM accounts WHERE id = $1
+DELETE FROM accounts
+WHERE id = (SELECT s.account_id FROM sessions s WHERE s.token_hash = $1 AND s.expires_at > now())
 `
 
-func (q *Queries) DeleteAccount(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAccount, id)
+// DeleteAccount deletes the account signed in with the live session whose token hashes to token_hash, in one
+// statement, so a session that ended in the meantime deletes nothing.
+func (q *Queries) DeleteAccount(ctx context.Context, tokenHash []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAccount, tokenHash)
 	if err != nil {
 		return 0, err
 	}
@@ -43,11 +46,14 @@ func (q *Queries) DeleteAccount(ctx context.Context, id int64) (int64, error) {
 }
 
 const deleteAccountSessions = `-- name: DeleteAccountSessions :execrows
-DELETE FROM sessions WHERE account_id = $1
+DELETE FROM sessions
+WHERE account_id = (SELECT s.account_id FROM sessions s WHERE s.token_hash = $1 AND s.expires_at > now())
 `
 
-func (q *Queries) DeleteAccountSessions(ctx context.Context, accountID int64) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAccountSessions, accountID)
+// DeleteAccountSessions ends every session of the account signed in with the live session whose token hashes to
+// token_hash, in one statement, so a session that ended in the meantime ends nothing.
+func (q *Queries) DeleteAccountSessions(ctx context.Context, tokenHash []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAccountSessions, tokenHash)
 	if err != nil {
 		return 0, err
 	}

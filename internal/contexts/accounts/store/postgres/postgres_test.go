@@ -172,10 +172,10 @@ func TestEndSessionSignsOutOnlyThatBrowser(t *testing.T) {
 
 func TestEndSessionsSignsOutEveryBrowserOfOneAccount(t *testing.T) {
 	s, _ := newStore(t)
-	first, account := signIn(t, s, octocat, "")
+	first, _ := signIn(t, s, octocat, "")
 	second, _ := signIn(t, s, octocat, "")
 	hubot, _ := signIn(t, s, domain.Identity{GitHubUserID: 2, Login: "hubot"}, "")
-	if err := s.EndSessions(context.Background(), account.ID); err != nil {
+	if err := s.EndSessions(context.Background(), first.Hash()); err != nil {
 		t.Fatal(err)
 	}
 	for _, token := range []domain.SessionToken{first, second} {
@@ -192,7 +192,7 @@ func TestDeleteAccountRemovesItAndItsSessions(t *testing.T) {
 	s, owner := newStore(t)
 	token, account := signIn(t, s, octocat, "")
 	signIn(t, s, domain.Identity{GitHubUserID: 2, Login: "hubot"}, "")
-	if err := s.DeleteAccount(context.Background(), account.ID); err != nil {
+	if err := s.DeleteAccount(context.Background(), token.Hash()); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := sessionAccount(t, s, token); found {
@@ -207,5 +207,33 @@ func TestDeleteAccountRemovesItAndItsSessions(t *testing.T) {
 	_, again := signIn(t, s, octocat, "")
 	if again.ID == account.ID {
 		t.Error("signing in after deletion brought back the deleted account's ID")
+	}
+}
+
+// Signing out everywhere and deleting an account act only for a session that's still live when they write: a request
+// whose session another browser ended a moment earlier, such as by signing out everywhere, changes nothing, even if
+// the visitor has signed in again since.
+func TestAnEndedSessionCanNeitherSignOutEverywhereNorDeleteTheAccount(t *testing.T) {
+	s, owner := newStore(t)
+	ctx := context.Background()
+	ended, account := signIn(t, s, octocat, "")
+	if err := s.EndSession(ctx, ended.Hash()); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := signIn(t, s, octocat, "")
+	expired, _ := signIn(t, s, octocat, "")
+	postgrestest.Exec(t, owner, `UPDATE sessions SET created_at = now() - interval '31 days', expires_at = now() - interval '1 day'
+		WHERE token_hash = $1`, expired.Hash())
+
+	for _, token := range []domain.SessionToken{ended, expired, domain.NewSessionToken()} {
+		if err := s.EndSessions(ctx, token.Hash()); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("signing out everywhere with a dead session: got %v, want ErrNotFound", err)
+		}
+		if err := s.DeleteAccount(ctx, token.Hash()); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("deleting with a dead session: got %v, want ErrNotFound", err)
+		}
+	}
+	if got, found := sessionAccount(t, s, again); !found || got.ID != account.ID {
+		t.Error("a dead session's request ended the visitor's new session or deleted the account")
 	}
 }

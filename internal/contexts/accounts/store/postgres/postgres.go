@@ -108,26 +108,38 @@ func (s *Store) EndSession(ctx context.Context, tokenHash []byte) error {
 	return nil
 }
 
-// EndSessions ends every session of the account accountID.
-func (s *Store) EndSessions(ctx context.Context, accountID int64) error {
+// EndSessions ends every session of the account the live session whose token hashes to tokenHash signs in, or
+// fails with store.ErrNotFound.
+func (s *Store) EndSessions(ctx context.Context, tokenHash []byte) error {
+	var ended int64
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := accountsdb.New(pool).DeleteAccountSessions(ctx, accountID)
+		var err error
+		ended, err = accountsdb.New(pool).DeleteAccountSessions(ctx, tokenHash)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("end sessions accountID=%d: %v", accountID, err)
+		return fmt.Errorf("end the account's sessions: %v", err)
+	}
+	if ended == 0 {
+		return store.ErrNotFound
 	}
 	return nil
 }
 
-// DeleteAccount deletes the account accountID, and its sessions with it.
-func (s *Store) DeleteAccount(ctx context.Context, accountID int64) error {
+// DeleteAccount deletes the account the live session whose token hashes to tokenHash signs in, and its sessions
+// with it, or fails with store.ErrNotFound.
+func (s *Store) DeleteAccount(ctx context.Context, tokenHash []byte) error {
+	var deleted int64
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := accountsdb.New(pool).DeleteAccount(ctx, accountID)
+		var err error
+		deleted, err = accountsdb.New(pool).DeleteAccount(ctx, tokenHash)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("delete account accountID=%d: %v", accountID, err)
+		return fmt.Errorf("delete account: %v", err)
+	}
+	if deleted == 0 {
+		return store.ErrNotFound
 	}
 	return nil
 }

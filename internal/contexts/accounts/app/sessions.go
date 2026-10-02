@@ -45,12 +45,14 @@ func (s Sessions) SignOut(ctx context.Context, token domain.SessionToken) error 
 	return s.Store.EndSession(ctx, token.Hash())
 }
 
-// SignOutEverywhere ends every session of the account accountID, in every browser.
-func (s Sessions) SignOutEverywhere(ctx context.Context, accountID int64) error {
-	return s.Store.EndSessions(ctx, accountID)
+// SignOutEverywhere ends every session, in every browser, of the account token signs in, or fails with ErrSignedOut
+// when token's session has ended by then.
+func (s Sessions) SignOutEverywhere(ctx context.Context, token domain.SessionToken) error {
+	return s.Store.EndSessions(ctx, token.Hash())
 }
 
-// DeleteAccount deletes the account accountID and ends its sessions.
-func (s Sessions) DeleteAccount(ctx context.Context, accountID int64) error {
-	return s.Store.DeleteAccount(ctx, accountID)
+// DeleteAccount deletes the account token signs in, which ends its sessions, or fails with ErrSignedOut when
+// token's session has ended by then.
+func (s Sessions) DeleteAccount(ctx context.Context, token domain.SessionToken) error {
+	return s.Store.DeleteAccount(ctx, token.Hash())
 }

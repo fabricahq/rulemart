@@ -22,11 +22,13 @@ type Store interface {
 	SessionAccount(ctx context.Context, tokenHash []byte) (domain.Account, error)
 	// EndSession ends the session whose token hashes to tokenHash. Ending one that doesn't exist does nothing.
 	EndSession(ctx context.Context, tokenHash []byte) error
-	// EndSessions ends every session of the account accountID.
-	EndSessions(ctx context.Context, accountID int64) error
-	// DeleteAccount deletes the account accountID and ends its sessions. Deleting one that doesn't exist does
-	// nothing.
-	DeleteAccount(ctx context.Context, accountID int64) error
+	// EndSessions ends every session of the account signed in with the session whose token hashes to tokenHash, or
+	// fails with ErrNotFound when that session has ended or expired. It reads the account and ends its sessions in one
+	// statement, so only a session that's live when the write happens can end them.
+	EndSessions(ctx context.Context, tokenHash []byte) error
+	// DeleteAccount deletes the account signed in with the session whose token hashes to tokenHash, which ends its
+	// sessions, or fails with ErrNotFound when that session has ended or expired, in one statement as EndSessions.
+	DeleteAccount(ctx context.Context, tokenHash []byte) error
 }
 
 // ErrNotFound reports a session that doesn't exist or has expired.

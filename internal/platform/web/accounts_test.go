@@ -84,25 +84,41 @@ func (f *fakeAccounts) SignOut(_ context.Context, token accounts.SessionToken) e
 	return f.err
 }
 
-func (f *fakeAccounts) SignOutEverywhere(_ context.Context, accountID int64) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for token, githubID := range f.sessions {
-		if f.accounts[githubID].ID == accountID {
-			delete(f.sessions, token)
-		}
-	}
-	return f.err
+// SignOutEverywhere ends every session of token's account, while token's session lasts.
+func (f *fakeAccounts) SignOutEverywhere(_ context.Context, token accounts.SessionToken) error {
+	_, err := f.endEverySession(token)
+	return err
 }
 
-func (f *fakeAccounts) DeleteAccount(ctx context.Context, accountID int64) error {
-	if err := f.SignOutEverywhere(ctx, accountID); err != nil {
+func (f *fakeAccounts) DeleteAccount(_ context.Context, token accounts.SessionToken) error {
+	accountID, err := f.endEverySession(token)
+	if err != nil {
 		return err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.deleted = append(f.deleted, accountID)
 	return nil
+}
+
+// endEverySession ends every session of token's account, and returns the account's ID, or fails with
+// accountsapp.ErrSignedOut when token's session has ended.
+func (f *fakeAccounts) endEverySession(token accounts.SessionToken) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return 0, f.err
+	}
+	githubID, ok := f.sessions[token]
+	if !ok {
+		return 0, accountsapp.ErrSignedOut
+	}
+	for other, id := range f.sessions {
+		if id == githubID {
+			delete(f.sessions, other)
+		}
+	}
+	return f.accounts[githubID].ID, nil
 }
 
 // signedIn adds a session for identity directly, and returns its token.
