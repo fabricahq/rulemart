@@ -43,6 +43,30 @@ func (s *Store) ReplaceLibrary(ctx context.Context, lib domain.Library) (int64, 
 	return changed, nil
 }
 
+// Checkpoint returns where library was last fetched from and the tags of its stored releases, in one statement, so
+// it reads one committed state. found is false when the catalog has no such library.
+func (s *Store) Checkpoint(ctx context.Context, library domain.LibraryKey) (domain.Checkpoint, bool, error) {
+	var rows []catalogdb.GetCheckpointRow
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		var err error
+		rows, err = catalogdb.New(pool).GetCheckpoint(ctx, catalogdb.GetCheckpointParams{Host: library.Host, HostRepositoryID: library.RepositoryID})
+		return err
+	})
+	if err != nil {
+		return domain.Checkpoint{}, false, fmt.Errorf("read catalog checkpoint host=%s repository=%s: %v", library.Host, library.RepositoryID, err)
+	}
+	if len(rows) == 0 {
+		return domain.Checkpoint{}, false, nil
+	}
+	checkpoint := domain.Checkpoint{CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}}
+	for _, row := range rows {
+		if row.Number.Valid {
+			checkpoint.Tags[int(row.Number.Int32)] = row.TagObjectID.String
+		}
+	}
+	return checkpoint, true, nil
+}
+
 // writer applies one library's rows within a transaction. It stops at the first failed statement, keeping its
 // error, and counts the rows each statement changed.
 type writer struct {
@@ -82,7 +106,7 @@ func (w *writer) write(lib domain.Library) {
 		numbers[i] = int32(r.Number)
 		w.exec(fmt.Sprintf("upsert release/%d", r.Number), func() (int64, error) {
 			return w.q.UpsertRelease(w.ctx, catalogdb.UpsertReleaseParams{
-				LibraryID: w.library, Number: numbers[i], CommitID: r.CommitID,
+				LibraryID: w.library, Number: numbers[i], TagObjectID: optionalText(r.TagID), CommitID: r.CommitID,
 				TaggedAt: pgtype.Timestamptz{Time: r.TaggedAt, Valid: true}, UpdatesSharedFiles: r.UpdatesSharedFiles,
 			})
 		})
@@ -127,6 +151,7 @@ func (w *writer) writeLibrary(lib domain.Library) {
 			Host: repo.Host, HostRepositoryID: repo.ID, Owner: repo.Owner, Name: repo.Name,
 			Description: repo.Description, OwnerAvatarUrl: repo.OwnerAvatarURL,
 			LicenseExpression: optionalText(lib.LicenseExpression), LicenseFile: optionalText(lib.LicenseFile),
+			CloneUrl: optionalText(repo.CloneURL),
 		})
 	})
 	if w.err != nil {

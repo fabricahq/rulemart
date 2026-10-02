@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"testing"
 
@@ -40,14 +38,10 @@ func (h *recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(h.body)
 }
 
-func newTestFunction(handler http.Handler) *function {
-	return newFunction(handler, slog.New(slog.NewTextHandler(io.Discard, nil)))
-}
-
 func TestHandleServesFunctionURLRequestsWithThePages(t *testing.T) {
 	pages := &recorder{body: []byte("<h1>Verify retry limits</h1>")}
 
-	out, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(functionURLRequest))
+	out, err := newFunction(pages).handle(context.Background(), json.RawMessage(functionURLRequest))
 
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +60,7 @@ func TestHandleServesFunctionURLRequestsWithThePages(t *testing.T) {
 func TestHandleEncodesBinaryResponses(t *testing.T) {
 	font := []byte{0x77, 0x4f, 0x46, 0x32, 0xff, 0xfe, 0x00}
 
-	out, err := newTestFunction(&recorder{body: font}).handle(context.Background(), json.RawMessage(functionURLRequest))
+	out, err := newFunction(&recorder{body: font}).handle(context.Background(), json.RawMessage(functionURLRequest))
 
 	if err != nil {
 		t.Fatal(err)
@@ -78,21 +72,10 @@ func TestHandleEncodesBinaryResponses(t *testing.T) {
 	}
 }
 
-func TestHandleIgnoresTheScheduledEvent(t *testing.T) {
-	pages := &recorder{}
-
-	if _, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(`{"source":"schedule"}`)); err != nil {
-		t.Fatal(err)
-	}
-
-	if pages.got != nil {
-		t.Fatal("the scheduled event reached the pages")
-	}
-}
-
 func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 	for name, event := range map[string]string{
-		"empty object":      `{}`,
+		"empty object": `{}`,
+		"the schedule's event, which the worker handles": `{"source":"schedule"}`,
 		"other source":      `{"source":"aws.events"}`,
 		"unrelated payload": `{"Records":[]}`,
 		"not a JSON object": `[]`,
@@ -100,7 +83,7 @@ func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			pages := &recorder{}
 
-			_, err := newTestFunction(pages).handle(context.Background(), json.RawMessage(event))
+			_, err := newFunction(pages).handle(context.Background(), json.RawMessage(event))
 
 			if err == nil {
 				t.Fatal("accepted an unrecognized event")

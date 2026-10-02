@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
@@ -96,7 +97,8 @@ func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.Nod
 //
 // A short body can expand, such as many references to one long link definition, so render counts what it builds
 // as it goes, each rewritten link and each byte of HTML, and stops with domain.ErrOverAllowance rather than build past
-// allowance.
+// allowance. Highlighting some code takes chroma's lexers minutes, so a rule gets highlightBudget for it, and code
+// past the budget is shown escaped, without highlighting.
 func Rule(body string, page domain.RulePage, allowance int64) (html string, used int64, err error) {
 	spent := &spending{limit: allowance}
 	context := parser.NewContext()
@@ -107,7 +109,7 @@ func Rule(body string, page domain.RulePage, allowance int64) (html string, used
 	if err, refused := context.Get(refusedKey).(error); refused {
 		return "", 0, err
 	}
-	out := allowanceWriter{spent: spent}
+	out := allowanceWriter{spent: spent, highlightUntil: time.Now().Add(highlightBudget)}
 	err = htmlRenderer.Render(&out, source, document)
 	if out.err != nil {
 		return "", 0, out.err
@@ -140,7 +142,13 @@ type allowanceWriter struct {
 	html  bytes.Buffer
 	// err is the allowance's refusal, once a write was refused.
 	err error
+	// highlightUntil is when the render stops highlighting code, which it then shows escaped.
+	highlightUntil time.Time
 }
+
+// highlightBudget is how long one rule's code may take to highlight. Real rules take milliseconds, but chroma's
+// lexers take time quadratic in some inputs, such as a long run of one short Java token.
+const highlightBudget = time.Second
 
 func (w *allowanceWriter) Write(p []byte) (int, error) {
 	if w.err != nil {
@@ -336,33 +344,59 @@ func renderFencedCode(w util.BufWriter, source []byte, node ast.Node, entering b
 		_, _ = w.WriteString(` class="language-` + html.EscapeString(language) + `"`)
 	}
 	_, _ = w.WriteString(">")
-	writeHighlighted(w, language, code.String())
+	writeHighlighted(w, language, code.String(), w.(*allowanceWriter).highlightUntil)
 	_, _ = w.WriteString("</code></pre>\n")
 	return ast.WalkSkipChildren, nil
 }
 
 // writeHighlighted writes code as escaped HTML, wrapping tokens in highlight classes when chroma has a lexer for
-// language.
-func writeHighlighted(w util.BufWriter, language, code string) {
+// language, until the time is past until. It writes whatever code remains then escaped, without highlighting.
+func writeHighlighted(w util.BufWriter, language, code string, until time.Time) {
 	lexer := lexers.Get(language)
-	if language == "" || lexer == nil {
+	if language == "" || lexer == nil || time.Now().After(until) {
 		_, _ = w.WriteString(html.EscapeString(code))
 		return
 	}
-	tokens, err := chroma.Coalesce(lexer).Tokenise(nil, code)
+	// chroma turns line endings into \n before it lexes, so the tokens it returns spell code with them turned too.
+	code = lineEndings.Replace(code)
+	tokens, err := lexer.Tokenise(nil, code)
 	if err != nil {
 		_, _ = w.WriteString(html.EscapeString(code))
 		return
 	}
-	for token := tokens(); token != chroma.EOF; token = tokens() {
-		class := highlightClass(token.Type)
-		if class == "" {
-			_, _ = w.WriteString(html.EscapeString(token.Value))
-			continue
+	// Tokens are taken one at a time, so the budget is checked between them, and runs of tokens with one class are
+	// written as one span.
+	written, pending, pendingClass := 0, strings.Builder{}, ""
+	flush := func() {
+		if pending.Len() == 0 {
+			return
 		}
-		_, _ = w.WriteString(`<span class="` + class + `">` + html.EscapeString(token.Value) + "</span>")
+		if pendingClass == "" {
+			_, _ = w.WriteString(html.EscapeString(pending.String()))
+		} else {
+			_, _ = w.WriteString(`<span class="` + pendingClass + `">` + html.EscapeString(pending.String()) + "</span>")
+		}
+		pending.Reset()
+	}
+	for token := tokens(); token != chroma.EOF; token = tokens() {
+		if class := highlightClass(token.Type); class != pendingClass {
+			flush()
+			pendingClass = class
+		}
+		pending.WriteString(token.Value)
+		written += len(token.Value)
+		if time.Now().After(until) {
+			break
+		}
+	}
+	flush()
+	if written < len(code) {
+		_, _ = w.WriteString(html.EscapeString(code[written:]))
 	}
 }
+
+// lineEndings turns \r\n and \r into \n, as chroma does before it lexes.
+var lineEndings = strings.NewReplacer("\r\n", "\n", "\r", "\n")
 
 // highlightClass maps a chroma token to one of the five colors Code Rules' documentation uses for code, or to none.
 func highlightClass(token chroma.TokenType) string {

@@ -1,4 +1,5 @@
-// Package app holds the catalog's operations: Ingester ingests a library, and Pages reads what the pages show.
+// Package app holds the catalog's operations: Ingester ingests a library, or updates one whose release tags changed,
+// and Pages reads what the pages show.
 //
 // Ingest builds the catalog from a Code Rules library's release/<number> tags: it looks the library's repository
 // up on its code host, fetches the release tags, assembles the library they publish, and replaces what the catalog
@@ -18,16 +19,24 @@ import (
 type Repositories interface {
 	// Repository returns the repository owner/name as the host describes it now.
 	Repository(ctx context.Context, owner, name string) (domain.Repository, error)
+	// RepositoryByID returns the repository whose ID on the host is id, as the host describes it now.
+	RepositoryByID(ctx context.Context, id string) (domain.Repository, error)
 }
 
 // Fetch fetches the release snapshots of the repository at url within limits, as git.Fetch does.
 type Fetch func(ctx context.Context, url string, limits domain.FetchLimits) ([]domain.ReleaseSnapshot, error)
 
-// Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch, and its Markdown
-// renderer as Render, so the functions that only read pages carry neither a Git client nor a renderer.
+// List lists the release tags of the repository at url within limits, without fetching them, as
+// git.ListReleaseTags does.
+type List func(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error)
+
+// Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch and List, and its
+// Markdown renderer as Render, so the functions that only read pages carry neither a Git client nor a renderer.
 type Ingester struct {
 	Repositories Repositories
 	Fetch        Fetch
+	// List is needed only by Update.
+	List List
 	// Render renders a current rule's Markdown body, as render.Rule does.
 	Render domain.Render
 	Store  store.Writer
@@ -65,6 +74,17 @@ func (in Ingester) Resolve(ctx context.Context, repositoryURL string) (domain.Re
 	return in.Repositories.Repository(ctx, owner, name)
 }
 
+// untilDone returns render, refusing to render once ctx ends. Rendering is most of an ingestion's work, so a job past
+// its deadline stops between rules rather than running on until its function is stopped.
+func untilDone(ctx context.Context, render domain.Render) domain.Render {
+	return func(body string, page domain.RulePage, allowance int64) (string, int64, error) {
+		if err := ctx.Err(); err != nil {
+			return "", 0, err
+		}
+		return render(body, page, allowance)
+	}
+}
+
 // IngestRepository makes the catalog's rows for the library in repo match its release tags. It writes nothing when
 // a tag, its record, the history the records describe, or a file a release published is invalid, or when the
 // library passes in.Limits; errors name the tag and file. Running it again on unchanged tags changes nothing.
@@ -73,7 +93,7 @@ func (in Ingester) IngestRepository(ctx context.Context, repo domain.Repository)
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
-	lib, err := domain.Assemble(repo, releases, in.Limits.Content, in.Render)
+	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Render))
 	if err != nil {
 		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
 	}
