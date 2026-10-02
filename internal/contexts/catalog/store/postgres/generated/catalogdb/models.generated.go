@@ -75,4 +75,5 @@ type RuleVersion struct {
 	WhenToRead        pgtype.Text
 	Markdown          pgtype.Text
 	Html              pgtype.Text
+	SearchDocument    interface{}
 }
