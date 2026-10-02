@@ -23,13 +23,18 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	}
 	params := ruleListParams(vetted, groups, list, find, exclude, limit, skip)
 	var page, unfiltered []catalogdb.ListRulesRow
+	var links map[int64][]views.RuleLink
 	var searchable int64
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
 		if params.StarRuleIds, params.StarCounts, err = countedStars(ctx, q, vetted, list.Group); err != nil {
 			return err
 		}
-		if page, err = q.ListRules(ctx, params); err != nil || len(page) > 0 {
+		if page, err = q.ListRules(ctx, params); err != nil {
+			return err
+		}
+		if len(page) > 0 {
+			links, err = retiredRuleLinks(ctx, q, page)
 			return err
 		}
 		// Every row says what the list holds before its filters, so without one, read the first rule without them.
@@ -62,6 +67,9 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	for i, row := range page {
 		results.Total, results.Complete, results.Libraries = int(row.Total), int(row.Complete), int(row.Libraries)
 		results.Rows[i] = ruleRow(row, find)
+		if row.Retired {
+			results.Rows[i].Links = links[row.LibraryID]
+		}
 	}
 	return results, nil
 }
@@ -93,6 +101,23 @@ func firstUnfiltered(params catalogdb.ListRulesParams) catalogdb.ListRulesParams
 	return params
 }
 
+// retiredRuleLinks returns how every rule of each library of page's retired rules was replaced, by library ID, which
+// app.Pages follows to name each one's replacement.
+func retiredRuleLinks(ctx context.Context, q *catalogdb.Queries, page []catalogdb.ListRulesRow) (map[int64][]views.RuleLink, error) {
+	links := map[int64][]views.RuleLink{}
+	for _, row := range page {
+		if _, read := links[row.LibraryID]; read || !row.Retired {
+			continue
+		}
+		libraryLinks, err := ruleLinks(ctx, q, row.LibraryID)
+		if err != nil {
+			return nil, fmt.Errorf("read the rule links of library id=%d: %v", row.LibraryID, err)
+		}
+		links[row.LibraryID] = libraryLinks
+	}
+	return links, nil
+}
+
 // countedStars returns the stars of the current rules of the vetted libraries in the group at path, or in every group
 // when it's empty, as ListRules takes them: rule IDs and their counts in step, of the rules with stars.
 func countedStars(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, path string) ([]int64, []int32, error) {
@@ -120,9 +145,6 @@ func ruleRow(row catalogdb.ListRulesRow, find []domain.SearchTerm) views.RuleRow
 			Version: version(row.Major, row.Minor, row.Patch), Stars: int(row.Stars),
 		},
 		Retired: row.Retired, GroupRules: int(row.GroupRules),
-	}
-	if row.ReplacedBy != "" {
-		r.ReplacedBy = &views.RuleRef{Path: row.ReplacedBy, Title: row.ReplacementTitle}
 	}
 	for _, ordinal := range row.Missing {
 		r.Missing = append(r.Missing, find[ordinal-1].Text)

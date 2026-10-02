@@ -228,9 +228,9 @@ type ruleRowView struct {
 	// group names the rule's group in a list that shows it, such as the visitor's starred rules, and is nil in a list
 	// of one group's rules or under its group's heading.
 	group *groupLabel
-	// retired marks a retired rule, which the row draws grayed out, with the Retired chip, and replacedBy names the rule
-	// that replaced it, by title, or is empty when none did. renamed reports that the replacement has the retired
-	// rule's title, so replacedBy names it by ID instead, the one thing that tells the two apart.
+	// retired marks a retired rule, which the row draws grayed out, with the Retired chip, and replacedBy names the last
+	// of the rules that replaced it, by title, or is empty when none did. renamed reports that the replacement is the
+	// same rule under a new ID, so replacedBy names it by ID instead, the one thing that tells the two apart.
 	retired    bool
 	replacedBy string
 	renamed    bool
@@ -251,15 +251,15 @@ func newRuleRow(lib libraryRefView, unvetted bool, r views.RuleCard) ruleRowView
 	}
 }
 
-// newListedRuleRow describes r, a row of a list of rules across libraries, with its retirement and the words of a
-// search it lacks.
+// newListedRuleRow describes r, a row of a list of rules across libraries, with its retirement, naming the last of its
+// replacements, and the words of a search it lacks.
 func newListedRuleRow(r views.RuleRow) ruleRowView {
 	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
 	row.retired, row.missing = r.Retired, r.Missing
-	if r.ReplacedBy != nil {
-		row.replacedBy = titleOrID(r.ReplacedBy.Title, r.ReplacedBy.Path)
-		if r.ReplacedBy.Title == r.Rule.Title {
-			row.replacedBy, row.renamed = r.ReplacedBy.Path, true
+	if r.Replacement != nil {
+		row.replacedBy = titleOrID(r.Replacement.Title, r.Replacement.Path)
+		if r.Renamed {
+			row.replacedBy, row.renamed = r.Replacement.Path, true
 		}
 	}
 	return row

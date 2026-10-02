@@ -159,7 +159,7 @@ ranked AS (
 ),
 base AS (
     SELECT rk.id, rk.missing, rk.score, rk.text_rank, d.retired, d.vetted, l.id AS library_id, l.owner, l.name,
-           l.owner_avatar_url, r.path, g.path AS group_path, r.replaced_by, v.title, v.impact, v.major, v.minor,
+           l.owner_avatar_url, r.path, g.path AS group_path, v.title, v.impact, v.major, v.minor,
            v.patch, coalesce(st.stars, 0) AS stars, first.tagged_at AS first_published_at
     FROM ranked rk
     JOIN documents d ON d.id = rk.id
@@ -191,14 +191,14 @@ facets AS (
     FROM library_counts c
 ),
 filtered AS (
-    SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.replaced_by, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
+    SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality($17::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY ($17::text[]))
       AND ($18::text = '' OR ($18::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
       AND b.stars >= $19::integer
       AND ($20::text = '' OR b.group_path LIKE $20::text || '/%')
 ),
 positioned AS (
-    SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.replaced_by, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, f.tier, row_number() OVER (
+    SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, f.tier, row_number() OVER (
                ORDER BY f.tier,
                         cardinality(f.missing) > 0,
                         CASE $21::text
@@ -216,27 +216,19 @@ positioned AS (
     FROM filtered f
 ),
 grouped AS (
-    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.replaced_by, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.tier, p.position, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
+    SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.tier, p.position, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
            count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
 )
-SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
+SELECT gr.library_id, gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
        coalesce(gr.title, '')::text AS title, coalesce(gr.impact, '')::text AS impact, gr.major, gr.minor, gr.patch,
-       gr.retired, coalesce(gr.replaced_by, '')::text AS replaced_by,
-       coalesce(replacement.title, '')::text AS replacement_title, gr.stars::integer AS stars, gr.missing,
+       gr.retired, gr.stars::integer AS stars, gr.missing,
        gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
        facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM grouped gr
 CROSS JOIN facets
-LEFT JOIN LATERAL (
-    SELECT v.title FROM rules rr
-    JOIN rule_versions v ON v.rule_id = rr.id
-    JOIN library_releases p ON p.id = v.release_id
-    WHERE rr.library_id = gr.library_id AND rr.path = gr.replaced_by
-    ORDER BY p.number DESC LIMIT 1
-) replacement ON true
 ORDER BY gr.group_position, gr.position
 LIMIT $2 OFFSET $1
 `
@@ -266,6 +258,7 @@ type ListRulesParams struct {
 }
 
 type ListRulesRow struct {
+	LibraryID         int64
 	Owner             string
 	Name              string
 	OwnerAvatarUrl    string
@@ -279,8 +272,6 @@ type ListRulesRow struct {
 	Minor             int32
 	Patch             int32
 	Retired           bool
-	ReplacedBy        string
-	ReplacementTitle  string
 	Stars             int32
 	Missing           []int32
 	GroupRules        int64
@@ -364,6 +355,7 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 	for rows.Next() {
 		var i ListRulesRow
 		if err := rows.Scan(
+			&i.LibraryID,
 			&i.Owner,
 			&i.Name,
 			&i.OwnerAvatarUrl,
@@ -377,8 +369,6 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 			&i.Minor,
 			&i.Patch,
 			&i.Retired,
-			&i.ReplacedBy,
-			&i.ReplacementTitle,
 			&i.Stars,
 			&i.Missing,
 			&i.GroupRules,

@@ -150,7 +150,7 @@ ranked AS (
 ),
 base AS (
     SELECT rk.id, rk.missing, rk.score, rk.text_rank, d.retired, d.vetted, l.id AS library_id, l.owner, l.name,
-           l.owner_avatar_url, r.path, g.path AS group_path, r.replaced_by, v.title, v.impact, v.major, v.minor,
+           l.owner_avatar_url, r.path, g.path AS group_path, v.title, v.impact, v.major, v.minor,
            v.patch, coalesce(st.stars, 0) AS stars, first.tagged_at AS first_published_at
     FROM ranked rk
     JOIN documents d ON d.id = rk.id
@@ -211,22 +211,14 @@ grouped AS (
            count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
 )
-SELECT gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
+SELECT gr.library_id, gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
        coalesce(gr.title, '')::text AS title, coalesce(gr.impact, '')::text AS impact, gr.major, gr.minor, gr.patch,
-       gr.retired, coalesce(gr.replaced_by, '')::text AS replaced_by,
-       coalesce(replacement.title, '')::text AS replacement_title, gr.stars::integer AS stars, gr.missing,
+       gr.retired, gr.stars::integer AS stars, gr.missing,
        gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
        facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM grouped gr
 CROSS JOIN facets
-LEFT JOIN LATERAL (
-    SELECT v.title FROM rules rr
-    JOIN rule_versions v ON v.rule_id = rr.id
-    JOIN library_releases p ON p.id = v.release_id
-    WHERE rr.library_id = gr.library_id AND rr.path = gr.replaced_by
-    ORDER BY p.number DESC LIMIT 1
-) replacement ON true
 ORDER BY gr.group_position, gr.position
 LIMIT @max_results OFFSET @skip;

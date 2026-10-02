@@ -394,10 +394,15 @@ type RuleRow struct {
 	Rule RuleCard
 	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
-	// Retired marks a rule a library release retired. ReplacedBy is the rule its retirement named as its replacement,
-	// by ID and title, or nil when it named none; its RetiredIn isn't read.
-	Retired    bool
-	ReplacedBy *RuleRef
+	// Retired marks a rule a library release retired. Replacement is the last rule of its chain of replacements to now,
+	// the one current now unless the chain ends at a rule retired without one, or nil when its retirement named none;
+	// Renamed reports that each step of the chain renamed the rule, so Replacement is the same rule under a new ID.
+	Retired     bool
+	Replacement *RuleRef
+	Renamed     bool
+	// Links are how every rule of a retired rule's library was replaced, which the store reads for app.Pages to follow
+	// to its Replacement; they're nil for a current rule.
+	Links []RuleLink
 	// Missing holds the words to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
 	// holds every one.
 	Missing []string

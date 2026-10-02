@@ -198,14 +198,22 @@ func (p Pages) SearchRules(ctx context.Context, query domain.SearchQuery, choice
 	return p.rules(ctx, domain.RuleList{Query: query, ListChoices: choices}, SearchPageSize, (page-1)*SearchPageSize)
 }
 
-// rules reads a page of list, at most limit rules after the first skip, and names each one's group as pages do.
+// rules reads a page of list, at most limit rules after the first skip, names each one's group as pages do, and
+// follows each retired one's replacements to the last, as its page does.
 func (p Pages) rules(ctx context.Context, list domain.RuleList, limit, skip int) (views.RuleResults, error) {
 	results, err := p.Store.Rules(ctx, p.Vetted, p.Groups.All(), list, limit, skip)
 	if err != nil {
 		return views.RuleResults{}, err
 	}
 	for i, r := range results.Rows {
-		results.Rows[i].CanonicalGroup = p.canonical(r.Rule.Group)
+		row := &results.Rows[i]
+		row.CanonicalGroup = p.canonical(r.Rule.Group)
+		if r.Retired {
+			links := newRuleLinks(r.Links)
+			if chain := links.replacements(r.Rule.Path); len(chain) > 0 {
+				row.Replacement, row.Renamed = &chain[len(chain)-1], links.renamedThroughout(r.Rule.Path)
+			}
+		}
 	}
 	return results, nil
 }

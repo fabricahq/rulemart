@@ -149,7 +149,7 @@ func TestGroupPageOfAGroupThatIsntCanonicalSaysSo(t *testing.T) {
 func TestRuleRowsMarkRetiredUnvettedAndFabricasRules(t *testing.T) {
 	c := newBrowsingCatalog()
 	retired := closeBodiesRow
-	retired.Retired, retired.ReplacedBy = true, &views.RuleRef{Path: "techs/go/close-everything", Title: "Close everything"}
+	retired.Retired, retired.Replacement = true, &views.RuleRef{Path: "techs/go/close-everything", Title: "Close everything"}
 	unvetted := namePackagesRow
 	unvetted.Library, unvetted.Vetted = views.LibraryRef{Owner: "stranger", Name: "rules"}, false
 	fabrica := returnErrorsRow
@@ -162,7 +162,8 @@ func TestRuleRowsMarkRetiredUnvettedAndFabricasRules(t *testing.T) {
 
 	renamed := c.groups["techs/golang"]
 	renamed.Rules.Rows = []views.RuleRow{retired}
-	renamed.Rules.Rows[0].ReplacedBy = &views.RuleRef{Path: "techs/go/close-bodies-early", Title: "Close response bodies"}
+	renamed.Rules.Rows[0].Replacement = &views.RuleRef{Path: "techs/go/close-bodies-early", Title: "Close response bodies"}
+	renamed.Rules.Rows[0].Renamed = true
 	c.groups["techs/golang"] = renamed
 	assertShows(t, get(t, newSite(t, c), "/g/techs/golang?retired=1").Body.String(),
 		"Close response bodies MEDIUM Retired Renamed to techs/go/close-bodies-early other/go-rules")

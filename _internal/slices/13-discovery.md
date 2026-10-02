@@ -112,8 +112,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: ties fall to vetted libraries before unvetted ones**, so an opted-in list never puts an unvetted rule
   above a vetted one that ties with it. Best match falls to `ts_rank`, then stars, Fabrica's
   libraries, title, owner, and name; the other orders to stars, Fabrica's, owner, name, and title.
-- **Proposed: a renamed rule reads "Renamed to `new-id`"** in place of "replaced by <title>", since its replacement
-  has its title.
+- **Proposed: a retired row names the last of its replacements**, following the chain as the rule's page does, so
+  "Replaced by" names the rule current now rather than a rule retired since. A rule renamed at every step reads
+  "Renamed to `new-id`" in place of "replaced by <title>", since its replacement has its title.
 - **Proposed: a group's page lists at most 500 rules** and says so past them, which bounds a group many listed
   libraries share. It isn't paged.
 - **Proposed: the other-groups page lists each ID once**, with the libraries that chose it, leading to its page, and

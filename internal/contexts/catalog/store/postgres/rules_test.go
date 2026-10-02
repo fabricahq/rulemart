@@ -248,8 +248,8 @@ func TestAGroupThatIsntCanonicalListsTheRulesOfThatExactID(t *testing.T) {
 	}
 }
 
-// A group's list holds its retired rules only when asked, after the current rules, each with its replacement, counted
-// apart from them.
+// A group's list holds its retired rules only when asked, after the current rules, each with how its library's rules
+// were replaced, counted apart from them.
 func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 	c := newRuleLists(t)
 
@@ -259,15 +259,27 @@ func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 		t.Fatalf("got %q, want %q", sourceIDs(got), want)
 	}
 	retired := got.Rows[4]
+	links := retired.Links
+	retired.Links = nil
 	want := views.RuleRow{
 		Library: views.LibraryRef{Owner: "fabricahq", Name: "rules", OwnerAvatarURL: fabricaRules.Repository.OwnerAvatarURL},
 		Vetted:  true,
 		Rule: views.RuleCard{Path: "techs/go/old-errors", Group: "techs/go", Title: "Old errors", Impact: "HIGH",
 			Version: coderules.RuleVersion{Major: 1}},
-		Retired: true, ReplacedBy: &views.RuleRef{Path: "techs/go/handle-errors", Title: "Handle errors"}, GroupRules: 1,
+		Retired: true, GroupRules: 1,
 	}
 	if !reflect.DeepEqual(retired, want) {
 		t.Errorf("got %+v, want %+v", retired, want)
+	}
+	// The row carries its library's links, which pages follow to its replacement; a current rule's carries none.
+	old := slices.IndexFunc(links, func(l views.RuleLink) bool { return l.Path == "techs/go/old-errors" })
+	if len(links) != 4 || old < 0 || links[old].ReplacedBy != "techs/go/handle-errors" || links[old].RetiredIn != 2 {
+		t.Errorf("got the retired rule's links %+v, want fabricahq/rules's 4, old-errors replaced by handle-errors", links)
+	}
+	for _, r := range got.Rows[:4] {
+		if r.Links != nil {
+			t.Errorf("the current %s carries links", r.Rule.Path)
+		}
 	}
 }
 
