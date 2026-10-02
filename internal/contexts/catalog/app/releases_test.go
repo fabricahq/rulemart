@@ -182,8 +182,9 @@ func manyReleases(releases, rules int) views.LibraryHistory {
 // A page shows whole releases, newest first, while their changes and versions fit app.MaxReleaseRows, and at least
 // one, and says where the older ones start; a later page starts at the release it's asked for.
 func TestReleasesPageShowsAsManyReleasesAsFitAPage(t *testing.T) {
-	// Each release lists 400 rules' versions, so five fit a page; release 1 also lists them as new rules.
-	pages := app.Pages{Store: &histories{history: manyReleases(12, 400)}}
+	// Each release lists 390 rules' versions and counts as 10 rows more, so five fit a page; release 1 also lists them
+	// as new rules.
+	pages := app.Pages{Store: &histories{history: manyReleases(12, 390)}}
 	ctx := context.Background()
 	for name, tc := range map[string]struct {
 		until, older int
@@ -208,6 +209,19 @@ func TestReleasesPageShowsAsManyReleasesAsFitAPage(t *testing.T) {
 				t.Fatalf("got %v, older from %d; want %v, older from %d", numbers, page.Older, tc.want, tc.older)
 			}
 		})
+	}
+}
+
+// A release can change no rules, and a library can hold none, so a card counts toward a page however few rows it
+// lists.
+func TestReleasesPageBoundsReleasesThatListNoRows(t *testing.T) {
+	page, err := app.Pages{Store: &histories{history: manyReleases(10000, 0)}}.ReleasesPage(context.Background(), "example", "rules", 0)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(page.Releases); n == 0 || n > 200 || page.Older != 10000-n {
+		t.Fatalf("got %d releases, older from %d", n, page.Older)
 	}
 }
 

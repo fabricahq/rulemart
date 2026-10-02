@@ -21,9 +21,13 @@ const MaxComparedBytes = 512 << 10
 // releases; a page of at most this many rows stays well within what one response can hold.
 const MaxReleaseRows = 2000
 
+// releaseRows is what a release's card counts toward MaxReleaseRows besides the rules it lists: its header and notes,
+// so a page of releases that list few rules or none is bounded too.
+const releaseRows = 10
+
 // ReleasesPage returns the vetted library owner/name, matched without regard to case, with its releases from release
 // until back, newest first, each with what it changed since the release before it: whole releases while their rows
-// fit MaxReleaseRows, and at least one. until 0 starts at the latest release. It fails with ErrNotFound when there's no
+// fit MaxReleaseRows, each counting releaseRows more, and at least one. until 0 starts at the latest release. It fails with ErrNotFound when there's no
 // such library or release.
 func (p Pages) ReleasesPage(ctx context.Context, owner, name string, until int) (views.ReleasesPage, error) {
 	history, err := p.Store.LibraryHistory(ctx, p.Vetted, owner, name)
@@ -44,7 +48,7 @@ func (p Pages) ReleasesPage(ctx context.Context, owner, name string, until int) 
 			Changes:  changes(history, n-1, n, nil),
 			Versions: versionsAt(history, n),
 		}
-		rows += len(notes.Changes) + len(notes.Versions)
+		rows += releaseRows + len(notes.Changes) + len(notes.Versions)
 		if len(page.Releases) > 0 && rows > MaxReleaseRows {
 			page.Older = n
 			break
