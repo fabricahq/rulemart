@@ -341,6 +341,9 @@ func (s *server) group(w http.ResponseWriter, r *http.Request) {
 		view.libraries[i].cart = s.newCartControl(r, true, false, item, "Add this group",
 			"the group "+view.label.name+" of "+lib.library.fullName())
 		view.notice = cmp.Or(view.notice, view.libraries[i].cart.notice)
+		if view.libraries[i].cart.prompt {
+			view.offer = &view.libraries[i].cart
+		}
 	}
 	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
@@ -556,6 +559,9 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	item := domain.CartItem{Owner: page.Library.Owner, Name: page.Library.Name, Kind: domain.CartRule, Path: page.Rule.Path}
 	view.cart = s.newCartControl(r, page.Library.Vetted, view.retired != nil, item, "Add to cart", "the rule "+view.title)
 	view.library.cartNotice = view.cart.notice
+	if view.cart.prompt {
+		view.library.cartOffer = &view.cart
+	}
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
 }
 
@@ -592,6 +598,9 @@ func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, e
 	whole := domain.CartItem{Owner: lib.Owner, Name: lib.Name, Kind: domain.CartLibrary}
 	view.cart = s.newCartControl(r, lib.Vetted, false, whole, "Add library to cart", "every group of "+lib.FullName())
 	view.cartNotice = view.cart.notice
+	if view.cart.prompt {
+		view.cartOffer = &view.cart
+	}
 	return view, nil
 }
 
@@ -607,6 +616,9 @@ func (s *server) withGroupCarts(r *http.Request, lib *libraryView, contents libr
 			}
 			groups[i].cart = s.newCartControl(r, lib.vetted, false, item, "Add", "the group "+name)
 			lib.cartNotice = cmp.Or(lib.cartNotice, groups[i].cart.notice)
+			if groups[i].cart.prompt {
+				lib.cartOffer = &groups[i].cart
+			}
 		}
 	}
 	return contents

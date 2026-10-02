@@ -129,8 +129,10 @@ type groupPageView struct {
 	description string
 	rules       int
 	libraries   []groupLibraryView
-	// notice is what the page says after adding, or signing in to add, one library's group, if any.
+	// notice is what the page says after adding, or signing in to add, one library's group, if any, and offer the
+	// control its notice offers to add after signing in, or nil.
 	notice string
+	offer  *cartControl
 }
 
 // groupLibraryView is one library's rules on a group's page.

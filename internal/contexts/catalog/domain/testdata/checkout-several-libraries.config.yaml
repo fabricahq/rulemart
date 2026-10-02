@@ -14,4 +14,4 @@ sources:
     repository: https://github.com/stranger/Rules.git
     rules:
       - techs/go/use-go
-    ref: release/3
+    ref: "3333333333333333333333333333333333333333" # release/3

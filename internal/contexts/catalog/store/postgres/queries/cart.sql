@@ -99,7 +99,7 @@ ORDER BY lower(l.owner), lower(l.name), l.id, c.kind, c.path COLLATE "C";
 
 -- ListCartItems returns the account's cart items, by library in owner and name order, the whole library first, then
 -- groups, then rules, each in ID order. Each has its library, whether vetted holds it and a listing names it, and its
--- latest release; a rule's group, its newest version's title, and the release that retired it, if one did, when the
+-- latest release and the commit its tag points to; a rule's group, its newest version's title, and the release that retired it, if one did, when the
 -- library still has it; and the current rules of a group or whole library.
 -- name: ListCartItems :many
 SELECT c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirmed, c.added_at,
@@ -107,7 +107,7 @@ SELECT c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirm
        (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
        EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id)::boolean
            AS listed,
-       latest.number AS latest_release,
+       latest.number AS latest_release, latest.commit_id AS latest_commit,
        (rule.group_path IS NOT NULL)::boolean AS rule_found,
        coalesce(rule.group_path, '')::text AS rule_group,
        coalesce(rule.title, '')::text AS rule_title,
@@ -116,7 +116,7 @@ SELECT c.kind, c.path, (c.unvetted_confirmed_at IS NOT NULL)::boolean AS confirm
 FROM cart_items c
 JOIN libraries l ON l.id = c.library_id
 JOIN LATERAL (
-    SELECT number FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
+    SELECT number, commit_id FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
 ) latest ON true
 LEFT JOIN LATERAL (
     SELECT g.path AS group_path, retired.number AS retired_in, (

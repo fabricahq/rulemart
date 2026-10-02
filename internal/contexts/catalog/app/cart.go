@@ -75,7 +75,8 @@ func (c Cart) Contents(ctx context.Context, accountID int64) (views.Cart, error)
 			}
 		}
 		checkout = append(checkout, domain.CheckoutLibrary{
-			Owner: lib.Library.Owner, Name: lib.Library.Name, Release: lib.LatestRelease, Vetted: lib.Vetted, Items: importable,
+			Owner: lib.Library.Owner, Name: lib.Library.Name, Release: lib.LatestRelease, Commit: lib.LatestCommit,
+			Vetted: lib.Vetted, Items: importable,
 		})
 	}
 	return views.Cart{Libraries: libraries, Checkout: domain.NewCheckout(checkout)}, nil

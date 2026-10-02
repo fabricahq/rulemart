@@ -299,6 +299,9 @@ func TestTheCartReadsItsItemsAsTheCatalogHasThemNow(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("got\n%s\nwant\n%s", join(got), join(want))
 	}
+	if cart[0].LatestCommit != "2222222222222222222222222222222222222222" {
+		t.Errorf("acme's latest commit is %q, want its second release's", cart[0].LatestCommit)
+	}
 	if cart[0].Library != (views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL}) {
 		t.Errorf("acme's library is %+v", cart[0].Library)
 	}
