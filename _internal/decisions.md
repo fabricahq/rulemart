@@ -91,6 +91,10 @@ than adding history.
 
 - **One environment until launch**, at `rulemart.fabricahq.com`, with Neon branches for trying migrations on real
   data. `rulemart.ai` redirects there through a Cloudflare rule set up by hand.
+- **Pages name their address on `RULEMART_BASE_URL` as canonical.** CloudFront's own `cloudfront.net` domain serves
+  the same pages, so each page links its address on the public origin, without a tab's query string, and search
+  engines index that one. Infrastructure sets the variable; unset, as in local development, pages name none, and a
+  value that isn't a bare https origin stops the web function at start.
 - **Releases are published by [Release Planner](https://release-planner.fabricahq.com)**, and merging a release
   pull request approves one. Nothing else tags or publishes a release.
 - **Migrations are the application's concern, and run after a release is approved and before it's published**, as

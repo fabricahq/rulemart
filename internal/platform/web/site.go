@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -35,6 +36,35 @@ type Options struct {
 	// RequestID returns an identifier for a request that the logs record, such as the Lambda request ID. It may
 	// be nil.
 	RequestID func(*http.Request) string
+	// BaseURL is Rulemart's public origin, such as https://rulemart.fabricahq.com, which each page names as its
+	// canonical address, so search engines index that one address for it whichever host served it. It has no path.
+	// Nil names none. ParseBaseURL makes one from text.
+	BaseURL *url.URL
+}
+
+// ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
+// https://rulemart.fabricahq.com. Empty text gives nil.
+func ParseBaseURL(text string) (*url.URL, error) {
+	if text == "" {
+		return nil, nil
+	}
+	u, err := url.Parse(text)
+	if err == nil {
+		err = checkBaseURL(u)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parse base URL %q: %v", text, err)
+	}
+	return u, nil
+}
+
+// checkBaseURL reports whether u is an https origin and nothing more, so a page's path appends to it as is.
+func checkBaseURL(u *url.URL) error {
+	if u.Scheme != "https" || u.Host == "" || u.Opaque != "" || u.User != nil || u.Path != "" || u.RawPath != "" ||
+		u.ForceQuery || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("want an https origin with no path, query, or fragment, such as https://rulemart.example")
+	}
+	return nil
 }
 
 // Catalog reads what the pages show. app.Pages implements it, finding only the vetted libraries.
@@ -57,6 +87,11 @@ type server struct {
 
 // New returns the handler for Rulemart's pages, reading them from catalog.
 func New(catalog Catalog, options Options) (http.Handler, error) {
+	if options.BaseURL != nil {
+		if err := checkBaseURL(options.BaseURL); err != nil {
+			return nil, fmt.Errorf("serve pages at base URL %q: %v", options.BaseURL, err)
+		}
+	}
 	assets, err := newAssets()
 	if err != nil {
 		return nil, err
@@ -87,7 +122,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, homePage(s.chrome, newLibraryCards(libraries)))
+	s.render(w, r, http.StatusOK, homePage(s.pageChrome(r), newLibraryCards(libraries)))
 }
 
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +132,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	}
 	view := newLibraryView(page.Library)
 	contents := newLibraryContents(view, page, s.assets.iconURL)
-	s.render(w, r, http.StatusOK, libraryPage(s.chrome, view, contents, r.URL.Query().Get("tab") == "rules"))
+	s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(r), view, contents, r.URL.Query().Get("tab") == "rules"))
 }
 
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +140,18 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, err) {
 		return
 	}
-	s.render(w, r, http.StatusOK, rulePage(s.chrome, newRuleView(newLibraryView(page.Library), page), r.URL.Query().Get("tab") == "versions"))
+	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(r), newRuleView(newLibraryView(page.Library), page), r.URL.Query().Get("tab") == "versions"))
+}
+
+// pageChrome returns the frame for the page at r's path, which names that path on BaseURL as its canonical address.
+// Call it only once found has accepted the path's spelling. A tab's query string shows the same page, so the address
+// leaves it out.
+func (s *server) pageChrome(r *http.Request) chrome {
+	c := s.chrome
+	if s.BaseURL != nil {
+		c.canonical = s.BaseURL.String() + r.URL.EscapedPath()
+	}
+	return c
 }
 
 // found reports whether a page's data loaded, for the library lib, and is at the path GitHub's spelling of the
