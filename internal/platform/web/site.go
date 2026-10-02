@@ -139,6 +139,11 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
 		"status", http.StatusServiceUnavailable, "error", err.Error())
+	s.unavailable(w, r)
+}
+
+// unavailable answers with a page that says Rulemart can't show this one right now, and that can't be cached.
+func (s *server) unavailable(w http.ResponseWriter, r *http.Request) {
 	var page bytes.Buffer
 	_ = messagePage(s.chrome, "Unavailable", "Rulemart can't show this page right now. Try again in a minute.").Render(r.Context(), &page)
 	write(w, r, http.StatusServiceUnavailable, "no-store", page.Bytes())

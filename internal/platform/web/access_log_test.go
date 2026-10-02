@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
@@ -153,5 +155,54 @@ func TestAccessLogLeavesOutHeadersAndQueryStrings(t *testing.T) {
 		if strings.Contains(logs.String(), leak) {
 			t.Fatalf("the access log holds %q: %v", leak, line)
 		}
+	}
+}
+
+// panicking is a catalog whose list of libraries panics, as a bug in a page's read would.
+type panicking struct{ catalog }
+
+func (panicking) Libraries(context.Context) ([]views.LibraryCard, error) {
+	panic("index out of range [3] with length 3")
+}
+
+// A panic fails only its own request: it's logged once, with what finding the bug needs, and the visitor gets the
+// page any other failure gets, which can't be cached.
+func TestPagesRecoverFromAPanicWithTheUnavailablePage(t *testing.T) {
+	handler, logs := loggedSite(t, panicking{newCatalog()})
+
+	resp, access := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if resp.Code != http.StatusServiceUnavailable || resp.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("answered %d with Cache-Control %q", resp.Code, resp.Header().Get("Cache-Control"))
+	}
+	assertShows(t, resp.Body.String(), "Rulemart can't show this page right now.")
+	if strings.Contains(resp.Body.String(), "index out of range") {
+		t.Fatal("the response exposes the panic")
+	}
+	if access["status"] != float64(http.StatusServiceUnavailable) || access["cache"] != "no-store" {
+		t.Fatalf("the access log recorded %v", access)
+	}
+	var errorLines []map[string]any
+	for line := range strings.Lines(logs.String()) {
+		var fields map[string]any
+		if err := json.Unmarshal([]byte(line), &fields); err != nil {
+			t.Fatal(err)
+		}
+		if fields["level"] == "ERROR" {
+			errorLines = append(errorLines, fields)
+		}
+	}
+	if len(errorLines) != 1 {
+		t.Fatalf("logged %d error lines, want 1:\n%s", len(errorLines), logs)
+	}
+	panicLine := errorLines[0]
+	stack, _ := panicLine["stack"].(string)
+	if panicLine["msg"] != "panic" || panicLine["route"] != "/{$}" || panicLine["requestID"] != "request-123" ||
+		panicLine["panic"] != "index out of range [3] with length 3" || !strings.Contains(stack, "panicking.Libraries") {
+		t.Fatalf("logged %v", panicLine)
+	}
+
+	if next := get(t, handler, library); next.Code != http.StatusOK {
+		t.Fatalf("the next request got %d", next.Code)
 	}
 }

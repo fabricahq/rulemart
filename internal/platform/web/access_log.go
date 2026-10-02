@@ -1,9 +1,11 @@
-// Log one line for every request the handler serves.
+// Log one line for every request the handler serves, and fail only the request that panics.
 
 package web
 
 import (
+	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -18,11 +20,28 @@ func (s *server) logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		recorder := &responseRecorder{ResponseWriter: w}
-		next.ServeHTTP(recorder, r)
+		s.serveRecovering(recorder, r, next)
 		s.Log.InfoContext(r.Context(), "request", "route", s.route(r), "method", r.Method, "status", recorder.statusCode(),
 			"bytes", recorder.bytes, "duration_ms", logging.Milliseconds(time.Since(start)),
 			"cache", w.Header().Get("Cache-Control"), "requestID", s.requestID(r))
 	})
+}
+
+// serveRecovering serves r with next. If next panics, it logs the panic once, with its stack, and answers with the
+// page any other failure gets, unless next already started the response.
+func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http.Handler) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+		s.Log.ErrorContext(r.Context(), "panic", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
+			"panic", fmt.Sprint(recovered), "stack", string(debug.Stack()))
+		if w.status == 0 {
+			s.unavailable(w, r)
+		}
+	}()
+	next.ServeHTTP(w, r)
 }
 
 // unmatchedRoute is the route logged for a request that matched no registered pattern, such as one the mux
