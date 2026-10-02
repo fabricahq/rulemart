@@ -14,7 +14,7 @@ than adding history.
   a vetted one takes none. The cap bounds the unvetted area, the worker's hourly checks, and what someone with many
   GitHub accounts can add. Ingestion's size and memory limits apply to every library, and nothing runs a library's
   files.
-- **A listing records who listed it, and pages don't say.** The lister can remove it at any time, after a page that
+- **A listing records who listed it, and the library's About panel says "Added by" and "On Rulemart since".** The lister can remove it at any time, after a page that
   says what removing does, which hides the library again. A listing that failed before its library ever ingested
   doesn't reserve the repository: another account listing it replaces it. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
 - **An account lists or retries at most 20 times a day, and every account together at most 100 times an hour**,
@@ -25,12 +25,14 @@ than adding history.
   deploys, without being listed again: pages decide vetted or not from the release's list as they read.
 - **Vetting covers a library, including its future releases.** A major version is declared by the library's
   maintainer, so pausing vetting on one would add nothing. The FAQ says so.
-- **Unvetted libraries are hidden from normal browsing.** They're reached only through "View unvetted libraries" at
-  the bottom of the libraries page, and every unvetted page shows "This library has not been vetted. Tread
-  carefully." Rules are instructions that coding agents follow, so an unvetted rule is untrusted input for an
-  agent. A library's own pages find it when it's vetted or a listing names it; every page across libraries reads
-  only the vetted ones. The warning is a band in the one amber the palette has, which means caution and nothing else.
-- **Search covers vetted libraries only.**
+- **Unvetted libraries are an opt-in at every listing.** Home, the libraries page, browse, group pages, and search
+  show vetted libraries only, and each carries a control that includes unvetted ones, as a query parameter, so the
+  default view never changes and unvetted rows in an opted-in list carry an Unvetted tag. A vetted library shows a
+  check mark, "Vetted by Rulemart". Every unvetted page shows "This library has not been vetted. Be sure to review
+  these rules carefully." Rules are instructions that coding agents follow, so an unvetted rule is untrusted input
+  for an agent. A library's own pages find it when it's vetted or a listing names it. The warning is a band in the
+  one amber the palette has, which means caution and nothing else. [Realignment](realignment.md) explains the choice.
+- **Search covers vetted libraries by default**, and unvetted ones when the visitor opts in.
 - **Unvetted rules can go in the cart only after an explicit confirmation**, which the cart records, and the checkout
   prompt names their library to the agent, and asks it to review the rules before following them. An item whose
   library loses its vetting needs confirming again.
@@ -55,33 +57,40 @@ than adding history.
 
 ## Stars
 
-- **Anyone signed in can star a vetted library, and only a vetted one.** A star is an account's mark on a library,
-  never a rule, since a library's identity survives renames and a rule's may not. An unvetted library's pages show no
-  stars, so listing a repository can't borrow a count either. [Slice 7](slices/7-stars.md) explains the choices.
-- **Counts are public, counted as pages read, and sort nothing.** A vetted library's pages and its row in the
-  libraries list show how many accounts starred it, up to a minute old for visitors who aren't signed in, as every
-  cached page is. Libraries stay listed by owner and name, so inflating a count wins no place.
-- **Starring is a POST to `/account/stars`, and unstarring to `/account/stars/remove`**, each naming the library in
-  its query string and returning to the page, which says what it did and focuses the button; repeating either changes
-  nothing. A visitor who isn't signed in gets a link that signs them in and returns them, prompted once to star the
-  library. `/account/stars` lists a visitor's stars, newest first.
+- **Anyone signed in can star a rule in a vetted library.** A star is an account's mark on a rule, as the prototype
+  has it; a rule that is renamed keeps its stars through the rename record. Rules in unvetted libraries show no
+  Star button, so listing a repository can't borrow a count. Libraries have no stars of their own: the dashboard
+  shows a library's total as the sum of its rules'. [Realignment](realignment.md) explains the change from
+  [slice 7](slices/7-stars.md), whose other choices stand.
+- **Counts are public and counted as pages read.** Every rule row and rule page shows its count, up to a minute old
+  for visitors who aren't signed in, as every cached page is. Group and search pages offer a Most starred sort and a
+  stars filter.
+- **Starring is a POST to `/stars`, and unstarring to `/stars/remove`**, each naming the rule in its query string and
+  returning to the page, which says what it did and focuses the button; repeating either changes nothing. A visitor
+  who isn't signed in gets a link that signs them in and returns them, prompted once to star the rule. The
+  dashboard's Starred rules tab lists a visitor's stars, newest first.
 - **Deleting an account removes its stars**, so they stop counting.
 
 ## Cart and checkout
 
-- **Anyone signed in collects rules in a cart, in Postgres**: a whole library, one of its groups, or one rule, at most
-  100 items, where a group or library takes the place of the items it covers. A cart in a cookie would need CloudFront to key every page on it. Visitors who aren't signed in get links
-  that sign them in and return them, so public pages stay the same for everyone. [Slice 8](slices/8-cart-and-checkout.md)
-  explains the choices.
-- **Adding is a POST to `/account/cart`, removing to `/account/cart/remove`**, each naming the item in its query
-  string and returning to the page, which says what it did and focuses the control. Items are named by their ID in the
-  library, so a retired rule, or a library that lost its vetting, stays in the cart, saying so, and checkout leaves it
-  out.
-- **Checkout is a prompt for a coding agent, and the configuration it adds**: one Code Rules source per library,
-  pinned with `ref` to the release the visitor saw, importing whole libraries with `groups: "*"`, groups, and single
-  rules, with the `code-rules` commands to run, what to check, and how to upgrade later. The prompt holds no text a
-  library wrote, so no library can write instructions into it.
-- **Deleting an account empties its cart.**
+- **Anyone collects rules in a cart that lives in their browser**, in `localStorage`, as the prototype's does: one
+  rule, or a whole group of one library, at most 100 items. Nothing asks for sign-in to add. A script paints the
+  header's badge and each page's In cart state from the stored keys, so public pages stay identical and cached for
+  everyone. [Realignment](realignment.md) explains the change from [slice 8](slices/8-cart-and-checkout.md), whose
+  checkout safeguards stand.
+- **Adding opens a modal on the rule page** that offers just the rule or its whole group, and asks for a confirmation
+  when the library is unvetted, which the cart records with the item. Items are named by library, group, and rule
+  ID, so checkout resolves them against the catalog and says when one is retired, gone, or in a library that lost
+  its vetting, and leaves it out.
+- **Checkout is a page that asks a JSON endpoint for the cart's items, each library's latest release, and the
+  texts.** It shows a Prompt tab and a Commands tab, both built from `code-rules project add library`,
+  `code-rules project add rule --from`, and `code-rules project sync`; each rule can stay in sync or be forked, and
+  a group always stays in sync. By default nothing is pinned, so rules move when the project runs
+  `code-rules project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
+  wrote, so no library can write instructions into it, and names each unvetted library so the agent reviews its
+  rules first.
+- **Signed in, checkout offers the visitor's projects**, read from their repositories' provenance files, so the
+  prompt names the repository and says which libraries it already imports.
 
 ## Groups
 
@@ -117,13 +126,15 @@ than adding history.
   pages show. Rules that hold every word come first, then rules that hold some, each ranked by where the words match,
   title first, and a rule that lacks some words names them. [Slice 3](slices/3-browse-and-search.md) compares the
   alternatives and states the ranking.
-- **Only a canonical group has a page across libraries,** at `/groups/{techs|practices}/{name}`. Any other group
-  stands alone, so the groups page lists it once per library and leads to that library's section for it.
+- **Every group has a page across libraries,** at `/g/{techs|practices}/{name}`. A canonical group's page combines
+  every library; any other group's page holds the rules of the libraries that chose that exact ID, says it isn't
+  canonical, and points at the canonical group it resembles when the catalog names one. Browse pages list canonical
+  groups and lead to the others under "Other groups".
 - **A page that lists rules from more than one library names each rule's library**, by its owner's avatar and
   `owner/name`, and search results show each rule's source-qualified ID, `owner/name:rule-ID`, Code Rules'
   `source:rule` form with the repository as the source.
-- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place; search
-  orders by relevance.
+- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. Search orders
+  by relevance by default, and group pages by stars; both offer Most starred and Newest.
 - **Search result pages carry `noindex` and name no canonical address.** Each query would otherwise be a page of
   its own to a search engine.
 
@@ -143,14 +154,18 @@ than adding history.
   always escaped. [Slice 4](slices/4-releases-and-comparison.md) explains the choices.
 - **A retired rule has a page**: its retirement, its chain of replacements to a current rule, its last text, and its
   versions. A rename, which Code Rules records as a retirement and a new rule under the same title, shows as one.
-  Retired rules stay out of search.
+  Retired rules appear in search, labeled Retired with their replacement, below current rules that match as well.
 
 ## Accounts and sign-in
 
-- **GitHub is the only sign-in provider, through an OAuth app that asks for no scopes.** Rulemart reads the user's
-  ID, login, and avatar once, discards the token, and keeps nothing else: an account is keyed by GitHub's numeric user
-  ID, since logins change. The flow uses state and PKCE, kept in a ten-minute `__Host-` cookie.
-  [Slice 5](slices/5-sign-in.md) explains the choices.
+- **GitHub is the only sign-in provider, through the OAuth app "Rulemart", which asks for `read:org`.** Rulemart
+  reads the user's ID, login, avatar, and organizations, and keeps the token encrypted in the session row so the
+  dashboard can read the visitor's repositories again, until sign-out deletes it. An account is keyed by GitHub's
+  numeric user ID, since logins change. The flow uses state and PKCE, kept in a ten-minute `__Host-` cookie.
+  Private repositories need the GitHub App "Rulemart by Fabrica" (Contents read, Metadata read), which the visitor
+  installs from the dashboard; a GitHub App's user token sees only organizations it's installed on, so it can't
+  replace the OAuth app for the first view. [Slice 5](slices/5-sign-in.md) and [realignment](realignment.md)
+  explain the choices.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
   and an account keeps at most 20.
@@ -169,7 +184,7 @@ than adding history.
 ## Application
 
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone
-  binary, and HTMX is vendored.
+  binary. Pages are server-rendered; small scripts paint what only the browser knows, such as the cart.
 - **Static assets are embedded in the web binary** and cached by CloudFront for a year under hashed names.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
   release records with Code Rules' own parser: a copy in `internal/lib/coderules` until Code Rules publishes a
@@ -230,9 +245,10 @@ than adding history.
   `preload`, a permissions policy that denies features Rulemart never uses, `Cross-Origin-Opener-Policy`,
   `nosniff`, and the referrer policy. Sending them from the function, rather than a CloudFront response headers
   policy, keeps them in one place that tests cover.
-- **Cloudflare Web Analytics counts page views, only once its site token is set**, as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`.
-  It sets no cookie. Without the token, pages load no other site's script, and the content security policy allows
-  none; with it, the policy adds Cloudflare's beacon and its reports, and the privacy notice says so.
+- **Cloudflare Web Analytics counts page views on every page, only once its site token is set**, as
+  `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. It sets no cookie, and the paths it reports name no visitor. Without the token,
+  pages load no other site's script, and the content security policy allows none; with it, the policy adds
+  Cloudflare's beacon and its reports, and the privacy notice says so.
 - **Static files share one CloudFront copy**: `/_static/*` and `/favicon.ico` have a cache behavior whose key holds no
   cookie or query string, so a signed-in visitor doesn't cache them per session.
 - **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
