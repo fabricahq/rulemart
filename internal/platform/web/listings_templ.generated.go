@@ -1050,14 +1050,14 @@ func listingRow(l listingView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<div class=\"min-w-0 flex-1\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><h2 class=\"font-mono text-[14px] font-semibold [overflow-wrap:anywhere]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<div class=\"min-w-0 flex-1\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><h2 class=\"leading-[1.35] font-semibold [overflow-wrap:anywhere]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(l.fullName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 212, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 212, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -1433,14 +1433,14 @@ func removeListingPage(c chrome, l listingView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "\">Your listings</a></p><h1 class=\"title-xl mt-2\">Remove this listing?</h1><div class=\"mt-5 rounded-card border border-border px-5 py-5\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><p class=\"font-mono text-[14px] font-semibold [overflow-wrap:anywhere]\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 111, "\">Your listings</a></p><h1 class=\"title-xl mt-2\">Remove this listing?</h1><div class=\"mt-5 rounded-card border border-border px-5 py-5\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><p class=\"leading-[1.35] font-semibold [overflow-wrap:anywhere]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var81 string
 			templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(l.fullName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 276, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 276, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 			if templ_7745c5c3_Err != nil {

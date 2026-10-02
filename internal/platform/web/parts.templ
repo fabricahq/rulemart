@@ -241,9 +241,9 @@ templ factLink(href, text, title string) {
 	</a>
 }
 
-// libraryFacts is the facts every library page shows beside its content.
+// libraryFacts is the facts every library page shows beside its content, and where to report the library.
 templ libraryFacts(lib libraryView) {
-	@aboutPanel(nil) {
+	@aboutPanel(reportLibrary(lib)) {
 		@fact("Owner") {
 			<a href={ templ.SafeURL(lib.ownerURL) }>{ lib.owner }</a>
 		}
@@ -260,6 +260,11 @@ templ libraryFacts(lib libraryView) {
 			{ lib.updated }
 		}
 	}
+}
+
+// reportLibrary leads to a report about lib on GitHub, with the library filled in.
+templ reportLibrary(lib libraryView) {
+	<p>Rules harmful, misleading, or not what they claim? <a class="whitespace-nowrap" href={ templ.SafeURL(reportLibraryURL(lib.fullName())) }>Report this library</a></p>
 }
 
 // license shows the declared SPDX expression, or else a link to the declared license file.

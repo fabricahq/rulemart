@@ -56,6 +56,9 @@ func TestStartupFailureIsLoggedAndStopsTheCommand(t *testing.T) {
 		"a base URL with a path": {
 			"DATABASE_URL=postgres://localhost/rulemart", "RULEMART_BASE_URL=https://rulemart.example/catalog",
 		},
+		"an analytics token that isn't one": {
+			"DATABASE_URL=postgres://localhost/rulemart", `CLOUDFLARE_WEB_ANALYTICS_TOKEN={"token": "x"}`,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			lines, code := runMain(t, append(env, "RULEMART_RELEASE=v9.9.9")...)

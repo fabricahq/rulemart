@@ -158,7 +158,7 @@ const (
 
 // libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
 templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab) {
-	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.description, section: librariesHref}, lib, current, true) {
+	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), section: librariesHref}, lib, current, true) {
 		if current == rulesTab {
 			@allRules(contents)
 		} else {
@@ -339,7 +339,7 @@ const (
 // rulePage shows a rule's current version, or with versionsTab every version, newest first. A retired rule's page
 // shows how it was retired and its versions instead.
 templ rulePage(c chrome, r ruleView, current ruleTab) {
-	@ruleFrame(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.whenToRead, section: librariesHref}, r, current) {
+	@ruleFrame(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.summary(), section: librariesHref}, r, current) {
 		if r.retired != nil {
 			@retiredRule(r)
 		} else if current == versionsTab {

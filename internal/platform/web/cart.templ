@@ -27,7 +27,7 @@ templ cartButton(c cartControl) {
 				In cart, left out of checkout because it's retired
 			</a>
 		case c.held != notHeld:
-			<a id={ c.id } class={ cartButtonStyle, cartButtonShape, "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ heldText(c.held) + ": " + c.what + ". See your cart" }>
+			<a id={ c.id } class={ cartButtonStyle, heldShape(c.held), "no-underline", templ.KV(autofocusRing, c.focused) } href={ templ.SafeURL(c.href) } autofocus?={ c.focused } aria-label={ heldText(c.held) + ": " + c.what + ". See your cart" }>
 				@checkIcon("size-[15px] flex-none")
 				{ heldText(c.held) }
 			</a>
@@ -85,6 +85,15 @@ func heldText(held heldState) string {
 		return "Included with the library (in cart)"
 	}
 	return "In cart"
+}
+
+// heldShape is the shape of a cart control for an item the cart holds: on one line for In cart, and wrapping for an item
+// another imports, whose longer text overflows a group's row on a narrow phone.
+func heldShape(held heldState) string {
+	if held == heldInGroup || held == heldInLibrary {
+		return cartButtonWrapShape
+	}
+	return cartButtonShape
 }
 
 // autofocusRing is a lighter focus ring for a control the page focuses after a click, rather than the visitor's

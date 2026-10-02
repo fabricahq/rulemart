@@ -8,9 +8,9 @@ import (
 
 // withPrivateResponses keeps every response that depends on who's asking out of shared caches. A request that
 // carries a session cookie gets a page for its visitor, so its response, whatever it is, can't be cached; nor can a
-// response that sets a cookie, since a cache would hand the cookie to everyone. Static files, and only responses the
-// static files' route serves, are the same for everyone and stay cacheable: a missing page under /_static/ is a page
-// like any other.
+// response that sets a cookie, since a cache would hand the cookie to everyone. Static files and the root icon, and
+// only responses their routes serve, are the same for everyone and stay cacheable: a missing page under /_static/ is a
+// page like any other.
 //
 // It also marks every other response as varying with the Cookie header, so a browser that signs in doesn't show a
 // page it kept from before. CloudFront passes Vary: Cookie through to browsers, and keeps signed-in requests apart by
@@ -32,7 +32,7 @@ type privateWriter struct {
 }
 
 func (w *privateWriter) WriteHeader(status int) {
-	if !w.wrote && w.request.Pattern != staticPattern {
+	if !w.wrote && w.request.Pattern != staticPattern && w.request.Pattern != faviconPattern {
 		header := w.Header()
 		header.Add("Vary", "Cookie")
 		if w.signedIn || len(header.Values("Set-Cookie")) > 0 {

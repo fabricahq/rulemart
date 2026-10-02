@@ -1,0 +1,124 @@
+// What crawlers read: robots.txt, which keeps them out of pages that are a visitor's own or that queries multiply,
+// and the sitemap, which lists every page search engines may index by its canonical address.
+
+package web
+
+import (
+	"bytes"
+	"encoding/xml"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+)
+
+const (
+	robotsHref  = "/robots.txt"
+	sitemapHref = "/sitemap.xml"
+)
+
+// disallowed are the paths robots.txt keeps crawlers out of: a visitor's own pages and the actions that take POST,
+// signing in, listing, search, whose every query would be a page, the unvetted area, whose libraries' pages also say
+// noindex, and comparisons, whose every pair of releases or versions would be a page. Each of these pages also asks
+// not to be indexed, for a crawler that ignores robots.txt. A rule matches any path it starts, so each one-segment
+// page is disallowed alone and with a query, by $ and ?: /list alone would also keep crawlers off /listr/rules, a
+// library's page.
+var disallowed = func() []string {
+	rules := []string{accountHref + "/"}
+	for _, page := range []string{accountHref, signInHref, listHref, searchHref, unvettedHref} {
+		rules = append(rules, page+"$", page+"?")
+	}
+	return append(rules, "/*from=")
+}()
+
+// robots answers GET /robots.txt, naming the sitemap when there's a public origin to name it on.
+func (s *server) robots(w http.ResponseWriter, r *http.Request) {
+	var body strings.Builder
+	body.WriteString("User-agent: *\n")
+	for _, path := range disallowed {
+		body.WriteString("Disallow: " + path + "\n")
+	}
+	if s.BaseURL != nil {
+		body.WriteString("\nSitemap: " + s.BaseURL.String() + sitemapHref + "\n")
+	}
+	writeFile(w, r, "text/plain; charset=utf-8", pageCache, []byte(body.String()))
+}
+
+// newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each canonical
+// group's, then each library's and its rules', within maxBytes, and whether it lists them all: it stops before the
+// address that would pass maxBytes, since a Lambda function's response holds at most 6 MB.
+func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, bool) {
+	const open = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
+	const end = "</urlset>\n"
+	var body, entry bytes.Buffer
+	body.WriteString(xml.Header + open)
+	encoder := xml.NewEncoder(&entry)
+	add := func(href string, updated time.Time) bool {
+		u := sitemapURL{Loc: base + href}
+		if !updated.IsZero() {
+			u.LastMod = updated.UTC().Format(time.DateOnly)
+		}
+		entry.Reset()
+		// Encoding a struct of two strings can't fail.
+		_ = encoder.EncodeElement(u, xml.StartElement{Name: xml.Name{Local: "url"}})
+		_ = encoder.Flush()
+		if body.Len()+entry.Len()+len(end) > maxBytes {
+			return false
+		}
+		body.Write(entry.Bytes())
+		return true
+	}
+	complete := func() bool {
+		for _, href := range []string{"/", librariesHref, groupsHref, aboutHref, privacyHref} {
+			if !add(href, time.Time{}) {
+				return false
+			}
+		}
+		for _, id := range sitemap.Groups {
+			if !add(groupHref(id), time.Time{}) {
+				return false
+			}
+		}
+		for _, lib := range sitemap.Libraries {
+			href := libraryHref(lib.Owner, lib.Name)
+			if !add(href, lib.Updated) {
+				return false
+			}
+			for _, rule := range lib.Rules {
+				if !add(href+"/"+rule.Path, rule.Updated) {
+					return false
+				}
+			}
+		}
+		return true
+	}()
+	body.WriteString(end)
+	return body.Bytes(), complete
+}
+
+// sitemapURL is one address in a sitemap. LastMod is empty when the page has no one date it changed.
+type sitemapURL struct {
+	Loc     string `xml:"loc"`
+	LastMod string `xml:"lastmod,omitempty"`
+}
+
+// sitemap answers GET /sitemap.xml with every page search engines may index, by its canonical address: the site's
+// own pages, each canonical group's, and each vetted library's and its current rules'. Never an unvetted library, a
+// search, or a comparison. Its addresses must be absolute, so without a public origin there's no sitemap.
+func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
+	if s.BaseURL == nil {
+		s.notFound(w, r)
+		return
+	}
+	sitemap, err := s.catalog.Sitemap(r.Context())
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	body, complete := newSitemapFile(s.BaseURL.String(), sitemap, maxPageBytes)
+	if sitemap.Truncated || !complete {
+		s.Log.WarnContext(r.Context(), "sitemap truncated", "route", s.route(r), "requestID", s.requestID(r))
+	}
+	writeFile(w, r, "application/xml; charset=utf-8", pageCache, body)
+}

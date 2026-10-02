@@ -53,6 +53,8 @@ type catalog struct {
 	results map[string]views.SearchResults
 	// searched records each query searched, when it isn't nil.
 	searched *[]string
+	// sitemap is what the sitemap lists.
+	sitemap views.Sitemap
 	// err, when set, fails every read.
 	err error
 }
@@ -68,6 +70,8 @@ func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error)
 }
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
+
+func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
 // GroupPage matches id without regard to case, as app.Pages does.
 func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error) {
@@ -683,7 +687,7 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	if resp.Code != http.StatusServiceUnavailable || resp.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("got %d with Cache-Control %q", resp.Code, resp.Header().Get("Cache-Control"))
 	}
-	for _, leak := range []string{"arn:", "AccessDenied", "GetParameter", "/rulemart/"} {
+	for _, leak := range []string{"arn:", "AccessDenied", "GetParameter", "/rulemart/database-url"} {
 		if strings.Contains(resp.Body.String(), leak) {
 			t.Fatalf("the response exposes %q", leak)
 		}

@@ -1,7 +1,8 @@
 // Package views holds what the catalog's pages read: the vetted libraries, a library with its groups and rules, its
 // releases and what changed between two of them, a rule with its versions and what changed between two of them, the
-// groups across libraries, one group's rules in every library, search results, and an account's listings, starred
-// libraries, and cart. They're plain values, read from one state of the catalog, with nothing of how it's stored.
+// groups across libraries, one group's rules in every library, search results, the sitemap, and an account's
+// listings, starred libraries, and cart. They're plain values, read from one state of the catalog, with nothing of how
+// it's stored.
 package views
 
 import (
@@ -549,3 +550,31 @@ const (
 	// CartItemGone is an item of a library that's neither vetted nor listed, which has no pages.
 	CartItemGone CartItemState = "gone"
 )
+
+// Sitemap is what search engines may index: every vetted library, with its current rules, and the groups that hold
+// them.
+type Sitemap struct {
+	// Libraries are ordered by owner and name without regard to case.
+	Libraries []SitemapLibrary
+	// Groups are the IDs of the groups that hold the libraries' current rules, each once, in ID order, canonical or
+	// not.
+	Groups []string
+	// Truncated reports that the sitemap left out rules past the most it reads, after its libraries' first rules.
+	Truncated bool
+}
+
+// SitemapLibrary is a vetted library in the sitemap.
+type SitemapLibrary struct {
+	Owner, Name string
+	// Updated is when the library's latest release was tagged.
+	Updated time.Time
+	// Rules are its current rules, in ID order.
+	Rules []SitemapRule
+}
+
+// SitemapRule is a current rule in the sitemap.
+type SitemapRule struct {
+	Path string
+	// Updated is when the release that published the rule's current version was tagged.
+	Updated time.Time
+}

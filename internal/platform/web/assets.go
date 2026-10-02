@@ -79,8 +79,30 @@ func (a *assets) serve(w http.ResponseWriter, r *http.Request) {
 	if r.PathValue("version") != a.version {
 		cache = pageCache
 	}
+	writeFile(w, r, contentType(name), cache, content)
+}
+
+// faviconPattern is the route of the icon browsers ask for at the site's root, which has no version to cache by.
+const faviconPattern = "GET /favicon.ico"
+
+// faviconCache keeps the root icon a day, since its address stays the same when it changes.
+const faviconCache = "public, max-age=86400"
+
+// serveFavicon answers GET /favicon.ico with the static favicon.ico.
+func (a *assets) serveFavicon(w http.ResponseWriter, r *http.Request) {
+	content, err := fs.ReadFile(a.files, "favicon.ico")
+	if err != nil {
+		http.Error(w, "The file couldn't be read.", http.StatusInternalServerError)
+		return
+	}
+	writeFile(w, r, contentType("favicon.ico"), faviconCache, content)
+}
+
+// writeFile answers with content, a file of the media type contentType that's the same for every visitor, cached as
+// cache says.
+func writeFile(w http.ResponseWriter, r *http.Request, contentType, cache string, content []byte) {
 	header := w.Header()
-	header.Set("Content-Type", contentType(name))
+	header.Set("Content-Type", contentType)
 	header.Set("Cache-Control", cache)
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {
@@ -88,9 +110,18 @@ func (a *assets) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// contentType returns a static file's media type from its extension.
+// contentType returns a static file's media type from its extension, the same on every system for the types the
+// site serves, whatever its MIME table holds.
 func contentType(name string) string {
 	switch path.Ext(name) {
+	case ".ico":
+		return "image/x-icon"
+	case ".png":
+		return "image/png"
+	case ".svg":
+		return "image/svg+xml"
+	case ".css":
+		return "text/css; charset=utf-8"
 	case ".woff2":
 		return "font/woff2"
 	case ".js":
