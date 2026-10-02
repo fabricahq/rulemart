@@ -213,7 +213,15 @@ func TestCreateListingRefusesARepositoryListedOrVettedAlready(t *testing.T) {
 				},
 			} {
 				var conflict *store.ListingConflict
-				if err := check(); !errors.As(err, &conflict) || *conflict != test.want {
+				err := check()
+				if errors.As(err, &conflict) && conflict.Checking {
+					// When the other listing asked for its check, which the refusal says how long ago.
+					if conflict.RequestedAt.IsZero() {
+						t.Error("a refusal for a listing being checked doesn't say when it was asked for")
+					}
+					conflict.RequestedAt = time.Time{}
+				}
+				if !errors.As(err, &conflict) || *conflict != test.want {
 					t.Errorf("got %v (%+v), want %+v", err, conflict, test.want)
 				}
 			}

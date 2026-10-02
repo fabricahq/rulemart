@@ -99,7 +99,7 @@ func (q *Queries) DeleteListing(ctx context.Context, arg DeleteListingParams) (i
 
 const findListingConflict = `-- name: FindListingConflict :one
 WITH named AS (
-    SELECT s.account_id, s.host_repository_id, s.failure IS NOT NULL AS failed FROM listings s
+    SELECT s.account_id, s.host_repository_id, s.failure IS NOT NULL AS failed, s.requested_at FROM listings s
     WHERE s.host = $1 AND lower(s.owner) = lower($3) AND lower(s.name) = lower($4)
 ),
 library AS (
@@ -117,6 +117,7 @@ holder AS (
 SELECT EXISTS (SELECT 1 FROM named)::boolean AS named,
        coalesce((SELECT n.account_id FROM named n), 0)::bigint AS named_account_id,
        coalesce((SELECT n.failed FROM named n), false)::boolean AS named_failed,
+       (SELECT n.requested_at FROM named n)::timestamptz AS named_requested_at,
        EXISTS (SELECT 1 FROM holder)::boolean AS held,
        coalesce((SELECT h.account_id FROM holder h), 0)::bigint AS holder_account_id,
        EXISTS (SELECT 1 FROM library b WHERE $1::text || ':' || b.host_repository_id = ANY ($2::text[]))::boolean AS vetted,
@@ -132,19 +133,21 @@ type FindListingConflictParams struct {
 }
 
 type FindListingConflictRow struct {
-	Named           bool
-	NamedAccountID  int64
-	NamedFailed     bool
-	Held            bool
-	HolderAccountID int64
-	Vetted          bool
-	LibraryOwner    string
-	LibraryName     string
+	Named            bool
+	NamedAccountID   int64
+	NamedFailed      bool
+	NamedRequestedAt pgtype.Timestamptz
+	Held             bool
+	HolderAccountID  int64
+	Vetted           bool
+	LibraryOwner     string
+	LibraryName      string
 }
 
 // FindListingConflict returns what already stands in the way of listing the repository owner/name, matched without
 // regard to case: a listing by that name, with its account and whether its check failed; the library a listing
-// names, by that name or as the library a listing by that name names, with that listing's account; and whether
+// names, by that name or as the library a listing by that name names, with that listing's account and when it last
+// asked for a check; and whether
 // vetted holds a library by that name. Its library columns name that library as the host spells it now, or are empty
 // when the catalog stores none.
 func (q *Queries) FindListingConflict(ctx context.Context, arg FindListingConflictParams) (FindListingConflictRow, error) {
@@ -159,6 +162,7 @@ func (q *Queries) FindListingConflict(ctx context.Context, arg FindListingConfli
 		&i.Named,
 		&i.NamedAccountID,
 		&i.NamedFailed,
+		&i.NamedRequestedAt,
 		&i.Held,
 		&i.HolderAccountID,
 		&i.Vetted,

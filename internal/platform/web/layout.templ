@@ -13,6 +13,8 @@ import (
 // page's canonical address.
 type chrome struct {
 	stylesheet, script, menuScript, icon, font string
+	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it.
+	caretScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -32,6 +34,8 @@ type head struct {
 	searchPage bool
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
+	// caret loads the script that puts the caret at the end of a field the page focuses.
+	caret bool
 }
 
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
@@ -67,6 +71,9 @@ templ layout(c chrome, h head) {
 			<link rel="stylesheet" href={ c.stylesheet }/>
 			<script src={ c.script }></script>
 			<script src={ c.menuScript } defer></script>
+			if h.caret {
+				<script src={ c.caretScript } defer></script>
+			}
 		</head>
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
