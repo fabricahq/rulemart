@@ -1,6 +1,6 @@
 # Local build and checks. dist builds the release assets Release Planner publishes: one ZIP per Lambda function, plus
 # SHA256SUMS and manifest.json. check needs the Postgres from db; CI provides its own.
-.PHONY: dist check generate check-generated db db-stop migrate ingest worker web clean
+.PHONY: dist check generate check-generated db db-stop migrate ingest worker web web-dev clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
 # rulemart database and the roles infrastructure creates in production: the NOLOGIN group roles that migrations grant
@@ -68,9 +68,15 @@ dist: $(LAMBDA_BUILD)
 	rm -rf dist
 	python3 $(LAMBDA_BUILD) package --output dist
 
+# Local builds may add the rulemartdev tag, which compiles in the dev sign-in, so check runs the packages that tag
+# changes with it too. Release builds never set it.
+DEV_TAG := rulemartdev
+
 check:
 	go vet ./...
+	go vet -tags $(DEV_TAG) ./...
 	go test -race ./...
+	go test -race -tags $(DEV_TAG) ./internal/platform/web/... ./cmd/web/...
 
 # Regenerates the sqlc queries, the templ components, and the stylesheet. templ always writes x_templ.go, so each is
 # renamed x_templ.generated.go.
@@ -143,9 +149,14 @@ worker:
 	$(LOCAL_WORKER_DATABASE_ENV) go run ./cmd/worker
 
 # Serves the pages at http://127.0.0.1:8080 from the local rulemart database, connecting as rulemart_web as the
-# deployed function does.
+# deployed function does. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to sign in with a GitHub OAuth app.
 web:
 	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run ./cmd/web
+
+# Serves the pages as make web does, built with the dev sign-in, so a browser can sign in as a test user without
+# GitHub. Only this local build has it.
+web-dev:
+	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run -tags $(DEV_TAG) ./cmd/web
 
 clean:
 	rm -rf dist bin
