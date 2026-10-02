@@ -16,9 +16,9 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
-// The web function connects as the web role, which may read the catalog, its listings and stars, and the schema
-// version, through its membership in the catalog reader role, and write accounts, sessions, listings, stars, and
-// carts, through its membership in the accounts writer role, and nothing else.
+// The web function connects as the web role, which may read the catalog, its listings and rules' stars, and the
+// schema version, through its membership in the catalog reader role, and write accounts, sessions, listings, stars,
+// and carts, through its membership in the accounts writer role, and nothing else.
 func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRulesAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
@@ -57,9 +57,10 @@ func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRu
 		"find its listings":  `SELECT l.owner, l.name FROM listings l JOIN accounts a ON a.id = l.account_id`,
 		"try it again":       `UPDATE listings SET requested_at = now(), failure = NULL`,
 		"remove it":          `DELETE FROM listings WHERE name = 'gone'`,
-		"star a library":     `INSERT INTO stars (account_id, library_id) SELECT a.id, l.id FROM accounts a, libraries l`,
-		"count its stars":    `SELECT l.name, count(s.*) FROM libraries l LEFT JOIN stars s ON s.library_id = l.id GROUP BY l.name`,
-		"unstar it":          `DELETE FROM stars USING libraries l WHERE stars.library_id = l.id AND l.name = 'gone'`,
+		"star a rule":        `INSERT INTO rule_stars (account_id, rule_id) SELECT a.id, r.id FROM accounts a, rules r`,
+		"count its stars":    `SELECT r.path, count(s.*) FROM rules r LEFT JOIN rule_stars s ON s.rule_id = r.id GROUP BY r.path`,
+		"follow its line":    `SELECT p.path FROM rules r JOIN rules p ON p.library_id = r.library_id AND p.replaced_by = r.path`,
+		"unstar it":          `DELETE FROM rule_stars USING rules r WHERE rule_stars.rule_id = r.id AND r.path = 'gone'`,
 		"lock its cart":      `SELECT id FROM accounts FOR UPDATE`,
 		"add to its cart":    `INSERT INTO cart_items (account_id, library_id, kind, path) SELECT a.id, l.id, 'rule', 'techs/go/x' FROM accounts a, libraries l`,
 		"read its cart":      `SELECT c.path, l.name FROM cart_items c JOIN libraries l ON l.id = c.library_id`,
@@ -78,7 +79,8 @@ func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRu
 		"resolve a listing":      `UPDATE listings SET host_repository_id = '1'`,
 		"give a listing away":    `UPDATE listings SET account_id = NULL`,
 		"fake a check":           `UPDATE listings SET checked_at = now()`,
-		"backdate a star":        `UPDATE stars SET created_at = now() - interval '1 year'`,
+		"backdate a star":        `UPDATE rule_stars SET created_at = now() - interval '1 year'`,
+		"move a star":            `UPDATE rule_stars SET rule_id = rule_id + 1`,
 		"move a cart item":       `UPDATE cart_items SET path = 'techs/go/y'`,
 		"backdate a cart item":   `UPDATE cart_items SET added_at = now() - interval '1 year'`,
 		"empty the accounts":     `TRUNCATE accounts CASCADE`,
@@ -138,8 +140,9 @@ func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
 		"remove a listing":       `DELETE FROM listings`,
 		"give a listing away":    `UPDATE listings SET account_id = NULL`,
 		"rename a listing":       `UPDATE listings SET name = 'other'`,
-		"read the stars":         `SELECT count(*) FROM stars`,
-		"star a library":         `INSERT INTO stars (account_id, library_id) VALUES (1, 1)`,
+		"read the stars":         `SELECT count(*) FROM rule_stars`,
+		"star a rule":            `INSERT INTO rule_stars (account_id, rule_id) VALUES (1, 1)`,
+		"unstar a rule":          `DELETE FROM rule_stars`,
 		"read the carts":         `SELECT count(*) FROM cart_items`,
 	} {
 		_, err := conn.Exec(ctx, statement)
@@ -192,9 +195,9 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table library_groups SELECT",
 			"table library_releases SELECT",
 			"table listings SELECT",
+			"table rule_stars SELECT",
 			"table rule_versions SELECT",
 			"table rules SELECT",
-			"table stars SELECT",
 		},
 		postgrestest.CatalogWriterRole: {
 			"column listings.checked_at UPDATE",
@@ -241,12 +244,12 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table listings DELETE",
 			"table listings INSERT",
 			"table listings SELECT",
+			"table rule_stars DELETE",
+			"table rule_stars INSERT",
+			"table rule_stars SELECT",
 			"table sessions DELETE",
 			"table sessions INSERT",
 			"table sessions SELECT",
-			"table stars DELETE",
-			"table stars INSERT",
-			"table stars SELECT",
 		},
 	} {
 		if got := grants(role); !slices.Equal(got, want) {
