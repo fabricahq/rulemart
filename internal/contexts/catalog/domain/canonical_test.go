@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -28,12 +29,31 @@ func TestFindReturnsTheListsNameAndAnyIconForACanonicalID(t *testing.T) {
 	groups := newCanonicalGroups(t)
 
 	for id, want := range map[string]CanonicalGroup{
-		"techs/go":          {ID: "techs/go", Name: "Go", Icon: goIcon},
-		"practices/testing": {ID: "practices/testing", Name: "Testing"}, // canonical, without an icon
+		"techs/go":          {ID: "techs/go", Name: "Go", Description: "The Go language.", Icon: goIcon},
+		"practices/testing": {ID: "practices/testing", Name: "Testing", Description: "What to test."}, // canonical, without an icon
 	} {
 		if group, ok := groups.Find(id); !ok || group != want {
 			t.Errorf("Find(%q) = %+v, %v; want %+v", id, group, ok, want)
 		}
+	}
+}
+
+// Cross-library reads, such as search, pass the whole list as a parameter, in an order that doesn't depend on the
+// map that holds it.
+func TestAllReturnsEveryCanonicalGroupInIDOrder(t *testing.T) {
+	groups := newCanonicalGroups(t)
+
+	got := groups.All()
+
+	want := []CanonicalGroup{
+		{ID: "practices/testing", Name: "Testing", Description: "What to test."},
+		{ID: "techs/go", Name: "Go", Description: "The Go language.", Icon: goIcon},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if all := (CanonicalGroups{}).All(); len(all) != 0 {
+		t.Fatalf("the zero value holds %+v", all)
 	}
 }
 

@@ -14,6 +14,9 @@ import (
 // group, under the list's display name.
 type CanonicalGroup struct {
 	ID, Name string
+	// Description is the list's one line saying which rules belong in the group, which pages show rather than what
+	// any one library says about it.
+	Description string
 	// Icon is zero when Rulemart has no icon for the group.
 	Icon GroupIcon
 }
@@ -40,7 +43,7 @@ type CanonicalGroups struct {
 func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]GroupIcon) (CanonicalGroups, error) {
 	byID := make(map[string]CanonicalGroup, len(groups))
 	for _, g := range groups {
-		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Icon: icons[g.ID]}
+		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Description: g.Description, Icon: icons[g.ID]}
 	}
 	for _, id := range slices.Sorted(maps.Keys(icons)) {
 		if _, ok := byID[id]; !ok {
@@ -55,4 +58,13 @@ func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]Grou
 func (c CanonicalGroups) Find(id string) (CanonicalGroup, bool) {
 	g, ok := c.byID[id]
 	return g, ok
+}
+
+// All returns every group on the list, in ID order.
+func (c CanonicalGroups) All() []CanonicalGroup {
+	groups := make([]CanonicalGroup, 0, len(c.byID))
+	for _, id := range slices.Sorted(maps.Keys(c.byID)) {
+		groups = append(groups, c.byID[id])
+	}
+	return groups
 }
