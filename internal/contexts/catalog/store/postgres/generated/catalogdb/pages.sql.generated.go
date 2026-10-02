@@ -405,39 +405,27 @@ const searchRules = `-- name: SearchRules :many
 WITH search AS (
     SELECT websearch_to_tsquery('english', $2::text) AS query
 ),
-named_groups AS (
-    SELECT g.id,
-           setweight(to_tsvector('english',
+documents AS (
+    SELECT v.id, v.search_document || setweight(to_tsvector('english',
                coalesce(($3::text[])[array_position($4::text[], g.path)], '') || ' ' ||
-               split_part(g.path, '/', 2)), 'B') AS names
-    FROM library_groups g
-    JOIN libraries l ON l.id = g.library_id
-    WHERE l.host || ':' || l.host_repository_id = ANY ($5::text[])
-),
-matched AS (
-    SELECT v.id
-    FROM rule_versions v, search
-    WHERE v.html IS NOT NULL AND v.search_document @@ search.query
-    UNION
-    SELECT v.id
-    FROM named_groups g
-    JOIN rules r ON r.group_id = g.id
-    JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
-    CROSS JOIN search
-    WHERE g.names @@ search.query
+               split_part(g.path, '/', 2)), 'B') AS document
+    FROM rule_versions v
+    JOIN rules r ON r.id = v.rule_id
+    JOIN library_groups g ON g.id = r.group_id
+    JOIN libraries l ON l.id = r.library_id
+    WHERE v.html IS NOT NULL AND l.host || ':' || l.host_repository_id = ANY ($5::text[])
 )
 SELECT l.owner, l.name, l.owner_avatar_url, r.path, g.path AS group_path, v.title::text AS title,
        v.impact::text AS impact, v.when_to_read::text AS when_to_read, v.major, v.minor, v.patch,
        count(*) OVER () AS total
-FROM matched m
-JOIN rule_versions v ON v.id = m.id
+FROM documents d
+CROSS JOIN search
+JOIN rule_versions v ON v.id = d.id
 JOIN rules r ON r.id = v.rule_id
 JOIN library_groups g ON g.id = r.group_id
-JOIN named_groups ng ON ng.id = g.id
 JOIN libraries l ON l.id = r.library_id
-CROSS JOIN search
-ORDER BY ts_rank(v.search_document || ng.names, search.query) DESC, lower(v.title), lower(l.owner), lower(l.name),
-         r.path
+WHERE d.document @@ search.query
+ORDER BY ts_rank(d.document, search.query) DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
 LIMIT $1
 `
 
@@ -466,10 +454,10 @@ type SearchRulesRow struct {
 
 // SearchRules returns the vetted libraries' current rules that match query, best first, at most max_results of them,
 // each with how many matched in all. query is what a visitor typed, in websearch_to_tsquery's syntax, which accepts any
-// text. A rule matches through its search document or through its group's names: a canonical group's name on the list,
-// whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID, but never
-// what its library calls the group. It matches by text and by group name separately, so the first can use the search
-// documents' index. Equal ranks keep a stable order: by title, the library's owner and name, then rule ID.
+// text. A rule matches through its search document and its group's names together, so one word can match its text and
+// another its group: a canonical group's name on the list, whose IDs and names canonical_ids and canonical_names hold
+// in step, and the name part of any group's ID, but never what its library calls the group. Equal ranks keep a stable
+// order: by title, the library's owner and name, then rule ID.
 func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]SearchRulesRow, error) {
 	rows, err := q.db.Query(ctx, searchRules,
 		arg.MaxResults,

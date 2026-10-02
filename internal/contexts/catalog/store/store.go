@@ -39,10 +39,10 @@ type Reader interface {
 	// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in
 	// owner and name order, and each library's in title order. It's empty when no vetted library holds the group.
 	GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error)
-	// Search returns the vetted libraries' current rules that match query, best first, at most limit of them, with
-	// how many matched in all. A rule matches by its title, reading guidance, impact description, and body, and by
-	// its group's name: the name groups gives a canonical group, and the name part of any group's ID. It leaves each
-	// result's CanonicalGroup nil.
+	// Search returns the vetted libraries' current rules that match query, best first, at most limit of them, which
+	// must be at least 1, with how many matched in all. A rule matches by its title, reading guidance, impact
+	// description, and body, and by its group's name, together: the name groups gives a canonical group, and the name
+	// part of any group's ID. It leaves each result's CanonicalGroup nil.
 	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error)
 }
 

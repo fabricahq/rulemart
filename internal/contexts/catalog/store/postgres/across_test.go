@@ -144,6 +144,9 @@ func TestSearchMatchesGroupsByTheirCanonicalNameOrIDOnly(t *testing.T) {
 		"zebra": {},
 		// The group's kind isn't part of its name.
 		"techs": {},
+		// A query's words may match partly the rule's text and partly its group's name.
+		"retry go":                {"Beta/rules:techs/go/name-packages-plainly"},
+		`"retry" golang -context`: {},
 	} {
 		if got := sourceIDs(search(t, reader, query)); !slices.Equal(got, want) {
 			t.Errorf("%q found %q, want %q", query, got, want)
@@ -192,6 +195,17 @@ func TestSearchReturnsTheBestMatchesUpToItsLimitAndCountsThemAll(t *testing.T) {
 // Every vetted library's groups are listed, each with the library that holds it, in path order and then the
 // library's owner and name without regard to case. A group whose rules are all retired, and an unvetted library's
 // groups, aren't.
+// The limit bounds the results a page shows, so a search for none is a mistake, not an empty page with a total.
+func TestSearchRefusesALimitBelowOne(t *testing.T) {
+	reader := newLibraries(t)
+
+	for _, limit := range []int{0, -1} {
+		if _, err := reader.Search(context.Background(), vettedBoth, canonicalGroups, domain.ParseSearchQuery("retry"), limit); err == nil {
+			t.Errorf("searched with limit %d", limit)
+		}
+	}
+}
+
 func TestGroupsListEachVettedLibrarysGroupsWithCurrentRules(t *testing.T) {
 	reader := newLibraries(t)
 

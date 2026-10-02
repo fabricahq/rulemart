@@ -68,9 +68,13 @@ func (s *Store) GroupRules(ctx context.Context, vetted []domain.LibraryKey, path
 }
 
 // Search returns the vetted libraries' current rules that match query, best first, at most limit of them, with how
-// many matched in all, matching groups by the names groups gives them. Its errors never include the query, which
+// many matched in all, matching groups by the names groups gives them. limit must be at least 1, since the total
+// comes with the results. Its errors never include the query, which
 // comes from a visitor.
 func (s *Store) Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit int) (views.SearchResults, error) {
+	if limit < 1 {
+		return views.SearchResults{}, fmt.Errorf("search rules: limit %d is below 1", limit)
+	}
 	params := catalogdb.SearchRulesParams{
 		Query: query.String(), Vetted: vettedKeys(vetted), MaxResults: int32(limit),
 		CanonicalIds: make([]string, len(groups)), CanonicalNames: make([]string, len(groups)),

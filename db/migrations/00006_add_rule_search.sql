@@ -15,11 +15,13 @@ ALTER TABLE rule_versions ADD COLUMN search_document tsvector GENERATED ALWAYS A
     setweight(to_tsvector('english', left(coalesce(markdown, ''), 100000)), 'D')
 ) STORED;
 
--- Only the current version of a current rule has content, and only those are searched.
-CREATE INDEX rule_versions_search_document ON rule_versions USING gin (search_document) WHERE html IS NOT NULL;
+-- Search matches each document together with its group's names, which it adds as it reads, so an index on the
+-- document alone couldn't find a rule whose words are split between them. Search reads the stored documents of the
+-- vetted libraries' current rules instead: about 2 ms for production's 133. An index waits until measurement shows
+-- search is slow.
 
 -- rulemart_catalog_reader reads the new column through its SELECT on rule_versions, which 00003 grants, and
--- rulemart_catalog_writer never writes it: Postgres does. An index needs no grant.
+-- rulemart_catalog_writer never writes it: Postgres does.
 
 -- +goose Down
 -- Up-only migration; no rollback defined.

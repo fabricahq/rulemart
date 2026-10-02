@@ -45,10 +45,10 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   generates from the row: the title weighted A, the reading guidance and impact description B, and the Markdown body
   D, all stemmed with the `english` configuration. Each part is cut to a fixed length first (1,000, 10,000, and
   100,000 characters), because a vector holds at most 1 MB and a rule file may hold 1 MiB: an uncut rule could fail
-  its library's ingestion. A partial GIN index covers the current versions, the only rows with content.
-- **Group names. Proposed.** A rule also matches its group's name: a canonical group's name from the canonical list
-  and the name part of its ID, such as `go` in `techs/go`, and any other group's ID, weighted B. Never the name a
-  library declares for its group (**Existing**: pages never show it). Search reads the list when it runs, as a
+  its library's ingestion.
+- **Group names. Proposed.** A rule matches its text and its group's name together, so `retry go` finds a Go rule
+  whose text says retry. A group's name is the canonical list's name for a canonical group, and the name part of any
+  group's ID, such as `go` in `techs/go`, weighted B. Never the name a library declares for its group (**Existing**: pages never show it). Search reads the list when it runs, as a
   parameter, as other cross-library reads do (**Existing**: canonical status is decided when pages read), so the
   names aren't stored and a release that moves the pin changes search at once.
 - **Ranking. Proposed.** Results are ordered by `ts_rank` over the document and the group names, then by title, then
@@ -60,8 +60,9 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 - **Results. Proposed.** A search shows at most the 50 best matches, and says how many matched in all. Paging
   through more waits until the catalog needs it. Each result shows its title, impact, reading guidance, library,
   group, and version.
-- **Cost. Proposed.** On production's two libraries, 133 rules, a search runs in about 2 ms in Postgres, and the
-  text match uses the index. The group-name match reads every vetted group, a few dozen rows.
+- **Cost. Proposed.** Search reads the stored documents of every vetted library's current rules, since an index on
+  the document alone can't find a rule whose words are split between its text and its group. On production's two
+  libraries, 133 rules, that takes about 2 ms in Postgres. An index waits until measurement shows search is slow.
 - **Vetted libraries only. Existing.** Search reads only the libraries in the release's `catalog/vetted.yaml`.
 
 ### Browsing
@@ -110,13 +111,12 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 
 ### Database
 
-- **Migration 00006 only adds. Existing rule, Proposed content.** It adds a generated column and an index, which the
+- **Migration 00006 only adds. Existing rule, Proposed content.** It adds a generated column, which the
   running v0.1.0 never names: its queries list their columns, and Postgres fills the generated column on every
   insert and update, so the release that's still running keeps ingesting while this one migrates. Adding the column
   rewrites `rule_versions` under a brief exclusive lock, milliseconds at this size.
 - **No new grants. Proposed.** `rulemart_catalog_reader` reads the new column through its `SELECT` on
-  `rule_versions` (**Existing**, migration 00003), `rulemart_catalog_writer` never writes it, and an index needs no
-  grant. Tests read as `rulemart_web` and ingest as `rulemart_worker`, so a missing grant would fail them.
+  `rule_versions` (**Existing**, migration 00003), and `rulemart_catalog_writer` never writes it. Tests read as `rulemart_web` and ingest as `rulemart_worker`, so a missing grant would fail them.
 
 ## Verification
 
