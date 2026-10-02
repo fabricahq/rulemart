@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
@@ -229,8 +230,8 @@ func (w *worker) parseJob(body string) (domain.LibraryKey, error) {
 	if err := decoder.Decode(&j); err != nil {
 		return domain.LibraryKey{}, fmt.Errorf("decode job: %v", err)
 	}
-	if decoder.More() {
-		return domain.LibraryKey{}, errors.New("decode job: expected one JSON object")
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return domain.LibraryKey{}, errors.New("decode job: expected one JSON object and nothing after it")
 	}
 	library := domain.LibraryKey{Host: j.Host, RepositoryID: j.RepositoryID}
 	if !slices.Contains(w.vetted, library) {

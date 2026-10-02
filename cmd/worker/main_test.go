@@ -130,6 +130,8 @@ func TestHandleRefusesAJobItDoesntTrust(t *testing.T) {
 		"no repository ID":            `{"host":"github"}`,
 		"not JSON":                    `hello`,
 		"two jobs":                    `{"host":"github","repositoryID":"42"}{"host":"github","repositoryID":"43"}`,
+		"two jobs apart":              `{"host":"github","repositoryID":"42"} {"host":"github","repositoryID":"43"}`,
+		"trailing text":               `{"host":"github","repositoryID":"42"}]`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			updater := &fakeUpdater{}
