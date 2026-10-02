@@ -18,7 +18,7 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
        ref: release/1
    ```
 
-   If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
+   If a source already imports one of these repositories, add the groups and rules to that source, under its name, instead of adding the repository again, leaving out any rule whose group it selects already, and ask me before you change its `ref`. If another repository's source has one of these names, pick a name no source has.
 4. Run `code-rules project sync`, then `code-rules project check`. If either fails, show me its error rather than working around it.
 5. Check that the generated rules include what I picked, by these source-qualified rule IDs, with your source names if you changed them:
    - every rule of group `practices/testing` of `fabricahq/public-rules`, whose IDs start with `public-rules:practices/testing/`
@@ -27,4 +27,4 @@ Each library below is pinned with `ref` to the library release I saw on Rulemart
 6. If `AGENTS.md`, `CLAUDE.md`, or the instruction file you read doesn't point to `.code-rules/generated/RULES.md` yet, add the section that `.code-rules/README.md` gives under "Connect your coding agent".
 7. Tell me what you changed. Don't commit unless I ask; when I do, commit `.code-rules/` and the instruction file together.
 
-To upgrade a library later, change its `ref` to a newer release's tag, such as `release/2`, and run `code-rules project sync`. To follow each rule's newest version instead, delete its `ref` line and run `code-rules project sync`; from then on, `code-rules project update` previews newer versions and applies them once I confirm.
+To upgrade a library later, change its `ref` to the tag of a later library release, `release/` and a higher number, and run `code-rules project sync`. To follow each rule's newest version instead, delete its `ref` line and run `code-rules project sync`; from then on, `code-rules project update` previews newer versions and applies them once I confirm.

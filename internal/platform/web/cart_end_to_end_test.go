@@ -83,10 +83,10 @@ changes:
 	post(cartPath("/account/cart", clone(errorsItem), errorsRule))
 	post(cartPath("/account/cart", url.Values{"library": {"Example/Rules"}, "rule": {"Practices/Testing/Verify-Retries"}}, ""))
 
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: errorsRule, cookies: first})), "In your cart. See your cart")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: errorsRule, cookies: first})), "Included with its group (in cart)")
+	// The group took the place of the rule it covers, so the cart holds the group and the other rule.
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/cart", cookies: first})),
-		"Go techs/go · 2 rules", "Return errors techs/go/return-errors Included with its group, techs/go.",
-		"Verify retries practices/testing/verify-retries", "3 items")
+		"Go techs/go · 2 rules", "Verify retries practices/testing/verify-retries", "2 items")
 	checkout := body(t, send(t, handler, request{method: http.MethodGet, target: "/account/cart/checkout", cookies: first}))
 	assertShows(t, checkout, "example/rules 1 group and 1 rule, pinned to release/1 Source rules")
 	config := "sources:\n  rules:\n    repository: https://github.com/example/rules.git\n    groups:\n      - techs/go\n" +
@@ -94,7 +94,7 @@ changes:
 	if !strings.Contains(checkout, config) {
 		t.Errorf("checkout lacks the configuration\n%s", config)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/cart", cookies: second})), "Your cart is empty.")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/cart", cookies: second})), "There's nothing in your cart.")
 
 	if resp := send(t, handler, request{method: http.MethodPost, target: "/account/delete", cookies: first}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("deleting the account answered %d", resp.StatusCode)

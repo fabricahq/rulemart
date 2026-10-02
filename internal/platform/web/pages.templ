@@ -186,7 +186,7 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 				</div>
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
 					if lib.cart.shown {
-						@cartButton(lib.cart, "Add library to cart")
+						@cartButton(lib.cart)
 					}
 					if lib.star.shown {
 						@starControl(lib.star)
@@ -260,7 +260,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 						if g.cart.shown {
 							// As wide as In cart, so every row's count lines up whichever its control reads.
 							<div class="relative z-10 flex justify-end narrow:min-w-[5.25rem] max-narrow:col-span-full max-narrow:row-start-3 max-narrow:justify-start max-narrow:pl-10">
-								@cartButton(g.cart, "Add")
+								@cartButton(g.cart)
 							</div>
 						}
 					</div>
@@ -273,15 +273,20 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {
-		<h2 class="mt-8 mb-3 flex scroll-mt-20 items-center gap-2 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first:mt-0" id={ g.anchor }>
-			@groupTile(g.label, g.icon, tileXS)
-			if g.label.canonical {
-				<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
-			} else {
-				<span class="mono tracking-normal normal-case">{ g.label.id }</span>
-				@notCanonical(flagSM)
+		<div class="mt-8 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-0.5 pb-[7px] first:mt-0">
+			<h2 class="flex scroll-mt-20 items-center gap-2 text-[11px] tracking-[.1em] text-faint uppercase" id={ g.anchor }>
+				@groupTile(g.label, g.icon, tileXS)
+				if g.label.canonical {
+					<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
+				} else {
+					<span class="mono tracking-normal normal-case">{ g.label.id }</span>
+					@notCanonical(flagSM)
+				}
+			</h2>
+			if g.cart.shown {
+				@cartButton(g.cart)
 			}
-		</h2>
+		</div>
 		@ruleCards() {
 			for _, r := range g.rules {
 				@ruleCardLink(r)
@@ -382,7 +387,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					</div>
 				</div>
 				if r.cart.shown {
-					@cartButton(r.cart, "Add to cart")
+					@cartButton(r.cart)
 				}
 			</div>
 			if r.retired == nil {
