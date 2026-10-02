@@ -301,7 +301,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, section: kindOf(g.label.id).href(), notice: g.notice, noticeAction: groupOffer(g)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: g.label.name + " rules · Rulemart", description: g.description, notice: g.notice, noticeAction: groupOffer(g)}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -568,15 +568,15 @@ func TestBrowsePagesAreCacheableForAMinute(t *testing.T) {
 	}
 }
 
-// The header links techs, practices, the libraries, and the FAQ from every page, and marks the part of the site a
-// page belongs to.
-func TestHeaderMarksThePartOfTheSiteAPageBelongsTo(t *testing.T) {
+// The header links techs, practices, the libraries, and the FAQ from every page, and marks one current only on its
+// own pages: a library's, a rule's, a group's, or an owner's page marks none, as the prototype's don't.
+func TestHeaderMarksALinkCurrentOnlyOnItsOwnPages(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
 	for path, current := range map[string]string{
-		"/libraries": "/libraries", library: "/libraries", errorsRule: "/libraries",
-		"/browse/techs": "/browse/techs", "/browse/techs/other": "/browse/techs", "/g/techs/go": "/browse/techs",
-		"/browse/practices": "/browse/practices", "/g/practices/accessibility": "/browse/practices",
+		"/libraries": "/libraries", library: "", errorsRule: "", library + "?tab=releases": "", "/example": "",
+		"/browse/techs": "/browse/techs", "/browse/techs/other": "/browse/techs", "/g/techs/go": "",
+		"/browse/practices": "/browse/practices", "/g/practices/accessibility": "",
 		"/faq": "/faq", "/": "", "/search": "", "/feedback": "",
 	} {
 		page := get(t, handler, path).Body.String()

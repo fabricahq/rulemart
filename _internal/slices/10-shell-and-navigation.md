@@ -124,6 +124,10 @@ decision.
   and R7 fold them into the dashboard. The prototype's Dashboard and Starred rules would open pages titled "Account"
   and "Your stars", which lists starred libraries, so the menu names the pages as they are; slices R3 and R7 restore
   the prototype's names when the pages become those.
+- **Proposed: the header marks a link current only on its own pages**: a kind's browse page and its other groups, the
+  libraries page, and the FAQ, as the prototype does, and the cart marks its icon. A library's, a rule's, a group's,
+  or an owner's page marks none, as in the prototype, and so do the unvetted libraries page and the page that lists a
+  library, which the prototype doesn't have.
 - **Proposed: `/` focuses the header's search field**, as the prototype, when nothing else has focus; the small script
   that closes menus gains that.
 - **Proposed: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a

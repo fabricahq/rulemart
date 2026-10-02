@@ -40,9 +40,6 @@ func TestOwnerPageShowsTheOwnersVettedLibraries(t *testing.T) {
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/example"}) {
 		t.Errorf("names %q as canonical", got)
 	}
-	if !strings.Contains(page, `href="/libraries" aria-current="true"`) {
-		t.Error("the header doesn't mark Libraries current")
-	}
 }
 
 // An owner has a page only with a vetted library: a listed, unvetted library gives its owner none, so listing a

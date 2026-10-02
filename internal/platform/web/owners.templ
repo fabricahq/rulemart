@@ -7,7 +7,7 @@ import "strconv"
 // ownerPage shows an owner's avatar, their login, their GitHub address, and their vetted libraries as the libraries
 // page lists them.
 templ ownerPage(c chrome, v ownerView) {
-	@layout(c, head{title: v.login + " · Rulemart", description: "The Code Rules libraries " + v.login + " publishes on Rulemart: " + plural(len(v.libraries), "vetted library", "vetted libraries") + " of engineering rules for coding agents.", section: librariesHref}) {
+	@layout(c, head{title: v.login + " · Rulemart", description: "The Code Rules libraries " + v.login + " publishes on Rulemart: " + plural(len(v.libraries), "vetted library", "vetted libraries") + " of engineering rules for coding agents."}) {
 		<div class="page wrap">
 			<div class="flex flex-nowrap items-start gap-[18px]">
 				@avatar(v.avatar, v.login, avatarXL)

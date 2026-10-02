@@ -47,8 +47,8 @@ type head struct {
 	// unvetted marks a page about a library that isn't vetted, which asks search engines neither to index it nor to
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
-	// section is the header's link to the part of the site the page belongs to: a kind's browse page, librariesHref,
-	// or faqHref, or empty.
+	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
+	// librariesHref, or faqHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
 	// searchPage leaves the header's search field out, keeping its space, since the page holds its own.
 	searchPage bool
@@ -635,8 +635,8 @@ func header(h head) templ.Component {
 	})
 }
 
-// navLink is a header link to a part of the site, underlined as current on every page of section, since each
-// belongs to the part it links. The links hide below the wide breakpoint, as the prototype's do.
+// navLink is a header link to a part of the site, underlined as current on that part's own page, which section names,
+// as the prototype's are. The links hide below the wide breakpoint, as the prototype's do.
 func navLink(href, name, section string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

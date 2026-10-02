@@ -247,7 +247,7 @@ func libraryPage(c chrome, lib libraryView, contents libraryContents, current li
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), section: librariesHref}, lib, current, true).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, current, true).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1126,7 +1126,7 @@ func rulePage(c chrome, r ruleView, current ruleTab) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = ruleFrame(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.summary(), section: librariesHref}, r, current).Render(templ.WithChildren(ctx, templ_7745c5c3_Var47), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = ruleFrame(c, head{title: r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", description: r.summary()}, r, current).Render(templ.WithChildren(ctx, templ_7745c5c3_Var47), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

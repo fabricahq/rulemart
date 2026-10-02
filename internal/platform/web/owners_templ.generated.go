@@ -146,7 +146,7 @@ func ownerPage(c chrome, v ownerView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: v.login + " · Rulemart", description: "The Code Rules libraries " + v.login + " publishes on Rulemart: " + plural(len(v.libraries), "vetted library", "vetted libraries") + " of engineering rules for coding agents.", section: librariesHref}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: v.login + " · Rulemart", description: "The Code Rules libraries " + v.login + " publishes on Rulemart: " + plural(len(v.libraries), "vetted library", "vetted libraries") + " of engineering rules for coding agents."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
