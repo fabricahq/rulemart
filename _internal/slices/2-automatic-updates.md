@@ -74,6 +74,28 @@ invocation, at most two at once.
   grants nothing on `hello_messages`, and nothing that changes the schema.
 - The worker connects as `rulemart_worker`, and reads no other parameter. Only migrations still need the owner.
 
+**What the worker logs.** **Proposed:** the worker writes JSON lines with Go's `slog`, under snake_case keys that
+mean the same on every line, so CloudWatch Logs Insights can group by them. It never logs a connection string or a
+token.
+
+- One line per job: `ingested library`, `library unchanged`, or `job failed`, each with `outcome` (`ingested`,
+  `unchanged`, or `failed`), `message_id`, and `duration_ms`, from the job's start to its end, and with `host` and
+  `repository` once the job names a library. `ingested library` adds `full_name`, `releases`, `rules`,
+  `rows_changed`, and how long listing the tags and ingesting took, in `list_ms` and `ingest_ms`. `library
+  unchanged` adds `list_ms`, and `job failed` adds `error`.
+- One `batch processed` line per SQS batch, with `jobs`, the count of each outcome under its name, and
+  `duration_ms`.
+- One `poll queued` line per scheduled invocation, with `libraries`, `queued`, `queue_failures`, and `duration_ms`.
+
+Failures and p95 job duration by library, in `/aws/lambda/rulemart-worker` with the time range set to the last
+week. `strcontains` returns 1 or 0, so its sum counts the failed jobs:
+
+```text
+filter ispresent(outcome)
+| stats sum(strcontains(outcome, "failed")) as failures, pct(duration_ms, 95) as p95_ms, count(*) as jobs by host, repository
+| sort failures desc, p95_ms desc
+```
+
 **Operator command.** **Proposed:** `cmd/ingest <repository URL>` stays, for local development and backfills,
 including libraries not yet vetted. `make ingest` connects as `rulemart_worker` locally, as `make web` connects as
 `rulemart_web`, and `make db` creates both new roles. A production backfill sets
