@@ -54,8 +54,9 @@ func (c catalog) HomePage(context.Context) (views.HomePage, error) {
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
 
+// GroupPage matches id without regard to case, as app.Pages does.
 func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error) {
-	page, ok := c.groups[id]
+	page, ok := c.groups[strings.ToLower(id)]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load group: %w", app.ErrNotFound)
 	}

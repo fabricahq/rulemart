@@ -126,7 +126,26 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(mux)), nil
+	return s.logRequests(withSecurityHeaders(withoutTrailingSlash(mux))), nil
+}
+
+// withoutTrailingSlash redirects a path that ends with a slash, such as /groups/, to the same path without it,
+// keeping the query, since no page's address ends with one. A path whose trimmed form starts with two slashes, or a
+// slash and a backslash, would name another host, so next answers it: the mux cleans it to a path on this site.
+func withoutTrailingSlash(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.EscapedPath()
+		trimmed := strings.TrimRight(path, "/")
+		if trimmed == path || trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, `/\`) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		target := trimmed
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+	})
 }
 
 func (s *server) home(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +167,8 @@ func (s *server) groups(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) group(w http.ResponseWriter, r *http.Request) {
-	page, err := s.catalog.GroupPage(r.Context(), r.PathValue("kind")+"/"+r.PathValue("name"))
+	id := r.PathValue("kind") + "/" + r.PathValue("name")
+	page, err := s.catalog.GroupPage(r.Context(), id)
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
 		return
@@ -158,6 +178,14 @@ func (s *server) group(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := newGroupPageView(page, s.assets.iconURL)
+	if page.Path != id {
+		target := view.href
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+		return
+	}
 	s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 }
 

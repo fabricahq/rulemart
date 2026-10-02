@@ -94,6 +94,11 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   `groups` and `search` aren't GitHub accounts, and `/search` has one segment, so it can't shadow a library. A
   vetting review would notice a library owned by a future `groups` account, which would then need host-qualified
   URLs (**Existing**: the routing decision for a second host).
+- **One address per page. Proposed.** No page's address ends with a slash, so a path with one, such as `/groups/`,
+  `/search/?q=retry`, or `/fabricahq/public-rules/`, redirects permanently to the path without it, keeping the query.
+  A group's ID matches without regard to case, as a library's owner and name already do, and `/groups/Techs/GO`
+  redirects to the canonical list's spelling, `/groups/techs/go`. A path that starts with two slashes never redirects
+  off the site: Go's router cleans it first.
 - **Only canonical groups have a page across libraries. Proposed.** The canonical list names the groups libraries
   share; a group whose ID isn't on it stands alone (**Existing**). So `/groups/techs/golang` is a missing page, and
   the index lists a group that isn't canonical once per library, flagged "not canonical", linking to that library's

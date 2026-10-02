@@ -227,7 +227,7 @@ func TestGroupPageSaysWhenNoLibraryHoldsTheGroup(t *testing.T) {
 func TestGroupPageAnswersNotFoundForAGroupThatIsntCanonical(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
 
-	for _, path := range []string{"/groups/techs/golang", "/groups/Techs/Go", "/groups/techs"} {
+	for _, path := range []string{"/groups/techs/golang", "/groups/Techs/Golang", "/groups/techs"} {
 		if resp := get(t, handler, path); resp.Code != http.StatusNotFound {
 			t.Errorf("%s: got %d", path, resp.Code)
 		}
@@ -490,5 +490,37 @@ func TestSearchFailureLeavesTheQueryOutOfTheLogs(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `"route":"/search"`) || strings.Contains(logs.String(), "private") {
 		t.Fatalf("the logs are %s", logs)
+	}
+}
+
+// Each page has one address: a group's ID in another case, and a path with a trailing slash, redirect to it,
+// keeping the query, as a library's other spellings do.
+func TestPagesRedirectOtherSpellingsOfTheirAddress(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, location := range map[string]string{
+		"/groups/Techs/GO":                       "/groups/techs/go",
+		"/groups/techs/Go?ref=x":                 "/groups/techs/go?ref=x",
+		"/groups/":                               "/groups",
+		"/search/?q=errors&page=2":               "/search?q=errors&page=2",
+		"/example/rules/":                        "/example/rules",
+		"/example/rules/?tab=rules":              "/example/rules?tab=rules",
+		"/example/rules/techs/go/return-errors/": "/example/rules/techs/go/return-errors",
+		"/groups/techs/go///":                    "/groups/techs/go",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+			t.Errorf("%s: got %d to %q, want 301 to %q", path, resp.Code, resp.Header().Get("Location"), location)
+		}
+	}
+	// A path that starts with slashes never redirects to another host.
+	for _, path := range []string{"//example.com/", "///example.com/", "/\\example.com/", "//example.com//"} {
+		location := get(t, handler, path).Header().Get("Location")
+		if strings.HasPrefix(location, "//") || strings.HasPrefix(location, "/\\") || strings.Contains(location, "://") {
+			t.Errorf("%s redirects to %q", path, location)
+		}
+	}
+	if resp := get(t, handler, "/"); resp.Code != http.StatusOK {
+		t.Errorf("/: got %d", resp.Code)
 	}
 }

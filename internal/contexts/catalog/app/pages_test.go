@@ -169,6 +169,18 @@ func TestGroupPageReadsACanonicalGroupsRulesInEveryLibrary(t *testing.T) {
 	}
 }
 
+// An address may spell a group's ID in any case; the page names the list's spelling, so the site can redirect to it.
+func TestGroupPageMatchesTheIDWithoutRegardToCase(t *testing.T) {
+	r := &reads{}
+	pages := app.Pages{Store: r, Groups: canonicalList(t)}
+
+	got, err := pages.GroupPage(context.Background(), "Techs/GO")
+
+	if err != nil || got.Path != "techs/go" || got.Canonical.Name != "Go" || !slices.Equal(r.ruleReads, []string{"techs/go"}) {
+		t.Fatalf("got %+v, %v; want techs/go", got, err)
+	}
+}
+
 // A canonical group no vetted library holds yet still has its page, which says so.
 func TestGroupPageOfACanonicalGroupNoLibraryHoldsHasNoLibraries(t *testing.T) {
 	pages := app.Pages{Store: &reads{}, Groups: canonicalList(t)}
@@ -186,7 +198,7 @@ func TestGroupPageRefusesAGroupThatIsntCanonical(t *testing.T) {
 	r := &reads{}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 
-	for _, id := range []string{"techs/golang", "techs/Go", "techs/go/return-errors", "techs", ""} {
+	for _, id := range []string{"techs/golang", "techs/go/return-errors", "techs", ""} {
 		if _, err := pages.GroupPage(context.Background(), id); !errors.Is(err, app.ErrNotFound) {
 			t.Errorf("%q: got %v, want app.ErrNotFound", id, err)
 		}

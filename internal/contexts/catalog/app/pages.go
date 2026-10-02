@@ -119,18 +119,19 @@ func (p Pages) summarize(groups []views.LibraryGroup) []views.GroupSummary {
 	return append(canonical, others...)
 }
 
-// GroupPage returns the canonical group id with its current rules in every vetted library that holds it, or
-// ErrNotFound when id isn't on the canonical group list: any other group stands alone, on its library's page.
+// GroupPage returns the canonical group id, matched without regard to case, with its current rules in every vetted
+// library that holds it, or ErrNotFound when id isn't on the canonical group list: any other group stands alone, on
+// its library's page. The page's Path is the list's spelling of the ID.
 func (p Pages) GroupPage(ctx context.Context, id string) (views.GroupPage, error) {
-	c := p.canonical(id)
-	if c == nil {
+	g, ok := p.Groups.FindIgnoringCase(id)
+	if !ok {
 		return views.GroupPage{}, fmt.Errorf("load group: %w", ErrNotFound)
 	}
-	libraries, err := p.Store.GroupRules(ctx, p.Vetted, id)
+	libraries, err := p.Store.GroupRules(ctx, p.Vetted, g.ID)
 	if err != nil {
 		return views.GroupPage{}, err
 	}
-	return views.GroupPage{Path: id, Canonical: *c, Libraries: libraries}, nil
+	return views.GroupPage{Path: g.ID, Canonical: *p.canonical(g.ID), Libraries: libraries}, nil
 }
 
 // Search returns page, counted from 1, of the vetted libraries' current rules that best match query, SearchPageSize
