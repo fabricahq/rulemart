@@ -52,7 +52,10 @@ func (s *Store) CreateListing(ctx context.Context, vetted []domain.LibraryKey, a
 			if isUniqueViolation(err) {
 				return &store.ListingConflict{}
 			}
-			return err
+			if err != nil {
+				return err
+			}
+			return q.RecordListingRequest(ctx, accountID)
 		})
 	})
 	if err != nil {
@@ -83,6 +86,20 @@ func checkListing(ctx context.Context, q *catalogdb.Queries, vetted []domain.Lib
 		return store.ErrAccountListingLimit
 	case counts.AllListings >= domain.MaxUnvettedListings:
 		return store.ErrListingsFull
+	}
+	return checkRequests(ctx, q, accountID)
+}
+
+// checkRequests returns why the account can't ask the worker for another check now, or nil when it can.
+func checkRequests(ctx context.Context, q *catalogdb.Queries, accountID int64) error {
+	requests, err := q.CountListingRequests(ctx, accountID)
+	switch {
+	case err != nil:
+		return fmt.Errorf("count listing requests: %v", err)
+	case requests.AccountRequests >= domain.MaxAccountListingRequests:
+		return store.ErrListingTooOften
+	case requests.AllRequests >= domain.MaxListingRequestsPerHour:
+		return store.ErrListingsBusy
 	}
 	return nil
 }
@@ -123,11 +140,32 @@ func (s *Store) RemoveListing(ctx context.Context, accountID, id int64) error {
 }
 
 // RetryListing asks the worker to check the account's listing id again, or fails with store.ErrNotFound when the
-// account has no such listing, or its last check didn't fail.
+// account has no such listing, or its last check didn't fail, or as checkRequests does. It holds the lock every
+// listing takes, as CreateListing does.
 func (s *Store) RetryListing(ctx context.Context, accountID, id int64) error {
-	return s.changeListing(ctx, "retry", accountID, id, func(q *catalogdb.Queries) (int64, error) {
-		return q.RetryListing(ctx, catalogdb.RetryListingParams{ID: id, AccountID: accountID})
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		return pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			q := catalogdb.New(tx)
+			if err := q.LockListings(ctx); err != nil {
+				return fmt.Errorf("lock listings: %v", err)
+			}
+			retried, err := q.RetryListing(ctx, catalogdb.RetryListingParams{ID: id, AccountID: accountID})
+			switch {
+			case err != nil:
+				return err
+			case retried == 0:
+				return store.ErrNotFound
+			}
+			if err := checkRequests(ctx, q, accountID); err != nil {
+				return err
+			}
+			return q.RecordListingRequest(ctx, accountID)
+		})
 	})
+	if err != nil {
+		return fmt.Errorf("retry listing id=%d accountID=%d: %w", id, accountID, err)
+	}
+	return nil
 }
 
 // changeListing runs change, which returns how many listings it changed, and fails with store.ErrNotFound when it

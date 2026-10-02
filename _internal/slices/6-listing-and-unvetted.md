@@ -92,8 +92,12 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 - **Proposed: the lister can remove their listing at any time.** It deletes the row; the library leaves the unvetted
   area, and the worker stops checking it. Its catalog rows stay, since neither function can delete a library, and a
   later listing reuses them without ingesting again. Removing a vetted library's listing changes nothing visible.
-- **Proposed: deleting an account keeps its listings, no longer linked to it**, as slice 5 proposed for listed
-  libraries. `listings.account_id` is `ON DELETE SET NULL`, and the account page says so before deleting.
+- **Proposed: deleting an account removes its listings**, which reverses slice 5's proposal that a listed library
+  should stay listed. Kept listings would still count toward Rulemart's cap of 500, and signing in again starts a new
+  account with a fresh allowance of 5, so one GitHub user could list, delete, and repeat until nobody could list.
+  Removing them keeps "Rulemart deletes everything it keeps about you" true too. A vetted library stays vetted,
+  since vetting is `vetted.yaml`'s; an unvetted one leaves the site until someone lists it again. The account page
+  says so before deleting. Codex's review found this.
 - **Proposed: an operator removes an abusive listing with SQL**, `DELETE FROM listings WHERE id = ...`, as the
   database's owner. A report button can come later.
 
@@ -128,9 +132,12 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 - **Existing: ingestion never executes library content.** It reads Git objects with go-git, parses YAML and Markdown,
   and renders rules with raw HTML escaped and dangerous links dropped, under the pages' content security policy. This
   slice adds nothing that runs a library's files.
-- **Proposed: no rate limit on listing beyond the caps for now.** Each listing needs a session, and listing again a
-  library the catalog already stores costs one tag listing, since its tags are unchanged. A CloudFront WAF rate rule
-  on `POST` is the next step, as slice 5 says.
+- **Proposed: an account lists or retries at most 20 times a day, and every account together at most 100 times an
+  hour.** Each listing and retry queues a check, and one that isn't resolved yet costs a GitHub API call, so the caps
+  on listings held don't bound the work: removing and listing again, or retrying, would. `listing_requests` keeps
+  each request for a day, and it outlives a deleted account, unlinked, so the hourly cap holds however many
+  accounts ask. Past either, `/list` and Try again say when to come back. A CloudFront WAF rate rule on `POST` is
+  the next step if abuse appears, as slice 5 says.
 
 ### The worker, GitHub, and cost
 
@@ -159,12 +166,13 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 
 ### Data and roles
 
-- **Proposed: migration 00010 adds `listings`**: the account that listed it, nullable once deleted; the host and the
+- **Proposed: migration 00010 adds `listings` and `listing_requests`**: for a listing, the account that listed it; the host and the
   `owner` and `name` the lister gave; the repository ID once resolved; when it was listed, last asked for a check,
-  and last checked; and why the last check failed. It only adds a table, which the release still running doesn't read.
+  and last checked; and why the last check failed. For a request, the account and when, for a day. It only adds
+  tables, which the release still running doesn't read.
 - **Proposed: no new role.** Slice 5 said to grant new tables the web function writes to `rulemart_accounts_writer`,
   and a listing is an account's. It gets `SELECT`, `INSERT`, and `DELETE`, and `UPDATE` of only `requested_at` and
-  `failure`, to try again. `rulemart_catalog_reader` gets `SELECT`, which pages read to find listed libraries.
+  `failure`, to try again, and `SELECT`, `INSERT`, and `DELETE` on `listing_requests`. `rulemart_catalog_reader` gets `SELECT`, which pages read to find listed libraries.
   `rulemart_catalog_writer` gets `SELECT`, and `UPDATE` of only `host_repository_id`, `checked_at`, and `failure`: the
   worker can't change who listed a library, or list one. Neither catalog role gets anything new on `accounts`.
 

@@ -10,8 +10,9 @@
 
 CREATE TABLE listings (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- The account that listed the library, or NULL once that account is deleted: a listed library stays listed.
-    account_id bigint REFERENCES accounts ON DELETE SET NULL,
+    -- The account that listed the library. Deleting the account removes its listings, so its listings stop counting
+    -- toward Rulemart's limit, and a vetted library stays vetted, since vetting is catalog/vetted.yaml's.
+    account_id bigint NOT NULL REFERENCES accounts ON DELETE CASCADE,
     host text NOT NULL CHECK (host IN ('github')),
     -- The repository's owner and name as the lister gave them, which GitHub's names allow.
     owner text NOT NULL CHECK (owner ~ '^[A-Za-z0-9-]{1,39}$'),
@@ -34,7 +35,19 @@ CREATE UNIQUE INDEX listings_host_owner_name_key ON listings (host, lower(owner)
 CREATE UNIQUE INDEX listings_host_repository_id_key ON listings (host, host_repository_id);
 CREATE INDEX listings_account_id_idx ON listings (account_id);
 
--- Listing, removing a listing, and asking the worker to try one again.
+-- When each listing was listed or tried again, kept for a day, which bounds how often an account, and every account
+-- together, makes the worker check a listing. A request outlives a deleted account, unlinked, so deleting an account
+-- doesn't reset the hourly count across accounts.
+CREATE TABLE listing_requests (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    account_id bigint REFERENCES accounts ON DELETE SET NULL,
+    requested_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX listing_requests_requested_at_idx ON listing_requests (requested_at);
+CREATE INDEX listing_requests_account_id_idx ON listing_requests (account_id, requested_at);
+
+-- Listing, removing a listing, and asking the worker to try one again, within the request limits.
+GRANT SELECT, INSERT, DELETE ON listing_requests TO rulemart_accounts_writer;
 GRANT SELECT, INSERT, DELETE ON listings TO rulemart_accounts_writer;
 GRANT UPDATE (requested_at, failure) ON listings TO rulemart_accounts_writer;
 -- Pages find the libraries listings name.

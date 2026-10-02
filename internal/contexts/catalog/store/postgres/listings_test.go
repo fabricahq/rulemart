@@ -234,11 +234,12 @@ func TestCreateListingKeepsAnAccountWithinItsLimit(t *testing.T) {
 	c.list(t, account, "someone", "another")
 }
 
-// Rulemart holds at most domain.MaxUnvettedListings unvetted listings, from every account, including deleted ones.
+// Rulemart holds at most domain.MaxUnvettedListings unvetted listings, from every account.
 func TestCreateListingKeepsRulemartWithinItsLimit(t *testing.T) {
 	c := newListingCatalog(t)
-	postgrestest.Exec(t, c.connString, `INSERT INTO listings (host, owner, name)
-		SELECT 'github', 'someone', 'rules-' || n FROM generate_series(1, $1::int) AS n`, domain.MaxUnvettedListings)
+	others := c.account(t, 2)
+	postgrestest.Exec(t, c.connString, `INSERT INTO listings (account_id, host, owner, name)
+		SELECT $1::bigint, 'github', 'someone', 'rules-' || n FROM generate_series(1, $2::int) AS n`, others, domain.MaxUnvettedListings)
 
 	_, err := c.web.CreateListing(context.Background(), vettedBoth, c.account(t, 1), "someone", "one-more")
 
@@ -361,21 +362,60 @@ func TestRemoveAndRetryActOnlyOnTheAccountsOwnListings(t *testing.T) {
 	}
 }
 
-// Deleting an account keeps its listings, no longer linked to it, and their libraries listed.
-func TestDeletingAnAccountKeepsItsListings(t *testing.T) {
+// Deleting an account removes its listings, so they stop counting toward Rulemart's limit, and an unvetted library it
+// listed leaves the site, while its requests stay, unlinked, in the hour's count.
+func TestDeletingAnAccountRemovesItsListings(t *testing.T) {
 	c := newListingCatalog(t)
 	account := c.account(t, 1)
 	c.resolve(t, c.list(t, account, "stranger", "rules"), "23")
 
 	postgrestest.Exec(t, postgrestest.AsWebRole(t, c.connString), "DELETE FROM accounts WHERE id = $1", account)
 
-	var unattributed int
-	postgrestest.QueryRow(t, c.connString, "SELECT count(*) FROM listings WHERE account_id IS NULL", &unattributed)
-	if unattributed != 1 {
-		t.Fatalf("%d unattributed listings, want 1", unattributed)
+	var listings, requests int
+	postgrestest.QueryRow(t, c.connString, "SELECT (SELECT count(*) FROM listings), (SELECT count(*) FROM listing_requests WHERE account_id IS NULL)", &listings, &requests)
+	if listings != 0 || requests != 1 {
+		t.Fatalf("%d listings and %d unlinked requests remain, want none and 1", listings, requests)
 	}
-	if page, err := c.web.LibraryPage(context.Background(), vettedBoth, "stranger", "rules"); err != nil || page.Library.Vetted {
-		t.Fatalf("got %+v, %v; want stranger/rules, unvetted", page.Library, err)
+	if _, err := c.web.LibraryPage(context.Background(), vettedBoth, "stranger", "rules"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("got %v, want store.ErrNotFound", err)
+	}
+}
+
+// An account lists or retries at most domain.MaxAccountListingRequests times a day, removing listings or not, and every
+// account together at most domain.MaxListingRequestsPerHour times an hour; requests a day old don't count.
+func TestListingAndRetryingKeepWithinTheRequestLimits(t *testing.T) {
+	c := newListingCatalog(t)
+	ctx := context.Background()
+	account, other := c.account(t, 1), c.account(t, 2)
+	for i := range domain.MaxAccountListingRequests - 1 {
+		id := c.list(t, account, "someone", fmt.Sprintf("rules-%d", i))
+		if err := c.web.RemoveListing(ctx, account, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	id := c.list(t, account, "someone", "last")
+	if err := c.worker.RecordListingCheck(ctx, id, "broken"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.web.CheckListing(ctx, vettedBoth, account, "someone", "one-more"); !errors.Is(err, store.ErrListingTooOften) {
+		t.Errorf("check: got %v, want store.ErrListingTooOften", err)
+	}
+	if _, err := c.web.CreateListing(ctx, vettedBoth, account, "someone", "one-more"); !errors.Is(err, store.ErrListingTooOften) {
+		t.Errorf("list: got %v, want store.ErrListingTooOften", err)
+	}
+	if err := c.web.RetryListing(ctx, account, id); !errors.Is(err, store.ErrListingTooOften) {
+		t.Errorf("retry: got %v, want store.ErrListingTooOften", err)
+	}
+	postgrestest.Exec(t, c.connString, "UPDATE listing_requests SET requested_at = now() - interval '1 day 1 second' WHERE id = (SELECT min(id) FROM listing_requests)")
+	if err := c.web.RetryListing(ctx, account, id); err != nil {
+		t.Fatalf("retry once a request is a day old: %v", err)
+	}
+
+	postgrestest.Exec(t, c.connString, `INSERT INTO listing_requests (account_id) SELECT NULL FROM generate_series(1, $1::int)`,
+		domain.MaxListingRequestsPerHour)
+	if _, err := c.web.CreateListing(ctx, vettedBoth, other, "someone", "else"); !errors.Is(err, store.ErrListingsBusy) {
+		t.Errorf("another account: got %v, want store.ErrListingsBusy", err)
 	}
 }
 

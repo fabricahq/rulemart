@@ -197,7 +197,8 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 		},
 		"a repository another listing names": {
 			func(t *testing.T, l *listing) {
-				postgrestest.Exec(t, l.connString, "INSERT INTO listings (host, owner, name, host_repository_id) VALUES ('github', 'old', 'name', '42')")
+				postgrestest.Exec(t, l.connString, `WITH other AS (INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (2, 'other', '') RETURNING id)
+					INSERT INTO listings (account_id, host, owner, name, host_repository_id) SELECT id, 'github', 'old', 'name', '42' FROM other`)
 			},
 			"Another listing names this repository, which GitHub calls example/rules now.",
 		},

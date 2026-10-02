@@ -11,6 +11,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countListingRequests = `-- name: CountListingRequests :one
+SELECT count(*) FILTER (WHERE account_id = $1::bigint) AS account_requests,
+       count(*) FILTER (WHERE requested_at > now() - interval '1 hour') AS all_requests
+FROM listing_requests
+WHERE requested_at > now() - interval '1 day'
+`
+
+type CountListingRequestsRow struct {
+	AccountRequests int64
+	AllRequests     int64
+}
+
+// CountListingRequests counts the account's listings and retries in the last day, and every account's in the last
+// hour.
+func (q *Queries) CountListingRequests(ctx context.Context, accountID int64) (CountListingRequestsRow, error) {
+	row := q.db.QueryRow(ctx, countListingRequests, accountID)
+	var i CountListingRequestsRow
+	err := row.Scan(&i.AccountRequests, &i.AllRequests)
+	return i, err
+}
+
 const countUnvettedListings = `-- name: CountUnvettedListings :one
 SELECT count(*) FILTER (WHERE account_id = $1::bigint) AS account_listings, count(*) AS all_listings
 FROM listings
@@ -302,6 +323,18 @@ func (q *Queries) RecordListingCheck(ctx context.Context, arg RecordListingCheck
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const recordListingRequest = `-- name: RecordListingRequest :exec
+WITH forgotten AS (DELETE FROM listing_requests WHERE requested_at <= now() - interval '1 day')
+INSERT INTO listing_requests (account_id) VALUES ($1::bigint)
+`
+
+// RecordListingRequest records that the account listed or retried a listing now, and forgets requests a day old,
+// which no limit counts.
+func (q *Queries) RecordListingRequest(ctx context.Context, accountID int64) error {
+	_, err := q.db.Exec(ctx, recordListingRequest, accountID)
+	return err
 }
 
 const resolveListing = `-- name: ResolveListing :execrows

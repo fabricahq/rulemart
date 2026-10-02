@@ -220,6 +220,8 @@ type fakeListings struct {
 	refusal error
 	// notQueued makes List and Retry report that their check wasn't queued.
 	notQueued bool
+	// retryRefusal, when set, refuses every retry.
+	retryRefusal error
 	// listed, removed, and retried record what each account asked, as "<account> <repository>" and listing IDs.
 	listed           []string
 	removed, retried []int64
@@ -258,6 +260,9 @@ func (f *fakeListings) Remove(_ context.Context, accountID, id int64) error {
 }
 
 func (f *fakeListings) Retry(_ context.Context, accountID, id int64) error {
+	if f.retryRefusal != nil {
+		return f.retryRefusal
+	}
 	err := f.change(accountID, id, &f.retried, func(l views.AccountListing) bool { return l.Failure != "" })
 	if err == nil && f.notQueued {
 		return fmt.Errorf("%w: SQS is down", app.ErrNotQueued)
@@ -402,6 +407,8 @@ func TestListPageSaysWhyARepositoryCantBeListed(t *testing.T) {
 		"listed, not checked yet": {"someone/new", &app.ListingConflict{}, "This repository is listed already.", nil},
 		"at the account's limit":  {"someone/new", app.ErrAccountListingLimit, "You have 5 unvetted listings, as many as an account may.", nil},
 		"full":                    {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
+		"too often":               {"someone/new", app.ErrListingTooOften, "You've listed or retried 20 times in the last day", nil},
+		"busy":                    {"someone/new", app.ErrListingsBusy, "Rulemart is checking many listings right now. Try again in an hour.", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			site := newListingSite(t)
@@ -634,4 +641,18 @@ func newSiteAt(t *testing.T, c web.Catalog, base string) http.Handler {
 		t.Fatal(err)
 	}
 	return handler
+}
+
+// A visitor who asked for too many checks is told when to try again, rather than retrying.
+func TestRetryingSaysWhenAVisitorAskedTooOften(t *testing.T) {
+	site := newListingSite(t)
+	listingsFor(site, time.Now())
+	site.listings.retryRefusal = fmt.Errorf("retry listing id=3: %w", app.ErrListingTooOften)
+
+	resp := site.signedInPost(t, "/account/listings/retry?listing=3")
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("answered %d, want 429", resp.StatusCode)
+	}
+	assertShows(t, body(t, resp), "Try again later", "Try again tomorrow.")
 }

@@ -307,7 +307,9 @@ rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	_, connString := databasetest.New(t)
-	postgrestest.Exec(t, connString, `INSERT INTO listings (host, owner, name) VALUES ('github', 'example', 'rules')`)
+	postgrestest.Exec(t, connString, `WITH lister AS (
+		INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (1, 'lister', '') RETURNING id
+	) INSERT INTO listings (account_id, host, owner, name) SELECT id, 'github', 'example', 'rules' FROM lister`)
 	ingester := app.Ingester{
 		Repositories: repositories{lib.Repository(44)}, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Rule,
 		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,

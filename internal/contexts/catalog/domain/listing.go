@@ -19,6 +19,14 @@ const MaxAccountListings = 5
 // hourly checks, and what someone with many accounts can add.
 const MaxUnvettedListings = 500
 
+// MaxAccountListingRequests is how many times a day one account may list or try a listing again, each of which makes
+// the worker check a repository, so removing and listing again can't keep it busy.
+const MaxAccountListingRequests = 20
+
+// MaxListingRequestsPerHour is how many times an hour every account together may list or try a listing again, which
+// bounds the checks visitors can ask of the worker, and of GitHub's API, however many accounts ask.
+const MaxListingRequestsPerHour = 100
+
 // MaxFailureLength bounds the reason a listing's check failed, as the listings table stores it.
 const MaxFailureLength = 1000
 

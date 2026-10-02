@@ -39,8 +39,9 @@ type Writer interface {
 type Listings interface {
 	// CheckListing reports whether the account may list the repository owner/name, without listing it. It fails with
 	// a *ListingConflict when a listing or vetted library already has that name, with ErrAccountListingLimit when the
-	// account holds domain.MaxAccountListings unvetted listings, and with ErrListingsFull when Rulemart holds
-	// domain.MaxUnvettedListings.
+	// account holds domain.MaxAccountListings unvetted listings, with ErrListingsFull when Rulemart holds
+	// domain.MaxUnvettedListings, and with ErrListingTooOften or ErrListingsBusy when the account, or every account
+	// together, asked for as many checks as it may.
 	CheckListing(ctx context.Context, vetted []domain.LibraryKey, accountID int64, owner, name string) error
 	// CreateListing lists the repository owner/name for the account, and returns the listing's ID, after the checks
 	// CheckListing makes, in the same transaction, which no other listing can change before it commits.
@@ -50,7 +51,8 @@ type Listings interface {
 	// RemoveListing removes the account's listing id, or fails with ErrNotFound when the account has no such listing.
 	RemoveListing(ctx context.Context, accountID, id int64) error
 	// RetryListing asks the worker to check the account's listing id again, or fails with ErrNotFound when the
-	// account has no such listing, or its last check didn't fail.
+	// account has no such listing, or its last check didn't fail, or with ErrListingTooOften or ErrListingsBusy, as
+	// CheckListing does.
 	RetryListing(ctx context.Context, accountID, id int64) error
 }
 
@@ -78,6 +80,14 @@ var ErrAccountListingLimit = errors.New("the account holds as many unvetted list
 
 // ErrListingsFull reports that Rulemart holds domain.MaxUnvettedListings unvetted listings.
 var ErrListingsFull = errors.New("Rulemart holds as many unvetted listings as it takes")
+
+// ErrListingTooOften reports an account that listed or retried domain.MaxAccountListingRequests times in the last
+// day.
+var ErrListingTooOften = errors.New("the account asked for as many checks today as it may")
+
+// ErrListingsBusy reports that every account together listed or retried domain.MaxListingRequestsPerHour times in the
+// last hour.
+var ErrListingsBusy = errors.New("Rulemart took as many listings this hour as it takes")
 
 // Reader reads what the catalog's pages show. Each read sees one committed state of the catalog, so a page never
 // mixes two ingestions. Reads across libraries find only the libraries in vetted; a library's own pages also find a

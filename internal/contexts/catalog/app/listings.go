@@ -24,6 +24,11 @@ var (
 	ErrAccountListingLimit = store.ErrAccountListingLimit
 	// ErrListingsFull reports that Rulemart holds domain.MaxUnvettedListings unvetted listings.
 	ErrListingsFull = store.ErrListingsFull
+	// ErrListingTooOften reports an account that listed or retried domain.MaxAccountListingRequests times today.
+	ErrListingTooOften = store.ErrListingTooOften
+	// ErrListingsBusy reports that every account together listed or retried domain.MaxListingRequestsPerHour times in
+	// the last hour.
+	ErrListingsBusy = store.ErrListingsBusy
 	// ErrNotQueued reports a listing that was added, or retried, but whose check couldn't be queued, so the worker
 	// checks it at its next hourly poll.
 	ErrNotQueued = errors.New("the listing's check wasn't queued")
@@ -55,7 +60,8 @@ type Repository struct {
 func (r Repository) FullName() string { return r.Owner + "/" + r.Name }
 
 // Check returns the repository text names, and whether the account may list it, without listing it: it fails with
-// ErrInvalidRepository, a *ListingConflict, ErrAccountListingLimit, or ErrListingsFull. It doesn't ask the code host;
+// ErrInvalidRepository, a *ListingConflict, ErrAccountListingLimit, ErrListingsFull, ErrListingTooOften, or
+// ErrListingsBusy. It doesn't ask the code host;
 // the worker does, when it checks the listing.
 func (l Listings) Check(ctx context.Context, accountID int64, text string) (Repository, error) {
 	repo, err := parseRepository(text)
@@ -91,7 +97,8 @@ func (l Listings) Remove(ctx context.Context, accountID, id int64) error {
 }
 
 // Retry asks the worker to check the account's listing id again, and queues the check, as List does. It fails with
-// ErrNotFound when the account has no such listing, or its last check didn't fail.
+// ErrNotFound when the account has no such listing, or its last check didn't fail, and with ErrListingTooOften or
+// ErrListingsBusy as Check does.
 func (l Listings) Retry(ctx context.Context, accountID, id int64) error {
 	if err := l.Store.RetryListing(ctx, accountID, id); err != nil {
 		return err

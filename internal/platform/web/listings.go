@@ -18,14 +18,15 @@ import (
 // Listings lists libraries for signed-in visitors. catalog/app.Listings implements it.
 type Listings interface {
 	// Check returns the repository text names, and whether the account may list it: it fails with
-	// app.ErrInvalidRepository, an *app.ListingConflict, app.ErrAccountListingLimit, or app.ErrListingsFull.
+	// app.ErrInvalidRepository, an *app.ListingConflict, app.ErrAccountListingLimit, app.ErrListingsFull,
+	// app.ErrListingTooOften, or app.ErrListingsBusy.
 	Check(ctx context.Context, accountID int64, text string) (app.Repository, error)
 	// List lists the repository text names after the same checks, and queues its check. It returns the listing's ID,
 	// with an error wrapping app.ErrNotQueued when only queueing failed.
 	List(ctx context.Context, accountID int64, text string) (int64, error)
 	AccountListings(ctx context.Context, accountID int64) ([]views.AccountListing, error)
 	// Remove and Retry fail with app.ErrNotFound when the account has no such listing, or, for Retry, its last check
-	// didn't fail.
+	// didn't fail; Retry fails as Check does when the visitor asked for checks too often.
 	Remove(ctx context.Context, accountID, id int64) error
 	Retry(ctx context.Context, accountID, id int64) error
 }
@@ -136,11 +137,23 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *li
 		view.atLimit = true
 	case errors.Is(err, app.ErrListingsFull):
 		view.problem = "Rulemart isn't taking new listings right now. Try again later."
+	case errors.Is(err, app.ErrListingTooOften), errors.Is(err, app.ErrListingsBusy):
+		view.problem = tooOften(err)
 	default:
 		s.fail(w, r, err)
 		return false
 	}
 	return true
+}
+
+// tooOften says why a visitor can't ask for another check now, by err, app.ErrListingTooOften or
+// app.ErrListingsBusy.
+func tooOften(err error) string {
+	if errors.Is(err, app.ErrListingTooOften) {
+		return "You've listed or retried " + strconv.Itoa(domain.MaxAccountListingRequests) +
+			" times in the last day, as often as an account may. Try again tomorrow."
+	}
+	return "Rulemart is checking many listings right now. Try again in an hour."
 }
 
 // existingLibrary returns the library already in the catalog under the name a visitor tried to list, or nil when the
@@ -203,6 +216,10 @@ func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice st
 	var numErr *strconv.NumError
 	if errors.As(err, &numErr) || errors.Is(err, app.ErrNotFound) {
 		s.renderPrivate(w, r, http.StatusNotFound, messagePage(s.chrome, "Not found", "You have no such listing."))
+		return
+	}
+	if errors.Is(err, app.ErrListingTooOften) || errors.Is(err, app.ErrListingsBusy) {
+		s.renderPrivate(w, r, http.StatusTooManyRequests, messagePage(s.chrome, "Try again later", tooOften(err)))
 		return
 	}
 	if err != nil {

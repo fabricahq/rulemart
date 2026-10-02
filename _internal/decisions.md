@@ -15,7 +15,9 @@ than adding history.
   GitHub accounts can add. Ingestion's size and memory limits apply to every library, and nothing runs a library's
   files.
 - **A listing records who listed it, and pages don't say.** The lister can remove it at any time, which hides the
-  library again. Deleting an account keeps its listings, no longer linked to it.
+  library again. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
+- **An account lists or retries at most 20 times a day, and every account together at most 100 times an hour**,
+  since each one makes the worker check a repository, and may cost a GitHub API call.
 - **Vetting is a reviewed change to a `catalog/vetted.yaml` file**, which lists each library by its code host and
   the host's repository ID. `main`'s protection guards it, and it ships with each release, so the public
   history shows when and why each library was vetted. A listed library becomes vetted when the release that adds it

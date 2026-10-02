@@ -93,3 +93,17 @@ WHERE NOT coalesce(s.host || ':' || s.host_repository_id = ANY (@vetted::text[])
       AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id)
   )
 ORDER BY s.id;
+
+-- CountListingRequests counts the account's listings and retries in the last day, and every account's in the last
+-- hour.
+-- name: CountListingRequests :one
+SELECT count(*) FILTER (WHERE account_id = @account_id::bigint) AS account_requests,
+       count(*) FILTER (WHERE requested_at > now() - interval '1 hour') AS all_requests
+FROM listing_requests
+WHERE requested_at > now() - interval '1 day';
+
+-- RecordListingRequest records that the account listed or retried a listing now, and forgets requests a day old,
+-- which no limit counts.
+-- name: RecordListingRequest :exec
+WITH forgotten AS (DELETE FROM listing_requests WHERE requested_at <= now() - interval '1 day')
+INSERT INTO listing_requests (account_id) VALUES (@account_id::bigint);
