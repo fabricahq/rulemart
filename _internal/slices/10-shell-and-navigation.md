@@ -54,13 +54,17 @@ decision.
   `/g/{kind}/{name}`, `/{owner}`, `/faq`, `/feedback`. `/groups` redirects permanently to `/browse/techs`, and
   `/groups/{kind}/{name}` to `/g/{kind}/{name}`, keeping the query. The sitemap, canonical links, and every internal
   link use the new addresses.
+- **Proposed: `/browse` redirects to `/browse/techs`**, and a kind in another case, such as `/browse/Techs`, redirects
+  to its one spelling, as a group's ID does. The prototype has no `/browse` of its own; a visitor who trims the
+  address lands on the technologies.
 - **Proposed: reserved first segments, and `/o/{login}` for an owner whose login is one.** The site's own one-segment
   pages are `browse`, `g`, `libraries`, `search`, `unvetted`, `list`, `about`, `privacy`, `faq`, `feedback`, `o`,
   and the account pages. GitHub has users named `g`, `faq`, `browse`, `list`, `o`, and `me`, so an owner page can't
   share their address: every owner is also at `/o/{login}`, which is the canonical address for an owner whose login
   is reserved, and every other owner's `/o/{login}` redirects to `/{login}`. Library and rule pages have two or more
   segments, so no site page hides them; a library owned by `faq` stays at `/faq/{repo}`. The lowercase redirect for
-  site sections covers the new sections.
+  site sections covers the new sections. One library is hidden: a library owned by the user `o` whose name is a
+  login, since `/o/{name}` is that login's owner address; its rules' pages, with three or more segments, stay.
 - **Proposed: an owner page exists for an owner with a vetted library**, and answers 404 otherwise, even for an owner
   with a listed, unvetted library, so listing a repository can't create a page under Rulemart's address. The page
   shows the login, the avatar the catalog stores, and the owner's vetted libraries. The owner's display name, kind
@@ -75,7 +79,8 @@ decision.
   the first four vetted libraries in owner and name order (**Existing**), since nothing sorts libraries by anything
   else.
 - **Proposed: "List your library →" leads to `/list`** while that is the page that lists a library, signed in, and to
-  sign-in with a return to it otherwise; slice R7 moves it to `/me/add`.
+  sign-in with a return to it otherwise; slice R7 moves it to `/me/add`. Where listing isn't available, as in a build
+  without sign-in, it leads to the about page's "Get a library vetted".
 
 ### Browse
 
@@ -90,7 +95,8 @@ decision.
 ### Header, footer, FAQ, feedback
 
 - **Proposed: the header's cart keeps today's behavior**, a link to the cart for signed-in visitors only, drawn as the
-  prototype's icon with its count badge, until slice R5 moves the cart into the browser and shows it to everyone.
+  prototype's icon with its count badge, until slice R5 moves the cart into the browser and shows it to everyone. It
+  shows at every width, as the prototype's does, so the avatar no longer carries the count on a phone.
 - **Proposed: the account menu lists Dashboard, Add a library, Starred rules, Your cart, Your listings, Sign out**,
   leading to today's `/account`, `/list`, `/account/stars`, `/account/cart`, and `/account/listings`, until slices R3
   and R7 fold them into the dashboard.
@@ -101,10 +107,11 @@ decision.
   perks that exist, with project tracking and the picker added by slice R7; "How do I give feedback?" points a rule's
   feedback at the library's repository, since Discuss comes later (rulemart#27).
 - **Proposed: feedback topics open prefilled GitHub issues**: Rulemart topics in fabricahq/rulemart, Code Rules
-  topics in fabricahq/code-rules, with the title prefix `[<topic label>] `, the prototype's body, and the labels
-  `feedback` and `topic:<key>`, which both repositories get. GitHub drops labels for people who can't set them, so
-  the title prefix carries the topic too. "Something broken on Rulemart" leads to the existing Report a problem
-  issue form, so the footer's link moves to the feedback page.
+  topics in fabricahq/code-rules, and "Anything else" in fabricahq/rulemart, the page's owner, with the title prefix
+  `[<topic label>] `, the prototype's body, and the labels `feedback` and `topic:<key>`, which both repositories
+  have. GitHub drops labels for people who can't set them, so the title prefix carries the topic too. "Something
+  broken on Rulemart", a row under Rulemart, leads to the existing Report a problem issue form, so the footer's link
+  moves to the feedback page.
 - **Proposed: the footer keeps About Rulemart, Privacy, About Code Rules, and Source on GitHub**, and replaces Report
   a problem with Give us feedback, which leads to the page that offers it.
 
