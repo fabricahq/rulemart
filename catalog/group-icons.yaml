@@ -168,6 +168,10 @@ techs/swift:
   file: devicon/swift-original.svg
 techs/tailwindcss:
   file: devicon/tailwindcss-original.svg
+techs/tanstack-query:
+  file: community/tanstack-query.svg
+techs/tanstack-router:
+  file: community/tanstack-router.svg
 techs/terraform:
   file: devicon/terraform-original.svg
 techs/typescript:
