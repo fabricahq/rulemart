@@ -154,7 +154,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   deletion and the insertion that replaces it stand apart. In code, a change of indentation is marked after the line
   break, which stays unmarked.
 - **The lines view folds the unchanged lines between hunks. Proposed.** A reader can show them, as the words view
-  shows unchanged blocks.
+  shows unchanged blocks; once shown, the next hunk drops its "@@" header, which would otherwise sit mid-run.
 - **Rule text in a diff is text. Existing rule.** A diff shows a rule's Markdown escaped, as segments the template
   escapes, never as HTML Rulemart assembles, so markup in a rule can't run or load.
 - **Diff colors are the first colors in the palette. Proposed.** Green and red, after GitHub's diff colors, as tokens

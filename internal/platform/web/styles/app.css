@@ -212,6 +212,8 @@
   .diff-gap > summary:hover { color: var(--muted); }
   .diff-lines del { text-decoration: none; }
   .diff-lines tr.h td { padding: 4px 16px; background: var(--surface); color: var(--faint); text-align: left; user-select: auto; }
+  /* Once the lines before a hunk are shown, its header would sit mid-run, so it goes. */
+  .diff-gap[open] + .diff-lines tr.h { display: none; }
   @media (width < 45rem) {
     .diff-lines col.n { width: 2.8em; }
     .diff-lines td:nth-child(-n+2) { padding: 0 4px; }
