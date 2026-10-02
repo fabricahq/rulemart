@@ -36,9 +36,11 @@ const requestTimeout = 5 * time.Second
 // maxResponseBytes bounds what Rulemart reads of each response. GitHub's are under a few KiB.
 const maxResponseBytes = 64 << 10
 
-// Secret returns the OAuth app's client secret, such as from an SSM parameter. It may be called on every sign-in.
+// Secret holds the OAuth app's client secret, such as from an SSM parameter. Value may be called on every sign-in;
+// Forget drops a value GitHub refused, so the next sign-in reads the secret again, such as after a rotation.
 type Secret interface {
 	Value(ctx context.Context) (string, error)
+	Forget()
 }
 
 // Client signs visitors in with one GitHub OAuth app.
@@ -114,6 +116,9 @@ func (c *Client) exchange(ctx context.Context, code, verifier, redirectURI strin
 		return "", err
 	}
 	switch {
+	case response.Error == "incorrect_client_credentials":
+		c.secret.Forget()
+		return "", errors.New("GitHub refused the client ID or secret: incorrect_client_credentials")
 	case response.Error != "":
 		return "", fmt.Errorf("GitHub refused it: %s", safeCode(response.Error))
 	case response.AccessToken == "":

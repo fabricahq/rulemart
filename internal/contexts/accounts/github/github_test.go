@@ -16,12 +16,20 @@ import (
 type fixedSecret string
 
 func (s fixedSecret) Value(context.Context) (string, error) { return string(s), nil }
+func (fixedSecret) Forget()                                 {}
 
 type failingSecret struct{}
 
 func (failingSecret) Value(context.Context) (string, error) {
 	return "", errors.New("parameter /rulemart/test/github-client-secret not found")
 }
+func (failingSecret) Forget() {}
+
+// rotatedSecret counts how often GitHub's refusal made the client forget it.
+type rotatedSecret struct{ forgotten int }
+
+func (*rotatedSecret) Value(context.Context) (string, error) { return "client-secret", nil }
+func (s *rotatedSecret) Forget()                             { s.forgotten++ }
 
 const (
 	testCode     = "code-from-github"
@@ -120,6 +128,17 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A refused client secret may have been rotated, so the next sign-in reads it again.
+func TestIdentifyForgetsAClientSecretGitHubRefuses(t *testing.T) {
+	c := fakeGitHub(t, `{"error":"incorrect_client_credentials"}`, octocatUser)
+	secret := &rotatedSecret{}
+	c.secret = secret
+	_, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+	if err == nil || !strings.Contains(err.Error(), "incorrect_client_credentials") || secret.forgotten != 1 {
+		t.Errorf("got %v with the secret forgotten %d times, want the refusal and one Forget", err, secret.forgotten)
 	}
 }
 
