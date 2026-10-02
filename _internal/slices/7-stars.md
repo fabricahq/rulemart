@@ -87,8 +87,11 @@ slice 5's note that deleting an account should remove them, so every choice here
 - **Proposed: signing in to star prompts once, and never stars by itself.** The library's page takes `star=1` off its
   address with a redirect that sets a notice, so the prompt shows once, and reloading or sharing the page doesn't
   repeat it. The prompt names the library, and the button is focused and filled in the primary color, one click from
-  starring. A library the visitor starred already gets only "You're signed in." Starring on the way back would need
-  the sign-in flow to carry an action, or a GET that writes.
+  starring. A library the visitor starred already gets "You're signed in. You've starred this library already.", and
+  nothing is focused. Starring on the way back would need the sign-in flow to carry an action, or a GET that writes.
+- **Known: Back right after signing in to star does nothing visible**, as after any sign-in (**Existing**, slice 5):
+  the history holds the sign-in page, which sends a signed-in visitor on. Skipping it would need a script to replace the
+  history entry.
 - **Proposed: no JavaScript.** Each star is a form post and a redirect back, which reloads the page with the button at
   its top. A script could save the reload, but the page would then show a count it didn't read.
 - **Proposed: a failure to read whether the visitor starred a library fails the page**, with the usual 503, as a
@@ -99,19 +102,22 @@ slice 5's note that deleting an account should remove them, so every choice here
 - **Proposed: `/account/stars`, newest first.** It's the visitor's own list, so recency fits better than the owner
   and name order public lists use. Signing in may return to it, as to the listings page; signing out from it returns
   home (**Existing**, extended). Each star says when: minutes or hours ago within a day, so stars made the same day
-  show their order, and the date after that, with the exact time in UTC on hover.
-- **Proposed: unstarring there keeps the library named, with Star again.** Unstar returns to
-  `/account/stars?unstarred=owner/name`, which names the library at the top while the visitor hasn't starred it again;
-  the parameter must name a library as GitHub spells names, or the page ignores it.
+  show their order, and the date after that, with the time to the minute in UTC on hover, such as "2 Oct 2026, 13:50
+  UTC".
+- **Proposed: unstarring there keeps the library named, with Star again, focused.** The one-time notice cookie carries
+  which library, as `unstarred-here:owner/name`, so only the visitor's own unstarring names it: an address can't make
+  the page say anything. Starring it again focuses its row's Unstar the same way. Browser QA found that an
+  `?unstarred=` parameter, as first built, let any link put its own text on the page.
 - **Proposed: the account page says Rulemart keeps which libraries you star, and when, and shows others only the
   counts; deleting the account says it removes your stars.**
 
 ### Accessibility
 
-- **Proposed: the button is a toggle, with `aria-pressed`, named "Star, 3 stars" or "Starred, 3 stars"**, while the
-  eye reads a star, Star or Starred, and the count. It's as wide either way, and starred, it's shaded and edged in
-  ink, with its star filled in ink, not a color: the palette's one amber means caution and nothing else
-  (**Existing**). Its hover text says what a star is for, as do the stars page and the account page.
+- **Proposed: the button is a toggle, named "Star owner/name, 3 stars" either way, with `aria-pressed` saying
+  whether it's starred**, while the eye reads a star, Star or Starred, and the count. It's as wide either way, and
+  starred, it's filled in the primary color, ink in the light theme, with its text and star inverted, not in a color:
+  the palette's one amber means caution and nothing else (**Existing**). Prompting after sign-in, it's outlined in ink
+  inside a ring. Its hover text says what a star is for, as do the stars page and the account page.
 - **Proposed: tabs name their counts apart**, "Groups, 14" rather than "Groups14", with a visually hidden comma, and fit
   a 320-pixel phone, wrapping rather than scrolling if they ever don't, so no tab or focus ring is hidden.
 

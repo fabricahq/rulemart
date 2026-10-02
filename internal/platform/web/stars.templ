@@ -48,31 +48,28 @@ func starTitle(starred bool) string {
 	return "Star this library. " + starExplanation
 }
 
-// The star button's styles: its shape, then unstarred, starred, which is shaded and edged in ink, and prompting
-// after signing in to star, filled in the primary color. Each darkens on hover enough to show in either theme.
+// The star button's styles: its shape, then unstarred, outlined; starred, filled in the primary color, ink in the
+// light theme, with its text inverted; and prompting after signing in to star, outlined in ink inside a ring. Each
+// changes on hover enough to show in either theme.
 const (
-	starButtonStyle = "inline-flex min-h-8 items-center gap-2 rounded-full border px-[11px] py-1 text-[13px] font-medium whitespace-nowrap transition-colors duration-[160ms]"
+	starButtonStyle = "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-[11px] py-1 text-[13px] font-medium whitespace-nowrap transition-colors duration-[160ms]"
 	unstarredStyle  = "border-border-strong text-ink hover:border-ink hover:bg-surface-header"
-	starredStyle    = "border-ink bg-surface text-ink hover:bg-surface-header"
-	promptStyle     = "border-primary bg-primary text-on-primary hover:opacity-85"
+	starredStyle    = "border-primary bg-primary text-on-primary hover:opacity-85"
+	promptStyle     = "border-ink text-ink ring-2 ring-ink ring-offset-2 ring-offset-paper hover:bg-surface-header"
 )
 
-// starButtonContent is what the star button shows, as starButtonFace, with what screen readers hear in its place: Star
-// or Starred, and the count in words.
+// starButtonContent is what the star button shows, as starButtonFace, with what screen readers hear in its place: one
+// name whether starred or not, the library and the count in words, while aria-pressed says which.
 templ starButtonContent(star starView) {
-	if star.starred {
-		<span class="sr-only">Starred, { plural(star.count, "star", "stars") }</span>
-	} else {
-		<span class="sr-only">Star, { plural(star.count, "star", "stars") }</span>
-	}
+	<span class="sr-only">Star { star.fullName }, { plural(star.count, "star", "stars") }</span>
 	@starButtonFace(star)
 }
 
-// starButtonFace is what the star button looks like: the star, filled once starred, Star or Starred, in a space as
-// wide as Starred, so the button keeps its width, and the count after a divider.
+// starButtonFace is what the star button looks like: the star, filled once starred, Star or Starred beside it, in a
+// space as wide as Starred, so the button keeps its width, and the count after a divider.
 templ starButtonFace(star starView) {
 	@starIcon("size-[15px] flex-none", star.starred)
-	<span class="grid justify-items-center" aria-hidden="true">
+	<span class="grid justify-items-start" aria-hidden="true">
 		<span class="invisible col-start-1 row-start-1">Starred</span>
 		<span class="col-start-1 row-start-1">
 			if star.starred {
@@ -83,7 +80,7 @@ templ starButtonFace(star starView) {
 		</span>
 	</span>
 	<span class="h-4 w-px flex-none bg-current opacity-25" aria-hidden="true"></span>
-	<span class={ "font-normal tabular-nums", templ.KV("text-muted", !star.prompt) } aria-hidden="true">{ strconv.Itoa(star.count) }</span>
+	<span class={ "ml-0.5 font-normal tabular-nums", templ.KV("opacity-75", star.starred), templ.KV("text-muted", !star.starred) } aria-hidden="true">{ strconv.Itoa(star.count) }</span>
 }
 
 // starCount is a library card's stars, as a star, filled when the visitor starred the library, and the count, said
@@ -126,7 +123,7 @@ templ starsPage(c chrome, v starsView) {
 				<div class="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card border border-border-strong px-4 py-3" role="status">
 					<p class="text-[14px] text-ink [overflow-wrap:anywhere]">You unstarred { v.unstarred }.</p>
 					<form method="post" action={ templ.SafeURL(v.starAgain) }>
-						<button class={ smallActionStyle } type="submit" aria-label={ "Star " + v.unstarred + " again" }>Star again</button>
+						<button class={ smallActionStyle } type="submit" aria-label={ "Star " + v.unstarred + " again" } autofocus>Star again</button>
 					</form>
 				</div>
 			}
@@ -179,11 +176,11 @@ templ starredRow(star starredView) {
 					@breakable(star.library.owner + "/" + star.library.name)
 				</span>
 				<span class="max-narrow:hidden">·</span>
-				<span class="whitespace-nowrap max-narrow:block">Starred <time datetime={ star.starredAt } title={ star.starredAt }>{ star.starred }</time></span>
+				<span class="whitespace-nowrap max-narrow:block">Starred <time datetime={ star.starredAt } title={ star.starredTitle }>{ star.starred }</time></span>
 			</p>
 		</div>
 		<form class="max-narrow:basis-full max-narrow:pl-[52px]" method="post" action={ templ.SafeURL(star.unstar) }>
-			<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + star.library.owner + "/" + star.library.name }>Unstar</button>
+			<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + star.library.owner + "/" + star.library.name } autofocus?={ star.focused }>Unstar</button>
 		</form>
 	</div>
 }

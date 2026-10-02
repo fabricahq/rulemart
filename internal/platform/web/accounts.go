@@ -104,8 +104,9 @@ type visitor struct {
 	// onSignInPage is true on the sign-in page, whose header leaves its Sign in link out.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
-	// the cookie named, which the page clears as it renders.
-	notice, noticeKey string
+	// the cookie named, which the page clears as it renders. noticeSubject is the library a notice of subjectNotices
+	// names, as owner/name, which the page that shows it checks again.
+	notice, noticeKey, noticeSubject string
 }
 
 // accountMenuName is what screen readers hear of the header's account menu: who is signed in, and how many items
@@ -143,9 +144,20 @@ var notices = map[string]string{
 	"cart-emptied": "Your cart is empty.",
 }
 
+// subjectNotices are the notices that name a library, which their page shows itself, rather than as notices' text:
+// that the visitor starred or unstarred it on their stars page. The library comes from the cookie, which only this
+// site sets, never from the address, so no link can make a page say it.
+var subjectNotices = map[string]bool{starredHereKey: true, unstarredHereKey: true}
+
 // setNotice has the next page show the notice notices names by key, once.
 func setNotice(w http.ResponseWriter, key string) {
 	setCookie(w, noticeCookie, key, noticeLifetime)
+}
+
+// setSubjectNotice has the next page show the notice of subjectNotices named by key, about the library subject, as
+// owner/name, once.
+func setSubjectNotice(w http.ResponseWriter, key, subject string) {
+	setCookie(w, noticeCookie, key+":"+subject, noticeLifetime)
 }
 
 type visitorKey struct{}
@@ -193,10 +205,14 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 	}
 	if cookie, err := r.Cookie(noticeCookie); err == nil {
 		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
-		if v.notice = notices[cookie.Value]; v.notice == "" {
+		key, subject, named := strings.Cut(cookie.Value, ":")
+		switch {
+		case named && subjectNotices[key] && namesLibrary(subject):
+			v.noticeKey, v.noticeSubject = key, subject
+		case !named && notices[key] != "":
+			v.notice, v.noticeKey = notices[key], key
+		default:
 			clearCookie(w, noticeCookie)
-		} else {
-			v.noticeKey = cookie.Value
 		}
 	}
 	if s.Accounts != nil {

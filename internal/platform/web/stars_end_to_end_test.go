@@ -71,7 +71,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	}
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library})), "Sign in to star example/rules, 2 stars")
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/libraries"})), "2 stars")
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library, cookies: first})), "Starred, 2 stars")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: library, cookies: first})), "Star example/rules, 2 stars")
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/stars", cookies: second})),
 		"example/rules · Starred")
 
