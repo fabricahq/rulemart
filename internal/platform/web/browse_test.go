@@ -372,7 +372,11 @@ func TestSearchPageNumbersRedirectToTheirAddressOrAreMissing(t *testing.T) {
 			continue
 		}
 		page := resp.Body.String()
-		assertShows(t, page, "has no page", "Go to the first page")
+		assertShows(t, page, "The results for “", "” don't reach this page.", "Go to the first page")
+		// The page names no number, which the visitor may have typed past what an int holds.
+		if strings.Contains(visibleText(t, page), "201") {
+			t.Error("the page names a page number")
+		}
 		assertSearchForm(t, page, "search", strings.Split(strings.TrimPrefix(path, "/search?q="), "&")[0])
 	}
 }

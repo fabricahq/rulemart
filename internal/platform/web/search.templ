@@ -24,7 +24,7 @@ templ searchPage(c chrome, v searchView) {
 				<div class="mt-[30px] max-w-[52rem]">
 					if v.pageMissing() {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							<p class="font-medium text-ink">“{ v.query }” has no page { strconv.Itoa(v.page) } of results.</p>
+							<p class="font-medium text-ink">The results for “{ v.query }” don't reach this page.</p>
 							<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
 						</div>
 					} else if v.tooLong {
