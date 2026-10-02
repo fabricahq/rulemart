@@ -62,3 +62,25 @@ than adding history.
 - **Lambda packaging moves to a public, shared tool** (planned), and a release is pinned for deployment only after
   a matching rebuild or a verified build attestation.
 - **Local development and tests use Postgres 18 in Docker.**
+
+## What Rulemart logs
+
+- **Two sources record traffic.** CloudFront's standard access logs hold one row for every request it serves, cache
+  hits included, with the visitor's IP address, country, user agent, referrer, path, and query string. The web
+  function logs one line for each request that reaches it. Analysis of who visits and what they read uses
+  CloudFront's logs, through Athena; the function's lines explain how the origin behaved.
+- **Client IP addresses are kept in CloudFront's logs only.** The function never logs an IP address, a path, a query
+  string, or a header, so its lines can't identify a visitor or leak a secret a URL or cookie carries. It logs the
+  route pattern, such as `/{owner}/{repo}`, which also groups requests by page type.
+- **CloudFront's logs are kept for 6 months, and the functions' for 30 days.** S3 deletes each access log file 180
+  days after delivery, and CloudWatch Logs deletes function lines after 30 days. IP addresses are personal data, so
+  the privacy notice says what CloudFront logs, why, and for how long, and lowering the retention is how Rulemart
+  keeps less.
+- **Every command logs JSON lines through `internal/platform/logging`**, at the level `LOG_LEVEL` names, info by
+  default, and each line names the release that wrote it, from `RULEMART_RELEASE`. An unknown level stops the command
+  at start, rather than logging at a level nobody chose.
+- **Log volume stays small**, because CloudWatch Logs bills by the byte. The function logs one compact line per
+  request it serves, which CloudFront's cache keeps to a fraction of traffic; nothing at debug level by default; no
+  line per query or per rule; and a stack trace only for a panic. A long-lived function logs `ready`, with its schema
+  version and how long starting took, or logs `startup failed`, with the error, and exits. `migrate-database` logs
+  each migration it applies, because CI keeps its output.
