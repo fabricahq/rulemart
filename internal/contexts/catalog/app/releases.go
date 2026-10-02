@@ -24,7 +24,7 @@ const MaxReleaseRows = 2000
 // so a page of releases that list few rules or none is bounded too.
 const releaseRows = 10
 
-// ReleasesPage returns the vetted library owner/name, matched without regard to case, with the page of its releases
+// ReleasesPage returns the library owner/name, matched without regard to case, with the page of its releases
 // that holds release, or the first page when release is 0. Pages list releases newest first, each with what it
 // changed since the release before it: whole releases while their rows fit MaxReleaseRows, each counting releaseRows
 // more, and at least one, the first page starting at the latest release and each later one where the one before it
@@ -70,7 +70,7 @@ func releasesFrom(history views.LibraryHistory, start int) (releases []views.Rel
 	return releases, 0
 }
 
-// ReleaseComparison returns what changed in the vetted library owner/name between releases from and to, the older
+// ReleaseComparison returns what changed in the library owner/name between releases from and to, the older
 // first whichever way round they're given, with the text of each changed or renamed rule within MaxComparedBytes. It
 // fails with ErrNotFound when there's no such library or release.
 func (p Pages) ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error) {
@@ -93,7 +93,7 @@ func (p Pages) ReleaseComparison(ctx context.Context, owner, name string, from, 
 	return comparison, nil
 }
 
-// RuleComparison returns the rule at rulePath in the vetted library owner/name with the text of its versions from and
+// RuleComparison returns the rule at rulePath in the library owner/name with the text of its versions from and
 // to, the older first whichever way round they're given, within MaxComparedBytes. It fails with ErrNotFound when
 // there's no such library or rule, or when either isn't a version of the rule.
 func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error) {

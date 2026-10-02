@@ -1,4 +1,4 @@
-// Keep a vetted library current: check its release tags cheaply, and ingest it only when they changed.
+// Keep a vetted or listed library current: check its release tags cheaply, and ingest it only when they changed.
 
 package app
 
@@ -40,18 +40,27 @@ func (in Ingester) update(ctx context.Context, library domain.LibraryKey) (Updat
 	if library.Host != domain.GitHub {
 		return Update{}, errors.New("github is the only code host Rulemart reads libraries from")
 	}
+	return in.updateFrom(ctx, library, nil)
+}
+
+// updateFrom updates library as Update describes, ingesting repo, when it isn't nil, rather than looking the
+// repository up by its ID: a check that just looked it up by name has it.
+func (in Ingester) updateFrom(ctx context.Context, library domain.LibraryKey, repo *domain.Repository) (Update, error) {
 	current, listTime, err := in.current(ctx, library)
 	if err != nil || current {
 		return Update{ListTime: listTime}, err
 	}
 	started := time.Now()
-	repo, err := in.Repositories.RepositoryByID(ctx, library.RepositoryID)
-	if err != nil {
-		return Update{}, err
+	if repo == nil {
+		found, err := in.Repositories.RepositoryByID(ctx, library.RepositoryID)
+		if err != nil {
+			return Update{ListTime: listTime}, libraryError(err, domain.ErrNoPublicRepository)
+		}
+		repo = &found
 	}
-	result, err := in.IngestRepository(ctx, repo)
+	result, err := in.IngestRepository(ctx, *repo)
 	if err != nil {
-		return Update{}, err
+		return Update{ListTime: listTime}, err
 	}
 	return Update{Ingested: true, Result: result, ListTime: listTime, IngestTime: time.Since(started)}, nil
 }
@@ -68,7 +77,7 @@ func (in Ingester) current(ctx context.Context, library domain.LibraryKey) (bool
 	listed, err := in.List(ctx, checkpoint.CloneURL, in.Limits.Fetch)
 	listTime := time.Since(started)
 	if err != nil {
-		return false, listTime, fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err)
+		return false, listTime, &LibraryError{Err: fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err)}
 	}
 	return checkpoint.Current(listed), listTime, nil
 }

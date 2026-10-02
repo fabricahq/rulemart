@@ -87,15 +87,15 @@ func untilDone(ctx context.Context, render domain.Render) domain.Render {
 
 // IngestRepository makes the catalog's rows for the library in repo match its release tags. It writes nothing when
 // a tag, its record, the history the records describe, or a file a release published is invalid, or when the
-// library passes in.Limits; errors name the tag and file. Running it again on unchanged tags changes nothing.
+// library passes in.Limits; errors name the tag and file, and are *LibraryError, unlike a failure to store it. Running it again on unchanged tags changes nothing.
 func (in Ingester) IngestRepository(ctx context.Context, repo domain.Repository) (Result, error) {
 	releases, err := in.Fetch(ctx, repo.CloneURL, in.Limits.Fetch)
 	if err != nil {
-		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
+		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)}
 	}
 	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Render))
 	if err != nil {
-		return Result{}, fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)
+		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err)}
 	}
 	changed, err := in.Store.ReplaceLibrary(ctx, lib)
 	if err != nil {
