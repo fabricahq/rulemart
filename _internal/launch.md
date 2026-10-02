@@ -245,8 +245,8 @@ In a browser, signed in with GitHub:
 3. **List a library**: at `/list`, list `fabricahq/release-planner`, which has no release tags. Within seconds,
    `/account/listings` shows it failed, saying why, which proves the web function queued its check and the worker ran
    it. Remove it.
-4. **Cart and checkout**: add a rule and a group of fabricahq/public-rules, open `/account/cart`, then Check out:
-   the prompt pins `ref: release/1`. Empty the cart.
+4. **Cart and checkout**: add a rule of fabricahq/public-rules, and a group from `/groups/techs/go`, open
+   `/account/cart`, then Check out: the prompt pins `ref: release/1`. Empty the cart, which asks first.
 5. **Sign out**: the page says you're signed out, once.
 6. Report this library on a library page opens a GitHub issue form with the library filled in.
 7. With analytics on, the dashboard shows page views within a few minutes, and the browser console shows no
