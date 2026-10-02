@@ -2,9 +2,11 @@ package render
 
 import (
 	"errors"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
@@ -186,5 +188,39 @@ func TestRenderRendersGitHubExtensions(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("got %s, want %s", html, want)
 		}
+	}
+}
+
+// Some code makes chroma's lexers take minutes, and rule files come from repositories Rulemart doesn't control, so
+// highlighting has a time budget per rule. Past it, the rest of the code is shown escaped, without highlighting.
+func TestRenderStopsHighlightingCodeThatTakesTooLong(t *testing.T) {
+	slow := strings.Repeat("a ", 100_000)
+	body := "```java\n" + slow + "\n```\n\n```go\nreturn nil\n```\n"
+	start := time.Now()
+
+	html, _, err := Rule(body, page, 64<<20)
+
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("rendering took %s", elapsed)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, `<pre><code class="language-java">`) || !strings.Contains(html, slow[:2000]) ||
+		!strings.Contains(html, `<pre><code class="language-go">return nil`) {
+		t.Fatalf("the code isn't all shown, or the second block is still highlighted: %.300s", html)
+	}
+}
+
+// Highlighting writes the code chroma tokenised, and escapes any rest of it, so with Windows line endings too, the
+// page must show every character once.
+func TestRenderShowsHighlightedCodeWithWindowsLineEndingsOnce(t *testing.T) {
+	html, _, err := Rule("```go\r\nx := 1\r\nreturn x\r\n```\r\n", page, unlimited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(html, "")
+	if !strings.Contains(text, "x := 1\nreturn x") || strings.Count(text, "return") != 1 {
+		t.Fatalf("got %q", html)
 	}
 }
