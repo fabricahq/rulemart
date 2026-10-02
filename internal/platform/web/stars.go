@@ -40,8 +40,10 @@ const (
 	starPromptParam = "star"
 	// starPromptKey is the notice that prompts a visitor who signed in to star a library.
 	starPromptKey = "star-prompt"
-	// unstarredParam names, on the stars page, the library the visitor unstarred there, which it offers to star again.
-	unstarredParam = "unstarred"
+	// starredHereKey and unstarredHereKey are the subjectNotices that the visitor starred or unstarred a library on
+	// their stars page, which focuses its Unstar, or names it with Star again, focused.
+	starredHereKey   = "starred-here"
+	unstarredHereKey = "unstarred-here"
 )
 
 // starExplanation says what a star is for, beside the star button, and on the pages that list stars.
@@ -117,8 +119,9 @@ func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, e
 		view.star.focused = true
 	case starPromptKey:
 		view.star.focused, view.star.prompt = !starred, !starred
-		if !starred {
-			view.star.notice = "You're signed in. Star " + lib.FullName() + "?"
+		view.star.notice = "You're signed in. Star " + lib.FullName() + "?"
+		if starred {
+			view.star.notice = "You're signed in. You've starred this library already."
 		}
 	}
 	return view, nil
@@ -207,9 +210,11 @@ func (s *server) changeStar(w http.ResponseWriter, r *http.Request, star bool, c
 	}
 	switch path, _, _ := strings.Cut(back, "?"); {
 	case path == starsHref && !star:
-		back = starsHref + "?" + url.Values{unstarredParam: {library}}.Encode()
+		back = starsHref
+		setSubjectNotice(w, unstarredHereKey, library)
 	case path == starsHref:
 		back = starsHref
+		setSubjectNotice(w, starredHereKey, library)
 	case star:
 		setNotice(w, "starred")
 	default:
@@ -243,8 +248,8 @@ func starReturn(query url.Values) string {
 	return returnPath(libraryHref(owner, name))
 }
 
-// starsPage shows the signed-in visitor's stars, or sends anyone else to sign in first. With unstarredParam naming a
-// library the visitor no longer stars, it says they unstarred it, and offers to star it again.
+// starsPage shows the signed-in visitor's stars, or sends anyone else to sign in first. Following unstarring a library
+// here, it says so, and offers to star it again, focused; following starring it again, it focuses its Unstar.
 func (s *server) starsPage(w http.ResponseWriter, r *http.Request) {
 	account, ok := s.signedIn(w, r, starsHref)
 	if !ok {
@@ -256,8 +261,15 @@ func (s *server) starsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := starsView{stars: newStarredViews(stars, time.Now())}
-	if unstarred := r.URL.Query().Get(unstarredParam); namesLibrary(unstarred) && !starredAmong(stars, unstarred) {
-		view.unstarred, view.starAgain = unstarred, starAction(starsHref, unstarred, starsHref, "")
+	switch v := visitorOf(r.Context()); v.noticeKey {
+	case unstarredHereKey:
+		if !starredAmong(stars, v.noticeSubject) {
+			view.unstarred, view.starAgain = v.noticeSubject, starAction(starsHref, v.noticeSubject, starsHref, "")
+		}
+	case starredHereKey:
+		for i := range view.stars {
+			view.stars[i].focused = strings.EqualFold(view.stars[i].library.owner+"/"+view.stars[i].library.name, v.noticeSubject)
+		}
 	}
 	s.renderPrivate(w, r, http.StatusOK, starsPage(s.chrome, view))
 }
@@ -309,8 +321,11 @@ type starredView struct {
 	// unvetted is true for a library the release no longer vets that a listing names, whose link carries nofollow,
 	// and gone for one neither vetted nor listed, which has no page, so library.href is empty.
 	unvetted, gone bool
-	// starred says when the visitor starred it, in words, and starredAt exactly, in UTC.
-	starred, starredAt string
+	// starred says when the visitor starred it, in words, starredAt exactly, for machines, and starredTitle readably,
+	// to the minute in UTC.
+	starred, starredAt, starredTitle string
+	// focused is true for the library the visitor just starred again here, whose Unstar the page focuses.
+	focused bool
 	// unstar is where its Unstar button posts.
 	unstar string
 }
@@ -327,7 +342,8 @@ func newStarredViews(stars []views.StarredLibrary, now time.Time) []starredView 
 		starred[i] = starredView{
 			library: card, unvetted: !star.Vetted && star.Listed, gone: gone,
 			starred: since(star.StarredAt, now), starredAt: star.StarredAt.UTC().Format(time.RFC3339),
-			unstar: starAction(unstarHref, star.Library.Owner+"/"+star.Library.Name, starsHref, ""),
+			starredTitle: star.StarredAt.UTC().Format("2 Jan 2006, 15:04") + " UTC",
+			unstar:       starAction(unstarHref, star.Library.Owner+"/"+star.Library.Name, starsHref, ""),
 		}
 	}
 	return starred

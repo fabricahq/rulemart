@@ -109,8 +109,9 @@ func TestSigningInToStarPromptsOnceToStar(t *testing.T) {
 
 	site.signedInPost(t, starPath)
 	page = body(t, site.follow(t, site.signedInGet(t, library+"?star=1")))
-	if strings.Contains(page, "Star example/rules?") || hasKey(starButton(t, page), "data-prompt") {
-		t.Error("the page prompts to star a library the visitor starred already")
+	assertShows(t, page, "You're signed in. You've starred this library already.")
+	if button := starButton(t, page); strings.Contains(page, "Star example/rules?") || hasKey(button, "data-prompt") || hasKey(button, "autofocus") {
+		t.Error("the page prompts to star, or focuses the button for, a library the visitor starred already")
 	}
 
 	signedOut := send(t, site.handler, request{method: http.MethodGet, target: library + "?star=1"})
@@ -159,34 +160,80 @@ func TestListsShowTheVisitorsOwnStars(t *testing.T) {
 	}
 }
 
-// The stars page names what each star is for, says when each was starred, and keeps an unstarred library on the
-// page, saying so, with a way to star it again.
-func TestTheStarsPageKeepsWhatWasUnstarredWithAWayBack(t *testing.T) {
+// The stars page names what each star is for, and says when each was starred, readably to the minute on hover.
+func TestTheStarsPageSaysWhenEachStarWasMade(t *testing.T) {
 	site := newStarSite(t)
+	starred := time.Now().Add(-5 * time.Minute)
 	site.stars.listed[octocatID] = []views.StarredLibrary{
-		{Library: views.LibraryCard{Owner: "example", Name: "rules", Rules: 2, Stars: 3}, Vetted: true, StarredAt: time.Now().Add(-5 * time.Minute)},
+		{Library: views.LibraryCard{Owner: "example", Name: "rules", Rules: 2, Stars: 3}, Vetted: true, StarredAt: starred},
 	}
 
 	page := body(t, site.signedInGet(t, "/account/stars"))
 	assertShows(t, page, "Starred 5 minutes ago", "others see only how many stars each library has")
+	if want := `title="` + starred.UTC().Format("2 Jan 2006, 15:04") + ` UTC"`; !strings.Contains(page, want) {
+		t.Errorf("the time's hover text isn't %s", want)
+	}
+}
 
+// Unstarring on the stars page keeps the library named at the top, with Star again focused; starring it again
+// focuses its Unstar. Only the visitor's own unstarring names a library there: an address can't.
+func TestTheStarsPageKeepsWhatWasUnstarredWithAWayBack(t *testing.T) {
+	site := newStarSite(t)
 	site.stars.listed[octocatID] = nil
+
 	resp := site.signedInPost(t, unstarPath+"&return=%2Faccount%2Fstars")
-	if want := "/account/stars?unstarred=example%2Frules"; resp.Header.Get("Location") != want {
-		t.Fatalf("unstarring from the stars page returns to %q, want %q", resp.Header.Get("Location"), want)
+	if resp.Header.Get("Location") != "/account/stars" {
+		t.Fatalf("unstarring from the stars page returns to %q, want /account/stars", resp.Header.Get("Location"))
 	}
-	page = body(t, site.follow(t, resp))
+	page := body(t, site.follow(t, resp))
 	assertShows(t, page, "You unstarred example/rules.")
-	if got := formActions(t, page); !slices.Contains(got, starPath+"&return=%2Faccount%2Fstars") {
-		t.Errorf("the page's forms post to %q, want Star again", got)
-	}
 	if strings.Contains(visibleText(t, page), "most recent first") {
 		t.Error("an empty stars page explains its order")
 	}
 	assertShows(t, page, "Browse libraries")
-
-	page = body(t, site.signedInGet(t, "/account/stars?unstarred=nobody%2Fnothing%00"))
-	if strings.Contains(page, "You unstarred") {
-		t.Error("the page says the visitor unstarred something it can't name")
+	again := buttonNamed(t, page, "Star example/rules again")
+	if again == nil || !hasKey(again, "autofocus") {
+		t.Fatalf("Star again: %v, want it focused", again)
 	}
+	if got := formActions(t, page); !slices.Contains(got, starPath+"&return=%2Faccount%2Fstars") {
+		t.Errorf("the page's forms post to %q, want Star again", got)
+	}
+	if again := buttonNamed(t, body(t, site.signedInGet(t, "/account/stars")), "Star example/rules again"); again != nil {
+		t.Error("the next view of the stars page still offers Star again")
+	}
+
+	delete(site.stars.listed, octocatID)
+	resp = site.signedInPost(t, starPath+"&return=%2Faccount%2Fstars")
+	page = body(t, site.follow(t, resp))
+	if unstar := buttonNamed(t, page, "Unstar example/rules"); unstar == nil || !hasKey(unstar, "autofocus") {
+		t.Fatalf("after starring again, Unstar: %v, want it focused", unstar)
+	}
+
+	for _, target := range []string{
+		"/account/stars?unstarred=evil-site%2Fyour-account-was-compromised-visit-evil.example",
+		"/account/stars?unstarred=example%2Frules",
+	} {
+		if page := body(t, site.signedInGet(t, target)); strings.Contains(page, "You unstarred") {
+			t.Errorf("%s says the visitor unstarred something", target)
+		}
+	}
+}
+
+// buttonNamed returns the attributes of the button in page whose aria-label is name, or nil.
+func buttonNamed(t *testing.T, page, name string) map[string]string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "button" && attribute(n, "aria-label") == name {
+			attrs := map[string]string{}
+			for _, a := range n.Attr {
+				attrs[a.Key] = a.Val
+			}
+			return attrs
+		}
+	}
+	return nil
 }

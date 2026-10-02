@@ -206,7 +206,7 @@ func TestASignedInVisitorStarsALibraryFromItsPages(t *testing.T) {
 		t.Fatalf("a signed-in visitor's page is cached as %q", resp.Header.Get("Cache-Control"))
 	}
 	page := body(t, resp)
-	assertShows(t, page, "Star, 3 stars")
+	assertShows(t, page, "Star example/rules, 3 stars")
 	formAction := starPath + "&" + url.Values{"return": {library + "?tab=rules"}}.Encode()
 	if got := formActions(t, page); !slices.Contains(got, formAction) {
 		t.Fatalf("the page's forms post to %q, want %q", got, formAction)
@@ -223,7 +223,7 @@ func TestASignedInVisitorStarsALibraryFromItsPages(t *testing.T) {
 	}
 
 	page = body(t, site.signedInGet(t, library))
-	assertShows(t, page, "Starred, 3 stars")
+	assertShows(t, page, "Star example/rules, 3 stars")
 	if got := formActions(t, page); !slices.Contains(got, unstarPath) || slices.Contains(got, starPath) {
 		t.Fatalf("a starred library's forms post to %q, want %q and not %q", got, unstarPath, starPath)
 	}
