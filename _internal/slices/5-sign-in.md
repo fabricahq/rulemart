@@ -36,7 +36,8 @@ and was marked public would be served to everyone. Three layers keep that from h
 
 1. **The function.** Any response to a request that carries the session cookie, valid or not, and any response that
    sets a cookie, is `Cache-Control: private, no-store`, set in one middleware after the handler runs, so no page can
-   forget it. Static files are the exception: the same for everyone, and they set no cookie.
+   forget it. Static files are the exception, only as the static route serves them: the same for everyone, and they set no
+   cookie. A missing page under `/_static/` is a page like any other.
 2. **CloudFront.** The cache policy adds the session cookie to the cache key. A signed-in request then never matches
    the shared signed-out copy, and CloudFront never collapses two visitors' requests into one origin request. Its
    responses are never stored anyway, so each signed-in visitor's key holds nothing. CloudFront also caches
@@ -94,6 +95,9 @@ endpoint can come later without changing the session model.
   and Max-Age the session's lifetime. Lax sends it on GitHub's top-level redirect back, and on links from other sites,
   so a visitor following a link arrives signed in, but not on another site's form posts or fetches. A cookie that no
   longer signs anyone in is cleared on the next page.
+- **Proposed: signing out everywhere and deleting an account act only for a live session.** Each finds the account
+  from the request's session token in the same statement that writes, so a request whose session another browser
+  ended a moment earlier changes nothing, even after the visitor signs in again.
 - **Proposed: a failure to read the session fails the page** with the usual 503, rather than showing a signed-in
   visitor a signed-out page that could mislead them, such as into signing in again.
 
