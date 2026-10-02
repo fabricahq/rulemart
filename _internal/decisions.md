@@ -67,10 +67,12 @@ than adding history.
   shows. The worker ingests again a library stored before this, so production fills in older versions by itself.
 - **A library's releases are built from their stored release records**, laid out as Code Rules' generated release
   notes are, rather than from the tags' Markdown notes, which a library could fill with text Rulemart can't check.
+  They're paged, newest first, at most 2,000 rows a page, since each release lists every rule's version again.
 - **Comparisons are the Library releases and Versions tabs with `from` and `to` parameters**, chosen with a GET form,
   and carry `noindex` without a canonical address, as search does, since every pair would be a page of its own.
 - **Diffs are computed when a page is read**, by `internal/lib/textdiff`, a bounded diff that marks changed words in
-  Markdown blocks or shows a unified diff of lines, within 512 KiB of rule text per page. A rule's text in a diff is
+  Markdown blocks or shows a unified diff of lines, within 512 KiB of rule text and 10,000 rendered rows and marks
+  per page. A rule's text in a diff is
   always escaped. [Slice 4](slices/4-releases-and-comparison.md) explains the choices.
 - **A retired rule has a page**: its retirement, its replacement, and its versions, but not its text.
 

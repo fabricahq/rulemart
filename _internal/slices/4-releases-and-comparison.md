@@ -69,6 +69,15 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   Versions tab, so a reader scanning releases sees which ones to review before updating.
 - **Rules are listed in code point order of their IDs. Proposed.** Code Rules' notes do the same, and the database
   orders them with the `C` collation, whatever the server's default.
+- **A page of releases holds whole releases, newest first, up to 2,000 rows. Proposed.** Each release's notes list
+  every rule's version again, so a library's notes grow with rules times releases: 1,000 rules over 100 releases would
+  be 100,000 rows. A page counts each release's changes and versions, shows releases while they fit, and always at
+  least one, then links the older ones, from `?tab=releases&until=<n>`, and back to the newest. A link to a release
+  elsewhere leads to the page that starts with it. A release of more than 1,000 rules, as large as its library, leaves
+  out its table of every rule's version and links its GitHub Release page, which lists them, so even a release of
+  10,000 rules, the most Code Rules allows, stays within one response.
+- **A release names each rule by the title it published then. Proposed.** A rule renamed later keeps its old title in
+  the releases before the rename, and a retired rule shows its last title.
 - **"Latest library release" links to the Library releases tab. Proposed.** Each card still links to the release's
   GitHub Release page, which is only its announcement.
 
@@ -94,10 +103,16 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   which the rest shows as replaced. Precomputing diffs at ingestion would cover only adjacent versions. The Go diff
   libraries bound their work with a timeout, which makes a page's diff depend on the machine, and none splits
   Markdown into blocks, so a dependency would save little of the code.
+- **Whitespace in code is compared as it is. Proposed.** In prose, a change of whitespace alone, such as a rewrapped
+  paragraph, isn't a change. In a fenced or indented code block, where indentation can change what code does, it is,
+  and the words view marks it; the lines view marks changed whitespace in any replaced line.
 - **A page compares at most 512 KiB of rule text. Proposed.** Each changed rule's two versions count, in path order;
   a pair past the limit says it's too large to show, and links both files on GitHub, as does a pair whose text the
   catalog doesn't have yet. The store reads only the texts that fit. Ordinary rules are a few KiB, so a comparison
-  shows dozens in full, while a page stays well within a Lambda response however large a library's rules are.
+  shows dozens in full. Short text can still make a long diff, such as every line of a file changed, so a page also
+  renders at most 10,000 diff rows, blocks, and marks, and a diff past that says it's too large to show. Diffs take
+  short markup the stylesheet styles. Together these keep a page well within a Lambda response, however large a
+  library's rules are.
 - **Rule text in a diff is text. Existing rule.** A diff shows a rule's Markdown escaped, as segments the template
   escapes, never as HTML Rulemart assembles, so markup in a rule can't run or load.
 - **Diff colors are the first colors in the palette. Proposed.** Green and red, GitHub's diff colors, as tokens for
@@ -122,10 +137,12 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   HTML without Markdown doesn't.
 - **Store tests**, as `rulemart_web`: retired rules and their replacements, every version's text, texts within the
   limit in path order, a version without text, and unvetted libraries not found.
-- **App tests:** each release's changes and every rule's version after it, a comparison across several releases, the
-  older release or version first, and releases the library doesn't have.
-- **Page tests:** each page's text and links, the forms, both views, noindex, retired rules, the states a comparison
-  can't show, odd parameters, and a rule's raw HTML shown as text in a diff of an ingested library.
+- **App tests:** each release's changes and every rule's version after it, by the titles they had then, pages of
+  releases at the row limit, a comparison across several releases, the older release or version first, and releases
+  the library doesn't have.
+- **Page tests:** each page's text and links, the forms, both views, noindex, retired rules, pages of releases, the
+  states a comparison can't show, odd parameters, a rule's raw HTML shown as text in a diff of an ingested library,
+  and page sizes: a release of 10,000 rules, and diffs of every line changed or of thousands of changed paragraphs.
 - **Real data, locally:** both production libraries ingested as `rulemart_worker`, a migration of a database slice 3
   stored, and `make worker` ingesting the test library again for its versions' content, then every new page in a
   browser at desktop and phone widths, in light and dark themes.
@@ -135,6 +152,7 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 ## Not in this slice
 
 Comparing a rule's assets, and showing a rule's assets at all. A rendered preview of changes. Storing tags' Markdown
-release notes. Comparing rules across libraries. A retired rule's last text on its page. Paging through a very long
-release or comparison. Unvetted libraries, sign-in, listing libraries, stars, discussion, and the cart. Dropping
+release notes. Comparing rules across libraries. A retired rule's last text on its page. Paging through a comparison
+of releases that changes thousands of rules, whose list of changes, unlike its diffs, isn't bounded below the
+library's size. Unvetted libraries, sign-in, listing libraries, stars, discussion, and the cart. Dropping
 `hello_messages`, which belongs in its own change.
