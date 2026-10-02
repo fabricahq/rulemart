@@ -140,6 +140,18 @@ func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	}
 }
 
+// A rule's address may spell its ID in any case, as a library's may spell its owner and name; the page names the ID
+// as the library spells it, so the site can redirect to it.
+func TestRulePageMatchesTheRuleIDWithoutRegardToCase(t *testing.T) {
+	reader := newCatalog(t)
+
+	page, err := reader.RulePage(context.Background(), vetted, "example", "rules", "Techs/Go/Return-Errors")
+
+	if err != nil || page.Rule.Path != "techs/go/return-errors" {
+		t.Fatalf("got %q, %v; want techs/go/return-errors", page.Rule.Path, err)
+	}
+}
+
 // A library page lists only the groups that hold current rules, though the catalog keeps a group whose rules are
 // all retired, its current rules, and apart from them, its retired rules.
 func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {

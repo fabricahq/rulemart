@@ -52,8 +52,8 @@ than adding history.
   impact description, and its body, weighted in that order. Search adds each rule's group names as it reads: the
   canonical list's name, passed as a parameter, and the name part of the group's ID, never the name a library
   declares. A word joined with `-`, `/`, or `:`, such as `keep-tests-independent` or `techs/go`, also matches the IDs
-  pages show. Results rank by where each word matches, title first, so a rule about the subject comes before one that
-  mentions it, and a rule that lacks some words names them. [Slice 3](slices/3-browse-and-search.md) compares the
+  pages show. Rules that hold every word come first, then rules that hold some, each ranked by where the words match,
+  title first, and a rule that lacks some words names them. [Slice 3](slices/3-browse-and-search.md) compares the
   alternatives and states the ranking.
 - **Only a canonical group has a page across libraries,** at `/groups/{techs|practices}/{name}`. Any other group
   stands alone, so the groups page lists it once per library and leads to that library's section for it.

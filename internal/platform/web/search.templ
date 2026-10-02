@@ -17,14 +17,20 @@ templ searchPage(c chrome, v searchView) {
 			<div class="mt-[22px] max-w-[44rem]">
 				@searchForm("search", v.query, !v.searched())
 				<p class="mt-2 px-4 text-[12.5px] text-faint">
-					Search for <code>"retry limits"</code> to find the phrase, <code>testing -react</code> to leave out a word, or <code>jitter or backoff</code> to find either word.
+					Search for{ " " }
+					@example(`"retry limits"`)
+					{ " " }to find the phrase,{ " " }
+					@example("testing -react")
+					{ " " }to leave out a word, or{ " " }
+					@example("jitter or backoff")
+					{ " " }to find either word.
 				</p>
 			</div>
 			if v.searched() {
 				<div class="mt-[30px] max-w-[52rem]">
 					if v.pageMissing() {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							<p class="font-medium text-ink">“{ v.query }” has no page { strconv.Itoa(v.page) } of results.</p>
+							<p class="font-medium text-ink">The results for “{ v.query }” don't reach this page.</p>
 							<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
 						</div>
 					} else if v.tooLong {
@@ -45,19 +51,24 @@ templ searchPage(c chrome, v searchView) {
 						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">
 							@searchSummary(v)
 						</h2>
-						<ol class="grid gap-2.5">
-							for _, r := range v.results {
-								<li>
-									@searchResult(r)
-								</li>
+						@searchResults(v.completeResults())
+						if partial := v.partialResults(); len(partial) > 0 {
+							if v.complete > 0 {
+								<h3 class="mt-7 mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">Rules that match some of your words</h3>
 							}
-						</ol>
+							@searchResults(partial)
+						}
 						@searchPages(v)
 					}
 				</div>
 			}
 		</div>
 	}
+}
+
+// example is a search a hint shows, as code, kept on one line with its quotes.
+templ example(query string) {
+	<code class="rounded-[4px] border border-border-subtle bg-surface px-1 whitespace-nowrap text-muted">{ query }</code>
 }
 
 // searchSummary says how many rules matched the query, and how many of them hold every word of it.
@@ -90,6 +101,19 @@ templ searchPages(v searchView) {
 				<span></span>
 			}
 		</nav>
+	}
+}
+
+// searchResults lists rules that matched, in order.
+templ searchResults(results []searchResultView) {
+	if len(results) > 0 {
+		<ol class="grid gap-2.5">
+			for _, r := range results {
+				<li>
+					@searchResult(r)
+				</li>
+			}
+		</ol>
 	}
 }
 

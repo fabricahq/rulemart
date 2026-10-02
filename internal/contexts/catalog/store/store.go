@@ -33,8 +33,9 @@ type Reader interface {
 	HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error)
 	// LibraryPage returns the vetted library owner/name, matched without regard to case, or ErrNotFound.
 	LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error)
-	// RulePage returns the rule at rulePath in the vetted library owner/name, matched as LibraryPage matches it,
-	// current or retired, with how every rule of the library was replaced, or ErrNotFound.
+	// RulePage returns the rule at rulePath in the vetted library owner/name, current or retired, both matched without
+	// regard to case, as LibraryPage matches the library, with how every rule of the library was replaced, or
+	// ErrNotFound. The page's Rule.Path is the library's spelling.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
 	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.

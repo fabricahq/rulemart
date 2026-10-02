@@ -142,7 +142,35 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET /{owner}/{repo}", s.library)
 	handle("GET /{owner}/{repo}/{rule...}", s.rule)
 	handle("/", s.notFound)
-	return s.logRequests(withSecurityHeaders(withoutTrailingSlash(mux))), nil
+	return s.logRequests(withSecurityHeaders(withoutTrailingSlash(withSiteSectionsInLowercase(mux)))), nil
+}
+
+// siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
+// path under it, and libraries and search as a whole path, since GitHub has an account named libraries, whose
+// libraries' pages are /libraries/{repo}.
+var siteSections = map[string]bool{"groups": true, "libraries": false, "search": false}
+
+// withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as
+// /Groups or /SEARCH, to the same path with that segment in lowercase, keeping the query, as a library's other
+// spellings redirect. The target starts with the section, so it stays on the site.
+func withSiteSectionsInLowercase(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		first, rest, nested := strings.Cut(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
+		section := strings.ToLower(first)
+		withSubpaths, ok := siteSections[section]
+		if !ok || first == section || (nested && !withSubpaths) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		target := "/" + section
+		if nested {
+			target += "/" + rest
+		}
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		redirect(w, r, target)
+	})
 }
 
 // withoutTrailingSlash redirects a path that ends with a slash, such as /groups/, to the same path without it,
@@ -285,7 +313,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		s.releases(w, r, owner, name)
 	default:
 		page, err := s.catalog.LibraryPage(r.Context(), owner, name)
-		if !s.found(w, r, page.Library, err) {
+		if !s.found(w, r, page.Library, "", err) {
 			return
 		}
 		view := newLibraryView(page.Library)
@@ -313,7 +341,7 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 		s.releasesNotFound(w, r, owner, name)
 		return
 	}
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
 	view := newLibraryView(page.Library)
@@ -329,7 +357,7 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 // tab saying so, or the site's missing page when there's no such library.
 func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner, name string) {
 	page, err := s.catalog.ReleasesPage(r.Context(), owner, name, 0)
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
 	view := newLibraryView(page.Library)
@@ -352,7 +380,7 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 		s.releasesNotFound(w, r, owner, name)
 		return
 	}
-	if !s.found(w, r, comparison.Library, err) {
+	if !s.found(w, r, comparison.Library, "", err) {
 		return
 	}
 	view := newLibraryView(comparison.Library)
@@ -363,7 +391,7 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 // site's missing page when there's no such rule.
 func (s *server) ruleComparisonNotFound(w http.ResponseWriter, r *http.Request) {
 	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
 	view := newRuleView(newLibraryView(page.Library), page)
@@ -391,7 +419,7 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, err := s.catalog.RulePage(r.Context(), r.PathValue("owner"), r.PathValue("repo"), r.PathValue("rule"))
-	if !s.found(w, r, page.Library, err) {
+	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
 	if tab != versionsTab {
@@ -416,7 +444,7 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 		s.ruleComparisonNotFound(w, r)
 		return
 	}
-	if !s.found(w, r, comparison.Page.Library, err) {
+	if !s.found(w, r, comparison.Page.Library, comparison.Page.Rule.Path, err) {
 		return
 	}
 	view := newRuleView(newLibraryView(comparison.Page.Library), comparison.Page)
@@ -435,10 +463,10 @@ func (s *server) pageChrome(href string) chrome {
 	return c
 }
 
-// found reports whether a page's data loaded, for the library lib, and is at the path GitHub's spelling of the
-// library's owner and name gives. Otherwise it answers the request itself: with a missing page, a failure, or a
-// redirect to that path.
-func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, err error) bool {
+// found reports whether a page's data loaded, for the library lib and, on a rule's page, the rule at rulePath, and is
+// at the path that GitHub's spelling of the library's owner and name, and the library's of the rule's ID, give.
+// Otherwise it answers the request itself: with a missing page, a failure, or a redirect to that path.
+func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, rulePath string, err error) bool {
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
 		return false
@@ -447,10 +475,10 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		s.fail(w, r, err)
 		return false
 	}
-	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") {
+	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != r.PathValue("rule") {
 		canonical := url.URL{Path: libraryHref(lib.Owner, lib.Name), RawQuery: r.URL.RawQuery}
-		if rule := r.PathValue("rule"); rule != "" {
-			canonical.Path += "/" + rule
+		if rulePath != "" {
+			canonical.Path += "/" + rulePath
 		}
 		redirect(w, r, canonical.String())
 		return false

@@ -40,10 +40,10 @@ JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
 WHERE r.library_id = @library_id
 ORDER BY g.path, lower(v.title), r.path;
 
--- GetRule returns the rule at path, current or retired, with its newest version: the current version while it's
--- current, and the last once retired, and a retired rule's retirement. Its html is the newest version's body.
--- when_to_read_html is empty unless it was rendered from the reading guidance the version holds now, since a release
--- that didn't render it may have changed it since.
+-- GetRule returns the rule at path, current or retired, matched without regard to case, preferring the rule spelled
+-- exactly so, with its newest version: the current version while it's current, and the last once retired, and a
+-- retired rule's retirement. Its html is the newest version's body. when_to_read_html is empty unless it was rendered
+-- from the reading guidance the version holds now, since a release that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
        v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
@@ -60,7 +60,9 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-WHERE r.library_id = @library_id AND r.path = @path;
+WHERE r.library_id = @library_id AND lower(r.path) = lower(@path)
+ORDER BY r.path = @path DESC, r.path
+LIMIT 1;
 
 -- ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
 -- added it with its first title, and its last title, in path order.
@@ -158,12 +160,12 @@ ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path;
 -- with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
 -- source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
 --
--- Each term scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or
--- impact description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms'
--- average, scaled by the square of the share of terms it holds, so a rule that holds every term usually comes first,
--- but one whose title holds some can pass one whose body holds all. A title made mostly of the terms it matches adds up
--- to 0.25, so "Verify retry limits" outranks a longer title for retry. Equal scores fall back to ts_rank, then title,
--- the library's owner and name, and rule ID, so the order is stable.
+-- Rules that hold every term come first, then those that hold some, each by score. Each term scores by the best
+-- place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact description 0.5, and anywhere
+-- else, the body or the library's name, 0.1. A rule's score is its terms' average, scaled by the square of the share
+-- of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so "Verify retry limits" outranks a
+-- longer title for retry. Equal scores fall back to ts_rank, then title, the library's owner and name, and rule ID, so
+-- the order is stable.
 -- name: SearchRules :many
 WITH find_terms AS (
     SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
@@ -247,7 +249,7 @@ JOIN rule_versions v ON v.id = ranked.id
 JOIN rules r ON r.id = v.rule_id
 JOIN library_groups g ON g.id = r.group_id
 JOIN libraries l ON l.id = r.library_id
-ORDER BY ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
+ORDER BY cardinality(ranked.missing) > 0, ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
 LIMIT @max_results OFFSET @skip;
 
 -- CountSearchableTerms counts the terms that hold a word search looks for, rather than only stop words, such as

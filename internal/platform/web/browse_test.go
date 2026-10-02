@@ -372,7 +372,11 @@ func TestSearchPageNumbersRedirectToTheirAddressOrAreMissing(t *testing.T) {
 			continue
 		}
 		page := resp.Body.String()
-		assertShows(t, page, "has no page", "Go to the first page")
+		assertShows(t, page, "The results for “", "” don't reach this page.", "Go to the first page")
+		// The page names no number, which the visitor may have typed past what an int holds.
+		if strings.Contains(visibleText(t, page), "201") {
+			t.Error("the page names a page number")
+		}
 		assertSearchForm(t, page, "search", strings.Split(strings.TrimPrefix(path, "/search?q="), "&")[0])
 	}
 }
@@ -394,12 +398,21 @@ func TestSearchPageNamesTheWordsEachResultLacks(t *testing.T) {
 		// The quoted query is a node of its own, which visible text separates from the punctuation after it.
 		`1 rule matches every word of “error handling "error chain"” , and 1 more match some of them`,
 		"Return errors with context HIGH When a function fails. example/rules",
-		`Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
+		// Rules that lack a word follow those that hold every word, under a heading of their own.
+		`Rules that match some of your words Wrap errors MEDIUM When returning an error. Missing: handling "error chain" other/go-rules`,
 	)
 	if !strings.Contains(page, "<s>handling</s>") {
 		t.Error("the missing words aren't struck through")
 	}
-	assertShows(t, get(t, handler, "/search?q=errors").Body.String(), "No rule matches every word of “errors” ; 1 rule matches some of them")
+	if got := listItems(t, page, "ol"); !slices.Equal(got, []int{1, 1}) {
+		t.Errorf("the results' lists hold %v items, want the complete one and then the partial one", got)
+	}
+	// With no rule holding every word, the summary says so, and no heading divides the results.
+	none := get(t, handler, "/search?q=errors").Body.String()
+	assertShows(t, none, "No rule matches every word of “errors” ; 1 rule matches some of them")
+	if strings.Contains(none, "Rules that match some of your words") {
+		t.Error("a search without complete matches divides its results")
+	}
 }
 
 // A query of only words search skips, or words to leave out, says why it finds nothing.
@@ -523,6 +536,17 @@ func TestLibrariesPageListsTheVettedLibraries(t *testing.T) {
 	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/libraries"}) {
 		t.Errorf("the page names %q as its address", got)
+	}
+	// Each library heads its row, as on the home page, where they're under the Libraries heading.
+	if got := headings(t, page, "h2"); !slices.Equal(got, []string{"rules"}) {
+		t.Errorf("the libraries page's headings are %q", got)
+	}
+	home := get(t, handler, "/").Body.String()
+	if got := headings(t, home, "h3"); !slices.Contains(got, "rules") {
+		t.Errorf("the home page's library isn't a heading under Libraries: %q", got)
+	}
+	if got := links(t, home, "All libraries"); !slices.Equal(got, []string{"/libraries"}) {
+		t.Errorf("the home page links all libraries as %q", got)
 	}
 }
 
