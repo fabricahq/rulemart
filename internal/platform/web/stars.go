@@ -82,7 +82,8 @@ func (s *server) withoutStarPrompt(w http.ResponseWriter, r *http.Request) bool 
 			kept = append(kept, pair)
 		}
 	}
-	target := url.URL{Path: r.URL.EscapedPath(), RawQuery: strings.Join(kept, "&")}
+	// The path keeps the spelling the visitor's browser sent, which RawPath holds when it differs from Path's.
+	target := url.URL{Path: r.URL.Path, RawPath: r.URL.RawPath, RawQuery: strings.Join(kept, "&")}
 	if visitorOf(r.Context()).account == nil {
 		redirect(w, r, target.String())
 		return true

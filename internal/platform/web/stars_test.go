@@ -447,6 +447,15 @@ func TestTheStarPromptRedirectsOnceToTheAddressWithoutIt(t *testing.T) {
 	}
 }
 
+// The star prompt's redirect keeps a rule page's path as the visitor's browser spelled it, so a path with an encoded
+// letter leads to the page, as it does without the prompt.
+func TestTheStarPromptKeepsAnEncodedPath(t *testing.T) {
+	site := newStarSite(t)
+	encodedRule := "/%65xample/rules/techs/go/return-errors"
+
+	assertRedirectsToPage(t, site.handler, encodedRule+"?tab=versions&star=1", encodedRule+"?tab=versions")
+}
+
 // assertRedirectsToPage fails t unless target, requested signed out, redirects permanently to want, and following
 // redirects from there, as a browser would, leads to a page.
 func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want string) {
