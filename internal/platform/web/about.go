@@ -18,8 +18,9 @@ const (
 	repositoryURL = "https://github.com/fabricahq/rulemart"
 	// vettedFileURL is the file that vets libraries, whose history shows when and why each was vetted.
 	vettedFileURL = repositoryURL + "/blob/main/catalog/vetted.yaml"
-	// reportProblemURL lets a visitor choose which report to file.
-	reportProblemURL = repositoryURL + "/issues/new/choose"
+	// reportFormsURL lets a visitor choose which report to file, and reportProblemURL opens the Report a problem form.
+	reportFormsURL   = repositoryURL + "/issues/new/choose"
+	reportProblemURL = repositoryURL + "/issues/new?template=report-a-problem.yml"
 	// codeRulesURL is Code Rules' documentation, and codeRulesLibrariesURL its page on libraries and their releases.
 	codeRulesURL          = "https://code-rules.fabricahq.com"
 	codeRulesLibrariesURL = codeRulesURL + "/concepts/libraries/"

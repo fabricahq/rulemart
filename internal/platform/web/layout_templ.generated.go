@@ -710,7 +710,7 @@ func navLink(href, name, section string) templ.Component {
 }
 
 // footer is the bar at the bottom of every page: what Rulemart and Code Rules are, Rulemart's privacy notice, its
-// source, where to report a problem, and the theme menu.
+// source, where to give feedback, and the theme menu.
 func footer() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -752,7 +752,7 @@ func footer() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = footerLink(reportProblemURL, "Report a problem").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = footerLink(feedbackHref, "Give us feedback").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

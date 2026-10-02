@@ -1,0 +1,128 @@
+// The pages that help visitors: the FAQ, and the feedback page.
+
+package web
+
+// faqPage answers the questions visitors ask most, each a disclosure, and leads to feedback for any other.
+templ faqPage(c chrome) {
+	@layout(c, head{title: "FAQ · Rulemart", description: "What Rulemart and Code Rules are, how rules, groups, and libraries work, and how to use them in your project.", section: faqHref}) {
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				FAQ
+			}
+			<h1 class="title-xl mt-2 mb-6">Questions and answers</h1>
+			@faqItem("What is Rulemart?") {
+				<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them, and add the ones you want to your own codebase.</p>
+				<p>Think of it as shopping for best practices instead of writing every rule yourself.</p>
+			}
+			@faqItem("Can I use Rulemart with any project?") {
+				<p>Yes, in any language, public or private, as long as it uses <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Code Rules adds them to your project and keeps them in sync.</p>
+				<p>If your project doesn't use Code Rules yet, the checkout prompt has your agent set it up.</p>
+			}
+			@faqItem("What is Code Rules?") {
+				<p>Rulemart uses <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> to add the rules you pick to your project and keep them in sync.</p>
+				<p>Code Rules is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.code-rules/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p>
+				<p>Teams manage this guidance rule by rule, for a single repo or across their organization. They can share one library of rules between repos and still add or exclude rules where a project differs.</p>
+			}
+			@faqItem("How do I use Rulemart?") {
+				<ol>
+					<li><b>Browse</b> rules by technology or practice, or search for what you need.</li>
+					<li><b>Add to cart</b> the rules, groups, or libraries you want. The cart needs a free account.</li>
+					<li><b>Check out</b> to get one prompt for your coding agent, which adds them to your project with Code Rules.</li>
+				</ol>
+			}
+			@faqItem("What are rules, groups, and libraries?") {
+				<p>A <b>rule</b> is a single instruction for your agents, like "Wrap errors with the operation that failed."</p>
+				<p>Rules are organized into <b>groups</b>, and every group is one of two kinds:</p>
+				<ul>
+					<li><b>Techs</b> cover a specific language, framework, or tool, like Go, React, or PostgreSQL. Pick the techs your project is built with.</li>
+					<li><b>Practices</b> cover concerns that apply whatever your stack, like testing, error handling, or observability. Pick the practices you want your agents to follow.</li>
+				</ul>
+				<p>For example, "Wrap errors with the operation that failed" is in the Go group because it only makes sense in Go, while "Test failure paths, not just success" is in the Testing group because it applies in any language.</p>
+				<p>A <b>library</b> is a GitHub repo that publishes groups of rules.</p>
+			}
+			@faqItem("Should I stay in sync with a rule or fork it?") {
+				<p>Rules you add from Rulemart stay in sync with their library. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p>
+				<p>To manage a rule yourself, fork it with Code Rules. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>
+			}
+			@faqItem("How are rules versioned?") {
+				<p>Each rule has its own version, using <a href={ templ.SafeURL(versionsDocs) }>semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p>
+				<p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change and asks about each major change and retired rule before applying it.</p>
+			}
+			@faqItem("Who can publish a library?") {
+				<p>Anyone with a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
+			}
+			@faqItem("Do I need a Rulemart account?") {
+				<p>No. You can browse and read rules without one.</p>
+				<p>A free account, using GitHub sign-in, adds:</p>
+				<ul>
+					<li><b>A cart</b>, to collect rules and check out with one prompt for your coding agent</li>
+					<li><b>Stars</b> to save libraries and help others find good ones</li>
+					<li><b>Library listing</b>, so you can list your own libraries on Rulemart</li>
+				</ul>
+			}
+			@faqItem("How do I give feedback?") {
+				<p>For Rulemart or Code Rules itself, use the <a href={ templ.SafeURL(feedbackHref) }>feedback page</a>. Pick a topic, and it opens an issue on GitHub where we track and reply to it.</p>
+				<p>For a specific rule, open an issue in the library's repository, which the rule's page links. It goes to the people who publish the rule, since they maintain it.</p>
+			}
+			<p class="mt-7 text-[13px] text-muted">Still have a question? <a href={ templ.SafeURL(feedbackHref) }>Ask us</a>.</p>
+		</div>
+	}
+}
+
+// faqItem is one question of the FAQ, a disclosure that opens its answer.
+templ faqItem(question string) {
+	<details class="group border-t border-border py-1 last-of-type:border-b">
+		<summary class="flex cursor-pointer list-none justify-between gap-4 py-[14px] text-[17px] font-medium tracking-[-.02em] after:font-normal after:text-faint after:content-['+'] group-open:after:content-['−'] [&::-webkit-details-marker]:hidden">{ question }</summary>
+		<div class="faq-answer pb-4 text-muted">
+			{ children... }
+		</div>
+	</details>
+}
+
+// feedbackPage offers a topic for each kind of feedback, each opening a prefilled issue on GitHub in the repository
+// that owns the topic, and says where feedback about one rule goes.
+templ feedbackPage(c chrome) {
+	@layout(c, head{title: "Feedback · Rulemart", description: "Tell us what to change about Rulemart or Code Rules: pick a topic to open an issue on GitHub."}) {
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				Feedback
+			}
+			<h1 class="title-xl mt-2 mb-2.5">Give us feedback</h1>
+			<p class="mb-[26px] text-muted">Rulemart and Code Rules are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>
+			for _, group := range feedbackGroups {
+				@labelHeading("mt-[22px] mb-2 first:mt-0") {
+					{ group.name }
+				}
+				@rowList() {
+					for _, topic := range group.topics {
+						@rowItem() {
+							@feedbackRow(topic.issueURL(), topic.label, topic.example)
+						}
+					}
+					if group.name == "Rulemart" {
+						@rowItem() {
+							@feedbackRow(reportProblemURL, "Something broken on Rulemart", "A page that's wrong, empty, or won't load.")
+						}
+					}
+				}
+				if group.name == "Code Rules" {
+					@labelHeading("mt-[22px] mb-2") {
+						A specific rule
+					}
+					<p class="text-[13px] text-muted">Open an issue in the library's repository, which the rule's page links. It goes to the people who publish the rule, since they maintain it.</p>
+				}
+			}
+		</div>
+	}
+}
+
+// feedbackRow is one topic of the feedback page, leading to GitHub.
+templ feedbackRow(href, label, example string) {
+	@rowLink(href, false) {
+		<div class="min-w-0">
+			<div class="leading-[1.35] font-semibold">{ label }</div>
+			<div class="mt-0.5 text-[12.5px] text-faint">{ example }</div>
+		</div>
+		<span class="text-[12px] whitespace-nowrap text-faint">↗ GitHub</span>
+	}
+}

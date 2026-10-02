@@ -150,6 +150,27 @@ templ rowList() {
 	</ul>
 }
 
+// rowLink is a row of a rowList that is one full-width link, laid out as the prototype's rowlink: its content, a
+// column of metadata on the right, and a chevron that shows on hover. nofollow marks a link to an unvetted
+// library's page.
+templ rowLink(href string, nofollow bool) {
+	<a
+		class="group grid grid-cols-[minmax(0,1fr)_auto_14px] items-center gap-[18px] px-[18px] py-[14px] text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]"
+		href={ templ.SafeURL(href) }
+		if nofollow {
+			rel="nofollow"
+		}
+	>
+		{ children... }
+		@chevron()
+	</a>
+}
+
+// chevron ends a rowLink: hidden until the row is hovered or focused, when it slides in.
+templ chevron() {
+	<span class="-translate-x-1 text-[20px] leading-none text-faint opacity-0 transition-[opacity,transform] duration-[120ms] group-hover:translate-x-0 group-hover:text-ink group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:text-ink group-focus-visible:opacity-100" aria-hidden="true">›</span>
+}
+
 // rowItem is one row of a rowList.
 templ rowItem() {
 	<li>

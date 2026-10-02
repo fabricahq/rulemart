@@ -195,7 +195,7 @@ templ navLink(href, name, section string) {
 }
 
 // footer is the bar at the bottom of every page: what Rulemart and Code Rules are, Rulemart's privacy notice, its
-// source, where to report a problem, and the theme menu.
+// source, where to give feedback, and the theme menu.
 templ footer() {
 	<footer class="border-t border-border pt-[22px] pb-10 text-[13px] text-muted">
 		<div class="wrap flex flex-wrap items-center gap-x-6">
@@ -206,7 +206,7 @@ templ footer() {
 				@footerLink(privacyHref, "Privacy")
 				@footerLink(codeRulesURL, "About Code Rules")
 				@footerLink(repositoryURL, "Source on GitHub")
-				@footerLink(reportProblemURL, "Report a problem")
+				@footerLink(feedbackHref, "Give us feedback")
 			</nav>
 			<div class="max-narrow:ml-auto">
 				@themeMenu()

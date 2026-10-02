@@ -176,6 +176,8 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	handle("GET "+sitemapHref, s.sitemap)
 	handle("GET "+aboutHref, s.about)
 	handle("GET "+privacyHref, s.privacy)
+	handle("GET "+faqHref, s.faq)
+	handle("GET "+feedbackHref, s.feedback)
 	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
 	// segment, so it can't either, though GitHub has an account named libraries.
 	handle("GET /libraries", s.libraries)
@@ -224,10 +226,11 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 }
 
 // siteSections are the first segments of the site's own pages, which no library owner shadows: groups for every
-// path under it, and libraries, search, unvetted, list, about, and privacy as a whole path, since GitHub has an
-// account named libraries, whose libraries' pages are /libraries/{repo}, and may have others.
+// path under it, and libraries, search, unvetted, list, about, privacy, faq, and feedback as a whole path, since
+// GitHub has an account named libraries, whose libraries' pages are /libraries/{repo}, and may have others.
 var siteSections = map[string]bool{
 	"groups": true, "libraries": false, "search": false, "unvetted": false, "list": false, "about": false, "privacy": false,
+	"faq": false, "feedback": false,
 }
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of siteSections in another case, such as

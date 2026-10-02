@@ -11,17 +11,17 @@ import (
 )
 
 // Every page's footer leads to what Rulemart is, how it treats visitors' data, Code Rules, Rulemart's source, and
-// where to report a problem.
-func TestEveryPagesFooterLeadsToAboutPrivacySourceAndReports(t *testing.T) {
+// the feedback page.
+func TestEveryPagesFooterLeadsToAboutPrivacySourceAndFeedback(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
 	want := map[string]string{
 		"About Rulemart":   "/about",
 		"Privacy":          "/privacy",
 		"About Code Rules": "https://code-rules.fabricahq.com",
 		"Source on GitHub": "https://github.com/fabricahq/rulemart",
-		"Report a problem": "https://github.com/fabricahq/rulemart/issues/new/choose",
+		"Give us feedback": "/feedback",
 	}
-	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy"} {
+	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
 		for text, href := range want {
 			if got := links(t, page, text); !slices.Contains(got, href) {
