@@ -79,7 +79,9 @@ than adding history.
   Markdown blocks or shows a unified diff of lines, within 512 KiB of rule text and 10,000 rendered rows and marks
   per page. A rule's text in a diff is
   always escaped. [Slice 4](slices/4-releases-and-comparison.md) explains the choices.
-- **A retired rule has a page**: its retirement, its replacement, and its versions, but not its text.
+- **A retired rule has a page**: its retirement, its chain of replacements to a current rule, its last text, and its
+  versions. A rename, which Code Rules records as a retirement and a new rule under the same title, shows as one.
+  Retired rules stay out of search.
 
 ## Application
 

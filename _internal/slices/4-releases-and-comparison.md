@@ -24,9 +24,10 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **Switch how changes show.** `view=lines` shows a unified diff with numbered lines; otherwise changed words are
   marked in the Markdown, and unchanged blocks away from a change fold away.
 - **Follow history across pages.** A version row leads to the release that published it. A release's change leads to
-  the rule's versions, or to the comparison of its two versions. A retired rule has a page: when and why it was
-  retired, what replaced it, and its versions. A rule's Versions tab names the retired rules it replaced. The All
-  rules tab lists retired rules after the current ones. The library's "Latest library release" fact leads to the
+  the rule's versions, or to the comparison of its two versions, and each release to its comparison with the one
+  before. A retired rule has a page: when and why it was retired, what replaced it, its last text, and its versions.
+  A rule's Rule and Versions tabs name the retired rules it replaced or renamed. The All rules tab lists retired rules
+  after the current ones, renamed apart from replaced. The library's "Latest library release" fact leads to the
   Library releases tab.
 
 ## Decisions
@@ -36,8 +37,10 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **Every rule version keeps its content. Proposed.** Until now only the current version of a current rule stored
   its file, so nothing could compare it with an older one. Each version now stores the rule as its release published
   it: title, impact, impact description, reading guidance, and the whole Markdown file. Only the current version of a
-  current rule stores the HTML its page shows, which still marks it as current. Old versions are read for comparison
-  and for a retired rule's title, never rendered, so ingestion doesn't spend rendering on them.
+  current rule stores the HTML its page shows, which still marks it as current. A retired rule's last version stores
+  the HTML of its body in a column of its own, `retired_html`, so its page can show it while every read that finds
+  current rules by their HTML still finds only those. Other old versions are read for comparison and titles, never
+  rendered, so ingestion doesn't spend rendering on them.
 - **Ingestion parses every version's file with Code Rules' parser, at the release that published it. Proposed.** A
   release that can't produce a version's file, or one the parser refuses, fails the library's ingestion, naming the
   release and file, as a current version's file already does (**Existing**). Code Rules checks every rule file it
@@ -45,12 +48,13 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
   memory stays bounded as before (**Existing**: one ingestion holds at most `ContentLimits.ContentBytes`).
 - **The worker ingests again a library stored without its versions' content. Proposed.** The update check already
   ingests a library whose clone URL or tag IDs a release before them didn't store (**Existing**); a stored version
-  without content now counts the same way. Production fills in older versions on the first hourly poll after the
+  without content, or a retired rule's last version without its body's HTML, now counts the same way. Production fills in older versions on the first hourly poll after the
   release deploys, and needs no operator backfill or infrastructure change. Until then, a comparison says it doesn't
   have the text yet.
-- **Migration 00008 only relaxes a check. Existing rule, Proposed content.** It replaces 00002's check that a version
-  has all of its content or none, together with its HTML, by two checks: a version has all of its content or none of
-  it, and HTML only beside Markdown. The release still running writes rows that pass both, and rows it stored keep
+- **Migration 00008 only relaxes a check and adds a column. Existing rule, Proposed content.** It replaces 00002's
+  check that a version has all of its content or none, together with its HTML, by two checks: a version has all of its
+  content or none of it, and HTML only beside Markdown. It adds `retired_html`, nullable, with a check that it's only
+  on a version without `html` and with Markdown. The release still running writes rows that pass both, and rows it stored keep
   passing. Generated search documents now cover older versions too; search still reads only current ones
   (**Existing**).
 - **No new grants. Proposed.** `rulemart_catalog_reader` reads the content through its `SELECT` on `rule_versions`
@@ -72,12 +76,27 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A page of releases holds whole releases, newest first, up to 2,000 rows. Proposed.** Each release's notes list
   every rule's version again, so a library's notes grow with rules times releases: 1,000 rules over 100 releases would
   be 100,000 rows. A page counts each release's changes and versions, and ten rows more for its card, shows releases
-  while they fit, and always at least one, then links the older ones, from `?tab=releases&until=<n>`, and back to the newest. A link to a release
-  elsewhere leads to the page that starts with it. A release of more than 1,000 rules, as large as its library, leaves
+  while they fit, and always at least one, the first page starting at the latest release and each next one where the
+  one before ends. `?tab=releases&release=<n>` shows the page that holds release n, with the releases newer than it on
+  that page, so a link to a release leads to its card among its neighbors; the first page has one address, so a
+  release on it redirects there, and the browser keeps the link's fragment. A release of more than 1,000 rules leaves
   out its table of every rule's version and links its GitHub Release page, which lists them, so even a release of
   10,000 rules, the most Code Rules allows, stays within one response.
 - **A release names each rule by the title it published then. Proposed.** A rule renamed later keeps its old title in
   the releases before the rename, and a retired rule shows its last title.
+- **A retired rule's replacement is followed to a current rule. Proposed.** When the rule that replaced a retired one
+  was retired too by the end of what a page shows, the page names the chain: "Replaced by Verify retries, itself
+  replaced by Verify retry limits". A release's card follows it to that release, a comparison to its later release,
+  and a retired rule's page to now. Following stops at a rule it already named, so a cycle in a library's records
+  can't loop.
+- **A rename shows once, as a rename. Proposed.** Code Rules records a rename as a retired rule replaced by a new one.
+  When the release that retired a rule added its replacement under the retired rule's last title, Rulemart shows one
+  change, under Renamed rules: the new ID, "Renamed from" the old one, and the old rule's last text compared with the
+  new rule's. Pages say "renamed to" and "renamed from" rather than "replaced by". A replacement under another title
+  stays a retirement and a new rule.
+- **Long lists of changes fold. Proposed.** A section of more than 20 rules shows 10 and folds the rest behind a
+  disclosure that counts them, such as public-rules' first release, which adds 127.
+- **Each release links its comparison with the release before it, and its tag links its card. Proposed.**
 - **"Latest library release" links to the Library releases tab. Proposed.** Each card still links to the release's
   GitHub Release page, which is only its announcement.
 
@@ -85,8 +104,15 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 
 - **A comparison is the Library releases or Versions tab with `from` and `to` parameters. Proposed.** A form with two
   selects submits them with GET, so choosing needs no script (**Existing**: the policy's `form-action 'self'`). The
-  older one comes first whichever way round they're given, comparing a release or version with itself says to choose
-  two, and one the library or rule doesn't have, or that isn't a release number or version, is a missing page.
+  older one comes first whichever way round they're given, and comparing a release or version with itself says to
+  choose two.
+- **A release or version a page can't find answers 404 within its library or rule. Proposed.** One that isn't a
+  release number or version, or that the library or rule doesn't have, shows the library's or rule's header and tabs,
+  the form to choose again, and a link back to the list, with status 404 and `noindex`. A library or rule that doesn't
+  exist answers the site's missing page (**Existing**).
+- **A comparison says when shared files changed, and offers words or lines only for a diff. Proposed.** Code Rules
+  records that a release changed library-wide files, without which ones, so a comparison says a release in its range
+  did.
 - **Comparisons carry `noindex` and name no canonical address. Proposed.** As with search (**Existing**), every pair
   would otherwise be a page of its own to a search engine. The tabs themselves name their page's address
   (**Existing**).
@@ -116,17 +142,33 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **Every page fits one response. Proposed.** A change summary shows at most 1,000 characters, since it's one line of
   any length a library writes. And as a last guard, a page past 5 MiB, which only a library far past any Rulemart knows
   could make, says it's too large instead, and the web function logs `page too large` with its route.
+- **Changed words are marked on their own. Proposed.** In prose, a mark covers the words that changed, never the
+  space beside them; an insertion is underlined, as a deletion is struck through, so neither relies on color; and a
+  deletion and the insertion that replaces it stand apart. In code, a change of indentation is marked after the line
+  break, which stays unmarked.
+- **The lines view folds the unchanged lines between hunks. Proposed.** A reader can show them, as the words view
+  shows unchanged blocks.
 - **Rule text in a diff is text. Existing rule.** A diff shows a rule's Markdown escaped, as segments the template
   escapes, never as HTML Rulemart assembles, so markup in a rule can't run or load.
-- **Diff colors are the first colors in the palette. Proposed.** Green and red, GitHub's diff colors, as tokens for
-  light and dark themes, beside the grays (**Existing**: only the tokens are colors).
+- **Diff colors are the first colors in the palette. Proposed.** Green and red, after GitHub's diff colors, as tokens
+  for light and dark themes, beside the grays (**Existing**: only the tokens are colors), darkened in light themes and
+  lightened in dark ones where text needs 4.5:1 contrast. Line numbers on a changed line use the muted gray.
+- **Latest and Major look alike, and Major says what it means. Proposed.** Both are small pills. Major links to how
+  versions work, and its accessible name says what a major change means, so no one needs to hover. Every link to a
+  release's notes on GitHub is named "Release notes", and every link to a release on Rulemart looks the same.
 
 ### Retired rules
 
 - **A retired rule has a page. Proposed.** Releases and comparisons name retired rules, so they need somewhere to
-  lead. The page shows the rule's last title and version, the release that retired it and why, what replaced it, and
-  its versions, which compare as a current rule's do. It shows no body: the rule no longer applies, and its last
-  version's text is a comparison away. The All rules tab lists retired rules after the current ones.
+  lead. The page shows the rule's last title and version, the release that retired it and why, what replaced or
+  renamed it, its last version's text with a link to that file on GitHub, and its versions, which compare as a current
+  rule's do. The All rules tab lists retired rules after the current ones, in the same order: technologies first, by
+  group, then by title.
+- **Retired rules stay out of search. Proposed.** Search finds rules to adopt (**Existing**: it reads current rules
+  only); a retired rule is reached from its library's pages and from the releases and rules that name it.
+- **A retirement's reason names what the library wrote.** In the test library, release/5 retired verify-timeouts
+  "Covered by verify-retry-limits." without a `replacedBy` in its record, so the page names no replacement. Code
+  Rules' record has that field, and Rulemart shows it whenever a library fills it in.
 
 ## Verification
 
@@ -143,21 +185,24 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **App tests:** each release's changes and every rule's version after it, by the titles they had then, pages of
   releases at the row limit, a comparison across several releases, the older release or version first, and releases
   the library doesn't have.
-- **Page tests:** each page's text and links, the forms, both views, noindex, retired rules, pages of releases, the
+- **App tests** also cover replacement chains, renames, and a cycle in a library's records.
+- **Page tests:** each page's text and links, headings, the forms, both views, noindex, retired rules, renames, the
+  404 within a library, shared files, folded lists, the Major mark, hidden lines in the lines view, pages of releases, the
   states a comparison can't show, odd parameters, a rule's raw HTML shown as text in a diff of an ingested library,
   and page sizes: a release of 10,000 rules, thousands of releases that list no rules, a comparison of 4,000 changed
   rules, diffs of every line changed or of thousands of changed paragraphs, a very long summary, and a page past 5
   MiB.
 - **Real data, locally:** both production libraries ingested as `rulemart_worker`, a migration of a database slice 3
   stored, and `make worker` ingesting the test library again for its versions' content, then every new page in a
-  browser at desktop and phone widths, in light and dark themes.
+  browser at desktop and phone widths, in light and dark themes, including a fixture library whose rule changes code
+  examples and long unbroken lines, which a page test also ingests.
 - **After deployment:** the worker's logs show one ingestion of each library with older versions, then none; an HTTP
   smoke check of `/fabricahq/code-rules-test-library?tab=releases` and a comparison.
 
 ## Not in this slice
 
 Comparing a rule's assets, and showing a rule's assets at all. A rendered preview of changes. Storing tags' Markdown
-release notes. Comparing rules across libraries. A retired rule's last text on its page. Paging through a comparison
+release notes. Comparing rules across libraries. Paging through a comparison
 of releases that changes thousands of rules, whose list of changes, unlike its diffs, grows with the library. Reading
 only one page's releases from the database, rather than a library's whole history. Unvetted libraries, sign-in, listing libraries, stars, discussion, and the cart. Dropping
 `hello_messages`, which belongs in its own change.
