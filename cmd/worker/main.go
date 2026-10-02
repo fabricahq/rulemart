@@ -6,6 +6,9 @@
 // ones the catalog stored. It reports a job that fails as failed, so SQS retries it and then moves it to the
 // dead-letter queue, whose alarm reports it.
 //
+// It logs JSON lines: one per job, with its outcome and duration, one per SQS batch, and one per poll, as
+// _internal/slices/2-automatic-updates.md describes.
+//
 // Run anywhere else, it polls once: it sends the jobs to a queue in memory, handles each of them as on Lambda, and
 // exits, failing when a job failed.
 //
@@ -26,6 +29,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -165,8 +169,10 @@ type job struct {
 	RepositoryID string `json:"repositoryID"`
 }
 
-// poll sends one job for each vetted library to the queue. It tries every library, and fails when any send failed.
+// poll sends one job for each vetted library to the queue, and logs what it queued. It tries every library, and
+// fails when any send failed.
 func (w *worker) poll(ctx context.Context) error {
+	started := time.Now()
 	var failed []error
 	for _, library := range w.vetted {
 		body, err := json.Marshal(job{Host: library.Host, RepositoryID: library.RepositoryID})
@@ -177,6 +183,8 @@ func (w *worker) poll(ctx context.Context) error {
 			failed = append(failed, fmt.Errorf("queue update host=%s repository=%s: %v", library.Host, library.RepositoryID, err))
 		}
 	}
+	w.log.InfoContext(ctx, "poll queued", "libraries", len(w.vetted), "queued", len(w.vetted)-len(failed),
+		"queue_failures", len(failed), "duration_ms", milliseconds(time.Since(started)))
 	return errors.Join(failed...)
 }
 
@@ -192,34 +200,89 @@ func (w *worker) consume(ctx context.Context, batch events.SQSEvent) events.SQSE
 		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-jobMargin))
 		defer cancel()
 	}
-	for _, message := range batch.Records {
-		if _, err := w.process(ctx, message.Body); err != nil {
-			w.log.ErrorContext(ctx, "job failed", "message", message.MessageId, "error", err.Error())
-			resp.BatchItemFailures = append(resp.BatchItemFailures, events.SQSBatchItemFailure{ItemIdentifier: message.MessageId})
+	for _, done := range w.runBatch(ctx, batch.Records) {
+		if done.err != nil {
+			resp.BatchItemFailures = append(resp.BatchItemFailures, events.SQSBatchItemFailure{ItemIdentifier: done.messageID})
 		}
 	}
 	return resp
 }
 
-// process runs one job: it updates the vetted library body names, and logs what the update did.
-func (w *worker) process(ctx context.Context, body string) (app.Update, error) {
-	library, err := w.parseJob(body)
-	if err != nil {
-		return app.Update{}, err
-	}
-	update, err := w.updater.Update(ctx, library)
-	if err != nil {
-		return app.Update{}, err
-	}
-	if !update.Ingested {
-		w.log.InfoContext(ctx, "library unchanged", "host", library.Host, "repository", library.RepositoryID)
-		return update, nil
-	}
-	result := update.Result
-	w.log.InfoContext(ctx, "ingested library", "host", library.Host, "repository", library.RepositoryID,
-		"name", result.Repository.FullName(), "releases", result.Releases, "rules", result.Rules, "changed", result.Changed)
-	return update, nil
+// Outcomes of a job, as the worker logs them under the outcome key.
+const (
+	outcomeUnchanged = "unchanged"
+	outcomeIngested  = "ingested"
+	outcomeFailed    = "failed"
+)
+
+// jobResult is what one job of a batch did.
+type jobResult struct {
+	messageID string
+	update    app.Update
+	// err is why the job failed; nil when it succeeded.
+	err error
 }
+
+// runBatch runs each job in messages, in order, and logs a line for each job and one for the batch.
+func (w *worker) runBatch(ctx context.Context, messages []events.SQSMessage) []jobResult {
+	started := time.Now()
+	results := make([]jobResult, 0, len(messages))
+	counts := map[string]int{}
+	for _, message := range messages {
+		result := w.runJob(ctx, message)
+		results = append(results, result)
+		counts[outcome(result)]++
+	}
+	w.log.InfoContext(ctx, "batch processed", "jobs", len(messages), outcomeUnchanged, counts[outcomeUnchanged],
+		outcomeIngested, counts[outcomeIngested], outcomeFailed, counts[outcomeFailed],
+		"duration_ms", milliseconds(time.Since(started)))
+	return results
+}
+
+// runJob updates the vetted library message names, and logs the job's outcome and how long it took. Every job line
+// carries outcome, message_id, and duration_ms, and host and repository once the job names a library.
+func (w *worker) runJob(ctx context.Context, message events.SQSMessage) jobResult {
+	started := time.Now()
+	result := jobResult{messageID: message.MessageId}
+	library, err := w.parseJob(message.Body)
+	if err == nil {
+		result.update, err = w.updater.Update(ctx, library)
+	}
+	result.err = err
+	attrs := []any{"outcome", outcome(result), "message_id", message.MessageId}
+	if library != (domain.LibraryKey{}) {
+		attrs = append(attrs, "host", library.Host, "repository", library.RepositoryID)
+	}
+	update := result.update
+	switch {
+	case err != nil:
+		attrs = append(attrs, "error", err.Error(), "duration_ms", milliseconds(time.Since(started)))
+		w.log.ErrorContext(ctx, "job failed", attrs...)
+	case update.Ingested:
+		attrs = append(attrs, "full_name", update.Result.Repository.FullName(), "releases", update.Result.Releases,
+			"rules", update.Result.Rules, "rows_changed", update.Result.Changed, "list_ms", milliseconds(update.ListTime),
+			"ingest_ms", milliseconds(update.IngestTime), "duration_ms", milliseconds(time.Since(started)))
+		w.log.InfoContext(ctx, "ingested library", attrs...)
+	default:
+		attrs = append(attrs, "list_ms", milliseconds(update.ListTime), "duration_ms", milliseconds(time.Since(started)))
+		w.log.InfoContext(ctx, "library unchanged", attrs...)
+	}
+	return result
+}
+
+// outcome names what a job did.
+func outcome(result jobResult) string {
+	switch {
+	case result.err != nil:
+		return outcomeFailed
+	case result.update.Ingested:
+		return outcomeIngested
+	}
+	return outcomeUnchanged
+}
+
+// milliseconds returns d in whole milliseconds, as the log's *_ms fields hold it.
+func milliseconds(d time.Duration) int64 { return d.Milliseconds() }
 
 // parseJob returns the library a job's body names. It refuses a body that isn't exactly one job with known fields, or
 // that names a library w doesn't vet.
@@ -240,23 +303,26 @@ func (w *worker) parseJob(body string) (domain.LibraryKey, error) {
 	return library, nil
 }
 
-// runOnce polls once without SQS: it sends the schedule's jobs to a queue in memory, then runs each of them as consume
-// does, and returns what each update did. It fails when any job failed.
+// runOnce polls once without SQS: it sends the schedule's jobs to a queue in memory, then runs them as one batch, as
+// consume does, and returns what each update did. It fails when any job failed.
 func (w *worker) runOnce(ctx context.Context) ([]app.Update, error) {
 	queue := &memoryQueue{}
 	w.queue = queue
 	if _, err := w.handle(ctx, json.RawMessage(`{"source":"`+scheduleSource+`"}`)); err != nil {
 		return nil, err
 	}
+	messages := make([]events.SQSMessage, len(queue.bodies))
+	for i, body := range queue.bodies {
+		messages[i] = events.SQSMessage{MessageId: "local-" + strconv.Itoa(i), Body: body, EventSource: "aws:sqs"}
+	}
 	var updates []app.Update
 	var failed []error
-	for _, body := range queue.bodies {
-		update, err := w.process(ctx, body)
-		if err != nil {
-			failed = append(failed, err)
+	for _, result := range w.runBatch(ctx, messages) {
+		if result.err != nil {
+			failed = append(failed, result.err)
 			continue
 		}
-		updates = append(updates, update)
+		updates = append(updates, result.update)
 	}
 	return updates, errors.Join(failed...)
 }

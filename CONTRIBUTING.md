@@ -51,7 +51,7 @@ Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way
 the copy of Code Rules' parser in [internal/lib/coderules](internal/lib/coderules), so it reads only libraries
 released with a Code Rules version that writes the same record format.
 
-`make worker` runs what the deployed worker does every ten minutes, once: for each library `catalog/vetted.yaml`
+`make worker` runs what the deployed worker does every hour, once: for each library `catalog/vetted.yaml`
 lists, it lists the release tags without fetching them, and ingests the library when they aren't the ones the
 catalog stored. A queue in memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
 

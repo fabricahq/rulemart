@@ -41,12 +41,13 @@ than adding history.
   login, and the membership with SQL, and migrations grant the group exactly what ingestion writes, which never
   includes deleting a library or changing the schema. The worker function and the operator's `cmd/ingest` both use
   it, so production ingestion never needs the owner.
-- **The worker keeps vetted libraries current.** The EventBridge schedule invokes the worker function every ten
-  minutes, and it queues one job per vetted library on the SQS jobs queue, which invokes it again for each job. A
+- **The worker keeps vetted libraries current.** The EventBridge schedule invokes the worker function every hour,
+  and it queues one job per vetted library on the SQS jobs queue, which invokes it again for each job. A
   job lists the library's `release/<number>` tags with go-git, without fetching objects, and ingests only when their
   numbers and tag object IDs differ from what the catalog stored, so an unchanged library costs one request and no
   GitHub API call. A failed job writes nothing; SQS retries it, then moves it to the dead-letter queue, whose alarm
-  reports it.
+  reports it. Hourly, not every 10 minutes, because each job reads the stored tags from Postgres and wakes Neon's
+  compute: about $3 a month instead of about $12. Faster updates would keep a tag fingerprint outside Postgres.
 - **A job names a library only by its code host and the host's repository ID, and only a vetted one.** It carries no
   URL: the worker fetches from the clone URL the catalog stored, or the one the host's API returns for that ID, so a
   queued message can't point it at another repository.
