@@ -41,8 +41,6 @@ type libraryView struct {
 	latestTag, latestHref, updated string
 	// groups counts the groups that hold current rules, rules the current rules, and releases the releases.
 	groups, rules, releases int
-	// star is the library's star control, which server.libraryView fills in for a vetted library's pages.
-	star starView
 	// cart is the control that adds every group of the library to the cart, and cartNotice what the page says after
 	// adding, or signing in to add, the library or one of its items the page shows.
 	cart       cartControl
@@ -127,10 +125,6 @@ func newLibraryView(lib views.Library) libraryView {
 type libraryCard struct {
 	href, owner, name, description, avatar string
 	rules                                  int
-	// stars counts the library's stars, which the card shows when there are any and the library is vetted, and
-	// starredByYou is true when the signed-in visitor starred it.
-	stars        int
-	starredByYou bool
 	// unvetted marks a library that's only listed, whose link carries nofollow.
 	unvetted bool
 }
@@ -141,7 +135,7 @@ func newLibraryCards(libraries []views.LibraryCard, unvetted bool) []libraryCard
 	for i, lib := range libraries {
 		cards[i] = libraryCard{
 			href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
-			avatar: lib.OwnerAvatarURL, rules: lib.Rules, stars: lib.Stars, unvetted: unvetted,
+			avatar: lib.OwnerAvatarURL, rules: lib.Rules, unvetted: unvetted,
 		}
 	}
 	return cards
@@ -210,9 +204,11 @@ func newGroupIcon(canonical *views.CanonicalGroup, iconURL func(file string) str
 	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow, lightTile: icon.LightTile}
 }
 
-// ruleCard is a rule's entry in a library's list of rules.
+// ruleCard is a current rule's entry in a list of rules.
 type ruleCard struct {
 	href, id, title, impact, version string
+	// stars counts the accounts whose stars count toward the rule.
+	stars int
 }
 
 // libraryContents is a library's groups, split by kind, each with its rules in title order, and its retired rules.
@@ -303,8 +299,10 @@ type ruleView struct {
 	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
 	replaces    []replacedRule
 	renamedFrom *replacedRule
-	// cart is the control that adds a current rule to the cart, which the rule's page fills in.
+	// cart is the control that adds a current rule to the cart, and star its star control, which the rule's page
+	// fills in.
 	cart cartControl
+	star starView
 }
 
 // retiredView is how a library release retired a rule.

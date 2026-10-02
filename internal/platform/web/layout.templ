@@ -59,13 +59,23 @@ type head struct {
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
 const narrowPage = "max-w-[44rem]"
 
-// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted, with the notice its star control
-// gives, if any.
+// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted, with the notice its cart
+// control gives, if any.
 func libraryHead(h head, lib libraryView) head {
 	h.unvetted = !lib.vetted
-	h.notice = cmp.Or(lib.star.notice, lib.cartNotice)
-	if lib.cartOffer != nil && h.notice == lib.cartNotice {
+	h.notice = lib.cartNotice
+	if lib.cartOffer != nil {
 		h.noticeAction = cartOffer(*lib.cartOffer)
+	}
+	return h
+}
+
+// ruleHead returns h for a page about the rule r, as libraryHead does for its library, with the notice its star
+// control gives in place of the cart's, if any.
+func ruleHead(h head, r ruleView) head {
+	h = libraryHead(h, r.library)
+	if r.star.notice != "" {
+		h.notice, h.noticeAction = r.star.notice, nil
 	}
 	return h
 }

@@ -55,11 +55,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	cards, err := s.vettedCards(r, page.Libraries)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	cards := newLibraryCards(page.Libraries, false)
 	view := newHomeView(cards, newGroupIndexView(page.Groups, s.assets.iconURL), s.listYourLibraryHref(r))
 	s.render(w, r, http.StatusOK, homePage(s.pageChrome("/"), view))
 }

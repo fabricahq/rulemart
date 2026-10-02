@@ -195,12 +195,12 @@ func signInLabel(v visitor) templ.Component {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu naming them, with links to
-// their account page, adding a library, their stars, their cart, their listings, and to sign out. The links are named
-// for the pages they lead to today; slices R3 and R7 restore the prototype's Dashboard and Starred rules when the
-// pages become those. Sign-out is a form, since it changes state. The button is as wide as the avatar and as tall
-// as a tap, so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's border darkens, and its focus
-// ring is drawn just inside its circle, so nothing reaches past the edge. menus.js closes the menu when focus or a
-// click leaves it.
+// their account page, adding a library, their Starred rules, their cart, their listings, and to sign out. The links
+// are named for the pages they lead to today; slice R7 restores the prototype's Dashboard when the account page
+// becomes it. Sign-out is a form, since it changes state. The button is as wide as the avatar and as tall as a tap,
+// so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's
+// border darkens, and its focus ring is drawn just inside its circle, so nothing reaches past the edge. menus.js
+// closes the menu when focus or a click leaves it.
 func accountMenu(v visitor) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -284,7 +284,7 @@ func accountMenu(v visitor) templ.Component {
 			}
 		}
 		if v.stars {
-			templ_7745c5c3_Err = menuLink(starsHref, "Your stars", v.onStarsPage).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = menuLink(starredHref, "Starred rules", v.onStarsPage).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1063,20 +1063,20 @@ func accountPage(c chrome, account accountView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if visitorOf(ctx).stars {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<p class=\"mt-2 text-[13.5px] text-muted\">For your stars, it keeps which libraries you starred, and when: a list of your own, of which others see only how many stars each library has. <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "<p class=\"mt-2 text-[13.5px] text-muted\">For your stars, it keeps which rules you starred, and when: a list of your own, of which others see only how many stars each rule has. <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var52 templ.SafeURL
-				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(starsHref))
+				templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(starredHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 213, Col: 222}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 213, Col: 217}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\">Your stars</a></p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\">Starred rules</a></p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

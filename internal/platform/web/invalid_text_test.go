@@ -64,7 +64,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 
 // Text Postgres can't hold, a NUL byte or bytes that aren't UTF-8, anywhere in an address never fails a page, for
 // visitors signed in or not: in a path it names nothing, so the page is missing; in a parameter, each page reads it
-// as it reads any other text it doesn't know, and a library to star by such a name is missing too.
+// as it reads any other text it doesn't know, and a rule to star by such a name is missing too.
 func TestTextPostgresCantHoldIsRefusedNotFailed(t *testing.T) {
 	handler, cookies := newPostgresSite(t)
 
@@ -87,9 +87,10 @@ func TestTextPostgresCantHoldIsRefusedNotFailed(t *testing.T) {
 			{http.MethodGet, "/list?repository=example" + bad + "%2Frules", 0},
 			{http.MethodGet, "/sign-in?return=%2Fexample" + bad, 0},
 			{http.MethodPost, "/list?repository=example%2Frules" + bad, 0},
-			{http.MethodPost, "/account/stars?library=example%2Frules" + bad, http.StatusNotFound},
-			{http.MethodPost, "/account/stars/remove?library=example%2Frules" + bad, http.StatusNotFound},
-			{http.MethodPost, "/account/stars?library=example%2Frules&return=%2Fexample" + bad, 0},
+			{http.MethodPost, "/stars?library=example%2Frules" + bad + "&rule=techs%2Fgo%2Freturn-errors", http.StatusNotFound},
+			{http.MethodPost, "/stars?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors" + bad, http.StatusNotFound},
+			{http.MethodPost, "/stars/remove?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors" + bad, http.StatusNotFound},
+			{http.MethodPost, "/stars?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors&return=%2Fexample" + bad, 0},
 			{http.MethodPost, "/account/listings/remove?listing=1" + bad, 0},
 			{http.MethodPost, "/account/listings/retry?listing=1" + bad, 0},
 		} {

@@ -1,5 +1,5 @@
-// Pieces several pages share: avatars, labels, chips, tabs, panels, lists, library rows, rule cards, and the search
-// form.
+// Pieces several pages share: avatars, labels, chips, tabs, panels, lists, library rows, rule cards and results, and
+// the search form.
 
 package web
 
@@ -96,14 +96,7 @@ templ impact(level string) {
 	<span class={ "rounded-[4px] border px-[5px] font-mono text-[10px] font-normal tracking-[.04em] whitespace-nowrap", templ.KV("border-border-strong text-muted", level == "CRITICAL"), templ.KV("border-border text-faint", level != "CRITICAL") } title={ impactExplanation(level) }>{ level }</span>
 }
 
-// chip is a quiet, rounded label.
-templ chip() {
-	<span class="inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted">
-		{ children... }
-	</span>
-}
-
-// chipLink is a chip that leads somewhere, such as a popular group on the home page.
+// chipLink is a quiet, rounded label that leads somewhere, such as a popular group on the home page.
 templ chipLink(href string) {
 	<a class="inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted no-underline hover:border-border-strong hover:text-ink" href={ templ.SafeURL(href) }>
 		{ children... }
@@ -214,9 +207,9 @@ templ rowItem() {
 }
 
 // libraryRow is a library's row in a list of libraries, the prototype's libLine: its owner's avatar, its name, its
-// description, and its repository with its rule count, leading to its page, with its stars when it's vetted and has
-// any. The library's name is a heading of level 2, or 3 when headed is true, under a heading of the page's own. A
-// link to an unvetted library's page carries nofollow.
+// description, and its repository with its rule count, leading to its page. The library's name is a heading of level
+// 2, or 3 when headed is true, under a heading of the page's own. A link to an unvetted library's page carries
+// nofollow.
 templ libraryRow(lib libraryCard, headed bool) {
 	@rowLink(lib.href, lib.unvetted, rowBeside) {
 		<div class="flex min-w-0 items-start gap-[14px]">
@@ -238,11 +231,7 @@ templ libraryRow(lib libraryCard, headed bool) {
 				</div>
 			</div>
 		</div>
-		<span class="text-[12.5px] whitespace-nowrap text-muted">
-			if lib.stars > 0 && !lib.unvetted {
-				@starCount(lib.stars, lib.starredByYou)
-			}
-		</span>
+		<span></span>
 	}
 }
 
@@ -267,11 +256,12 @@ templ ruleCardLink(r ruleCard) {
 	<li>
 		<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.href) }>
 			@cardTitle(r.title, r.impact)
-			<div class="mt-1.5 flex flex-wrap items-baseline gap-x-[14px] gap-y-1 text-[13px] text-muted">
+			<div class="mt-1.5 flex flex-wrap items-center gap-x-[14px] gap-y-1 text-[13px] text-muted">
 				<span class="mono" title="Latest version">{ r.version }</span>
 				<span class="mono min-w-0 text-faint max-narrow:basis-full">
 					@breakable(r.id)
 				</span>
+				@starBadge(r.stars, true, "", "")
 			</div>
 		</a>
 	</li>
@@ -365,4 +355,50 @@ templ license(lib libraryView) {
 	} else {
 		<span class="text-faint">Not declared</span>
 	}
+}
+
+// ruleResult is a rule in a list across libraries, the prototype's ruleResult: its title and impact, its reading
+// guidance, if any, the words of a search it lacks, if any, the retired rule the visitor starred in its place, if any,
+// then its library, group, version, and stars, leading to its page.
+templ ruleResult(r ruleResultView) {
+	<a class="block rounded-card border border-border px-4 py-[14px] text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(r.rule.href) }>
+		@cardTitle(r.rule.title, r.rule.impact)
+		if r.whenToRead != "" {
+			<p class="mt-1 line-clamp-2 text-[13.5px] text-muted">{ r.whenToRead }</p>
+		}
+		if len(r.missing) > 0 {
+			<p class="mt-1 text-[12.5px] text-muted">
+				Missing:
+				for _, word := range r.missing {
+					{ " " }<s>{ word }</s>
+				}
+			</p>
+		}
+		if r.starredAs != "" {
+			<p class="mt-1 text-[12.5px] text-muted">
+				You starred it as{ " " }<span class="mono">
+					@breakable(r.starredAs)
+				</span>, which it replaced.
+			</p>
+		}
+		<div class="mt-2 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[12.5px] text-faint">
+			<span class="flex min-w-0 items-start gap-1.5 max-narrow:basis-full">
+				@avatar(r.library.avatar, r.library.owner, avatarXS)
+				<span class="mono min-w-0 text-muted">
+					@breakable(r.sourceID)
+				</span>
+			</span>
+			<span class="flex items-center gap-1.5">
+				@groupTile(r.group, r.icon, tileXS)
+				if r.group.canonical {
+					<span>{ r.group.name }</span>
+				} else {
+					<span class="mono">{ r.group.id }</span>
+					@notCanonical(flagSM)
+				}
+			</span>
+			<span class="mono" title="Latest version">{ r.rule.version }</span>
+			@starBadge(r.rule.stars, true, "", "")
+		</div>
+	</a>
 }

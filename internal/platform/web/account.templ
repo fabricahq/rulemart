@@ -48,12 +48,12 @@ templ signInLabel(v visitor) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu naming them, with links to
-// their account page, adding a library, their stars, their cart, their listings, and to sign out. The links are named
-// for the pages they lead to today; slices R3 and R7 restore the prototype's Dashboard and Starred rules when the
-// pages become those. Sign-out is a form, since it changes state. The button is as wide as the avatar and as tall
-// as a tap, so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's border darkens, and its focus
-// ring is drawn just inside its circle, so nothing reaches past the edge. menus.js closes the menu when focus or a
-// click leaves it.
+// their account page, adding a library, their Starred rules, their cart, their listings, and to sign out. The links
+// are named for the pages they lead to today; slice R7 restores the prototype's Dashboard when the account page
+// becomes it. Sign-out is a form, since it changes state. The button is as wide as the avatar and as tall as a tap,
+// so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's
+// border darkens, and its focus ring is drawn just inside its circle, so nothing reaches past the edge. menus.js
+// closes the menu when focus or a click leaves it.
 templ accountMenu(v visitor) {
 	<details class="group relative shrink-0" data-menu>
 		<summary class="relative flex h-11 w-[30px] cursor-pointer list-none items-center focus-visible:outline-none group-open:[&>span:first-child]:border-border-strong [&:hover>span:first-child]:border-border-strong [&:focus-visible>span:first-child]:outline-2 [&:focus-visible>span:first-child]:-outline-offset-2 [&:focus-visible>span:first-child]:outline-(--focus) [&::-webkit-details-marker]:hidden" aria-label={ accountMenuName(v) } title={ "Signed in as " + v.account.Login }>
@@ -69,7 +69,7 @@ templ accountMenu(v visitor) {
 				@menuLink(listHref, "Add a library", v.onListPage)
 			}
 			if v.stars {
-				@menuLink(starsHref, "Your stars", v.onStarsPage)
+				@menuLink(starredHref, "Starred rules", v.onStarsPage)
 			}
 			if v.cart {
 				<a
@@ -210,7 +210,7 @@ templ accountPage(c chrome, account accountView) {
 				</dl>
 				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username and avatar each time you sign in, and keeps nothing else from GitHub. Each browser stays signed in for 30 days, or until you sign out. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
 				if visitorOf(ctx).stars {
-					<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which libraries you starred, and when: a list of your own, of which others see only how many stars each library has. <a href={ templ.SafeURL(starsHref) }>Your stars</a></p>
+					<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when: a list of your own, of which others see only how many stars each rule has. <a href={ templ.SafeURL(starredHref) }>Starred rules</a></p>
 				}
 				if visitorOf(ctx).cart {
 					<p class="mt-2 text-[13.5px] text-muted">For your cart, it keeps what you add until you remove it, and shows it to no one else. <a href={ templ.SafeURL(cartHref) }>Your cart</a></p>

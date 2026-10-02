@@ -1,13 +1,14 @@
-// The parts and page of stars: a library's star control, a card's star count, and a signed-in visitor's stars.
+// The parts and page of stars: a rule's star control, its stars wherever a page shows them, and a signed-in visitor's
+// Starred rules.
 
 package web
 
 import "strconv"
 
-// starControl is a vetted library's stars beside its name: a toggle button that stars it, or once starred unstars it,
-// for a signed-in visitor; a link that signs anyone else in and returns them, on a page that's the same for everyone;
-// or the count alone when no one can sign in. Screen readers hear its state, what it does, and the count in words.
-// The page that follows starring, unstarring, or signing in to star focuses it, which needs no script.
+// starControl is a rule's star in its page's head: a toggle button that stars it, or once starred unstars it, for a
+// signed-in visitor; a link that signs anyone else in and returns them, on a page that's the same for everyone; or the
+// count alone when no one can sign in. Screen readers hear its state, what it does, and the count in words. The page
+// that follows starring, unstarring, or signing in to star focuses it, which needs no script.
 templ starControl(star starView) {
 	if star.action != "" {
 		<form method="post" action={ templ.SafeURL(star.action) }>
@@ -22,75 +23,66 @@ templ starControl(star starView) {
 					data-prompt
 				}
 			>
-				@starButtonContent(star)
+				<span class="sr-only">Star { star.title }, { starCountText(star.count) }</span>
+				@starBadge(star.count, star.starred, starLabel(star.starred), "")
 			</button>
 		</form>
 	} else if star.signIn != "" {
-		<a class={ starButtonStyle, unstarredStyle, "no-underline" } href={ templ.SafeURL(star.signIn) } title={ "Sign in to star this library. " + starExplanation }>
-			<span class="sr-only">Sign in to star { star.fullName }, { plural(star.count, "star", "stars") }</span>
-			@starButtonFace(star)
+		<a class={ starButtonStyle, unstarredStyle, "no-underline" } href={ templ.SafeURL(star.signIn) } title={ "Sign in to star this rule. " + starExplanation }>
+			<span class="sr-only">Sign in to star { star.title }, { starCountText(star.count) }</span>
+			@starBadge(star.count, false, "Star", "")
 		</a>
 	} else {
-		<span title={ starExplanation }>
-			@chip() {
-				@starIcon("size-3.5", false)
-				{ plural(star.count, "star", "stars") }
-			}
-		</span>
+		@starBadge(star.count, false, "", "text-[13px] text-muted")
 	}
+}
+
+// starLabel is what the star button reads: Starred once starred, and Star otherwise.
+func starLabel(starred bool) string {
+	if starred {
+		return "Starred"
+	}
+	return "Star"
 }
 
 // starTitle is the star button's hover text: what clicking it does, and what a star is for.
 func starTitle(starred bool) string {
 	if starred {
-		return "Unstar this library. " + starExplanation
+		return "Unstar this rule. " + starExplanation
 	}
-	return "Star this library. " + starExplanation
+	return "Star this rule. " + starExplanation
 }
 
-// The star button's styles: its shape, then unstarred, outlined; starred, filled in the primary color, ink in the
-// light theme, with its text inverted; and prompting after signing in to star, outlined in ink inside a ring. Each
-// changes on hover enough to show in either theme.
+// The star button's styles, the prototype's small ghost button: its shape, then unstarred, a quiet outline; starred,
+// outlined in ink on the surface color, as the prototype's on state; and prompting after signing in to star, outlined
+// in ink inside a ring. Each changes on hover enough to show in either theme.
 const (
-	starButtonStyle = "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-[11px] py-1 text-[13px] font-medium whitespace-nowrap transition-colors duration-[160ms]"
-	unstarredStyle  = "border-border-strong text-ink hover:border-ink hover:bg-surface-header"
-	starredStyle    = "border-primary bg-primary text-on-primary hover:opacity-85"
-	promptStyle     = "border-ink text-ink ring-2 ring-ink ring-offset-2 ring-offset-paper hover:bg-surface-header"
+	starButtonStyle = "inline-flex min-h-8 items-center rounded-full border px-[13px] py-1 text-[13px] font-medium whitespace-nowrap transition-colors duration-[160ms]"
+	unstarredStyle  = "border-border text-muted hover:border-ink hover:bg-surface hover:text-ink"
+	starredStyle    = "border-ink bg-surface text-ink hover:bg-surface-header"
+	promptStyle     = "border-ink text-ink ring-2 ring-ink ring-offset-2 ring-offset-paper hover:bg-surface"
 )
 
-// starButtonContent is what the star button shows, as starButtonFace, with what screen readers hear in its place: one
-// name whether starred or not, the library and the count in words, while aria-pressed says which.
-templ starButtonContent(star starView) {
-	<span class="sr-only">Star { star.fullName }, { plural(star.count, "star", "stars") }</span>
-	@starButtonFace(star)
-}
-
-// starButtonFace is what the star button looks like: the star, filled once starred, Star or Starred beside it, in a
-// space as wide as Starred, so the button keeps its width, and the count after a divider.
-templ starButtonFace(star starView) {
-	@starIcon("size-[15px] flex-none", star.starred)
-	<span class="grid justify-items-start" aria-hidden="true">
-		<span class="invisible col-start-1 row-start-1">Starred</span>
-		<span class="col-start-1 row-start-1">
-			if star.starred {
-				Starred
-			} else {
-				Star
+// starBadge is a rule's stars, wherever a page shows them, so they look and read alike: a star, filled when filled is
+// true; then label, if any; then the count, with commas, such as 1,234, unless it's 0. Without a label, it shows
+// nothing at 0, so a row stays quiet until its rule has stars, and screen readers hear the count in words; with one,
+// it's the face of a control that names itself to them. class places it.
+templ starBadge(count int, filled bool, label, class string) {
+	if label != "" {
+		<span class={ "inline-flex items-center gap-2", class } aria-hidden="true">
+			@starIcon("size-[15px] flex-none", filled)
+			<span>{ label }</span>
+			if count > 0 {
+				<span class="font-normal text-faint tabular-nums">{ formatCount(count) }</span>
 			}
 		</span>
-	</span>
-	<span class="h-4 w-px flex-none bg-current opacity-25" aria-hidden="true"></span>
-	<span class={ "ml-0.5 font-normal tabular-nums", templ.KV("opacity-75", star.starred), templ.KV("text-muted", !star.starred) } aria-hidden="true">{ strconv.Itoa(star.count) }</span>
-}
-
-// starCount is a library card's stars, as a star, filled when the visitor starred the library, and the count, said
-// in words to screen readers.
-templ starCount(count int, mine bool) {
-	<span class="inline-flex items-center gap-1 tabular-nums" title={ starCountText(count, mine) }>
-		@starIcon("size-3 flex-none", mine)
-		<span aria-hidden="true">{ strconv.Itoa(count) }</span>
-		<span class="sr-only">{ starCountText(count, mine) }</span>
-	</span>
+	} else if count > 0 {
+		<span class={ "inline-flex items-center gap-1 leading-none whitespace-nowrap tabular-nums", class } title={ starCountText(count) }>
+			@starIcon("size-3 flex-none", filled)
+			<span aria-hidden="true">{ formatCount(count) }</span>
+			<span class="sr-only">{ starCountText(count) }</span>
+		</span>
+	}
 }
 
 // starIcon is a five-pointed star in the current text color, filled when filled is true.
@@ -104,83 +96,36 @@ templ starIcon(class string, filled bool) {
 	</svg>
 }
 
-// starsPage shows a signed-in visitor's stars, most recently starred first, each with a button that unstars it. A
-// library the release no longer vets says so: a listed one links its unvetted page with nofollow, and one neither
-// vetted nor listed links nothing. A library just unstarred here stays named at the top, with a way to star it again.
-templ starsPage(c chrome, v starsView) {
-	@layout(c, head{title: "Your stars · Rulemart", noindex: true, narrow: true}) {
-		<div class={ "page wrap", narrowPage }>
+// starredPage shows the rules a signed-in visitor's stars count toward, most recently starred first, as rule results,
+// each saying which retired rule the visitor starred in its place, if any.
+templ starredPage(c chrome, starred []ruleResultView) {
+	@layout(c, head{title: "Starred rules · Rulemart", noindex: true}) {
+		// As wide as search's results, which list rules the same way.
+		<div class="page wrap max-w-[52rem]">
 			@label("") {
 				Account
 			}
 			<div class="mt-2 mb-[22px]">
-				<h1 class="title-xl">Your stars</h1>
-				if len(v.stars) > 0 {
-					<p class="mt-1.5 text-muted">Libraries you starred, most recent first. Stars are your own list; others see only how many stars each library has.</p>
+				<h1 class="title-xl">Starred rules</h1>
+				if len(starred) > 0 {
+					<p class="mt-1.5 text-muted">Rules you starred, most recent first. Others see only how many stars each rule has.</p>
 				}
 			</div>
-			if v.unstarred != "" {
-				<div class="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card border border-border-strong px-4 py-3" role="status">
-					<p class="text-[14px] text-ink [overflow-wrap:anywhere]">You unstarred { v.unstarred }.</p>
-					<form method="post" action={ templ.SafeURL(v.starAgain) }>
-						<button class={ smallActionStyle } type="submit" aria-label={ "Star " + v.unstarred + " again" } autofocus>Star again</button>
-					</form>
-				</div>
-			}
-			if len(v.stars) == 0 {
+			if len(starred) == 0 {
 				<div class="rounded-card border border-dashed border-border-strong px-[22px] py-7 text-center">
-					<p class="text-[15px] text-ink">No stars yet.</p>
-					<p class="mx-auto mt-1 max-w-[30rem] text-[14px] text-muted">Star a library from its page to keep it here. Others see only how many stars each library has.</p>
-					<p class="mt-3 text-[14px]"><a href={ templ.SafeURL(librariesHref) }>Browse libraries ›</a></p>
+					<p class="text-[15px] text-ink">You haven't starred any rules yet. Star a rule from its page.</p>
+					<p class="mt-3 text-[14px]"><a href={ templ.SafeURL(techsKind.href()) }>Browse rules ›</a></p>
 				</div>
 			} else {
-				@rowList() {
-					for _, star := range v.stars {
-						@rowItem() {
-							@starredRow(star)
-						}
+				<h2 class="sr-only">Your starred rules</h2>
+				<ol class="grid gap-2.5">
+					for _, r := range starred {
+						<li>
+							@ruleResult(r)
+						</li>
 					}
-				}
+				</ol>
 			}
 		</div>
 	}
-}
-
-// starredRow is one star on the stars page: the library, when it was starred, what's become of it if the release no
-// longer vets it, and its Unstar button.
-templ starredRow(star starredView) {
-	<div class="flex items-start gap-3 px-4 py-4 max-narrow:flex-wrap">
-		@avatar(star.library.avatar, star.library.owner, avatarMD)
-		<div class="min-w-0 flex-1">
-			<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-				<h2 class="leading-[1.35] font-semibold">
-					if star.gone {
-						{ star.library.name }
-					} else if star.unvetted {
-						<a class="no-underline hover:underline" href={ templ.SafeURL(star.library.href) } rel="nofollow">{ star.library.name }</a>
-					} else {
-						<a class="no-underline hover:underline" href={ templ.SafeURL(star.library.href) }>{ star.library.name }</a>
-					}
-				</h2>
-				if star.unvetted {
-					<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
-				} else if star.gone {
-					<span class="inline-flex items-center rounded-full border border-border px-2 text-[11.5px] leading-[18px] font-medium text-muted">No longer on Rulemart</span>
-				}
-			</div>
-			if star.library.description != "" {
-				<p class="mt-0.5 text-[13px] text-muted">{ star.library.description }</p>
-			}
-			<p class="mt-1 text-[12.5px] text-faint">
-				<span class="mono">
-					@breakable(star.library.owner + "/" + star.library.name)
-				</span>
-				<span class="max-narrow:hidden">·</span>
-				<span class="whitespace-nowrap max-narrow:block">Starred <time datetime={ star.starredAt } title={ star.starredTitle }>{ star.starred }</time></span>
-			</p>
-		</div>
-		<form class="max-narrow:basis-full max-narrow:pl-[52px]" method="post" action={ templ.SafeURL(star.unstar) }>
-			<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + star.library.owner + "/" + star.library.name } autofocus?={ star.focused }>Unstar</button>
-		</form>
-	</div>
 }
