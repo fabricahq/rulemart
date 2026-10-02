@@ -1,0 +1,6 @@
+# build.py's large renders and package archive, which it makes again from the SVGs.
+*-512.png
+*-800.png
+*-1024.png
+*-1600.png
+Rulemart-Brand-Package.zip
