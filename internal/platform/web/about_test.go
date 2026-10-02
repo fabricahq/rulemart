@@ -1,6 +1,8 @@
 package web_test
 
 import (
+	"cmp"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -8,30 +10,41 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"golang.org/x/net/html"
 )
 
 // Every page's footer leads to the techs, the practices, the libraries, and the FAQ, which a phone's header hides,
-// and to what Rulemart is, how it treats visitors' data, Code Rules, Rulemart's source, and the feedback page.
+// to Fabrica, to what Rulemart and Code Rules are, how Rulemart treats visitors' data, and the feedback page, and,
+// by GitHub's mark, to Rulemart's source.
 func TestEveryPagesFooterLeadsToTheSectionsAboutPrivacySourceAndFeedback(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
 	want := map[string]string{
+		"Fabrica":          "https://fabricahq.com",
 		"Techs":            "/browse/techs",
 		"Practices":        "/browse/practices",
 		"Libraries":        "/libraries",
 		"FAQ":              "/faq",
-		"About Rulemart":   "/about",
+		"About":            "/about",
 		"Privacy":          "/privacy",
 		"About Code Rules": "https://code-rules.fabricahq.com",
+		"Feedback":         "/feedback",
 		"Source on GitHub": "https://github.com/fabricahq/rulemart",
-		"Give us feedback": "/feedback",
 	}
 	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
-		footer := page[strings.Index(page, "<footer"):]
-		for text, href := range want {
-			if got := links(t, footer, text); !slices.Contains(got, href) {
-				t.Errorf("%s: the footer's %q leads to %q, want %s", path, text, got, href)
+		doc, err := html.Parse(strings.NewReader(page[strings.Index(page, "<footer"):]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Each link is named by its text, or, drawn as an icon, by its label.
+		got := map[string]string{}
+		for n := range doc.Descendants() {
+			if n.Type == html.ElementNode && n.Data == "a" {
+				got[cmp.Or(attribute(n, "aria-label"), nodeText(n))] = attribute(n, "href")
 			}
+		}
+		if !maps.Equal(got, want) {
+			t.Errorf("%s: the footer links %q, want %q", path, got, want)
 		}
 	}
 }
