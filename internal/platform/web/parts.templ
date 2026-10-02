@@ -283,8 +283,8 @@ templ ruleRows() {
 	</ul>
 }
 
-// ruleRow is a rule in any list of rules on the site, the prototype's ruleResult, leading to the rule's page: its title
-// and impact, with the Retired and Unvetted chips when they apply, the rule that replaced a retired one, the words of
+// ruleRow is a rule in any list of rules on the site, the prototype's ruleResult, leading to the rule's page: its title,
+// with a search's words marked, and impact, with the Retired and Unvetted chips when they apply, the rule that replaced a retired one, the words of
 // a search it lacks, the retired rule the visitor starred in its place, and then its library's mark and name, its
 // group in a list that names it, and its stars. A retired rule is drawn grayed out, the same in every list, which
 // data-retired marks. Its title is a heading of level 3, under a heading of the list's own.
@@ -301,7 +301,15 @@ templ ruleRow(r ruleRowView) {
 			}
 		>
 			<div class="text-[15.5px] leading-[1.35] font-semibold">
-				<h3 class={ "mr-2 inline font-semibold", templ.KV("text-muted", r.retired) }>{ r.title }</h3>
+				<h3 class={ "mr-2 inline font-semibold", templ.KV("text-muted", r.retired) }>
+					for _, run := range markWords(r.title, r.marks) {
+						if run.marked {
+							<mark>{ run.text }</mark>
+						} else {
+							{ run.text }
+						}
+					}
+				</h3>
 				<span class="inline-flex flex-wrap items-center gap-1.5 align-[1px]">
 					@impact(r.impact)
 					if r.retired {

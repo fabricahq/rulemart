@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -67,6 +69,7 @@ type resultGroupView struct {
 }
 
 func newSearchView(query domain.SearchQuery, choices domain.ListChoices, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
+	words := queryWords(query)
 	v := searchView{
 		query: query.String(), tooLong: tooLong, noWords: results.NoWords, page: page,
 		pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
@@ -80,10 +83,74 @@ func newSearchView(query domain.SearchQuery, choices domain.ListChoices, tooLong
 				href: withUnvetted(groupHref(r.Rule.Group), choices.Unvetted), rules: r.GroupRules, tier: tier,
 			})
 		}
+		row := newListedRuleRow(r)
+		row.marks = words
 		last := &v.groups[len(v.groups)-1]
-		last.rows = append(last.rows, newListedRuleRow(r))
+		last.rows = append(last.rows, row)
 	}
 	return v
+}
+
+// queryWords returns the words query finds, in lowercase, each once, which each result marks in its title: the words of
+// its terms, without the or that joins two.
+func queryWords(query domain.SearchQuery) []string {
+	find, _ := query.Terms()
+	var words []string
+	for _, term := range find {
+		for _, word := range strings.FieldsFunc(strings.ToLower(term.Text), notWordRune) {
+			if word != "or" && !slices.Contains(words, word) {
+				words = append(words, word)
+			}
+		}
+	}
+	return words
+}
+
+// textRun is a stretch of a title, marked when it's one of a search's words.
+type textRun struct {
+	text   string
+	marked bool
+}
+
+// markWords splits text into runs, marking each of its words that is one of words, which are in lowercase, or a
+// plural or singular of one, without regard to case. Text without such a word is one unmarked run.
+func markWords(text string, words []string) []textRun {
+	var runs []textRun
+	add := func(text string, marked bool) {
+		if n := len(runs); n > 0 && !marked && !runs[n-1].marked {
+			runs[n-1].text += text
+			return
+		}
+		runs = append(runs, textRun{text, marked})
+	}
+	for len(text) > 0 {
+		start := strings.IndexFunc(text, func(r rune) bool { return !notWordRune(r) })
+		if start < 0 {
+			add(text, false)
+			break
+		}
+		end := strings.IndexFunc(text[start:], notWordRune)
+		if end < 0 {
+			end = len(text) - start
+		}
+		word := text[start : start+end]
+		add(text[:start], false)
+		add(word, slices.ContainsFunc(words, func(w string) bool { return sameWord(strings.ToLower(word), w) }))
+		text = text[start+end:]
+	}
+	return runs
+}
+
+// notWordRune reports whether r is outside a word: neither a letter nor a digit.
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
+// sameWord reports whether a and b, in lowercase, are one word, or one is the other's plural by s, es, or y to ies.
+func sameWord(a, b string) bool {
+	plural := func(singular, plural string) bool {
+		return plural == singular+"s" || plural == singular+"es" ||
+			(strings.HasSuffix(singular, "y") && plural == strings.TrimSuffix(singular, "y")+"ies")
+	}
+	return a == b || plural(a, b) || plural(b, a)
 }
 
 // searchParams are search's own parameters for query: q, unless it's empty.

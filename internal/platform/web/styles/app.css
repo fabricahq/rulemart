@@ -145,6 +145,8 @@
   a { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
   code, .font-mono { font-family: var(--font-mono); }
   code { font-size: .86em; }
+  /* A search's words in a result's title, the prototype's quiet highlight. */
+  mark { background: color-mix(in srgb, var(--ink) 16%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   /* A control the page focused after a click wears a quiet ring until the visitor presses a key, see pageFocus, or
      none when the star button's prompt rings it already. */

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
 // Search lists its rules under their groups, each heading leading to the group's page and counting its rules, the
@@ -131,4 +132,33 @@ func TestSearchOffersRetiredRulesForEveryRuleAndListsThemLast(t *testing.T) {
 		t.Errorf("the search's headings are %q, want %q", got, want)
 	}
 	assertShows(t, words, "Retired rules Go techs/go 1 Close response bodies MEDIUM Retired other/go-rules")
+}
+
+// Search marks the query's words in each result's title, in any case and as a plural or singular, and nothing in a
+// title without them, escaping the rest of the title.
+func TestSearchMarksTheQuerysWordsInResultTitles(t *testing.T) {
+	c := newBrowsingCatalog()
+	retries, ampersand, other := closeBodiesRow, namePackagesRow, wrapErrorsRow
+	retries.Rule.Title = "Cap retries per request"
+	ampersand.Rule.Title = "Retry & back off"
+	other.Rule.Title = "Wrap errors"
+	c.results["retry request"] = views.RuleResults{Rows: []views.RuleRow{retries, ampersand, other}, Total: 3, Complete: 3, Libraries: 1,
+		Unfiltered: 3, UnfilteredLibraries: []views.LibraryCount{{Library: otherRef, Vetted: true, Rules: 3}}}
+	handler := newSite(t, c)
+
+	page := get(t, handler, "/search?q=retry+request").Body.String()
+	all := get(t, handler, "/search").Body.String()
+
+	for _, want := range []string{
+		`Cap <mark>retries</mark> per <mark>request</mark></h3>`,
+		`<mark>Retry</mark> &amp; back off</h3>`,
+		`>Wrap errors</h3>`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the results don't hold %s", want)
+		}
+	}
+	if strings.Contains(all, "<mark>") {
+		t.Error("every rule's list marks words without a query")
+	}
 }

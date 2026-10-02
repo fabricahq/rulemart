@@ -236,6 +236,8 @@ type ruleRowView struct {
 	renamed    bool
 	// missing holds the words of a search, as the visitor wrote them, that the rule doesn't hold.
 	missing []string
+	// marks holds the words of a search, in lowercase, that the row marks in its title, or none outside search.
+	marks []string
 	// starredAs is the ID of the retired rule the visitor starred, which this one replaced, or empty.
 	starredAs string
 }
