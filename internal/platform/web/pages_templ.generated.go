@@ -362,8 +362,8 @@ func bandHeading(name, href, linkText, class string) templ.Component {
 	})
 }
 
-// groupTiles shows one kind's canonical groups as the prototype's grid of tiles, four across, two on a phone, each
-// leading to its page.
+// groupTiles shows one kind's canonical groups as the prototype's grid of tiles, four across, two on a phone, and
+// one on a narrow phone, where two would cut off names such as Concurrency, each leading to its page.
 func groupTiles(groups []groupSummaryView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -385,7 +385,7 @@ func groupTiles(groups []groupSummaryView) templ.Component {
 			templ_7745c5c3_Var17 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"grid grid-cols-4 gap-3 max-narrow:grid-cols-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"grid grid-cols-4 gap-3 max-narrow:grid-cols-2 max-tiny:grid-cols-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

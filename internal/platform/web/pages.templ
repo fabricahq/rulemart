@@ -82,10 +82,10 @@ templ bandHeading(name, href, linkText, class string) {
 	</div>
 }
 
-// groupTiles shows one kind's canonical groups as the prototype's grid of tiles, four across, two on a phone, each
-// leading to its page.
+// groupTiles shows one kind's canonical groups as the prototype's grid of tiles, four across, two on a phone, and
+// one on a narrow phone, where two would cut off names such as Concurrency, each leading to its page.
 templ groupTiles(groups []groupSummaryView) {
-	<div class="grid grid-cols-4 gap-3 max-narrow:grid-cols-2">
+	<div class="grid grid-cols-4 gap-3 max-narrow:grid-cols-2 max-tiny:grid-cols-1">
 		for _, g := range groups {
 			<a class="flex min-w-0 items-center gap-3 rounded-card border border-border bg-paper px-[18px] py-4 text-ink no-underline transition-colors duration-[160ms] hover:border-border-strong hover:bg-surface" href={ templ.SafeURL(g.href) }>
 				@groupTile(g.label, g.icon, tileMD)
