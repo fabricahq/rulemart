@@ -432,6 +432,43 @@ func TestSigningInToStarPromptsOnceToStar(t *testing.T) {
 	}
 }
 
+// A rule page's address with the star prompt's parameter redirects once to the same address without it, however the
+// parameter's name is encoded and however often it appears, keeping the rest of the query in order, and the redirect
+// leads to the page.
+func TestTheStarPromptRedirectsOnceToTheAddressWithoutIt(t *testing.T) {
+	site := newStarSite(t)
+
+	for target, want := range map[string]string{
+		errorsRule + "?%73tar=1":       errorsRule,
+		errorsRule + "?star=1&star=2":  errorsRule,
+		errorsRule + "?a=1&star=1&b=2": errorsRule + "?a=1&b=2",
+	} {
+		assertRedirectsToPage(t, site.handler, target, want)
+	}
+}
+
+// assertRedirectsToPage fails t unless target, requested signed out, redirects permanently to want, and following
+// redirects from there, as a browser would, leads to a page.
+func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want string) {
+	t.Helper()
+	resp := send(t, handler, request{method: http.MethodGet, target: target})
+	location := resp.Header.Get("Location")
+	if resp.StatusCode != http.StatusMovedPermanently || location != want {
+		t.Errorf("%s answered %d to %q, want a redirect to %q", target, resp.StatusCode, location, want)
+	}
+	seen := map[string]bool{target: true}
+	for location != "" && !seen[location] {
+		seen[location] = true
+		resp = send(t, handler, request{method: http.MethodGet, target: location})
+		location = resp.Header.Get("Location")
+	}
+	if location != "" {
+		t.Errorf("%s redirects in a circle through %s", target, location)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Errorf("%s leads to a %d, want the page", target, resp.StatusCode)
+	}
+}
+
 // A visitor who isn't signed in, such as one whose session ended in another tab, is sent to sign in and return to
 // where they were, and nothing changes.
 func TestStarringSignedOutSignsInAndReturnsToThePage(t *testing.T) {

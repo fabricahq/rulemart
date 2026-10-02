@@ -73,10 +73,12 @@ func (s *server) withoutStarPrompt(w http.ResponseWriter, r *http.Request) bool 
 	if !r.URL.Query().Has(starPromptParam) {
 		return false
 	}
-	// The rest of the query keeps its order, so the address is the one the visitor left.
+	// The rest of the query keeps its order, so the address is the one the visitor left. A name is compared decoded,
+	// as Query reads it, so a parameter whose name is encoded, such as %73tar, comes off too, and the redirect can't
+	// lead back to itself.
 	var kept []string
 	for pair := range strings.SplitSeq(r.URL.RawQuery, "&") {
-		if name, _, _ := strings.Cut(pair, "="); name != starPromptParam {
+		if name, _, _ := strings.Cut(pair, "="); !isParam(name, starPromptParam) {
 			kept = append(kept, pair)
 		}
 	}
@@ -88,6 +90,12 @@ func (s *server) withoutStarPrompt(w http.ResponseWriter, r *http.Request) bool 
 	setNotice(w, starPromptKey)
 	seeOther(w, r, target.String())
 	return true
+}
+
+// isParam reports whether name, a query parameter's name as the address encodes it, decodes to param.
+func isParam(name, param string) bool {
+	decoded, err := url.QueryUnescape(name)
+	return err == nil && decoded == param
 }
 
 // starControl returns the star control a rule's page shows of the rule r, for the page req asks for: for a signed-in
