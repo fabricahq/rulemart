@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
@@ -16,6 +17,10 @@ type Update struct {
 	// catalog stored; Result is then what the ingestion did.
 	Ingested bool
 	Result   Result
+	// ListTime is how long listing the release tags took; 0 when the catalog had no clone URL to list.
+	ListTime time.Duration
+	// IngestTime is how long looking the repository up and ingesting it took; 0 when the tags were unchanged.
+	IngestTime time.Duration
 }
 
 // Update makes the catalog's rows for library match its release tags, doing as little as it can. It lists the tags
@@ -35,10 +40,11 @@ func (in Ingester) update(ctx context.Context, library domain.LibraryKey) (Updat
 	if library.Host != domain.GitHub {
 		return Update{}, errors.New("github is the only code host Rulemart reads libraries from")
 	}
-	current, err := in.current(ctx, library)
+	current, listTime, err := in.current(ctx, library)
 	if err != nil || current {
-		return Update{}, err
+		return Update{ListTime: listTime}, err
 	}
+	started := time.Now()
 	repo, err := in.Repositories.RepositoryByID(ctx, library.RepositoryID)
 	if err != nil {
 		return Update{}, err
@@ -47,19 +53,22 @@ func (in Ingester) update(ctx context.Context, library domain.LibraryKey) (Updat
 	if err != nil {
 		return Update{}, err
 	}
-	return Update{Ingested: true, Result: result}, nil
+	return Update{Ingested: true, Result: result, ListTime: listTime, IngestTime: time.Since(started)}, nil
 }
 
-// current reports whether the release tags at the library's stored clone URL are the ones the catalog stored. It's
-// false, without listing anything, when the catalog doesn't have the library or its clone URL.
-func (in Ingester) current(ctx context.Context, library domain.LibraryKey) (bool, error) {
+// current reports whether the release tags at the library's stored clone URL are the ones the catalog stored, and how
+// long listing them took. It's false, without listing anything, when the catalog doesn't have the library or its
+// clone URL.
+func (in Ingester) current(ctx context.Context, library domain.LibraryKey) (bool, time.Duration, error) {
 	checkpoint, found, err := in.Store.Checkpoint(ctx, library)
 	if err != nil || !found || checkpoint.CloneURL == "" {
-		return false, err
+		return false, 0, err
 	}
+	started := time.Now()
 	listed, err := in.List(ctx, checkpoint.CloneURL, in.Limits.Fetch)
+	listTime := time.Since(started)
 	if err != nil {
-		return false, fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err)
+		return false, listTime, fmt.Errorf("check release tags url=%q: %v", checkpoint.CloneURL, err)
 	}
-	return checkpoint.Current(listed), nil
+	return checkpoint.Current(listed), listTime, nil
 }

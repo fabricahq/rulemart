@@ -256,3 +256,39 @@ func TestUpdateFailsLoudlyWithoutWritingWhenAGrantIsMissing(t *testing.T) {
 		t.Fatal("an ingestion without its grant changed the pages")
 	}
 }
+
+// The worker logs how long each part of an update took, so a slow library shows whether listing its tags or ingesting
+// it is the slow part. An update that stopped at the check spent no time ingesting, and a library the catalog didn't
+// have yet spent none listing.
+func TestUpdateReportsHowLongListingAndIngestionTook(t *testing.T) {
+	lib := firstRelease(t)
+	u := newUpdates(t, lib)
+
+	first, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unchanged, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	laterReleases(t, lib)
+	changed, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, tc := range map[string]struct {
+		update           app.Update
+		listed, ingested bool
+	}{
+		"a library the catalog didn't have": {first, false, true},
+		"unchanged tags":                    {unchanged, true, false},
+		"a new release":                     {changed, true, true},
+	} {
+		if (tc.update.ListTime > 0) != tc.listed || (tc.update.IngestTime > 0) != tc.ingested {
+			t.Errorf("%s: listing took %s and ingestion %s; want listing %v and ingestion %v", name,
+				tc.update.ListTime, tc.update.IngestTime, tc.listed, tc.ingested)
+		}
+	}
+}
