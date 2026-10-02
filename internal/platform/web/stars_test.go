@@ -425,7 +425,7 @@ func TestOnlyTheFirstStarSaysWhereStarredRulesAreAndEachFocusesTheButton(t *test
 	}
 
 	page := body(t, site.follow(t, site.signedInPost(t, starPath)))
-	if text, links := pageNotice(t, page); text != "You starred your first rule! Find all your starred rules under Starred rules." ||
+	if text, links := pageNotice(t, page); text != "You starred your first rule! 🎉 Find all your starred rules under Starred rules." ||
 		!slices.Equal(links, []string{"Starred rules /account/stars"}) {
 		t.Errorf("after the first star, the notice says %q and links %q, want Starred rules linked to the list", text, links)
 	}

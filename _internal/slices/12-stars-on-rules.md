@@ -105,10 +105,10 @@ a decision under "Decided while building" says otherwise and why.
 - **Decided (Josh): only a visitor's first star says anything.** Starring and unstarring set no notice: the button
   turning to Starred or Star, focused, is the feedback, and slice 7's "You starred this rule. It's on your Starred
   rules." and "You unstarred this rule." are gone. The exception is a star that leaves the account with exactly one,
-  having had none, which the star statement reports as `first`: the page says "You starred your first rule! Find all
-  your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every rule
-  and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie still
-  names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
+  having had none, which the star statement reports as `first`: the page says "You starred your first rule! 🎉 Find
+  all your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every
+  rule and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie
+  still names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
 - **Decided (Josh): a one-time notice that only reports shows as a toast**, so it no longer pushes the page down: the
   first star's, the cart's after adding, removing, or emptying, signing out, signing out everywhere, deleting the
   account, the listings', and the rest the layout renders from the notice cookie or a page's own notice. It's the
