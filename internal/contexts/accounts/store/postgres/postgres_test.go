@@ -237,3 +237,12 @@ func TestAnEndedSessionCanNeitherSignOutEverywhereNorDeleteTheAccount(t *testing
 		t.Error("a dead session's request ended the visitor's new session or deleted the account")
 	}
 }
+
+// An Enterprise Managed User's login has an underscore, which the accounts table accepts as GitHub does.
+func TestSignInStoresAnEnterpriseManagedUsersLogin(t *testing.T) {
+	s, _ := newStore(t)
+	_, account := signIn(t, s, domain.Identity{GitHubUserID: 3, Login: "octocat_acme"}, "")
+	if account.Login != "octocat_acme" {
+		t.Errorf("stored %+v", account)
+	}
+}
