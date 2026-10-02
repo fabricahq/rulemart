@@ -120,6 +120,35 @@ func TestGroupPageControlsShowAndKeepTheAddresssChoices(t *testing.T) {
 	}
 }
 
+// After the browser's Back, every list's form shows the choices of the address it returns to, not the ones the visitor
+// last made there, which a browser would otherwise restore into the form's controls.
+func TestListFormsShowOnlyTheAddresssChoicesAfterHistoryNavigation(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for _, path := range []string{"/g/techs/go?impact=high", "/search?q=errors", "/libraries", "/browse/techs"} {
+		doc, err := html.Parse(strings.NewReader(get(t, handler, path).Body.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		forms := 0
+		for n := range doc.Descendants() {
+			if n.Type != html.ElementNode || n.Data != "form" {
+				continue
+			}
+			if _, ok := attributeOf(n, "data-filters"); !ok {
+				continue
+			}
+			forms++
+			if attribute(n, "autocomplete") != "off" {
+				t.Errorf("%s: a list's form lets the browser restore its controls", path)
+			}
+		}
+		if forms == 0 {
+			t.Errorf("%s: no list form", path)
+		}
+	}
+}
+
 // equalChoices reports whether a and b are the same choices.
 func equalChoices(a, b domain.ListChoices) bool {
 	return a.Unvetted == b.Unvetted && a.Retired == b.Retired && a.Order == b.Order && a.Filters.Impact == b.Filters.Impact &&

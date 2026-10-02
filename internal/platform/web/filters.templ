@@ -19,9 +19,10 @@ templ listLayout() {
 
 // filterSidebar is the list's filters, the prototype's: a form that leads to the page with the choices it holds, so
 // it works without scripts, which filters.js submits as soon as a choice changes. Without scripts it shows an Apply
-// button. Each kind of filter is a group of fields under its name.
+// button. Each kind of filter is a group of fields under its name. Its controls show only what the address holds:
+// autocomplete="off" keeps a browser from restoring the visitor's last choices into them after Back.
 templ filterSidebar(v ruleListView) {
-	<form id="filters" class="sticky top-[84px] self-start text-[13.5px] text-muted max-wide:static max-wide:grid max-wide:grid-cols-2 max-wide:gap-x-5 max-tiny:grid-cols-1" action={ templ.SafeURL(v.path) } method="get" data-filters aria-label="Filters">
+	<form id="filters" class="sticky top-[84px] self-start text-[13.5px] text-muted max-wide:static max-wide:grid max-wide:grid-cols-2 max-wide:gap-x-5 max-tiny:grid-cols-1" action={ templ.SafeURL(v.path) } method="get" autocomplete="off" data-filters aria-label="Filters">
 		for _, p := range v.formParams() {
 			<input type="hidden" name={ p.name } value={ p.value }/>
 		}
@@ -141,8 +142,9 @@ templ noFilteredRules(v ruleListView) {
 
 // unvettedOptIn is the control that includes unvetted libraries in a list of libraries or groups, at path: a form
 // with one checkbox, which filters.js submits as soon as it changes, and which shows an Apply button without scripts.
+// Like the sidebar, its checkbox shows only what the address holds.
 templ unvettedOptIn(path string, unvetted bool) {
-	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" data-filters>
+	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
 		<label class={ filterLabel }>
 			<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ unvetted }/> Include unvetted libraries
 		</label>
