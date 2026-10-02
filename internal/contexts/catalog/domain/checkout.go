@@ -131,7 +131,8 @@ func nameSources(sources []CheckoutSource) {
 		if uses[name] > 1 && name != slug(s.Library.Owner) {
 			name = slug(s.Library.Owner) + "-" + name
 		}
-		if name == "" || name[0] < 'a' || name[0] > 'z' {
+		if name == "" || name[0] < 'a' || name[0] > 'z' || name == "local" {
+			// Such as an organization's .code-rules whose owner is local, or one whose owner starts with a digit.
 			name = "library-" + name
 		}
 		unique := name

@@ -65,7 +65,7 @@ func (s *Store) AddToCart(ctx context.Context, vetted []domain.LibraryKey, accou
 		})
 	})
 	if err != nil {
-		return domain.CartItem{}, fmt.Errorf("add to cart item=%+v accountID=%d: %w", item, accountID, cartError(err))
+		return domain.CartItem{}, fmt.Errorf("add to cart library=%q kind=%s path=%q accountID=%d: %w", item.FullName(), item.Kind, item.Path, accountID, cartError(err))
 	}
 	return added, nil
 }
@@ -89,7 +89,7 @@ func (s *Store) RemoveFromCart(ctx context.Context, accountID int64, item domain
 		})
 	})
 	if err != nil {
-		return fmt.Errorf("remove from cart item=%+v accountID=%d: %v", item, accountID, err)
+		return fmt.Errorf("remove from cart library=%q kind=%s path=%q accountID=%d: %v", item.FullName(), item.Kind, item.Path, accountID, err)
 	}
 	return nil
 }

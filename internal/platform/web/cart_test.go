@@ -312,6 +312,41 @@ func TestTheReturnPageSaysWhatWasAdded(t *testing.T) {
 		"Removed from your cart.")
 }
 
+// A group named in another case than its library's returns to the fragment its control has, which the library's
+// spelling names.
+func TestAGroupInAnotherCaseReturnsToItsControl(t *testing.T) {
+	site := newCartSite(t)
+
+	resp := site.signedInPost(t, cartPath("/account/cart", url.Values{"library": {"Example/Rules"}, "group": {"TECHS/GO"}}, library))
+	if want := library + "#cart-group-techs-go"; resp.Header.Get("Location") != want {
+		t.Fatalf("returned to %q, want %q", resp.Header.Get("Location"), want)
+	}
+}
+
+// A failed change to the cart logs why, without the library, group, or rule the visitor named, as a failed page read
+// logs only its route.
+func TestAFailedCartChangeLogsNoNames(t *testing.T) {
+	site := newCartSite(t)
+	site.cart.err = fmt.Errorf("add to cart library=%q kind=rule path=%q: the database is down", "example/rules", "techs/go/return-errors")
+
+	for _, target := range []string{
+		cartPath("/account/cart", clone(errorsItem), errorsRule), cartPath("/account/cart/remove", clone(errorsItem), ""),
+	} {
+		if resp := site.signedInPost(t, target); resp.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("%s: got %d, want 503", target, resp.StatusCode)
+		}
+	}
+	logs := site.logs.String()
+	for _, name := range []string{"example/rules", "return-errors"} {
+		if strings.Contains(logs, name) {
+			t.Errorf("the logs name %q:\n%s", name, logs)
+		}
+	}
+	if !strings.Contains(logs, "the database is down") || !strings.Contains(logs, "{library}") {
+		t.Errorf("the logs don't say why, with the parameter in its place:\n%s", logs)
+	}
+}
+
 // Adding twice, as a double click or a reload might, lands where once does.
 func TestAddingTwiceIsLikeOnce(t *testing.T) {
 	site := newCartSite(t)

@@ -103,6 +103,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 		library("q", "_"),
 		library("y", "c"),
 		library("z", "b-c"),
+		library("local", ".code-rules"),
 	})
 	var names []string
 	for _, source := range checkout.Sources {
@@ -110,7 +111,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	}
 	want := []string{
 		"a/b-c a-b-c", "a-b/c a-b-c-2", "acme/.code-rules acme", "acme/rules acme-rules", "Beta/Rules beta-rules",
-		"q/_ q", "x/2fa x-2fa", "y/c y-c", "y/local y-local", "z/b-c z-b-c", "Zeta_Corp/Go.Rules go-rules",
+		"local/.code-rules library-local", "q/_ q", "x/2fa x-2fa", "y/c y-c", "y/local y-local", "z/b-c z-b-c", "Zeta_Corp/Go.Rules go-rules",
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("got sources\n%q\nwant\n%q", names, want)

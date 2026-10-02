@@ -183,8 +183,9 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item, err := cartItemOf(query)
+	var added domain.CartItem
 	if err == nil {
-		_, err = s.Cart.Add(r.Context(), v.account.ID, item, query.Get("unvetted") == confirmedUnvetted)
+		added, err = s.Cart.Add(r.Context(), v.account.ID, item, query.Get("unvetted") == confirmedUnvetted)
 	}
 	switch {
 	case errors.Is(err, app.ErrUnvettedNotConfirmed):
@@ -197,9 +198,10 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.fail(w, r, err)
 	default:
-		setNotice(w, addedNotices[item.Kind])
-		if item.Kind == domain.CartGroup && !strings.Contains(back, "#") {
-			back += "#" + cartControlID(item)
+		setNotice(w, addedNotices[added.Kind])
+		// The group's control is named by the library's spelling of its ID, which Add returns.
+		if added.Kind == domain.CartGroup && !strings.Contains(back, "#") {
+			back += "#" + cartControlID(added)
 		}
 		seeOther(w, r, back)
 	}

@@ -71,7 +71,12 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
 - **Proposed: an item of a library Rulemart doesn't vet needs a recorded confirmation.** The cart keeps when the
   visitor confirmed adding it as unvetted. A library that loses its vetting leaves its items unconfirmed, so checkout
   leaves them out until the visitor confirms again, from the cart, through the same page. A library that gains its
-  vetting needs nothing.
+  vetting needs nothing. A confirmation, once given, stands: an item confirmed while its library was unvetted stays
+  confirmed if the library is vetted and later loses its vetting again, since Rulemart keeps no history of
+  `vetted.yaml` to tell. The prompt still names the library as unvetted, and asks the agent to review its rules.
+- **Proposed: the confirmation page is the way to add from an unvetted library, not a lock.** The add form carries
+  `unvetted=confirmed` in its query string, and another site can't send it (**Existing**), so only the visitor can skip
+  the page, by crafting the request themselves.
 
 ### Checkout
 
@@ -139,7 +144,9 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   cart reads them as pages do, from one snapshot. A context of its own would need the catalog's tables in its SQL, or
   a second read per library through the catalog's app. decisions.md expected a context of its own; this reverses that.
 - **Proposed: the web function logs nothing new.** Its access log records each change's route and status, by pattern
-  (**Existing**).
+  (**Existing**). A failure's error names what failed with each query parameter's value replaced by its name, such as
+  `{library}`, as it replaces a library's path with the route's (**Existing**), so no failed write logs what a visitor
+  put in their cart.
 
 ## Infrastructure
 
