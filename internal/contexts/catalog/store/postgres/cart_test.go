@@ -183,7 +183,9 @@ func TestACartHoldsAtMostMaxCartItems(t *testing.T) {
 	if count := c.countCart(t, account); count != domain.MaxCartItems {
 		t.Fatalf("counted %d; want %d", count, domain.MaxCartItems)
 	}
-	if _, err := c.web.AddToCart(ctx, vettedBoth, account, acmeTesting, false); !errors.Is(err, store.ErrCartFull) {
+	// techs/golang covers nothing the cart holds, whichever of the two items it took, so it can't take the place of any.
+	golang := cartItem("acme", "backend", domain.CartGroup, "techs/golang")
+	if _, err := c.web.AddToCart(ctx, vettedBoth, account, golang, false); !errors.Is(err, store.ErrCartFull) {
 		t.Errorf("adding to a full cart: got %v, want ErrCartFull", err)
 	}
 	c.add(t, vettedBoth, account, acmeReturn, false)
