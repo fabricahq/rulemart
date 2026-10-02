@@ -55,6 +55,30 @@ func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]vi
 	return cards, nil
 }
 
+// UnvettedLibraries returns the libraries listings name that vetted doesn't hold, ordered by owner and name without
+// regard to case.
+func (s *Store) UnvettedLibraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
+	var cards []views.LibraryCard
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		rows, err := q.ListUnvettedLibraries(ctx, vettedKeys(vetted))
+		if err != nil {
+			return err
+		}
+		cards = make([]views.LibraryCard, len(rows))
+		for i, row := range rows {
+			cards[i] = views.LibraryCard{
+				Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
+				Rules: int(row.RuleCount),
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load unvetted libraries: %v", err)
+	}
+	return cards, nil
+}
+
 // HomePage returns the vetted libraries, ordered by owner and name, and each group that holds current rules in them,
 // as Groups returns them.
 func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
@@ -405,14 +429,15 @@ func compareTexts(ctx context.Context, q *catalogdb.Queries, pairs []textPair, m
 	return texts, nil
 }
 
-// library returns the vetted library owner/name and its catalog id, or pgx.ErrNoRows when there's none.
+// library returns the library owner/name that vetted holds or a listing names, and its catalog id, or pgx.ErrNoRows
+// when there's none.
 func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, owner, name string) (views.Library, int64, error) {
 	row, err := q.GetLibrary(ctx, catalogdb.GetLibraryParams{Host: domain.GitHub, Owner: owner, Name: name, Vetted: vettedKeys(vetted)})
 	if err != nil {
 		return views.Library{}, 0, err
 	}
 	return views.Library{
-		Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
+		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
 		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
