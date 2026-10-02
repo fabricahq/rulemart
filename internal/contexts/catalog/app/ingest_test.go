@@ -33,7 +33,12 @@ func firstRelease(t *testing.T) *gittest.Library {
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts.")
 	lib.Rule(retryBackoff, "Check retry backoff", "Retries wait longer after each attempt.")
 	lib.Rule(returnErrors, "Return errors", "Return errors instead of panicking.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, firstReleaseRecord)
+	return lib
+}
+
+// firstReleaseRecord is the record of firstRelease's release/1.
+const firstReleaseRecord = `formatVersion: 1
 release: 1
 rules:
   practices/testing/check-retry-backoff: 1.0.0
@@ -44,9 +49,7 @@ changes:
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
   techs/go/return-errors: {change: new, summaries: [Add the rule.]}
 libraryFiles: [LICENSE, practices/testing/_group.yaml, rule-library.yaml, techs/go/_group.yaml]
-`)
-	return lib
-}
+`
 
 // laterReleases adds three releases to firstRelease's library: a minor change, then a patch and a major change and
 // a retirement, then a release that only edits a rule's file without a change, which must not show.
@@ -208,6 +211,10 @@ func TestIngestRejectsAURLThatIsntAGitHubRepository(t *testing.T) {
 type repositories struct{ repo domain.Repository }
 
 func (r repositories) Repository(context.Context, string, string) (domain.Repository, error) {
+	return r.repo, nil
+}
+
+func (r repositories) RepositoryByID(context.Context, string) (domain.Repository, error) {
 	return r.repo, nil
 }
 
