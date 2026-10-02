@@ -11,6 +11,9 @@ type Limits struct {
 
 // FetchLimits bound what fetching a library's release tags may hold in memory.
 type FetchLimits struct {
+	// RefsBytes bounds the list of references the repository advertises, which listing and fetching read first:
+	// every branch and tag, not only the release tags.
+	RefsBytes int64
 	// Tags bounds the release tags.
 	Tags int
 	// TagBytes bounds one release tag object, its message and any signature included.
@@ -39,6 +42,9 @@ type ContentLimits struct {
 // ingestion well under a gigabyte.
 var DefaultLimits = Limits{
 	Fetch: FetchLimits{
+		// Room for the release tags, with their peeled entries, and for a few hundred thousand other references, such
+		// as GitHub's pull request references.
+		RefsBytes: 16 << 20,
 		// One release tag per library release.
 		Tags: 10_000,
 		// Code Rules bounds the tags it publishes to 8 MiB, release notes and signature included.

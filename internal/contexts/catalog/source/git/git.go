@@ -40,13 +40,14 @@ func Fetch(ctx context.Context, url string, limits domain.FetchLimits) ([]domain
 // fetch from, such as an HTTPS URL or, in tests, a local path.
 func ListReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error) {
 	remote := gogit.NewRemote(nil, &config.RemoteConfig{Name: "origin", URLs: []string{url}})
-	return listReleaseTags(ctx, remote, limits)
+	return listReleaseTags(withRefsLimit(ctx, limits.RefsBytes), remote, limits)
 }
 
 // fetchReleaseTags fetches the release/* tags of the repository at url, with their commits and trees but no other
 // history, into memory that limits bound. url is any address go-git can fetch from, such as an HTTPS URL or, in tests, a local path. A
 // repository without release tags, or with more than the limit, fails before anything is fetched.
 func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits) (*gogit.Repository, error) {
+	ctx = withRefsLimit(ctx, limits.RefsBytes)
 	repo, err := gogit.Init(newBoundedStorage(limits), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create in-memory repository: %v", err)

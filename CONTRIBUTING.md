@@ -41,10 +41,10 @@ repository ID. To see another library locally, ingest it and add it there, as a 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
 one transaction; running it again on unchanged tags changes nothing. It fetches only the tagged commits, into
 memory, and refuses a library that passes any of the limits that
-[internal/contexts/catalog/domain/limits.go](internal/contexts/catalog/domain/limits.go) documents: release tags,
-the size of a tag, of the fetched packfile, of each object and of all of them, the number of objects, the size of
-each file it reads, and the content it holds until the library is stored. It ingests any public library, vetted or
-not, so use it to backfill one.
+[internal/contexts/catalog/domain/limits.go](internal/contexts/catalog/domain/limits.go) documents: the
+references the repository advertises, release tags, the size of a tag, of the fetched packfile, of each object
+and of all of them, the number of objects, the size of each file it reads, and the content it holds until the
+library is stored. It ingests any public library, vetted or not, so use it to backfill one.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the worker's connection string,
 `/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses records with
