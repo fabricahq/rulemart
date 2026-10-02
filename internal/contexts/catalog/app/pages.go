@@ -16,7 +16,7 @@ import (
 )
 
 // ErrNotFound reports a library or rule that isn't in the catalog, a library that's neither vetted nor listed, a
-// group that isn't canonical, or an account's listing it doesn't have.
+// group that isn't canonical, a library to star that isn't vetted, or an account's listing it doesn't have.
 var ErrNotFound = store.ErrNotFound
 
 // ErrSearchQueryTooLong reports a query of more than domain.MaxSearchQueryLength characters, which search won't run.

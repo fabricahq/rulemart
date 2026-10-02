@@ -108,7 +108,7 @@ func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.Librar
 	for i, row := range rows {
 		cards[i] = views.LibraryCard{
 			Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
-			Rules: int(row.RuleCount),
+			Rules: int(row.RuleCount), Stars: int(row.StarCount),
 		}
 	}
 	return cards, nil
@@ -440,7 +440,7 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
-		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
+		Groups: int(row.GroupCount), Rules: int(row.RuleCount), Stars: int(row.StarCount),
 	}, row.ID, nil
 }
 
