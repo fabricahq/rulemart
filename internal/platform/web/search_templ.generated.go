@@ -217,7 +217,7 @@ func searchPage(c chrome, v searchView) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-					} else if v.empty() && v.list.unfiltered > 0 {
+					} else if v.list.filteredOut() {
 						templ_7745c5c3_Err = noFilteredRules(v.list).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err

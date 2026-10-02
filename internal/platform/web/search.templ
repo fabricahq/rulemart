@@ -39,7 +39,7 @@ templ searchPage(c chrome, v searchView) {
 								<p class="font-medium text-ink">The results don't reach this page.</p>
 								<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
 							</div>
-						} else if v.empty() && v.list.unfiltered > 0 {
+						} else if v.list.filteredOut() {
 							@noFilteredRules(v.list)
 						} else if v.empty() {
 							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">

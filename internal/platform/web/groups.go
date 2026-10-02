@@ -16,6 +16,7 @@ import (
 type groupPageView struct {
 	// href is the page's own address, without choices.
 	href        string
+	kind        groupKind
 	label       groupLabel
 	icon        groupIcon
 	description string
@@ -25,7 +26,8 @@ type groupPageView struct {
 
 func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL func(file string) string) groupPageView {
 	v := groupPageView{
-		href: groupHref(page.Path), label: newGroupLabel(page.Path, page.Canonical), icon: newGroupIcon(page.Canonical, iconURL),
+		href: groupHref(page.Path), kind: kindOf(page.Path), label: newGroupLabel(page.Path, page.Canonical),
+		icon: newGroupIcon(page.Canonical, iconURL),
 	}
 	if page.Canonical != nil {
 		v.description = page.Canonical.Description
@@ -36,6 +38,9 @@ func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL 
 	}
 	return v
 }
+
+// indexed reports whether search engines may index the page: only at its own address, with no choice in it.
+func (v groupPageView) indexed() bool { return v.list.href(v.list.choices) == v.href }
 
 // truncated reports whether more rules pass the filters than the page lists.
 func (v groupPageView) truncated() bool { return v.list.total > len(v.rows) }

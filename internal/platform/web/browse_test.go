@@ -57,19 +57,19 @@ func newBrowsingCatalog() catalog {
 	c.groups = map[string]views.GroupPage{
 		"techs/go": {Path: "techs/go", Canonical: goGroup, Rules: views.RuleResults{
 			Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow}, Total: 3, Libraries: 2, Unfiltered: 3,
-			LibraryCounts: browsingCounts,
+			UnfilteredLibraries: browsingCounts,
 		}},
 		"techs/golang": {Path: "techs/golang", Rules: views.RuleResults{
 			Rows: []views.RuleRow{wrapErrorsRow}, Total: 1, Libraries: 1, Unfiltered: 1,
-			LibraryCounts: []views.LibraryCount{{Library: otherRef, Vetted: true, Rules: 1}},
+			UnfilteredLibraries: []views.LibraryCount{{Library: otherRef, Vetted: true, Rules: 1}},
 		}},
 		"practices/accessibility": {Path: "practices/accessibility", Canonical: &views.CanonicalGroup{Name: "Accessibility"}},
 	}
 	c.results = map[string]views.RuleResults{
 		"errors": {Rows: []views.RuleRow{returnErrorsRow, wrapErrorsRow}, Total: 2, Complete: 2, Libraries: 2, Unfiltered: 2,
-			LibraryCounts: []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 1}}},
+			UnfilteredLibraries: []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 1}}},
 		"": {Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow, wrapErrorsRow}, Total: 4, Complete: 4,
-			Libraries: 2, Unfiltered: 4, LibraryCounts: browsingCounts},
+			Libraries: 2, Unfiltered: 4, UnfilteredLibraries: browsingCounts},
 	}
 	return c
 }

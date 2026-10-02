@@ -7,13 +7,13 @@ package web
 // libraries that chose its exact ID. A page with any choice in its address asks search engines not to index it, and
 // still names the group's own address as canonical.
 templ groupPage(c chrome, g groupPageView) {
-	@layout(c, head{title: g.title(), description: g.summary(), noindex: g.list.href(g.list.choices) != g.href, filters: true}) {
+	@layout(c, head{title: g.title(), description: g.summary(), noindex: !g.indexed(), filters: true}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(kindOf(g.label.id).href()) }>{ kindOf(g.label.id).name() }</a>
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(g.kind.href()) }>{ g.kind.name() }</a>
 				if !g.label.canonical {
 					<span>›</span>
-					<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(kindOf(g.label.id).othersHref()) }>Other groups</a>
+					<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(g.kind.othersHref()) }>Other groups</a>
 				}
 				<span>›</span>
 				<span class="mono">{ g.label.id }</span>
@@ -31,7 +31,7 @@ templ groupPage(c chrome, g groupPageView) {
 				<p class="mt-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted"><span class="mono">{ g.label.id }</span> isn't a canonical group, so it only includes rules from libraries that chose this exact name.</p>
 			}
 			<p class="mt-2 mb-6 text-muted">
-				{ plural(g.list.unfiltered, "rule", "rules") } from { plural(len(g.list.libraries), "library", "libraries") }
+				{ plural(g.list.unfiltered, "rule", "rules") } from { plural(len(g.list.libraryFilters), "library", "libraries") }
 				if g.description != "" {
 					{ " · " }{ g.description }
 				}
@@ -41,7 +41,7 @@ templ groupPage(c chrome, g groupPageView) {
 				<section aria-labelledby="results">
 					<h2 id="results" class="sr-only">Rules</h2>
 					@resultsHead(g.list, "")
-					if len(g.rows) == 0 && g.list.unfiltered > 0 {
+					if g.list.filteredOut() {
 						@noFilteredRules(g.list)
 					} else if len(g.rows) == 0 {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No library has { g.label.display() } rules yet.</div>

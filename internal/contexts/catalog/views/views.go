@@ -364,10 +364,10 @@ type RuleResults struct {
 	// Total counts the rules that pass the list's filters, Complete those of them that hold every word a search finds,
 	// and Libraries the libraries they come from.
 	Total, Complete, Libraries int
-	// Unfiltered counts the rules the list holds before its filters, and LibraryCounts the libraries they come from,
-	// Fabrica's first, then by owner and name, each with how many of them it holds.
-	Unfiltered    int
-	LibraryCounts []LibraryCount
+	// Unfiltered counts the rules the list holds before its filters, and UnfilteredLibraries the libraries they come
+	// from, Fabrica's first, then by owner and name, each with how many of them it holds.
+	Unfiltered          int
+	UnfilteredLibraries []LibraryCount
 	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
 	// search ignores, such as "the", or punctuation.
 	NoWords bool

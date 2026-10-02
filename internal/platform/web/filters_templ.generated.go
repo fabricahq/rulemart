@@ -130,7 +130,7 @@ func filterSidebar(v ruleListView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		if len(v.libraries) > 0 {
+		if len(v.libraryFilters) > 0 {
 			templ_7745c5c3_Var6 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -143,7 +143,7 @@ func filterSidebar(v ruleListView) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				for _, l := range v.libraries {
+				for _, l := range v.libraryFilters {
 					var templ_7745c5c3_Var7 = []any{filterLabel, templ.KV("font-medium text-ink", l.fabrica())}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 					if templ_7745c5c3_Err != nil {
@@ -1002,9 +1002,9 @@ func resultsHead(v ruleListView, more string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var62 string
-		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.libraryCount, "library", "libraries"))
+		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.libraries, "library", "libraries"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 113, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `filters.templ`, Line: 113, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {

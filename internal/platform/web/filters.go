@@ -23,11 +23,12 @@ type ruleListView struct {
 	path    string
 	params  url.Values
 	choices domain.ListChoices
-	// libraries are the sidebar's libraries: those of the rules the list holds before its filters, Fabrica's first.
-	libraries []libraryFilterView
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
-	// libraryCount the libraries they come from. unfiltered counts the rules the list holds before its filters.
-	total, complete, libraryCount, unfiltered int
+	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters.
+	total, complete, libraries, unfiltered int
+	// libraryFilters are the sidebar's libraries: those of the rules the list holds before its filters, Fabrica's
+	// first.
+	libraryFilters []libraryFilterView
 }
 
 // libraryFilterView is a library's checkbox in the filter sidebar, which sets Fabrica's in stronger type.
@@ -44,11 +45,11 @@ type libraryFilterView struct {
 func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, results views.RuleResults) ruleListView {
 	v := ruleListView{
 		page: page, path: path, params: params, choices: choices, total: results.Total, complete: results.Complete,
-		libraryCount: results.Libraries, unfiltered: results.Unfiltered,
+		libraries: results.Libraries, unfiltered: results.Unfiltered,
 	}
-	for _, l := range results.LibraryCounts {
+	for _, l := range results.UnfilteredLibraries {
 		value := domain.LibraryFilterValue(l.Library.Owner, l.Library.Name)
-		v.libraries = append(v.libraries, libraryFilterView{
+		v.libraryFilters = append(v.libraryFilters, libraryFilterView{
 			libraryRefView: newLibraryRefView(l.Library), value: value, vetted: l.Vetted,
 			checked: slices.Contains(choices.Filters.Libraries, value), rules: l.Rules,
 		})
@@ -75,6 +76,10 @@ func addressOf(path string, choices, params url.Values) string {
 
 // filtered reports whether a filter narrows the list, which Clear filters undoes.
 func (v ruleListView) filtered() bool { return !v.choices.Filters.IsZero() }
+
+// filteredOut reports whether the list holds rules but none on the page passes its filters, which the page says,
+// leading to the list without them.
+func (v ruleListView) filteredOut() bool { return v.total == 0 && v.unfiltered > 0 }
 
 // clearHref is the page's address without its filters, keeping its order and whether it includes unvetted libraries
 // and retired rules.

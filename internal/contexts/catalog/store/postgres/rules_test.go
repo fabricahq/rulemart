@@ -194,8 +194,8 @@ func TestAGroupsFiltersKeepTheRulesTheyName(t *testing.T) {
 			{Library: views.LibraryRef{Owner: "fabricahq", Name: "rules", OwnerAvatarURL: fabricaRules.Repository.OwnerAvatarURL}, Vetted: true, Rules: 2},
 			{Library: views.LibraryRef{Owner: "zeta", Name: "go", OwnerAvatarURL: zetaGo.Repository.OwnerAvatarURL}, Vetted: true, Rules: 2},
 		}
-		if !reflect.DeepEqual(got.LibraryCounts, want) || got.Unfiltered != 4 {
-			t.Errorf("%s: got %d unfiltered from %+v, want 4 from %+v", tc.name, got.Unfiltered, got.LibraryCounts, want)
+		if !reflect.DeepEqual(got.UnfilteredLibraries, want) || got.Unfiltered != 4 {
+			t.Errorf("%s: got %d unfiltered from %+v, want 4 from %+v", tc.name, got.Unfiltered, got.UnfilteredLibraries, want)
 		}
 	}
 }
@@ -208,8 +208,8 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 	without := c.listRules(t, goList(domain.RuleFilters{}))
 	with := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Unvetted: true, Order: domain.MostStarred}})
 
-	if slices.Contains(sourceIDs(without), aardvark) || len(without.LibraryCounts) != 2 {
-		t.Errorf("without unvetted libraries: got %q from %+v", sourceIDs(without), without.LibraryCounts)
+	if slices.Contains(sourceIDs(without), aardvark) || len(without.UnfilteredLibraries) != 2 {
+		t.Errorf("without unvetted libraries: got %q from %+v", sourceIDs(without), without.UnfilteredLibraries)
 	}
 	if want := []string{handleErrors, zapErrors, nameThings, yieldErrors, aardvark}; !slices.Equal(sourceIDs(with), want) {
 		t.Fatalf("with unvetted libraries: got %q, want %q", sourceIDs(with), want)
@@ -218,11 +218,11 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 		t.Errorf("got the listed library's rule %+v, the first %+v; want it unvetted without stars", last, with.Rows[0])
 	}
 	var owners []string
-	for _, l := range with.LibraryCounts {
+	for _, l := range with.UnfilteredLibraries {
 		owners = append(owners, l.Library.Owner)
 	}
-	if want := []string{"fabricahq", "aardvark", "zeta"}; !slices.Equal(owners, want) || with.LibraryCounts[1].Vetted {
-		t.Errorf("got the sidebar's libraries %+v, want %q, aardvark unvetted", with.LibraryCounts, want)
+	if want := []string{"fabricahq", "aardvark", "zeta"}; !slices.Equal(owners, want) || with.UnfilteredLibraries[1].Vetted {
+		t.Errorf("got the sidebar's libraries %+v, want %q, aardvark unvetted", with.UnfilteredLibraries, want)
 	}
 	search := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 	if len(search.Rows) != 0 {
@@ -340,7 +340,7 @@ func TestEveryRuleListsInPages(t *testing.T) {
 	if len(ids) != 6 || first.Total != 6 || slices.Contains(ids, oldErrors) {
 		t.Errorf("got %q of %d, want every current rule, 6", ids, first.Total)
 	}
-	if len(past.Rows) != 0 || past.Unfiltered != 6 || len(past.LibraryCounts) != 2 {
+	if len(past.Rows) != 0 || past.Unfiltered != 6 || len(past.UnfilteredLibraries) != 2 {
 		t.Errorf("past the last page: got %+v", past)
 	}
 }

@@ -25,9 +25,9 @@ templ filterSidebar(v ruleListView) {
 		for _, p := range v.formParams() {
 			<input type="hidden" name={ p.name } value={ p.value }/>
 		}
-		if len(v.libraries) > 0 {
+		if len(v.libraryFilters) > 0 {
 			@filterGroup("Libraries", "") {
-				for _, l := range v.libraries {
+				for _, l := range v.libraryFilters {
 					<label class={ filterLabel, templ.KV("font-medium text-ink", l.fabrica()) }>
 						<input class={ filterInput } type="checkbox" name={ domain.LibrariesParam } value={ l.value } checked?={ l.checked }/>
 						@libraryAvatar(l.avatar, l.owner, avatarXS, l.vetted)
@@ -110,7 +110,7 @@ templ exclusiveCheckbox(name, value, text string, checked bool) {
 templ resultsHead(v ruleListView, more string) {
 	<div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
 		<p class="text-[13px] text-muted">
-			{ plural(v.total, "rule", "rules") } in { plural(v.libraryCount, "library", "libraries") }
+			{ plural(v.total, "rule", "rules") } in { plural(v.libraries, "library", "libraries") }
 			if more != "" {
 				<span>· { more }</span>
 			}
