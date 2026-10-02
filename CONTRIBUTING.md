@@ -22,8 +22,17 @@ owner, ingest a library as `rulemart_worker`, then serve the pages at <http://12
 ```sh
 make migrate
 make ingest URL=https://github.com/fabricahq/code-rules-test-library
+make ingest URL=https://github.com/fabricahq/public-rules
 make web
 ```
+
+Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
+to show: `/groups` and a group such as `/groups/techs/go` across both, and `/search?q=retry`. Run `make ingest` again
+to bring a library up to date, or `make worker` to update every vetted one. To keep the local `rulemart` database for
+other work, point the commands at another database on the same server, such as
+`LOCAL_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart_dev?sslmode=disable' make migrate`, after
+creating it with `docker exec rulemart-postgres createdb -U postgres rulemart_dev`; `make ingest` and `make web` take
+`LOCAL_WORKER_DATABASE_URL` and `LOCAL_WEB_DATABASE_URL` the same way.
 
 The [Makefile](Makefile) names the local database's connections. `make migrate` connects as the database's owner,
 with `LOCAL_DATABASE_URL`, and `make ingest` and `make worker` as `rulemart_worker`, with

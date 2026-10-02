@@ -17,7 +17,7 @@ accepted them. **Existing** ones are already in [decisions.md](../decisions.md) 
 - **Search from any page.** Every page's header has a search field. On a phone it's a search link. The home page
   leads with a larger search field.
 - **Browse groups.** `/groups` lists every group that holds a current rule in a vetted library: technologies first,
-  then practices. The home page shows the same groups as a grid of tiles.
+  then practices. The home page shows the canonical ones as a grid of tiles, with a link to `/groups`.
 - **See one group across libraries.** `/groups/techs/go` shows every vetted library's current Go rules, under each
   library's name, avatar, and a link to its page.
 - **Search.** `/search?q=retry limits` lists the best-matching current rules of vetted libraries, best first. Each
@@ -58,7 +58,10 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   longer than 200 characters isn't run: the page says to shorten it. A query of only stop words, such as `the`,
   matches nothing.
 - **Results. Proposed.** A search shows at most the 50 best matches, and says how many matched in all. Paging
-  through more waits until the catalog needs it.
+  through more waits until the catalog needs it. Each result shows its title, impact, reading guidance, library,
+  group, and version.
+- **Cost. Proposed.** On production's two libraries, 133 rules, a search runs in about 2 ms in Postgres, and the
+  text match uses the index. The group-name match reads every vetted group, a few dozen rows.
 - **Vetted libraries only. Existing.** Search reads only the libraries in the release's `catalog/vetted.yaml`.
 
 ### Browsing
@@ -72,9 +75,11 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   the index lists a group that isn't canonical once per library, flagged "not canonical", linking to that library's
   section for it. A canonical group with no current rule in a vetted library shows its page with an empty state, so
   its URL works before and after a library adopts it.
-- **What the index shows. Proposed.** Canonical groups by the list's name and icon (**Existing**), with the list's
-  one-line description, how many current rules they hold, and in how many libraries. The description is Code Rules',
-  not a library's, so no library can describe a group every library shares.
+- **What the index shows. Proposed.** Canonical groups by the list's name and icon (**Existing**), with how many
+  current rules they hold, and in how many libraries. A practice also shows the list's one-line description, as a
+  library's page shows a practice's reading guidance and a technology's name explains itself. The description is
+  Code Rules', not a library's, so no library can describe a group every library shares. A group that isn't
+  canonical shows the library that holds it.
 - **Order. Proposed.** Technologies, then practices. Within each, canonical groups by name, then groups that aren't
   canonical by ID and library. On a group's page, libraries are in owner and name order, as on the home page, and
   each library's rules in title order.
@@ -87,6 +92,8 @@ by construction. Trigram matching can be added beside it later, for typos, witho
   as the source, since Rulemart doesn't know the name a project gives a source.
 - **Library pages name their owner. Proposed.** A library's page heads with `owner / name`, so two libraries with one
   name read apart.
+- **The home page reads its libraries and groups from one state of the catalog (Existing rule).** The store's
+  `HomePage` read replaces `Libraries`, so the counts on one page always agree.
 
 ### Pages and caching
 
@@ -96,7 +103,8 @@ by construction. Trigram matching can be added beside it later, for typos, witho
 - **Every page, search included, is cacheable for a minute (Existing).** CloudFront's cache policy keys on every
   query string, so each query is cached on its own, and no infrastructure change is needed.
 - **The search form submits with GET to the site itself. Proposed.** The Content-Security-Policy's `form-action`
-  goes from `'none'` to `'self'`. No script is needed.
+  goes from `'none'` to `'self'`. No script is needed. The field's text is 16 px, so phones don't zoom into it, and
+  it holds at most 200 characters.
 - **Logs keep the route, never the query (Existing).** The access log records `/search`, not what was searched, and
   a failed search's error names no query.
 

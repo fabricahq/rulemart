@@ -42,6 +42,24 @@ than adding history.
   names. A canonical group without an icon shows its initial. Pages show icons with `<img>`, and tests reject an
   SVG that holds scripts, event handlers, or references outside itself.
 
+## Browsing and search
+
+- **Search is Postgres full-text search, in the Neon database Rulemart already uses.** It needs no other service,
+  and each search reads one state of the catalog, as pages do, so a result can't name a rule its library's page
+  doesn't show. Each current rule version stores a generated `tsvector` of its title, its reading guidance and
+  impact description, and its body, weighted in that order. Search adds each rule's group names as it reads: the
+  canonical list's name, passed as a parameter, and the name part of the group's ID, never the name a library
+  declares. [Slice 3](slices/3-browse-and-search.md) compares the alternatives.
+- **Only a canonical group has a page across libraries,** at `/groups/{techs|practices}/{name}`. Any other group
+  stands alone, so the groups page lists it once per library and leads to that library's section for it.
+- **A page that lists rules from more than one library names each rule's library**, by its owner's avatar and
+  `owner/name`, and search results show each rule's source-qualified ID, `owner/name:rule-ID`, Code Rules'
+  `source:rule` form with the repository as the source.
+- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place; search
+  orders by relevance.
+- **Search result pages carry `noindex` and name no canonical address.** Each query would otherwise be a page of
+  its own to a search engine.
+
 ## Application
 
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone
