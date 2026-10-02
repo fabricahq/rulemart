@@ -5,7 +5,8 @@
  * order, so the page loads once. It replaces the page in the history, as the prototype does, so Back leaves the list
  * rather than undoing each choice, and the next page focuses the control that changed, with the quiet ring of a
  * control a page focuses after a click. A page the browser restores from its back-forward cache shows the controls as
- * the visitor left them, so it resets each form to its markup, which holds what the page's address chose. */
+ * the visitor left them, so it resets each form to its markup, which holds what the page's address chose. Where the
+ * sidebar's disclosure doesn't fold and the stylesheet can't show its content closed, it opens it. */
 (() => {
   const focusKey = 'rulemart:filters-focus';
 
@@ -64,5 +65,9 @@
     if (!event.persisted) return;
     for (const form of document.querySelectorAll('form[data-filters]')) form.reset();
   });
+  // Where the sidebar doesn't fold, a browser that can't show a closed disclosure's content opens it instead.
+  if (!CSS.supports('selector(::details-content)') && window.matchMedia('(width >= 45rem)').matches) {
+    for (const disclosure of document.querySelectorAll('details[data-filters-disclosure]')) disclosure.open = true;
+  }
   restoreFocus();
 })();

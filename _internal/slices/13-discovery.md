@@ -126,6 +126,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   hear it after the library's name in a row.
 - **Proposed: the header's search field holds the query on the search page**; a phone's header has none, so the page
   holds its own field below the narrow breakpoint. The syntax hints are gone, as in the prototype.
+- **Proposed: on a phone the sidebar folds into a "Filters" disclosure**, below the narrow breakpoint, closed while no
+  choice is on, so the first result sits near the top of the screen rather than under the whole sidebar, and open
+  while any is, its summary counting them ("Filters · 2"): each library, the impact, the stars, the kind, and retired
+  rules and unvetted libraries, since those change the list too. A departure from the prototype, whose phone layout
+  stacks the whole sidebar above the results. The desktop and tablet layouts don't change.
 - **Proposed: Clear filters clears the filters only**, keeping the order and the unvetted and retired choices, and
   shows only when a filter is on.
 - **Proposed: the libraries page reads "Every library on Rulemart"** while it includes unvetted ones.

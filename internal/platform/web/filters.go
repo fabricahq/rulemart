@@ -74,6 +74,21 @@ func addressOf(path string, choices, params url.Values) string {
 	return path + "?" + choices.Encode()
 }
 
+// chosen counts the sidebar's choices that are on: each library, the impact, the stars, the kind, and retired rules and
+// unvetted libraries, which the sidebar's disclosure counts on a phone.
+func (v ruleListView) chosen() int {
+	n := len(v.choices.Filters.Libraries)
+	for _, on := range []bool{
+		v.choices.Filters.Impact != domain.AnyImpact, v.choices.Filters.MinStars > 0, v.choices.Filters.Kind != "",
+		v.choices.Retired, v.choices.Unvetted,
+	} {
+		if on {
+			n++
+		}
+	}
+	return n
+}
+
 // offersRetired reports whether the sidebar offers the list's retired rules: on a page that offers them, unless it
 // searches for words, which always finds them.
 func (v ruleListView) offersRetired() bool {

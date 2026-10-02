@@ -219,3 +219,37 @@ func TestListsOfLibrariesOfferUnvettedOnesAndMarkVettedOnes(t *testing.T) {
 		}
 	}
 }
+
+// On a phone the sidebar folds into a disclosure named Filters, closed while no choice is on, so the results start near
+// the top, and open, counting the choices, while any is.
+func TestFilterSidebarFoldsIntoADisclosureThatOpensWithChoices(t *testing.T) {
+	handler := newSite(t, newBrowsingCatalog())
+
+	for path, want := range map[string]struct {
+		summary string
+		open    bool
+	}{
+		"/g/techs/go":                       {"Filters", false},
+		"/g/techs/go?impact=high&retired=1": {"Filters · 2", true},
+		"/search?libs=example%2Frules":      {"Filters · 1", true},
+	} {
+		doc, err := html.Parse(strings.NewReader(get(t, handler, path).Body.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		disclosure := find(doc, func(n *html.Node) bool {
+			return n.Data == "details" && find(n, func(c *html.Node) bool { return attribute(c, "id") == "filters" }) != nil
+		})
+		if disclosure == nil {
+			t.Fatalf("%s: the filters aren't in a disclosure", path)
+		}
+		summary := find(disclosure, func(n *html.Node) bool { return n.Data == "summary" })
+		if summary == nil {
+			t.Fatalf("%s: the disclosure has no summary", path)
+		}
+		_, open := attributeOf(disclosure, "open")
+		if nodeText(summary) != want.summary || open != want.open {
+			t.Errorf("%s: got a disclosure open %t, summed up %q; want open %t, %q", path, open, nodeText(summary), want.open, want.summary)
+		}
+	}
+}
