@@ -110,8 +110,8 @@ func (c listingCatalog) listRules(t *testing.T, list domain.RuleList) views.Rule
 	return results
 }
 
-// rowIDs returns each row's library and rule, as owner/name:rule ID.
-func rowIDs(results views.RuleResults) []string {
+// sourceIDs returns each result's source-qualified rule ID, owner/name:rule ID.
+func sourceIDs(results views.RuleResults) []string {
 	ids := []string{}
 	for _, r := range results.Rows {
 		ids = append(ids, r.Library.FullName()+":"+r.Rule.Path)
@@ -148,8 +148,8 @@ func TestAGroupsRulesListInEachOrder(t *testing.T) {
 		{domain.Newest, []string{nameThings, zapErrors, yieldErrors, handleErrors}},
 	} {
 		got := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Order: tc.order}})
-		if !slices.Equal(rowIDs(got), tc.want) {
-			t.Errorf("%s: got %q, want %q", tc.order, rowIDs(got), tc.want)
+		if !slices.Equal(sourceIDs(got), tc.want) {
+			t.Errorf("%s: got %q, want %q", tc.order, sourceIDs(got), tc.want)
 		}
 		if got.Total != 4 || got.Libraries != 2 || got.Unfiltered != 4 {
 			t.Errorf("%s: got %d rules in %d libraries of %d, want 4 in 2 of 4", tc.order, got.Total, got.Libraries, got.Unfiltered)
@@ -187,8 +187,8 @@ func TestAGroupsFiltersKeepTheRulesTheyName(t *testing.T) {
 		{"every filter, matching none", domain.RuleFilters{Libraries: []string{"fabricahq/rules"}, Impact: domain.LowerImpact, MinStars: 3}, []string{}},
 	} {
 		got := c.listRules(t, goList(tc.filters))
-		if !slices.Equal(rowIDs(got), tc.want) || got.Total != len(tc.want) {
-			t.Errorf("%s: got %q of %d, want %q", tc.name, rowIDs(got), got.Total, tc.want)
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != len(tc.want) {
+			t.Errorf("%s: got %q of %d, want %q", tc.name, sourceIDs(got), got.Total, tc.want)
 		}
 		want := []views.LibraryCount{
 			{Library: views.LibraryRef{Owner: "fabricahq", Name: "rules", OwnerAvatarURL: fabricaRules.Repository.OwnerAvatarURL}, Vetted: true, Rules: 2},
@@ -208,11 +208,11 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 	without := c.listRules(t, goList(domain.RuleFilters{}))
 	with := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Unvetted: true, Order: domain.MostStarred}})
 
-	if slices.Contains(rowIDs(without), aardvark) || len(without.LibraryCounts) != 2 {
-		t.Errorf("without unvetted libraries: got %q from %+v", rowIDs(without), without.LibraryCounts)
+	if slices.Contains(sourceIDs(without), aardvark) || len(without.LibraryCounts) != 2 {
+		t.Errorf("without unvetted libraries: got %q from %+v", sourceIDs(without), without.LibraryCounts)
 	}
-	if want := []string{handleErrors, zapErrors, nameThings, yieldErrors, aardvark}; !slices.Equal(rowIDs(with), want) {
-		t.Fatalf("with unvetted libraries: got %q, want %q", rowIDs(with), want)
+	if want := []string{handleErrors, zapErrors, nameThings, yieldErrors, aardvark}; !slices.Equal(sourceIDs(with), want) {
+		t.Fatalf("with unvetted libraries: got %q, want %q", sourceIDs(with), want)
 	}
 	if last := with.Rows[4]; last.Vetted || last.Rule.Stars != 0 || !with.Rows[0].Vetted {
 		t.Errorf("got the listed library's rule %+v, the first %+v; want it unvetted without stars", last, with.Rows[0])
@@ -226,11 +226,11 @@ func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
 	}
 	search := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 	if len(search.Rows) != 0 {
-		t.Errorf("search found %q without unvetted libraries", rowIDs(search))
+		t.Errorf("search found %q without unvetted libraries", sourceIDs(search))
 	}
 	search = c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("aardvark"), ListChoices: domain.ListChoices{Unvetted: true, Order: domain.BestMatch}})
-	if !slices.Equal(rowIDs(search), []string{aardvark}) {
-		t.Errorf("search found %q with unvetted libraries, want %q", rowIDs(search), aardvark)
+	if !slices.Equal(sourceIDs(search), []string{aardvark}) {
+		t.Errorf("search found %q with unvetted libraries, want %q", sourceIDs(search), aardvark)
 	}
 }
 
@@ -240,11 +240,11 @@ func TestAGroupThatIsntCanonicalListsTheRulesOfThatExactID(t *testing.T) {
 
 	got := c.listRules(t, domain.RuleList{Group: "techs/golang", ListChoices: domain.ListChoices{Order: domain.MostStarred}})
 
-	if !slices.Equal(rowIDs(got), []string{goErrors}) {
-		t.Errorf("got %q, want %q", rowIDs(got), goErrors)
+	if !slices.Equal(sourceIDs(got), []string{goErrors}) {
+		t.Errorf("got %q, want %q", sourceIDs(got), goErrors)
 	}
 	if got := c.listRules(t, domain.RuleList{Group: "techs/gol", ListChoices: domain.ListChoices{Order: domain.MostStarred}}); len(got.Rows) != 0 || got.Unfiltered != 0 {
-		t.Errorf("techs/gol: got %q", rowIDs(got))
+		t.Errorf("techs/gol: got %q", sourceIDs(got))
 	}
 }
 
@@ -254,8 +254,8 @@ func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 
 	got := c.listRules(t, domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: true, Order: domain.Newest}})
 
-	if want := []string{nameThings, zapErrors, yieldErrors, handleErrors, oldErrors}; !slices.Equal(rowIDs(got), want) {
-		t.Fatalf("got %q, want %q", rowIDs(got), want)
+	if want := []string{nameThings, zapErrors, yieldErrors, handleErrors, oldErrors}; !slices.Equal(sourceIDs(got), want) {
+		t.Fatalf("got %q, want %q", sourceIDs(got), want)
 	}
 	retired := got.Rows[4]
 	want := views.RuleRow{
@@ -277,7 +277,7 @@ func TestSearchRanksRetiredRulesBelowCurrentOnesAndGroupsByGroup(t *testing.T) {
 
 	got := c.listRules(t, domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}})
 
-	ids := rowIDs(got)
+	ids := sourceIDs(got)
 	if len(ids) != 6 || !slices.Contains(ids, oldErrors) {
 		t.Fatalf("got %q, want 6 rules with old-errors", ids)
 	}
@@ -310,11 +310,11 @@ func TestSearchFiltersByKindAndSortsByStars(t *testing.T) {
 	practices := c.listRules(t, domain.RuleList{Query: errors, ListChoices: domain.ListChoices{Filters: domain.RuleFilters{Kind: "practices"}, Order: domain.BestMatch}})
 	starred := c.listRules(t, domain.RuleList{Query: errors, ListChoices: domain.ListChoices{Filters: domain.RuleFilters{Kind: "techs", MinStars: 1}, Order: domain.MostStarred}})
 
-	if !slices.Equal(rowIDs(practices), []string{testErrors}) || practices.Unfiltered != 6 {
-		t.Errorf("practices: got %q of %d", rowIDs(practices), practices.Unfiltered)
+	if !slices.Equal(sourceIDs(practices), []string{testErrors}) || practices.Unfiltered != 6 {
+		t.Errorf("practices: got %q of %d", sourceIDs(practices), practices.Unfiltered)
 	}
-	if want := []string{handleErrors, zapErrors}; !slices.Equal(rowIDs(starred), want) {
-		t.Errorf("techs, most starred, with a star: got %q, want %q", rowIDs(starred), want)
+	if want := []string{handleErrors, zapErrors}; !slices.Equal(sourceIDs(starred), want) {
+		t.Errorf("techs, most starred, with a star: got %q, want %q", sourceIDs(starred), want)
 	}
 }
 
@@ -336,7 +336,7 @@ func TestEveryRuleListsInPages(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ids := append(rowIDs(first), rowIDs(rest)...)
+	ids := append(sourceIDs(first), sourceIDs(rest)...)
 	if len(ids) != 6 || first.Total != 6 || slices.Contains(ids, oldErrors) {
 		t.Errorf("got %q of %d, want every current rule, 6", ids, first.Total)
 	}

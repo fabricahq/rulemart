@@ -139,6 +139,37 @@ func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.Librar
 	return cards, nil
 }
 
+// Groups returns each group that holds current rules in a vetted library, and with unvetted, in a library a listing
+// names too, once for each library that holds it, in path order and then the library's owner and name.
+func (s *Store) Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
+	var groups []views.LibraryGroup
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		groups, err = libraryGroups(ctx, q, vetted, unvetted)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load groups unvetted=%t: %v", unvetted, err)
+	}
+	return groups, nil
+}
+
+// libraryGroups returns each group that holds current rules in a library, as Groups does.
+func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
+	rows, err := q.ListLibraryGroups(ctx, catalogdb.ListLibraryGroupsParams{Vetted: vettedKeys(vetted), IncludeUnvetted: unvetted})
+	if err != nil {
+		return nil, fmt.Errorf("list groups: %v", err)
+	}
+	groups := make([]views.LibraryGroup, len(rows))
+	for i, row := range rows {
+		groups[i] = views.LibraryGroup{
+			Path: row.Path, Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted,
+			Rules: int(row.RuleCount),
+		}
+	}
+	return groups, nil
+}
+
 // LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
 // and retired rules. It fails with store.ErrNotFound when there's no such library.
 func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryPage, error) {
@@ -482,4 +513,8 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 
 func version(major, minor, patch int32) coderules.RuleVersion {
 	return coderules.RuleVersion{Major: int(major), Minor: int(minor), Patch: int(patch)}
+}
+
+func libraryRef(owner, name, avatarURL string) views.LibraryRef {
+	return views.LibraryRef{Owner: owner, Name: name, OwnerAvatarURL: avatarURL}
 }

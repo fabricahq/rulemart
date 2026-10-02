@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -10,6 +11,210 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 )
+
+// completeIDs returns the source-qualified IDs of the results that hold every term to find.
+func completeIDs(results views.RuleResults) []string {
+	ids := []string{}
+	for _, r := range results.Rows {
+		if len(r.Missing) == 0 {
+			ids = append(ids, r.Library.FullName()+":"+r.Rule.Path)
+		}
+	}
+	return ids
+}
+
+// search runs query against reader with canonicalGroups, best match first, returning at most 50 results.
+func search(t *testing.T, reader *postgres.Store, query string) views.RuleResults {
+	t.Helper()
+	results, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList(query), 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return results
+}
+
+// searchList is the list of the rules query matches, best first.
+func searchList(query string) domain.RuleList {
+	return domain.RuleList{Query: domain.ParseSearchQuery(query), ListChoices: domain.ListChoices{Order: domain.BestMatch}}
+}
+
+// A title says what a rule is about, its reading guidance and impact when it applies, and its body how: a match ranks
+// by where it is, not by how often the body repeats a word.
+func TestSearchRanksTitleMatchesThenSummaryMatchesThenBodyMatches(t *testing.T) {
+	reader := newLibraries(t)
+
+	got := search(t, reader, "retry")
+
+	want := []string{
+		"acme/backend:practices/testing/verify-retry-limits",  // in its title
+		"acme/backend:practices/testing/cover-boundary-cases", // in its reading guidance
+		"Beta/rules:techs/go/name-packages-plainly",           // only in its body
+	}
+	if !slices.Equal(sourceIDs(got), want) || got.Total != 3 {
+		t.Fatalf("got %q of %d, want %q of 3", sourceIDs(got), got.Total, want)
+	}
+	first := got.Rows[0]
+	wantFirst := views.RuleRow{
+		Library: views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL},
+		Vetted:  true,
+		Rule: views.RuleCard{Path: "practices/testing/verify-retry-limits", Group: "practices/testing", Title: "Verify retry limits",
+			Impact: "HIGH", Version: v(1, 0, 0)},
+		GroupRules: 2,
+	}
+	if !reflect.DeepEqual(first, wantFirst) {
+		t.Fatalf("the first result is %+v, want %+v", first, wantFirst)
+	}
+}
+
+// A visitor searching for a technology finds its rules though their text never names it, by the canonical list's
+// name for their group, or the ID of a group that isn't canonical, but never by what a library calls its group.
+func TestSearchMatchesGroupsByTheirCanonicalNameOrIDOnly(t *testing.T) {
+	reader := newLibraries(t)
+
+	for query, want := range map[string][]string{
+		// Both match only by their group's name, so they rank equally, in title order.
+		"go": {"Beta/rules:techs/go/name-packages-plainly", "acme/backend:techs/go/return-errors"},
+		// techs/golang isn't canonical, so it goes by its ID.
+		"golang": {"acme/backend:techs/golang/pass-context-first"},
+		// acme names techs/golang Zebra, and declares no canonical name a page would show.
+		"zebra": {},
+		// The group's kind isn't part of its name.
+		"techs": {},
+		// A query's words may match partly the rule's text and partly its group's name.
+		"retry go":                {"Beta/rules:techs/go/name-packages-plainly"},
+		`"retry" golang -context`: {},
+	} {
+		if got := completeIDs(search(t, reader, query)); !slices.Equal(got, want) {
+			t.Errorf("%q found %q, want %q", query, got, want)
+		}
+	}
+}
+
+func TestSearchReadsTheVisitorsSyntaxAndStemsWords(t *testing.T) {
+	reader := newLibraries(t)
+
+	for query, want := range map[string][]string{
+		`"retry limits"`:   {"acme/backend:practices/testing/verify-retry-limits"},
+		"retry -verify":    {"acme/backend:practices/testing/cover-boundary-cases", "Beta/rules:techs/go/name-packages-plainly"},
+		"retries":          {"acme/backend:practices/testing/verify-retry-limits", "acme/backend:practices/testing/cover-boundary-cases", "Beta/rules:techs/go/name-packages-plainly"},
+		"attempts or fail": {"acme/backend:practices/testing/cover-boundary-cases", "acme/backend:techs/go/return-errors", "acme/backend:practices/testing/verify-retry-limits"},
+		// Only stop words, only punctuation, and unbalanced syntax match nothing, without an error.
+		"the":        {},
+		"!!! &&| :*": {},
+		`"retry`:     {"acme/backend:practices/testing/verify-retry-limits", "acme/backend:practices/testing/cover-boundary-cases", "Beta/rules:techs/go/name-packages-plainly"},
+		"-":          {},
+	} {
+		// Ranking has its own test; this one checks what matches.
+		got := sourceIDs(search(t, reader, query))
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%q found %q, want %q", query, got, want)
+		}
+	}
+}
+
+func TestSearchReturnsTheBestMatchesUpToItsLimitAndCountsThemAll(t *testing.T) {
+	reader := newLibraries(t)
+
+	for _, tc := range []struct {
+		limit, skip int
+		want        []string
+	}{
+		{2, 0, []string{"acme/backend:practices/testing/verify-retry-limits", "acme/backend:practices/testing/cover-boundary-cases"}},
+		{2, 2, []string{"Beta/rules:techs/go/name-packages-plainly"}},
+		{1, 3, []string{}},
+	} {
+		got, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList("retry"), tc.limit, tc.skip)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantTotal := 3
+		if len(tc.want) == 0 {
+			wantTotal = 0 // a page past the last counts nothing
+		}
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != wantTotal || got.NoWords {
+			t.Errorf("limit %d after %d: got %q of %d (no words %v), want %q of %d", tc.limit, tc.skip, sourceIDs(got), got.Total,
+				got.NoWords, tc.want, wantTotal)
+		}
+	}
+}
+
+// The limit bounds the results a page shows, so a search for none is a mistake, not an empty page with a total, and
+// so is skipping fewer than none.
+func TestSearchRefusesALimitBelowOneOrANegativeSkip(t *testing.T) {
+	reader := newLibraries(t)
+
+	for _, tc := range []struct{ limit, skip int }{{0, 0}, {-1, 0}, {1, -1}} {
+		if _, err := reader.Rules(context.Background(), vettedBoth, canonicalGroups, searchList("retry"), tc.limit, tc.skip); err == nil {
+			t.Errorf("searched with limit %d after %d", tc.limit, tc.skip)
+		}
+	}
+}
+
+// A visitor copies the IDs pages show: a rule's ID or part of it, its group's ID, its library's owner and name, and
+// its source-qualified ID. Each finds what it names, retired rules too, and a group's ID never finds a group whose ID
+// only starts the same.
+func TestSearchFindsRulesByTheIDsPagesShow(t *testing.T) {
+	reader := newLibraries(t)
+
+	retryLimits := "acme/backend:practices/testing/verify-retry-limits"
+	boundaries := "acme/backend:practices/testing/cover-boundary-cases"
+	acmeGo := "acme/backend:techs/go/return-errors"
+	betaGo := "Beta/rules:techs/go/name-packages-plainly"
+	golang := "acme/backend:techs/golang/pass-context-first"
+	retired := "acme/backend:practices/testing/retry-forever"
+	for query, want := range map[string][]string{
+		"verify-retry-limits":     {retryLimits},
+		"retry-limits":            {retryLimits},
+		"practices/testing":       {boundaries, retryLimits, retired},
+		"techs/go":                {acmeGo, betaGo},
+		"techs/golang":            {golang},
+		"acme/backend":            {boundaries, retryLimits, acmeGo, golang, retired},
+		"Beta/rules":              {betaGo},
+		"backend":                 {boundaries, retryLimits, acmeGo, golang, retired},
+		"Beta/rules:techs/go":     {betaGo},
+		retryLimits:               {retryLimits},
+		"acme/backend:techs":      {acmeGo, golang},
+		"stranger/rules":          {},
+		"techs/go -return-errors": {betaGo},
+		// Only the alternative that joins words matches IDs: practices alone finds nothing, as techs does.
+		"practices or techs/golang": {golang},
+		"retry-limits -practices":   {retryLimits},
+	} {
+		got := sourceIDs(search(t, reader, query))
+		slices.Sort(got)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("%q found %q, want %q", query, got, want)
+		}
+	}
+}
+
+// A search with nothing to look for matches nothing, and says so, so the page can explain why.
+func TestSearchReportsAQueryWithNoWordToFind(t *testing.T) {
+	reader := newLibraries(t)
+
+	for query, noWords := range map[string]bool{
+		"the":                        true,
+		"the of and":                 true,
+		"-retry":                     true,
+		"!!! &&| :*":                 true,
+		`""`:                         true,
+		"zebra":                      false,
+		"the retry":                  false,
+		"retry -verify -cover -name": false,
+	} {
+		got := search(t, reader, query)
+		if got.NoWords != noWords {
+			t.Errorf("%q: NoWords is %v, want %v", query, got.NoWords, noWords)
+		}
+		if noWords && (len(got.Rows) > 0 || got.Total > 0) {
+			t.Errorf("%q found %q", query, sourceIDs(got))
+		}
+	}
+}
 
 // publicRules is shaped like fabricahq/public-rules: rules whose titles, reading guidance, impact descriptions, and
 // bodies share common words, as real rules do, so ranking has to tell a rule about a subject from one that mentions it.

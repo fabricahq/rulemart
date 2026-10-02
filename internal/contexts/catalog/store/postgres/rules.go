@@ -1,4 +1,4 @@
-// Read what pages across libraries show: the libraries' groups, and lists of rules, a group's or a search's.
+// Read lists of rules across libraries: a group's rules, every rule, or a search's matches.
 
 package postgres
 
@@ -10,37 +10,6 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
-
-// Groups returns each group that holds current rules in a vetted library, and with unvetted, in a library a listing
-// names too, once for each library that holds it, in path order and then the library's owner and name.
-func (s *Store) Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
-	var groups []views.LibraryGroup
-	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		var err error
-		groups, err = libraryGroups(ctx, q, vetted, unvetted)
-		return err
-	})
-	if err != nil {
-		return nil, fmt.Errorf("load groups unvetted=%t: %v", unvetted, err)
-	}
-	return groups, nil
-}
-
-// libraryGroups returns each group that holds current rules in a library, as Groups does.
-func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
-	rows, err := q.ListLibraryGroups(ctx, catalogdb.ListLibraryGroupsParams{Vetted: vettedKeys(vetted), IncludeUnvetted: unvetted})
-	if err != nil {
-		return nil, fmt.Errorf("list groups: %v", err)
-	}
-	groups := make([]views.LibraryGroup, len(rows))
-	for i, row := range rows {
-		groups[i] = views.LibraryGroup{
-			Path: row.Path, Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted,
-			Rules: int(row.RuleCount),
-		}
-	}
-	return groups, nil
-}
 
 // Rules returns one page of the list of rules list describes, as store.Reader's Rules does, matching groups by the
 // names groups gives them. Its errors never include the list's query, which comes from a visitor.
@@ -168,8 +137,4 @@ func termParams(terms []domain.SearchTerm) (queries, identifierQueries []string)
 		queries[i], identifierQueries[i] = t.Query, t.IdentifierQuery
 	}
 	return queries, identifierQueries
-}
-
-func libraryRef(owner, name, avatarURL string) views.LibraryRef {
-	return views.LibraryRef{Owner: owner, Name: name, OwnerAvatarURL: avatarURL}
 }
