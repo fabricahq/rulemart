@@ -198,6 +198,7 @@ func (s *server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 	view := signInView{notice: notice, available: s.signInAvailable()}
 	if s.GitHub != nil {
 		view.gitHub = signInHref + returnQuery(back)
+		w.Header().Set("Content-Security-Policy", signInContentSecurityPolicy)
 	}
 	if s.Accounts != nil {
 		view.testUsers = testUserViews(back)

@@ -43,6 +43,12 @@ const contentSecurityPolicy = "default-src 'none'; script-src 'self'; style-src 
 	"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; " +
 	"base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 
+// signInContentSecurityPolicy is contentSecurityPolicy for the sign-in page, whose GitHub form posts here to be
+// redirected to GitHub's authorization page. Browsers check a form's redirects against form-action too, so it
+// allows that one page as well, and only on the page that needs it.
+var signInContentSecurityPolicy = strings.Replace(contentSecurityPolicy, "form-action 'self';",
+	"form-action 'self' https://github.com/login/oauth/authorize;", 1)
+
 // Options configures the handler.
 type Options struct {
 	// Log receives one line for each request, and the details of failures that pages leave out.

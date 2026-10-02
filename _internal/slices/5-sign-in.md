@@ -69,6 +69,10 @@ endpoint can come later without changing the session model.
   and the return path. It needs no signing key: the `__Host-` prefix stops any other site, even under
   `fabricahq.com`, from setting it, and the return path it holds is checked again when it comes back. Starting a second
   sign-in in another tab replaces the first, whose callback then says to sign in again.
+- **Proposed: only the sign-in page's content security policy lets a form lead to GitHub.** Browsers check a form's
+  redirects against `form-action`, and the GitHub button posts to `/sign-in`, which redirects to
+  `https://github.com/login/oauth/authorize`. The sign-in page alone, including the callback's errors, allows that one
+  address; every other page keeps `form-action 'self'`.
 - **Proposed: sign-in happens on the public origin.** Sign-in links are absolute on `RULEMART_BASE_URL`, and GitHub's
   callback is `RULEMART_BASE_URL/account/github/callback`, so a visitor on CloudFront's `cloudfront.net` domain moves to
   the public one, where the cookies and the OAuth app's callback are. Locally, without a base URL, the callback is on

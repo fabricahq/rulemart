@@ -807,3 +807,27 @@ func visibleTextOf(n *html.Node) string {
 	walk(n)
 	return text.String()
 }
+
+// Browsers check a form's redirects against the content security policy's form-action, so the sign-in form, which
+// posts here and is redirected to GitHub, needs GitHub's authorization page allowed, and nothing else of GitHub's,
+// and no other page needs it.
+func TestOnlyTheSignInPageMayRedirectAFormToGitHubsAuthorization(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	for path, want := range map[string]string{
+		"/sign-in":                 "'self' https://github.com/login/oauth/authorize",
+		"/account/github/callback": "'self' https://github.com/login/oauth/authorize",
+		"/":                        "'self'",
+		"/groups":                  "'self'",
+	} {
+		resp := send(t, site.handler, request{method: http.MethodGet, target: path})
+		var formAction string
+		for directive := range strings.SplitSeq(resp.Header.Get("Content-Security-Policy"), ";") {
+			if fields := strings.Fields(directive); len(fields) > 0 && fields[0] == "form-action" {
+				formAction = strings.Join(fields[1:], " ")
+			}
+		}
+		if formAction != want {
+			t.Errorf("%s: form-action allows %q, want %q", path, formAction, want)
+		}
+	}
+}
