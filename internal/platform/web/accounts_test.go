@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -26,6 +27,8 @@ const (
 	sessionCookie = "__Host-rulemart-session"
 	signInCookie  = "__Host-rulemart-sign-in"
 	noticeCookie  = "__Host-rulemart-notice"
+	// accountSlotClass is a class only the header's account slot has.
+	accountSlotClass = "w-[6.25rem]"
 	// gitHubMarkPath starts the outline of GitHub's mark.
 	gitHubMarkPath = "M8 0C3.58 0"
 )
@@ -171,7 +174,7 @@ func (g *fakeGitHub) Identify(_ context.Context, code, verifier, redirectURI str
 	case g.err != nil:
 		return accounts.Identity{}, g.err
 	case code != authorizedCode:
-		return accounts.Identity{}, errors.New("bad_verification_code")
+		return accounts.Identity{}, fmt.Errorf("sign in with GitHub: bad_verification_code: %w", github.ErrCodeRefused)
 	case github.Challenge(verifier) != g.challenge:
 		return accounts.Identity{}, errors.New("the verifier doesn't match the challenge")
 	case redirectURI != g.redirect:
@@ -392,7 +395,7 @@ func TestSignInCallbackRefusesWhatThisBrowserDidNotStart(t *testing.T) {
 		},
 		"GitHub refused the code": {
 			query:      func(state string) url.Values { return url.Values{"code": {"another-code"}, "state": {state}} },
-			wantStatus: http.StatusBadGateway, wantNotice: "GitHub couldn't confirm who you are", wantAsked: true,
+			wantStatus: http.StatusBadRequest, wantNotice: "That sign-in didn't complete. Sign in again.", wantAsked: true,
 		},
 		"GitHub is down": {
 			query:      func(state string) url.Values { return url.Values{"code": {authorizedCode}, "state": {state}} },
@@ -433,6 +436,35 @@ func TestSignInCallbackRefusesWhatThisBrowserDidNotStart(t *testing.T) {
 			}
 			if strings.Contains(site.logs.String(), authorizedCode) || strings.Contains(site.logs.String(), location.Query().Get("state")) {
 				t.Errorf("the logs hold the code or state: %s", site.logs)
+			}
+		})
+	}
+}
+
+// A visitor already signed in who reaches a callback that can't complete, such as by going Back to it, stays signed
+// in and goes on without an error, since there's nothing for them to do.
+func TestASignedInVisitorPastAFailedCallbackGoesOnSignedIn(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	session := &http.Cookie{Name: sessionCookie, Value: string(token)}
+	flow, location := startSignIn(t, site, "/groups", session)
+	for name, tc := range map[string]struct {
+		query   url.Values
+		cookies []*http.Cookie
+		want    string
+	}{
+		"without a sign-in in progress": {url.Values{"code": {"x"}, "state": {"y"}}, []*http.Cookie{session}, "/"},
+		"with another state":            {url.Values{"code": {"x"}, "state": {"y"}}, []*http.Cookie{session, flow}, "/groups"},
+		"after canceling on GitHub":     {url.Values{"error": {"access_denied"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/groups"},
+		"with a code GitHub refuses":    {url.Values{"code": {"x"}, "state": {location.Query().Get("state")}}, []*http.Cookie{session, flow}, "/groups"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp := callback(t, site, tc.query, tc.cookies...)
+			if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != tc.want {
+				t.Errorf("answered %d to %q, want a redirect to %s", resp.StatusCode, resp.Header.Get("Location"), tc.want)
+			}
+			if c := cookie(resp, sessionCookie); c != nil || !site.accounts.live(token) {
+				t.Error("the callback changed the visitor's session")
 			}
 		})
 	}
@@ -835,6 +867,17 @@ func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
 		link := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/account" })
 		if link == nil || attribute(link, "aria-current") != want {
 			t.Errorf("%s: the menu's Account link is %v, want aria-current %q", path, link, want)
+		}
+	}
+}
+
+// The sign-in page keeps the header's account slot, empty, so the links beside it stay where every page has them.
+func TestTheSignInPageKeepsTheHeadersAccountSlot(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	for _, path := range []string{"/groups", "/sign-in"} {
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path}))
+		if !strings.Contains(page, accountSlotClass) {
+			t.Errorf("%s has no account slot", path)
 		}
 	}
 }

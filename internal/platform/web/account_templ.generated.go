@@ -13,8 +13,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // accountControl ends the header: the signed-in visitor's avatar, which opens their menu, or a link to sign in, or
-// nothing when sign-in isn't available. Its slot is as wide either way, so signing in or out doesn't move the links
-// beside it.
+// nothing when sign-in isn't available. Its slot is as wide either way, and stays, empty, on the sign-in page, so the
+// links beside it never move. Its content sits at the page's edge.
 func accountControl(v visitor) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -64,7 +64,7 @@ func accountControl(v visitor) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			} else {
+			} else if !v.onSignInPage {
 				templ_7745c5c3_Err = signInLink(v).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -194,9 +194,9 @@ func personIcon(class string) templ.Component {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens a menu naming them, with links to their account
-// and to sign out. Sign-out is a form, since it changes state. The button stays shaded while the menu is open, and its
-// focus ring follows its rounded square inside the page's edge. menus.js closes the menu when focus or a click leaves
-// it.
+// and to sign out. Sign-out is a form, since it changes state. The avatar sits at the page's edge, the button's
+// shading, while hovered or open, reaching past it into the margin. Its focus ring is drawn on the avatar, just inside
+// its rounded square, so it stays inside the edge. menus.js closes the menu when focus or a click leaves it.
 func accountMenu(v visitor) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -218,14 +218,14 @@ func accountMenu(v visitor) templ.Component {
 			templ_7745c5c3_Var9 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<details class=\"group relative shrink-0\" data-menu><summary class=\"grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2 group-open:bg-surface [&::-webkit-details-marker]:hidden\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<details class=\"group relative shrink-0\" data-menu><summary class=\"-mr-[7px] grid size-11 cursor-pointer list-none place-items-center rounded-[12px] transition-colors hover:bg-surface focus-visible:outline-none group-open:bg-surface [&:focus-visible>span]:outline-2 [&:focus-visible>span]:-outline-offset-2 [&:focus-visible>span]:outline-(--focus) [&::-webkit-details-marker]:hidden\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("Account menu, signed in as " + v.account.Login)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 51, Col: 299}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 51, Col: 395}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -238,7 +238,7 @@ func accountMenu(v visitor) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue("Signed in as " + v.account.Login)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 51, Col: 343}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 51, Col: 439}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -252,7 +252,7 @@ func accountMenu(v visitor) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</summary><div class=\"absolute top-[calc(100%+6px)] right-0 z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg\"><div class=\"mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5\"><p class=\"text-[12px] text-faint\">Signed in as</p><p class=\"truncate text-[14px] font-medium text-ink\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</summary><div class=\"absolute top-[calc(100%+6px)] right-[7px] z-40 grid w-60 gap-0.5 rounded-xl border border-border bg-paper p-1.5 shadow-lg\"><div class=\"mb-1 border-b border-border-subtle px-3 pt-1.5 pb-2.5\"><p class=\"text-[12px] text-faint\">Signed in as</p><p class=\"truncate text-[14px] font-medium text-ink\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -993,7 +993,7 @@ func accountPage(c chrome, account accountView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<details class=\"group\"><summary class=\"-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden\"><svg class=\"size-3.5 shrink-0 transition-transform group-open:rotate-90\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 3.5 4.5 4.5L6 12.5\"></path></svg> <span class=\"underline underline-offset-4\">What deleting does</span></summary><div class=\"mt-3 rounded-card border border-border-strong px-4 py-4\"><p class=\"text-[14px] text-ink\">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. Your GitHub account doesn't change. Signing in again starts a new account.</p><form class=\"mt-4\" method=\"post\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<details class=\"group\"><summary class=\"-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden\"><svg class=\"size-3.5 shrink-0 group-open:rotate-90\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 3.5 4.5 4.5L6 12.5\"></path></svg> <span class=\"underline underline-offset-4\">What deleting does</span></summary><div class=\"mt-3 rounded-card border border-border-strong px-4 py-4\"><p class=\"text-[14px] text-ink\">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. Your GitHub account doesn't change. Signing in again starts a new account.</p><form class=\"mt-4\" method=\"post\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
