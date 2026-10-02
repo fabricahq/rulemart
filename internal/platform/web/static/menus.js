@@ -4,8 +4,10 @@
  * control a page focused after a click, marked data-autofocused, the keyboard's focus ring once the visitor presses a
  * key or focus leaves it. */
 (() => {
-  const autofocused = document.querySelector('[data-autofocused]');
-  if (autofocused) {
+  // Once the page's scripts have run, since one of them, filters.js, may focus a control too.
+  document.addEventListener('DOMContentLoaded', () => {
+    const autofocused = document.querySelector('[data-autofocused]');
+    if (!autofocused) return;
     const settle = (event) => {
       if (event.type === 'keydown' && (event.ctrlKey || event.metaKey || event.altKey)) return;
       autofocused.removeAttribute('data-autofocused');
@@ -14,7 +16,7 @@
     };
     document.addEventListener('keydown', settle, true);
     autofocused.addEventListener('blur', settle);
-  }
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
     if (document.activeElement && document.activeElement !== document.body) return;

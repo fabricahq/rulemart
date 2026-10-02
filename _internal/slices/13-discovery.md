@@ -91,7 +91,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: the sort tabs are links**, not form fields: each leads to the page in its order with the same filters,
   which works without a script and can't send two orders. The form keeps the current order in a hidden field.
 - **Proposed: without a script the sidebar shows an Apply button**, in `noscript`; `filters.js` goes straight to the
-  address the server would redirect the form to, and turns off a filter's other checkbox when one turns on.
+  address the server would redirect the form to, and turns off a filter's other checkbox when one turns on. It
+  replaces the page in the history, as the prototype replaces its address, so Back leaves the list rather than undoing
+  each choice, and the next page focuses the control that changed, with the quiet ring of a control a page focuses
+  after a click.
 - **Proposed: search keeps slice 3's tiers, and adds retired rules as a third.** Current rules that hold every word
   come first in every order, then the other current rules under "Rules that match some of your words", then the
   retired rules under "Retired rules", those that hold every word first. Each tier groups its rules by group, in the
