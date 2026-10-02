@@ -431,7 +431,7 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 		Rule: views.Rule{
 			Path: "practices/testing/check-retry-backoff", Group: "practices/testing", CanonicalGroup: testingGroup,
 			Title: "Check retry backoff", Impact: "HIGH", Version: v110, Release: 2, PublishedAt: day(2),
-			HTML: "<p>Wait longer after each attempt.</p>\n",
+			HTML: "<h2 id=\"rule\">Rule</h2>\n<p>Wait longer after each attempt.</p>\n<h3 id=\"why\">Why</h3>\n",
 			Retirement: &views.Retirement{Release: 3, RetiredAt: day(3), Summaries: []string{"Merge it."},
 				Replacements: []views.RuleRef{
 					{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 3},
@@ -454,11 +454,17 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 		"Check retry backoff Retired Last version 1.1.0 Retired in release/3 · 3 Sep 2026 Merge it. "+
 			"Replaced by Verify retries , itself replaced by Verify retry limits .",
 		// It shows its last version's text, and links that file at the release that published it.
-		"Its last version, 1.1.0 View check-retry-backoff.md on GitHub Wait longer after each attempt.",
+		"Text of version 1.1.0 View on GitHub Rule Wait longer after each attempt. Why",
 		"Versions · 2 1.1.0 release/2 2 Sep 2026 Wait longer. Compare with 1.0.0",
 	)
 	if strings.Contains(visibleText(t, page), "Latest") || strings.Contains(visibleText(t, page), "Rule Versions") {
 		t.Error("a retired rule's page marks a latest version or shows tabs")
+	}
+	// The text's headings sit under the section's heading, a level below it.
+	for _, want := range []string{`<h3 id="rule">Rule</h3>`, `<h4 id="why">Why</h4>`, `aria-label="check-retry-backoff.md at 1.1.0 on GitHub"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page doesn't have %s", want)
+		}
 	}
 	assertLinks(t, page, "/example/rules?tab=releases#release-3", retryRule, "/example/rules/practices/testing/verify-retries",
 		"https://github.com/example/rules/blob/release/2/practices/testing/check-retry-backoff.md")

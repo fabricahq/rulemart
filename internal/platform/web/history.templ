@@ -83,9 +83,15 @@ templ releaseCardView(card releaseCard) {
 
 // releaseNotesLink leads to a release's notes on GitHub, named the same wherever a page links them.
 templ releaseNotesLink(href, tag string) {
-	<a class="inline-flex items-center gap-[5px] text-[13px] whitespace-nowrap text-muted underline-offset-3 hover:text-ink" href={ templ.SafeURL(href) } aria-label={ "Release notes for " + tag + " on GitHub" }>
+	@githubLink(href, "Release notes", "Release notes for "+tag+" on GitHub")
+}
+
+// githubLink leads to a page on GitHub, marked with GitHub's logo, its text muted beside the content it's about, and
+// named in full for a screen reader by label.
+templ githubLink(href, text, label string) {
+	<a class="inline-flex items-center gap-[5px] text-[13px] whitespace-nowrap text-muted underline-offset-3 hover:text-ink" href={ templ.SafeURL(href) } aria-label={ label }>
 		@githubMark("size-3.5 flex-none")
-		Release notes
+		{ text }
 	</a>
 }
 

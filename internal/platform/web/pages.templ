@@ -374,9 +374,9 @@ templ retiredRule(r ruleView) {
 		<section aria-labelledby="last-text">
 			<div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 				@labelHeading("") {
-					<span id="last-text">Its last version, <span class="mono tracking-normal normal-case">{ r.version }</span></span>
+					<span id="last-text">Text of version <span class="mono tracking-normal normal-case">{ r.version }</span></span>
 				}
-				@factLink(r.fileURL, "View " + r.fileName + " on GitHub", r.id+".md at "+r.version)
+				@githubLink(r.fileURL, "View on GitHub", r.fileName+" at "+r.version+" on GitHub")
 			</div>
 			<div class="prose mb-9 max-w-[52rem]">
 				@templ.Raw(r.html)

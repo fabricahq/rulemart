@@ -165,8 +165,9 @@ Decisions marked **Proposed** are new in this slice and wait for review. **Exist
 - **A retired rule has a page. Proposed.** Releases and comparisons name retired rules, so they need somewhere to
   lead. The page shows the rule's last title and version, the release that retired it and why, what replaced or
   renamed it, its last version's text with a link to that file on GitHub, and its versions, which compare as a current
-  rule's do. The All rules tab lists retired rules after the current ones, in the same order: technologies first, by
-  group, then by title.
+  rule's do. The text's headings sit a level below the section that holds it, so "Rule" and "Evidence" nest under
+  "Text of version 1.0.0". The All rules tab lists retired rules after the current ones, in the same order:
+  technologies first, by group, then by title.
 - **Retired rules stay out of search. Proposed.** Search finds rules to adopt (**Existing**: it reads current rules
   only); a retired rule is reached from its library's pages and from the releases and rules that name it.
 - **A retirement's reason names what the library wrote.** In the test library, release/5 retired verify-timeouts

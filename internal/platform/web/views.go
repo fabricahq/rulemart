@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -300,6 +301,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 			date: date(retirement.RetiredAt), summaries: shortened(retirement.Summaries),
 		}
 		v.retired.replacedBy, v.retired.renamed = newRuleLinks(lib, retirement.Replacements), retirement.Renamed
+		// A retired rule's text sits under the page's heading for its last version, so its headings go a level down.
+		v.html = demoteHeadings(v.html)
 	}
 	replaced := func(r views.RuleRef) replacedRule {
 		return replacedRule{rule: newRuleLink(lib, r), tag: domain.ReleaseTag(r.RetiredIn), tagHref: releaseHref(lib, r.RetiredIn)}
@@ -435,3 +438,15 @@ func breakParts(text, separators string) []string {
 
 // labelStyle is the type of a label: small, uppercase, and spaced.
 const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercase"
+
+// headingTag matches the start or end tag of an HTML heading of levels 1 to 5.
+var headingTag = regexp.MustCompile(`<(/?)h([1-5])\b`)
+
+// demoteHeadings returns rendered, HTML that ingestion's renderer wrote, with each heading a level lower: an h2 becomes
+// an h3. The renderer escapes every < in text, so only its tags match.
+func demoteHeadings(rendered string) string {
+	return headingTag.ReplaceAllStringFunc(rendered, func(tag string) string {
+		level := tag[len(tag)-1] - '0'
+		return tag[:len(tag)-1] + strconv.Itoa(int(level)+1)
+	})
+}
