@@ -28,8 +28,8 @@ type fakeCart struct {
 	items map[int64]map[string]bool
 	// contents is what Contents returns for each account.
 	contents map[int64]views.Cart
-	// err fails every call, and countErr only Count.
-	err, countErr error
+	// err fails every call, countErr only Count, and writeErr only Add and Remove.
+	err, countErr, writeErr error
 }
 
 func newFakeCart(c catalog) *fakeCart {
@@ -44,8 +44,8 @@ func key(item domain.CartItem) string {
 func (f *fakeCart) Add(_ context.Context, accountID int64, item domain.CartItem, confirmed bool) (domain.CartItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if f.err != nil {
-		return domain.CartItem{}, f.err
+	if err := errors.Join(f.err, f.writeErr); err != nil {
+		return domain.CartItem{}, err
 	}
 	page, ok := f.catalog.pages[strings.ToLower(item.FullName())]
 	found := ok && (item.Kind == domain.CartLibrary ||
@@ -80,7 +80,7 @@ func (f *fakeCart) Remove(_ context.Context, accountID int64, item domain.CartIt
 			delete(f.items[accountID], held)
 		}
 	}
-	return f.err
+	return errors.Join(f.err, f.writeErr)
 }
 
 func (f *fakeCart) Empty(_ context.Context, accountID int64) error {
@@ -327,7 +327,7 @@ func TestAGroupInAnotherCaseReturnsToItsControl(t *testing.T) {
 // logs only its route.
 func TestAFailedCartChangeLogsNoNames(t *testing.T) {
 	site := newCartSite(t)
-	site.cart.err = fmt.Errorf("add to cart library=%q kind=rule path=%q: the database is down", "example/rules", "techs/go/return-errors")
+	site.cart.writeErr = fmt.Errorf("add to cart library=%q kind=rule path=%q: the database is down", "example/rules", "techs/go/return-errors")
 
 	for _, target := range []string{
 		cartPath("/account/cart", clone(errorsItem), errorsRule), cartPath("/account/cart/remove", clone(errorsItem), ""),
@@ -344,6 +344,19 @@ func TestAFailedCartChangeLogsNoNames(t *testing.T) {
 	}
 	if !strings.Contains(logs, "the database is down") || !strings.Contains(logs, "{library}") {
 		t.Errorf("the logs don't say why, with the parameter in its place:\n%s", logs)
+	}
+}
+
+// A failed page keeps its error whole, even where the text matches a parameter's value, such as a tab's.
+func TestAFailedPageLogsItsWholeError(t *testing.T) {
+	site := newCartSite(t)
+	site.cart.err = errors.New("read cart: the rules table is locked")
+
+	if resp := site.signedInGet(t, library+"?tab=rules"); resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("got %d, want 503", resp.StatusCode)
+	}
+	if logs := site.logs.String(); !strings.Contains(logs, "the rules table is locked") {
+		t.Errorf("the logs lost the error's words:\n%s", logs)
 	}
 }
 

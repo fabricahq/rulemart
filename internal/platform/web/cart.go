@@ -196,7 +196,7 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 		setNotice(w, "cart-full")
 		seeOther(w, r, back)
 	case err != nil:
-		s.fail(w, r, err)
+		s.failCart(w, r, err)
 	default:
 		setNotice(w, addedNotices[added.Kind])
 		// The group's control is named by the library's spelling of its ID, which Add returns.
@@ -205,6 +205,25 @@ func (s *server) addToCart(w http.ResponseWriter, r *http.Request) {
 		}
 		seeOther(w, r, back)
 	}
+}
+
+// cartParams are the query parameters that name what a cart's write acts on, which come from the visitor.
+var cartParams = []string{"library", "group", "rule", "return"}
+
+// failCart fails a cart's write, as fail does, logging err with each value of cartParams in r's query replaced by the
+// parameter's name, such as {library}, longest first, so the logs keep no library or rule a visitor put in a cart, as
+// fail keeps no page's path.
+func (s *server) failCart(w http.ResponseWriter, r *http.Request, err error) {
+	text := err.Error()
+	query := r.URL.Query()
+	params := slices.Clone(cartParams)
+	slices.SortFunc(params, func(a, b string) int { return len(query.Get(b)) - len(query.Get(a)) })
+	for _, name := range params {
+		if value := query.Get(name); value != "" {
+			text = strings.ReplaceAll(text, value, "{"+name+"}")
+		}
+	}
+	s.fail(w, r, errors.New(text))
 }
 
 // cartItemNotFound answers a cart action on an item no library's pages show.
@@ -228,7 +247,7 @@ func (s *server) removeFromCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Cart.Remove(r.Context(), v.account.ID, item); err != nil {
-		s.fail(w, r, err)
+		s.failCart(w, r, err)
 		return
 	}
 	setNotice(w, "removed-from-cart")

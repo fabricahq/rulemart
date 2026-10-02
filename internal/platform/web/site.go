@@ -9,14 +9,12 @@ package web
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -640,7 +638,7 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 // failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
 	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
-		"status", http.StatusServiceUnavailable, "error", withoutQuery(withoutPath(err.Error(), r), r))
+		"status", http.StatusServiceUnavailable, "error", withoutPath(err.Error(), r))
 	s.unavailable(w, r)
 }
 
@@ -656,26 +654,6 @@ func withoutPath(text string, r *http.Request) string {
 		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")
 	}
 	return strings.ReplaceAll(text, owner+"/"+repo, "{owner}/{repo}")
-}
-
-// withoutQuery returns text with each value of r's query parameters replaced by the parameter's name in braces, such
-// as {library}, longest first. Writes name what they act on in the query, such as a cart's library and rule, and those
-// come from the visitor, so the logs keep only the parameter, as the access log keeps no query.
-func withoutQuery(text string, r *http.Request) string {
-	type param struct{ name, value string }
-	var params []param
-	for name, values := range r.URL.Query() {
-		for _, value := range values {
-			if value != "" {
-				params = append(params, param{name, value})
-			}
-		}
-	}
-	slices.SortFunc(params, func(a, b param) int { return cmp.Compare(len(b.value), len(a.value)) })
-	for _, p := range params {
-		text = strings.ReplaceAll(text, p.value, "{"+p.name+"}")
-	}
-	return text
 }
 
 // unavailable answers with a page that says Rulemart can't show this one right now, and that can't be cached.

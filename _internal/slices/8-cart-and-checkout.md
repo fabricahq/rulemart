@@ -144,9 +144,9 @@ can go in the cart after an explicit confirmation, and that the checkout prompt 
   cart reads them as pages do, from one snapshot. A context of its own would need the catalog's tables in its SQL, or
   a second read per library through the catalog's app. decisions.md expected a context of its own; this reverses that.
 - **Proposed: the web function logs nothing new.** Its access log records each change's route and status, by pattern
-  (**Existing**). A failure's error names what failed with each query parameter's value replaced by its name, such as
-  `{library}`, as it replaces a library's path with the route's (**Existing**), so no failed write logs what a visitor
-  put in their cart.
+  (**Existing**). A failed cart write's error names what failed with each of its item's query parameters replaced by the
+  parameter's name, such as `{library}`, as a failed page replaces a library's path with the route's (**Existing**),
+  so no failed write logs what a visitor put in their cart. Other failures keep their errors whole.
 
 ## Infrastructure
 
