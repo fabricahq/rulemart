@@ -133,7 +133,7 @@ var notices = map[string]string{
 	"listing-not-failed":       "That listing isn't failing any more, so there's nothing to try again.",
 	"starred":                  "",
 	"unstarred":                "",
-	firstStarKey:               "You starred your first rule. Find all your starred rules under Starred rules.",
+	firstStarKey:               "You starred your first rule! 🎉 Find all your starred rules under Starred rules.",
 	// A rule's page says what follows signing in to star it, naming the rule, as its star control does.
 	starPromptKey: "You're signed in.",
 	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or " +

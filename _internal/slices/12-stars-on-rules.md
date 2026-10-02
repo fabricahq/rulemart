@@ -105,10 +105,10 @@ a decision under "Decided while building" says otherwise and why.
 - **Decided (Josh): only a visitor's first star says anything.** Starring and unstarring set no notice: the button
   turning to Starred or Star, focused, is the feedback, and slice 7's "You starred this rule. It's on your Starred
   rules." and "You unstarred this rule." are gone. The exception is a star that leaves the account with exactly one,
-  having had none, which the star statement reports as `first`: the page says "You starred your first rule. Find all
-  your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every rule
-  and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie still
-  names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
+  having had none, which the star statement reports as `first`: the page says "You starred your first rule! 🎉 Find
+  all your starred rules under Starred rules.", with Starred rules linked to the list. An account that unstars every
+  rule and stars again hears it again, and a repeat of a star, such as a double click, is never first. The cookie
+  still names what happened, `starred` or `unstarred` with no text, so the page focuses the button.
 - **Decided (Josh): a one-time notice that only reports shows as a toast**, so it no longer pushes the page down: the
   first star's, the cart's after adding, removing, or emptying, signing out, signing out everywhere, deleting the
   account, the listings', and the rest the layout renders from the notice cookie or a page's own notice. It's the
@@ -116,12 +116,16 @@ a decision under "Decided while building" says otherwise and why.
   center, 24 pixels in, or 16 on a phone, for every toast alike. It holds about as long as reading it takes, at least
   2.2 seconds (50 ms a character after the first 1.2 s, so a long cart notice holds about 6), then fades, and pauses
   while hovered or focused. The first star's notice, which links Starred rules, is an info toast: an info icon, a
-  close button, and at least 6 seconds. A notice that asks the visitor to act stays a banner in the page's flow, since
-  a toast can't hold a control: the cart's offer after signing in, with its button, and the star's prompt after
-  signing in, which highlights the button. The server renders every notice as before, a `role="status"` banner, marked
-  `data-toast` when it can be a toast; the stylesheet draws it as a toast under `@media (scripting: enabled)` before the
-  page paints, so nothing moves, and `toast.js` sets how long it holds, shows the close button, and takes it off the
-  page when it fades. Without JavaScript the banner stays, as the accessible fallback.
+  close button, and at least 6 seconds. **Decided (Josh):** an info toast is a soft light blue note with dark text
+  rather than the primary color, the same in both themes, so on the dark page it reads as a friendly light pill:
+  `--info` `#dbeafe` behind, `--on-info` `#1e3a8a` for its text, link, underline, icon, focus ring, and close button,
+  and a 1-pixel `--info-border` `#bfdbfe`. The text and link contrast 8.49:1, and status toasts keep the primary
+  color. A notice that asks the visitor to act stays a banner in the page's flow, since a toast can't hold a control:
+  the cart's offer after signing in, with its button, and the star's prompt after signing in, which highlights the
+  button. The server renders every notice as before, a `role="status"` banner, marked `data-toast` when it can be a
+  toast; the stylesheet draws it as a toast under `@media (scripting: enabled)` before the page paints, so nothing
+  moves, and `toast.js` sets how long it holds, shows the close button, and takes it off the page when it fades.
+  Without JavaScript the banner stays, as the accessible fallback.
 
 ## Not in this slice
 
