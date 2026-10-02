@@ -92,11 +92,14 @@ than adding history.
   hits included, with the visitor's IP address, country, user agent, referrer, path, and query string. The web
   function logs one line for each request that reaches it. Analysis of who visits and what they read uses
   CloudFront's logs, through Athena; the function's lines explain how the origin behaved.
-- **Client IP addresses are kept in CloudFront's logs only.** The function never logs a visitor's IP address, a path,
-  a query string, or a header, so its lines can't identify a visitor or leak a secret a URL or cookie carries. It logs
-  the route pattern, such as `/{owner}/{repo}`, which also groups requests by page type, and replaces the library or
-  rule a failed read names with the route's wildcards. Failure lines keep the rest of the error's text, such as the
-  database host a connection failed to reach, because diagnosing the failure needs it.
+- **Only CloudFront's logs hold visitors' IP addresses.** The web function's logs never include an IP address, a
+  raw path, a query string, or headers, because those can identify a visitor or carry a secret.
+  - In place of the path, each line records the route pattern, such as `/{owner}/{repo}`. That also groups requests
+    by page type.
+  - When an error message names a library or rule, the name is replaced with the route's placeholder, such as
+    `{owner}`.
+  - The rest of an error message is kept, even when it names an internal address such as the database host, because
+    diagnosing the failure needs it.
 - **CloudFront's logs are kept for 6 months, and the functions' for 30 days.** S3 deletes each access log file 180
   days after delivery, and CloudWatch Logs deletes function lines after 30 days. IP addresses are personal data, so
   the privacy notice says what CloudFront logs, why, and for how long, and lowering the retention is how Rulemart
