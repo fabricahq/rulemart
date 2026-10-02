@@ -158,7 +158,7 @@ func (q *Queries) FindListingConflict(ctx context.Context, arg FindListingConfli
 }
 
 const getListing = `-- name: GetListing :one
-SELECT s.id, s.host, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id,
+SELECT s.id, s.host, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.requested_at,
        EXISTS (
            SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id
        )::boolean AS ingested
@@ -172,6 +172,7 @@ type GetListingRow struct {
 	Owner            string
 	Name             string
 	HostRepositoryID string
+	RequestedAt      pgtype.Timestamptz
 	Ingested         bool
 }
 
@@ -185,6 +186,7 @@ func (q *Queries) GetListing(ctx context.Context, id int64) (GetListingRow, erro
 		&i.Owner,
 		&i.Name,
 		&i.HostRepositoryID,
+		&i.RequestedAt,
 		&i.Ingested,
 	)
 	return i, err
@@ -266,13 +268,15 @@ WHERE NOT coalesce(s.host || ':' || s.host_repository_id = ANY ($1::text[]), fal
   AND NOT (
       s.failure IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id)
+      AND (s.host_repository_id IS NULL OR s.requested_at <= now() - interval '1 day')
   )
 ORDER BY s.id
 `
 
 // ListListingsToCheck returns the listings the hourly poll checks, in the order they were listed: every one vetted
 // doesn't hold, except one whose check failed before its library ever ingested, which waits for its lister to try
-// again.
+// again, unless GitHub has its repository and the lister asked for the check in the last day: fetching it may have
+// failed for a moment.
 func (q *Queries) ListListingsToCheck(ctx context.Context, vetted []string) ([]int64, error) {
 	rows, err := q.db.Query(ctx, listListingsToCheck, vetted)
 	if err != nil {
@@ -308,17 +312,19 @@ func (q *Queries) LockListings(ctx context.Context) error {
 }
 
 const recordListingCheck = `-- name: RecordListingCheck :execrows
-UPDATE listings SET checked_at = now(), failure = $1 WHERE id = $2
+UPDATE listings SET checked_at = now(), failure = $1 WHERE id = $2 AND requested_at = $3
 `
 
 type RecordListingCheckParams struct {
-	Failure pgtype.Text
-	ID      int64
+	Failure     pgtype.Text
+	ID          int64
+	RequestedAt pgtype.Timestamptz
 }
 
-// RecordListingCheck records that a check of the listing finished, and why it failed, or NULL when it didn't.
+// RecordListingCheck records that a check of the listing finished, and why it failed, or NULL when it didn't, unless
+// its lister asked for another check since requested_at, when this check started, whose result is newer.
 func (q *Queries) RecordListingCheck(ctx context.Context, arg RecordListingCheckParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordListingCheck, arg.Failure, arg.ID)
+	result, err := q.db.Exec(ctx, recordListingCheck, arg.Failure, arg.ID, arg.RequestedAt)
 	if err != nil {
 		return 0, err
 	}

@@ -62,6 +62,19 @@ func (c listingCatalog) list(t *testing.T, accountID int64, owner, name string) 
 	return id
 }
 
+// record records, as the worker, that a check of the listing id started now finished with failure, and fails t
+// unless it recorded it.
+func (c listingCatalog) record(t *testing.T, id int64, failure string) {
+	t.Helper()
+	listing, _, err := c.worker.Listing(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorded, err := c.worker.RecordListingCheck(context.Background(), id, listing.RequestedAt, failure); err != nil || !recorded {
+		t.Fatalf("record a check of listing %d: recorded %v, %v", id, recorded, err)
+	}
+}
+
 // resolve records, as the worker, that the listing names GitHub repository repositoryID.
 func (c listingCatalog) resolve(t *testing.T, id int64, repositoryID string) {
 	t.Helper()
@@ -286,14 +299,10 @@ func TestAccountListingsShowEachListingsState(t *testing.T) {
 	c.resolve(t, vettedOne, "21")
 	listed := c.list(t, account, "stranger", "rules")
 	c.resolve(t, listed, "23")
-	if err := c.worker.RecordListingCheck(ctx, listed, "the repository is unreachable"); err != nil {
-		t.Fatal(err)
-	}
+	c.record(t, listed, "the repository is unreachable")
 	failed := c.list(t, account, "someone", "not-a-library")
 	c.resolve(t, failed, "99")
-	if err := c.worker.RecordListingCheck(ctx, failed, "the repository has no release tags"); err != nil {
-		t.Fatal(err)
-	}
+	c.record(t, failed, "the repository has no release tags")
 	checking := c.list(t, account, "someone", "new")
 	c.list(t, other, "someone", "elses")
 
@@ -337,9 +346,7 @@ func TestRemoveAndRetryActOnlyOnTheAccountsOwnListings(t *testing.T) {
 	if err := c.web.RetryListing(ctx, account, id); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("retry before a failure: got %v, want store.ErrNotFound", err)
 	}
-	if err := c.worker.RecordListingCheck(ctx, id, "broken"); err != nil {
-		t.Fatal(err)
-	}
+	c.record(t, id, "broken")
 	if err := c.web.RetryListing(ctx, other, id); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("retry by another account: got %v, want store.ErrNotFound", err)
 	}
@@ -394,9 +401,7 @@ func TestListingAndRetryingKeepWithinTheRequestLimits(t *testing.T) {
 		}
 	}
 	id := c.list(t, account, "someone", "last")
-	if err := c.worker.RecordListingCheck(ctx, id, "broken"); err != nil {
-		t.Fatal(err)
-	}
+	c.record(t, id, "broken")
 
 	if err := c.web.CheckListing(ctx, vettedBoth, account, "someone", "one-more"); !errors.Is(err, store.ErrListingTooOften) {
 		t.Errorf("check: got %v, want store.ErrListingTooOften", err)
@@ -444,16 +449,15 @@ func TestTheWorkerResolvesAListingAndRecordsItsChecks(t *testing.T) {
 	if _, found, err := c.worker.Listing(ctx, 1_000_000); found || err != nil {
 		t.Errorf("a missing listing: got found %v, %v", found, err)
 	}
-	if err := c.worker.RecordListingCheck(ctx, id, ""); err != nil {
-		t.Fatal(err)
-	}
+	c.record(t, id, "")
 	if listings, _ := c.web.AccountListings(ctx, vettedBoth, account); listings[1].CheckedAt.IsZero() || listings[1].Failure != "" {
 		t.Errorf("after a check: got %+v", listings[1])
 	}
 }
 
-// The poll checks every listing that isn't vetted, except one that failed before its library ever ingested.
-func TestListingsToCheckLeaveOutVettedAndNeverIngestedFailures(t *testing.T) {
+// The poll checks every listing that isn't vetted, except one that failed before its library ever ingested, unless
+// GitHub has its repository and it was listed or retried in the last day, since fetching may have failed for a moment.
+func TestListingsToCheckLeaveOutVettedAndSettledFailures(t *testing.T) {
 	c := newListingCatalog(t)
 	ctx := context.Background()
 	account := c.account(t, 1)
@@ -462,16 +466,44 @@ func TestListingsToCheckLeaveOutVettedAndNeverIngestedFailures(t *testing.T) {
 	c.resolve(t, vettedOne, "21")
 	failing := c.list(t, account, "stranger", "rules")
 	c.resolve(t, failing, "23")
-	neverIngested := c.list(t, account, "someone", "broken")
-	for _, id := range []int64{failing, neverIngested} {
-		if err := c.worker.RecordListingCheck(ctx, id, "broken"); err != nil {
-			t.Fatal(err)
-		}
+	missing := c.list(t, account, "someone", "missing")
+	fetchFailed := c.list(t, account, "someone", "unreachable")
+	c.resolve(t, fetchFailed, "98")
+	settled := c.list(t, account, "someone", "not-a-library")
+	c.resolve(t, settled, "99")
+	for _, id := range []int64{failing, missing, fetchFailed, settled} {
+		c.record(t, id, "broken")
 	}
+	postgrestest.Exec(t, c.connString, "UPDATE listings SET requested_at = now() - interval '1 day 1 second' WHERE id = $1", settled)
 
 	got, err := c.worker.ListingsToCheck(ctx, vettedBoth)
 
-	if err != nil || !slices.Equal(got, []int64{pending, failing}) {
-		t.Fatalf("got %v, %v; want %v", got, err, []int64{pending, failing})
+	if want := []int64{pending, failing, fetchFailed}; err != nil || !slices.Equal(got, want) {
+		t.Fatalf("got %v, %v; want %v", got, err, want)
+	}
+}
+
+// A check records nothing once its lister asked for another since it started, whose result is newer.
+func TestRecordListingCheckKeepsANewerChecksResult(t *testing.T) {
+	c := newListingCatalog(t)
+	ctx := context.Background()
+	account := c.account(t, 1)
+	id := c.list(t, account, "someone", "rules")
+	c.record(t, id, "broken")
+	started, _, err := c.worker.Listing(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.web.RetryListing(ctx, account, id); err != nil {
+		t.Fatal(err)
+	}
+
+	recorded, err := c.worker.RecordListingCheck(ctx, id, started.RequestedAt, "an older check's failure")
+
+	if err != nil || recorded {
+		t.Fatalf("got recorded %v, %v; want nothing recorded", recorded, err)
+	}
+	if listings, _ := c.web.AccountListings(ctx, vettedBoth, account); listings[0].Failure != "" || listings[0].State != domain.ListingChecking {
+		t.Fatalf("the listing is %+v, want checking", listings[0])
 	}
 }

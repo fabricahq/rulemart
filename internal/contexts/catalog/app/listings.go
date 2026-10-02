@@ -177,9 +177,9 @@ func (in Ingester) CheckListing(ctx context.Context, vetted []domain.LibraryKey,
 	var libraryErr *LibraryError
 	if errors.As(err, &libraryErr) {
 		check.Outcome, check.Failure = ListingRefused, domain.Failure(cmp.Or(libraryErr.Reason, libraryErr.Error()))
-		err = in.recordCheck(ctx, id, check.Failure)
+		err = in.recordCheck(ctx, check.Listing, check.Failure)
 	} else if err == nil && check.Listing.ID != 0 {
-		err = in.recordCheck(ctx, id, "")
+		err = in.recordCheck(ctx, check.Listing, "")
 	}
 	if err != nil {
 		return ListingCheck{Listing: check.Listing}, fmt.Errorf("check listing id=%d: %v", id, err)
@@ -233,15 +233,18 @@ func libraryError(err, target error, reason string) error {
 	return err
 }
 
-// recordCheck records how a check of the listing id went, even when ctx has ended, within recordTimeout.
-func (in Ingester) recordCheck(ctx context.Context, id int64, failure string) error {
+// recordCheck records how a check of listing went, even when ctx has ended, within recordTimeout. A check its lister
+// asked for since this one started records its own result, which is newer, so this one records nothing.
+func (in Ingester) recordCheck(ctx context.Context, listing domain.Listing, failure string) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordTimeout)
 	defer cancel()
-	return in.Store.RecordListingCheck(ctx, id, failure)
+	_, err := in.Store.RecordListingCheck(ctx, listing.ID, listing.RequestedAt, failure)
+	return err
 }
 
 // ListingsToCheck returns the IDs of the listings the hourly poll checks: every one vetted doesn't hold, except one
-// whose check failed before its library ever ingested, which waits for its lister to try again.
+// whose check failed before its library ever ingested, which waits for its lister to try again, unless GitHub has
+// its repository and it was listed or retried in the last day, since fetching it may have failed for a moment.
 func (in Ingester) ListingsToCheck(ctx context.Context, vetted []domain.LibraryKey) ([]int64, error) {
 	return in.Store.ListingsToCheck(ctx, vetted)
 }

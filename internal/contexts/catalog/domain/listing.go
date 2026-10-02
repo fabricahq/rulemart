@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -39,6 +40,8 @@ type Listing struct {
 	Library LibraryKey
 	// Ingested reports whether the catalog stores the library the listing names.
 	Ingested bool
+	// RequestedAt is when the listing last asked for a check, which tells a check's result from a newer one's.
+	RequestedAt time.Time
 }
 
 // FullName returns the listed repository as its lister gave it, owner/name.
@@ -91,7 +94,8 @@ var (
 var repositoryPrefixes = []string{"https://github.com/", "https://www.github.com/", "github.com/", "www.github.com/"}
 
 // ParseListedRepository returns the owner and name of the GitHub repository text names, as a lister may give it:
-// owner/name, github.com/owner/name, or its https URL, with or without a trailing slash or .git. It fails with
+// owner/name, github.com/owner/name, or its https URL, with or without a trailing slash, and the URL with or without
+// .git. It fails with
 // ErrInvalidRepository for anything else, such as another host, a page inside a repository, a query, or a name
 // GitHub wouldn't allow.
 func ParseListedRepository(text string) (owner, name string, err error) {
@@ -99,11 +103,12 @@ func ParseListedRepository(text string) (owner, name string, err error) {
 	path := text
 	for _, prefix := range repositoryPrefixes {
 		if rest, ok := strings.CutPrefix(text, prefix); ok {
-			path = rest
+			// Only an address may end in .git, as a clone URL does; owner/name.git names a repository called name.git.
+			path = strings.TrimSuffix(strings.TrimSuffix(rest, "/"), ".git")
 			break
 		}
 	}
-	path = strings.TrimSuffix(strings.TrimSuffix(path, "/"), ".git")
+	path = strings.TrimSuffix(path, "/")
 	owner, name, ok := strings.Cut(path, "/")
 	if !ok || !gitHubOwner.MatchString(owner) || !gitHubRepository.MatchString(name) || name == "." || name == ".." {
 		return "", "", fmt.Errorf("parse repository %q: %w", text, ErrInvalidRepository)

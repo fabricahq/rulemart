@@ -67,7 +67,7 @@ WHERE id = @id AND account_id = @account_id::bigint AND failure IS NOT NULL;
 
 -- GetListing returns a listing as the worker checks it, with whether the catalog stores the library it names.
 -- name: GetListing :one
-SELECT s.id, s.host, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id,
+SELECT s.id, s.host, s.owner, s.name, coalesce(s.host_repository_id, '')::text AS host_repository_id, s.requested_at,
        EXISTS (
            SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id
        )::boolean AS ingested
@@ -77,13 +77,15 @@ WHERE s.id = @id;
 -- name: ResolveListing :execrows
 UPDATE listings SET host_repository_id = @host_repository_id::text WHERE id = @id;
 
--- RecordListingCheck records that a check of the listing finished, and why it failed, or NULL when it didn't.
+-- RecordListingCheck records that a check of the listing finished, and why it failed, or NULL when it didn't, unless
+-- its lister asked for another check since requested_at, when this check started, whose result is newer.
 -- name: RecordListingCheck :execrows
-UPDATE listings SET checked_at = now(), failure = sqlc.narg(failure) WHERE id = @id;
+UPDATE listings SET checked_at = now(), failure = sqlc.narg(failure) WHERE id = @id AND requested_at = @requested_at;
 
 -- ListListingsToCheck returns the listings the hourly poll checks, in the order they were listed: every one vetted
 -- doesn't hold, except one whose check failed before its library ever ingested, which waits for its lister to try
--- again.
+-- again, unless GitHub has its repository and the lister asked for the check in the last day: fetching it may have
+-- failed for a moment.
 -- name: ListListingsToCheck :many
 SELECT s.id
 FROM listings s
@@ -91,6 +93,7 @@ WHERE NOT coalesce(s.host || ':' || s.host_repository_id = ANY (@vetted::text[])
   AND NOT (
       s.failure IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM libraries l WHERE l.host = s.host AND l.host_repository_id = s.host_repository_id)
+      AND (s.host_repository_id IS NULL OR s.requested_at <= now() - interval '1 day')
   )
 ORDER BY s.id;
 

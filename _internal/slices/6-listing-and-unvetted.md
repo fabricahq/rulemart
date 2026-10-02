@@ -77,7 +77,8 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 - **Proposed: what a lister sees.** Checking, while the worker hasn't finished; Listed, with a link, once ingested;
   Vetted, once the release's `vetted.yaml` names it; Failed, with the reason, when it never ingested; and Listed with
   the last check's failure when a later check failed, while its pages keep the last release ingested, as a vetted
-  library's do. A reason says what the repository got wrong, as a sentence, such as "GitHub has no public
+  library's do. A check its lister asked for after another started records its own result, and the older check
+  records nothing, so a slow check can't overwrite a newer one. A reason says what the repository got wrong, as a sentence, such as "GitHub has no public
   repository by this name" or "The repository has no release/<number> tags", never where it happened or a database
   error, which only the worker's log has. The page reloads itself every five seconds while a listing listed or
   retried in the last ten minutes is being checked; `requested_at` records when, since a retry keeps the last
@@ -107,7 +108,12 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   check failed on the listing and succeeds, so SQS doesn't retry it or move it to the dead-letter queue, whose alarm
   is for Rulemart's own failures. A failure Rulemart caused, such as the database being unreachable or GitHub's API
   refusing a request, still fails the job, as a vetted library's failure does (**Existing**).
-- **Proposed: a listing that never ingested isn't checked again by itself.** Its lister can try again. A listing that
+- **Proposed: a listing that never ingested is checked again by itself only for a day, and only once GitHub has
+  confirmed its repository.** A failure to fetch it may be GitHub's for a moment, and its failure can't be told apart
+  from the repository's reliably, so the hourly poll tries it again for a day after it was listed or retried; one
+  GitHub has no public repository for, or that another listing names, isn't, since checking it costs an API call and
+  the answer won't change. Its lister can try again at any time, within the request limits. Devin's review found the
+  first version stranded a listing whose first fetch failed for a moment. A listing that
   ingested is checked every hour, failing or not, as a vetted library is, and its pages keep the last good release.
 
 ### Vetting
@@ -142,7 +148,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 ### The worker, GitHub, and cost
 
 - **Proposed: the hourly poll queues a job for each vetted library and each listing to check**: every listing that
-  isn't vetted, except one that failed without ever ingesting. Reading the listings wakes Neon on the poll, which the
+  isn't vetted, except one that failed without ever ingesting, as above. Reading the listings wakes Neon on the poll, which the
   jobs did anyway.
 - **Proposed: the worker can authenticate to GitHub's API with a token from SSM.** `GITHUB_TOKEN_PARAMETER` names a
   SecureString holding a fine-grained token with read access to public repositories only, beside `GITHUB_TOKEN` for

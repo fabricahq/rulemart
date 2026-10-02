@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
@@ -27,8 +28,9 @@ type Writer interface {
 	// another listing names it.
 	ResolveListing(ctx context.Context, id int64, library domain.LibraryKey) error
 	// RecordListingCheck records that a check of the listing id finished now, and why it failed, or that it succeeded
-	// when failure is empty.
-	RecordListingCheck(ctx context.Context, id int64, failure string) error
+	// when failure is empty, and reports whether it did: it records nothing when the listing asked for another check
+	// after requestedAt, when this one started, or is gone.
+	RecordListingCheck(ctx context.Context, id int64, requestedAt time.Time, failure string) (recorded bool, err error)
 	// ListingsToCheck returns the IDs of the listings the hourly poll checks, in the order they were listed: every one
 	// vetted doesn't hold, except one whose check failed before its library ever ingested.
 	ListingsToCheck(ctx context.Context, vetted []domain.LibraryKey) ([]int64, error)

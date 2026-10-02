@@ -12,7 +12,6 @@ func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T)
 		"fabricahq/public-rules",
 		" fabricahq/public-rules\n",
 		"fabricahq/public-rules/",
-		"fabricahq/public-rules.git",
 		"github.com/fabricahq/public-rules",
 		"www.github.com/fabricahq/public-rules",
 		"https://github.com/fabricahq/public-rules",
@@ -28,6 +27,11 @@ func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T)
 	owner, name, err := ParseListedRepository("Old-Name/rules_v2.x")
 	if err != nil || owner != "Old-Name" || name != "rules_v2.x" {
 		t.Errorf("got %q, %q, %v", owner, name, err)
+	}
+	// GitHub allows a repository named rules.git; only its address's .git is a clone URL's.
+	owner, name, err = ParseListedRepository("team/rules.git")
+	if err != nil || owner != "team" || name != "rules.git" {
+		t.Errorf("got %q, %q, %v; want team/rules.git", owner, name, err)
 	}
 }
 

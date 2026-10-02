@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -201,7 +202,7 @@ func (s *Store) Listing(ctx context.Context, id int64) (domain.Listing, bool, er
 		return domain.Listing{}, false, fmt.Errorf("read listing id=%d: %v", id, err)
 	}
 	return domain.Listing{
-		ID: row.ID, Owner: row.Owner, Name: row.Name, Ingested: row.Ingested,
+		ID: row.ID, Owner: row.Owner, Name: row.Name, Ingested: row.Ingested, RequestedAt: row.RequestedAt.Time,
 		Library: domain.LibraryKey{Host: row.Host, RepositoryID: row.HostRepositoryID},
 	}, true, nil
 }
@@ -221,19 +222,22 @@ func (s *Store) ResolveListing(ctx context.Context, id int64, library domain.Lib
 	return nil
 }
 
-// RecordListingCheck records that a check of the listing id finished now, and why it failed, or that it succeeded
-// when failure is empty.
-func (s *Store) RecordListingCheck(ctx context.Context, id int64, failure string) error {
+// RecordListingCheck records that a check of the listing id, started when it was requested at requestedAt, finished
+// now, and why it failed, or that it succeeded when failure is empty. It reports false, and records nothing, when the
+// listing asked for another check since, or is gone.
+func (s *Store) RecordListingCheck(ctx context.Context, id int64, requestedAt time.Time, failure string) (bool, error) {
+	var recorded int64
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := catalogdb.New(pool).RecordListingCheck(ctx, catalogdb.RecordListingCheckParams{
-			ID: id, Failure: pgtype.Text{String: failure, Valid: failure != ""},
+		var err error
+		recorded, err = catalogdb.New(pool).RecordListingCheck(ctx, catalogdb.RecordListingCheckParams{
+			ID: id, RequestedAt: pgtype.Timestamptz{Time: requestedAt, Valid: true}, Failure: pgtype.Text{String: failure, Valid: failure != ""},
 		})
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("record check of listing id=%d: %v", id, err)
+		return false, fmt.Errorf("record check of listing id=%d: %v", id, err)
 	}
-	return nil
+	return recorded > 0, nil
 }
 
 // ListingsToCheck returns the IDs of the listings the hourly poll checks, in the order they were listed.

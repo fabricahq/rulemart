@@ -184,23 +184,26 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 	for name, test := range map[string]struct {
 		prepare func(*testing.T, *listing)
 		want    string
+		// polled is true when the hourly poll checks the listing again, since GitHub has its repository and fetching
+		// may have failed for a moment.
+		polled bool
 	}{
 		"a missing or private repository": {
 			func(_ *testing.T, l *listing) {
 				l.hosted.err = fmt.Errorf("look up repository=%q on GitHub: GitHub has %w", "example/rules", domain.ErrNoPublicRepository)
 			},
-			"GitHub has no public repository by this name.",
+			"GitHub has no public repository by this name.", false,
 		},
 		"a repository without releases": {
 			func(t *testing.T, l *listing) { l.hosted.repo = gittest.NewLibrary(t).Repository(42) },
-			"The repository has no release/<number> tags",
+			"The repository has no release/<number> tags", true,
 		},
 		"a repository another listing names": {
 			func(t *testing.T, l *listing) {
 				postgrestest.Exec(t, l.connString, `WITH other AS (INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (2, 'other', '') RETURNING id)
 					INSERT INTO listings (account_id, host, owner, name, host_repository_id) SELECT id, 'github', 'old', 'name', '42' FROM other`)
 			},
-			"Another listing names this repository, which GitHub calls example/rules now.",
+			"Another listing names this repository, which GitHub calls example/rules now.", false,
 		},
 		"an invalid release": {
 			func(t *testing.T, l *listing) {
@@ -208,7 +211,7 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 				lib.Release(1, "formatVersion: 1\nrelease: 2\n")
 				l.hosted.repo = lib.Repository(42)
 			},
-			"release/1: invalid release record",
+			"release/1: invalid release record", true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -224,8 +227,8 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 			if state, failure := l.only(t); state != domain.ListingFailed || failure != check.Failure {
 				t.Fatalf("the listing is %s, %q; want failed with %q", state, failure, check.Failure)
 			}
-			if checks, err := l.ingester.ListingsToCheck(context.Background(), nil); err != nil || slices.Contains(checks, id) {
-				t.Fatalf("the poll checks %v, %v; want not %d until its lister tries again", checks, err, id)
+			if checks, err := l.ingester.ListingsToCheck(context.Background(), nil); err != nil || slices.Contains(checks, id) != test.polled {
+				t.Fatalf("the poll checks %v, %v; want %d among them: %v", checks, err, id, test.polled)
 			}
 		})
 	}
