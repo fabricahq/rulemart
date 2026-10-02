@@ -26,7 +26,7 @@ templ browsePage(c chrome, v browseView) {
 						@rowItem() {
 							@rowLink(g.href, false) {
 								<div class="flex min-w-0 items-center gap-[14px]">
-									@groupTile(g.label, g.icon, tileMD)
+									@groupTile(g.label, g.icon, tileRow)
 									<div class="min-w-0">
 										<div class="leading-[1.35] font-semibold">{ g.label.name }</div>
 										<div class="mt-0.5 text-[12.5px] text-faint">
@@ -47,7 +47,7 @@ templ browsePage(c chrome, v browseView) {
 				}
 			}
 			if v.others > 0 {
-				<p class="mt-6 text-[13px]"><a class="text-faint no-underline hover:text-ink hover:underline" href={ templ.SafeURL(v.kind.othersHref()) }>View other { v.kind.noun() } groups ({ strconv.Itoa(v.others) }) →</a></p>
+				<p class="mt-6 text-[13px]"><a class="text-faint hover:text-ink" href={ templ.SafeURL(v.kind.othersHref()) }>View other { v.kind.noun() } groups ({ strconv.Itoa(v.others) }) →</a></p>
 			}
 		</div>
 	}
