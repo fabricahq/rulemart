@@ -168,8 +168,9 @@ Each release is the pair of Lambda functions, built from the release commit:
 Publishing doesn't deploy. A deployment pins a release's tag and its ZIPs' SHA-256 values in Fabrica's
 infrastructure repository, so production may still run an older release when the next one migrates.
 
-CI runs `make check`, and builds the release files the same way, on every push and pull request. The build doesn't
-depend on the release's version, so CI's files for a commit are byte for byte the ones a release of it publishes.
+CI runs `make check`, and builds the release files the same way, on every pull request and every push to main. The
+build doesn't depend on the release's version, so CI's files for a commit are byte for byte the ones a release of it
+publishes.
 `make dist` builds them locally into `dist/`, from `HEAD`'s committed tree, with Docker.
 
 ## Engineering rules

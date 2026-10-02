@@ -1,9 +1,10 @@
 name: CI
-# Tests every push and pull request, and builds the release assets as a release would. Release Planner, not this
-# workflow, tags and publishes releases. The default branch ruleset requires the build job's check.
+# Tests every pull request and every push to main, and builds the release assets as a release would. Release
+# Planner, not this workflow, tags and publishes releases. The default branch ruleset requires the build job's check.
+# Pushes to other branches run through their pull request, so each change runs once.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
 permissions:
   contents: read
