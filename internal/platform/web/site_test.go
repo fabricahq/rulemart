@@ -53,6 +53,8 @@ type catalog struct {
 	results map[string]views.SearchResults
 	// searched records each query searched, when it isn't nil.
 	searched *[]string
+	// sitemap is what the sitemap lists.
+	sitemap views.Sitemap
 	// err, when set, fails every read.
 	err error
 }
@@ -68,6 +70,8 @@ func (c catalog) UnvettedLibraries(context.Context) ([]views.LibraryCard, error)
 }
 
 func (c catalog) GroupIndex(context.Context) (views.GroupIndex, error) { return c.index, c.err }
+
+func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
 
 // GroupPage matches id without regard to case, as app.Pages does.
 func (c catalog) GroupPage(_ context.Context, id string) (views.GroupPage, error) {

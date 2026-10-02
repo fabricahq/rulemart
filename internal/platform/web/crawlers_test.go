@@ -1,0 +1,171 @@
+package web_test
+
+import (
+	"bytes"
+	"encoding/xml"
+	"io"
+	"log/slog"
+	"net/http"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
+	"github.com/fabricahq/rulemart/internal/platform/web"
+)
+
+// baseURL returns the public origin tests serve pages at.
+func baseURL(t *testing.T) web.Options {
+	t.Helper()
+	base, err := web.ParseBaseURL("https://rulemart.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return web.Options{BaseURL: base}
+}
+
+// robots.txt keeps crawlers out of what's a visitor's own, what each query or pair of versions would multiply, and the
+// unvetted area, and names the sitemap on the public origin.
+func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
+	resp := get(t, newSiteWith(t, baseURL(t)), "/robots.txt")
+
+	if resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("answered %d, %q", resp.Code, resp.Header().Get("Content-Type"))
+	}
+	lines := strings.Split(resp.Body.String(), "\n")
+	for _, want := range []string{
+		"User-agent: *", "Disallow: /account/", "Disallow: /sign-in", "Disallow: /list", "Disallow: /search",
+		"Disallow: /unvetted", "Disallow: /*from=", "Sitemap: https://rulemart.example/sitemap.xml",
+	} {
+		if !slices.Contains(lines, want) {
+			t.Errorf("robots.txt lacks %q:\n%s", want, resp.Body)
+		}
+	}
+	for _, line := range lines {
+		if line == "Disallow: /" {
+			t.Error("robots.txt keeps crawlers off the whole site")
+		}
+	}
+}
+
+// Without a public origin, as locally, robots.txt names no sitemap, and there's none: its addresses must be absolute.
+func TestWithoutABaseURLThereIsNoSitemap(t *testing.T) {
+	handler := newSiteWith(t, web.Options{})
+
+	if body := get(t, handler, "/robots.txt").Body.String(); strings.Contains(body, "Sitemap:") {
+		t.Errorf("robots.txt names a sitemap:\n%s", body)
+	}
+	if resp := get(t, handler, "/sitemap.xml"); resp.Code != http.StatusNotFound {
+		t.Errorf("/sitemap.xml answered %d", resp.Code)
+	}
+}
+
+// urlset is a sitemap file as the protocol defines it.
+type urlset struct {
+	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
+	URLs    []struct {
+		Loc     string `xml:"loc"`
+		LastMod string `xml:"lastmod"`
+	} `xml:"url"`
+}
+
+// The sitemap lists the site's own pages, the canonical groups' pages, and each vetted library and current rule, by
+// their canonical addresses on the public origin, each library and rule with when it last changed.
+func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.sitemap = views.Sitemap{
+		Libraries: []views.SitemapLibrary{{
+			Owner: "example", Name: "rules", Updated: day(3),
+			Rules: []views.SitemapRule{{Path: "practices/testing/verify-retry-limits", Updated: day(2)}, {Path: "techs/go/return-errors", Updated: day(3)}},
+		}, {Owner: "other", Name: "go.rules", Updated: day(4)}},
+		Groups: []string{"practices/testing", "techs/go"},
+	}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := get(t, handler, "/sitemap.xml")
+
+	if resp.Code != http.StatusOK || resp.Header().Get("Content-Type") != "application/xml; charset=utf-8" ||
+		resp.Header().Get("Cache-Control") != "public, max-age=0, s-maxage=60" {
+		t.Fatalf("answered %d with %v", resp.Code, resp.Header())
+	}
+	if !bytes.HasPrefix(resp.Body.Bytes(), []byte(xml.Header)) {
+		t.Errorf("the sitemap has no XML declaration")
+	}
+	var got urlset
+	if err := xml.Unmarshal(resp.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var locs []string
+	lastMod := map[string]string{}
+	for _, u := range got.URLs {
+		locs = append(locs, u.Loc)
+		lastMod[u.Loc] = u.LastMod
+	}
+	want := []string{
+		"https://rulemart.example/",
+		"https://rulemart.example/libraries",
+		"https://rulemart.example/groups",
+		"https://rulemart.example/groups/practices/testing",
+		"https://rulemart.example/groups/techs/go",
+		"https://rulemart.example/example/rules",
+		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
+		"https://rulemart.example/example/rules/techs/go/return-errors",
+		"https://rulemart.example/other/go.rules",
+	}
+	if !slices.Equal(locs, want) {
+		t.Fatalf("lists\n%s\nwant\n%s", strings.Join(locs, "\n"), strings.Join(want, "\n"))
+	}
+	for loc, date := range map[string]string{
+		"https://rulemart.example/example/rules":                                       "2026-09-03",
+		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits": "2026-09-02",
+		"https://rulemart.example/other/go.rules":                                      "2026-09-04",
+		"https://rulemart.example/groups":                                              "",
+	} {
+		if lastMod[loc] != date {
+			t.Errorf("%s: lastmod %q, want %q", loc, lastMod[loc], date)
+		}
+	}
+}
+
+// A sitemap that leaves out rules past the most it lists says so in the log, so the operator knows to split it.
+func TestTruncatedSitemapIsLogged(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{{Owner: "example", Name: "rules", Updated: day(3)}}, Truncated: true}
+	var logs bytes.Buffer
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewJSONHandler(&logs, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp := get(t, handler, "/sitemap.xml"); resp.Code != http.StatusOK {
+		t.Fatalf("answered %d", resp.Code)
+	}
+	if !strings.Contains(logs.String(), `"msg":"sitemap truncated"`) {
+		t.Errorf("logged %s", logs.String())
+	}
+}
+
+// A failed read fails the sitemap as it fails a page, uncached, so CloudFront doesn't keep a sitemap missing pages.
+func TestSitemapFailsUncachedWhenTheCatalogFails(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.err = io.ErrUnexpectedEOF
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := get(t, handler, "/sitemap.xml")
+
+	if resp.Code != http.StatusServiceUnavailable || resp.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("answered %d, %q", resp.Code, resp.Header().Get("Cache-Control"))
+	}
+}

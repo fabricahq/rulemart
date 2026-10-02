@@ -116,6 +116,8 @@ type Catalog interface {
 	// Search returns page, from 1 to app.MaxSearchPage, of what query finds. It fails with
 	// app.ErrSearchQueryTooLong for a query it won't run, and finds nothing for the zero query.
 	Search(ctx context.Context, query domain.SearchQuery, page int) (views.SearchResults, error)
+	// Sitemap returns the vetted libraries, with their current rules, and the canonical groups that hold them.
+	Sitemap(ctx context.Context) (views.Sitemap, error)
 }
 
 // server answers page requests.
@@ -165,6 +167,9 @@ func New(catalog Catalog, options Options) (http.Handler, error) {
 	mux.HandleFunc(staticPattern, assets.serve)
 	s.routes[staticPattern] = true
 	handle("GET /{$}", s.home)
+	// One segment each, so neither can hide a library's page.
+	handle("GET "+robotsHref, s.robots)
+	handle("GET "+sitemapHref, s.sitemap)
 	// GitHub has no account named groups or search, so these can't hide a library's page. /libraries has one
 	// segment, so it can't either, though GitHub has an account named libraries.
 	handle("GET /libraries", s.libraries)

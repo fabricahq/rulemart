@@ -194,6 +194,9 @@ type Reader interface {
 	// library's owner and name. Rules that hold more of the terms, in more telling places, come first. It leaves each
 	// result's CanonicalGroup nil.
 	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error)
+	// Sitemap returns the vetted libraries, at most maxRules of their current rules, the first in owner, name, and ID
+	// order, and the groups that hold them, from one state of the catalog.
+	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRules int) (views.Sitemap, error)
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor
