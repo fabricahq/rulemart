@@ -32,8 +32,8 @@ type ruleListView struct {
 
 // libraryFilterView is a library's checkbox in the filter sidebar.
 type libraryFilterView struct {
-	// key is the library's value in the address, owner/name in lowercase.
-	key, owner, fullName, avatar string
+	// value is the library's value in the address, owner/name in lowercase.
+	value, owner, fullName, avatar string
 	// fabrica marks Fabrica's library, which the sidebar sets in stronger type, and vetted one the release vets.
 	fabrica, vetted, checked bool
 	// rules counts the library's rules in the list before its filters.
@@ -46,11 +46,11 @@ func newRuleListView(page domain.ListPage, path string, params url.Values, choic
 		libraryCount: results.Libraries, unfiltered: results.Unfiltered,
 	}
 	for _, l := range results.LibraryCounts {
-		key := domain.LibraryKeyOf(l.Library.Owner, l.Library.Name)
+		value := domain.LibraryFilterValue(l.Library.Owner, l.Library.Name)
 		v.libraries = append(v.libraries, libraryFilterView{
-			key: key, owner: l.Library.Owner, fullName: l.Library.FullName(), avatar: l.Library.OwnerAvatarURL,
+			value: value, owner: l.Library.Owner, fullName: l.Library.FullName(), avatar: l.Library.OwnerAvatarURL,
 			fabrica: strings.EqualFold(l.Library.Owner, domain.FabricaOwner), vetted: l.Vetted,
-			checked: slices.Contains(choices.Filters.Libraries, key), rules: l.Rules,
+			checked: slices.Contains(choices.Filters.Libraries, value), rules: l.Rules,
 		})
 	}
 	return v

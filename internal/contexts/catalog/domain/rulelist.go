@@ -38,7 +38,7 @@ const (
 
 // RuleFilters narrow a list of rules. The zero value narrows nothing.
 type RuleFilters struct {
-	// Libraries are the libraries to keep, each as LibraryKeyOf spells it, or none to keep every library.
+	// Libraries are the libraries to keep, each as LibraryFilterValue spells it, or none to keep every library.
 	Libraries []string
 	Impact    ImpactBand
 	// MinStars keeps rules with at least this many stars; 0 keeps every rule.
@@ -65,9 +65,9 @@ type RuleList struct {
 // HoldsRetired reports whether the list holds retired rules: when it asks for them, or searches for words.
 func (l RuleList) HoldsRetired() bool { return l.Retired || !l.Query.IsZero() }
 
-// LibraryKeyOf returns owner/name as RuleFilters.Libraries holds it: in lowercase, since libraries are matched without
-// regard to case.
-func LibraryKeyOf(owner, name string) string { return strings.ToLower(owner + "/" + name) }
+// LibraryFilterValue returns owner/name as RuleFilters.Libraries holds it, and the library filter's address: in
+// lowercase, since libraries are matched without regard to case.
+func LibraryFilterValue(owner, name string) string { return strings.ToLower(owner + "/" + name) }
 
 // ListPage is a kind of page that lists rules or libraries, which decides the choices its address takes.
 type ListPage int
@@ -133,8 +133,8 @@ const MaxLibraryFilters = 50
 // ParseListChoices reads the choices of the page from values, an address's query. It reads only what the page
 // offers, and leaves out anything else, or any value it doesn't offer, such as an order of another page's or stars it
 // has no threshold for. A parameter may repeat, as a form without a script sends checkboxes, and libs may also join
-// libraries with commas; a filter whose every value is chosen keeps every rule. Libraries are kept as LibraryKeyOf
-// spells them, in order, each once.
+// libraries with commas; a filter whose every value is chosen keeps every rule. Libraries are kept as
+// LibraryFilterValue spells them, in order, each once.
 func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
 	choices := ListChoices{Unvetted: has(values[unvettedParam], "1")}
 	if page == LibraryListPage {
@@ -205,7 +205,7 @@ func oneOf(values []string, a, b string) string {
 }
 
 // libraryFilters returns the libraries values name as owner/name, each value one or several joined with commas, as
-// LibraryKeyOf spells them, each once, in order, leaving out what can't be a library's name and any past
+// LibraryFilterValue spells them, each once, in order, leaving out what can't be a library's name and any past
 // MaxLibraryFilters.
 func libraryFilters(values []string) []string {
 	var libraries []string
@@ -215,9 +215,9 @@ func libraryFilters(values []string) []string {
 			if !ok || !libraryNamePart(owner) || !libraryNamePart(name) {
 				continue
 			}
-			key := LibraryKeyOf(owner, name)
-			if !slices.Contains(libraries, key) && len(libraries) < MaxLibraryFilters {
-				libraries = append(libraries, key)
+			library := LibraryFilterValue(owner, name)
+			if !slices.Contains(libraries, library) && len(libraries) < MaxLibraryFilters {
+				libraries = append(libraries, library)
 			}
 		}
 	}

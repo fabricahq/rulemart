@@ -29,7 +29,7 @@ templ filterSidebar(v ruleListView) {
 			@filterGroup("Libraries", "") {
 				for _, l := range v.libraries {
 					<label class={ filterLabel, templ.KV("font-medium text-ink", l.fabrica) }>
-						<input class={ filterInput } type="checkbox" name="libs" value={ l.key } checked?={ l.checked }/>
+						<input class={ filterInput } type="checkbox" name="libs" value={ l.value } checked?={ l.checked }/>
 						@libraryAvatar(l.avatar, l.owner, avatarXS, l.vetted)
 						<span class="min-w-0 flex-1 truncate" title={ l.fullName }>{ l.fullName }</span>
 						<span class="text-faint tabular-nums">{ strconv.Itoa(l.rules) }</span>
