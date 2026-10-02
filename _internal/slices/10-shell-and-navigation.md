@@ -106,6 +106,14 @@ decision.
   counts and, as a safety, ends in an ellipsis rather than wrap. Where the text wraps, on a phone, the icon stands at
   the top of the text rather than beside its middle.
 
+### Icons
+
+- **Decided (Josh): Zustand's tile shows the one-color bear**, the vector cicero-mello contributed in
+  pmndrs/zustand#1623, vendored as `community/zustand.svg` and drawn like the Lucide icons: ink on light themes,
+  inverted on dark ones, on the usual tile. Devicon's Zustand logo, a photo-like vectorization of 235 paths, didn't
+  read at a tile's size and needed a white tile in dark themes. The lightTile option stays for any later icon that
+  needs it. Rulemart replaces the bear if the project publishes an official vector.
+
 ### Header, footer, FAQ, feedback
 
 - **Proposed: the header's cart keeps today's behavior**, a link to the cart for signed-in visitors only, drawn as the

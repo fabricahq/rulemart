@@ -3,14 +3,15 @@
 # may have an icon here. A canonical group without one, such as one Devicon has no logo for, shows its initial
 # instead, and a group that isn't canonical never shows an icon.
 #
-# Technologies use Devicon logos (MIT) and practices Lucide icons (ISC). Vendor only the icons this file names, as
+# Technologies use Devicon logos (MIT), or a project's own logo from community/ where Devicon's doesn't read at a
+# tile's size, and practices Lucide icons (ISC). Vendor only the icons this file names, as
 # internal/platform/web/static/icons/README.md explains.
 #
 # file is the icon's path under icons/. monochrome: true marks an icon drawn in black or one dark color, which dark
 # themes invert so it stays visible; other icons keep their colors in both themes. narrow: true marks an icon whose
 # drawing is much narrower than its square, such as Go's gopher, which pages draw larger so it looks as big as square
-# logos. lightTile: true marks a colored icon drawn mostly in dark colors, such as Zustand's bear, which pages show on a
-# light tile in dark themes too, rather than inverting its colors. Keep entries sorted by group ID.
+# logos. lightTile: true marks a colored icon drawn mostly in dark colors, which pages show on a light tile in dark
+# themes too, rather than inverting its colors. Keep entries sorted by group ID.
 practices/accessibility:
   file: lucide/accessibility.svg
   monochrome: true
@@ -178,5 +179,5 @@ techs/vue:
 techs/zig:
   file: devicon/zig-original.svg
 techs/zustand:
-  file: devicon/zustand-original.svg
-  lightTile: true
+  file: community/zustand.svg
+  monochrome: true

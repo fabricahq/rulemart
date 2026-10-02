@@ -110,9 +110,11 @@ than adding history.
   canonical group, can pass the list's IDs as a parameter, as the page reads pass the vetted libraries.
 - **Rulemart owns the groups' icons**, in `catalog/group-icons.yaml`: Devicon logos (MIT) for technologies and
   Lucide icons (ISC) for practices, vendored with their licenses, only for canonical groups, and only the files it
-  names. A canonical group without an icon shows its initial: Devicon has no logo for Goose, TanStack Query, or
-  TanStack Router, so they show initials until it does. An icon drawn mostly in dark colors, such as Zustand's,
-  keeps a light tile in dark themes, rather than being inverted as monochrome icons are. Pages show icons with `<img>`, and tests reject an
+  names. Where Devicon's logo doesn't read at a tile's size, a project's own one-color logo, vendored under
+  `community/` with its source, takes its place, as Zustand's bear does. A canonical group without an icon shows its
+  initial: Devicon has no logo for Goose, TanStack Query, or TanStack Router, so they show initials until it does. An
+  icon drawn mostly in dark colors keeps a light tile in dark themes, rather than being inverted as monochrome icons
+  are. Pages show icons with `<img>`, and tests reject an
   SVG that holds scripts, event handlers, or references outside itself.
 
 ## Browsing and search
