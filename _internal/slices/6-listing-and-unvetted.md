@@ -13,15 +13,15 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 
 ## What a visitor can do
 
-- **List a library.** "List a library" on the libraries page and the unvetted libraries page leads to `/list`. Signed
-  out, it asks the visitor to sign in and come back. Signed in, it asks for the repository, as `owner/name` or its
-  GitHub URL. Continuing shows the repository and what listing it does, or why it can't be listed, and a List button
-  that lists it.
+- **List a library.** "List a library" on the libraries page and the unvetted libraries page leads to `/list`, which
+  says what may be listed, what Check does, and who vets libraries and how. Signed out, it asks the visitor to sign
+  in and come back. Signed in, it asks for the repository, as `owner/name` or its GitHub address. Check shows the
+  repository and what listing it does, or why it can't be listed, and a button that lists it.
 - **Watch it being checked.** Listing leads to `/account/listings`, which shows each of the visitor's listings:
-  checking, listed with a link to its page, vetted, or failed with the reason. While a listing is being checked, the
-  page reloads itself every five seconds.
-- **Try again, or remove a listing.** A failed listing can be tried again. Any listing can be removed: the library
-  leaves the unvetted area at once.
+  checking, listed with a link to its page, vetted, or failed with the reason. A listing being checked says when it
+  was asked for, and offers Check again.
+- **Try again, or remove a listing.** A failed listing can be tried again. Any listing can be removed, after a page
+  that says what removing it does: a listed library leaves Rulemart at once.
 - **Browse unvetted libraries.** "View unvetted libraries" at the bottom of `/libraries` leads to `/unvetted`, which
   lists them, under the warning. Their pages are the same pages vetted libraries have, each with the warning.
 
@@ -37,6 +37,8 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   page, `/libraries`, `/groups`, a group's page, and search still read only vetted keys, so they never show an
   unvetted library, rule, or group. A library the catalog stores but nobody lists or vets, such as one whose listing
   was removed, is missing, as before.
+- **Proposed: links an unvetted library's author wrote in its rules carry `rel="nofollow ugc"`**, beside the page's
+  own `nofollow`. An empty unvetted libraries page shows no warning, since it shows no library.
 - **Proposed: every unvetted page carries `<meta name="robots" content="noindex, nofollow">` and names no canonical
   address.** `nofollow` in the page's own robots tag covers every link on it, including "View on GitHub" and links in
   rule text, so a listing can't borrow Rulemart's reputation for the repository either. Google advises against a
@@ -59,30 +61,42 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   that posts to `/list?repository=owner/name`. The confirmation is also where the page says the library will be
   unvetted. `http.CrossOriginProtection` refuses a POST another site starts (**Existing**).
 - **Proposed: the web function checks only what it can without GitHub; the worker checks the rest.** At `/list`, the
-  web function checks that the input names a GitHub repository, as `owner/name` or
-  `https://github.com/owner/name`, that no listing or visible library has that name, and the limits below. It never
+  web function checks that the input names a GitHub repository, and the limits below, and that no listing or visible
+  library has that name. It takes `owner/name`, or an address: `https://` or `http://`, `github.com/` or
+  `www.github.com/`, or a page inside the repository, such as `.../tree/main`, whose owner and name it takes. One
+  trailing `.git` is dropped from every form, since GitHub refuses a repository name ending in `.git`, so
+  `owner/name.git` can't slip past the duplicate check; a name still ending in `.git` is refused, as are owner names
+  GitHub refuses, such as one starting or ending with a hyphen. It never
   calls GitHub: unauthenticated, GitHub allows 60 API requests an hour from an IP address that Lambda functions
   share, and the web function would need its own token. The worker looks the repository up, which also catches a
   missing or private one, and ingests it, which catches one that isn't a Code Rules library.
 - **Proposed: the web function queues the listing's job at once, and the hourly poll queues it again if that
   failed.** The web function regains `sqs:SendMessage` on the jobs queue, which slice 2 removed, so a listing is
   checked within seconds. Listing commits first, and a failure to queue is logged, not shown: the listing waits for
-  the next poll, within the hour, and the listings page says so after ten minutes.
+  the next poll, within the hour, and the listings page says so after three minutes.
 - **Proposed: a job names a listing only by its ID.** `{"listing": 42}` joins `{"host": "github", "repositoryID":
   "..."}`. The worker reads what to check from the listing's row, which only a signed-in visitor's POST writes, so a
   queued message still can't point it at an arbitrary repository (**Existing**, extended).
 - **Proposed: a listing is keyed by the repository's ID once the worker resolves it**, as vetting is. The name the
   lister gave stays for the listings page. A listing is unique by that name, without regard to case, and by the
   repository ID, so a renamed repository can't be listed twice under two names: the second fails as already listed.
+- **Proposed: a failed listing doesn't reserve its repository.** When another account lists a repository whose only
+  listing failed before its library ever ingested, listing it removes the failed one, which only its lister could
+  see. Otherwise one bad first check, or one account listing a name early, would keep everyone else out. A refusal
+  says whose listing stands in the way: the visitor's own, with a link to their listings; another's being checked
+  right now; or another's that's listed, with a link to its page, `nofollow`.
 - **Proposed: what a lister sees.** Checking, while the worker hasn't finished; Listed, with a link, once ingested;
   Vetted, once the release's `vetted.yaml` names it; Failed, with the reason, when it never ingested; and Listed with
   the last check's failure when a later check failed, while its pages keep the last release ingested, as a vetted
   library's do. A check its lister asked for after another started records its own result, and the older check
   records nothing, so a slow check can't overwrite a newer one. A reason says what the repository got wrong, as a sentence, such as "GitHub has no public
   repository by this name" or "The repository has no release/<number> tags", never where it happened or a database
-  error, which only the worker's log has. The page reloads itself every five seconds while a listing listed or
-  retried in the last ten minutes is being checked; `requested_at` records when, since a retry keeps the last
-  check's time. After ten minutes it says Rulemart checks it within the hour, and stops reloading.
+  error, which only the worker's log has. Raw repository IDs aren't shown.
+- **Proposed: the listings page never reloads itself.** QA found a five-second reload reset keyboard focus and scroll,
+  which is hostile to keyboard and screen reader users. A listing being checked says when it was asked for, from
+  `requested_at`, which a retry sets, and offers Check again, a link that reloads the page. Three minutes after it was
+  asked for, it says the check is taking longer than usual and Rulemart checks it again within the hour: once queued,
+  a check takes seconds, so by then it waits for the poll.
 
 ### Who listed it, and removing it
 
@@ -90,7 +104,11 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   for its rules, and their name and avatar are on every page; naming the lister would add personal data to public
   pages for little trust. The lister sees their listings on `/account/listings`, which the account menu and account
   page link to.
-- **Proposed: the lister can remove their listing at any time.** It deletes the row; the library leaves the unvetted
+- **Proposed: the lister can remove their listing at any time, after a page that says what that does.** Removing a
+  listed library takes its pages away, so `/account/listings/remove?listing=N` asks first, by state: a listed library
+  leaves Rulemart; a vetted one stays, and only the listing goes; a failed or unchecked one is forgotten. Its button
+  posts to the same address with an empty body. Retrying a listing that isn't failing, from a page left open, says
+  there's nothing to try again. Signed out, removing or retrying leads to sign-in, as listing does. It deletes the row; the library leaves the unvetted
   area, and the worker stops checking it. Its catalog rows stay, since neither function can delete a library, and a
   later listing reuses them without ingesting again. Removing a vetted library's listing changes nothing visible.
 - **Proposed: deleting an account removes its listings**, which reverses slice 5's proposal that a listed library
@@ -123,8 +141,8 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
   catalog rows are the same, and pages decide vetted or not from the release's list as they read. Its listing stays,
   showing Vetted to its lister, and stops counting toward their limit. The worker checks it as a vetted library, and no
   longer as a listing. Removing it from `vetted.yaml` returns it to the unvetted area if it's listed, or hides it.
-- **Proposed: the repository ID to vet is on the listings page** of its lister, and an operator reads it from the
-  listing's row, `host_repository_id`.
+- **Proposed: an operator reads the repository ID to vet from the listing's row**, `host_repository_id`. The
+  listings page doesn't show it: it means nothing to a lister.
 
 ### Limits and abuse
 
