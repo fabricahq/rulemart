@@ -24,8 +24,9 @@ type chrome struct {
 	// page, through the store cartScript keeps, and cartCheckoutScript keeps what that page knows of its checkout.
 	caretScript, toastScript, cartScript, filtersScript, cartPageScript, cartCheckoutScript string
 	// pollScript fetches a page that follows something happening elsewhere every two seconds, on a page that asks.
-	// starScript opens a rule page's sign-in dialog when a visitor who isn't signed in presses Star.
-	pollScript, starScript string
+	// starScript opens a rule page's sign-in dialog when a visitor who isn't signed in presses Star. compareScript
+	// submits a compare form as soon as it changes.
+	pollScript, starScript, compareScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -69,6 +70,8 @@ type head struct {
 	caret bool
 	// starSignIn loads the script that opens the star's sign-in dialog, on a rule's page that offers it.
 	starSignIn bool
+	// compare loads the script that submits a page's compare form as soon as a version or release in it changes.
+	compare bool
 	// polling marks a page that follows something happening elsewhere, such as a library being added: it loads the
 	// script that fetches the page again every two seconds and shows what changed, or without scripts, reloads itself
 	// as often.
@@ -209,6 +212,9 @@ templ layout(c chrome, h head) {
 			}
 			if h.starSignIn {
 				<script src={ c.starScript } defer></script>
+			}
+			if h.compare {
+				<script src={ c.compareScript } defer></script>
 			}
 			<script src={ c.toastScript } defer></script>
 			<script src={ c.cartScript } defer></script>

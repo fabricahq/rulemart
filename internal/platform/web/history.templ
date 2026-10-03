@@ -13,7 +13,7 @@ import (
 // releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
 // describe it, with links to newer and older pages.
 templ releasesPage(c chrome, lib libraryView, v releasesView) {
-	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, libraryFacts(lib)) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), compare: true}, lib, releasesTab, libraryFacts(lib)) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
 			if len(v.from) > 1 {
@@ -190,9 +190,10 @@ templ replacementChain(steps []chainStep, bold bool) {
 }
 
 // compareForm chooses two versions, or two releases, to compare, and submits them to action with the tab named
-// tabName, keeping the diff's mode. Without a script, choosing doesn't submit: the Compare button does.
+// tabName, keeping the diff's mode. compare.js submits it as soon as either changes, as the prototype's does, which a
+// page loads with head's compare; without a script, the Compare button does.
 templ compareForm(action, tabName string, from, to []releaseOption, mode diffMode, fromLabel, toLabel string) {
-	<form class="flex flex-wrap items-center gap-2 text-[14px]" action={ templ.SafeURL(action) } method="get">
+	<form class="flex flex-wrap items-center gap-2 text-[14px]" action={ templ.SafeURL(action) } method="get" data-compare-form>
 		<input type="hidden" name="tab" value={ tabName }/>
 		<span class="text-muted">Compare</span>
 		<label class="sr-only" for="compare-from">{ fromLabel }</label>
@@ -213,7 +214,9 @@ templ compareForm(action, tabName string, from, to []releaseOption, mode diffMod
 		if mode == diffLines {
 			<input type="hidden" name="view" value={ string(mode) }/>
 		}
-		<button class="inline-flex h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] text-[13px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface" type="submit">Compare</button>
+		<noscript>
+			<button class="inline-flex h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] text-[13px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface" type="submit">Compare</button>
+		</noscript>
 	</form>
 }
 
@@ -244,7 +247,7 @@ templ modeLink(name, href string, on bool) {
 
 // releaseComparisonPage is what changed in a library between two releases, and the changed rules' text.
 templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) {
-	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
+	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, compare: true}, lib, releasesTab, nil) {
 		@compareBar(v.backHref, "All library releases", len(v.diffs) > 0, diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(lib.href, "releases", v.fromOptions, v.toOptions, diffMode(v.mode), "Older library release", "Newer library release")
 		}
@@ -281,7 +284,7 @@ templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) 
 
 // ruleComparisonPage is what changed between two versions of a rule, and its text.
 templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
-	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true}, r, versionsTab) {
+	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, compare: true}, r, versionsTab) {
 		@compareBar(v.backHref, "All versions", !v.same, diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(r.href, "versions", v.fromOptions, v.toOptions, diffMode(v.mode), "Older version", "Newer version")
 		}
@@ -312,8 +315,7 @@ templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
 					}
 				</div>
 			}
-			<h2 class="mt-[22px] text-[12px] font-medium tracking-[.12em] text-muted uppercase">Changed text</h2>
-			<p class="mt-1 text-[13px] text-faint">{ v.span }</p>
+			<p class="mt-[18px] text-[13px] text-faint">{ v.span }</p>
 			@diffFile(v.diff)
 		}
 	}
@@ -322,7 +324,7 @@ templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
 // releasesNotFoundPage is a library's Library releases tab that says it can't show the releases a link asked for, with
 // the means to choose two releases to compare.
 templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message string) {
-	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
+	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, compare: true}, lib, releasesTab, nil) {
 		@compareBar(releasesHref(lib), "All library releases", false, diffWords, "", "") {
 			if len(v.from) > 1 {
 				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")
@@ -335,7 +337,7 @@ templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message st
 // ruleComparisonNotFoundPage is a rule's Versions tab that says it can't compare the versions a link asked for, with
 // the means to choose two of its versions.
 templ ruleComparisonNotFoundPage(c chrome, r ruleView, from, to []releaseOption, message string) {
-	@ruleFrame(c, head{title: "Not found · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true}, r, versionsTab) {
+	@ruleFrame(c, head{title: "Not found · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, compare: true}, r, versionsTab) {
 		@compareBar(r.href+"?tab=versions", "All versions", false, diffWords, "", "") {
 			if len(from) > 1 {
 				@compareForm(r.href, "versions", from, to, diffWords, "Older version", "Newer version")

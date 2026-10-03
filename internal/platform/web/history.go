@@ -581,7 +581,8 @@ type ruleComparisonView struct {
 	major                  bool
 	// notes are the versions after from, up to to, newest first.
 	notes []versionView
-	// span says which releases the versions are from, such as "Between release/1 and release/4."
+	// span says how many files changed between the releases the versions are from, as the prototype's count does,
+	// such as "1 file changed between release/1 and release/4, limited to this rule's file."
 	span string
 	diff diffView
 	// backHref leads to the Versions tab, and wordsHref and linesHref show this comparison each way.
@@ -613,8 +614,13 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 			toRelease = version.Release
 		}
 	}
-	v.span = "Between " + domain.ReleaseTag(fromRelease) + " and " + domain.ReleaseTag(toRelease) + "."
 	v.diff = newDiffView(lib, r.id, r.id, from, to, comparison.Text, mode, newDiffBudget())
+	changed := 1
+	if v.diff.unchanged {
+		changed = 0
+	}
+	v.span = plural(changed, "file", "files") + " changed between " + domain.ReleaseTag(fromRelease) + " and " +
+		domain.ReleaseTag(toRelease) + ", limited to this rule's file."
 	return v
 }
 

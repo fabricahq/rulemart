@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
@@ -151,7 +153,7 @@ func TestReleasesTabChoosesReleasesToCompare(t *testing.T) {
 	page := get(t, newSite(t, historyCatalog()), library+"?tab=releases").Body.String()
 
 	for _, want := range []string{
-		`<form class="flex flex-wrap items-center gap-2 text-[14px]" action="/example/rules" method="get"><input type="hidden" name="tab" value="releases">`,
+		`<form class="flex flex-wrap items-center gap-2 text-[14px]" action="/example/rules" method="get" data-compare-form><input type="hidden" name="tab" value="releases">`,
 		`<select id="compare-from"`, `<option value="2" selected>release/2</option>`,
 		`<select id="compare-to"`, `<option value="3" selected>release/3</option>`,
 	} {
@@ -347,6 +349,30 @@ func TestReleaseComparisonOfOneReleaseAsksForTwo(t *testing.T) {
 
 // A rule's Versions tab compares each version with the one before, and the first with the latest, and leads to the
 // release that published each.
+// Choosing a version or a release to compare shows the comparison at once, as the prototype's does, through
+// compare.js; only without a script does the form show its Compare button. Every page with the form loads the script.
+func TestCompareFormsSubmitOnChangeAndShowTheirButtonOnlyWithoutAScript(t *testing.T) {
+	handler := newSite(t, historyCatalog())
+
+	for _, path := range []string{
+		errorsRule + "?tab=versions&from=1.0.0&to=2.0.0", library + "?tab=releases", library + "?tab=releases&from=1&to=3",
+	} {
+		doc := parsePage(t, get(t, handler, path).Body.String())
+		form := find(doc, func(n *html.Node) bool { return n.Data == "form" && hasAttribute(n, "data-compare-form") })
+		if form == nil {
+			t.Errorf("%s: no compare form compare.js submits", path)
+			continue
+		}
+		if !loadsScript(doc, "compare.js") {
+			t.Errorf("%s: doesn't load compare.js", path)
+		}
+		noscript := find(form, func(n *html.Node) bool { return n.Data == "noscript" })
+		if noscript == nil || !strings.Contains(nodeText(noscript), "Compare") {
+			t.Errorf("%s: the Compare button shows with a script too", path)
+		}
+	}
+}
+
 func TestRuleVersionsTabLeadsToComparisonsAndReleases(t *testing.T) {
 	page := get(t, newSite(t, historyCatalog()), errorsRule+"?tab=versions").Body.String()
 
@@ -366,7 +392,7 @@ func TestRuleComparisonShowsWhatChangedAndTheText(t *testing.T) {
 	assertShows(t, page,
 		"Rule Versions , 2 ← All versions Compare",
 		"What changed 1 version Includes a major change. Work that complied with 1.0.0 could fail 2.0.0, so review the changes before updating. "+
-			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. Changed text Between release/1 and release/3. "+
+			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. 1 file changed between release/1 and release/3, limited to this rule's file. "+
 			"techs/go/return-errors.md 1.0.0 → 2.0.0 +4 −2 View at 2.0.0",
 	)
 	for _, want := range []string{`<h2 class="text-[12px] font-medium tracking-[.12em] text-muted uppercase">What changed</h2>`, `<h3 class="mono font-semibold">2.0.0</h3>`, `id="diff-techs_go_return-errors-title"`} {
