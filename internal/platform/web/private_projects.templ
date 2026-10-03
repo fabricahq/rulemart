@@ -66,16 +66,22 @@ templ privatePage(c chrome, v privateView) {
 				<p class="mt-5 text-[13px] text-muted">
 					Choose which repos Rulemart reads, or uninstall the app, in its settings on GitHub:
 					for i, in := range v.settings {
-						if i > 0 {
-							{ ", " }
-						}
-						<a href={ templ.SafeURL(in.href) }>{ in.account }</a>
+						<a href={ templ.SafeURL(in.href) }>{ in.account }</a>{ listSeparator(i, len(v.settings)) }
 					}
-					. Removing access here only stops Rulemart reading them.
+					Removing access here only stops Rulemart reading them.
 				</p>
 			}
 		</div>
 	}
+}
+
+// listSeparator is what follows item i of a list of n in a sentence that ends with the list: a comma, or after the
+// last, a period.
+func listSeparator(i, n int) string {
+	if i == n-1 {
+		return "."
+	}
+	return ","
 }
 
 // A data table's header and body cells, as the prototype's table.data.

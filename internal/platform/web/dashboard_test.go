@@ -320,7 +320,11 @@ func TestThePrivateProjectsPageOffersTheAppOrItsRemoval(t *testing.T) {
 
 	site.gitHub.installations[1] = []accounts.Installation{{ID: 9, Account: "octocat"}}
 	page = site.get(t, "/me/private")
-	assertShows(t, page, "Done Remove access to private repos", "octocat")
+	assertShows(t, page, "Done Remove access to private repos", "in its settings on GitHub: octocat")
+	// The sentence's period follows the last installation's link, with no space before it.
+	if !strings.Contains(page, ">octocat</a>.") {
+		t.Error("the installations' list doesn't end with a period right after the last link")
+	}
 	if got := links(t, page, "octocat"); !slices.Contains(got, "https://github.com/settings/installations/9") {
 		t.Errorf("the installation's settings are at %q", got)
 	}
