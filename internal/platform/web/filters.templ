@@ -74,23 +74,23 @@ templ filterForm(v ruleListView) {
 		}
 		@filterGroup("Stars", "") {
 			<label class={ filterLabel }>
-				<input class={ filterInput } type="radio" name={ domain.StarsParam } value="" checked?={ v.minStars() == "" }/> Any
+				<input class={ filterRadio } type="radio" name={ domain.StarsParam } value="" checked?={ v.minStars() == "" }/> Any
 			</label>
 			for _, n := range domain.StarThresholds {
 				<label class={ filterLabel }>
-					<input class={ filterInput } type="radio" name={ domain.StarsParam } value={ strconv.Itoa(n) } checked?={ v.minStars() == strconv.Itoa(n) }/> { strconv.Itoa(n) }+
+					<input class={ filterRadio } type="radio" name={ domain.StarsParam } value={ strconv.Itoa(n) } checked?={ v.minStars() == strconv.Itoa(n) }/> { strconv.Itoa(n) }+
 				</label>
 			}
 		}
 		if v.offersRetired() {
 			@filterGroup("Retired", "") {
-				@optInCheckbox(domain.RetiredParam, "Show retired rules", v.choices.Retired, filterInput)
+				@optInCheckbox(domain.RetiredParam, "Show retired rules", v.choices.Retired)
 			}
 		}
 		// Its one long label takes the whole width where the sidebar has two columns.
 		@filterGroup("Unvetted", "max-wide:col-span-full") {
-			@optInCheckbox(domain.UnvettedParam, "Include unvetted libraries", v.choices.Unvetted, filterInput)
-			<p class="mt-0.5 pl-[21px] text-[12px] leading-[1.45] text-faint">
+			@optInCheckbox(domain.UnvettedParam, "Include unvetted libraries", v.choices.Unvetted)
+			<p class="mt-0.5 pl-[28px] text-[12px] leading-[1.45] text-faint">
 				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(aboutHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
 			</p>
 		}
@@ -108,19 +108,22 @@ templ filterForm(v ruleListView) {
 // filterLabel is a filter field's label, holding its box and its text.
 const filterLabel = "my-[5px] flex cursor-pointer items-center gap-2"
 
-// filterInput is a filter's checkbox or radio button, drawn in ink as the prototype's are.
-const filterInput = "size-[13px] flex-none accent-ink"
-
-// optInInput is an optInForm's checkbox, standing alone above a list, the size of a library's group rows' checkboxes.
-const optInInput = "size-4 flex-none accent-ink"
+// filterInput is a filter's checkbox, and filterRadio its radio button, drawn in ink as the prototype's are, with the
+// margins browsers give each, which the prototype keeps and the stylesheet's reset takes away.
+const (
+	filterInput = "m-[3px_3px_3px_4px] size-[13px] flex-none accent-ink"
+	filterRadio = "m-[3px_3px_0_5px] size-[13px] flex-none accent-ink"
+)
 
 // chipStyle is the prototype's chip that does something: a quiet, rounded control.
 const chipStyle = "inline-flex items-center gap-1.5 rounded-full border border-border bg-transparent px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted no-underline hover:border-border-strong hover:text-ink"
 
-// filterGroup is one kind of filter in the sidebar, under its name; class places it.
+// filterGroup is one kind of filter in the sidebar, under its name; class places it. A fieldset's margins don't
+// collapse into its labels' 5 pixels, as the prototype's do, so its own are 5 pixels less, keeping 6 pixels under the
+// name and 20 under the last label.
 templ filterGroup(name, class string) {
-	<fieldset class={ "mb-5 min-w-0", class }>
-		<legend class="mb-1.5 text-[11px] font-medium tracking-[.1em] text-faint uppercase">{ name }</legend>
+	<fieldset class={ "mb-[15px] min-w-0", class }>
+		<legend class="mb-px text-[11px] font-medium tracking-[.1em] text-faint uppercase">{ name }</legend>
 		{ children... }
 	</fieldset>
 }
@@ -181,16 +184,16 @@ templ unvettedOptIn(path string, unvetted bool) {
 templ optInForm(path, name, text string, checked bool) {
 	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
 		{ children... }
-		@optInCheckbox(name, text, checked, optInInput)
+		@optInCheckbox(name, text, checked)
 		<noscript>
 			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>
 		</noscript>
 	</form>
 }
 
-// optInCheckbox is a checkbox labeled text that sets the query parameter name to 1, drawn as inputClass says.
-templ optInCheckbox(name, text string, checked bool, inputClass string) {
+// optInCheckbox is a checkbox labeled text that sets the query parameter name to 1.
+templ optInCheckbox(name, text string, checked bool) {
 	<label class={ filterLabel }>
-		<input class={ inputClass } type="checkbox" name={ name } value="1" checked?={ checked }/> { text }
+		<input class={ filterInput } type="checkbox" name={ name } value="1" checked?={ checked }/> { text }
 	</label>
 }

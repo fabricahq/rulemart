@@ -212,7 +212,7 @@
     const rest = lib.restOfGroups;
     if (rest) {
       parts.push(h('label', 'mt-2.5 flex cursor-pointer items-center gap-2 text-[13px] text-muted', {},
-        h('input', 'size-4 accent-(--ink)', { type: 'checkbox', checked: rest.added, 'data-cart-rest-of-groups': lib.fullName, 'data-focus': `rest:${lib.fullName}` }),
+        h('input', 'm-[3px_3px_3px_4px] size-[13px] accent-(--ink)', { type: 'checkbox', checked: rest.added, 'data-cart-rest-of-groups': lib.fullName, 'data-focus': `rest:${lib.fullName}` }),
         `Also add the other ${listed(rest.groups)} rules${rest.added ? '' : ` (${rest.rules} more)`}`));
     }
     return h('div', 'mb-[26px] last:mb-3.5', {}, ...parts);
