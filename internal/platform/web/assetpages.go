@@ -108,7 +108,7 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 
 // assetImage serves the image at assetPath, of the rule at rulePath or shared, in the library owner/repo that Rulemart
 // keeps, as the type ingestion recorded, for a day, under a policy that runs and loads nothing, or the missing page. An
-// address that spells the rule otherwise redirects to the library's spelling.
+// address that spells the library, or the rule, otherwise redirects to the library's spelling, as the asset's page does.
 func (s *server) assetImage(w http.ResponseWriter, r *http.Request, owner, repo, rulePath, assetPath string) {
 	image, err := s.catalog.AssetImage(r.Context(), owner, repo, rulePath, assetPath)
 	if errors.Is(err, app.ErrNotFound) {
@@ -119,9 +119,9 @@ func (s *server) assetImage(w http.ResponseWriter, r *http.Request, owner, repo,
 		s.fail(w, r, err)
 		return
 	}
-	if image.Path != assetPath {
+	if image.Owner != owner || image.Name != repo || image.Path != assetPath {
 		// The query names the raw parameter, so the redirect keeps serving the image.
-		redirect(w, r, withQuery(domain.AssetPagePath(owner+"/"+repo, image.Rule, image.Path), r))
+		redirect(w, r, withQuery(domain.AssetPagePath(image.Owner+"/"+image.Name, image.Rule, image.Path), r))
 		return
 	}
 	w.Header().Set("Content-Security-Policy", assetPolicy)

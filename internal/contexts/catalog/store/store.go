@@ -164,8 +164,8 @@ type Reader interface {
 	AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error)
 	// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name, matched as
 	// LibraryPage matches it: one of the own assets of the rule at rulePath, matched as RulePage matches it, whose asset
-	// directory assetPath may spell as rulePath spells the rule, or a shared one when rulePath is empty. Its Rule and Path
-	// are the library's spelling. It fails with ErrNotFound when there's no such library or rule, or it keeps no bytes of such
+	// directory assetPath may spell as rulePath spells the rule, or a shared one when rulePath is empty. Its Owner, Name,
+	// Rule, and Path are the library's spelling. It fails with ErrNotFound when there's no such library or rule, or it keeps no bytes of such
 	// an asset.
 	AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetContent, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only

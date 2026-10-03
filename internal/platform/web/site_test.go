@@ -57,7 +57,8 @@ type catalog struct {
 	searched *[]string
 	chosen   *[]domain.ListChoices
 	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
-	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>.
+	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>, and spell
+	// their library's owner and name as the library does.
 	assets map[string]views.AssetPage
 	images map[string]views.AssetContent
 	// sitemap is what the sitemap lists.

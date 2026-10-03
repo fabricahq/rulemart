@@ -441,6 +441,10 @@ func TestRulePageReadsTagsAndAssets(t *testing.T) {
 	if err != nil || image.Rule != "techs/go/return-errors" || image.Path != "techs/go/assets/return-errors/z.svg" {
 		t.Errorf("the image, its rule in another case, is %+v, %v; want the library's spelling", image, err)
 	}
+	image, err = reader.AssetContent(ctx, vetted, "Example", "Rules", "techs/go/return-errors", "techs/go/assets/return-errors/z.svg")
+	if err != nil || image.Owner != "example" || image.Name != "rules" {
+		t.Errorf("the image, its library in another case, is from %s/%s, %v; want the library's spelling", image.Owner, image.Name, err)
+	}
 	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", otherCase, "Techs/Go/assets/Return-Errors/Z.svg"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a file's name in another case: got %v, want ErrNotFound", err)
 	}

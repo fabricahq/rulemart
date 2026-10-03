@@ -414,11 +414,11 @@ func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner
 func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
 	var content views.AssetContent
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
-		_, id, err := library(ctx, q, vetted, owner, name)
+		lib, id, err := library(ctx, q, vetted, owner, name)
 		if err != nil {
 			return err
 		}
-		content.Path = assetPath
+		content.Owner, content.Name, content.Path = lib.Owner, lib.Name, assetPath
 		if rulePath != "" {
 			if content.Rule, err = q.GetRulePath(ctx, catalogdb.GetRulePathParams{LibraryID: id, Path: rulePath}); err != nil {
 				return err

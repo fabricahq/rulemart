@@ -354,3 +354,19 @@ func TestAssetAddressesRedirectOtherCasesOfTheirRule(t *testing.T) {
 		}
 	}
 }
+
+// An asset's address that spells the library's owner or repository in another case redirects to the library's
+// spelling in one step, keeping the query, for the page and the raw image alike, and with the rule spelled in another
+// case too.
+func TestAssetAddressesRedirectOtherCasesOfTheirLibrary(t *testing.T) {
+	handler := newAssetSite(t)
+
+	for _, otherCase := range []string{"/Example/rules", "/example/Rules"} {
+		t.Run(otherCase, func(t *testing.T) {
+			for _, page := range []string{loopPage, loopPage + "?raw=1", glossaryPage + behaviorQuery} {
+				assertRedirectsToPage(t, handler, strings.Replace(page, library, otherCase, 1), page)
+			}
+			assertRedirectsToPage(t, handler, otherCase+"/Practices/Testing/Test-Changed-Behavior/assets/loop.svg?raw=1", loopPage+"?raw=1")
+		})
+	}
+}

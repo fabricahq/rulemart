@@ -243,6 +243,8 @@ type AssetPage struct {
 
 // AssetContent is the media type and bytes of an asset the catalog keeps, of which Rulemart serves only images.
 type AssetContent struct {
+	// Owner and Name are the library's spelling of its repository, as the code host spells it now.
+	Owner, Name string
 	// Rule is the library's spelling of the rule whose own asset it is, or empty for a shared asset, and Path the
 	// asset's path in the repository, which spells the rule's asset directory as Rule does.
 	Rule, Path string
