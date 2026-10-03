@@ -349,6 +349,10 @@ type ruleView struct {
 	renamedFrom *replacedRule
 	// star is the rule's star control, which the rule's page fills in.
 	star starView
+	// groupIcon is the icon of the rule's group, which the page fills in, and groupRules counts the group's current
+	// rules, this one included, which the cart's dialog offers whole.
+	groupIcon  groupIcon
+	groupRules int
 }
 
 // retiredView is how a library release retired a rule.
@@ -413,6 +417,13 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	if n := len(page.Versions); n > 1 {
 		v.compareHref = ruleComparisonHref(lib, r.Path, page.Versions[n-1].Version, page.Versions[0].Version, diffWords)
 	}
+	for _, l := range page.Links {
+		if l.RetiredIn == 0 && strings.HasPrefix(l.Path, r.Group+"/") {
+			v.groupRules++
+		}
+	}
+	// The group holds the rule itself while it's current, whatever the links say.
+	v.groupRules = max(v.groupRules, 1)
 	if !lib.vetted {
 		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
 		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
@@ -442,6 +453,12 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 // libraryHref is the path of a library's page.
 func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
+}
+
+// libraryGroupHref is the path of the page of the group id of lib.
+func libraryGroupHref(lib libraryView, id string) string {
+	kind, name, _ := strings.Cut(id, "/")
+	return lib.href + "/" + url.PathEscape(kind) + "/" + url.PathEscape(name)
 }
 
 // groupAnchor is the fragment of a group's section on the All rules tab.

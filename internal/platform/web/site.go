@@ -171,7 +171,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
-			toastScript: assets.url("toast.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -537,6 +537,11 @@ func parseReleaseNumber(text string) (int, error) {
 // from and to parameters, the Versions tab compares them. Returning from signing in to star the rule, it prompts once
 // to star it.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
+	if strings.Count(r.PathValue("rule"), "/") == 1 {
+		// A rule's ID has at least three parts, so two name a group.
+		s.libraryGroup(w, r)
+		return
+	}
 	if s.withoutStarPrompt(w, r) {
 		return
 	}
@@ -559,6 +564,30 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
+}
+
+// libraryGroup shows one group of a library, whose ID the rule wildcard holds, with the box that adds it to the cart,
+// or the missing page when the library has no current rules in such a group. A group spelled in another case
+// redirects to the library's spelling, as a rule does.
+func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
+	id := r.PathValue("rule")
+	if err == nil {
+		i := slices.IndexFunc(page.Groups, func(g views.Group) bool { return strings.EqualFold(g.Path, id) })
+		if i < 0 {
+			s.notFound(w, r)
+			return
+		}
+		id = page.Groups[i].Path
+	}
+	if !s.found(w, r, page.Library, id, err) {
+		return
+	}
+	view := newLibraryView(page.Library)
+	contents := newLibraryContents(view, page, s.assets.iconURL)
+	i := slices.IndexFunc(contents.all(), func(g groupView) bool { return g.label.id == id })
+	group := contents.all()[i]
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view, id)), view, group))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
@@ -590,6 +619,7 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 // ruleView describes the rule on page for the page r asks for, with its star control for the visitor.
 func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error) {
 	view := newRuleView(newLibraryView(page.Library), page)
+	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
 	var err error
 	if view.star, err = s.starControl(r, view, page.Rule.Stars); err != nil {
 		return ruleView{}, err

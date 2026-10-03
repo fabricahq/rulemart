@@ -102,6 +102,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 						{ children... }
 					</div>
 					<aside class="grid content-start gap-[18px]">
+						if current == groupsTab {
+							@groupsCartPanel(lib)
+						}
 						@libraryFacts(lib)
 					</aside>
 				</div>
@@ -112,8 +115,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 	}
 }
 
-// groupList lists one kind of group, each leading to its rules on the All rules tab, and a canonical group also to
-// its page across libraries. The row's main link covers the row, and the second link sits above it.
+// groupList lists one kind of group, each leading to its rules on the All rules tab, to its page in the library, and a
+// canonical group also to its page across libraries, with a checkbox that picks it for the cart. The row's main link
+// covers the row, and the other links and the checkbox sit above it.
 templ groupList(kind string, lib libraryView, groups []groupView) {
 	if len(groups) > 0 {
 		@labelHeading("mt-[22px] mb-2 first:mt-0") {
@@ -124,6 +128,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 				@rowItem() {
 					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
 						<div class="flex min-w-0 items-center gap-3">
+							@groupPick(lib, g)
 							@groupTile(g.label, g.icon, tileMD)
 							<div class="min-w-0">
 								<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
@@ -144,13 +149,16 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 								}
 							</div>
 						</div>
-						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden">
+						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden max-narrow:[@media(scripting:enabled)]:pl-[68px]">
 							if g.blurb != "" {
 								<p>{ g.blurb }</p>
 							}
 							<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
 						</div>
-						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
+						<span class="flex items-center gap-2 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
+							@groupHeldBadge(lib, g)
+							<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib, g.label.id)) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+						</span>
 					</div>
 				}
 			}
@@ -276,6 +284,9 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 						</div>
 					}
 				</div>
+				if r.retired == nil {
+					@ruleCartControl(r)
+				}
 			</div>
 			if r.retired == nil {
 				@tabs([]tab{

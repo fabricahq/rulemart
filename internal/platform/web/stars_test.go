@@ -218,7 +218,7 @@ func pageNotice(t *testing.T, page string) (text string, links []string) {
 		t.Fatal(err)
 	}
 	for n := range doc.Descendants() {
-		if n.Type != html.ElementNode || attribute(n, "role") != "status" {
+		if n.Type != html.ElementNode || attribute(n, "role") != "status" || inTemplate(n) {
 			continue
 		}
 		text = accessibleName(n)
@@ -232,7 +232,8 @@ func pageNotice(t *testing.T, page string) (text string, links []string) {
 }
 
 // noticeToast returns how the page's notice shows where scripts run, as its data-toast says: status or info for a
-// toast, or empty for a banner. It fails t unless the page loads toast.js exactly when its notice is a toast.
+// toast, or empty for a banner. It fails t unless the page loads toast.js, which every page does, for the toasts
+// scripts show too.
 func noticeToast(t *testing.T, page string) string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
@@ -241,12 +242,12 @@ func noticeToast(t *testing.T, page string) string {
 	}
 	kind := ""
 	for n := range doc.Descendants() {
-		if n.Type == html.ElementNode && attribute(n, "role") == "status" && attribute(n, "data-toast") != "" {
+		if n.Type == html.ElementNode && attribute(n, "role") == "status" && attribute(n, "data-toast") != "" && !inTemplate(n) {
 			kind = attribute(n, "data-toast")
 		}
 	}
-	if loads := strings.Contains(page, "/toast.js"); loads != (kind != "") {
-		t.Errorf("the page loads toast.js: %v, and its notice is a %q toast", loads, kind)
+	if !strings.Contains(page, "/toast.js") {
+		t.Error("the page doesn't load toast.js")
 	}
 	return kind
 }
@@ -739,4 +740,15 @@ func TestWithoutStarringPagesOnlyCountStars(t *testing.T) {
 	if resp := site.signedInGet(t, "/account/stars"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Starred rules answered %d without stars, want 404", resp.StatusCode)
 	}
+}
+
+// inTemplate reports whether n is inside a <template>, which the page doesn't show until a script uses it, such as
+// the toast a script shows.
+func inTemplate(n *html.Node) bool {
+	for p := n.Parent; p != nil; p = p.Parent {
+		if p.Type == html.ElementNode && p.Data == "template" {
+			return true
+		}
+	}
+	return false
 }

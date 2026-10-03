@@ -1,0 +1,247 @@
+/** @fileoverview The cart, which lives in the visitor's browser, as the prototype's does, so it needs no account and
+ * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
+ * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
+ * forks; full, the libraries whose picked rules' groups they add whole; project and repo, where checkout's texts go;
+ * and confirmed, the unvetted libraries they confirmed adding from. It paints the header's count and each page's cart
+ * controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. Without
+ * JavaScript, or storage, there's no cart: the stylesheet hides every control marked data-needs-script. */
+(() => {
+  const STORE = 'rulemart-cart';
+  const MAX_ITEMS = 100;
+  const MAX_KEY = 400;
+  // A key as the server's ParseCartKey reads it: a library's owner and name, then a group's ID, two parts, or a
+  // rule's, three or more, each part as Code Rules spells IDs.
+  const NAME = '[A-Za-z0-9_.-]+';
+  const PART = '[A-Za-z0-9][A-Za-z0-9._-]*';
+  const RULE_KEY = new RegExp(`^${NAME}/${NAME}::${PART}(?:/${PART}){2,}$`);
+  const GROUP_KEY = new RegExp(`^group::${NAME}/${NAME}::${PART}/${PART}$`);
+
+  /** Report whether key is one the cart can hold. */
+  const validKey = (key) => typeof key === 'string' && key.length <= MAX_KEY && (RULE_KEY.test(key) || GROUP_KEY.test(key));
+
+  /** Return the library of a cart key, as owner/repo. */
+  const libraryOf = (key) => key.replace(/^group::/, '').split('::')[0];
+
+  /** Return the plural of word for n, with n: 1 rule, 2 rules. */
+  const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+  const fresh = () => ({ cart: [], fork: {}, full: {}, project: null, repo: '', confirmed: {} });
+
+  /** Return the names of value, an object of flags, that are on, at most MAX_ITEMS of them, as an object of flags. */
+  function flags(value) {
+    const out = {};
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [name, on] of Object.entries(value).slice(0, MAX_ITEMS)) {
+        if (on === true && name.length <= MAX_KEY) out[name] = true;
+      }
+    }
+    return out;
+  }
+
+  /** Read the cart from localStorage, keeping only what a cart can hold: well-formed keys, each once, at most
+   * MAX_ITEMS, and choices of the right types. Storage that's empty, refused, or holds anything else is an empty cart. */
+  function load() {
+    const state = fresh();
+    let stored;
+    try {
+      stored = JSON.parse(localStorage.getItem(STORE) || '{}');
+    } catch {
+      return state;
+    }
+    if (!stored || typeof stored !== 'object') return state;
+    if (Array.isArray(stored.cart)) state.cart = [...new Set(stored.cart.filter(validKey))].slice(0, MAX_ITEMS);
+    state.fork = Object.fromEntries(Object.keys(flags(stored.fork)).filter((key) => state.cart.includes(key)).map((key) => [key, true]));
+    state.full = flags(stored.full);
+    state.confirmed = flags(stored.confirmed);
+    if (typeof stored.project === 'string') state.project = stored.project.slice(0, MAX_KEY);
+    if (typeof stored.repo === 'string') state.repo = stored.repo.slice(0, 500);
+    return state;
+  }
+
+  let state = load();
+
+  /** Keep the cart, and paint every page part that shows it. A browser that refuses storage keeps it for this page. */
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify(state));
+    } catch {
+      // Storage is full or refused: the cart lasts as long as this page.
+    }
+    paint();
+  }
+
+  const inCart = (key) => !!key && state.cart.includes(key);
+  const toast = (text) => window.rulemartToast?.(text);
+
+  /** Add keys the cart doesn't hold, in order, while it has room, and return how many it added, saying so when the
+   * cart is full. Keys it holds already count as added, since the visitor sees them in it. */
+  function add(keys) {
+    const adding = keys.filter((key) => validKey(key) && !inCart(key));
+    const room = Math.max(MAX_ITEMS - state.cart.length, 0);
+    state.cart.push(...adding.slice(0, room));
+    save();
+    if (adding.length > room) {
+      toast(`Your cart holds ${MAX_ITEMS} items, as many as it can. Remove some, or add a whole group.`);
+    }
+    return keys.length - adding.length + Math.min(adding.length, room);
+  }
+
+  /** Remove key from the cart, with its fork. */
+  function remove(key) {
+    state.cart = state.cart.filter((held) => held !== key);
+    delete state.fork[key];
+    save();
+  }
+
+  /** Paint the header's count and every cart control on the page from the cart. */
+  function paint() {
+    paintCount();
+    paintControls();
+    paintGroups();
+    window.dispatchEvent(new CustomEvent('rulemart:cart'));
+  }
+
+  /** Paint the header's cart link: the count of items, a whole group counting once, in a badge, and in its name. */
+  function paintCount() {
+    const n = state.cart.length;
+    for (const link of document.querySelectorAll('[data-cart-link]')) {
+      link.setAttribute('aria-label', n ? `Cart, ${count(n, 'item', 'items')}` : 'Cart');
+      const badge = link.querySelector('[data-cart-count]');
+      badge.textContent = String(n);
+      badge.hidden = n === 0;
+    }
+  }
+
+  /** Paint each control that adds a rule or a group: Add, or once the cart holds its item, or a rule's whole group,
+   * In cart, Checkout, and Remove, which names the group when it's the group the cart holds. */
+  function paintControls() {
+    for (const control of document.querySelectorAll('[data-cart-control]')) {
+      const { cartRule: rule, cartGroup: group, cartGroupName: groupName } = control.dataset;
+      const held = inCart(rule) ? rule : inCart(group) ? group : '';
+      const asGroup = !!rule && held === group;
+      control.querySelector('[data-cart-open], [data-cart-add-group]').hidden = !!held;
+      const box = control.querySelector('[data-cart-held]');
+      box.hidden = !held;
+      box.querySelector('[data-cart-held-text]').textContent = asGroup ? `${groupName} group in cart` : 'In cart';
+      const removeButton = box.querySelector('[data-cart-remove]');
+      removeButton.textContent = asGroup ? `Remove ${groupName} group from cart` : 'Remove from cart';
+      removeButton.dataset.key = held;
+    }
+    for (const badge of document.querySelectorAll('[data-cart-held-badge]')) {
+      badge.hidden = !inCart(badge.dataset.cartHeldBadge);
+    }
+  }
+
+  /** Paint the library page's Add to cart box from the groups ticked: how many, and its button's label. */
+  function paintGroups() {
+    const panel = document.querySelector('[data-cart-groups]');
+    if (!panel) return;
+    const n = document.querySelectorAll('[data-cart-pick-group]:checked').length;
+    panel.querySelector('[data-cart-groups-text]').textContent = n
+      ? `${count(n, 'group', 'groups')} selected. Whole groups stay in sync with ${panel.dataset.cartLibrary}.`
+      : 'Select whole groups to add. You can also add single rules from their pages.';
+    panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
+    panel.querySelector('[data-cart-groups-add]').disabled = n === 0;
+    panel.querySelector('[data-cart-groups-clear]').hidden = n === 0;
+  }
+
+  const dialog = document.querySelector('dialog[data-cart-dialog]');
+  // What a confirmation from an unvetted library goes on to do: show the dialog's choices, or add what the visitor
+  // asked to.
+  let afterConfirming = null;
+
+  /** Show the dialog's step, confirm or choose, and hide the other. */
+  function showStep(step) {
+    for (const part of dialog.querySelectorAll('[data-cart-step]')) part.hidden = part.dataset.cartStep !== step;
+  }
+
+  /** Run then, after the visitor confirms adding from library when the control that asks, of data, says it isn't
+   * vetted; at once otherwise. */
+  function confirmed(data, then) {
+    if (data.cartVetted !== 'false' || !dialog) {
+      then();
+      return;
+    }
+    afterConfirming = () => {
+      dialog.close();
+      then();
+    };
+    showStep('confirm');
+    dialog.showModal();
+  }
+
+  /** Focus the Checkout link of control, once it shows the cart holds its item. */
+  const focusCheckout = (control) => control.querySelector('[data-cart-held] a')?.focus();
+
+  document.addEventListener('click', (event) => {
+    const target = event.target.closest(
+      '[data-cart-open], [data-cart-pick], [data-cart-confirm], [data-cart-close], [data-cart-remove], [data-cart-add-group], [data-cart-groups-add], [data-cart-groups-all], [data-cart-groups-clear]',
+    );
+    if (!target) return;
+    const control = target.closest('[data-cart-control]') || document.querySelector('[data-cart-control]');
+    if (target.matches('[data-cart-open]')) {
+      // A rule page's dialog: for an unvetted library, the warning first, then the choices.
+      afterConfirming = () => showStep('choose');
+      showStep(control.dataset.cartVetted === 'false' ? 'confirm' : 'choose');
+      dialog.showModal();
+    } else if (target.matches('[data-cart-confirm]')) {
+      const data = (document.querySelector('[data-cart-control]') || document.querySelector('[data-cart-groups]')).dataset;
+      state.confirmed[data.cartLibrary] = true;
+      save();
+      afterConfirming?.();
+    } else if (target.matches('[data-cart-close]')) {
+      dialog.close();
+    } else if (target.matches('[data-cart-pick]')) {
+      dialog.close();
+      if (add([target.dataset.cartPick === 'group' ? control.dataset.cartGroup : control.dataset.cartRule])) {
+        toast('Added to cart');
+        focusCheckout(control);
+      }
+    } else if (target.matches('[data-cart-add-group]')) {
+      confirmed(control.dataset, () => {
+        if (add([control.dataset.cartGroup])) {
+          toast('Added to cart');
+          focusCheckout(control);
+        }
+      });
+    } else if (target.matches('[data-cart-remove]')) {
+      remove(target.dataset.key);
+      toast('Removed from cart');
+      control.querySelector('[data-cart-open], [data-cart-add-group]')?.focus();
+    } else if (target.matches('[data-cart-groups-add]')) {
+      const panel = target.closest('[data-cart-groups]');
+      const picked = [...document.querySelectorAll('[data-cart-pick-group]:checked')];
+      confirmed(panel.dataset, () => {
+        const added = add(picked.map((box) => box.dataset.cartPickGroup));
+        picked.forEach((box) => (box.checked = false));
+        paintGroups();
+        if (added) toast(`Added ${count(added, 'group', 'groups')} to cart`);
+      });
+    } else if (target.matches('[data-cart-groups-all], [data-cart-groups-clear]')) {
+      const on = target.matches('[data-cart-groups-all]');
+      document.querySelectorAll('[data-cart-pick-group]').forEach((box) => (box.checked = on));
+      paintGroups();
+    }
+  });
+
+  document.addEventListener('change', (event) => {
+    if (event.target.matches('[data-cart-pick-group]')) paintGroups();
+  });
+
+  // A click on the dialog's backdrop, outside its box, closes it, as the prototype's scrim does.
+  dialog?.addEventListener('click', (event) => {
+    if (event.target !== dialog) return;
+    const box = dialog.getBoundingClientRect();
+    const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+    if (!inside) dialog.close();
+  });
+
+  // Another tab's change to the cart shows here too.
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORE && event.key !== null) return;
+    state = load();
+    paint();
+  });
+
+  paint();
+})();

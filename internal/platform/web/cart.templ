@@ -1,0 +1,292 @@
+// The cart's parts: the header's link to the cart, the controls that add to it from rule and group pages, the dialogs
+// that ask what to add and confirm adding from an unvetted library, and the library group page. cart.js keeps the
+// cart in the visitor's browser and paints these from the data attributes they carry; without JavaScript, the
+// stylesheet hides every part marked data-needs-script, since the cart can't work.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
+
+// cartKey returns the key the browser's cart keeps the group or rule at path of lib by.
+func cartKey(lib libraryView, kind domain.CartItemKind, path string) string {
+	return domain.CartItem{Owner: lib.owner, Name: lib.name, Kind: kind, Path: path}.Key()
+}
+
+// The cart's controls, as the prototype draws them: a filled button, the green In cart pill, and a quiet text button.
+const (
+	cartPrimaryStyle = "inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[18px] py-2 text-[14px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity duration-[160ms] hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-45"
+	inCartStyle      = "inline-flex items-center gap-1 rounded-full bg-ok-surface px-3 py-[5px] text-[13.5px] leading-[1.65] font-semibold whitespace-nowrap text-ok"
+	cartLinkButton   = "cursor-pointer text-[13px] text-muted underline underline-offset-4 hover:text-ink"
+)
+
+// cartLink is the header's link to the cart, for everyone: a cart, with the count of items the visitor's cart holds,
+// which cart.js paints, in a badge. Marked current on the cart's page.
+templ cartLink(current bool) {
+	<a
+		class={ "relative grid size-9 shrink-0 place-items-center rounded-full text-ink no-underline hover:bg-surface max-wide:size-11", templ.KV("bg-surface", current) }
+		href={ templ.SafeURL(cartHref) }
+		aria-label="Cart"
+		title="Cart"
+		data-cart-link
+		if current {
+			aria-current="page"
+		}
+	>
+		@cartIcon("size-5")
+		<span class="absolute top-px right-0 grid h-[17px] min-w-[17px] place-items-center rounded-full bg-primary px-1 text-[10.5px] leading-none font-semibold text-on-primary max-wide:top-[5px] max-wide:right-1" data-cart-count hidden></span>
+	</a>
+}
+
+// ruleCartControl is the rule page head's cart control: Add to cart, which opens addToCartDialog, or once the cart
+// holds the rule, or its whole group, the In cart pill, Checkout, and a way to remove it. cart.js shows the state
+// the cart is in.
+templ ruleCartControl(r ruleView) {
+	<div
+		class="flex flex-col items-end gap-2 max-narrow:items-start"
+		data-needs-script
+		data-cart-control
+		data-cart-library={ r.library.fullName() }
+		data-cart-vetted={ strconv.FormatBool(r.library.vetted) }
+		data-cart-rule={ cartKey(r.library, domain.CartRule, r.id) }
+		data-cart-group={ cartKey(r.library, domain.CartGroup, r.group.id) }
+		data-cart-group-name={ r.group.display() }
+	>
+		<button class={ cartPrimaryStyle } type="button" data-cart-open>
+			@cartIcon("size-[15px] flex-none")
+			Add to cart
+		</button>
+		@heldControls()
+	</div>
+	@addToCartDialog(r)
+}
+
+// heldControls are what a cart control shows once the cart holds its item: the In cart pill, which names a group
+// the cart holds whole when it covers the item, Checkout, and Remove, which cart.js names and shows.
+templ heldControls() {
+	<div class="flex flex-col items-end gap-2 max-narrow:items-start" data-cart-held hidden>
+		<div class="flex flex-wrap items-center gap-2.5">
+			<span class={ inCartStyle }>
+				@checkIcon("size-3.5 flex-none")
+				<span data-cart-held-text>In cart</span>
+			</span>
+			<a class={ cartPrimaryStyle } href={ templ.SafeURL(cartHref) }>Checkout</a>
+		</div>
+		<button class={ cartLinkButton } type="button" data-cart-remove>Remove from cart</button>
+	</div>
+}
+
+// dialogStyle is a dialog of the cart's, the prototype's narrow modal, near the top of the viewport over a scrim.
+const dialogStyle = "mx-auto mt-[70px] mb-[30px] w-[min(460px,calc(100%-32px))] max-w-none rounded-panel border border-border bg-paper p-6 text-ink shadow-[0_30px_80px_-30px_rgb(0_0_0/.5)] backdrop:bg-scrim max-narrow:mt-10 max-narrow:p-5"
+
+// dialogHead is a cart dialog's title, with what it asks below it, and its close button.
+templ dialogHead(title, ask string) {
+	<div class="mb-[14px] flex items-start justify-between gap-3">
+		<div>
+			<h2 class="text-[1.35rem] tracking-[-.035em]">{ title }</h2>
+			if ask != "" {
+				<p class="mt-1 text-[13px] text-muted">{ ask }</p>
+			}
+		</div>
+		<button class="cursor-pointer rounded-sm px-1.5 py-0.5 text-[22px] leading-none text-muted hover:bg-surface hover:text-ink" type="button" aria-label="Close" data-cart-close>×</button>
+	</div>
+}
+
+// choiceStyle is one of a dialog's choices: a card-like button.
+const choiceStyle = "mt-2.5 grid w-full cursor-pointer gap-1 rounded-[14px] border border-border bg-paper px-4 py-3.5 text-left transition-colors duration-[120ms] hover:border-ink hover:bg-surface"
+
+// addToCartDialog asks what to add from a rule's page, as the prototype's modal does: just the rule, which stays in
+// sync with its library, or its whole group, which brings the library's later rules of it too. For a library Rulemart
+// doesn't vet, it first warns, as the library's pages do, and asks the visitor to confirm, which the cart records.
+templ addToCartDialog(r ruleView) {
+	<dialog class={ dialogStyle } aria-label="Add to cart" data-cart-dialog>
+		if !r.library.vetted {
+			<div data-cart-step="confirm">
+				@unvettedConfirmation(r.library.fullName())
+			</div>
+		}
+		<div data-cart-step="choose" hidden?={ !r.library.vetted }>
+			@dialogHead("Add to cart", "What would you like to add?")
+			<button class={ choiceStyle } type="button" data-cart-pick="rule">
+				<b class="flex items-center gap-[7px] text-[15px] font-semibold">Just this rule</b>
+				<span class="mt-0.5 block text-[13px] text-muted">Adds only “{ r.title }.” It stays in sync with { r.library.fullName() }, and nothing else from the group is added.</span>
+			</button>
+			<button class={ choiceStyle } type="button" data-cart-pick="group">
+				<b class="flex items-center gap-[7px] text-[15px] font-semibold">
+					The whole
+					@groupTile(r.group, r.groupIcon, tileXS)
+					{ r.group.display() } group
+				</b>
+				<span class="mt-0.5 block text-[13px] text-muted">
+					Adds this rule and the { strconv.Itoa(r.groupRules-1) } other { r.group.display() } { pluralWord(r.groupRules-1, "rule", "rules") } from { r.library.fullName() }. New rules the library adds to this group arrive when you update.
+				</span>
+			</button>
+			<p class="mt-[14px] text-[12px] text-faint">At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.</p>
+		</div>
+	</dialog>
+}
+
+// unvettedConfirmation warns, inside a dialog, that library isn't vetted, as its pages do, and asks the visitor to
+// confirm adding from it anyway, or to cancel.
+templ unvettedConfirmation(library string) {
+	@dialogHead("Add to cart", "")
+	<div class="flex gap-3 rounded-card border border-warn-border bg-warn-surface px-4 py-3.5" role="note">
+		@warningIcon("mt-[3px] size-[18px] shrink-0 text-warn-ink")
+		<div class="min-w-0">
+			<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">This library has not been vetted. Be sure to review these rules carefully.</p>
+			<p class="mt-1 text-[14px] text-ink">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed { library }. At checkout, the prompt asks your agent to review its rules before following them.</p>
+		</div>
+	</div>
+	<div class="mt-[18px] flex flex-wrap gap-2.5">
+		<button class={ cartPrimaryStyle } type="button" data-cart-confirm>Add from it anyway</button>
+		<button class={ outlineButtonStyle } type="button" data-cart-close>Cancel</button>
+	</div>
+}
+
+// confirmDialog asks a visitor adding groups from a library Rulemart doesn't vet to confirm it first, on its pages
+// that add groups.
+templ confirmDialog(lib libraryView) {
+	if !lib.vetted {
+		<dialog class={ dialogStyle } aria-label="Add to cart" data-cart-dialog>
+			<div data-cart-step="confirm">
+				@unvettedConfirmation(lib.fullName())
+			</div>
+		</dialog>
+	}
+}
+
+// pluralWord returns one or many by n, without the number.
+func pluralWord(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// groupsCartPanel is the library page's Add to cart box beside its groups, as the prototype's: it adds the groups the
+// visitor ticks, each whole, which cart.js counts and adds.
+templ groupsCartPanel(lib libraryView) {
+	<div class="rounded-panel border border-border bg-paper p-[18px]" data-needs-script data-cart-groups data-cart-library={ lib.fullName() } data-cart-vetted={ strconv.FormatBool(lib.vetted) }>
+		@label("mb-1.5") {
+			Add to cart
+		}
+		<p class="mb-[14px] text-[13px] text-muted" data-cart-groups-text>Select whole groups to add. You can also add single rules from their pages.</p>
+		<button class={ cartPrimaryStyle, "w-full" } type="button" data-cart-groups-add disabled>
+			@cartIcon("size-[15px] flex-none")
+			<span data-cart-groups-label>Add groups to cart</span>
+		</button>
+		<div class="mt-2.5 flex flex-wrap gap-2.5">
+			<button class="inline-flex cursor-pointer items-center rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted hover:border-border-strong hover:text-ink" type="button" data-cart-groups-all>Select all groups</button>
+			<button class="inline-flex cursor-pointer items-center rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted hover:border-border-strong hover:text-ink" type="button" data-cart-groups-clear hidden>Clear</button>
+		</div>
+	</div>
+	@confirmDialog(lib)
+}
+
+// groupPick is a group row's checkbox, which ticks the group for groupsCartPanel to add, and the In cart badge cart.js
+// shows once the cart holds the group.
+templ groupPick(lib libraryView, g groupView) {
+	<input class="relative z-10 size-4 cursor-pointer accent-(--ink)" type="checkbox" data-needs-script data-cart-pick-group={ cartKey(lib, domain.CartGroup, g.label.id) } aria-label={ "Select " + g.label.display() }/>
+}
+
+// groupHeldBadge is a group row's In cart badge, which cart.js shows once the cart holds the group.
+templ groupHeldBadge(lib libraryView, g groupView) {
+	<span class="inline-flex items-center gap-1 rounded-full bg-ok-surface px-2 text-[11.5px] leading-[18px] font-semibold whitespace-nowrap text-ok" data-cart-held-badge={ cartKey(lib, domain.CartGroup, g.label.id) } hidden>
+		@checkIcon("size-3 flex-none")
+		In cart
+	</span>
+}
+
+// libraryGroupPage shows one group of a library, as the prototype's library group page: its rules, and the Whole
+// group box that adds the group to the cart. Slice R6 finishes its layout.
+templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
+	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)) {
+		<div class="page wrap">
+			if !lib.vetted {
+				@unvettedWarning(false)
+			}
+			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+				@avatar(lib.avatar, lib.owner, avatarSM)
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.fullName() }</a>
+				<span>›</span>
+				<span class="mono">{ g.label.id }</span>
+			</div>
+			<h1 class="title-xl flex items-center gap-[14px]">
+				@groupTile(g.label, g.icon, tileTitle)
+				{ g.label.display() }
+			</h1>
+			<p class="mt-2 mb-6 text-muted">
+				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
+				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
+				if g.blurb != "" && kindOf(g.label.id) == practicesKind {
+					· { g.blurb }
+				}
+			</p>
+			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
+				<div class="min-w-0">
+					@ruleRows() {
+						for _, r := range g.rules {
+							@ruleRow(r)
+						}
+					}
+					<a class="mt-[14px] inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href) }>← Back to all groups in { lib.fullName() }</a>
+				</div>
+				<aside class="grid content-start">
+					<div class="rounded-panel border border-border bg-paper p-[18px] wide:sticky wide:top-[84px]">
+						@label("mb-1.5") {
+							Whole group
+						}
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from { lib.fullName() }. New rules the library adds to this group arrive when you update.</p>
+						<div
+							class="flex flex-col gap-2"
+							data-needs-script
+							data-cart-control
+							data-cart-library={ lib.fullName() }
+							data-cart-vetted={ strconv.FormatBool(lib.vetted) }
+							data-cart-group={ cartKey(lib, domain.CartGroup, g.label.id) }
+							data-cart-group-name={ g.label.display() }
+						>
+							<button class={ cartPrimaryStyle, "w-full" } type="button" data-cart-add-group>
+								@cartIcon("size-[15px] flex-none")
+								Add { g.label.display() } group to cart
+							</button>
+							<div class="flex flex-col items-start gap-2.5" data-cart-held hidden>
+								<div class="flex w-full items-center justify-between gap-2.5">
+									<span class={ inCartStyle }>
+										@checkIcon("size-3.5 flex-none")
+										<span data-cart-held-text>In cart</span>
+									</span>
+									<a class={ cartPrimaryStyle } href={ templ.SafeURL(cartHref) }>Checkout</a>
+								</div>
+								<button class={ cartLinkButton } type="button" data-cart-remove>Remove from cart</button>
+							</div>
+						</div>
+						if g.label.canonical {
+							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
+						}
+					</div>
+				</aside>
+			</div>
+		</div>
+		@confirmDialog(lib)
+	}
+}
+
+// cartIcon is a shopping cart, in the current text color.
+templ cartIcon(class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1"></path>
+		<circle cx="9.5" cy="19.5" r="1.2"></circle>
+		<circle cx="17" cy="19.5" r="1.2"></circle>
+	</svg>
+}
+
+// checkIcon is a check mark, in the current text color.
+templ checkIcon(class string) {
+	<svg class={ class } viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		<path d="m3 8.5 3 3 7-7"></path>
+	</svg>
+}

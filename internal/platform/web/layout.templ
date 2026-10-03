@@ -18,10 +18,10 @@ type chrome struct {
 	touchIcon string
 	// logo and darkLogo are Rulemart's horizontal logo, drawn in ink for the light theme and in white for the dark.
 	logo, darkLogo string
-	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it. toastScript times
-	// a notice shown as a toast, on a page that shows one. filtersScript submits a list's filters as soon as one
-	// changes, on a page that lists rules or libraries.
-	caretScript, toastScript, filtersScript string
+	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it. toastScript shows
+	// toasts, the page's notice and a script's, and cartScript keeps the cart, on every page. filtersScript submits a
+	// list's filters as soon as one changes, on a page that lists rules or libraries.
+	caretScript, toastScript, cartScript, filtersScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -42,7 +42,7 @@ type head struct {
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
 	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
-	// librariesHref, or faqHref, or empty for every other page, such as a library's, a rule's, or a group's.
+	// librariesHref, faqHref, or cartHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
 	// searchPage marks the search page, whose header's search field holds query, the page's query, and whose phone
 	// header has no link to search, since the page holds its own field there.
@@ -142,7 +142,7 @@ templ noticeBanner(n notice, h head) {
 				if n.toast == toastInfo {
 					@infoIcon("mt-[3px] size-4 flex-none")
 				}
-				<span>
+				<span data-toast-text>
 					@noticeText(n.text, n.link)
 				</span>
 			</p>
@@ -189,9 +189,8 @@ templ layout(c chrome, h head) {
 			if h.filters {
 				<script src={ c.filtersScript } defer></script>
 			}
-			if n := shownNotice(h, visitorOf(ctx)); n.text != "" && n.toast != "" {
-				<script src={ c.toastScript } defer></script>
-			}
+			<script src={ c.toastScript } defer></script>
+			<script src={ c.cartScript } defer></script>
 		</head>
 		<body class="flex min-h-screen flex-col">
 			<a class="sr-only z-50 rounded-full bg-primary px-4 py-2 text-[14px] font-medium text-on-primary no-underline focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:px-4 focus:py-2" href="#main">Skip to content</a>
@@ -202,6 +201,10 @@ templ layout(c chrome, h head) {
 			<main id="main" class="flex-1" tabindex="-1">
 				{ children... }
 			</main>
+			// The toast that toast.js shows for something a script did, such as adding to the cart.
+			<template data-toast-template>
+				@noticeBanner(notice{toast: toastStatus}, head{})
+			</template>
 			@footer()
 			if c.beacon != "" {
 				// Cloudflare's snippet goes before the body's end; it sets no cookie.
@@ -261,6 +264,7 @@ templ header(h head) {
 						@searchIcon("size-5")
 					</a>
 				}
+				@cartLink(h.section == cartHref)
 				@accountControl(visitorOf(ctx))
 			</nav>
 		</div>

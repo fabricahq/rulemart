@@ -296,7 +296,8 @@ func visibleText(t *testing.T, body string) string {
 	var text strings.Builder
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && (n.Data == "head" || n.Data == "script" || n.Data == "noscript") {
+		if n.Type == html.ElementNode && (n.Data == "head" || n.Data == "script" || n.Data == "noscript" || n.Data == "template" ||
+			hasAttribute(n, "hidden")) {
 			return
 		}
 		writeText(&text, n)
@@ -468,7 +469,7 @@ func TestPagesAnswerNotFound(t *testing.T) {
 		"an unknown library":        "/example/missing",
 		"an unknown library's rule": "/stranger/rules/techs/go/return-errors",
 		"an unknown rule":           library + "/techs/go/missing",
-		"a group":                   library + "/techs/go",
+		"a group it doesn't have":   library + "/techs/rust",
 		"another path":              "/nobody",
 	} {
 		t.Run(name, func(t *testing.T) {
