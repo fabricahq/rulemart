@@ -386,6 +386,40 @@ func TestAGroupOfOnlyRetiredRulesCountsThemWhileHidingThem(t *testing.T) {
 	}
 }
 
+// A page counts the libraries its current rules come from, while the sidebar lists every library of the rules the list
+// holds: a library whose only rules in a group are retired joins the sidebar while retired rules show, but not the
+// page's count.
+func TestAListCountsOnlyTheLibrariesOfItsCurrentRulesForThePage(t *testing.T) {
+	c := newRuleLists(t)
+	gone := listedRule("techs/go/gone", "Gone", "LOW", 1)
+	gone.RetiredIn, gone.RetirementSummaries, gone.WhenToReadHTML = 2, []string{"Drop it."}, ""
+	relic := newLibrary("34", "relic", "rules", []domain.Group{goGroup}, gone)
+	relic.Releases = append(relic.Releases, domain.Release{Number: 2, CommitID: strings.Repeat("2", 40), TaggedAt: day(5)})
+	if _, err := c.worker.ReplaceLibrary(context.Background(), relic); err != nil {
+		t.Fatal(err)
+	}
+	vetted := append(slices.Clone(vettedLists), domain.LibraryKey{Host: domain.GitHub, RepositoryID: "34"})
+
+	for _, tc := range []struct {
+		name               string
+		retired            bool
+		sidebar, ofCurrent int
+	}{
+		{"hiding retired rules", false, 2, 2},
+		{"showing retired rules", true, 3, 2},
+	} {
+		got, err := c.web.Rules(context.Background(), vetted, canonicalGroups,
+			domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: tc.retired, Order: domain.MostStarred}}, 50, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.UnfilteredLibraries) != tc.sidebar || got.UnfilteredCurrentLibraries != tc.ofCurrent {
+			t.Errorf("%s: got %d libraries in the sidebar and %d of current rules, want %d and %d",
+				tc.name, len(got.UnfilteredLibraries), got.UnfilteredCurrentLibraries, tc.sidebar, tc.ofCurrent)
+		}
+	}
+}
+
 // Search's Kind keeps one kind of group, and its other orders sort its matches as a group's do.
 func TestSearchFiltersByKindAndSortsByStars(t *testing.T) {
 	c := newRuleLists(t)

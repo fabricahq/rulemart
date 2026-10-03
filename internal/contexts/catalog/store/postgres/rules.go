@@ -46,7 +46,8 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	summary := rows[0]
 	results := views.RuleResults{
 		Total: int(summary.Total), Complete: int(summary.Complete), Libraries: int(summary.Libraries),
-		Unfiltered: int(summary.Unfiltered), UnfilteredCurrent: int(summary.UnfilteredCurrent), RetiredRules: int(summary.RetiredRules),
+		Unfiltered: int(summary.Unfiltered), UnfilteredCurrent: int(summary.UnfilteredCurrent),
+		UnfilteredCurrentLibraries: int(summary.UnfilteredCurrentLibraries), RetiredRules: int(summary.RetiredRules),
 		NoWords: summary.Unfiltered == 0 && !params.MatchAll && searchable == 0,
 	}
 	for i, owner := range summary.LibraryOwners {

@@ -115,17 +115,20 @@ func TestGroupPageSaysWhenNoRulePassesTheFiltersOrNoLibraryHoldsIt(t *testing.T)
 	}
 }
 
-// While a group's page shows its retired rules, the count under its title still counts its current rules only, so
-// showing them doesn't make the group look bigger.
+// While a group's page shows its retired rules, the count under its title still counts its current rules only, and the
+// libraries they come from, so showing them doesn't make the group look bigger, even when a library whose only rule
+// in the group is retired joins the sidebar.
 func TestGroupPageCountsOnlyItsCurrentRulesWhileShowingRetiredOnes(t *testing.T) {
 	c := newBrowsingCatalog()
 	group := c.groups["techs/go"]
+	relic := views.LibraryRef{Owner: "relic", Name: "rules", OwnerAvatarURL: "https://avatars.githubusercontent.com/u/3?v=4"}
 	group.Rules.Unfiltered, group.Rules.Total = 4, 4
+	group.Rules.UnfilteredLibraries = append(slices.Clone(browsingCounts), views.LibraryCount{Library: relic, Vetted: true, Rules: 1})
 	c.groups["techs/go"] = group
 
 	page := get(t, newSite(t, c), "/g/techs/go?retired=1").Body.String()
 
-	assertShows(t, page, "Go 3 rules from 2 libraries · The Go language.")
+	assertShows(t, page, "Go 3 rules from 2 libraries · The Go language.", "relic/ rules 1")
 }
 
 // A group whose rules are all retired says so while it hides them, rather than that no library has its rules, and leads

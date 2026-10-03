@@ -185,6 +185,7 @@ library_counts AS (
 ),
 facets AS (
     SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM base b WHERE NOT b.retired) AS unfiltered_current,
+           (SELECT count(DISTINCT b.library_id) FROM base b WHERE NOT b.retired) AS unfiltered_current_libraries,
            (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
            coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
            coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
@@ -231,7 +232,7 @@ SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, 
        pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
        (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
-       facets.unfiltered, facets.unfiltered_current, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.unfiltered, facets.unfiltered_current, facets.unfiltered_current_libraries, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM facets
 LEFT JOIN page pg ON true
@@ -263,34 +264,35 @@ type ListRulesParams struct {
 }
 
 type ListRulesRow struct {
-	LibraryID         pgtype.Int8
-	Owner             pgtype.Text
-	Name              pgtype.Text
-	OwnerAvatarUrl    pgtype.Text
-	Vetted            pgtype.Bool
-	ID                pgtype.Int8
-	Path              pgtype.Text
-	GroupPath         pgtype.Text
-	Title             string
-	Impact            string
-	Major             pgtype.Int4
-	Minor             pgtype.Int4
-	Patch             pgtype.Int4
-	Retired           pgtype.Bool
-	Stars             int32
-	Missing           []int32
-	GroupRules        pgtype.Int8
-	Total             int64
-	Complete          int64
-	Libraries         int64
-	Unfiltered        int64
-	UnfilteredCurrent int64
-	RetiredRules      int64
-	LibraryOwners     []string
-	LibraryNames      []string
-	LibraryAvatarUrls []string
-	LibraryVetted     []bool
-	LibraryRules      []int64
+	LibraryID                  pgtype.Int8
+	Owner                      pgtype.Text
+	Name                       pgtype.Text
+	OwnerAvatarUrl             pgtype.Text
+	Vetted                     pgtype.Bool
+	ID                         pgtype.Int8
+	Path                       pgtype.Text
+	GroupPath                  pgtype.Text
+	Title                      string
+	Impact                     string
+	Major                      pgtype.Int4
+	Minor                      pgtype.Int4
+	Patch                      pgtype.Int4
+	Retired                    pgtype.Bool
+	Stars                      int32
+	Missing                    []int32
+	GroupRules                 pgtype.Int8
+	Total                      int64
+	Complete                   int64
+	Libraries                  int64
+	Unfiltered                 int64
+	UnfilteredCurrent          int64
+	UnfilteredCurrentLibraries int64
+	RetiredRules               int64
+	LibraryOwners              []string
+	LibraryNames               []string
+	LibraryAvatarUrls          []string
+	LibraryVetted              []bool
+	LibraryRules               []int64
 }
 
 // ListRules returns one page of a list of rules across libraries: a group's rules, every rule, or a search's matches,
@@ -385,6 +387,7 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 			&i.Libraries,
 			&i.Unfiltered,
 			&i.UnfilteredCurrent,
+			&i.UnfilteredCurrentLibraries,
 			&i.RetiredRules,
 			&i.LibraryOwners,
 			&i.LibraryNames,

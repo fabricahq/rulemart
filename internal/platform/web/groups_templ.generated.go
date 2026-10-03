@@ -205,9 +205,9 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var12 string
-				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(plural(len(g.list.libraryFilters), "library", "libraries"))
+				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(plural(g.list.currentLibraries, "library", "libraries"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 37, Col: 114}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 37, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {

@@ -25,8 +25,9 @@ type ruleListView struct {
 	choices domain.ListChoices
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
 	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, current
-	// the current ones among them, and retiredRules the retired rules it could show.
-	total, complete, libraries, unfiltered, current, retiredRules int
+	// the current ones among them, currentLibraries the libraries those come from, and retiredRules the retired rules
+	// it could show.
+	total, complete, libraries, unfiltered, current, currentLibraries, retiredRules int
 	// libraryFilters are the sidebar's libraries: those of the rules the list holds before its filters, Fabrica's
 	// first.
 	libraryFilters []libraryFilterView
@@ -47,7 +48,7 @@ func newRuleListView(page domain.ListPage, path string, params url.Values, choic
 	v := ruleListView{
 		page: page, path: path, params: params, choices: choices, total: results.Total, complete: results.Complete,
 		libraries: results.Libraries, unfiltered: results.Unfiltered, current: results.UnfilteredCurrent,
-		retiredRules: results.RetiredRules,
+		currentLibraries: results.UnfilteredCurrentLibraries, retiredRules: results.RetiredRules,
 	}
 	for _, l := range results.UnfilteredLibraries {
 		value := domain.LibraryFilterValue(l.Library.Owner, l.Library.Name)

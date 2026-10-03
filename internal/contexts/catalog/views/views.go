@@ -428,9 +428,11 @@ type RuleResults struct {
 	Total, Complete, Libraries int
 	// Unfiltered counts the rules the list holds before its filters, retired ones too while it shows them, and
 	// UnfilteredLibraries the libraries they come from, Fabrica's first, then by owner and name, each with how many of
-	// them it holds. UnfilteredCurrent counts only the current rules among them, as a page's count of its rules does.
-	Unfiltered, UnfilteredCurrent int
-	UnfilteredLibraries           []LibraryCount
+	// them it holds. UnfilteredCurrent counts only the current rules among them, as a page's count of its rules does,
+	// and UnfilteredCurrentLibraries the libraries those come from, which leaves out a library whose only rules in the
+	// list are retired.
+	Unfiltered, UnfilteredCurrent, UnfilteredCurrentLibraries int
+	UnfilteredLibraries                                       []LibraryCount
 	// RetiredRules counts the retired rules of the list's group, or of every group, in its libraries, whether or not
 	// the list holds them, so a page offers to show them only when there are some.
 	RetiredRules int
