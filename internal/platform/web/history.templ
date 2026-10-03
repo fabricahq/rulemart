@@ -83,13 +83,14 @@ templ releaseCardView(card releaseCard) {
 	</section>
 }
 
-// releaseNotesLink leads to a release's notes on GitHub, named the same wherever a page links them.
+// releaseNotesLink leads to a library release's GitHub Release page, named as the prototype's release cards name it.
 templ releaseNotesLink(href, tag string) {
-	@githubLink(href, "Release notes", "Release notes for "+tag+" on GitHub")
+	@githubLink(href, "GitHub Release page", "GitHub Release page for "+tag)
 }
 
-// versionNotesLink is releaseNotesLink on a row of a rule's versions, smaller and fainter, as the prototype draws it
-// beside each row's comparison, underlined only on hover.
+// versionNotesLink leads to the GitHub Release page of the release that published a rule's version, on its row of
+// the versions, smaller and fainter, as the prototype draws it beside each row's comparison, underlined only on hover,
+// and named Release notes, as the prototype's rows name it.
 templ versionNotesLink(href, tag string) {
 	<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline hover:underline-offset-3" href={ templ.SafeURL(href) } aria-label={ "Release notes for " + tag + " on GitHub" }>
 		@githubMark("size-3 flex-none")

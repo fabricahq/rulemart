@@ -116,17 +116,17 @@ func TestReleasesTabListsWhatEachReleaseChanged(t *testing.T) {
 	page := resp.Body.String()
 	assertShows(t, page,
 		"Groups , 2 All rules , 2 Library releases , 3",
-		"release/3 Latest Major 3 Sep 2026 Compare with release/2 Release notes Library release 3 changes 3 rules: 1 new, 1 major, and 1 retired. "+
+		"release/3 Latest Major 3 Sep 2026 Compare with release/2 GitHub Release page Library release 3 changes 3 rules: 1 new, 1 major, and 1 retired. "+
 			"New rules Close bodies techs/go/close-bodies 1.0.0 Add the rule. "+
 			"Major changes Code that complied with the previous rule version could fail the new one, so review these before updating. "+
 			"Return errors with context techs/go/return-errors 1.0.0 → 2.0.0 Require context on every error. Add an example. "+
 			"Retired rules Check retry backoff practices/testing/check-retry-backoff last version 1.0.0 Merge it. Replaced by Verify retry limits . "+
 			"All rule versions in this library release Rule Version practices/testing/verify-retry-limits 1.1.0",
-		"release/2 2 Sep 2026 Compare with release/1 Release notes Library release 2 changes 1 rule: 1 minor. Minor changes "+
+		"release/2 2 Sep 2026 Compare with release/1 GitHub Release page Library release 2 changes 1 rule: 1 minor. Minor changes "+
 			"Verify retry limits practices/testing/verify-retry-limits 1.0.0 → 1.1.0 Count timeouts as attempts. "+
 			"This library release also updates shared files, such as group descriptions or shared assets.",
 		// A first release adds every rule, and its notes don't repeat "Add the rule." for each.
-		"release/1 1 Sep 2026 Release notes Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner example",
+		"release/1 1 Sep 2026 GitHub Release page Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner example",
 	)
 	if strings.Index(page, `id="release-3"`) > strings.Index(page, `id="release-2"`) {
 		t.Error("release/2 comes before release/3")
