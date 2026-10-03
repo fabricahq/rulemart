@@ -173,11 +173,18 @@
     }
   }
 
-  /** Return the Groups tab's checkboxes that pick groups for panel, its Add to cart box: those of panel's library. */
-  const picksOf = (panel) => [...document.querySelectorAll(`[data-cart-pick-group][data-cart-library="${CSS.escape(panel.dataset.cartLibrary)}"]`)];
+  /** Return the Groups tab's checkboxes that pick groups for panel, its Add to cart box: those of panel's library
+   * whose group the cart doesn't hold yet. */
+  const picksOf = (panel) => [...document.querySelectorAll(`[data-cart-pick-group][data-cart-library="${CSS.escape(panel.dataset.cartLibrary)}"]`)]
+    .filter((box) => !box.disabled);
 
-  /** Paint each Add to cart box of the library page from the groups ticked for it: how many, and its button's label. */
+  /** Paint each Add to cart box of the library page from the groups ticked for it: how many, and its button's label.
+   * A group the cart holds already shows ticked, and can't be picked again or counted. */
   function paintGroups() {
+    for (const box of document.querySelectorAll('[data-cart-pick-group]')) {
+      const held = inCart(box.dataset.cartPickGroup);
+      if (box.disabled !== held) box.checked = box.disabled = held;
+    }
     for (const panel of document.querySelectorAll('[data-cart-groups]')) {
       const n = picksOf(panel).filter((box) => box.checked).length;
       const updates = panel.dataset.cartVetted === 'false' ? 'are pinned to the commit you review' : `stay in sync with ${panel.dataset.cartLibrary}`;
@@ -262,7 +269,8 @@
       const picked = picksOf(panel).filter((box) => box.checked);
       confirmed(panel, () => {
         const added = add(picked.map((box) => box.dataset.cartPickGroup));
-        picked.forEach((box) => (box.checked = false));
+        // The cart holds what it added, whose boxes now show so; the rest, if it filled up, go back unticked.
+        picked.filter((box) => !box.disabled).forEach((box) => (box.checked = false));
         paintGroups();
         if (added) toast(`Added ${count(added, 'group', 'groups')} to cart`);
       });

@@ -128,6 +128,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   the same, the dialog and the group page say the rule or group is pinned and that later rules don't arrive, and the
   Commands footnote leaves its rules out of those `code-rules project update` moves. The prototype shows Stay in
   sync for every library.
+- **Proposed: a group the cart holds shows ticked and disabled on the Groups tab**, so Select all groups, the count,
+  the button, and the toast cover only the groups the box would add. The prototype lets the visitor tick it again
+  and counts it.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.
