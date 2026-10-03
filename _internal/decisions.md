@@ -5,10 +5,11 @@ than adding history.
 
 ## Catalog and trust
 
-- **Anyone signed in can list a public library.** New libraries are unvetted until vetted. Listing is a GET form
-  that checks the repository's name, then a POST whose action holds it; the worker looks the repository up and
-  ingests it within seconds, and the lister follows that on `/account/listings`, where they can try a failed listing
-  again or remove one. A failure the repository caused is the lister's to see there, not an alarm.
+- **Anyone signed in can list a public library.** New libraries are unvetted until vetted. Adding one at `/me/add`
+  picks it from the visitor's and their organizations' repositories that publish one, or checks the address a GET
+  form names, then POSTs with the repository in its action; the worker looks the repository up and ingests it within
+  seconds, which `/me/add/run` follows, and the lister can try a failed listing again or remove one there or on
+  `/me/listings`. A failure the repository caused is the lister's to see there, not an alarm.
   [Slice 6](slices/6-listing-and-unvetted.md) explains the choices.
 - **An account holds at most 5 unvetted listings, and Rulemart at most 500.** Removing a listing frees its place, and
   a vetted one takes none. The cap bounds the unvetted area, the worker's hourly checks, and what someone with many
@@ -71,7 +72,8 @@ than adding history.
 - **Starring is a POST to `/stars`, and unstarring to `/stars/remove`**, each naming the rule in its query string and
   returning to the page, which says what it did and focuses the button; repeating either changes nothing. A visitor
   who isn't signed in gets a link that signs them in and returns them, prompted once to star the rule. The
-  dashboard's Starred rules tab lists a visitor's stars, newest first.
+  dashboard's Starred rules tab lists a visitor's stars, newest first, and apart, under No longer counted, any star
+  that counts toward no current rule of a vetted library, which Unstar removes.
 - **Deleting an account removes its stars**, so they stop counting.
 
 ## Cart and checkout
@@ -188,6 +190,15 @@ than adding history.
   installs from the dashboard; a GitHub App's user token sees only organizations it's installed on, so it can't
   replace the OAuth app for the first view. [Slice 5](slices/5-sign-in.md) and [realignment](realignment.md)
   explain the choices.
+- **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
+  A read lists their organizations, the public repositories of theirs and their organizations', and the private ones
+  the GitHub App's installations read, the 200 most recently pushed, and finds the ones that publish a library
+  (`rule-library.yaml` and a `release/<n>` tag) and the projects (`.code-rules/generated/provenance.json`, of which it
+  keeps each source and its rules' versions). It's kept per account in `github_snapshots`, refreshed at most once a
+  minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
+  sees it. GitHub returns a visitor who installed the app to `/me/github/installed`, which records the installation
+  once GitHub says it's on their account or an organization they own, and the app's webhook, signed with its secret,
+  forgets an uninstalled one. [Slice R7](slices/16-dashboard-and-add-a-library.md) explains the choices.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
   and an account keeps at most 20.
@@ -213,7 +224,8 @@ than adding history.
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
-  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, and stars.** Carts live in browsers, so
+  `rulemart_accounts_writer`, which writes only accounts, sessions, what Rulemart read of visitors' GitHub accounts,
+  the GitHub App's installations, listings, and stars.** Carts live in browsers, so
   checkout writes nothing. Infrastructure owns the roles: it creates each group role with SQL, as a NOLOGIN role,
   creates the login, and makes the login a member, because a role made through Neon's API or console joins
   `neon_superuser`, which can read and write every table and create roles and databases. Migrations own the grants:

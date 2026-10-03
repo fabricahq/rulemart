@@ -85,12 +85,109 @@ apps exist.
 - **Existing:** accounts keyed by GitHub ID, sessions, private responses for signed-in pages, the listing worker and
   its limits, the listing failure states.
 
+### Decided while building
+
+The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+
+- **Proposed: GitHub is read on the first page after sign-in that shows it, not inside the callback.** Each sign-in
+  discards the account's snapshot, in the transaction that adds the session, and the dashboard, `/me/add`, or
+  checkout reads GitHub when it finds none. A read of 200 repositories takes a few seconds, which would hold every
+  sign-in's redirect, whatever page the visitor returns to; most never open the dashboard. Refresh reads again at
+  most once a minute.
+- **Proposed: a read lists repositories with GitHub's REST API, not its search.** Code search finds a repository only
+  once GitHub has indexed it, so a library pushed a minute ago would be missing; it allows 10 requests a minute, which a
+  visitor in five organizations exceeds; and it can't see what an installation reads. The REST read costs one request
+  per repository, a listing of its root, plus its release tags or provenance file only where the root holds
+  `rule-library.yaml` or `.code-rules`, eight at a time, within `domain.MaxRepositories`, the 200 most recently pushed
+  across the visitor and their organizations (at most `domain.MaxOrganizations`, 100), and a 25-second deadline.
+- **Proposed: provenance is parsed by Rulemart, in `accounts/domain`, from the fields Code Rules writes.** Code Rules
+  has no provenance parser to copy, only the writer in `internal/build/output.go`; the reader takes each source's
+  name, repository, release, and groups, and each rule's ID, origin, and version, with the vendored
+  `coderules.ParseRuleVersion` and `ValidateRuleID`, and skips a local or forked rule, which holds no library's
+  version. A file it can't parse makes no project rather than failing the read. Its test reads Rulemart's own
+  `provenance.json`. Replace it with Code Rules' parser once one ships.
+- **Proposed: an update is a rule the library has since published a newer version of, or retired.** Rules a library
+  added to a group the project imports aren't counted: the project's configuration may exclude them, which provenance
+  doesn't record, so counting them would show updates that never come. Counts are computed as the dashboard reads,
+  from the catalog's current versions, so a new library release shows at once without another read of GitHub.
+- **Proposed: a failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves
+  the snapshot that was, with "Rulemart couldn't read your repositories on GitHub just now", when that one was read,
+  and Try again, and the next read waits a minute, so a broken GitHub isn't asked on every page. A token GitHub
+  refuses, a session without one, or one sealed under a key since rotated asks the visitor to sign in again, at
+  `/signin?again=1`, since only the sign-in page's content security policy lets a form lead to GitHub.
+- **Proposed: the webhook is at `/account/github/webhook`.** `/github/webhook` has two segments under `github`, a GitHub
+  account, so the route takes the address of a library `github/webhook`, which the routes' tests refuse; `account` is
+  reserved and GitHub has no account by that name. The OAuth callback stays at `/account/github/callback`, the OAuth
+  app's registered URL, and the dev sign-in at `/account/dev-sign-in`, since neither is a page. The visitor's pages are
+  under `/me`, which takes the pages of an owner named `me`'s libraries, as `libraryPageTaken` records.
+- **Proposed: an organization's installation is the visitor's only when GitHub says they own the organization.**
+  Rulemart checks the installation's account with the app's JWT, and for an organization, the visitor's membership
+  role with their own token: only an owner can install an app on an organization, and only an owner can see every
+  repository it may read, so a member who reached `/me/github/installed` with an owner's installation ID can't list
+  repositories GitHub hides from them. Installations are recorded per account, so each owner who connects an
+  organization's installation reads through it.
+- **Proposed: the webhook acts on removals and changes, not new installations.** `installation.deleted` and `suspend`
+  forget the installation for every account and discard their snapshots; `installation_repositories`, `unsuspend`,
+  and `new_permissions_accepted` discard the snapshots; anything else, including another app's deliveries, answers
+  204. A new installation is recorded when GitHub returns its installer to Rulemart, the one moment Rulemart knows
+  which account it's for. A read that finds an installation GitHub no longer knows forgets it too, for a missed
+  delivery.
+- **Proposed: Remove access forgets the installations and says how to uninstall the app on GitHub.** Redirecting a POST
+  to GitHub's settings breaks `form-action 'self'`, so the button forgets them and returns to `/me/private`, whose
+  notice links GitHub's installations settings; the installed page links each installation's own settings.
+- **Proposed: an account keeps its GitHub profile's name**, refreshed at each sign-in, for the menu and the dashboard's
+  head, as the prototype shows "Josh Padnick" above "@josh-padnick". Control and formatting characters are dropped.
+  Without a name, both show the login.
+- **Proposed: the listings page stays, at `/me/listings`**, linked from the Account section, since the dashboard lists
+  only libraries the visitor and their organizations own, and a visitor can add anyone's public library: without it,
+  a listing of another owner's repository could be neither seen nor removed once its check page was left.
+- **Proposed: the run page's checklist ticks every step at once, when Rulemart has the library.** The worker's check
+  isn't observable step by step, so while it runs the first step reads "Looking for rule-library.yaml in …" with a
+  spinner; once the listing is listed or vetted, each step says what Rulemart found, from the library's page; a
+  failed check shows the reason under the first step, with Try again, Remove, and Back to Dashboard. `poll.js` fetches
+  the page every two seconds and swaps the checklist; without it, `<noscript>` reloads the page as often. Following a
+  library already on Rulemart, which the visitor didn't list, shows it done. The prototype's "within minutes" reads
+  "within the hour", the worker's poll.
+- **Proposed: the picker shows a repository's latest release, not its group count**, which would need reading its
+  manifest or release record: "Public · release/3". It orders rows as the prototype: what the visitor can add, what
+  Rulemart is adding (linked to its check), what Rulemart has, then private ones; a library the visitor's organizations
+  publish on Rulemart that the read didn't reach is listed as on Rulemart too. The URL form keeps the listing's checks,
+  in the prototype's words, and shows an address it accepts as a row to add, since a GET form can't post.
+- **Proposed: Starred rules' No longer counted names why**: the library is no longer on Rulemart, isn't vetted now,
+  retired the rule without a replacement, or its replacements end at a rule that isn't current. Unstar posts to
+  `/stars/remove`, which, for a rule it can't star, removes the visitor's own star on it.
+- **Proposed: GitHub sign-in refuses to start without `TOKEN_KEY` or `TOKEN_KEY_PARAMETER`**, since every session keeps
+  a token, and a key given directly is checked at start. The GitHub App's five variables are all or nothing, and need
+  GitHub sign-in. A local build without GitHub sign-in serves `githubtest.DevFake` in memory, with a GitHub App whose
+  install page returns at once, and a random token key.
+- **Proposed: `robots.txt` keeps crawlers off `/me`, `/me/`, `/signin`, and the old `/sign-in` and `/list`**, as it did
+  the account pages, alone and with a query, so it doesn't keep them off an owner such as `meta`.
+
 ## Infrastructure
 
-In infra-live, beside slice 5's units: the token key and the app's private key and webhook secret as SSM
-SecureStrings, the app's IDs as variables, the worker token made required, and the webhook route on CloudFront
-(POST with a body, so the function URL's signing needs the body hash; a Lambda function URL route of its own if
-CloudFront can't forward it). Documented in the slice's PR and the runbook.
+The web function reads, as `cmd/web` documents:
+
+| Variable | Value | Secret |
+| --- | --- | --- |
+| `GITHUB_CLIENT_ID` | the OAuth app "Rulemart"'s client ID (slice 5) | no |
+| `GITHUB_CLIENT_SECRET_PARAMETER` | `/rulemart/prod/github-client-secret` (slice 5) | SSM SecureString |
+| `TOKEN_KEY_PARAMETER` | `/rulemart/prod/token-key`: 32 random bytes in standard base64, `openssl rand -base64 32` | SSM SecureString |
+| `GITHUB_APP_ID` | the GitHub App "Rulemart by Fabrica"'s numeric App ID | no |
+| `GITHUB_APP_CLIENT_ID` | the app's client ID, which its JWTs name as their issuer | no |
+| `GITHUB_APP_SLUG` | `rulemart-by-fabrica`, the app's name in its install page's address | no |
+| `GITHUB_APP_PRIVATE_KEY_PARAMETER` | `/rulemart/prod/github-app-key`: the app's private key, the PEM GitHub gives | SSM SecureString |
+| `GITHUB_APP_WEBHOOK_SECRET_PARAMETER` | `/rulemart/prod/github-app-webhook-secret`: the app's webhook secret | SSM SecureString |
+
+Each secret may instead be given directly, without `_PARAMETER`, as locally. The function needs `ssm:GetParameter` on
+the three new parameters. The worker needs nothing new; its token stays optional in the code, and infra-live makes it
+required, as the realignment planned. The app's settings on GitHub: setup URL
+`https://rulemart.fabricahq.com/me/github/installed`, "Redirect on update" on, no OAuth during installation; webhook URL
+`https://rulemart.fabricahq.com/account/github/webhook`, its secret the parameter's, events Installation and Installation
+repositories; permissions Contents read and Metadata read. The webhook's POST carries a body, which CloudFront's origin
+access control signs only when the sender hashes it, so `/account/github/webhook` needs a CloudFront behavior that
+forwards it to the Function URL without OAC signing, or a Function URL of its own with `AuthType NONE`; the delivery's
+HMAC signature is what authenticates it. The runbook's step 3 lists the parameters, and the pull request the
+infra-live change, as a checklist.
 
 ## Not in this slice
 
@@ -104,6 +201,7 @@ CloudFront can't forward it). Documented in the slice's PR and the runbook.
   deletion removing all of it.
 - Page tests: every dashboard state (no orgs, no projects, private on and off, failures), the picker's three kinds
   of row, the run page's states, the private page both ways, the menu, the redirects, the privacy text.
-- In a browser with the real OAuth app "Rulemart (local)" against the visitor's own GitHub account, beside the
-  prototype's `/me`, `/me/add`, `/me/private`, and checkout picker, at 1280, 390, and 320 pixels, light and dark.
+- In a browser beside the prototype's `/me`, `/me/add`, `/me/private`, and checkout picker, at 1280, 390, and 320
+  pixels, light and dark. Done with `make web-dev`'s fake GitHub and the dev sign-in, since the real OAuth app's and
+  GitHub App's secrets weren't available to the slice's agent: a real account's read waits for the infra-live change.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.

@@ -93,10 +93,34 @@ templ privacyPage(c chrome, analytics bool) {
 				</p>
 				<h2 id="account">Your account</h2>
 				<p>
-					You sign in with GitHub. Rulemart asks GitHub for no permissions: it reads your GitHub user ID, your username,
-					and the address of your avatar, then discards GitHub's token. It keeps those three, when you made your
-					account, and when you last signed in, and updates your username and avatar each time you sign in. Your avatar
-					loads from GitHub's servers.
+					You sign in with GitHub. Rulemart asks GitHub to read your public profile and the organizations you belong to,
+					and never to write anything. It keeps your GitHub user ID, your username, the name your profile shows, the
+					address of your avatar, when you made your account, and when you last signed in, and updates your username,
+					name, and avatar each time you sign in. Your avatar loads from GitHub's servers.
+				</p>
+				<p>
+					Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's
+					server holds, so it can read your GitHub account again when you open your dashboard or press Refresh. Signing
+					out deletes the token with your session, as does signing out everywhere; a session ends by itself after 30
+					days.
+				</p>
+				<h2 id="github">What Rulemart reads of your GitHub account</h2>
+				<p>
+					With that token, Rulemart reads the names of your organizations and of the public repositories you and they
+					own, at most 200 of them, the most recently pushed first. In each, it looks for a <code>rule-library.yaml</code>
+					and <code>release/&lt;number&gt;</code> tags, which make a library you could add, and for
+					<code>.code-rules/generated/provenance.json</code>, which makes a project. Of a project's provenance, it keeps the
+					libraries it imports, under which names, the groups it imports, and the versions of their rules it holds,
+					to count the updates waiting for it. It keeps nothing else of your repositories, and none of their code.
+				</p>
+				<p>
+					If you install the GitHub App "Rulemart by Fabrica", Rulemart also reads the private repositories you choose,
+					the same way, and keeps which installations it reads through. Private repositories' names and projects show
+					only to you, on your own pages, and count toward nothing others see.
+				</p>
+				<p>
+					What it read stays until it reads your account again, which replaces it, or until you delete your account. A
+					change to the app's installation on GitHub discards it.
 				</p>
 				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
 				<ul>
@@ -140,7 +164,7 @@ templ privacyPage(c chrome, analytics bool) {
 				<ul>
 					<li><strong>Amazon Web Services</strong> hosts Rulemart, in the United States, and keeps its logs.</li>
 					<li><strong>Neon</strong> hosts its database, in the United States.</li>
-					<li><strong>GitHub</strong> signs you in, and serves avatars and the images in rules.</li>
+					<li><strong>GitHub</strong> signs you in, answers what Rulemart reads of your account, and serves avatars and the images in rules.</li>
 					if analytics {
 						<li><strong>Cloudflare</strong> counts page views, and redirects rulemart.ai here.</li>
 					} else {
@@ -151,8 +175,9 @@ templ privacyPage(c chrome, analytics bool) {
 				<h2 id="delete">Deleting your data</h2>
 				<p>
 					Delete your account at the bottom of your <a href={ templ.SafeURL(dashboardHref) }>dashboard</a>, under Delete your account.
-					Rulemart deletes your account, sessions, stars, and listings at once, and unlinks its notes of when you
-					listed. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours
+					Rulemart deletes your account, sessions and their tokens, stars, listings, what it read of your GitHub account,
+					and its record of the GitHub App's installations at once, and unlinks its notes of when you listed. Uninstall
+					the app in your GitHub settings to remove its access there too. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours
 					more. Logs age out as above.
 				</p>
 				<p>
