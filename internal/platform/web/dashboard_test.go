@@ -315,6 +315,9 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	if !strings.Contains(running, "data-polling") || !strings.Contains(running, `<noscript><meta http-equiv="refresh" content="2"></noscript>`) {
 		t.Error("a running check's page doesn't follow it")
 	}
+	if !strings.Contains(running, "<div hidden data-poll-stopped") {
+		t.Error("a running check's page has no hidden place for poll.js to say why it stopped following")
+	}
 
 	// Past the time a queued check takes, the page says what the listings page says, and stops following the check,
 	// which the worker's hourly poll picks up; Refresh status reloads it.

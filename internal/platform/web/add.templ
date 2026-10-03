@@ -208,6 +208,14 @@ templ runPage(c chrome, v runView) {
 				} else {
 					<p class="mt-4 text-[13px] text-muted">Rulemart is reading the repository on GitHub, which usually takes a few seconds. This page follows along.</p>
 				}
+				if v.following() {
+					// poll.js shows why it stopped following here: the listing is gone, the visitor is signed out, or the
+					// check couldn't be reached.
+					<div hidden data-poll-stopped class="mt-4 rounded-[10px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px]">
+						<p class="font-medium text-ink" data-poll-stopped-text></p>
+						<a class="mt-1 inline-flex min-h-9 items-center" href={ templ.SafeURL(v.here) } data-poll-stopped-link>Refresh status</a>
+					</div>
+				}
 			</div>
 		</div>
 	}
