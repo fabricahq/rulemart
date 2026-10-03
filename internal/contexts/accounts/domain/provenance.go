@@ -17,6 +17,28 @@ import (
 // ProvenancePath is where a project keeps the provenance file Code Rules generates, from its repository's root.
 const ProvenancePath = ".code-rules/generated/provenance.json"
 
+// Source is a library a project imports, as its provenance file records it.
+type Source struct {
+	// Name is the project's name for the source, which its rules' IDs start with.
+	Name string
+	// Library is the source's repository on GitHub, as owner/name, or empty for a source on another host.
+	Library string
+	// Release is the library release the project last synced, or 0 when its provenance names none.
+	Release int
+	// Groups are the groups the project imports whole.
+	Groups []string
+	// Rules are the source's rules the project holds at a published version, by ID, which pages compare with the
+	// library's current versions.
+	Rules []PinnedRule
+}
+
+// PinnedRule is a library's rule at the version a project holds.
+type PinnedRule struct {
+	// Path is the rule's ID in its library, such as techs/go/return-errors.
+	Path    string
+	Version coderules.RuleVersion
+}
+
 // provenanceFile is the part of provenance.json a read needs, as Code Rules' build writes it (internal/build/output.go,
 // renderProvenance): each source's name, repository, release, and groups, and each rule's ID and origin. Code Rules
 // publishes no parser for it yet, so this reads only those fields, and ignores the rest.
