@@ -1,0 +1,33 @@
+Set up Code Rules (0.2.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
+
+From fabricahq/public-rules:
+- The whole group techs/golang, including rules the library adds to it later
+- The whole Testing group (practices/testing), including rules the library adds to it later
+- The rule practices/testing/cover-boundary-cases, forked from version 1.0.0 as a local rule we can edit
+- The rule techs/go/return-errors, forked from version 1.0.0 as a local rule we can edit
+
+Run:
+# From the root of your project
+
+# Set up Code Rules
+curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
+code-rules project init
+
+# Add your rules
+code-rules project add library fabrica \
+  --repository https://github.com/fabricahq/public-rules.git \
+  --groups techs/golang \
+  --groups practices/testing
+
+code-rules project sync
+
+code-rules project add rule practices/testing/cover-boundary-cases \
+  --from fabrica@1.0.0 \
+  --reason 'We maintain our own version of this rule.'
+
+code-rules project add rule techs/go/return-errors \
+  --from fabrica@1.0.0
+
+code-rules project build
+
+Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer versions only when someone runs code-rules project update and confirms.
