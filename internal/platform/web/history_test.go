@@ -453,7 +453,7 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 	page := resp.Body.String()
 	assertShows(t, page,
 		"Check retry backoff Retired Last version 1.1.0 Retired in release/3 · 3 Sep 2026 Merge it. "+
-			"Replaced by Verify retries , itself replaced by Verify retry limits .",
+			"Replaced by Verify retries practices/testing/verify-retries , itself replaced by Verify retry limits practices/testing/verify-retry-limits .",
 		// It shows its last version's text, and links that file at the release that published it.
 		"Text of version 1.1.0 View on GitHub Rule Wait longer after each attempt. Why",
 		"Versions · 2 1.1.0 release/2 2 Sep 2026 Wait longer. Compare with 1.0.0",
