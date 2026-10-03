@@ -6,6 +6,7 @@
 package views
 
 import (
+	"strings"
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -161,8 +162,20 @@ type RulePage struct {
 	// RenamedFrom is the one this rule renamed, if any, which Replaces leaves out.
 	Replaces    []RuleRef
 	RenamedFrom *RuleRef
-	// Links are how every rule of the library was replaced.
+	// Links are how every rule of the library was replaced: the page read lists every rule the library has had,
+	// current or retired, so GroupRuleCount can count from it.
 	Links []RuleLink
+}
+
+// GroupRuleCount returns how many current rules the rule's group holds in its library.
+func (p RulePage) GroupRuleCount() int {
+	n := 0
+	for _, l := range p.Links {
+		if l.RetiredIn == 0 && strings.HasPrefix(l.Path, p.Rule.Group+"/") {
+			n++
+		}
+	}
+	return n
 }
 
 // Rule is a rule as its page shows it: its current version while it's current, and its last once retired.

@@ -427,13 +427,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	if n := len(page.Versions); n > 1 {
 		v.compareHref = ruleComparisonHref(lib, r.Path, page.Versions[n-1].Version, page.Versions[0].Version, diffWords)
 	}
-	for _, l := range page.Links {
-		if l.RetiredIn == 0 && strings.HasPrefix(l.Path, r.Group+"/") {
-			v.groupRules++
-		}
-	}
 	// The group holds the rule itself while it's current, whatever the links say.
-	v.groupRules = max(v.groupRules, 1)
+	v.groupRules = max(page.GroupRuleCount(), 1)
 	if !lib.vetted {
 		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
 		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
