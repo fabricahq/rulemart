@@ -108,9 +108,8 @@ templ privacyPage(c chrome, analytics bool) {
 				</p>
 				<p>
 					Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's
-					server holds, so it can read your GitHub account again when you open your dashboard or press Refresh. Signing
-					out deletes the token with your session, as does signing out everywhere; a session ends by itself after 30
-					days.
+					server holds, so it can read your GitHub account again, as the next section says. Signing out deletes the
+					token with your session, as does signing out everywhere; a session ends by itself after 30 days.
 				</p>
 				<h2 id="github">What Rulemart reads of your GitHub account</h2>
 				<p>
@@ -127,8 +126,16 @@ templ privacyPage(c chrome, analytics bool) {
 					only to you, on your own pages, and count toward nothing others see.
 				</p>
 				<p>
-					What it read stays until it reads your account again, which replaces it, or until you delete your account. A
-					change to the app's installation on GitHub discards it.
+					Rulemart reads your GitHub account the first time a page shows it after you sign in, when you press Refresh,
+					at most once a minute, and when GitHub returns you to Rulemart after you install the app or change which
+					repositories it reads. Each read replaces what the last one kept. Each read also asks GitHub about the app's
+					installations you read through: Rulemart forgets one you uninstalled, with what it read through it, and one on
+					an organization you no longer own, while a suspended one makes the read fail. A read that fails keeps what
+					Rulemart already held, saying when it was read.
+				</p>
+				<p>
+					So what it read stays, even after you change the app's installation on GitHub, until it reads your account
+					again, until you choose Remove access to private repos, which discards it, or until you delete your account.
 				</p>
 				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
 				<ul>

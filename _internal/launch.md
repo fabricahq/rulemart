@@ -16,13 +16,20 @@ time rather than with `run --all`, which plans that unit too.
 1. **The GitHub App's webhook isn't wired at launch.** The site's Function URL requires requests signed by
    CloudFront's origin access control, which signs a body only when the sender sends `x-amz-content-sha256`. GitHub
    doesn't, so every delivery to `/account/github/webhook` gets 403 from Lambda until infra-catalog gains a public
-   alias on the web function and an unsigned CloudFront path to it, as step 9 describes. Rulemart works without it:
-   installs and changes to an installation's repositories reach Rulemart through GitHub's return to the setup URL,
-   `/me/github/installed`. A suspended or uninstalled installation is noticed at the visitor's next read of their
-   GitHub account, when they open the dashboard or press Refresh: the read forgets an uninstalled installation, while
-   a suspended one makes the read fail, keeping what was read last, until it's unsuspended or the visitor stops
-   including private projects at `/me/private`. GitHub's **Advanced** tab lists the failed deliveries, which can be
-   redelivered for three days.
+   alias on the web function and an unsigned CloudFront path to it, as step 9 describes. Rulemart works without it,
+   since it reads a visitor's GitHub account at three moments: on the first page that shows it after they sign in,
+   which discards the account's snapshot; when they press Refresh, at most once a minute; and when GitHub returns them
+   to the setup URL, `/me/github/installed`, after they install the app or change which repositories it reads, which
+   reads at once. Opening the dashboard otherwise shows the snapshot kept, without reading. Each read asks GitHub about
+   every installation the account reads through: it forgets one GitHub no longer knows, as after an uninstall, for
+   every account, and one on an organization the visitor no longer owns, for theirs, discarding the snapshot and
+   reading again without it, while a suspended one makes the read fail. A failed read keeps the snapshot the account
+   had, marked failed and dated, and the next read waits a minute; a suspended installation keeps failing reads until
+   it's unsuspended or the visitor chooses Remove access to private repos at `/me/private`, which forgets every
+   installation and discards the snapshot. So until then, a change to an installation on GitHub reaches Rulemart only
+   at one of those reads; once the webhook is wired, each delivery about an installation discards the snapshots of the
+   accounts that read through it, so their next page reads again, and the privacy page can say so. GitHub's
+   **Advanced** tab lists the failed deliveries, which can be redelivered for three days.
 2. **Rotating the token key needs a redeploy.** Each session keeps the visitor's GitHub token sealed with the key in
    `/rulemart/prod/token-key`. Warm web instances keep the key they read, and seal new sessions' tokens with it,
    until they start again: an instance that can't open a token reads the parameter once more, but one that only seals
@@ -369,7 +376,8 @@ first day, watch the alarms and the new listings, and vet libraries as requests 
   `POST /account/github/webhook`, whose signature check already refuses unsigned deliveries. In infra-live: set
   `public_alias` on `web_lambda` and `unsigned_paths = { function_url = <its endpoint>, path_patterns =
   ["/account/github/webhook"] }` on `cdn`, then apply `web_lambda`, then `cdn`. infra-live#27's description has the
-  details.
+  details. Once deliveries arrive, the privacy page's account of when Rulemart notices a change to an installation can
+  add that a delivery discards what was read through it.
 - **Drop `hello_messages`**, the walking skeleton's table, in a release after v0.2.0 is live. No release since v0.1.0
   reads or writes it, so it's a contract step that's safe while any of them runs: a new migration,
   `DROP TABLE IF EXISTS hello_messages;`, in its own pull request, with `internal/platform/database/migrate`'s tests
