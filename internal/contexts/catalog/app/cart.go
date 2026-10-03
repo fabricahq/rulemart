@@ -153,9 +153,10 @@ func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLi
 	return resolved
 }
 
-// resolveItem returns item, named by key, of the library lib, resolved: gone, unvetted unless confirmed, missing,
-// retired, or ready, in that order of precedence. fork is the visitor's choice for a rule, which an unvetted library's
-// rule doesn't take: it stays in sync with the reviewed commit, as domain.NewCheckout says.
+// resolveItem returns item, named by key, of the library lib, resolved: gone, missing, retired, unvetted unless
+// confirmed, or ready, in that order of precedence, so an item that confirming wouldn't include says why it's left out
+// instead. fork is the visitor's choice for a rule, which an unvetted library's rule doesn't take: it stays in sync with
+// the reviewed commit, as domain.NewCheckout says.
 func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibrary, confirmed, fork bool) views.ResolvedItem {
 	it := views.ResolvedItem{Key: key, Item: item, State: views.CartItemReady, Group: c.group(item.Group())}
 	if lib == nil {
@@ -184,7 +185,7 @@ func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibr
 			it.State = views.CartItemRetired
 		}
 	}
-	if !lib.Vetted && !confirmed {
+	if it.State == views.CartItemReady && !lib.Vetted && !confirmed {
 		it.State = views.CartItemUnvetted
 	}
 	return it

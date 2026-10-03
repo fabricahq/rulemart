@@ -33,11 +33,13 @@ func cartRule(path string) views.CartRule {
 }
 
 // newCarts returns Carts over a catalog of acme/rules, vetted, with three Go rules, one retired, and two testing
-// rules, and stranger/rules, listed but not vetted, with one Go rule.
+// rules, and stranger/rules, listed but not vetted, with one Go rule and one retired Rust rule.
 func newCarts(t *testing.T) (app.Carts, *cartStore) {
 	t.Helper()
 	retired := cartRule("techs/go/old-errors")
 	retired.RetiredIn = 2
+	retiredRust := cartRule("techs/rust/old-rust")
+	retiredRust.RetiredIn = 1
 	s := &cartStore{libraries: []views.CartLibrary{
 		{
 			Library: views.LibraryRef{Owner: "acme", Name: "rules", OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1"},
@@ -49,7 +51,7 @@ func newCarts(t *testing.T) (app.Carts, *cartStore) {
 		},
 		{
 			Library: views.LibraryRef{Owner: "stranger", Name: "rules"}, LatestRelease: 1, LatestCommit: strings.Repeat("b", 40),
-			Rules: []views.CartRule{cartRule("techs/go/use-go")},
+			Rules: []views.CartRule{cartRule("techs/go/use-go"), retiredRust},
 		},
 	}}
 	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{{ID: "techs/go", Name: "Go"}, {ID: "practices/testing", Name: "Testing"}}, nil)
@@ -289,6 +291,40 @@ func TestCheckoutResolvesKeysThatDifferOnlyInCaseToOneItem(t *testing.T) {
 			if strings.Count(checkout.Commands, "close-bodies") != 1 || !strings.Contains(checkout.Commands, c.want) ||
 				strings.Count(checkout.Commands, "--groups practices/testing") != 1 {
 				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, checkout.Commands)
+			}
+		})
+	}
+}
+
+// An unvetted library's item that checkout couldn't import even once confirmed says why, whether the visitor confirmed
+// the library or not: a retired rule is retired, and what the library doesn't have, or has no current rules of, is
+// missing, rather than unvetted, which would promise that confirming includes it.
+func TestCheckoutSaysWhyAnUnvettedLibrarysItemIsLeftOutBeforeAskingToConfirm(t *testing.T) {
+	carts, _ := newCarts(t)
+	keys := []string{
+		"stranger/rules::techs/rust/old-rust", "group::stranger/rules::techs/rust", "stranger/rules::techs/go/never-was",
+		"stranger/rules::techs/go/use-go",
+	}
+	for _, c := range []struct {
+		name      string
+		confirmed map[string]bool
+		ready     string
+	}{
+		{"unconfirmed", nil, "unvetted"},
+		{"confirmed", map[string]bool{"stranger/rules": true}, "ready"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			checkout, err := carts.Checkout(context.Background(), app.Cart{Keys: keys, Confirmed: c.confirmed}, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{
+				"stranger/rules::techs/rust/old-rust retired", "group::stranger/rules::techs/rust missing",
+				"stranger/rules::techs/go/never-was missing", "stranger/rules::techs/go/use-go " + c.ready,
+			}
+			if got := states(checkout); !slices.Equal(got, want) {
+				t.Errorf("got\n%q\nwant\n%q", got, want)
 			}
 		})
 	}

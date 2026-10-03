@@ -180,7 +180,7 @@
       !lib.vetted && !lib.gone ? h('span', 'inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink', {}, 'Unvetted') : null)];
     if (lib.gone) {
       parts.push(h('p', 'mb-2.5 text-[13px] text-muted', {}, 'This library is no longer on Rulemart, so checkout leaves its rules out. Remove them, or find another library.'));
-    } else if (!lib.vetted && !lib.confirmed) {
+    } else if (items.some((item) => item.state === 'unvetted')) {
       parts.push(h('div', 'mb-2.5 flex gap-3 rounded-card border border-warn-border bg-warn-surface px-4 py-3.5', { role: 'note' }, warningIcon(),
         h('div', 'min-w-0', {},
           h('p', 'text-[14px] leading-[1.5] font-semibold text-warn-ink', {}, 'This library has not been vetted. Be sure to review these rules carefully.'),

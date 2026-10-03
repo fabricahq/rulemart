@@ -634,8 +634,9 @@ const (
 	CartItemMissing CartItemState = "missing"
 	// CartItemGone is an item of a library that's neither vetted nor listed, which has no pages.
 	CartItemGone CartItemState = "gone"
-	// CartItemUnvetted is an item of a library the release doesn't vet, which the visitor didn't confirm adding, such
-	// as one added before the library lost its vetting.
+	// CartItemUnvetted is an item checkout would import but for its library, which the release doesn't vet and the
+	// visitor didn't confirm adding from, such as one added before the library lost its vetting. An item checkout
+	// leaves out for another reason says that reason instead, since confirming wouldn't include it.
 	CartItemUnvetted CartItemState = "unvetted"
 )
 
