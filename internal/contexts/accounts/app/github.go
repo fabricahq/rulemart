@@ -28,8 +28,8 @@ type GitHubReader interface {
 	// Organizations returns the logins of the token's user's organizations, at most domain.MaxOrganizations.
 	Organizations(ctx context.Context, token string) ([]string, error)
 	// Repositories returns owner's public repositories, an organization's when organization is true, the most recently
-	// pushed first, at most limit.
-	Repositories(ctx context.Context, token, owner string, organization bool, limit int) ([]domain.GitHubRepository, error)
+	// pushed first, at most limit, and whether owner has more.
+	Repositories(ctx context.Context, token, owner string, organization bool, limit int) (repos []domain.GitHubRepository, more bool, err error)
 	// RootEntries returns what the root of the repository's default branch holds, nothing for one the token can't see.
 	RootEntries(ctx context.Context, token string, repo domain.Repository) (domain.RootEntries, error)
 	// ReleaseTags returns the names of the repository's tags that start with release/.
@@ -294,8 +294,11 @@ func (g GitHubAccounts) candidates(ctx context.Context, token, login string, org
 	group.SetLimit(readConcurrency)
 	for i, owner := range owners {
 		group.Go(func() error {
-			var err error
-			lists[i], err = g.GitHub.Repositories(groupCtx, token, owner, i > 0, domain.MaxRepositories)
+			repos, left, err := g.GitHub.Repositories(groupCtx, token, owner, i > 0, domain.MaxRepositories)
+			mu.Lock()
+			more = more || left
+			mu.Unlock()
+			lists[i] = repos
 			return err
 		})
 	}

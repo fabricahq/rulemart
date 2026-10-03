@@ -593,3 +593,30 @@ func TestARepeatedInstallationCallbackKeepsItsSnapshotAndTheRefreshLimit(t *test
 		t.Errorf("after repeated returns, the kept projects are %+v", kept.Projects)
 	}
 }
+
+// A visitor with no organizations and more repositories than a read looks into is told the read stopped short, though
+// one owner's listing never returns more than the read takes; exactly as many is complete.
+func TestAReadOfOneOwnerSaysWhenItLeftRepositoriesOut(t *testing.T) {
+	for _, tc := range []struct {
+		repositories int
+		truncated    bool
+	}{
+		{domain.MaxRepositories - 1, false},
+		{domain.MaxRepositories, false},
+		{domain.MaxRepositories + 1, true},
+	} {
+		t.Run(fmt.Sprint(tc.repositories), func(t *testing.T) {
+			fake := &githubtest.Fake{Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}}}
+			for i := range tc.repositories {
+				fake.Repositories = append(fake.Repositories, githubtest.Repository{
+					Owner: "mona", Name: fmt.Sprintf("repo-%03d", i), PushedAt: pushed.Add(-time.Duration(i) * time.Hour),
+				})
+			}
+			site := newGitHubSite(t, fake, false)
+
+			if got := site.snapshot(t); got.Truncated != tc.truncated {
+				t.Errorf("truncated %v, want %v", got.Truncated, tc.truncated)
+			}
+		})
+	}
+}

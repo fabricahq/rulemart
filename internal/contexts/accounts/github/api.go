@@ -55,17 +55,18 @@ func (a *API) Organizations(ctx context.Context, token string) ([]string, error)
 }
 
 // Repositories returns the public repositories owner owns, an organization's when organization is true and a user's
-// otherwise, the most recently pushed first, at most limit of them.
-func (a *API) Repositories(ctx context.Context, token, owner string, organization bool, limit int) ([]domain.GitHubRepository, error) {
+// otherwise, the most recently pushed first, at most limit of them, and whether owner has more.
+func (a *API) Repositories(ctx context.Context, token, owner string, organization bool, limit int) ([]domain.GitHubRepository, bool, error) {
 	path := "/users/" + url.PathEscape(owner) + "/repos?type=owner&sort=pushed&direction=desc&"
 	if organization {
 		path = "/orgs/" + url.PathEscape(owner) + "/repos?type=public&sort=pushed&direction=desc&"
 	}
-	repositories, _, err := a.repositories(ctx, token, path, "", limit, limit/perPage+1, keepAll)
+	// One page past limit's tells whether owner has more.
+	repositories, more, err := a.repositories(ctx, token, path, "", limit, limit/perPage+1, keepAll)
 	if err != nil {
-		return nil, fmt.Errorf("list repositories owner=%q: %w", owner, err)
+		return nil, false, fmt.Errorf("list repositories owner=%q: %w", owner, err)
 	}
-	return repositories, nil
+	return repositories, more, nil
 }
 
 // repositories returns the repositories the list at path holds that keep returns true for, in the list's order, page
