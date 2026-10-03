@@ -1,7 +1,7 @@
 /** @fileoverview The cart, which lives in the visitor's browser, as the prototype's does, so it needs no account and
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
- * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; project and repo, where checkout's texts go;
+ * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
  * and confirmed, the unvetted libraries they confirmed adding from. It paints the header's count and each page's cart
  * controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
  * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
@@ -24,13 +24,10 @@
   /** Report whether key is one the cart can hold. */
   const validKey = (key) => typeof key === 'string' && key.length <= MAX_KEY && (RULE_KEY.test(key) || GROUP_KEY.test(key));
 
-  /** Return the library of a cart key, as owner/repo. */
-  const libraryOf = (key) => key.replace(/^group::/, '').split('::')[0];
-
   /** Return the plural of word for n, with n: 1 rule, 2 rules. */
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-  const fresh = () => ({ cart: [], fork: {}, restOfGroups: {}, project: null, repo: '', confirmed: {} });
+  const fresh = () => ({ cart: [], fork: {}, restOfGroups: {}, repo: '', confirmed: {} });
 
   /** Return the names of value, an object of flags, that are on, at most MAX_ITEMS of them, as an object of flags. */
   function flags(value) {
@@ -58,7 +55,6 @@
     state.fork = Object.fromEntries(Object.keys(flags(stored.fork)).filter((key) => state.cart.includes(key)).map((key) => [key, true]));
     state.restOfGroups = flags(stored.restOfGroups);
     state.confirmed = flags(stored.confirmed);
-    if (typeof stored.project === 'string') state.project = stored.project.slice(0, MAX_KEY);
     if (typeof stored.repo === 'string') state.repo = stored.repo.slice(0, 500);
     return state;
   }

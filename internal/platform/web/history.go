@@ -88,8 +88,8 @@ func releaseComparisonHref(lib libraryView, from, to int, mode diffMode) string 
 	return lib.href + "?" + q.Encode()
 }
 
-// ruleHref is the path of a rule's page in lib.
-func ruleHref(lib libraryView, rulePath string) string { return lib.href + "/" + rulePath }
+// ruleHref is the path of the page of the rule at rulePath of the library whose page is library.
+func ruleHref(library, rulePath string) string { return library + "/" + rulePath }
 
 // ruleComparisonHref is the path of the comparison of a rule's versions from and to.
 func ruleComparisonHref(lib libraryView, rulePath string, from, to coderules.RuleVersion, mode diffMode) string {
@@ -97,7 +97,7 @@ func ruleComparisonHref(lib libraryView, rulePath string, from, to coderules.Rul
 	if mode == diffLines {
 		q.Set("view", string(mode))
 	}
-	return ruleHref(lib, rulePath) + "?" + q.Encode()
+	return ruleHref(lib.href, rulePath) + "?" + q.Encode()
 }
 
 // maxVersionRows bounds the table of every rule's version that a release's card holds. A larger release's table, as
@@ -174,7 +174,7 @@ type ruleLink struct {
 }
 
 func newRuleLink(lib libraryView, r views.RuleRef) ruleLink {
-	return ruleLink{href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path}
+	return ruleLink{href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path}
 }
 
 func newRuleLinks(lib libraryView, refs []views.RuleRef) []ruleLink {
@@ -291,7 +291,7 @@ func newReleaseCards(lib libraryView, page views.ReleasesPage) []releaseCard {
 			card.sharedFiles = notes.Release.UpdatesSharedFiles
 		}
 		for _, v := range notes.Versions {
-			card.versions = append(card.versions, versionRow{href: ruleHref(lib, v.Path), id: v.Path, version: v.Version.String()})
+			card.versions = append(card.versions, versionRow{href: ruleHref(lib.href, v.Path), id: v.Path, version: v.Version.String()})
 		}
 		cards[i] = card
 	}
@@ -365,7 +365,7 @@ func newChangeSections(lib libraryView, changes []views.RuleChange, firstRelease
 // page, which lists its versions. A rename's versions lead to the diff of its old rule's last text with its new
 // rule's: on release's comparison with the release before, or on this page when release is 0.
 func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, release int) changeItem {
-	item := changeItem{href: ruleHref(lib, c.Rule.Path), title: titleOrID(c.Rule.Title, c.Rule.Path), id: c.Rule.Path}
+	item := changeItem{href: ruleHref(lib.href, c.Rule.Path), title: titleOrID(c.Rule.Title, c.Rule.Path), id: c.Rule.Path}
 	if c.Rule.RetiredIn == 0 {
 		item.href += "?tab=versions"
 	}
@@ -705,7 +705,7 @@ func (d diffView) renamed() bool { return d.oldPath != d.path }
 func newDiffView(lib libraryView, oldPath, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
 	file, oldFile := domain.RuleFile(rulePath), domain.RuleFile(oldPath)
 	d := diffView{
-		path: file, oldPath: oldFile, href: ruleHref(lib, rulePath), anchor: diffAnchor(rulePath),
+		path: file, oldPath: oldFile, href: ruleHref(lib.href, rulePath), anchor: diffAnchor(rulePath),
 		from: from.String(), to: to.String(), state: text.State, mode: mode,
 	}
 	d.fromURL, d.toURL = lib.fileAtVersionURL(oldFile, text.OldRelease), lib.fileAtVersionURL(file, text.NewRelease)

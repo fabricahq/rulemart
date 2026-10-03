@@ -213,7 +213,8 @@ func (s *server) handler() http.Handler {
 		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
 	}
 	handle("GET /search", s.search)
-	// One segment can't hide a library's page.
+	// One segment, which siteSections reserves from owners. The checkout under it is a POST, so every library of an
+	// owner named cart keeps its page, cart/checkout.json too.
 	handle("GET "+cartHref, s.cartPage)
 	if s.Carts != nil {
 		handle("POST "+checkoutHref, s.checkout)
@@ -295,8 +296,7 @@ func (s *server) withStaticFiles(next http.Handler) http.Handler {
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
 // old groups, with pages under them, cart, with its checkout, a POST, and libraries, search, unvetted, list, about,
-// privacy, faq, and feedback. With
-// signInSections, they're the logins whose owner pages are under /o/.
+// privacy, faq, and feedback. With signInSections, they're the logins whose owner pages are under /o/.
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
 // pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
@@ -337,10 +337,10 @@ func libraryPageTaken(owner, name string) bool {
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of the site's own pages in another case,
 // such as /Groups/techs/go or /SEARCH, or whose kind does under browse, g, and groups, such as /browse/Techs, to the
-// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
-// pages: a path a catch-all takes, such as /G/rules for a library whose owner's login is G, is left to that page's own
-// redirect to GitHub's spelling, which a lowercase redirect would send back and forth. The target starts with the
-// section, so it stays on the site.
+// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux
+// routes the lowercase path to one of the site's own pages: a path a catch-all takes, such as /G/rules for a library
+// whose owner's login is G, is left to that page's own redirect to GitHub's spelling, which a lowercase redirect would
+// send back and forth. The target starts with the section, so it stays on the site.
 func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.EscapedPath()
@@ -606,7 +606,7 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, group.label.id, nil) {
 		return
 	}
-	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view, group.label.id)), view, group))
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
@@ -696,12 +696,17 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusNotFound, messagePage(s.chrome, "Not found", "Rulemart has no page here."))
 }
 
-// fail logs err with the request's route pattern and ID, and answers with a page that reveals nothing about the
-// failure.
+// fail logs err, as logFailure does, and answers with a page that reveals nothing about the failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	s.logFailure(r, err)
+	s.unavailable(w, r)
+}
+
+// logFailure logs err, which fails r with 503, with the request's route pattern and ID, and without what r's path
+// names.
+func (s *server) logFailure(r *http.Request, err error) {
 	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
 		"status", http.StatusServiceUnavailable, "error", withoutPath(err.Error(), r))
-	s.unavailable(w, r)
 }
 
 // withoutPath returns text with the owner, library, or rule that r's path names replaced by the route's wildcards.

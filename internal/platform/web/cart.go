@@ -171,8 +171,7 @@ func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the cart holds more items than it may"})
 		return
 	case err != nil:
-		s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
-			"status", http.StatusServiceUnavailable, "error", err.Error())
+		s.logFailure(r, err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Rulemart can't check out right now"})
 		return
 	}
@@ -246,15 +245,15 @@ func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, i
 	case domain.CartGroup:
 		item.Title = label.display()
 		if it.State != views.CartItemMissing && !gone {
-			item.Href = libraryHref + "/" + it.Item.Path
+			item.Href = libraryGroupHref(libraryHref, it.Item.Path)
 		}
 		for _, r := range it.Rules {
-			item.Rules = append(item.Rules, ruleLinkJSON{Title: titleOrID(r.Title, r.Path), Href: libraryHref + "/" + r.Path})
+			item.Rules = append(item.Rules, ruleLinkJSON{Title: titleOrID(r.Title, r.Path), Href: ruleHref(libraryHref, r.Path)})
 		}
 	case domain.CartRule:
 		item.Title = titleOrID(it.Title, it.Item.Path)
 		if it.State != views.CartItemMissing && !gone {
-			item.Href = libraryHref + "/" + it.Item.Path
+			item.Href = ruleHref(libraryHref, it.Item.Path)
 		}
 		if it.Version != (coderules.RuleVersion{}) {
 			item.Version = it.Version.String()

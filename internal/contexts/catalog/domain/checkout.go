@@ -108,7 +108,7 @@ type checkoutSource struct {
 func (s checkoutSource) FullName() string { return s.Owner + "/" + s.Name }
 
 // Repository returns the library's Git address on GitHub, as Code Rules names a library.
-func (s checkoutSource) Repository() string { return "https://github.com/" + s.FullName() + ".git" }
+func (s checkoutSource) Repository() string { return RepositoryURL(s.FullName()) + ".git" }
 
 // selects reports whether the source imports any group or rule from its library, rather than only forking.
 func (s checkoutSource) selects() bool { return len(s.Groups) > 0 || len(s.Rules) > 0 }

@@ -211,7 +211,9 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 	if link := find(doc, withAttribute("data-cart-link")); link == nil || attribute(link, "aria-current") != "page" {
 		t.Error("the header's cart isn't marked as the current page")
 	}
-	noscript := find(doc, func(n *html.Node) bool { return n.Data == "noscript" && strings.Contains(n.FirstChild.Data, "Your cart needs JavaScript") })
+	noscript := find(doc, func(n *html.Node) bool {
+		return n.Data == "noscript" && strings.Contains(n.FirstChild.Data, "Your cart needs JavaScript")
+	})
 	if noscript == nil {
 		t.Error("without JavaScript, the page doesn't say the cart needs it")
 	}

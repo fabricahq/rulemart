@@ -67,10 +67,6 @@ var ErrNotCartItem = errors.New("not a cart item")
 // matches them without regard to case.
 var idPart = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
-// gitHubNamePart matches a GitHub owner's or repository's name, as a cart names its library: every library is on
-// GitHub.
-var gitHubNamePart = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-
 // ParseCartKey returns the item key names, as Key writes it. It fails with ErrNotCartItem when key names no item,
 // such as text no library or ID can hold, or a key longer than MaxCartKeyLength, without checking that the item
 // exists.
@@ -82,7 +78,7 @@ func ParseCartKey(key string) (CartItem, error) {
 	}
 	library, path, ok := strings.Cut(rest, "::")
 	owner, name, named := strings.Cut(library, "/")
-	if len(key) > MaxCartKeyLength || !ok || !named || !gitHubNamePart.MatchString(owner) || !gitHubNamePart.MatchString(name) ||
+	if len(key) > MaxCartKeyLength || !ok || !named || !gitHubName.MatchString(owner) || !gitHubName.MatchString(name) ||
 		!validCartPath(item.Kind, path) {
 		return CartItem{}, fmt.Errorf("parse cart key %q: %w", key, ErrNotCartItem)
 	}

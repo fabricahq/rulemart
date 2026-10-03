@@ -34,9 +34,9 @@ type policies struct {
 }
 
 // newPolicies returns the policies for a site, with Cloudflare's analytics when analytics is true. Each allows only
-// Rulemart's own files, images from GitHub's avatar and raw file hosts, which rules and library owners use, requests
-// to Rulemart from its own scripts, such as the cart's checkout, and forms that submit to Rulemart, such as search. Rule content comes from repositories Rulemart doesn't control, so
-// nothing else may load or run, and no page may be framed.
+// Rulemart's own files, images from GitHub's avatar and raw file hosts, which rules and library owners use, requests to
+// Rulemart from its own scripts, such as the cart's checkout, and forms that submit to Rulemart, such as search. Rule
+// content comes from repositories Rulemart doesn't control, so nothing else may load or run, and no page may be framed.
 func newPolicies(analytics bool) policies {
 	build := func(formAction string) string {
 		scripts, connect := "'self'", "'self'"

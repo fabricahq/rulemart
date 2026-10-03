@@ -189,14 +189,6 @@ templ confirmDialog(lib libraryView) {
 	}
 }
 
-// pluralWord returns one or many by n, without the number.
-func pluralWord(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}
-
 // groupsCartPanel is the library page's Add to cart box beside its groups, as the prototype's: it adds the groups the
 // visitor ticks, each whole, which cart.js counts and adds.
 templ groupsCartPanel(lib libraryView) {

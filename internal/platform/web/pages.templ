@@ -157,7 +157,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 						</div>
 						<span class="flex items-center gap-2 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
 							@groupHeldBadge(lib, g)
-							<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib, g.label.id)) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+							<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id)) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
 						</span>
 					</div>
 				}

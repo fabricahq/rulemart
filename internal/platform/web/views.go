@@ -239,7 +239,7 @@ type ruleRowView struct {
 // list that includes such libraries.
 func newRuleRow(lib libraryRefView, unvetted bool, r views.RuleCard) ruleRowView {
 	return ruleRowView{
-		href: lib.href + "/" + r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
+		href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
 		unvetted: unvetted,
 	}
 }
@@ -301,7 +301,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	}
 	for _, r := range page.Retired {
 		result.retired = append(result.retired, retiredRuleCard{
-			href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
+			href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
 			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: newRuleLinks(lib, r.Replacements),
 			renamed: r.Renamed,
 		})
@@ -403,7 +403,7 @@ func (r ruleView) summary() string {
 func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
-		library: lib, href: ruleHref(lib, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
+		library: lib, href: ruleHref(lib.href, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
 		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
@@ -460,10 +460,10 @@ func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
 }
 
-// libraryGroupHref is the path of the page of the group id of lib.
-func libraryGroupHref(lib libraryView, id string) string {
+// libraryGroupHref is the path of the page of the group id of the library whose page is library.
+func libraryGroupHref(library, id string) string {
 	kind, name, _ := strings.Cut(id, "/")
-	return lib.href + "/" + url.PathEscape(kind) + "/" + url.PathEscape(name)
+	return library + "/" + url.PathEscape(kind) + "/" + url.PathEscape(name)
 }
 
 // groupAnchor is the fragment of a group's section on the All rules tab.
@@ -482,6 +482,14 @@ func plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return strconv.Itoa(n) + " " + many
+}
+
+// pluralWord returns one or many by n, without the number.
+func pluralWord(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // impactLevelsDocs is Code Rules' explanation of impact levels.
