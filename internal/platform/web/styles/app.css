@@ -316,6 +316,16 @@
   }
 }
 
+/* A line of the checkout's preview that changed, marked briefly in the cart's green, as the prototype does. */
+.cart-changed { border-radius: 3px; animation: cart-changed 1.8s ease-out; }
+@keyframes cart-changed {
+  from { background: var(--ok-surface); box-shadow: 0 0 0 2px var(--ok-surface); }
+  to { background: transparent; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cart-changed { animation: none; }
+}
+
 /* The cart lives in the browser and needs a script, so without one its controls go, rather than do nothing. */
 @media (scripting: none) {
   [data-needs-script] { display: none !important; }

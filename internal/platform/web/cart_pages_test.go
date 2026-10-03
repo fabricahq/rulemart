@@ -159,3 +159,45 @@ func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 func linkOf(path string, retiredIn int) views.RuleLink {
 	return views.RuleLink{Path: path, RetiredIn: retiredIn}
 }
+
+// The cart's page is a shell cart.js fills, the same for every visitor who isn't signed in: the empty state and the
+// three cards, each hidden until the script shows the one the cart needs, and, without JavaScript, a message that the
+// cart needs it. Signed out, where the rules go offers to sign in or to enter a repository; signed in, it says
+// Rulemart found no projects, since it reads none yet. Search engines don't index it.
+func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+
+	signedOut := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/cart"}))
+	signedIn := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/cart", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+
+	doc := parsePage(t, signedOut)
+	for _, part := range []string{"data-cart-page", "data-cart-empty", "data-cart-full", "data-cart-libraries", "data-cart-preview", "data-cart-repo"} {
+		if find(doc, withAttribute(part)) == nil {
+			t.Errorf("the page has no %s", part)
+		}
+	}
+	if !strings.Contains(signedOut, `<meta name="robots" content="noindex">`) {
+		t.Error("search engines may index the cart")
+	}
+	if link := find(doc, withAttribute("data-cart-link")); link == nil || attribute(link, "aria-current") != "page" {
+		t.Error("the header's cart isn't marked as the current page")
+	}
+	noscript := find(doc, func(n *html.Node) bool { return n.Data == "noscript" && strings.Contains(n.FirstChild.Data, "Your cart needs JavaScript") })
+	if noscript == nil {
+		t.Error("without JavaScript, the page doesn't say the cart needs it")
+	}
+	page := strings.Join(strings.Fields(signedOut), " ")
+	for _, want := range []string{
+		"Your cart is empty", "Checkout", "What you&#39;re adding", "Where it goes", "Finish checkout",
+		"Pick from your projects", "Sign in to choose a project and see when its rules have updates.", "Enter your project",
+		"GitHub repository <span class=\"text-faint\">(optional, so the prompt names it)</span>", "Copy prompt for agent",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	if strings.Contains(signedIn, "Pick from your projects") || !strings.Contains(signedIn, "We didn't find any of your projects using Code Rules.") {
+		t.Error("signed in, the page offers to sign in, or doesn't say it found no projects")
+	}
+}

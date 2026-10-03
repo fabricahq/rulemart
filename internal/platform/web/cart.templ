@@ -290,3 +290,125 @@ templ checkIcon(class string) {
 		<path d="m3 8.5 3 3 7-7"></path>
 	</svg>
 }
+
+// cartPage is the cart's page, as the prototype's: a shell that cart.js fills from the cart the browser keeps, which
+// it checks out at checkoutHref. An empty cart shows the empty state; a cart with items, the three numbered cards:
+// what you're adding, where it goes, and the finished prompt and commands. Without JavaScript, the page says the cart
+// needs it. signIn is where signing in starts, empty when sign-in isn't available; a signed-in visitor has no
+// projects Rulemart knows of yet.
+templ cartPage(c chrome, signIn string, withGitHub, signedIn bool) {
+	@layout(c, head{title: "Cart · Rulemart", description: "The rules you picked on Rulemart, and the prompt and commands that add them to your project.", noindex: true, section: cartHref}) {
+		<noscript>
+			@cartEmptyFrame("Your cart needs JavaScript", "Your cart lives in your browser, which keeps the rules you add until you check out. Turn on JavaScript to add rules and check out.")
+		</noscript>
+		<div data-needs-script data-cart-page>
+			<div data-cart-empty hidden>
+				@cartEmptyFrame("Your cart is empty", "Browse rules and add the ones you want. When you check out, you get one prompt for your agent and the exact commands to run.")
+			</div>
+			<div class="page wrap" data-cart-full hidden>
+				@label("") {
+					Cart
+				}
+				<h1 class="title-xl mt-2 mb-7">Checkout</h1>
+				<div class="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-8 max-wide:grid-cols-1">
+					<div class="min-w-0">
+						<section class={ checkoutCardStyle } aria-labelledby="cart-step-1">
+							@checkoutStep("1", "What you're adding", "cart-step-1") {
+								<span data-cart-summary></span>
+							}
+							<div class={ checkoutBodyStyle }>
+								<div data-cart-libraries aria-live="polite">
+									<p class="text-[14px] text-muted">Loading your cart…</p>
+								</div>
+								<button class={ cartLinkButton } type="button" data-cart-clear>Clear cart</button>
+							</div>
+						</section>
+						<section class={ checkoutCardStyle, "mt-5" } aria-labelledby="cart-step-2">
+							@checkoutStep("2", "Where it goes", "cart-step-2") {
+								The project these rules are for
+							}
+							<div class={ checkoutBodyStyle }>
+								@projectSection(signIn, withGitHub, signedIn)
+							</div>
+						</section>
+					</div>
+					<aside class={ checkoutCardStyle, "wide:sticky wide:top-[84px] wide:flex wide:max-h-[calc(100vh-110px)] wide:flex-col" } aria-labelledby="cart-step-3">
+						@checkoutStep("3", "Finish checkout", "cart-step-3") {
+						}
+						<div class={ checkoutBodyStyle, "flex min-h-0 flex-1 flex-col" }>
+							<p class="mb-3 text-[13px] text-muted">Give your agent the prompt, or run the commands yourself. Both update as you change your cart.</p>
+							<div class="mb-2.5 inline-flex gap-0.5 self-start rounded-full border border-border p-0.5 text-[12.5px]" role="group" aria-label="Show">
+								<button class={ segmentStyle } type="button" aria-pressed="true" data-cart-tab="prompt">Prompt</button>
+								<button class={ segmentStyle } type="button" aria-pressed="false" data-cart-tab="commands">Commands</button>
+							</div>
+							<pre class="m-0 min-h-[120px] flex-auto overflow-auto rounded-[10px] border border-border bg-surface-header px-3 py-2.5 font-mono text-[11px] leading-[1.6] break-words whitespace-pre-wrap wide:max-h-[360px] max-wide:max-h-[360px]" tabindex="0" aria-label="Prompt for your agent" data-cart-preview></pre>
+							<button class={ cartPrimaryStyle, "mt-3 w-full" } type="button" data-cart-copy>Copy prompt for agent</button>
+							<p class="mt-2.5 text-[12px] text-faint" data-cart-footnote>Rules move to newer versions only when your project runs <code>code-rules project update</code>.</p>
+						</div>
+					</aside>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// cartEmptyFrame is the cart's page when it can't show a checkout: the cart icon, title, why, and the ways to browse.
+templ cartEmptyFrame(title, why string) {
+	<div class="page wrap max-w-[640px] pt-[72px] text-center">
+		@cartIcon("mx-auto size-12 text-faint")
+		<h1 class="title-xl mt-4 mb-2">{ title }</h1>
+		<p class="text-muted">{ why }</p>
+		<div class="mt-5 flex flex-wrap justify-center gap-2.5">
+			<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(techsKind.href()) }>Browse techs</a>
+			<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(practicesKind.href()) }>Browse practices</a>
+		</div>
+	</div>
+}
+
+// The checkout's cards, as the prototype's: a panel with a shaded header bar, and the bar's step number.
+const (
+	checkoutCardStyle = "overflow-hidden rounded-panel border border-border bg-paper"
+	checkoutBodyStyle = "p-5 max-narrow:p-4"
+	segmentStyle      = "cursor-pointer rounded-full px-[11px] py-[3px] whitespace-nowrap text-muted aria-pressed:bg-surface-header aria-pressed:text-ink"
+)
+
+// checkoutStep is a checkout card's header bar: its number, its title, and what the children say, at the end.
+templ checkoutStep(n, title, id string) {
+	<div class="flex flex-wrap items-center gap-3 border-b border-border bg-surface-header px-5 py-3.5 max-narrow:px-4">
+		<span class="grid size-6 flex-none place-items-center rounded-full bg-ink text-[12.5px] font-semibold text-paper" aria-hidden="true">{ n }</span>
+		<h2 id={ id } class="text-[1.05rem] leading-[1.3] font-semibold tracking-[-.02em]">{ title }</h2>
+		<span class="ml-auto text-[13px] text-muted max-narrow:-mt-1.5 max-narrow:ml-9 max-narrow:basis-full max-narrow:empty:hidden">
+			{ children... }
+		</span>
+	</div>
+}
+
+// projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
+// entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none. The
+// repository field names the project in the texts; cart.js keeps it and says which repository it read.
+templ projectSection(signIn string, withGitHub, signedIn bool) {
+	if signedIn {
+		<p class="-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted">We didn't find any of your projects using Code Rules.</p>
+	} else if signIn != "" {
+		<div class="flex flex-wrap items-center justify-between gap-4">
+			<div>
+				<b class="text-[13px] font-semibold">Pick from your projects</b>
+				<p class="mt-0.5 text-[13px] text-muted">Sign in to choose a project and see when its rules have updates.</p>
+			</div>
+			<a class={ signInButtonStyle } href={ templ.SafeURL(signIn) }>
+				if withGitHub {
+					@githubMark("size-[15px] flex-none")
+					Sign in with GitHub
+				} else {
+					Sign in
+				}
+			</a>
+		</div>
+		<div class="my-4 flex items-center gap-3 text-[12px] tracking-[.08em] text-faint uppercase before:flex-1 before:border-t before:border-border-subtle after:flex-1 after:border-t after:border-border-subtle">or</div>
+		<b class="mb-2.5 block text-[13px] font-semibold">Enter your project</b>
+	}
+	<label class="mb-1.5 block text-[13px] text-muted" for="cart-repo">GitHub repository <span class="text-faint">(optional, so the prompt names it)</span></label>
+	<input id="cart-repo" class="w-full rounded-[10px] border border-border bg-paper px-3 py-2.5 text-[14px] text-ink placeholder:text-faint focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="text" placeholder="https://github.com/owner/repo" autocomplete="off" spellcheck="false" maxlength="500" data-cart-repo aria-describedby="cart-repo-note"/>
+	<p id="cart-repo-note" class="mt-1.5 text-[12px] text-faint" data-cart-repo-note hidden></p>
+	<p class="mt-3.5 text-[13px] text-muted"><b class="font-semibold text-ink">New to Code Rules?</b> The prompt sets it up for you.</p>
+}

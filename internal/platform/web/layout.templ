@@ -240,12 +240,12 @@ templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
 		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3 max-tiny:gap-2">
 			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
-				// A narrow phone's header has room for Rulemart's name alone.
-				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-tiny:hidden" href="https://fabricahq.com">
+				// A phone's header, with the cart beside the menu, search, and sign-in, has room for Rulemart's name alone.
+				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-[27rem]:hidden" href="https://fabricahq.com">
 					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
 					Fabrica
 				</a>
-				<span class="font-normal text-muted max-tiny:hidden">/</span>
+				<span class="font-normal text-muted max-[27rem]:hidden">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
 			<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">

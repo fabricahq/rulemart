@@ -135,6 +135,13 @@ type upsellJSON struct {
 	Full   bool     `json:"full"`
 }
 
+// cartPage shows the cart's page, which cart.js fills from the cart the browser keeps. It's the same for every visitor
+// but in where the cart's rules go, which offers to sign in to anyone who isn't.
+func (s *server) cartPage(w http.ResponseWriter, r *http.Request) {
+	v := visitorOf(r.Context())
+	s.render(w, r, http.StatusOK, cartPage(s.chrome, v.signIn, v.withGitHub, v.account != nil))
+}
+
 // checkout answers a cart that cart.js posts, as checkoutRequest describes it, with its checkout. Another site can't
 // post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that isn't
 // such a cart, or holds more than domain.MaxCartItems keys, is refused with 400.

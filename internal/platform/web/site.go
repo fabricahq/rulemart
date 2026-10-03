@@ -215,6 +215,8 @@ func (s *server) handler() http.Handler {
 		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
 	}
 	handle("GET /search", s.search)
+	// One segment can't hide a library's page.
+	handle("GET "+cartHref, s.cartPage)
 	if s.Carts != nil {
 		handle("POST "+checkoutHref, s.checkout)
 	}
@@ -268,7 +270,8 @@ const (
 var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true, rulePattern: true, notFoundPattern: true}
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
-// old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
+// old groups, with pages under them, cart, with its checkout, a POST, and libraries, search, unvetted, list, about,
+// privacy, faq, and feedback. With
 // signInSections, they're the logins whose owner pages are under /o/.
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
@@ -277,7 +280,7 @@ var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true,
 // GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
 // browse/rules, g/techs, groups/techs, or libraries/rules.
 var siteSections = []string{
-	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
+	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback", "cart",
 }
 
 // signInSections are the first segments of the routes that exist only when sign-in is available: the account pages,
