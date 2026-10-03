@@ -293,6 +293,9 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	}
 	private := site.get(t, "/me/add?url=octocat%2Fteam-rules")
 	assertShows(t, private, "octocat/team-rules is private. Private libraries can't be published on Rulemart.")
+	if got := formActions(t, private); slices.Contains(got, "/me/add?repository=octocat%2Fteam-rules") || strings.Contains(private, "Public library on GitHub") {
+		t.Errorf("the refusal of a private library offers to add it, with forms posting to %q", got)
+	}
 }
 
 // The page that follows a listing's check shows it running, failed with why and what to do, or done with what Rulemart

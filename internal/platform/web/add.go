@@ -47,7 +47,8 @@ func (s *server) addPage(w http.ResponseWriter, r *http.Request) {
 		if !s.explainRefusal(w, r, &view, repo, err) {
 			return
 		}
-		if err == nil {
+		if err == nil && view.problem == "" {
+			// A refusal, such as of a private library, offers nothing to add.
 			view.confirm = &pickView{fullName: repo.FullName(), detail: "Public library on GitHub", action: addAction(repo.FullName())}
 		}
 	}
