@@ -76,40 +76,55 @@ Everything else the slice docs proposed is accepted as they state it.
 
 ## Conformance matrix
 
-Each prototype route, what the stack has today, and the slice that closes the gap. "Different" means a decision
-above chose otherwise.
+Each prototype route, the site's, and how they compare, as slice R8's audit found them on 2026-10-03, side by side at
+1280 and 390 pixels, light and dark, signed out and in. [audit/conformance.sh](audit/conformance.sh) takes those
+screenshots again. "Match" means the same layout, type, spacing, and behavior, where the pages differ only in their
+data: the prototype's libraries are invented, and the site shows the two real ones. Every other difference is named,
+with the decision that chose it, so the next person knows it was chosen, not missed.
 
-| Prototype route | Today | Status | Slice |
-| --- | --- | --- | --- |
-| `#/` home: hero, popular chips, tech and practice tiles, four libraries, List your library | Hero, libraries, group tiles | Partial | R1 |
-| `#/browse/techs`, `#/browse/practices`: row per canonical group | `/groups`, one page | Partial | R1 |
-| `#/browse/{kind}/other`: non-canonical groups | Listed per library on `/groups` | Missing | R1 |
-| `#/libraries` | `/libraries`, vetted only, unvetted behind a link | Match, plus the opt-in control | R4 |
-| `#/{owner}`: owner page with libraries | None | Missing | R1 |
-| `#/faq`, `#/feedback` | `/about`, issue forms | Missing | R1 |
-| Header: Techs, Practices, Libraries, FAQ, search, cart, sign-in | Libraries, Groups, search, sign-in | Partial | R1 |
-| Footer: feedback, theme | Links, theme menu | Partial | R1 |
-| Brand mark, favicons | Cube mark | Different | R2 |
-| Star on rules, counts on rows, Starred rules tab | Stars on libraries | Different | R3 |
-| `#/g/{kind}/{group}`: flat ranked list, filter sidebar, sort tabs, non-canonical with note | Canonical only, sectioned by library, no filters | Partial | R4 |
-| `#/search`: grouped by group, filter sidebar, sort tabs | Flat, paged, no filters | Partial | R4 |
-| Retired rules in search | Excluded | Different | R4 |
-| Unvetted opt-in on browse, group, search | Hidden except `/unvetted` | Different | R4 |
-| Cart in the browser, header badge, add-to-cart modal | Postgres cart, sign-in required | Different | R5 |
-| `#/cart`: three-step checkout, sync or fork, upsell, project picker, Prompt and Commands tabs | Cart page and a prompt page | Partial | R5 |
-| Library page: verified check, Groups tab checkboxes and Add groups panel, Added by, On Rulemart since | Add library button, per-row Add, Report link | Partial | R6 |
-| `#/{owner}/{repo}/{kind}/{group}`: library group page with Add group | None | Missing | R6 |
-| Rule page: tags, Star, Discuss, add-to-cart modal, About panel with Discuss, assets panel | Rule and Versions tabs, About panel | Partial | R6 |
-| Asset pages | None | Missing | R6 |
-| Versions tab and compare view | Present | Match | none |
-| Library releases tab | Present | Match | none |
-| Retired rule page | Present | Match | none |
-| Discussion tabs, Discuss modal | None | Deferred, #27 | later |
-| `#/signin` with perks | `/sign-in` | Partial | R7 |
-| `#/me`: My libraries, used in your projects, Starred rules | `/account`, `/account/listings`, `/account/stars` | Partial | R7 |
-| `#/me/add`: repo picker, URL form, `#/me/add/run` checklist | `/list` form, `/account/listings` | Partial | R7 |
-| `#/me/private`, `#/gh/install` | None | Missing | R7 |
-| About, privacy, robots, sitemap, headers, analytics | Present | Match, updated for the above | R8 |
+Differences on every page:
+
+- **Library names.** A Code Rules library declares no display name, so pages name it by its repository, such as
+  `public-rules`, or `owner/name` beside rules, where the prototype shows invented names such as "Fabrica Public
+  Rules".
+- **The header and footer on a phone.** Below 960 pixels, a menu button stands in for the header's links, as slice
+  R1's decision says, where the prototype hides them; the footer keeps one line, with About, Feedback, Privacy, and the
+  source and theme icons, as R1 decided, and its links and icons are 44-pixel tap targets.
+- **Page padding on a phone.** Below 720 pixels, the prototype's `.wrap { padding: 0 16px }` also zeroes `.page`'s 36
+  pixels above and 80 below, a slip of the shorthand that puts the content against the header. The site keeps them.
+- **Sign-in's GitHub mark.** "Sign in with GitHub" and Continue with GitHub show only when GitHub sign-in is
+  configured, so a local `make web-dev` build shows "Sign in" and its test users' box instead.
+- **Proposed: dates are absolute**, such as "1 Oct 2026", where the prototype writes "3 days ago". Pages are cached and
+  the same for everyone, so a date never goes stale and needs no script.
+
+| Prototype route | Site | Status |
+| --- | --- | --- |
+| `#/` home | `/` | Match, except the hero opens with Rulemart's logo, as R2 decided, and lists show vetted libraries |
+| `#/browse/techs`, `#/browse/practices` | `/browse/techs`, `/browse/practices` | Match, except rows show no group ID, as R1 decided, and the Include unvetted libraries control, as the vetting decision says |
+| `#/browse/{kind}/other` | `/browse/{kind}/other` | Match, with the opt-in control |
+| `#/libraries` | `/libraries` | Match, except it lists vetted libraries, titled "Libraries Rulemart has vetted", with the opt-in control |
+| `#/{owner}` | `/{owner}`, `/o/{login}` | Match, except it shows the login and avatar only: the display name, kind, verified domain, and bio wait for a slice that stores them, as R1's doc proposes |
+| `#/faq` | `/faq` | Match, except answers that mention Discuss point to the library's repository until rulemart#27 |
+| `#/feedback` | `/feedback` | Match, plus "Something broken on Rulemart", as R1 decided; a specific rule's feedback goes to the library's repository until rulemart#27 |
+| Header and footer | Every page | Match, except as listed above |
+| Brand mark, favicons | Every page | Different, as R2 decided |
+| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, and a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records |
+| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided |
+| `#/cart` | `/cart` | Match |
+| Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects |
+| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice |
+| Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form and each release's Compare link from slice 4 |
+| `#/{owner}/{repo}/{kind}/{group}` | The same | Match |
+| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile |
+| Versions tab and compare view | `?tab=versions`, `&from=&to=` | Match, with the Compare button, which submits the form without a script, from slice 4, and each version row's comparison buttons as wide as each other |
+| Retired rule page | The same address | Match, plus the last version's text, from slice 4 |
+| Asset pages | `/{owner}/{repo}/.../assets/{file}` | Match |
+| Discussion tabs, Discuss modal | None | Deferred, rulemart#27 |
+| `#/signin` | `/signin` | Match |
+| `#/me`, `#/me?tab=stars` | `/me`, `/me?tab=stars` | Match, plus when GitHub was read, with Refresh, a New tag on a library that came to Rulemart in the last day, and the Account section, as slice R7's doc records |
+| `#/me/add`, `#/me/add/run` | `/me/add`, `/me/add/run` | Match, plus when GitHub was read, with Refresh |
+| `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
+| About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8 |
 
 ## Slices
 
