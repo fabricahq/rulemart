@@ -344,8 +344,10 @@ prepares but doesn't make. The change deletes these three lines:
 
 with the reason in the pull request, since the file's history is the public record of vetting. The same pull request
 updates CONTRIBUTING.md, which says both libraries are vetted for local development: locally, add the test library at
-`/me/add` and run `make worker`, or keep it vetted in a local, uncommitted change. Then release it with Release
-Planner, which has no migration, pin it, and apply `web_lambda` and `worker_lambda` as in step 5.
+`/me/add` and run `make worker`, or keep it vetted in a local, uncommitted change. Since an unvetted library's pages
+answer 404 until it's listed, it also updates the routes in `_internal/audit/conformance.sh` that open the test
+library's rules, or has the script's header say to keep the test library vetted locally that way. Then release it
+with Release Planner, which has no migration, pin it, and apply `web_lambda` and `worker_lambda` as in step 5.
 
 Afterwards its pages answer 404 unless someone lists it, when they show under the unvetted warning; lists, groups,
 search, and the sitemap leave it out unless a visitor includes unvetted libraries; carts holding its rules say it's no

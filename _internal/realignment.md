@@ -1,7 +1,8 @@
 # Realignment with the prototype
 
-How Rulemart gets from the merged slice 3 to 9 stack to the user experience the `prototype` branch defines, and
-what launches at the end.
+The `prototype` branch's user experience is the spec for every page of Rulemart. This file says how to run the
+prototype, the decisions that shape the site where it departs from the prototype, and the matrix of accepted
+differences, route by route. Its last part records how the realignment with the prototype was done.
 
 ## Why
 
@@ -11,8 +12,8 @@ prototype's design tokens and little else. The backend is sound and stays: inges
 diffs, sign-in, sessions, the listing worker, vetting, caching, SEO, and security headers. The gap is in
 information architecture, interactions, and two data decisions, stars and the cart.
 
-From here on, **the prototype is the spec.** A slice is done when its routes behave as the prototype's do, judged
-side by side in a browser, except where a decision below says otherwise.
+**The prototype is the spec.** A page is done when it behaves as the prototype's does, judged side by side in a
+browser, except where a decision below or the conformance matrix says otherwise.
 
 To run the prototype:
 
@@ -126,37 +127,39 @@ Differences on every page:
 | `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
 | About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8 |
 
-## Slices
+## Record: how the realignment was done
 
-Each slice is one pull request from `main`, with a doc in `slices/` numbered from 10, and goes through the
-verification below before it merges. Order matters: each builds on the last.
+### Slices
 
-### R1. Shell and navigation
+Each slice was one pull request from `main`, with a doc in `slices/` numbered from 10, and went through the
+verification below before it merged. Each built on the last.
+
+#### R1. Shell and navigation
 
 The header, footer, home, browse pages, owner pages, FAQ, feedback, and the prototype's URLs. No data change.
 Routes: `/`, `/browse/techs`, `/browse/practices`, `/browse/{kind}/other`, `/g/{kind}/{name}` (the existing group
 page, moved), `/{owner}`, `/faq`, `/feedback`; redirects from `/groups` and `/groups/{kind}/{name}`.
 
-### R2. Brand
+#### R2. Brand
 
 The header mark, favicons, apple-touch-icon, social image, and the README's mark from `brand/`, including Josh's
 local header and favicon edits. One pull request with before-and-after screenshots at 1280 and 390 pixels, light
 and dark.
 
-### R3. Stars on rules
+#### R3. Stars on rules
 
 Migration: drop `stars`, add `rule_stars (account_id, rule_id, created_at)` with the same grants. The Star control in
 the rule page head and the count on every rule row and card; `/account/stars` as a minimal Starred rules list until
 R7 builds the dashboard. The star routes move to `/stars` and `/stars/remove`, named by rule.
 
-### R4. Discovery
+#### R4. Discovery
 
 Group pages as flat lists with the filter sidebar (libraries, impact, stars, and the unvetted opt-in) and sort tabs
 (Most starred, Newest); non-canonical group pages with the Not canonical note. Search grouped by group with the
 sidebar (plus Kind) and sort tabs (Best match, Most starred, Newest), retired rules labeled. The rule row used
 everywhere: library mark, title, impact, stars. The opt-in control on `/libraries` and the browse pages.
 
-### R5. Cart and checkout
+#### R5. Cart and checkout
 
 The browser cart: keys as the prototype's (`owner/repo::group/slug`, `group::owner/repo::group`), the header badge,
 In cart states, the add-to-cart modal on rule pages, and the unvetted confirmation inside it. The `/cart` page with
@@ -165,14 +168,14 @@ a repository field; signed in: the visitor's projects once R7 lands), and the Pr
 A JSON endpoint under `/cart/` that resolves keys and returns the texts. Migration: drop `cart_items`. Verified
 against the real `code-rules` CLI as slice 8 was.
 
-### R6. Library and rule pages
+#### R6. Library and rule pages
 
 Library page: the verified check, Added by and On Rulemart since, the Groups tab with checkboxes and the Add groups
 panel, All rules with the Retired section, and the Report link kept. The library group page. Rule page: tags, the
 Star and Discuss places, the About panel with Published by and Updated, the assets panel, asset pages, and relative
 link rewriting as the prototype does. Code highlighting already happens at ingestion.
 
-### R7. Dashboard and add a library
+#### R7. Dashboard and add a library
 
 Sign-in with `read:org`, the token kept encrypted per session, `/signin` with the perks. `/me` with My libraries
 (published by you and your orgs, with totals; used in your projects from `provenance.json`, with update counts) and
@@ -182,15 +185,15 @@ installation callback that records which repositories the app can see. The proje
 same projects. Infrastructure: an SSM parameter for the GitHub App's private key, the worker token made required,
 and the OAuth secret already planned in infra-live#23.
 
-### R8. Launch gate
+#### R8. Launch gate
 
 Analytics on every page. About, privacy, robots, and the sitemap updated for the routes and data above. The
 side-by-side screenshot audit of every prototype route at 1280 and 390 pixels, light and dark, with the prototype
 served next to the site; fix the differences. Then [launch.md](launch.md), updated for the merged stack.
 
-## Verification, for every slice
+### Verification, for every slice
 
-In this order, once the slice is built and its own tests pass:
+In this order, once the slice was built and its own tests passed:
 
 1. **A fresh browser agent**, with no knowledge of the code, uses `chrome-devtools-axi` against a local Rulemart with
    both real libraries ingested to carry out the slice's use cases the way the prototype's click paths go. It
@@ -203,4 +206,4 @@ In this order, once the slice is built and its own tests pass:
 4. **Devin's review** of the pull request. Resolve its feedback.
 5. **Merge.**
 
-Each slice's doc records the Proposed decisions it adds, as the earlier slices' do.
+Each slice's doc recorded the Proposed decisions it added, as the earlier slices' did.

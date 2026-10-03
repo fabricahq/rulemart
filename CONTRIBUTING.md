@@ -86,12 +86,15 @@ security policy allows it. `/about` and `/privacy` describe Rulemart and what it
 Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/about.templ` with it.
 
 The `prototype` branch's click-through mock is the spec for every page, as
-[_internal/realignment.md](_internal/realignment.md) says. After changing a page, compare it with the prototype:
-serve the prototype as that file says and the site with `make web-dev`, then run
-`_internal/audit/conformance.sh http://127.0.0.1:8766 http://127.0.0.1:8080 <directory>`, which needs
-[chrome-devtools-axi](https://github.com/kunchenguid/chrome-devtools-axi). It screenshots every route in the plan's
-conformance matrix on both, at 1280 and 390 pixels wide, light and dark, signed out and in, and writes an `index.html`
-that shows each pair side by side; `ONLY='^rule'` limits it to the routes whose names match. Its header says more.
+[_internal/realignment.md](_internal/realignment.md) says. After changing a page, compare it with the prototype. With
+[chrome-devtools-axi](https://github.com/kunchenguid/chrome-devtools-axi) installed, the prototype served as that file
+says, and the site served with `make web-dev`, run:
+
+```sh
+_internal/audit/conformance.sh http://127.0.0.1:8766 http://127.0.0.1:8080 <directory>
+```
+
+The script's header says what it shoots and how to limit it.
 
 Pages show the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID, and on their own pages, under a warning, the ones a listing names. To see another library locally,

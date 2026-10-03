@@ -6,8 +6,8 @@ release it, [_internal/decisions.md](_internal/decisions.md) for the
 decisions that shape it, and [_internal/realignment.md](_internal/realignment.md)
 for how the site came to match the `prototype` branch's user experience, which
 stays the spec for every page, and the differences chosen on purpose. After
-changing a page, compare it with the prototype using
-[_internal/audit/conformance.sh](_internal/audit/conformance.sh). Run `make db`,
+changing a page, compare it with the prototype as
+[CONTRIBUTING.md](CONTRIBUTING.md#run-the-site-locally) says. Run `make db`,
 then `make check`, to vet and test the code.
 
 README tier: primary, Josh's decision on 2026-10-02: Rulemart is a product
