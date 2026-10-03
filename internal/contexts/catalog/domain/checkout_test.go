@@ -153,7 +153,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	})
 	var names []string
 	for _, source := range checkout.Sources {
-		names = append(names, source.Library.FullName()+" "+source.Alias)
+		names = append(names, source.FullName()+" "+source.Alias)
 	}
 	want := []string{
 		"fabricahq/public-rules fabrica-public-rules", "FabricaHQ/Code.Rules fabrica-code-rules", "Acme-Corp/rules acme-corp",

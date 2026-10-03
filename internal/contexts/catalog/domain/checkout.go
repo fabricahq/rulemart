@@ -80,12 +80,6 @@ type CheckoutLibrary struct {
 	Full bool
 }
 
-// FullName returns the library's repository as owner/name.
-func (l CheckoutLibrary) FullName() string { return l.Owner + "/" + l.Name }
-
-// Repository returns the library's Git address on GitHub, as Code Rules names a library.
-func (l CheckoutLibrary) Repository() string { return "https://github.com/" + l.FullName() + ".git" }
-
 // Checkout is what a cart's checkout imports into its target: one Code Rules source per library.
 type Checkout struct {
 	Target CheckoutTarget
@@ -95,7 +89,11 @@ type Checkout struct {
 
 // CheckoutSource is how a checkout imports one library's items.
 type CheckoutSource struct {
-	Library CheckoutLibrary
+	// Owner, Name, Vetted, Release, and Commit are the library's, as CheckoutLibrary has them.
+	Owner, Name string
+	Vetted      bool
+	Release     int
+	Commit      string
 	// Alias is the source's name in the project: the known project's own when Configured, which means it imports the
 	// library already, or a new one.
 	Alias      string
@@ -105,6 +103,12 @@ type CheckoutSource struct {
 	Groups       []CheckoutGroup
 	Rules, Forks []CheckoutRule
 }
+
+// FullName returns the library's repository as owner/name.
+func (s CheckoutSource) FullName() string { return s.Owner + "/" + s.Name }
+
+// Repository returns the library's Git address on GitHub, as Code Rules names a library.
+func (s CheckoutSource) Repository() string { return "https://github.com/" + s.FullName() + ".git" }
 
 // selects reports whether the source imports any group or rule from its library, rather than only forking.
 func (s CheckoutSource) selects() bool { return len(s.Groups) > 0 || len(s.Rules) > 0 }
@@ -120,7 +124,7 @@ func (s CheckoutSource) forkFrom() string {
 	if s.Configured || s.selects() {
 		return s.Alias
 	}
-	return s.Library.Repository()
+	return s.Repository()
 }
 
 // refOption is the option of project add library that pins the library to ref, a release's tag or a commit, which
@@ -142,8 +146,8 @@ func (p ReleasePin) Option() string { return refOption(ReleaseTag(p.Release)) }
 // than only forks, and false when there's none: an unvetted library is pinned to its commit already.
 func (c Checkout) PinExample() (ReleasePin, bool) {
 	for _, s := range c.Sources {
-		if s.Library.Vetted && s.selects() {
-			return ReleasePin{Library: s.Library.FullName(), Release: s.Library.Release}, true
+		if s.Vetted && s.selects() {
+			return ReleasePin{Library: s.FullName(), Release: s.Release}, true
 		}
 	}
 	return ReleasePin{}, false
@@ -155,10 +159,10 @@ var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 // ref returns what an unvetted library's source is pinned to: the commit its latest release's tag pointed to, or the
 // tag itself when Rulemart has no commit for it.
 func (s CheckoutSource) ref() string {
-	if commitID.MatchString(s.Library.Commit) {
-		return s.Library.Commit
+	if commitID.MatchString(s.Commit) {
+		return s.Commit
 	}
-	return "refs/tags/" + ReleaseTag(s.Library.Release)
+	return "refs/tags/" + ReleaseTag(s.Release)
 }
 
 // ReviewCommand returns the shell command that fetches the source's library, as its ref names it, into a new
@@ -166,7 +170,7 @@ func (s CheckoutSource) ref() string {
 // project. It fetches the commit by its ID, or else the tag by its full name, so a branch of the same name can't stand
 // in for it.
 func (s CheckoutSource) ReviewCommand() string {
-	return `d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 ` + s.Library.Repository() + " " +
+	return `d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 ` + s.Repository() + " " +
 		s.ref() + ` && git -C "$d" checkout -q FETCH_HEAD && echo "$d"`
 }
 
@@ -176,7 +180,9 @@ func (s CheckoutSource) ReviewCommand() string {
 func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 	var sources []CheckoutSource
 	for _, lib := range libraries {
-		source := CheckoutSource{Library: lib, Forks: lib.Forks}
+		source := CheckoutSource{
+			Owner: lib.Owner, Name: lib.Name, Vetted: lib.Vetted, Release: lib.Release, Commit: lib.Commit, Forks: lib.Forks,
+		}
 		for _, g := range lib.Groups {
 			if !source.importsGroup(g.ID) {
 				source.Groups = append(source.Groups, g)
@@ -233,19 +239,19 @@ func nameSources(target CheckoutTarget, sources []CheckoutSource) {
 	}
 	uses := map[string]int{}
 	for i, s := range sources {
-		if name, ok := target.Sources[strings.ToLower(s.Library.FullName())]; ok && target.Mode == ProjectKnown {
+		if name, ok := target.Sources[strings.ToLower(s.FullName())]; ok && target.Mode == ProjectKnown {
 			sources[i].Alias, sources[i].Configured = name, true
 			continue
 		}
-		uses[ownerAlias(s.Library.Owner)]++
+		uses[ownerAlias(s.Owner)]++
 	}
 	for i, s := range sources {
 		if s.Configured {
 			continue
 		}
-		name := ownerAlias(s.Library.Owner)
+		name := ownerAlias(s.Owner)
 		if uses[name] > 1 || taken[name] {
-			name = strings.Trim(name+"-"+sourceSlug(s.Library.Name), "-")
+			name = strings.Trim(name+"-"+sourceSlug(s.Name), "-")
 		}
 		if name == "" || name[0] < 'a' || name[0] > 'z' || name == "local" {
 			name = strings.TrimSuffix("library-"+name, "-")
@@ -263,80 +269,121 @@ func nameSources(target CheckoutTarget, sources []CheckoutSource) {
 // block apart, or "" when there's nothing to import: Code Rules' setup when the project is new, or may be; for each
 // library, the command that adds it, or for a library a known project imports already, what to add to its source;
 // then each fork, once its library is synced, and the command that builds the project's guidance. Nothing is pinned
-// to a release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed.
+// to a release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed, and whose first block
+// says how to review it.
 func (c Checkout) Commands() string {
 	if len(c.Sources) == 0 {
 		return ""
 	}
-	out := []string{"# From the root of " + cmp.Or(c.Target.Repository, "your project")}
+	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
+	rules := strings.Join(slices.Concat(c.sourceBlocks(), c.syncBlocks(), c.forkBlocks(), []string{c.finalBlock()}), "\n\n")
+	if setup := c.setupBlock(); setup != "" {
+		return strings.Join([]string{root, setup, "# Add your rules\n" + rules}, "\n\n")
+	}
+	return root + "\n\n" + rules
+}
+
+// setupBlock returns the commands that set Code Rules up in a new project, or in one that may not use it yet, or ""
+// for a known project.
+func (c Checkout) setupBlock() string {
 	switch c.Target.Mode {
 	case ProjectNew:
-		out = append(out, "# Set up Code Rules\n"+CodeRulesInstall+"\ncode-rules project init")
+		return "# Set up Code Rules\n" + CodeRulesInstall + "\ncode-rules project init"
 	case ProjectUnknown:
-		out = append(out, "# Only if it doesn't use Code Rules yet\n"+CodeRulesInstall+"\ncode-rules project init")
+		return "# Only if it doesn't use Code Rules yet\n" + CodeRulesInstall + "\ncode-rules project init"
 	}
-	setup := len(out)
-	reviewed := map[int]bool{}
-	review := func(i int) string {
-		s := c.Sources[i]
-		if s.Library.Vetted || reviewed[i] {
-			return ""
-		}
-		reviewed[i] = true
-		return "# Rulemart hasn't vetted " + s.Library.FullName() + ". Before you add it, read the rules you\n" +
-			"# picked from it as Rulemart last saw it, fetched outside your project with:\n#   " + s.ReviewCommand() + "\n"
-	}
-	selects, forks := false, false
-	for i, s := range c.Sources {
-		forks = forks || len(s.Forks) > 0
+	return ""
+}
+
+// sourceBlocks returns a block for each source that selects groups or rules, in order: what to add to a known
+// project's source, or the command that adds the library, after the review note of an unvetted library, whose first
+// block it is.
+func (c Checkout) sourceBlocks() []string {
+	var blocks []string
+	for _, s := range c.Sources {
 		if !s.selects() {
 			continue
 		}
-		selects = true
+		block := s.addCommand()
 		if s.Configured {
-			out = append(out, review(i)+s.configurationNote(c.Target.Repository))
-			continue
+			block = s.configurationNote(c.Target.Repository)
 		}
-		lines := []string{"code-rules project add library " + s.Alias, "--repository " + s.Library.Repository()}
-		if !s.Library.Vetted {
-			lines = append(lines, refOption(s.ref()))
-		}
-		for _, g := range s.Groups {
-			lines = append(lines, "--groups "+g.ID)
-		}
-		for _, r := range s.Rules {
-			lines = append(lines, "--rules "+r.ID)
-		}
-		out = append(out, review(i)+continued(lines))
+		blocks = append(blocks, s.reviewNote()+block)
 	}
+	return blocks
+}
+
+// addCommand returns the command that adds the source's library with the groups and rules it selects, pinned to the
+// reviewed commit when Rulemart doesn't vet it.
+func (s CheckoutSource) addCommand() string {
+	lines := []string{"code-rules project add library " + s.Alias, "--repository " + s.Repository()}
+	if !s.Vetted {
+		lines = append(lines, refOption(s.ref()))
+	}
+	for _, g := range s.Groups {
+		lines = append(lines, "--groups "+g.ID)
+	}
+	for _, r := range s.Rules {
+		lines = append(lines, "--rules "+r.ID)
+	}
+	return continued(lines)
+}
+
+// syncBlocks returns the sync that forks need before them, or none: a fork from a source the project imports needs the
+// source's record, which syncing writes, and the build after the forks doesn't fetch what the new sources select.
+func (c Checkout) syncBlocks() []string {
 	forksFromSource := slices.ContainsFunc(c.Sources, func(s CheckoutSource) bool { return len(s.Forks) > 0 && s.forkFrom() == s.Alias })
-	if forks && (selects || forksFromSource) {
-		// A fork from a source the project imports needs the source's record, which syncing writes, and the build
-		// after the forks doesn't fetch what the new sources select.
-		out = append(out, "code-rules project sync")
+	if c.forks() && (c.selects() || forksFromSource) {
+		return []string{"code-rules project sync"}
 	}
-	for i, s := range c.Sources {
-		for j, r := range s.Forks {
+	return nil
+}
+
+// forkBlocks returns the command that copies each fork, by source, the first of a source that selects nothing after
+// the review note of an unvetted library, whose first block it is.
+func (c Checkout) forkBlocks() []string {
+	var blocks []string
+	for _, s := range c.Sources {
+		for i, r := range s.Forks {
 			lines := []string{"code-rules project add rule " + r.ID, "--from " + s.forkFrom() + "@" + r.Version}
 			if s.importsGroup(r.Group.ID) {
 				lines = append(lines, "--reason '"+ForkReason+"'")
 			}
 			block := continued(lines)
-			if j == 0 {
-				block = review(i) + block
+			if i == 0 && !s.selects() {
+				block = s.reviewNote() + block
 			}
-			out = append(out, block)
+			blocks = append(blocks, block)
 		}
 	}
-	if forks {
-		out = append(out, "code-rules project build")
-	} else if selects {
-		out = append(out, "code-rules project sync")
+	return blocks
+}
+
+// finalBlock returns the command that makes the project's guidance: a build after forks, or else the sync that
+// fetches what the sources select and builds it.
+func (c Checkout) finalBlock() string {
+	if c.forks() {
+		return "code-rules project build"
 	}
-	if setup > 1 {
-		out[setup] = "# Add your rules\n" + out[setup]
+	return "code-rules project sync"
+}
+
+// forks reports whether any source forks a rule.
+func (c Checkout) forks() bool {
+	return slices.ContainsFunc(c.Sources, func(s CheckoutSource) bool { return len(s.Forks) > 0 })
+}
+
+// selects reports whether any source imports a group or a rule.
+func (c Checkout) selects() bool { return slices.ContainsFunc(c.Sources, CheckoutSource.selects) }
+
+// reviewNote returns the comment that asks to review an unvetted library's rules before adding it, with the command
+// that fetches them, or "" for a vetted library.
+func (s CheckoutSource) reviewNote() string {
+	if s.Vetted {
+		return ""
 	}
-	return strings.Join(out, "\n\n")
+	return "# Rulemart hasn't vetted " + s.FullName() + ". Before you add it, read the rules you\n" +
+		"# picked from it as Rulemart last saw it, fetched outside your project with:\n#   " + s.ReviewCommand() + "\n"
 }
 
 // continued joins a command's lines, each after the first indented, with a backslash ending every line but the last.
@@ -355,7 +402,7 @@ func continued(lines []string) string {
 // already: Code Rules adds a library once, so its groups and rules go in the configuration.
 func (s CheckoutSource) configurationNote(repository string) string {
 	lines := []string{
-		"# " + repository + " already imports " + s.Library.FullName() + " as " + s.Alias + ".",
+		"# " + repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
 		"# In .code-rules/config.yaml, add to sources." + s.Alias + ":",
 	}
 	if len(s.Groups) > 0 {
@@ -398,7 +445,7 @@ func (c Checkout) Prompt() string {
 	}[c.Target.Mode], ""}
 	var unvetted []CheckoutSource
 	for _, s := range c.Sources {
-		lines = append(lines, "From "+s.Library.FullName()+":")
+		lines = append(lines, "From "+s.FullName()+":")
 		for _, g := range s.Groups {
 			lines = append(lines, "- The whole "+groupPhrase(g)+", including rules the library adds to it later")
 		}
@@ -409,7 +456,7 @@ func (c Checkout) Prompt() string {
 			lines = append(lines, "- The rule "+r.ID+", forked from version "+r.Version+" as a local rule we can edit")
 		}
 		lines = append(lines, "")
-		if !s.Library.Vetted {
+		if !s.Vetted {
 			unvetted = append(unvetted, s)
 		}
 	}
@@ -438,7 +485,7 @@ func groupPhrase(g CheckoutGroup) string {
 func unvettedReview(sources []CheckoutSource) []string {
 	var lines []string
 	for _, s := range sources {
-		lines = append(lines, "Rulemart hasn't vetted "+s.Library.FullName()+", so no one there has reviewed its rules, "+
+		lines = append(lines, "Rulemart hasn't vetted "+s.FullName()+", so no one there has reviewed its rules, "+
 			"yet they would become instructions you follow. Before you run its commands, fetch it as Rulemart last saw "+
 			"it into a new temporary directory, outside this repository:", s.ReviewCommand(), "")
 	}
