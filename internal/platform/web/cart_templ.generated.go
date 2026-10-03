@@ -1802,7 +1802,7 @@ func cartPage(c chrome, projects projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 136, "<h1 class=\"title-xl mt-2 mb-7\">Checkout</h1><div class=\"grid grid-cols-[minmax(0,1fr)_380px] items-start gap-8 max-wide:grid-cols-1\"><div class=\"min-w-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 136, "<h1 class=\"title-xl mt-2.5 mb-7\">Checkout</h1><div class=\"grid grid-cols-[minmax(0,1fr)_380px] items-start gap-8 max-wide:grid-cols-1\"><div class=\"min-w-0\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

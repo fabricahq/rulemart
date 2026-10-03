@@ -344,8 +344,11 @@ templ sectionsMenu(current string) {
 // footer is the bar at the bottom of every page: Fabrica's link; what Rulemart is, where to give feedback, and
 // Rulemart's privacy notice; and, as icons, Rulemart's source on GitHub and the theme menu. It doesn't repeat the
 // header's sections, which a phone reaches through the header's menu, and the about page leads to Code Rules.
+// Its row is 44 pixels tall, for its tap targets, where the prototype's is 24, so its padding is 10 pixels less above
+// and 2 more below than the prototype's: the text sits where the prototype's does, and the footer ends where a short
+// page's viewport does, with no scroll.
 templ footer() {
-	<footer class="border-t border-border pt-[22px] pb-10 text-[13px] text-muted">
+	<footer class="border-t border-border pt-3 pb-[42px] text-[13px] text-muted">
 		<div class="wrap flex items-center gap-x-6 whitespace-nowrap max-narrow:gap-x-3 max-tiny:gap-x-0">
 			// A phone's footer has room on its one line for Rulemart's name alone. A narrow phone's draws its icons'
 			// buttons smaller, ending at the line's end, and spaces its links closer.

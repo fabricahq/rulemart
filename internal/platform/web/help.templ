@@ -9,7 +9,7 @@ templ faqPage(c chrome) {
 			@label("") {
 				FAQ
 			}
-			<h1 class="title-xl mt-2 mb-6">Questions and answers</h1>
+			<h1 class="title-xl mt-2.5 mb-6">Questions and answers</h1>
 			@faqItem("What is Rulemart?") {
 				<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them, and add the ones you want to your own codebase.</p>
 				<p>Think of it as shopping for best practices instead of writing every rule yourself.</p>
@@ -64,7 +64,7 @@ templ faqPage(c chrome) {
 				<p>For Rulemart or Code Rules itself, use the <a href={ templ.SafeURL(feedbackHref) }>feedback page</a>. Pick a topic, and it opens an issue on GitHub where we track and reply to it.</p>
 				<p>For a specific rule, open an issue in the library's repository, which the rule's page links. It goes to the people who publish the rule, since they maintain it.</p>
 			}
-			<p class="mt-7 text-[13px] text-muted">Still have a question? <a href={ templ.SafeURL(feedbackHref) }>Ask us</a>.</p>
+			<p class="mt-7 mb-2.5 text-[13px] text-muted">Still have a question? <a href={ templ.SafeURL(feedbackHref) }>Ask us</a>.</p>
 		</div>
 	}
 }
@@ -91,7 +91,7 @@ templ feedbackPage(c chrome) {
 			@label("") {
 				Feedback
 			}
-			<h1 class="title-xl mt-2 mb-2.5">Give us feedback</h1>
+			<h1 class="title-xl mt-2.5 mb-2.5">Give us feedback</h1>
 			<p class="mb-[26px] text-muted">Rulemart and Code Rules are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>
 			for _, group := range feedbackGroups {
 				@labelHeading("mt-[22px] mb-2 first:mt-0") {
