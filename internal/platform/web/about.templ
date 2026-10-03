@@ -6,8 +6,11 @@ package web
 // vetted, and where to report a problem. It links listing when canList is true.
 templ aboutPage(c chrome, canList bool) {
 	@layout(c, head{title: "About Rulemart", description: "What Rulemart is, what vetting a Code Rules library means, and how to get a library vetted."}) {
-		<div class={ "page wrap", narrowPage }>
-			<h1 class="title-xl">About Rulemart</h1>
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				About
+			}
+			<h1 class="title-xl mt-2.5">About Rulemart</h1>
 			<div class="prose mt-5">
 				<p>
 					Rulemart is a catalog of <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> libraries: sets of engineering
@@ -77,9 +80,12 @@ templ aboutPage(c chrome, canList bool) {
 // it. It says whether Rulemart counts visits with Cloudflare Web Analytics, which analytics reports.
 templ privacyPage(c chrome, analytics bool) {
 	@layout(c, head{title: "Privacy · Rulemart", description: "What Rulemart keeps about you, why, for how long, and how to delete it."}) {
-		<div class={ "page wrap", narrowPage }>
-			<h1 class="title-xl">Privacy</h1>
-			<p class="mt-1.5 text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				About
+			}
+			<h1 class="title-xl mt-2.5 mb-2.5">Privacy</h1>
+			<p class="text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
 			<div class="prose mt-7">
 				<h2 id="browsing">Browsing</h2>
 				<p>
