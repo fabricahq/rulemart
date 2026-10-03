@@ -1,7 +1,7 @@
 // Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
 // groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
 // between two of them, the groups across libraries, lists of rules across libraries, a group's or a search's, the sitemap,
-// and an account's listings and starred rules. They're plain values, read from one state of the catalog,
+// an account's listings and starred rules, and a cart's checkout. They're plain values, read from one state of the catalog,
 // with nothing of how it's stored.
 package views
 
@@ -516,6 +516,105 @@ type StarredRule struct {
 	// StarredAt is when the account last starred Rule or a rule it replaced.
 	StarredAt time.Time
 }
+
+// CartLibrary is a library a cart names, as checkout reads it from one snapshot of the catalog.
+type CartLibrary struct {
+	Library LibraryRef
+	// Vetted is false for a library the release doesn't vet, which a listing names.
+	Vetted bool
+	// LatestRelease is the number of the library's latest release, and LatestCommit the commit its tag pointed to when
+	// Rulemart ingested it.
+	LatestRelease int
+	LatestCommit  string
+	// Rules are the rules, current and retired, of the groups the cart names of the library, a rule's or a whole
+	// group's, in group path, then title and ID order.
+	Rules []CartRule
+}
+
+// CartRule is a rule of a group a cart names, with its newest version.
+type CartRule struct {
+	// Path is the rule's ID, and Group its group's, as the library spells them.
+	Path, Group string
+	// Title is the newest version's, or empty when the catalog doesn't have it yet.
+	Title   string
+	Version coderules.RuleVersion
+	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.
+	RetiredIn int
+}
+
+// Checkout is a browser's cart resolved against the catalog, and the texts that import what it can.
+type Checkout struct {
+	// Libraries are in the order the cart first names an item of each, with the cart's items from it.
+	Libraries []CheckoutLibrary
+	// Unknown are the cart's keys that name no item a cart can hold, which nothing resolves.
+	Unknown []string
+	// Commands and Prompt import every item whose State is CartItemReady, and are empty when none is.
+	Commands, Prompt string
+}
+
+// CheckoutLibrary is a library a cart names, with the cart's items from it.
+type CheckoutLibrary struct {
+	// Library is spelled as the code host spells it now, or as the cart does for a library that's Gone, which has no
+	// avatar, release, or pages: the catalog has no library by that name that's vetted or listed.
+	Library LibraryRef
+	Gone    bool
+	// Vetted is false for a library the release doesn't vet, and Confirmed true when the visitor confirmed adding its
+	// items anyway, without which checkout leaves them out.
+	Vetted, Confirmed bool
+	LatestRelease     int
+	Items             []CheckoutItem
+	// UpsellGroups are the groups of the library's rules that stay in sync, other than groups the cart holds whole,
+	// and Extra counts their current rules the cart doesn't hold, which Full, the visitor's choice, imports too, so
+	// Extra is 0 then.
+	UpsellGroups []CheckoutGroup
+	Extra        int
+	Full         bool
+}
+
+// CheckoutGroup is a group as checkout names it.
+type CheckoutGroup struct {
+	// Path is the group's ID, as the library spells it. Canonical is nil when it isn't on Code Rules' canonical group
+	// list.
+	Path      string
+	Canonical *CanonicalGroup
+}
+
+// CheckoutItem is one item of a cart, as checkout resolved it.
+type CheckoutItem struct {
+	// Key is the item's key, as the cart sent it, and Item what it names, with its library as the cart spells it and
+	// its path as the library does, when it has the item.
+	Key   string
+	Item  domain.CartItem
+	State CartItemState
+	// Group is the item's group, a rule's or a group's own, as the library spells it.
+	Group CheckoutGroup
+	// Title, Version, and RetiredIn are a rule's, as CartRule's are; they're zero for a group, and for a rule the
+	// library doesn't have.
+	Title     string
+	Version   coderules.RuleVersion
+	RetiredIn int
+	// Fork is true for a rule the visitor forks rather than keep in sync.
+	Fork bool
+	// Rules are a whole group's current rules, which it brings.
+	Rules []CartRule
+}
+
+// CartItemState says whether checkout imports a cart's item, or why it leaves it out.
+type CartItemState string
+
+const (
+	// CartItemReady is an item checkout imports.
+	CartItemReady CartItemState = "ready"
+	// CartItemRetired is a rule a library release retired.
+	CartItemRetired CartItemState = "retired"
+	// CartItemMissing is a rule the library doesn't have, or a group without current rules.
+	CartItemMissing CartItemState = "missing"
+	// CartItemGone is an item of a library that's neither vetted nor listed, which has no pages.
+	CartItemGone CartItemState = "gone"
+	// CartItemUnvetted is an item of a library the release doesn't vet, which the visitor didn't confirm adding, such
+	// as one added before the library lost its vetting.
+	CartItemUnvetted CartItemState = "unvetted"
+)
 
 // Sitemap is what search engines may index: every vetted library, with its current rules, and the groups that hold
 // them.

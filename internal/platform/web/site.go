@@ -2,8 +2,9 @@
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
-// a library; and starring rules. It reads the catalog from its page reads, which app.Pages implements, accounts from
-// accounts/app.Sessions, listings from catalog/app.Listings, and stars from catalog/app.Stars.
+// a library; starring rules; and checking out the cart a visitor's browser keeps. It reads the catalog from its page
+// reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
+// from catalog/app.Stars, and checkouts from catalog/app.Carts.
 package web
 
 import (
@@ -61,6 +62,8 @@ type Options struct {
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
+	// Carts checks out the carts visitors' browsers keep. Nil leaves checkout out.
+	Carts Carts
 	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
 	// beacon with, and the content security policy allows. Empty leaves analytics out: no page loads another site's
 	// script. New refuses one that can't be a token.
@@ -212,6 +215,9 @@ func (s *server) handler() http.Handler {
 		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
 	}
 	handle("GET /search", s.search)
+	if s.Carts != nil {
+		handle("POST "+checkoutHref, s.checkout)
+	}
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
 	if s.Accounts != nil {

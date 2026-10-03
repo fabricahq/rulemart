@@ -34,18 +34,18 @@ type policies struct {
 }
 
 // newPolicies returns the policies for a site, with Cloudflare's analytics when analytics is true. Each allows only
-// Rulemart's own files, images from GitHub's avatar and raw file hosts, which rules and library owners use, and
-// forms that submit to Rulemart, such as search. Rule content comes from repositories Rulemart doesn't control, so
+// Rulemart's own files, images from GitHub's avatar and raw file hosts, which rules and library owners use, requests
+// to Rulemart from its own scripts, such as the cart's checkout, and forms that submit to Rulemart, such as search. Rule content comes from repositories Rulemart doesn't control, so
 // nothing else may load or run, and no page may be framed.
 func newPolicies(analytics bool) policies {
 	build := func(formAction string) string {
-		scripts, connect := "'self'", ""
+		scripts, connect := "'self'", "'self'"
 		if analytics {
 			scripts += " " + analyticsOrigin
-			connect = "connect-src " + analyticsReceiver + "; "
+			connect += " " + analyticsReceiver
 		}
 		return "default-src 'none'; script-src " + scripts + "; style-src 'self'; font-src 'self'; " +
-			"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; " + connect +
+			"img-src 'self' https://avatars.githubusercontent.com https://raw.githubusercontent.com; connect-src " + connect + "; " +
 			"base-uri 'none'; form-action " + formAction + "; frame-ancestors 'none'"
 	}
 	return policies{page: build("'self'"), signIn: build("'self' " + gitHubAuthorization)}

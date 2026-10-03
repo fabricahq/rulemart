@@ -83,6 +83,14 @@ type Stars interface {
 	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredRule, error)
 }
 
+// Carts reads what checkout resolves a browser's cart against, as the web function does, writing nothing.
+type Carts interface {
+	// CartLibraries returns, from one snapshot of the catalog, the libraries items name, each matched by owner and name
+	// without regard to case, that vetted holds or a listing names, in no order, each with the rules of the groups
+	// items name of it, a rule's or a whole group's, as views.CartLibrary describes.
+	CartLibraries(ctx context.Context, vetted []domain.LibraryKey, items []domain.CartItem) ([]views.CartLibrary, error)
+}
+
 // ListingConflict reports a repository that can't be listed because it already is, or is vetted.
 type ListingConflict struct {
 	// Vetted is true when the release's vetted list holds the library, and false when a listing names it.

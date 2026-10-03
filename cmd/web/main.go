@@ -130,6 +130,7 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		Accounts: accountsapp.Sessions{Store: accountspostgres.New(db)},
 		Listings: listings,
 		Stars:    app.Stars{Store: catalogStore, Vetted: vetted, Groups: groups},
+		Carts:    app.Carts{Store: catalogStore, Vetted: vetted, Groups: groups},
 		// Not a secret: Cloudflare's beacon sends it from every page.
 		AnalyticsToken: os.Getenv("CLOUDFLARE_WEB_ANALYTICS_TOKEN"),
 	}
