@@ -70,8 +70,9 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 		return
 	}
 	shared := rulePath == ""
-	if shared {
-		rulePath = query.Get(ruleParam)
+	// A rule named by text the catalog can't store names no rule, so the page shows the first rule that lists it.
+	if rule := query.Get(ruleParam); shared && domain.Storable(rule) {
+		rulePath = rule
 	}
 	page, err := s.catalog.AssetPage(r.Context(), owner, repo, rulePath, assetPath)
 	if shared && rulePath != "" && errors.Is(err, app.ErrNotFound) {

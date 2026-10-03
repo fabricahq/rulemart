@@ -21,13 +21,16 @@ import (
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
-// newPostgresSite ingests a vetted library, example/rules, into a new database, and returns every page, read and
-// written as the web function's role, with a signed-in visitor's cookies.
+// newPostgresSite ingests a vetted library, example/rules, whose rule has a file of its own and a shared one, into a
+// new database, and returns every page, read and written as the web function's role, with a signed-in visitor's
+// cookies.
 func newPostgresSite(t *testing.T) (http.Handler, []*http.Cookie) {
 	t.Helper()
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
-	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
+	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error. See [the glossary](../../assets/glossary.md).")
+	lib.Write("techs/go/assets/return-errors/notes.md", "Notes.\n")
+	lib.Write("assets/glossary.md", "Terms.\n")
 	lib.Release(1, `formatVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
@@ -79,6 +82,12 @@ func TestTextPostgresCantHoldIsRefusedNotFailed(t *testing.T) {
 			{http.MethodGet, "/example/rules/techs/go/return-errors" + bad, http.StatusNotFound},
 			{http.MethodGet, "/example/rules/techs/go" + bad + "/return-errors?tab=versions&from=1.0.0&to=1.0.0", http.StatusNotFound},
 			{http.MethodGet, "/g/techs/go" + bad, http.StatusNotFound},
+			{http.MethodGet, "/example/rules/techs/go/return-errors/assets/notes.md" + bad, http.StatusNotFound},
+			{http.MethodGet, "/example/rules/techs/go/return-errors" + bad + "/assets/notes.md", http.StatusNotFound},
+			{http.MethodGet, "/example/rules/assets/glossary.md" + bad, http.StatusNotFound},
+			{http.MethodGet, "/example/rules/assets/glossary.md?raw=1" + bad, 0},
+			// A shared asset's page shows it with the first rule that lists it when the rule named is none.
+			{http.MethodGet, "/example/rules/assets/glossary.md?rule=techs%2Fgo%2Freturn-errors" + bad, http.StatusOK},
 			{http.MethodGet, "/example/rules?tab=rules" + bad, 0},
 			{http.MethodGet, "/example/rules?tab=releases&release=1" + bad, 0},
 			{http.MethodGet, "/example/rules?tab=releases&from=1&to=1" + bad, 0},
