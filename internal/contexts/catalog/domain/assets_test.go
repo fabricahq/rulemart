@@ -268,6 +268,71 @@ func TestAssembleKeepsEachVersionsTags(t *testing.T) {
 	}
 }
 
+// A file exactly at the cap for a file is kept, and one a byte past it isn't, though the rule's cap has room for it.
+func TestAssembleKeepsAnAssetExactlyAtTheCapForAFile(t *testing.T) {
+	const dir = "techs/go/assets/return-errors/"
+	release := withAssets(t, "Return errors.", files{
+		dir + "a.txt": "eleven b...", // past the file's cap: 11 of 10
+		dir + "b.txt": "ten bytes.",  // at the file's cap: 10 of 10
+	})
+
+	lib, err := Assemble(repo, []ReleaseSnapshot{release}, assetLimits, markup{})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets := assetsOf(lib)
+	if a := assets[dir+"a.txt"]; a.Content != nil {
+		t.Errorf("kept %q of a file a byte past the cap", a.Content)
+	}
+	if b := assets[dir+"b.txt"]; string(b.Content) != "ten bytes." {
+		t.Errorf("kept %q of a file at the cap, want all of it", b.Content)
+	}
+}
+
+// The bytes kept of assets and the HTML of the ones rendered are held until the library is stored, like rules'
+// content, so they spend the budget.
+func TestAssembleSpendsTheBudgetOnAssets(t *testing.T) {
+	const dir = "techs/go/assets/return-errors/"
+	without, err := Assemble(repo, []ReleaseSnapshot{withAssets(t, "Return errors.", nil)}, assetLimits, markup{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := withAssets(t, "Return errors.", files{
+		dir + "a.txt": "eight b.", // 8 bytes, and 20 of HTML: <pre>eight b.</pre>\n
+		dir + "b.png": "5 b.png",  // 7 bytes, and no HTML
+	})
+	budget := assetLimits
+
+	budget.ContentBytes = contentBytes(without) + 8 + 20 + 7
+	if _, err := Assemble(repo, []ReleaseSnapshot{release}, budget, markup{}); err != nil {
+		t.Fatalf("within the budget: %v", err)
+	}
+
+	budget.ContentBytes--
+	_, err = Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
+	if want := fmt.Sprintf("more than %d bytes of content", budget.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("a byte over the budget: got error %v, want %q", err, want)
+	}
+}
+
+// Shared files count toward the limit on assets with the rule's own, so a library whose rules link to more is refused.
+func TestAssembleRefusesMoreSharedAssetsThanTheLimit(t *testing.T) {
+	release := withAssets(t, "See [a](../../assets/a.md) and [b](../../assets/b.md).", files{
+		"techs/go/assets/return-errors/own.txt": "own",
+		"assets/a.md":                           "A.",
+		"assets/b.md":                           "B.",
+	})
+	few := assetLimits
+	few.Assets = 2
+
+	_, err := Assemble(repo, []ReleaseSnapshot{release}, few, markup{})
+
+	if err == nil || !strings.Contains(err.Error(), "more than 2 assets") {
+		t.Fatalf("got %v, want a refusal past 2 assets", err)
+	}
+}
+
 // A library whose rules have more assets than the limit is refused, rather than listing them all.
 func TestAssembleRefusesMoreAssetsThanTheLimit(t *testing.T) {
 	more := files{}
