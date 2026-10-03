@@ -550,6 +550,9 @@ type Checkout struct {
 	Unknown []string
 	// Commands and Prompt import every item whose State is CartItemReady, and are empty when none is.
 	Commands, Prompt string
+	// PinExample is the release the Commands tab's footnote suggests pinning a library to, or nil when the commands
+	// follow no vetted library.
+	PinExample *domain.ReleasePin
 }
 
 // CheckoutLibrary is a library a cart names, with the cart's items from it.

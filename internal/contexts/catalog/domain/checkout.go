@@ -123,6 +123,32 @@ func (s CheckoutSource) forkFrom() string {
 	return s.Library.Repository()
 }
 
+// refOption is the option of project add library that pins the library to ref, a release's tag or a commit, which
+// Code Rules writes to the source's configuration.
+func refOption(ref string) string { return "--ref " + ref }
+
+// ReleasePin is a library's latest release, which a project could pin the library to instead of following its
+// releases, as the Commands tab's footnote shows.
+type ReleasePin struct {
+	// Library is the library's repository, as owner/name, and Release its latest release's number.
+	Library string
+	Release int
+}
+
+// Option returns the option of the library's add library command that pins it to the release.
+func (p ReleasePin) Option() string { return refOption(ReleaseTag(p.Release)) }
+
+// PinExample returns the release a project could pin the first vetted library the checkout imports from to, rather
+// than only forks, and false when there's none: an unvetted library is pinned to its commit already.
+func (c Checkout) PinExample() (ReleasePin, bool) {
+	for _, s := range c.Sources {
+		if s.Library.Vetted && s.selects() {
+			return ReleasePin{Library: s.Library.FullName(), Release: s.Library.Release}, true
+		}
+	}
+	return ReleasePin{}, false
+}
+
 // commitID matches a full Git commit ID, as Code Rules' ref takes one.
 var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
@@ -273,7 +299,7 @@ func (c Checkout) Commands() string {
 		}
 		lines := []string{"code-rules project add library " + s.Alias, "--repository " + s.Library.Repository()}
 		if !s.Library.Vetted {
-			lines = append(lines, "--ref "+s.ref())
+			lines = append(lines, refOption(s.ref()))
 		}
 		for _, g := range s.Groups {
 			lines = append(lines, "--groups "+g.ID)

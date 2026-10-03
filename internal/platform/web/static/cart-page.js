@@ -273,14 +273,14 @@
       preview.replaceChildren(...spans);
     }
 
-    /** Say how rules move to newer versions, and on the Commands tab, how to pin a library to a release. */
+    /** Say how rules move to newer versions, and on the Commands tab, how to pin a library to a release, as the
+     * checkout's answer suggests. */
     function showFootnote(prompt) {
       const code = (text) => h('code', '', {}, text);
       const parts = ['Rules move to newer versions only when your project runs ', code('code-rules project update'), '.'];
-      const { cart, fork } = store.state();
-      const pinnable = answer?.libraries.find((lib) => lib.vetted && !lib.gone && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key) && !fork[item.key]));
-      if (!prompt && pinnable) {
-        parts.push(' To pin a library to one release instead, add ', code(`--ref ${pinnable.release}`), ` to its add library command, ${pinnable.release} being ${pinnable.fullName}’s latest.`);
+      const pin = answer?.pin;
+      if (!prompt && pin) {
+        parts.push(' To pin a library to one release instead, add ', code(pin.option), ` to its add library command, ${pin.release} being ${pin.library}’s latest.`);
       }
       $('[data-cart-footnote]').replaceChildren(...parts);
     }

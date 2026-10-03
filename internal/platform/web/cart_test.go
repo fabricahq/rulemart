@@ -47,9 +47,9 @@ func postCheckout(t *testing.T, handler http.Handler, body string, header http.H
 // checkoutAnswer is the part of a checkout's answer these tests read.
 type checkoutAnswer struct {
 	Libraries []struct {
-		FullName, Href, Avatar, Release string
-		Gone, Vetted, Confirmed         bool
-		Items                           []struct {
+		FullName, Href, Avatar  string
+		Gone, Vetted, Confirmed bool
+		Items                   []struct {
 			Key, Kind, State, ID, Title, Href, Version, RetiredIn string
 			Fork                                                  bool
 			Group                                                 struct {
@@ -69,6 +69,7 @@ type checkoutAnswer struct {
 	Repository        string
 	RepositoryInvalid bool
 	Prompt, Commands  string
+	Pin               *struct{ Library, Release, Option string }
 }
 
 // decode reads resp's body as a checkout's answer, failing t unless it's JSON that no cache keeps.
@@ -122,6 +123,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 			},
 		},
 		Unknown: []string{"???"}, Prompt: "the prompt", Commands: "the commands",
+		PinExample: &domain.ReleasePin{Library: "example/rules", Release: 6},
 	}}
 	handler := newSiteWith(t, web.Options{Carts: carts})
 
@@ -140,7 +142,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 		t.Errorf("target %+v, answer's repository %q, want acme/api, a project Rulemart doesn't know", carts.target, answer.Repository)
 	}
 	lib := answer.Libraries[0]
-	if lib.FullName != "example/rules" || lib.Href != "/example/rules" || lib.Release != "release/6" || !lib.Vetted ||
+	if lib.FullName != "example/rules" || lib.Href != "/example/rules" || !lib.Vetted ||
 		lib.Upsell == nil || !slices.Equal(lib.Upsell.Groups, []string{"Go"}) || lib.Upsell.Extra != 3 {
 		t.Errorf("got the library %+v", lib)
 	}
@@ -158,11 +160,14 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 		t.Errorf("got the retired rule %+v", retired)
 	}
 	gone := answer.Libraries[1]
-	if !gone.Gone || gone.Href != "" || gone.Release != "" || gone.Items[0].State != "gone" || gone.Items[0].Href != "" {
-		t.Errorf("got the gone library %+v, want no page or release", gone)
+	if !gone.Gone || gone.Href != "" || gone.Items[0].State != "gone" || gone.Items[0].Href != "" {
+		t.Errorf("got the gone library %+v, want no page", gone)
 	}
 	if !slices.Equal(answer.Unknown, []string{"???"}) || answer.Prompt != "the prompt" || answer.Commands != "the commands" {
 		t.Errorf("got unknown %q, prompt %q, commands %q", answer.Unknown, answer.Prompt, answer.Commands)
+	}
+	if answer.Pin == nil || *answer.Pin != (struct{ Library, Release, Option string }{"example/rules", "release/6", "--ref release/6"}) {
+		t.Errorf("got the pin %+v, want example/rules at release/6", answer.Pin)
 	}
 }
 

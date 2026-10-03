@@ -60,6 +60,9 @@ func (c Carts) Checkout(ctx context.Context, cart Cart, target domain.CheckoutTa
 	}
 	texts := domain.NewCheckout(target, imports)
 	checkout.Commands, checkout.Prompt = texts.Commands(), texts.Prompt()
+	if pin, ok := texts.PinExample(); ok {
+		checkout.PinExample = &pin
+	}
 	return checkout, nil
 }
 

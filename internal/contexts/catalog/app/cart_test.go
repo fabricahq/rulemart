@@ -111,6 +111,9 @@ func TestCheckoutResolvesEachItemsState(t *testing.T) {
 	if lib := checkout.Libraries[2]; !lib.Gone || lib.Library.FullName() != "gone/rules" {
 		t.Errorf("got %+v, want gone/rules gone", lib)
 	}
+	if pin := checkout.PinExample; pin == nil || *pin != (domain.ReleasePin{Library: "acme/rules", Release: 3}) {
+		t.Errorf("got the pin example %+v, want acme/rules at its latest release", pin)
+	}
 	group := checkout.Libraries[0].Items[1]
 	if group.Group.Canonical == nil || group.Group.Canonical.Name != "Testing" || len(group.Rules) != 2 {
 		t.Errorf("got %+v, want the Testing group with its two rules", group)
@@ -144,6 +147,9 @@ func TestCheckoutImportsAConfirmedUnvettedLibraryForReview(t *testing.T) {
 	}
 	if !strings.Contains(checkout.Commands, "--ref "+strings.Repeat("b", 40)) || !strings.Contains(checkout.Prompt, "Rulemart hasn't vetted stranger/rules") {
 		t.Errorf("the texts neither pin nor name the unvetted library:\n%s", checkout.Prompt)
+	}
+	if checkout.PinExample != nil {
+		t.Errorf("got the pin example %+v for a library pinned to its commit already", checkout.PinExample)
 	}
 }
 

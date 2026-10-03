@@ -61,6 +61,16 @@ type checkoutResponse struct {
 	// Prompt and Commands import every ready item, and are empty when none is.
 	Prompt   string `json:"prompt"`
 	Commands string `json:"commands"`
+	// Pin is the release the Commands tab's footnote suggests pinning a library to, or nil.
+	Pin *pinJSON `json:"pin"`
+}
+
+// pinJSON is a library's latest release, which a project could pin it to: the library, as owner/name, the release's
+// tag, and the option of the library's add library command that pins it.
+type pinJSON struct {
+	Library string `json:"library"`
+	Release string `json:"release"`
+	Option  string `json:"option"`
 }
 
 // checkoutLibraryJSON is a library a cart names, with the cart's items from it.
@@ -75,11 +85,9 @@ type checkoutLibraryJSON struct {
 	Avatar   string `json:"avatar"`
 	Gone     bool   `json:"gone"`
 	// Vetted is false for a library Rulemart doesn't vet, whose items checkout leaves out until Confirmed.
-	Vetted    bool `json:"vetted"`
-	Confirmed bool `json:"confirmed"`
-	// Release is the tag of the library's latest release, such as release/6, which a project could pin it to.
-	Release string             `json:"release"`
-	Items   []checkoutItemJSON `json:"items"`
+	Vetted    bool               `json:"vetted"`
+	Confirmed bool               `json:"confirmed"`
+	Items     []checkoutItemJSON `json:"items"`
 	// Upsell offers to add the rest of the groups of the library's rules that stay in sync, or is nil.
 	Upsell *upsellJSON `json:"upsell"`
 }
@@ -197,6 +205,9 @@ func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, 
 	if resp.Unknown == nil {
 		resp.Unknown = []string{}
 	}
+	if pin := checkout.PinExample; pin != nil {
+		resp.Pin = &pinJSON{Library: pin.Library, Release: domain.ReleaseTag(pin.Release), Option: pin.Option()}
+	}
 	for _, lib := range checkout.Libraries {
 		l := checkoutLibraryJSON{
 			Owner: lib.Library.Owner, Name: lib.Library.Name, FullName: lib.Library.FullName(), Gone: lib.Gone,
@@ -204,7 +215,7 @@ func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, 
 		}
 		href := libraryHref(lib.Library.Owner, lib.Library.Name)
 		if !lib.Gone {
-			l.Href, l.Avatar, l.Release = href, lib.Library.OwnerAvatarURL, domain.ReleaseTag(lib.LatestRelease)
+			l.Href, l.Avatar = href, lib.Library.OwnerAvatarURL
 		}
 		for _, it := range lib.Items {
 			l.Items = append(l.Items, newCheckoutItemJSON(it, href, lib.Gone, iconURL))

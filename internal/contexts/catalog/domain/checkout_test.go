@@ -164,3 +164,20 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 		t.Errorf("got sources\n%q\nwant\n%q", names, want)
 	}
 }
+
+// The Commands tab's footnote names the latest release of the first vetted library a project would follow, one it
+// imports groups or rules from; an unvetted library is pinned already, and a library only forked from isn't followed.
+func TestCheckoutPinExampleIsTheFirstVettedLibraryItImportsFrom(t *testing.T) {
+	forked := CheckoutLibrary{Owner: "fabricahq", Name: "forked", Vetted: true, Release: 2, Forks: []CheckoutRule{checkoutRule(goGroup, "a")}}
+	unvetted := CheckoutLibrary{Owner: "stranger", Name: "rules", Release: 3, Rules: []CheckoutRule{checkoutRule(goGroup, "b")}}
+	followed := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 6, Groups: []CheckoutGroup{testingGroup}}
+
+	pin, ok := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{forked, unvetted, followed}).PinExample()
+
+	if !ok || pin != (ReleasePin{Library: "fabricahq/public-rules", Release: 6}) || pin.Option() != "--ref release/6" {
+		t.Errorf("got %+v, %t, option %q, want fabricahq/public-rules at release 6", pin, ok, pin.Option())
+	}
+	if pin, ok := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{forked, unvetted}).PinExample(); ok {
+		t.Errorf("got %+v, want none without a vetted library it imports from", pin)
+	}
+}
