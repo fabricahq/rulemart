@@ -332,13 +332,13 @@ func newRetiredRuleRow(ref libraryRefView, r views.RetiredRuleCard) ruleRowView 
 	return row
 }
 
-// practiceBlurb returns what a library group page's line adds after the group's rules: a practice's blurb, after a
-// separator, or nothing for a technology, whose name says what it is.
-func practiceBlurb(g groupView) string {
-	if g.blurb == "" || kindOf(g.label.id) != practicesKind {
+// shownBlurb returns the blurb a library's pages show for the group: a practice's, or nothing for a technology, whose
+// name says what it is, as the prototype shows them.
+func (g groupView) shownBlurb() string {
+	if kindOf(g.label.id) != practicesKind {
 		return ""
 	}
-	return " · " + g.blurb
+	return g.blurb
 }
 
 // retiredReplacementWord returns how a retired rule's row words its replacement: as first when it starts the line, and

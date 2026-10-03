@@ -171,10 +171,7 @@ templ groupList(kind string, lib libraryView, groups []groupView, selection grou
 							</span>
 						</span>
 						<p class="text-[13px] text-muted max-narrow:col-start-2 max-narrow:col-end-[-1] max-narrow:row-start-2 max-narrow:empty:hidden">
-							// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
-							if kindOf(g.label.id) == practicesKind {
-								{ g.blurb }
-							}
+							{ g.shownBlurb() }
 						</p>
 						<span class="inline-flex items-center gap-2 text-[12.5px] whitespace-nowrap text-faint max-narrow:col-start-3 max-narrow:row-start-1">
 							@groupHeldBadge(lib, g)
@@ -209,8 +206,10 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSe
 				}
 			</h1>
 			<p class="mt-2 mb-6 text-muted">
-				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
-				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }{ practiceBlurb(g) }
+				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
+				if blurb := g.shownBlurb(); blurb != "" {
+					{ "· " + blurb }
+				}
 			</p>
 			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
 				<div class="min-w-0">
