@@ -36,6 +36,9 @@ func (s ReleaseSnapshot) release() Release {
 type Files interface {
 	// Open returns the file at path without reading it, or ErrFileMissing when there's none.
 	Open(path string) (File, error)
+	// List returns the paths of the files in the directory dir, a path that ends with /, and in the directories inside
+	// it, in path order, or none when there's no such directory.
+	List(dir string) ([]string, error)
 }
 
 // File is one file of a release's commit, whose size is known before it's read.

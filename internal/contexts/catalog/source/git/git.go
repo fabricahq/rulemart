@@ -237,6 +237,55 @@ func (f files) Open(path string) (domain.File, error) {
 	return nil, domain.ErrFileMissing
 }
 
+// List returns the paths of the files in the directory dir, which ends with /, and in the directories inside it, in
+// path order, or none when the commit has no such directory.
+func (f files) List(dir string) ([]string, error) {
+	tree, err := f.trees.get(f.root)
+	if err != nil {
+		return nil, fmt.Errorf("load tree: %v", err)
+	}
+	for segment := range strings.SplitSeq(strings.TrimSuffix(dir, "/"), "/") {
+		entry, err := tree.FindEntry(segment)
+		if errors.Is(err, object.ErrEntryNotFound) || errors.Is(err, object.ErrDirectoryNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("find directory: %v", err)
+		}
+		if entry.Mode != filemode.Dir {
+			return nil, nil
+		}
+		if tree, err = f.trees.get(entry.Hash); err != nil {
+			return nil, fmt.Errorf("load tree: %v", err)
+		}
+	}
+	var paths []string
+	if err := f.walk(tree, dir, &paths); err != nil {
+		return nil, err
+	}
+	slices.Sort(paths)
+	return paths, nil
+}
+
+// walk adds the path of every file in tree, whose path is prefix, and in the trees inside it, to paths.
+func (f files) walk(tree *object.Tree, prefix string, paths *[]string) error {
+	for _, entry := range tree.Entries {
+		switch {
+		case entry.Mode == filemode.Dir:
+			inner, err := f.trees.get(entry.Hash)
+			if err != nil {
+				return fmt.Errorf("load tree: %v", err)
+			}
+			if err := f.walk(inner, prefix+entry.Name+"/", paths); err != nil {
+				return err
+			}
+		case entry.Mode.IsFile():
+			*paths = append(*paths, prefix+entry.Name)
+		}
+	}
+	return nil
+}
+
 // trees decodes each tree object of one fetch once, however many releases or paths reach it. Releases share most of
 // their trees, so decoding them per release would hold a large shared directory once for every release that reads
 // it. The objects a fetch holds are bounded, so the trees decoded from them are too. It isn't safe for concurrent

@@ -62,7 +62,7 @@ func TestCheckpointReportsVersionsMissingTheirContent(t *testing.T) {
 		t.Fatalf("read %+v, %v; want no content missing", checkpoint, err)
 	}
 	lines(t, connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL, when_to_read = NULL,
-		markdown = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
+		markdown = NULL, tags = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
 
 	checkpoint, _, err := s.Checkpoint(context.Background(), key)
 
@@ -92,5 +92,23 @@ func TestCheckpointFindsNothingForALibraryNeverIngested(t *testing.T) {
 
 	if err != nil || found {
 		t.Fatalf("found %v, %v; want nothing", found, err)
+	}
+}
+
+// A release before assets were read stored versions without their tags, so the check must see the library as missing
+// its assets until ingestion stores them, and its tags, again.
+func TestCheckpointReportsVersionsWithoutTheirTags(t *testing.T) {
+	s, connString := newStore(t)
+	replace(t, s, exampleRules)
+	key := domain.LibraryKey{Host: domain.GitHub, RepositoryID: "7"}
+	if checkpoint, _, err := s.Checkpoint(context.Background(), key); err != nil || checkpoint.MissingAssets {
+		t.Fatalf("read %+v, %v; want no assets missing", checkpoint, err)
+	}
+	lines(t, connString, `UPDATE rule_versions SET tags = NULL WHERE html IS NOT NULL RETURNING id::text`)
+
+	checkpoint, _, err := s.Checkpoint(context.Background(), key)
+
+	if err != nil || !checkpoint.MissingAssets {
+		t.Fatalf("read %+v, %v; want assets missing", checkpoint, err)
 	}
 }

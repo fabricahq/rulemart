@@ -17,6 +17,17 @@ type Account struct {
 	SignedInAt   pgtype.Timestamptz
 }
 
+type Asset struct {
+	ID        int64
+	LibraryID int64
+	Path      string
+	ReleaseID int64
+	Size      int64
+	MediaType string
+	Content   []byte
+	Html      pgtype.Text
+}
+
 type HelloMessage struct {
 	ID         int64
 	MessageID  string
@@ -37,6 +48,7 @@ type Library struct {
 	LicenseExpression pgtype.Text
 	LicenseFile       pgtype.Text
 	CloneUrl          pgtype.Text
+	CreatedAt         pgtype.Timestamptz
 }
 
 type LibraryGroup struct {
@@ -87,6 +99,12 @@ type Rule struct {
 	RetirementSummaries []string
 }
 
+type RuleAsset struct {
+	LibraryID int64
+	RuleID    int64
+	AssetID   int64
+}
+
 type RuleStar struct {
 	AccountID int64
 	RuleID    int64
@@ -113,6 +131,7 @@ type RuleVersion struct {
 	WhenToReadHtml     pgtype.Text
 	RenderedWhenToRead pgtype.Text
 	RetiredHtml        pgtype.Text
+	Tags               []string
 }
 
 type Session struct {

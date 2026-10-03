@@ -1,13 +1,13 @@
-// Package render renders a rule's Markdown body as the HTML its Rulemart page shows, with Rulemart's link rules,
-// within a byte allowance. Rule implements domain.Render, which ingestion's assembly calls; only ingestion links
-// this package, so the web function carries no Markdown parser or highlighter.
+// Package render renders a library's Markdown, a rule's body or a Markdown file among its assets, and its text files,
+// as the HTML Rulemart's pages show, with Rulemart's link rules, within a byte allowance. Renderer implements
+// domain.Renderer, which ingestion's assembly calls; only ingestion links this package, so the web function carries no
+// Markdown parser or highlighter.
 package render
 
 import (
 	"bytes"
 	"fmt"
 	"html"
-	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -27,12 +27,25 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
-// rulePage is the page a rule is rendered for, with the link rules that apply to it.
-type rulePage struct {
-	domain.RulePage
+// Renderer renders a library's files as Markdown, Code, and Links do.
+type Renderer struct{}
+
+func (Renderer) Markdown(body string, source domain.MarkdownSource, allowance int64) (string, int64, error) {
+	return Markdown(body, source, allowance)
 }
 
-// pageKey carries the rulePage being rendered to pageTransformer, and allowanceKey the allowance that pays for
+func (Renderer) Code(text, file string, allowance int64) (string, int64, error) {
+	return Code(text, file, allowance)
+}
+
+func (Renderer) Links(body string) []string { return Links(body) }
+
+// source is the Markdown file being rendered, with the link rules that apply to it.
+type source struct {
+	domain.MarkdownSource
+}
+
+// pageKey carries the source being rendered to pageTransformer, and allowanceKey the allowance that pays for
 // rewritten links. refusedKey holds the allowance's error when rewriting links would pass it.
 var (
 	pageKey      = parser.NewContextKey()
@@ -90,19 +103,20 @@ func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.Nod
 	})
 }
 
-// Rule returns the HTML for a rule's Markdown body, and the bytes it used of allowance. It drops a leading
-// heading that repeats the title, points relative links and images at the files on GitHub at the release that
-// holds them, highlights fenced code, and escapes raw HTML. goldmark's renderer already drops links with dangerous
-// schemes, such as javascript:.
+// Markdown returns the HTML for a Markdown body from source, and the bytes it used of allowance. It drops a leading
+// heading that repeats the rule's title, points relative links at the pages of the assets source names, and other
+// relative links and images at the files on GitHub at the release that holds them, loads images of those assets
+// from Rulemart when it keeps them, highlights fenced code, and escapes raw HTML. goldmark's renderer already drops
+// links with dangerous schemes, such as javascript:.
 //
 // A short body can expand, such as many references to one long link definition, so render counts what it builds
 // as it goes, each rewritten link and each byte of HTML, and stops with domain.ErrOverAllowance rather than build past
-// allowance. Highlighting some code takes chroma's lexers minutes, so a rule gets highlightBudget for it, and code
+// allowance. Highlighting some code takes chroma's lexers minutes, so a body gets highlightBudget for it, and code
 // past the budget is shown escaped, without highlighting.
-func Rule(body string, page domain.RulePage, allowance int64) (html string, used int64, err error) {
+func Markdown(body string, from domain.MarkdownSource, allowance int64) (html string, used int64, err error) {
 	spent := &spending{limit: allowance}
 	context := parser.NewContext()
-	context.Set(pageKey, rulePage{page})
+	context.Set(pageKey, source{from})
 	context.Set(allowanceKey, spent)
 	source := []byte(body)
 	document := markdown.Parser().Parse(text.NewReader(source), parser.WithContext(context))
@@ -179,14 +193,58 @@ func (w *allowanceWriter) Flush() error   { return w.err }
 func (w *allowanceWriter) Available() int { return 0 }
 func (w *allowanceWriter) Buffered() int  { return 0 }
 
-// pageTransformer adapts a parsed rule body to its page, using the rulePage in the parser context.
+// Code returns the HTML for the text of file as a block of code, highlighted when chroma knows file's language by its
+// name, within highlightBudget, and the bytes it used of allowance, failing with domain.ErrOverAllowance, without
+// building past allowance, when the HTML would need more.
+func Code(text, file string, allowance int64) (string, int64, error) {
+	out := allowanceWriter{spent: &spending{limit: allowance}, highlightUntil: time.Now().Add(highlightBudget)}
+	language := strings.TrimPrefix(strings.ToLower(path.Ext(file)), ".")
+	_, _ = out.WriteString("<pre><code")
+	if language != "" {
+		_, _ = out.WriteString(` class="language-` + html.EscapeString(language) + `"`)
+	}
+	_, _ = out.WriteString(">")
+	var lexer chroma.Lexer
+	if text != "" {
+		lexer = lexers.Match(path.Base(file))
+	}
+	writeHighlightedWith(&out, lexer, text, out.highlightUntil)
+	_, _ = out.WriteString("</code></pre>\n")
+	if out.err != nil {
+		return "", 0, out.err
+	}
+	return out.html.String(), out.spent.used, nil
+}
+
+// Links returns the destinations of body's links and images, as written, in the order they appear: the links a page
+// of it would show, including those that name a link definition, without rewriting them.
+func Links(body string) []string {
+	source := []byte(body)
+	document := goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser().Parse(text.NewReader(source))
+	var destinations []string
+	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := node.(type) {
+		case *ast.Link:
+			destinations = append(destinations, string(node.Destination))
+		case *ast.Image:
+			destinations = append(destinations, string(node.Destination))
+		}
+		return ast.WalkContinue, nil
+	})
+	return destinations
+}
+
+// pageTransformer adapts a parsed body to its page, using the source in the parser context.
 type pageTransformer struct{}
 
 func (pageTransformer) Transform(document *ast.Document, reader text.Reader, context parser.Context) {
-	page := context.Get(pageKey).(rulePage)
+	page := context.Get(pageKey).(source)
 	spent := context.Get(allowanceKey).(*spending)
 	source := reader.Source()
-	if heading, ok := document.FirstChild().(*ast.Heading); ok && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.Title) {
+	if heading, ok := document.FirstChild().(*ast.Heading); ok && page.Title != "" && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.Title) {
 		document.RemoveChild(document, heading)
 	}
 	// References to one definition share its destination, so each distinct destination is rewritten, and paid
@@ -224,12 +282,19 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 	}
 }
 
-// linkURL returns where a link in the rule leads: a relative destination opens the file on GitHub, and anything
-// else, such as an absolute URL or a fragment, stays as written.
-func (p rulePage) linkURL(destination string) string {
-	file, suffix, ok := p.resolve(destination)
+// linkURL returns where a link in the file leads: a relative destination opens an asset's page on Rulemart, keeping its
+// fragment, or the file on GitHub, and anything else, such as an absolute URL or a fragment, stays as written.
+func (p source) linkURL(destination string) string {
+	file, suffix, ok := domain.ResolveLink(p.File, destination)
 	if !ok {
 		return destination
+	}
+	if asset, ok := p.Assets[file]; ok {
+		_, fragment, _ := strings.Cut(suffix, "#")
+		if fragment != "" {
+			return asset.Page + "#" + fragment
+		}
+		return asset.Page
 	}
 	if file == "" {
 		return domain.TreeURL(p.Repository, p.tagFor(file)) + suffix
@@ -237,47 +302,23 @@ func (p rulePage) linkURL(destination string) string {
 	return domain.BlobURL(p.Repository, p.tagFor(file), file) + suffix
 }
 
-// imageURL returns where an image in the rule loads from: a relative source loads the file from GitHub, and an
-// absolute one stays as written.
-func (p rulePage) imageURL(source string) string {
-	file, suffix, ok := p.resolve(source)
+// imageURL returns where an image in the file loads from: an asset Rulemart keeps loads from Rulemart, another relative
+// source from GitHub, and an absolute one stays as written.
+func (p source) imageURL(destination string) string {
+	file, suffix, ok := domain.ResolveLink(p.File, destination)
 	if !ok || file == "" {
-		return source
+		return destination
+	}
+	if asset, ok := p.Assets[file]; ok && asset.Image != "" {
+		return asset.Image
 	}
 	return domain.RawURL(p.Repository, p.tagFor(file), file) + suffix
 }
 
-// resolve returns the repository file a relative destination names, resolved against the rule's directory, and
-// the query and fragment to keep after it. file is empty for the repository root, including for destinations that
-// climb above it. ok is false for a destination that isn't a relative path: one with a scheme or host, or only a
-// query or fragment.
-func (p rulePage) resolve(destination string) (file, suffix string, ok bool) {
-	u, err := url.Parse(destination)
-	if err != nil || u.Scheme != "" || u.Host != "" || u.Opaque != "" || u.Path == "" {
-		return "", "", false
-	}
-	if u.RawQuery != "" {
-		suffix += "?" + u.RawQuery
-	}
-	if u.Fragment != "" {
-		suffix += "#" + u.EscapedFragment()
-	}
-	file = path.Clean(u.Path)
-	if !strings.HasPrefix(u.Path, "/") {
-		file = path.Join(path.Dir(p.Path), u.Path)
-	}
-	file = strings.TrimPrefix(file, "/")
-	if file == "." || file == ".." || strings.HasPrefix(file, "../") {
-		file = ""
-	}
-	return file, suffix, true
-}
-
-// tagFor returns the release whose tree holds file as the rule shows it: the rule's own release for its Markdown
+// tagFor returns the release whose tree holds file as the page shows it: the rule's own release for its Markdown
 // and its asset directory, assets/<rule name>/ beside it, and the latest release for everything else.
-func (p rulePage) tagFor(file string) string {
-	dir, name := path.Split(strings.TrimSuffix(p.Path, ".md"))
-	if file == p.Path || strings.HasPrefix(file, dir+"assets/"+name+"/") {
+func (p source) tagFor(file string) string {
+	if p.Rule != "" && (file == p.Rule || strings.HasPrefix(file, domain.RuleAssetDir(strings.TrimSuffix(p.Rule, ".md")))) {
 		return p.Tag
 	}
 	return p.LatestTag
@@ -352,8 +393,17 @@ func renderFencedCode(w util.BufWriter, source []byte, node ast.Node, entering b
 // writeHighlighted writes code as escaped HTML, wrapping tokens in highlight classes when chroma has a lexer for
 // language, until the time is past until. It writes whatever code remains then escaped, without highlighting.
 func writeHighlighted(w util.BufWriter, language, code string, until time.Time) {
-	lexer := lexers.Get(language)
-	if language == "" || lexer == nil || time.Now().After(until) {
+	var lexer chroma.Lexer
+	if language != "" {
+		lexer = lexers.Get(language)
+	}
+	writeHighlightedWith(w, lexer, code, until)
+}
+
+// writeHighlightedWith writes code as escaped HTML, wrapping tokens in highlight classes when lexer isn't nil, until
+// the time is past until. It writes whatever code remains then escaped, without highlighting.
+func writeHighlightedWith(w util.BufWriter, lexer chroma.Lexer, code string, until time.Time) {
+	if lexer == nil || time.Now().After(until) {
 		_, _ = w.WriteString(html.EscapeString(code))
 		return
 	}

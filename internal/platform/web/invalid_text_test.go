@@ -35,7 +35,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	db, connString := databasetest.New(t)
 	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}

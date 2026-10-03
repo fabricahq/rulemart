@@ -56,7 +56,7 @@ func ingest(t *testing.T, lib *gittest.Library) http.Handler {
 	t.Helper()
 	db, connString := databasetest.New(t)
 	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ changes: {techs/go/close-bodies: {change: new, summaries: [Add the rule.]}}
 	acmeRepo.Owner, acmeRepo.Name = "acme", "go-rules"
 	repos := byName{"example/rules": exampleRepo, "acme/go-rules": acmeRepo}
 	db, connString := databasetest.New(t)
-	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Render: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	for name := range repos {
 		if _, err := ingester.Ingest(context.Background(), "https://github.com/"+name); err != nil {
 			t.Fatal(err)

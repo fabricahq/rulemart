@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteAssetsExcept = `-- name: DeleteAssetsExcept :execrows
+DELETE FROM assets WHERE library_id = $1 AND NOT (path = ANY ($2::text[]))
+`
+
+type DeleteAssetsExceptParams struct {
+	LibraryID int64
+	Paths     []string
+}
+
+func (q *Queries) DeleteAssetsExcept(ctx context.Context, arg DeleteAssetsExceptParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAssetsExcept, arg.LibraryID, arg.Paths)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteGroupsExcept = `-- name: DeleteGroupsExcept :execrows
 DELETE FROM library_groups WHERE library_id = $1 AND NOT (path = ANY ($2::text[]))
 `
@@ -39,6 +56,32 @@ type DeleteReleasesExceptParams struct {
 
 func (q *Queries) DeleteReleasesExcept(ctx context.Context, arg DeleteReleasesExceptParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteReleasesExcept, arg.LibraryID, arg.Numbers)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteRuleAssetsExcept = `-- name: DeleteRuleAssetsExcept :execrows
+DELETE FROM rule_assets ra
+WHERE ra.library_id = $1
+  AND (ra.rule_id, ra.asset_id) NOT IN (
+      SELECT r.rule_id, a.asset_id
+      FROM unnest($2::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+      JOIN unnest($3::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+  )
+`
+
+type DeleteRuleAssetsExceptParams struct {
+	LibraryID int64
+	RuleIds   []int64
+	AssetIds  []int64
+}
+
+// DeleteRuleAssetsExcept deletes which assets the library's rules list, except the pairs of a rule and an asset that
+// rule_ids and asset_ids hold at the same positions.
+func (q *Queries) DeleteRuleAssetsExcept(ctx context.Context, arg DeleteRuleAssetsExceptParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRuleAssetsExcept, arg.LibraryID, arg.RuleIds, arg.AssetIds)
 	if err != nil {
 		return 0, err
 	}
@@ -87,7 +130,10 @@ SELECT l.clone_url, r.number, r.tag_object_id,
        EXISTS (
            SELECT FROM rule_versions v
            WHERE v.library_id = l.id AND v.html IS NOT NULL AND v.rendered_when_to_read IS DISTINCT FROM v.when_to_read
-       ) AS unrendered
+       ) AS unrendered,
+       EXISTS (
+           SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NOT NULL AND v.tags IS NULL
+       ) AS missing_assets
 FROM libraries l
 LEFT JOIN library_releases r ON r.library_id = l.id
 WHERE l.host = $1 AND l.host_repository_id = $2
@@ -104,11 +150,13 @@ type GetCheckpointRow struct {
 	TagObjectID    pgtype.Text
 	MissingContent bool
 	Unrendered     bool
+	MissingAssets  bool
 }
 
 // One row per stored release of the library, or one row with a NULL number when it has none, each saying whether a
 // release that stored content only on current versions left any version without it, or a retired rule's last version
-// without its body's HTML, and whether a current version's reading guidance lacks the HTML rendered from it.
+// without its body's HTML, whether a current version's reading guidance lacks the HTML rendered from it, and whether a
+// release that read neither tags nor assets left a version with content without its tags.
 func (q *Queries) GetCheckpoint(ctx context.Context, arg GetCheckpointParams) ([]GetCheckpointRow, error) {
 	rows, err := q.db.Query(ctx, getCheckpoint, arg.Host, arg.HostRepositoryID)
 	if err != nil {
@@ -124,6 +172,7 @@ func (q *Queries) GetCheckpoint(ctx context.Context, arg GetCheckpointParams) ([
 			&i.TagObjectID,
 			&i.MissingContent,
 			&i.Unrendered,
+			&i.MissingAssets,
 		); err != nil {
 			return nil, err
 		}
@@ -149,6 +198,58 @@ func (q *Queries) GetLibraryID(ctx context.Context, arg GetLibraryIDParams) (int
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const insertRuleAssets = `-- name: InsertRuleAssets :execrows
+INSERT INTO rule_assets (library_id, rule_id, asset_id)
+SELECT $1, r.rule_id, a.asset_id
+FROM unnest($2::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+JOIN unnest($3::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+ON CONFLICT DO NOTHING
+`
+
+type InsertRuleAssetsParams struct {
+	LibraryID int64
+	RuleIds   []int64
+	AssetIds  []int64
+}
+
+// InsertRuleAssets records that the rules rule_ids list the assets asset_ids, at the same positions, unless they do.
+func (q *Queries) InsertRuleAssets(ctx context.Context, arg InsertRuleAssetsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertRuleAssets, arg.LibraryID, arg.RuleIds, arg.AssetIds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listAssetIDs = `-- name: ListAssetIDs :many
+SELECT id, path FROM assets WHERE library_id = $1
+`
+
+type ListAssetIDsRow struct {
+	ID   int64
+	Path string
+}
+
+func (q *Queries) ListAssetIDs(ctx context.Context, libraryID int64) ([]ListAssetIDsRow, error) {
+	rows, err := q.db.Query(ctx, listAssetIDs, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAssetIDsRow
+	for rows.Next() {
+		var i ListAssetIDsRow
+		if err := rows.Scan(&i.ID, &i.Path); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listGroupIDs = `-- name: ListGroupIDs :many
@@ -277,6 +378,42 @@ func (q *Queries) ListVersionKeys(ctx context.Context, libraryID int64) ([]ListV
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertAsset = `-- name: UpsertAsset :execrows
+INSERT INTO assets (library_id, path, release_id, size, media_type, content, html)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (library_id, path) DO UPDATE SET
+    release_id = excluded.release_id, size = excluded.size, media_type = excluded.media_type, content = excluded.content,
+    html = excluded.html
+WHERE (assets.release_id, assets.size, assets.media_type, assets.content, assets.html)
+    IS DISTINCT FROM (excluded.release_id, excluded.size, excluded.media_type, excluded.content, excluded.html)
+`
+
+type UpsertAssetParams struct {
+	LibraryID int64
+	Path      string
+	ReleaseID int64
+	Size      int64
+	MediaType string
+	Content   []byte
+	Html      pgtype.Text
+}
+
+func (q *Queries) UpsertAsset(ctx context.Context, arg UpsertAssetParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertAsset,
+		arg.LibraryID,
+		arg.Path,
+		arg.ReleaseID,
+		arg.Size,
+		arg.MediaType,
+		arg.Content,
+		arg.Html,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertGroup = `-- name: UpsertGroup :execrows
@@ -427,21 +564,21 @@ func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) (int64, 
 
 const upsertVersion = `-- name: UpsertVersion :execrows
 INSERT INTO rule_versions (library_id, rule_id, release_id, major, minor, patch, change, summaries,
-                           title, impact, impact_description, when_to_read, markdown, html,
+                           title, impact, impact_description, when_to_read, tags, markdown, html,
                            when_to_read_html, rendered_when_to_read, retired_html)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14,
-        $15, $16, $17)
+        $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
-    impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
+    impact_description = excluded.impact_description, when_to_read = excluded.when_to_read, tags = excluded.tags,
     markdown = excluded.markdown, html = excluded.html, when_to_read_html = excluded.when_to_read_html,
     rendered_when_to_read = excluded.rendered_when_to_read, retired_html = excluded.retired_html
 WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
-       rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html,
-       rule_versions.when_to_read_html, rule_versions.rendered_when_to_read, rule_versions.retired_html)
+       rule_versions.impact_description, rule_versions.when_to_read, rule_versions.tags, rule_versions.markdown,
+       rule_versions.html, rule_versions.when_to_read_html, rule_versions.rendered_when_to_read, rule_versions.retired_html)
     IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
-       excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html,
+       excluded.impact_description, excluded.when_to_read, excluded.tags, excluded.markdown, excluded.html,
        excluded.when_to_read_html, excluded.rendered_when_to_read, excluded.retired_html)
 `
 
@@ -458,6 +595,7 @@ type UpsertVersionParams struct {
 	Impact             pgtype.Text
 	ImpactDescription  pgtype.Text
 	WhenToRead         pgtype.Text
+	Tags               []string
 	Markdown           pgtype.Text
 	Html               pgtype.Text
 	WhenToReadHtml     pgtype.Text
@@ -481,6 +619,7 @@ func (q *Queries) UpsertVersion(ctx context.Context, arg UpsertVersionParams) (i
 		arg.Impact,
 		arg.ImpactDescription,
 		arg.WhenToRead,
+		arg.Tags,
 		arg.Markdown,
 		arg.Html,
 		arg.WhenToReadHtml,

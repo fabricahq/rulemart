@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +15,9 @@ import (
 // unlimited is an allowance no test body comes near.
 const unlimited = 1 << 40
 
-var page = domain.RulePage{
-	Repository: "example/rules", Path: "practices/testing/verify-retry-limits.md", Title: "Verify retry limits",
-	Tag: "release/2", LatestTag: "release/5",
+var page = domain.MarkdownSource{
+	Repository: "example/rules", File: "practices/testing/verify-retry-limits.md", Rule: "practices/testing/verify-retry-limits.md",
+	Title: "Verify retry limits", Tag: "release/2", LatestTag: "release/5",
 }
 
 func TestRenderShowsRawHTMLAsText(t *testing.T) {
@@ -25,7 +26,7 @@ func TestRenderShowsRawHTMLAsText(t *testing.T) {
 		"inline": "Press <img src=x onerror=alert(1)> now.",
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := Rule(body, page, unlimited)
+			html, _, err := Markdown(body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +41,7 @@ func TestRenderShowsRawHTMLAsText(t *testing.T) {
 }
 
 func TestRenderDropsDangerousLinks(t *testing.T) {
-	html, _, err := Rule("[click](javascript:alert(1))", page, unlimited)
+	html, _, err := Markdown("[click](javascript:alert(1))", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestRenderDropsALeadingHeadingThatRepeatsTheTitle(t *testing.T) {
 		"a later repeat":    {"Intro.\n\n## Verify retry limits\n", "<h2", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := Rule(tc.body, page, unlimited)
+			html, _, err := Markdown(tc.body, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -109,7 +110,7 @@ func TestRenderPointsRelativeLinksAtGitHub(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			html, _, err := Rule(tc.markdown, page, unlimited)
+			html, _, err := Markdown(tc.markdown, page, unlimited)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -121,7 +122,7 @@ func TestRenderPointsRelativeLinksAtGitHub(t *testing.T) {
 }
 
 func TestRenderHighlightsFencedCodeInKnownLanguages(t *testing.T) {
-	html, _, err := Rule("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited)
+	html, _, err := Markdown("```go\nreturn nil // done\n```\n\n```unknown-language\n<b>\n```", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ func TestRenderStopsAtItsAllowanceWhileExpandingReferenceLinks(t *testing.T) {
 			var before, after runtime.MemStats
 			runtime.GC()
 			runtime.ReadMemStats(&before)
-			_, _, err := Rule(body, page, 1<<20)
+			_, _, err := Markdown(body, page, 1<<20)
 			runtime.ReadMemStats(&after)
 
 			if !errors.Is(err, domain.ErrOverAllowance) {
@@ -168,7 +169,7 @@ func TestRenderStopsAtItsAllowanceWhileExpandingReferenceLinks(t *testing.T) {
 
 // What a render uses is its HTML, and each distinct rewritten link once, however many references share it.
 func TestRenderCountsTheHTMLAndEachRewrittenLinkOnce(t *testing.T) {
-	html, used, err := Rule("[a][d] and [b][d]\n\n[d]: check-retry-backoff.md\n", page, unlimited)
+	html, used, err := Markdown("[a][d] and [b][d]\n\n[d]: check-retry-backoff.md\n", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestRenderCountsTheHTMLAndEachRewrittenLinkOnce(t *testing.T) {
 
 // The renderer names GitHub's extensions' renderers itself, so each must still render what the parser finds.
 func TestRenderRendersGitHubExtensions(t *testing.T) {
-	html, _, err := Rule("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited)
+	html, _, err := Markdown("| a | b |\n| - | - |\n| 1 | 2 |\n\n~~old~~\n\n- [x] done\n\nSee https://example.com.", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +199,7 @@ func TestRenderStopsHighlightingCodeThatTakesTooLong(t *testing.T) {
 	body := "```java\n" + slow + "\n```\n\n```go\nreturn nil\n```\n"
 	start := time.Now()
 
-	html, _, err := Rule(body, page, 64<<20)
+	html, _, err := Markdown(body, page, 64<<20)
 
 	if elapsed := time.Since(start); elapsed > 10*time.Second {
 		t.Fatalf("rendering took %s", elapsed)
@@ -215,12 +216,122 @@ func TestRenderStopsHighlightingCodeThatTakesTooLong(t *testing.T) {
 // Highlighting writes the code chroma tokenised, and escapes any rest of it, so with Windows line endings too, the
 // page must show every character once.
 func TestRenderShowsHighlightedCodeWithWindowsLineEndingsOnce(t *testing.T) {
-	html, _, err := Rule("```go\r\nx := 1\r\nreturn x\r\n```\r\n", page, unlimited)
+	html, _, err := Markdown("```go\r\nx := 1\r\nreturn x\r\n```\r\n", page, unlimited)
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := regexp.MustCompile(`<[^>]+>`).ReplaceAllString(html, "")
 	if !strings.Contains(text, "x := 1\nreturn x") || strings.Count(text, "return") != 1 {
 		t.Fatalf("got %q", html)
+	}
+}
+
+// withAssets is page with the assets Rulemart shows: an own diagram it keeps, an own example too large to keep, and a
+// shared glossary.
+var withAssets = func() domain.MarkdownSource {
+	p := page
+	p.Assets = map[string]domain.AssetAddress{
+		"practices/testing/assets/verify-retry-limits/loop.svg": {
+			Page:  "/example/rules/practices/testing/verify-retry-limits/assets/loop.svg",
+			Image: "/example/rules/practices/testing/verify-retry-limits/assets/loop.svg?raw=1",
+		},
+		"practices/testing/assets/verify-retry-limits/big.png": {Page: "/example/rules/practices/testing/verify-retry-limits/assets/big.png"},
+		"assets/glossary.md": {Page: "/example/rules/assets/glossary.md"},
+	}
+	return p
+}()
+
+// A link to an asset Rulemart shows leads to its page, keeping a fragment; an image of one it keeps loads from
+// Rulemart, and one it doesn't from GitHub; other relative links still lead to GitHub.
+func TestRenderPointsLinksToAssetsAtTheirPages(t *testing.T) {
+	for name, tc := range map[string]struct{ markdown, want string }{
+		"an own asset": {
+			"[loop](assets/verify-retry-limits/loop.svg)",
+			`href="/example/rules/practices/testing/verify-retry-limits/assets/loop.svg"`,
+		},
+		"a shared asset, with its fragment": {
+			"[glossary](../../assets/glossary.md#regression-test)",
+			`href="/example/rules/assets/glossary.md#regression-test"`,
+		},
+		"a shared asset, without the query a link wrote": {
+			"[glossary](../../assets/glossary.md?plain=1)",
+			`href="/example/rules/assets/glossary.md"`,
+		},
+		"an image Rulemart keeps": {
+			"![loop](assets/verify-retry-limits/loop.svg)",
+			`src="/example/rules/practices/testing/verify-retry-limits/assets/loop.svg?raw=1"`,
+		},
+		"an image too large to keep, from GitHub": {
+			"![big](assets/verify-retry-limits/big.png)",
+			`src="https://raw.githubusercontent.com/example/rules/refs/tags/release/2/practices/testing/assets/verify-retry-limits/big.png"`,
+		},
+		"a file that isn't an asset, on GitHub": {
+			"[missing](../../assets/missing.md)",
+			`href="https://github.com/example/rules/blob/release/5/assets/missing.md"`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			html, _, err := Markdown(tc.markdown, withAssets, unlimited)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(html, tc.want) {
+				t.Fatalf("got %s, want %s", html, tc.want)
+			}
+		})
+	}
+}
+
+// A Markdown asset's links resolve against its own directory, and lead to GitHub at the release that holds each file:
+// the rule's for its own assets, and the latest for others.
+func TestRenderResolvesAMarkdownAssetsLinksAgainstItsOwnFile(t *testing.T) {
+	asset := withAssets
+	asset.File, asset.Title = "practices/testing/assets/verify-retry-limits/why.md", ""
+	html, _, err := Markdown("# Why\n\nSee the [glossary](../../../../assets/glossary.md), [the loop](loop.svg), "+
+		"and [the rule](../../verify-retry-limits.md).", asset, unlimited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<h1 id="why">Why</h1>`,
+		`href="/example/rules/assets/glossary.md"`,
+		`href="/example/rules/practices/testing/verify-retry-limits/assets/loop.svg"`,
+		`href="https://github.com/example/rules/blob/release/2/practices/testing/verify-retry-limits.md"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("got %s, want %s", html, want)
+		}
+	}
+}
+
+// A text file shows as code, highlighted in a language chroma knows by its name, and escaped otherwise.
+func TestCodeHighlightsTextFilesByTheirNames(t *testing.T) {
+	for name, tc := range map[string]struct{ file, text, want string }{
+		"Go":           {"example.go", "return nil", `<pre><code class="language-go"><span class="hl-keyword">return</span>`},
+		"JSON":         {"cases.json", `{"a": 1}`, `<pre><code class="language-json">`},
+		"unknown":      {"notes.unknown", "<b>", `<pre><code class="language-unknown">&lt;b&gt;</code></pre>`},
+		"no extension": {"Makefile.d/x", "<b>", `<pre><code>&lt;b&gt;</code></pre>`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			html, used, err := Code(tc.text, tc.file, unlimited)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(html, tc.want) || used != int64(len(html)) {
+				t.Fatalf("got %s, used %d", html, used)
+			}
+		})
+	}
+	if _, _, err := Code(strings.Repeat("x", 100), "big.txt", 50); !errors.Is(err, domain.ErrOverAllowance) {
+		t.Fatalf("got %v, want a refusal past the allowance", err)
+	}
+}
+
+// Links finds every link and image a page would show, including one that names a definition, and none in raw HTML or
+// code, which pages show as text.
+func TestLinksFindsTheLinksAndImagesAPageShows(t *testing.T) {
+	got := Links("See [a](a.md) and ![b](b.png), [c][d], `[e](e.md)`, and <a href=\"f.md\">f</a>.\n\n[d]: c.md\n")
+	if want := []string{"a.md", "b.png", "c.md"}; !slices.Equal(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

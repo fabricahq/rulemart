@@ -3,6 +3,7 @@ package git_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -131,5 +132,38 @@ func TestFetchFetchesOnlyTheTaggedCommits(t *testing.T) {
 
 	if err != nil || len(releases) != 1 {
 		t.Fatalf("fetched %d releases, %v; want 1", len(releases), err)
+	}
+}
+
+// A release lists the files of a directory and the directories inside it, in path order, and nothing for a directory
+// it doesn't have or a path that names a file.
+func TestListReturnsTheFilesInADirectory(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.")
+	lib.Write("techs/go/assets/return-errors/z.go", "package z\n")
+	lib.Write("techs/go/assets/return-errors/deep/a.md", "# A\n")
+	lib.Write("techs/go/assets/return-errors/b.svg", "<svg/>")
+	lib.Release(1, firstRecord)
+	releases, err := git.Fetch(context.Background(), lib.URL(), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := releases[0].Files
+
+	for dir, want := range map[string][]string{
+		"techs/go/assets/return-errors/": {
+			"techs/go/assets/return-errors/b.svg", "techs/go/assets/return-errors/deep/a.md", "techs/go/assets/return-errors/z.go",
+		},
+		"techs/go/assets/missing/":   nil,
+		"techs/go/return-errors.md/": nil,
+	} {
+		got, err := files.List(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("List(%q) = %q, want %q", dir, got, want)
+		}
 	}
 }

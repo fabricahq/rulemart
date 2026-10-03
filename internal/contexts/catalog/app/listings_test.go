@@ -75,7 +75,7 @@ func newListing(t *testing.T, lib *gittest.Library) *listing {
 	l := &listing{queue: &recordingQueue{}, hosted: &hostedRepositories{repo: lib.Repository(42)}, connString: connString}
 	l.listings = app.Listings{Store: web, Queue: l.queue}
 	l.ingester = app.Ingester{
-		Repositories: l.hosted, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Rule,
+		Repositories: l.hosted, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Renderer{},
 		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,
 	}
 	l.pages = app.Pages{Store: web}

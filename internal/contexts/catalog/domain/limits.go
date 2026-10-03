@@ -31,11 +31,17 @@ type ContentLimits struct {
 	// FileBytes bounds each rule, group, or manifest file assembly reads.
 	FileBytes int64
 	// ContentBytes bounds the content assembly holds until the library is stored: every current rule's Markdown,
-	// its title, impact description, and reading guidance, its HTML and the links rendering rewrites, and every
-	// group's metadata file. A release's files share storage however many paths have the same content, so what a
-	// source fetches can't bound this: a small release can list thousands of rules or groups that share one large
-	// file.
+	// its title, impact description, reading guidance, and tags, its HTML and the links rendering rewrites, the bytes
+	// and HTML of the assets it keeps, and every group's metadata file. A release's files share storage however many
+	// paths have the same content, so what a source fetches can't bound this: a small release can list thousands of
+	// rules or groups that share one large file.
 	ContentBytes int64
+	// AssetBytes bounds the bytes assembly keeps of one asset, and RuleAssetBytes those of one current rule's own
+	// assets together, and of the library's shared assets together. An asset past either is listed with its size,
+	// and pages link it on GitHub.
+	AssetBytes, RuleAssetBytes int64
+	// Assets bounds the assets assembly lists, of every current rule and shared.
+	Assets int
 }
 
 // DefaultLimits leave room for any library Code Rules publishes, which holds at most 10,000 files, while keeping an
@@ -60,8 +66,13 @@ var DefaultLimits = Limits{
 	Content: ContentLimits{
 		// Each rule, group, or manifest file read.
 		FileBytes: 1 << 20,
-		// Every current rule's Markdown, metadata, and HTML, and every group's metadata: tens of thousands of long
-		// rules.
+		// Every current rule's Markdown, metadata, and HTML, its assets, and every group's metadata: tens of thousands
+		// of long rules.
 		ContentBytes: 256 << 20,
+		// Room for diagrams, examples, and notes, while a page about a rule stays quick to load.
+		AssetBytes:     256 << 10,
+		RuleAssetBytes: 2 << 20,
+		// Code Rules publishes at most 10,000 files in a library.
+		Assets: 10_000,
 	},
 }

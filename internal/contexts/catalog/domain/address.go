@@ -5,6 +5,7 @@ package domain
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -22,6 +23,34 @@ func RuleFile(rulePath string) string { return rulePath + ".md" }
 
 // GroupFile returns the metadata file of the group at groupPath, such as techs/go/_group.yaml.
 func GroupFile(groupPath string) string { return groupPath + "/_group.yaml" }
+
+// RuleAssetDir returns the asset directory of the rule at rulePath, assets/<rule name>/ beside its file, such as
+// practices/testing/assets/verify-retry-limits/ for practices/testing/verify-retry-limits. The rule's version covers
+// every file in it.
+func RuleAssetDir(rulePath string) string {
+	dir, name := path.Split(rulePath)
+	return dir + "assets/" + name + "/"
+}
+
+// SharedAssetDir is the library-root directory of the files a library's rules share, which no rule's version covers.
+const SharedAssetDir = "assets/"
+
+// AssetPagePath returns the path of the page Rulemart shows an asset of the rule at rulePath in the library fullName
+// on, owner/name: a file of the rule's own, at /owner/name/<rule ID>/assets/<its path in the rule's asset directory>,
+// and a shared one, whose path starts with SharedAssetDir, at /owner/name/<its path>.
+func AssetPagePath(fullName, rulePath, assetPath string) string {
+	if file, own := strings.CutPrefix(assetPath, RuleAssetDir(rulePath)); own {
+		return "/" + EscapePath(fullName) + "/" + EscapePath(rulePath) + "/assets/" + EscapePath(file)
+	}
+	return "/" + EscapePath(fullName) + "/" + EscapePath(assetPath)
+}
+
+// AssetRawParam is the query parameter that asks an asset's page for the asset's bytes instead, which Rulemart
+// serves for images it keeps.
+const AssetRawParam = "raw"
+
+// AssetImagePath returns where Rulemart serves the bytes of the image whose page is at page.
+func AssetImagePath(page string) string { return page + "?" + AssetRawParam + "=1" }
 
 // EscapePath percent-encodes each segment of a repository path for a URL.
 func EscapePath(file string) string {

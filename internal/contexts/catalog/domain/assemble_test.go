@@ -2,6 +2,8 @@ package domain
 
 import (
 	"fmt"
+	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -19,6 +21,17 @@ func (f files) Open(path string) (File, error) {
 		return nil, ErrFileMissing
 	}
 	return memoryFile(content), nil
+}
+
+func (f files) List(dir string) ([]string, error) {
+	var paths []string
+	for path := range f {
+		if strings.HasPrefix(path, dir) {
+			paths = append(paths, path)
+		}
+	}
+	slices.Sort(paths)
+	return paths, nil
 }
 
 type memoryFile string
@@ -53,13 +66,45 @@ func (f withUnreadable) Open(path string) (File, error) {
 	return f.files.Open(path)
 }
 
-// markup stands in for render.Rule: it wraps the body in a paragraph, and uses as many bytes as that takes.
-func markup(body string, _ RulePage, allowance int64) (string, int64, error) {
-	html := "<p>" + body + "</p>\n"
+// markup stands in for render.Renderer: it wraps Markdown in a paragraph, and code in a block, using as many bytes as
+// that takes, and finds the links written as [text](destination).
+type markup struct{}
+
+func (markup) Markdown(body string, _ MarkdownSource, allowance int64) (string, int64, error) {
+	return within("<p>"+body+"</p>\n", allowance)
+}
+
+func (markup) Code(text, _ string, allowance int64) (string, int64, error) {
+	return within("<pre>"+text+"</pre>\n", allowance)
+}
+
+// markdownLink matches a Markdown link or image written inline, holding its destination.
+var markdownLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
+
+func (markup) Links(body string) []string {
+	var destinations []string
+	for _, match := range markdownLink.FindAllStringSubmatch(body, -1) {
+		destinations = append(destinations, match[1])
+	}
+	return destinations
+}
+
+// within returns html and its length, or ErrOverAllowance when it's longer than allowance.
+func within(html string, allowance int64) (string, int64, error) {
 	if int64(len(html)) > allowance {
 		return "", 0, ErrOverAllowance
 	}
 	return html, int64(len(html)), nil
+}
+
+// rendering is a renderer that renders Markdown with markdown, and code as markup does.
+type rendering struct {
+	markup
+	markdown func(body string, source MarkdownSource, allowance int64) (string, int64, error)
+}
+
+func (r rendering) Markdown(body string, source MarkdownSource, allowance int64) (string, int64, error) {
+	return r.markdown(body, source, allowance)
 }
 
 // limits leave room for every test library, except where a test lowers them.
@@ -144,7 +189,7 @@ libraryFiles: [techs/go/_group.yaml]
 		"techs/go/return-errors.md":                rule("Unreleased title", "An edit no library release recorded."),
 	}))
 
-	lib, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup)
+	lib, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup{})
 
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +272,7 @@ func TestAssembleReadsOnlyTheFilesItNeeds(t *testing.T) {
 		"LICENSE": 12,
 	}}
 
-	if _, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup); err != nil {
+	if _, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -243,7 +288,7 @@ retired: {techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}}
 		"practices/testing/_group.yaml": group("Testing"),
 	}))
 
-	lib, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup)
+	lib, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup{})
 
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +316,7 @@ func TestAssembleRefusesALibraryMissingAFileItPublishes(t *testing.T) {
 			release := first(t)
 			delete(release.Files.(files), tc.remove)
 
-			_, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup)
+			_, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{})
 
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got error %v, want one containing %q", err, tc.want)
@@ -291,7 +336,7 @@ rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-r
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
 `, first(t).Files)
 
-	_, err := Assemble(repo, []ReleaseSnapshot{older, second}, limits, markup)
+	_, err := Assemble(repo, []ReleaseSnapshot{older, second}, limits, markup{})
 
 	if want := "release/1: practices/testing/verify-retry-limits.md: the file doesn't exist"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v, want one containing %q", err, want)
@@ -305,7 +350,7 @@ release: 2
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
 `, first(t).Files)
-	onlyFirst, err := Assemble(repo, []ReleaseSnapshot{first(t)}, limits, markup)
+	onlyFirst, err := Assemble(repo, []ReleaseSnapshot{first(t)}, limits, markup{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +358,7 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 	// release/1 alone fits, and release/2 adds no file, only a second version of one.
 	budget.ContentBytes = contentBytes(onlyFirst)
 
-	_, err = Assemble(repo, []ReleaseSnapshot{first(t), second}, budget, markup)
+	_, err = Assemble(repo, []ReleaseSnapshot{first(t), second}, budget, markup{})
 
 	if want := fmt.Sprintf("more than %d bytes of content", budget.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v, want %q", err, want)
@@ -341,7 +386,7 @@ func TestAssembleRefusesAFileLargerThanItsLimit(t *testing.T) {
 	small := limits
 	small.FileBytes = int64(len(release.Files.(files)["techs/go/return-errors.md"])) - 1
 
-	_, err := Assemble(repo, []ReleaseSnapshot{release}, small, markup)
+	_, err := Assemble(repo, []ReleaseSnapshot{release}, small, markup{})
 
 	if want := fmt.Sprintf("more than the %d ingestion reads", small.FileBytes); err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v, want one containing %q", err, want)
@@ -354,7 +399,7 @@ release: 2
 rules: {practices/testing/verify-retry-limits: 1.0.0, techs/go/return-errors: 1.0.0}
 `, first(t).Files)
 
-	_, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup)
+	_, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, markup{})
 
 	if want := "release/2.rules.practices/testing/check-retry-backoff"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v, want one naming %s", err, want)
@@ -367,7 +412,7 @@ var sharedRule = "---\ntitle: Shared rule\nwhenToRead: When testing budgets.\nim
 	strings.Repeat("A paragraph that every rule repeats, so the release is small in Git and large once read.\n\n", 40)
 
 // sharedRuleBytes returns the content assembly holds for one rule with sharedRule's content at path: its Markdown,
-// its title, impact description, and reading guidance, and the HTML of its body and reading guidance.
+// its title, impact description, reading guidance, and tags, and the HTML of its body and reading guidance.
 func sharedRuleBytes(t *testing.T, path string) int64 {
 	t.Helper()
 	parsed, err := coderules.Parse(sharedRule, path, repo.FullName())
@@ -378,11 +423,11 @@ func sharedRuleBytes(t *testing.T, path string) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	html, _, err := markup(document.Body, RulePage{}, 1<<40)
+	html, _, err := markup{}.Markdown(document.Body, MarkdownSource{}, 1<<40)
 	if err != nil {
 		t.Fatal(err)
 	}
-	whenToReadHTML, _, err := markup(strings.TrimSpace(parsed.WhenToRead), RulePage{}, 1<<40)
+	whenToReadHTML, _, err := markup{}.Markdown(strings.TrimSpace(parsed.WhenToRead), MarkdownSource{}, 1<<40)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,13 +481,13 @@ func TestAssembleKeepsContentWithinItsBudget(t *testing.T) {
 			budget := limits
 
 			budget.ContentBytes = rules + groups
-			lib, err := Assemble(repo, []ReleaseSnapshot{release}, budget, markup)
+			lib, err := Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
 			if err != nil || lib.CurrentRules() != 20 {
 				t.Fatalf("within the budget: got %d rules, %v; want 20", lib.CurrentRules(), err)
 			}
 
 			budget.ContentBytes = tc.short(rules, groups)
-			_, err = Assemble(repo, []ReleaseSnapshot{release}, budget, markup)
+			_, err = Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
 			want := fmt.Sprintf("more than %d bytes of content", budget.ContentBytes)
 			if err == nil || !strings.Contains(err.Error(), tc.refused) || !strings.Contains(err.Error(), want) {
 				t.Fatalf("a byte over the budget: got error %v, want %q naming %s", err, want, tc.refused)
@@ -453,7 +498,7 @@ func TestAssembleKeepsContentWithinItsBudget(t *testing.T) {
 
 // A body whose HTML would pass what's left of the budget is refused with the budget's error, not rendering's.
 func TestAssembleRefusesARuleWhoseHTMLWouldPassTheBudget(t *testing.T) {
-	refuse := func(string, RulePage, int64) (string, int64, error) { return "", 0, ErrOverAllowance }
+	refuse := rendering{markdown: func(string, MarkdownSource, int64) (string, int64, error) { return "", 0, ErrOverAllowance }}
 
 	_, err := Assemble(repo, []ReleaseSnapshot{first(t)}, limits, refuse)
 
@@ -474,23 +519,26 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 		"techs/go/_group.yaml":                     group("Go"),
 		"practices/testing/verify-retry-limits.md": rule("Verify retry limits", "Stop after a fixed number of attempts."),
 	}))
-	var pages []RulePage
+	var pages []MarkdownSource
 	var texts []string
 	var allowances []int64
-	record := func(body string, page RulePage, allowance int64) (string, int64, error) {
+	record := rendering{markdown: func(body string, page MarkdownSource, allowance int64) (string, int64, error) {
 		pages, texts, allowances = append(pages, page), append(texts, body), append(allowances, allowance)
-		return markup(body, page, allowance)
-	}
+		return markup{}.Markdown(body, page, allowance)
+	}}
 
 	if _, err := Assemble(repo, []ReleaseSnapshot{first(t), second}, limits, record); err != nil {
 		t.Fatal(err)
 	}
 
-	backoff := RulePage{Repository: "example/rules", Path: "practices/testing/check-retry-backoff.md", Title: "Check retry backoff", Tag: "release/1", LatestTag: "release/2"}
-	retryLimits := RulePage{Repository: "example/rules", Path: "practices/testing/verify-retry-limits.md", Title: "Verify retry limits", Tag: "release/2", LatestTag: "release/2"}
-	returnErrors := RulePage{Repository: "example/rules", Path: "techs/go/return-errors.md", Title: "Return errors", Tag: "release/1", LatestTag: "release/2"}
+	source := func(file, title, tag string) MarkdownSource {
+		return MarkdownSource{Repository: "example/rules", File: file, Rule: file, Title: title, Tag: tag, LatestTag: "release/2"}
+	}
+	backoff := source("practices/testing/check-retry-backoff.md", "Check retry backoff", "release/1")
+	retryLimits := source("practices/testing/verify-retry-limits.md", "Verify retry limits", "release/2")
+	returnErrors := source("techs/go/return-errors.md", "Return errors", "release/1")
 	// Each rule's body, then its reading guidance, which is Markdown too.
-	if want := []RulePage{backoff, backoff, retryLimits, retryLimits, returnErrors, returnErrors}; !slices.Equal(pages, want) {
+	if want := []MarkdownSource{backoff, backoff, retryLimits, retryLimits, returnErrors, returnErrors}; !reflect.DeepEqual(pages, want) {
 		t.Errorf("rendered for %+v, want %+v", pages, want)
 	}
 	if !strings.Contains(texts[0], "## Check retry backoff") || texts[1] != "When changing check retry backoff." {

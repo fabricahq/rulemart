@@ -61,7 +61,7 @@ func (s *Store) Checkpoint(ctx context.Context, library domain.LibraryKey) (doma
 	}
 	checkpoint := domain.Checkpoint{
 		CloneURL: rows[0].CloneUrl.String, Tags: domain.ReleaseTags{}, MissingContent: rows[0].MissingContent,
-		Unrendered: rows[0].Unrendered,
+		Unrendered: rows[0].Unrendered, MissingAssets: rows[0].MissingAssets,
 	}
 	for _, row := range rows {
 		if row.Number.Valid {
@@ -102,7 +102,8 @@ func (w *writer) exec(what string, statement func() (int64, error)) {
 // write upserts lib's rows on their natural keys and deletes the ones its tags no longer publish. A row that still
 // exists keeps its id, and each upsert changes a row only when its values differ, so unchanged tags write nothing.
 // It writes in the order the foreign keys and the one-current-version index need: the library, then releases,
-// stale versions before new ones, groups before the rules in them, and stale rows last, children before parents.
+// stale versions before new ones, groups before the rules in them, assets after the rules that list them, and stale
+// rows last, children before parents.
 func (w *writer) write(lib domain.Library) {
 	w.writeLibrary(lib)
 	numbers := make([]int32, len(lib.Releases))
@@ -136,6 +137,7 @@ func (w *writer) write(lib domain.Library) {
 	for _, r := range lib.Rules {
 		w.writeVersions(r)
 	}
+	w.writeAssets(lib)
 	w.exec("delete stale rules", func() (int64, error) {
 		return w.q.DeleteRulesExcept(w.ctx, catalogdb.DeleteRulesExceptParams{LibraryID: w.library, Paths: rulePaths})
 	})
@@ -253,7 +255,7 @@ func (w *writer) writeVersions(r domain.Rule) {
 			LibraryID: w.library, RuleID: w.rules[r.Path], ReleaseID: w.releases[v.Release], Change: string(v.Change), Summaries: v.Summaries,
 			Major: int32(v.Number.Major), Minor: int32(v.Number.Minor), Patch: int32(v.Number.Patch),
 			Title: present(c.Title), Impact: present(c.Impact), ImpactDescription: present(c.ImpactDescription),
-			WhenToRead: present(c.WhenToRead), Markdown: present(c.Markdown),
+			WhenToRead: present(c.WhenToRead), Tags: presentList(c.Tags), Markdown: present(c.Markdown),
 		}
 		switch {
 		case i < len(r.Versions)-1:
@@ -265,6 +267,54 @@ func (w *writer) writeVersions(r domain.Rule) {
 		}
 		w.exec(fmt.Sprintf("upsert %s %s", r.Path, v.Number), func() (int64, error) { return w.q.UpsertVersion(w.ctx, params) })
 	}
+}
+
+// writeAssets upserts the library's assets, records which of them each current rule lists, and deletes the rest.
+func (w *writer) writeAssets(lib domain.Library) {
+	paths := make([]string, len(lib.Assets))
+	for i, a := range lib.Assets {
+		paths[i] = a.Path
+		w.exec("upsert asset "+a.Path, func() (int64, error) {
+			return w.q.UpsertAsset(w.ctx, catalogdb.UpsertAssetParams{
+				LibraryID: w.library, Path: a.Path, ReleaseID: w.releases[a.Release], Size: a.Size, MediaType: a.MediaType,
+				Content: a.Content, Html: optionalText(a.HTML),
+			})
+		})
+	}
+	if w.err != nil {
+		return
+	}
+	rows, err := w.q.ListAssetIDs(w.ctx, w.library)
+	if err != nil {
+		w.err = fmt.Errorf("read asset ids: %v", err)
+		return
+	}
+	assets := make(map[string]int64, len(rows))
+	for _, row := range rows {
+		assets[row.Path] = row.ID
+	}
+	var ruleIDs, assetIDs []int64
+	for _, r := range lib.Rules {
+		for _, path := range r.Assets {
+			ruleIDs, assetIDs = append(ruleIDs, w.rules[r.Path]), append(assetIDs, assets[path])
+		}
+	}
+	pairs := catalogdb.DeleteRuleAssetsExceptParams{LibraryID: w.library, RuleIds: ruleIDs, AssetIds: assetIDs}
+	w.exec("delete stale rule assets", func() (int64, error) { return w.q.DeleteRuleAssetsExcept(w.ctx, pairs) })
+	w.exec("insert rule assets", func() (int64, error) {
+		return w.q.InsertRuleAssets(w.ctx, catalogdb.InsertRuleAssetsParams(pairs))
+	})
+	w.exec("delete stale assets", func() (int64, error) {
+		return w.q.DeleteAssetsExcept(w.ctx, catalogdb.DeleteAssetsExceptParams{LibraryID: w.library, Paths: paths})
+	})
+}
+
+// presentList stores a list, as an empty array when it has nothing, never as NULL.
+func presentList(list []string) []string {
+	if list == nil {
+		return []string{}
+	}
+	return list
 }
 
 // optionalText stores text, or NULL when it's empty.

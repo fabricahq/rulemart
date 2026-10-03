@@ -18,6 +18,9 @@ type Library struct {
 	Groups []Group
 	// Rules are every rule the releases published, in path order.
 	Rules []Rule
+	// Assets are the supporting files of the current rules, their own and the shared ones they link to, each once, in
+	// path order.
+	Assets []Asset
 }
 
 // CurrentRules counts the rules that aren't retired.
@@ -72,6 +75,9 @@ type Rule struct {
 	// retired rule's last. WhenToReadHTML is the current version's reading guidance, rendered; empty when the rule is
 	// retired.
 	HTML, WhenToReadHTML string
+	// Assets are the paths of the library's Assets that a current rule's page lists: its own files, in path order,
+	// then the shared files its text and Markdown files link to, in path order. Nil once the rule is retired.
+	Assets []string
 }
 
 // MaxReplacements bounds how far a chain of replacements is followed: a retired rule's replacement, then while that
@@ -100,6 +106,8 @@ type Version struct {
 // Content is a rule as one version published it.
 type Content struct {
 	Title, Impact, ImpactDescription, WhenToRead string
+	// Tags are the topics its frontmatter lists, in its order, each once; empty when it lists none.
+	Tags []string
 	// Markdown is the rule's whole file: its frontmatter and its body.
 	Markdown string
 }
