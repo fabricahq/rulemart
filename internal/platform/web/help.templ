@@ -26,8 +26,8 @@ templ faqPage(c chrome) {
 			@faqItem("How do I use Rulemart?") {
 				<ol>
 					<li><b>Browse</b> rules by technology or practice, or search for what you need.</li>
-					<li><b>Add to cart</b> the rules, groups, or libraries you want. The cart needs a free account.</li>
-					<li><b>Check out</b> to get one prompt for your coding agent, which adds them to your project with Code Rules.</li>
+					<li><b>Add to cart</b> the rules you want.</li>
+					<li><b>Check out</b> to get one prompt for your coding agent, or the exact commands to run yourself.</li>
 				</ol>
 			}
 			@faqItem("What are rules, groups, and libraries?") {
@@ -41,8 +41,9 @@ templ faqPage(c chrome) {
 				<p>A <b>library</b> is a GitHub repo that publishes groups of rules.</p>
 			}
 			@faqItem("Should I stay in sync with a rule or fork it?") {
-				<p>Rules you add from Rulemart come from the library release you saw: the checkout prompt pins each library to it, so its rules don't change until you choose. To upgrade, point the library at a later release. To stay in sync instead, remove the pin; from then on, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews each new version with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p>
-				<p>To manage a rule yourself, fork it with Code Rules. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>
+				<p>When you check out, you choose this for each rule in your cart.</p>
+				<p><b>Stay in sync</b> to let Code Rules keep the rule current. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p>
+				<p><b>Fork</b> to manage the rule yourself. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>
 			}
 			@faqItem("How are rules versioned?") {
 				<p>Each rule has its own version, using <a href={ templ.SafeURL(versionsDocs) }>semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p>
@@ -52,10 +53,9 @@ templ faqPage(c chrome) {
 				<p>Anyone with a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses Include unvetted libraries. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
 			}
 			@faqItem("Do I need a Rulemart account?") {
-				<p>No. You can browse and read rules without one.</p>
+				<p>No. You can browse, read rules, and check out without one.</p>
 				<p>A free account, using GitHub sign-in, adds:</p>
 				<ul>
-					<li><b>A cart</b>, to collect rules and check out with one prompt for your coding agent</li>
 					<li><b>Stars</b> to save rules and help others find good ones</li>
 					<li><b>Library listing</b>, so you can list your own libraries on Rulemart</li>
 				</ul>

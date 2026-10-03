@@ -80,7 +80,7 @@ than adding history.
   everyone. [Realignment](realignment.md) explains the change from [slice 8](slices/8-cart-and-checkout.md), whose
   checkout safeguards stand.
 - **Adding opens a modal on the rule page** that offers just the rule or its whole group, and asks for a confirmation
-  when the library is unvetted, which the cart records with the item. Items are named by library, group, and rule
+  when the library is unvetted, which the cart records for the library. Items are named by library, group, and rule
   ID, so checkout resolves them against the catalog and says when one is retired, gone, or in a library that lost
   its vetting, and leaves it out.
 - **Checkout is a page that asks a JSON endpoint for the cart's items, each library's latest release, and the
@@ -89,7 +89,8 @@ than adding history.
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
   `code-rules project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it, and names each unvetted library so the agent reviews its
-  rules first.
+  rules first, pinned to the commit reviewed. [Slice R5](slices/14-cart-and-checkout.md) records how the commands
+  were checked against the real CLI.
 - **Signed in, checkout offers the visitor's projects**, read from their repositories' provenance files, so the
   prompt names the repository and says which libraries it already imports.
 

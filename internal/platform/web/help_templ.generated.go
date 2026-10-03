@@ -178,7 +178,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<ol><li><b>Browse</b> rules by technology or practice, or search for what you need.</li><li><b>Add to cart</b> the rules, groups, or libraries you want. The cart needs a free account.</li><li><b>Check out</b> to get one prompt for your coding agent, which adds them to your project with Code Rules.</li></ol>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<ol><li><b>Browse</b> rules by technology or practice, or search for what you need.</li><li><b>Add to cart</b> the rules you want.</li><li><b>Check out</b> to get one prompt for your coding agent, or the exact commands to run yourself.</li></ol>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -222,7 +222,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p>Rules you add from Rulemart come from the library release you saw: the checkout prompt pins each library to it, so its rules don't change until you choose. To upgrade, point the library at a later release. To stay in sync instead, remove the pin; from then on, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews each new version with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p>To manage a rule yourself, fork it with Code Rules. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p>When you check out, you choose this for each rule in your cart.</p><p><b>Stay in sync</b> to let Code Rules keep the rule current. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p><b>Fork</b> to manage the rule yourself. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -251,7 +251,7 @@ func faqPage(c chrome) templ.Component {
 				var templ_7745c5c3_Var13 templ.SafeURL
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(versionsDocs))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 48, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 49, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -286,7 +286,7 @@ func faqPage(c chrome) templ.Component {
 				var templ_7745c5c3_Var15 templ.SafeURL
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 52, Col: 260}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 53, Col: 260}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -314,7 +314,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<p>No. You can browse and read rules without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>A cart</b>, to collect rules and check out with one prompt for your coding agent</li><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<p>No. You can browse, read rules, and check out without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

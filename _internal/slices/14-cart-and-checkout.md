@@ -72,6 +72,61 @@ storage goes. [realignment.md](../realignment.md) records the decision.
   page with `defer`, under the existing content security policy (no inline script). The modal uses `<dialog>`.
 - **Existing:** the content security policy, static file hashing and caching, the `/` shortcut and theme scripts.
 
+### Decided while building
+
+The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+
+- **Proposed: the prompt names rules by ID, not by title**, such as "The rule techs/go/return-errors, without the
+  rest of its group", where the prototype writes the rule's title. A title is text a library wrote, and slice 8's
+  safeguard, which decisions.md keeps, is that no library writes into the prompt. A whole group is named by its
+  canonical name, which Code Rules' list owns, or its ID. "From <Library>" names the repository, `owner/name`, once,
+  since the catalog keeps no library display name.
+- **Proposed: a sync runs before forks, and a build after them.** Checked against Code Rules 0.3.0,
+  `code-rules project add rule --from <alias>@<version>` refuses until the source is synced ("missing source record"),
+  so the prototype's order, forks then one sync at the end, fails. The commands add the libraries, sync, fork, then
+  `code-rules project build`. Forks alone, from libraries the project doesn't import, copy from the repository's
+  address and need only the build.
+- **Proposed: aliases are lowercased and made unique.** The prototype's alias, the owner without a trailing `hq`,
+  keeps the owner's case, which Code Rules' `[a-z][a-z0-9-]*` refuses, and gives both of Fabrica's libraries
+  `fabrica`, which the second `add library` refuses. Libraries that would share an alias add their repository's name
+  (`fabrica-public-rules`), a name Code Rules can't take starts with `library-`, and a known project's own source
+  names win and are never reused.
+- **Proposed: an unvetted library stays pinned to the commit Rulemart saw**, as slice 8 pinned it: its
+  `add library` command carries `--ref <commit>`, and both texts give the command that fetches that commit outside the
+  project for review first. Nothing else is pinned; the Commands tab's footnote says how to add `--ref release/<n>`,
+  which is what writes `ref: release/<n>` to the configuration.
+- **Proposed: the intro says which Code Rules it needs** ("with the Code Rules CLI (0.2.0 or later)"), the oldest
+  with `--rules` and `--from`, which slice 8's prompt checked for, since an older install, such as 0.1.0 from
+  Homebrew, fails the commands.
+- **Proposed: only a known project's mode reads projects, and R5 knows none**, so every checkout is for a project
+  Rulemart doesn't know: the endpoint takes the repository the visitor writes and parses it with the listing form's
+  parser, which now also reads `git@github.com:owner/repo.git`. Known and new projects are built and tested in the
+  domain, for R7.
+- **Proposed: the content security policy allows `connect-src 'self'`**, which `fetch` to the checkout needs; it
+  allowed no connection before but Cloudflare's.
+- **Proposed: the cart's In cart green and the dialog's scrim are tokens**, `--ok`, `--ok-surface`, and `--scrim`,
+  the prototype's values, since only tokens are colors.
+- **Proposed: the library group page exists now, minimally**, at `/{owner}/{repo}/{kind}/{group}` (two parts of a
+  rule's address never name a rule, whose ID has three), with the prototype's crumbs, title, rules, and Whole group
+  box, so its Add <Group> group to cart has a home. The Groups tab gains a checkbox per group, beside the row's
+  existing link, an In cart badge, a link to the group's page, and the Add to cart box above the facts. R6 decides
+  the rows' final interaction and finishes both layouts.
+- **Proposed: the cart's page renders from the checkout's answer**: the script builds item rows with the site's
+  classes, which Tailwind now reads from `cart.js` too, and the server renders everything else, the cards, the
+  project section, and the dialogs, so only what depends on the cart is built in the browser. Each change shows at
+  once from the last answer and asks again, at most every 200 ms while typing, keeping only the latest answer.
+- **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
+  the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
+  so, with Remove.
+- **Proposed: toasts a script shows reuse the notice's toast**, from a `<template>` of the notice banner, through
+  `window.rulemartToast`, so `toast.js` loads on every page; and the toasts follow the prototype's text, plus
+  "Prompt copied" and "Commands copied" on Copy, and a full cart's notice.
+- **Proposed: below 27rem the header shows Rulemart's name without Fabrica's.** The cart icon joined the menu,
+  search, and Sign in on a phone's header, which overflowed at 390 pixels with both names.
+- **Verified with the real CLI** (Code Rules 0.3.0, built from its v0.3.0 source, since this machine's Homebrew
+  install is 0.1.0): the commands of six carts, run in new Git repositories without the installer line, each exited
+  0, passed `code-rules project check`, and generated exactly the rules picked; the pull request lists them.
+
 ## Not in this slice
 
 - The library page's Groups tab and group page controls' final layout (R6), the project picker's projects (R7),

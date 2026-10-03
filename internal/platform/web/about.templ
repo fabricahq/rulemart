@@ -12,8 +12,8 @@ templ aboutPage(c chrome, canList bool) {
 				<p>
 					Rulemart is a catalog of <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> libraries: sets of engineering
 					rules that coding agents follow while they write and review code. Find rules for the technologies and practices
-					your project uses, collect them in a cart, and check out with a prompt that has your coding agent import them
-					with Code Rules, each library pinned to the release you saw.
+					your project uses, collect them in a cart, and check out with a prompt for your coding agent, or the commands to
+					run yourself, that import them with Code Rules.
 				</p>
 				<p>
 					<a href="https://fabricahq.com">Fabrica</a> runs Rulemart, and its source is <a href={ templ.SafeURL(repositoryURL) }>on GitHub</a>.
@@ -84,6 +84,13 @@ templ privacyPage(c chrome, analytics bool) {
 					Browsing Rulemart needs no account, and sets no cookie. If you choose a color theme in the footer, your
 					browser keeps the choice, and never sends it to Rulemart.
 				</p>
+				<h2 id="cart">Your cart</h2>
+				<p>
+					Your cart needs no account either: your browser keeps it, with your choices for it and the repository you
+					enter at checkout, until you remove them. Rulemart keeps none of it. Your cart's page sends them to
+					Rulemart each time it changes, to write the prompt and commands that check it out, and Rulemart answers
+					without storing them; its log records only that the page asked, as for any page.
+				</p>
 				<h2 id="account">Your account</h2>
 				<p>
 					You sign in with GitHub. Rulemart asks GitHub for no permissions: it reads your GitHub user ID, your username,
@@ -94,7 +101,6 @@ templ privacyPage(c chrome, analytics bool) {
 				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
 				<ul>
 					<li><strong>Stars:</strong> which rules you starred, and when. Others see only how many stars a rule has.</li>
-					<li><strong>Your cart:</strong> the libraries, groups, and rules you add, and when. No one else sees it.</li>
 					<li>
 						<strong>Listings:</strong> which repositories you list, and when you listed or retried them. Pages don't
 						show who listed a library. To limit how often anyone lists, Rulemart also notes when each account lists or
@@ -144,7 +150,7 @@ templ privacyPage(c chrome, analytics bool) {
 				<h2 id="delete">Deleting your data</h2>
 				<p>
 					Delete your account on your <a href={ templ.SafeURL(accountHref) }>account page</a>, under Delete your account.
-					Rulemart deletes your account, sessions, stars, cart, and listings at once, and unlinks its notes of when you
+					Rulemart deletes your account, sessions, stars, and listings at once, and unlinks its notes of when you
 					listed. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours
 					more. Logs age out as above.
 				</p>
