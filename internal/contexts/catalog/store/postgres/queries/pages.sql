@@ -199,6 +199,13 @@ SELECT a.media_type, a.content::bytea AS content
 FROM assets a
 WHERE a.library_id = @library_id AND a.path = @path AND a.content IS NOT NULL;
 
+-- CountRulesListingAsset returns how many of the library's rules list its asset at path on their pages.
+-- name: CountRulesListingAsset :one
+SELECT count(*)
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+WHERE a.library_id = @library_id AND a.path = @path;
+
 -- FirstRuleListingAsset returns the path of the first rule, in path order, whose page lists the library's asset at path.
 -- name: FirstRuleListingAsset :one
 SELECT r.path

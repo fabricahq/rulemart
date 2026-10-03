@@ -96,7 +96,7 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 	// AssetPage finds only an asset the rule lists.
 	assets := slices.Clone(rule.assets)
 	i := slices.IndexFunc(assets, func(a assetView) bool { return a.path == assetPath })
-	assets[i].current = true
+	assets[i].current, assets[i].otherRules = true, page.Rules-1
 	canonical := assetPagePath(rule.library, rule.id, assetPath)
 	// The file's name is the page's top heading, so a Markdown file's own headings go a level down.
 	html := demoteHeadings(pageHTML(page.HTML, rule.library, rule.id))
@@ -137,8 +137,10 @@ type assetView struct {
 	kind domain.AssetKind
 	// shared marks a file in the library's shared asset directory, which no rule's version covers.
 	shared bool
-	// current marks the asset whose page shows the list.
-	current bool
+	// current marks the asset whose page shows the list, and otherRules counts the rules besides this one that list it,
+	// on its page.
+	current    bool
+	otherRules int
 	// kept reports whether Rulemart keeps the file's bytes, and image is where it serves an image it keeps.
 	kept  bool
 	image string
@@ -190,6 +192,14 @@ func (a assetView) icon() assetIconKind {
 		return documentIcon
 	}
 	return codeIcon
+}
+
+// alsoUsedBy returns what a shared asset's page adds after "used by this rule": the other rules that list it, if any.
+func (a assetView) alsoUsedBy() string {
+	if a.otherRules == 0 {
+		return ""
+	}
+	return " and " + plural(a.otherRules, "other rule", "other rules")
 }
 
 // fileName returns the asset's name without its directories.

@@ -362,7 +362,7 @@ func ruleAssets(ctx context.Context, q *catalogdb.Queries, id int64, rulePath st
 }
 
 // AssetPage returns the asset at assetPath of the rule at rulePath in the library owner/name, with the rule's page, or
-// of the first rule in path order that lists it when rulePath is empty. It fails with store.ErrNotFound when there's
+// of the first rule in path order that lists it when rulePath is empty, and how many rules list it. It fails with store.ErrNotFound when there's
 // no such library or rule, or the rule doesn't list such an asset.
 func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
 	var page views.AssetPage
@@ -388,7 +388,11 @@ func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner
 		if err != nil {
 			return err
 		}
-		page = views.AssetPage{Page: rule, Asset: rule.Assets[i], HTML: html}
+		rules, err := q.CountRulesListingAsset(ctx, catalogdb.CountRulesListingAssetParams{LibraryID: id, Path: assetPath})
+		if err != nil {
+			return err
+		}
+		page = views.AssetPage{Page: rule, Asset: rule.Assets[i], HTML: html, Rules: int(rules)}
 		return nil
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

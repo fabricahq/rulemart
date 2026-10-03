@@ -236,6 +236,9 @@ type AssetPage struct {
 	Asset Asset
 	// HTML is how the page shows a Markdown or text file the catalog keeps: rendered, or as code; empty otherwise.
 	HTML string
+	// Rules counts the library's rules that list the asset, Page's rule among them: more than one only for a shared
+	// asset.
+	Rules int
 }
 
 // AssetContent is the media type and bytes of an asset the catalog keeps, of which Rulemart serves only images.

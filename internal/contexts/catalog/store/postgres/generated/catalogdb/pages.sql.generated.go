@@ -11,6 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countRulesListingAsset = `-- name: CountRulesListingAsset :one
+SELECT count(*)
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+WHERE a.library_id = $1 AND a.path = $2
+`
+
+type CountRulesListingAssetParams struct {
+	LibraryID int64
+	Path      string
+}
+
+// CountRulesListingAsset returns how many of the library's rules list its asset at path on their pages.
+func (q *Queries) CountRulesListingAsset(ctx context.Context, arg CountRulesListingAssetParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRulesListingAsset, arg.LibraryID, arg.Path)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const firstRuleListingAsset = `-- name: FirstRuleListingAsset :one
 SELECT r.path
 FROM rule_assets ra

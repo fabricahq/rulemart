@@ -112,7 +112,8 @@ The spec's Proposed decisions are built as written, except where an entry here s
   asset page's Raw button leads to GitHub's raw file, as the prototype's does.
 - **Proposed: a shared asset's page without `?rule=`, or with a rule that doesn't list it, shows it with the first rule
   in path order that does**, as the prototype's does, and every spelling names its address without `rule` as
-  canonical, so search engines index the file once.
+  canonical, so search engines index the file once. After browser QA, a shared asset's page says how many other rules
+  use it, "used by this rule and N other rules", so the rule it shows with doesn't read as the file's only one.
 - **Proposed: the worker ingests again a library stored without tags.** Ingestion writes each version's tags, an empty
   array when it lists none, and its assets in one transaction, so a version with content but no tags marks a library a
   release before this one stored, whose assets are missing too. Tags are read from the frontmatter, text between

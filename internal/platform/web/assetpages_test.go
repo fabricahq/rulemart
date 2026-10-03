@@ -212,7 +212,7 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 			`href="https://github.com/example/rules/blob/release/1/practices/testing/assets/test-changed-behavior/big.png"`,
 		},
 		glossaryPage + behaviorQuery: {[]string{
-			"glossary.md Shared file in example/rules, used by this rule. Not part of the rule's version; this copy is from release/1 · 50 B",
+			"glossary.md Shared file in example/rules, used by this rule and 1 other rule. Not part of the rule's version; this copy is from release/1 · 50 B",
 			"Terms A regression test fails on the old code.", "← Back to Test the behavior you changed",
 		}, `href="https://raw.githubusercontent.com/example/rules/refs/tags/release/1/assets/glossary.md"`},
 	} {

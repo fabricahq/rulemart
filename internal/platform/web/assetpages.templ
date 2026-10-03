@@ -22,7 +22,7 @@ templ assetPage(c chrome, r ruleView, a assetView, assets []assetView, html stri
 					<h1 class="font-mono text-[clamp(1.3rem,2.4vw,1.6rem)] leading-[1.25] font-medium tracking-[-.03em] [overflow-wrap:anywhere]">{ a.fileName() }</h1>
 					<p class="mt-2 mb-2.5 text-[13px] text-muted">
 						if a.shared {
-							Shared file in { r.library.fullName() }, used by this rule. Not part of the rule's version; this copy is from { a.release } · { a.size }
+							Shared file in { r.library.fullName() }, used by this rule{ a.alsoUsedBy() }. Not part of the rule's version; this copy is from { a.release } · { a.size }
 						} else {
 							Supporting file for this rule, part of version { r.version } · { a.size }
 						}
