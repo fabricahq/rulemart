@@ -7,6 +7,8 @@ package catalogdb
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countSearchableTerms = `-- name: CountSearchableTerms :one
@@ -64,8 +66,8 @@ func (q *Queries) ListCountedRuleIDs(ctx context.Context, arg ListCountedRuleIDs
 
 const listRules = `-- name: ListRules :many
 WITH find_terms AS (
-    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::text[])[i] AS identifier_query
-    FROM generate_subscripts($3::text[], 1) AS i
+    SELECT i AS ordinal, ($1::text[])[i] AS query, ($2::text[])[i] AS identifier_query
+    FROM generate_subscripts($1::text[], 1) AS i
 ),
 find AS (
     SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
@@ -75,8 +77,8 @@ find AS (
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 exclude_terms AS (
-    SELECT ($5::text[])[i] AS query, ($6::text[])[i] AS identifier_query
-    FROM generate_subscripts($5::text[], 1) AS i
+    SELECT ($3::text[])[i] AS query, ($4::text[])[i] AS identifier_query
+    FROM generate_subscripts($3::text[], 1) AS i
 ),
 exclude AS (
     SELECT websearch_to_tsquery('english', t.query) AS query,
@@ -85,26 +87,26 @@ exclude AS (
     WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
 ),
 search AS (
-    SELECT websearch_to_tsquery('english', array_to_string($3::text[], ' or ')) AS any_query,
+    SELECT websearch_to_tsquery('english', array_to_string($1::text[], ' or ')) AS any_query,
            (SELECT count(*) FROM find)::float AS terms
 ),
 stars AS (
-    SELECT ($7::bigint[])[i] AS rule_id, ($8::integer[])[i] AS stars
-    FROM generate_subscripts($7::bigint[], 1) AS i
+    SELECT ($5::bigint[])[i] AS rule_id, ($6::integer[])[i] AS stars
+    FROM generate_subscripts($5::bigint[], 1) AS i
 ),
 documents AS (
     SELECT r.id, newest.id AS version_id, (r.retired_in_release_id IS NOT NULL)::boolean AS retired,
-           (l.host || ':' || l.host_repository_id = ANY ($9::text[]))::boolean AS vetted,
+           (l.host || ':' || l.host_repository_id = ANY ($7::text[]))::boolean AS vetted,
            -- A list without a query matches nothing, so it builds no documents to match.
-           CASE WHEN NOT $10::boolean
+           CASE WHEN NOT $8::boolean
                THEN newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D')
            END AS text,
-           CASE WHEN NOT $10::boolean THEN ts_filter(newest.search_document, '{a}') END AS title,
-           CASE WHEN NOT $10::boolean
-               THEN to_tsvector('english', coalesce(($11::text[])[array_position($12::text[], g.path)], '')
+           CASE WHEN NOT $8::boolean THEN ts_filter(newest.search_document, '{a}') END AS title,
+           CASE WHEN NOT $8::boolean
+               THEN to_tsvector('english', coalesce(($9::text[])[array_position($10::text[], g.path)], '')
                    || ' ' || split_part(g.path, '/', 2))
            END AS group_names,
-           CASE WHEN NOT $10::boolean
+           CASE WHEN NOT $8::boolean
                THEN to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   '))
            END AS identifiers
     FROM rules r
@@ -114,10 +116,10 @@ documents AS (
         SELECT v.id, v.search_document FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
         WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
     ) newest ON true
-    WHERE ($13::text = '' OR g.path = $13::text)
+    WHERE ($11::text = '' OR g.path = $11::text)
       AND (
-          l.host || ':' || l.host_repository_id = ANY ($9::text[])
-          OR ($14::boolean
+          l.host || ':' || l.host_repository_id = ANY ($7::text[])
+          OR ($12::boolean
               AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
       )
 ),
@@ -155,7 +157,7 @@ ranked AS (
            CASE WHEN search.terms = 0 THEN 0 ELSE ts_rank(s.document, search.any_query) END::float AS text_rank
     FROM scored s
     CROSS JOIN search
-    WHERE $10::boolean OR (search.terms > 0 AND cardinality(s.missing) < search.terms)
+    WHERE $8::boolean OR (search.terms > 0 AND cardinality(s.missing) < search.terms)
 ),
 base AS (
     SELECT rk.id, rk.missing, rk.score, rk.text_rank, d.retired, d.vetted, l.id AS library_id, l.owner, l.name,
@@ -172,11 +174,11 @@ base AS (
         SELECT p.tagged_at FROM rule_versions f JOIN library_releases p ON p.id = f.release_id
         WHERE f.rule_id = r.id ORDER BY p.number LIMIT 1
     ) first ON true
-    WHERE NOT d.retired OR $15::boolean
+    WHERE NOT d.retired OR $13::boolean
 ),
 library_counts AS (
     SELECT b.owner, b.name, b.owner_avatar_url, b.vetted, count(*) AS rules,
-           row_number() OVER (ORDER BY lower(b.owner) = lower($16::text) DESC, lower(b.owner), lower(b.name))
+           row_number() OVER (ORDER BY lower(b.owner) = lower($14::text) DESC, lower(b.owner), lower(b.name))
                AS position
     FROM base b
     GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
@@ -192,25 +194,25 @@ facets AS (
 ),
 filtered AS (
     SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
-    WHERE (cardinality($17::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY ($17::text[]))
-      AND ($18::text = '' OR ($18::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
-      AND b.stars >= $19::integer
-      AND ($20::text = '' OR b.group_path LIKE $20::text || '/%')
+    WHERE (cardinality($15::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY ($15::text[]))
+      AND ($16::text = '' OR ($16::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
+      AND b.stars >= $17::integer
+      AND ($18::text = '' OR b.group_path LIKE $18::text || '/%')
 ),
 positioned AS (
     SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, f.tier, row_number() OVER (
                ORDER BY f.tier,
                         cardinality(f.missing) > 0,
-                        CASE $21::text
+                        CASE $19::text
                             WHEN 'best' THEN f.score
                             WHEN 'stars' THEN f.stars::float
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
                         f.vetted DESC,
-                        CASE WHEN $21::text = 'best' THEN f.text_rank END DESC,
+                        CASE WHEN $19::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
-                        lower(f.owner) = lower($16::text) DESC,
-                        CASE WHEN $21::text = 'best' THEN lower(coalesce(f.title, '')) END,
+                        lower(f.owner) = lower($14::text) DESC,
+                        CASE WHEN $19::text = 'best' THEN lower(coalesce(f.title, '')) END,
                         lower(f.owner), lower(f.name), lower(coalesce(f.title, '')), f.path
            ) AS position
     FROM filtered f
@@ -219,23 +221,23 @@ grouped AS (
     SELECT p.id, p.missing, p.score, p.text_rank, p.retired, p.vetted, p.library_id, p.owner, p.name, p.owner_avatar_url, p.path, p.group_path, p.title, p.impact, p.major, p.minor, p.patch, p.stars, p.first_published_at, p.tier, p.position, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
            count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
+),
+page AS (
+    SELECT id, missing, score, text_rank, retired, vetted, library_id, owner, name, owner_avatar_url, path, group_path, title, impact, major, minor, patch, stars, first_published_at, tier, position, group_position, group_rules FROM grouped gr ORDER BY gr.group_position, gr.position LIMIT $21 OFFSET $20
 )
-SELECT gr.library_id, gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
-       coalesce(gr.title, '')::text AS title, coalesce(gr.impact, '')::text AS impact, gr.major, gr.minor, gr.patch,
-       gr.retired, gr.stars::integer AS stars, gr.missing,
-       gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
+SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, pg.path, pg.group_path,
+       coalesce(pg.title, '')::text AS title, coalesce(pg.impact, '')::text AS impact, pg.major, pg.minor, pg.patch,
+       pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
+       (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
        facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
-FROM grouped gr
-CROSS JOIN facets
-ORDER BY gr.group_position, gr.position
-LIMIT $2 OFFSET $1
+FROM facets
+LEFT JOIN page pg ON true
+ORDER BY pg.group_position, pg.position
 `
 
 type ListRulesParams struct {
-	Skip                   int32
-	MaxResults             int32
 	FindTerms              []string
 	FindIdentifierTerms    []string
 	ExcludeTerms           []string
@@ -255,26 +257,28 @@ type ListRulesParams struct {
 	MinStars               int32
 	Kind                   string
 	OrderBy                string
+	Skip                   int32
+	MaxResults             int32
 }
 
 type ListRulesRow struct {
-	LibraryID         int64
-	Owner             string
-	Name              string
-	OwnerAvatarUrl    string
-	Vetted            bool
-	ID                int64
-	Path              string
-	GroupPath         string
+	LibraryID         pgtype.Int8
+	Owner             pgtype.Text
+	Name              pgtype.Text
+	OwnerAvatarUrl    pgtype.Text
+	Vetted            pgtype.Bool
+	ID                pgtype.Int8
+	Path              pgtype.Text
+	GroupPath         pgtype.Text
 	Title             string
 	Impact            string
-	Major             int32
-	Minor             int32
-	Patch             int32
-	Retired           bool
+	Major             pgtype.Int4
+	Minor             pgtype.Int4
+	Patch             pgtype.Int4
+	Retired           pgtype.Bool
 	Stars             int32
 	Missing           []int32
-	GroupRules        int64
+	GroupRules        pgtype.Int8
 	Total             int64
 	Complete          int64
 	Libraries         int64
@@ -318,15 +322,15 @@ type ListRulesRow struct {
 // best's title, owner, name, title, and rule ID, so the order is stable. Then each group's rules in a tier come
 // together, in the order of each group's first rule.
 //
-// Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
-// libraries; how many rules of its group in its tier pass them; and, the same on every row, how many rules the list
-// holds before its filters, and the libraries those come from, in step, first_owner's first and then by owner and name,
-// each with whether vetted holds it and how many of the rules it holds; and how many retired rules the group at
-// group_path, or every group, holds in the list's libraries, whether or not the list holds them.
+// Each row of a rule also says how many rules of its group in its tier pass the filters. Every row, the same on each,
+// summarizes the list: how many rules pass the filters, how many of those hold every find term, and in how many
+// libraries; how many rules it holds before its filters, and the libraries those come from, in step, first_owner's
+// first and then by owner and name, each with whether vetted holds it and how many of the rules it holds; and how many
+// retired rules the group at group_path, or every group, holds in the list's libraries, whether or not the list holds
+// them. A page without rules is one row of only the summary, whose rule's columns are null, so the summary never
+// depends on the rows: a group of only retired rules, hidden, still counts them.
 func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRulesRow, error) {
 	rows, err := q.db.Query(ctx, listRules,
-		arg.Skip,
-		arg.MaxResults,
 		arg.FindTerms,
 		arg.FindIdentifierTerms,
 		arg.ExcludeTerms,
@@ -346,6 +350,8 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 		arg.MinStars,
 		arg.Kind,
 		arg.OrderBy,
+		arg.Skip,
+		arg.MaxResults,
 	)
 	if err != nil {
 		return nil, err

@@ -22,7 +22,7 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 		return views.RuleResults{NoWords: true}, nil
 	}
 	params := ruleListParams(vetted, groups, list, find, exclude, limit, skip)
-	var page, unfiltered []catalogdb.ListRulesRow
+	var rows []catalogdb.ListRulesRow
 	var links map[int64][]views.RuleLink
 	var searchable int64
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
@@ -30,15 +30,10 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 		if params.StarRuleIds, params.StarCounts, err = countedStars(ctx, q, vetted, list.Group); err != nil {
 			return err
 		}
-		if page, err = q.ListRules(ctx, params); err != nil {
+		if rows, err = q.ListRules(ctx, params); err != nil {
 			return err
 		}
-		if len(page) > 0 {
-			links, err = retiredRuleLinks(ctx, q, page)
-			return err
-		}
-		// Every row says what the list holds before its filters, so without one, read the first rule without them.
-		if unfiltered, err = q.ListRules(ctx, firstUnfiltered(params)); err != nil || len(unfiltered) > 0 || params.MatchAll {
+		if links, err = retiredRuleLinks(ctx, q, rows); err != nil || rows[0].Unfiltered > 0 || params.MatchAll {
 			return err
 		}
 		searchable, err = q.CountSearchableTerms(ctx, params.FindTerms)
@@ -47,29 +42,28 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	if err != nil {
 		return views.RuleResults{}, fmt.Errorf("list rules group=%q: %v", list.Group, err)
 	}
-	if len(page) == 0 && len(unfiltered) == 0 {
-		return views.RuleResults{NoWords: !params.MatchAll && searchable == 0}, nil
+	// Every row summarizes the list the same way, and a page without rules is one row of only the summary.
+	summary := rows[0]
+	results := views.RuleResults{
+		Total: int(summary.Total), Complete: int(summary.Complete), Libraries: int(summary.Libraries),
+		Unfiltered: int(summary.Unfiltered), RetiredRules: int(summary.RetiredRules),
+		NoWords: summary.Unfiltered == 0 && !params.MatchAll && searchable == 0,
 	}
-	results := views.RuleResults{Rows: make([]views.RuleRow, len(page))}
-	summary := unfiltered
-	if len(page) > 0 {
-		summary = page
-	}
-	// Every row says the same of the list before its filters.
-	first := summary[0]
-	results.Unfiltered, results.RetiredRules = int(first.Unfiltered), int(first.RetiredRules)
-	for i, owner := range first.LibraryOwners {
+	for i, owner := range summary.LibraryOwners {
 		results.UnfilteredLibraries = append(results.UnfilteredLibraries, views.LibraryCount{
-			Library: libraryRef(owner, first.LibraryNames[i], first.LibraryAvatarUrls[i]),
-			Vetted:  first.LibraryVetted[i], Rules: int(first.LibraryRules[i]),
+			Library: libraryRef(owner, summary.LibraryNames[i], summary.LibraryAvatarUrls[i]),
+			Vetted:  summary.LibraryVetted[i], Rules: int(summary.LibraryRules[i]),
 		})
 	}
-	for i, row := range page {
-		results.Total, results.Complete, results.Libraries = int(row.Total), int(row.Complete), int(row.Libraries)
-		results.Rows[i] = ruleRow(row, find)
-		if row.Retired {
-			results.Rows[i].Links = links[row.LibraryID]
+	for _, row := range rows {
+		if !row.ID.Valid {
+			continue
 		}
+		r := ruleRow(row, find)
+		if r.Retired {
+			r.Links = links[row.LibraryID.Int64]
+		}
+		results.Rows = append(results.Rows, r)
 	}
 	return results, nil
 }
@@ -93,27 +87,20 @@ func ruleListParams(vetted []domain.LibraryKey, groups []domain.CanonicalGroup, 
 	return params
 }
 
-// firstUnfiltered returns params for the first rule of their list before its filters, whose row says what the list
-// holds.
-func firstUnfiltered(params catalogdb.ListRulesParams) catalogdb.ListRulesParams {
-	params.Libraries, params.Impact, params.MinStars, params.Kind = []string{}, "", 0, ""
-	params.MaxResults, params.Skip = 1, 0
-	return params
-}
-
 // retiredRuleLinks returns how every rule of each library of page's retired rules was replaced, by library ID, which
 // app.Pages follows to name each one's replacement.
 func retiredRuleLinks(ctx context.Context, q *catalogdb.Queries, page []catalogdb.ListRulesRow) (map[int64][]views.RuleLink, error) {
 	links := map[int64][]views.RuleLink{}
 	for _, row := range page {
-		if _, read := links[row.LibraryID]; read || !row.Retired {
+		id := row.LibraryID.Int64
+		if _, read := links[id]; read || !row.Retired.Bool {
 			continue
 		}
-		libraryLinks, err := ruleLinks(ctx, q, row.LibraryID)
+		libraryLinks, err := ruleLinks(ctx, q, id)
 		if err != nil {
-			return nil, fmt.Errorf("read the rule links of library id=%d: %v", row.LibraryID, err)
+			return nil, fmt.Errorf("read the rule links of library id=%d: %v", id, err)
 		}
-		links[row.LibraryID] = libraryLinks
+		links[id] = libraryLinks
 	}
 	return links, nil
 }
@@ -136,15 +123,15 @@ func countedStars(ctx context.Context, q *catalogdb.Queries, vetted []domain.Lib
 	return ruleIDs, counts, nil
 }
 
-// ruleRow describes a row of ListRules, naming each term of find the rule lacks.
+// ruleRow describes a row of ListRules that holds a rule, naming each term of find the rule lacks.
 func ruleRow(row catalogdb.ListRulesRow, find []domain.SearchTerm) views.RuleRow {
 	r := views.RuleRow{
-		Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted,
+		Library: libraryRef(row.Owner.String, row.Name.String, row.OwnerAvatarUrl.String), Vetted: row.Vetted.Bool,
 		Rule: views.RuleCard{
-			Path: row.Path, Group: row.GroupPath, Title: row.Title, Impact: row.Impact,
-			Version: version(row.Major, row.Minor, row.Patch), Stars: int(row.Stars),
+			Path: row.Path.String, Group: row.GroupPath.String, Title: row.Title, Impact: row.Impact,
+			Version: version(row.Major.Int32, row.Minor.Int32, row.Patch.Int32), Stars: int(row.Stars),
 		},
-		Retired: row.Retired, GroupRules: int(row.GroupRules),
+		Retired: row.Retired.Bool, GroupRules: int(row.GroupRules.Int64),
 	}
 	for _, ordinal := range row.Missing {
 		r.Missing = append(r.Missing, find[ordinal-1].Text)

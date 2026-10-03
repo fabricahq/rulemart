@@ -48,11 +48,13 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 -- best's title, owner, name, title, and rule ID, so the order is stable. Then each group's rules in a tier come
 -- together, in the order of each group's first rule.
 --
--- Every row also says how many rules pass the filters, how many of those hold every find term, and in how many
--- libraries; how many rules of its group in its tier pass them; and, the same on every row, how many rules the list
--- holds before its filters, and the libraries those come from, in step, first_owner's first and then by owner and name,
--- each with whether vetted holds it and how many of the rules it holds; and how many retired rules the group at
--- group_path, or every group, holds in the list's libraries, whether or not the list holds them.
+-- Each row of a rule also says how many rules of its group in its tier pass the filters. Every row, the same on each,
+-- summarizes the list: how many rules pass the filters, how many of those hold every find term, and in how many
+-- libraries; how many rules it holds before its filters, and the libraries those come from, in step, first_owner's
+-- first and then by owner and name, each with whether vetted holds it and how many of the rules it holds; and how many
+-- retired rules the group at group_path, or every group, holds in the list's libraries, whether or not the list holds
+-- them. A page without rules is one row of only the summary, whose rule's columns are null, so the summary never
+-- depends on the rows: a group of only retired rules, hidden, still counts them.
 -- name: ListRules :many
 WITH find_terms AS (
     SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
@@ -210,15 +212,17 @@ grouped AS (
     SELECT p.*, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
            count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
     FROM positioned p
+),
+page AS (
+    SELECT * FROM grouped gr ORDER BY gr.group_position, gr.position LIMIT @max_results OFFSET @skip
 )
-SELECT gr.library_id, gr.owner, gr.name, gr.owner_avatar_url, gr.vetted, gr.id, gr.path, gr.group_path,
-       coalesce(gr.title, '')::text AS title, coalesce(gr.impact, '')::text AS impact, gr.major, gr.minor, gr.patch,
-       gr.retired, gr.stars::integer AS stars, gr.missing,
-       gr.group_rules, count(*) OVER () AS total, count(*) FILTER (WHERE cardinality(gr.missing) = 0) OVER () AS complete,
+SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, pg.path, pg.group_path,
+       coalesce(pg.title, '')::text AS title, coalesce(pg.impact, '')::text AS impact, pg.major, pg.minor, pg.patch,
+       pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
+       (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
        facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
-FROM grouped gr
-CROSS JOIN facets
-ORDER BY gr.group_position, gr.position
-LIMIT @max_results OFFSET @skip;
+FROM facets
+LEFT JOIN page pg ON true
+ORDER BY pg.group_position, pg.position;

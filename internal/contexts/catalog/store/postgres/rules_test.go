@@ -350,6 +350,40 @@ func TestAListCountsItsRetiredRulesOnlyWhenItShowsThem(t *testing.T) {
 	}
 }
 
+// A group whose rules are all retired still counts them while it hides them, so its page exists and offers them, and
+// lists them when asked.
+func TestAGroupOfOnlyRetiredRulesCountsThemWhileHidingThem(t *testing.T) {
+	c := newRuleLists(t)
+	legacy := domain.Group{Path: "techs/legacy", Name: "Legacy", Description: "Old rules.", WhenToRead: "Never."}
+	gone := listedRule("techs/legacy/gone", "Gone", "LOW", 1)
+	gone.RetiredIn, gone.RetirementSummaries, gone.WhenToReadHTML = 2, []string{"Drop it."}, ""
+	relic := newLibrary("34", "relic", "rules", []domain.Group{legacy}, gone)
+	relic.Releases = append(relic.Releases, domain.Release{Number: 2, CommitID: strings.Repeat("2", 40), TaggedAt: day(5)})
+	if _, err := c.worker.ReplaceLibrary(context.Background(), relic); err != nil {
+		t.Fatal(err)
+	}
+	vetted := append(slices.Clone(vettedLists), domain.LibraryKey{Host: domain.GitHub, RepositoryID: "34"})
+	list := func(retired bool) views.RuleResults {
+		t.Helper()
+		got, err := c.web.Rules(context.Background(), vetted, canonicalGroups,
+			domain.RuleList{Group: "techs/legacy", ListChoices: domain.ListChoices{Retired: retired, Order: domain.MostStarred}}, 50, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	hidden, shown := list(false), list(true)
+
+	if len(hidden.Rows) != 0 || hidden.Unfiltered != 0 || hidden.RetiredRules != 1 {
+		t.Errorf("hidden: got %q, %d rules, %d retired; want none, 0, 1", sourceIDs(hidden), hidden.Unfiltered, hidden.RetiredRules)
+	}
+	if want := []string{"relic/rules:techs/legacy/gone"}; !slices.Equal(sourceIDs(shown), want) || !shown.Rows[0].Retired ||
+		shown.Unfiltered != 1 || shown.RetiredRules != 1 {
+		t.Errorf("shown: got %q, %d rules, %d retired; want %q retired, 1, 1", sourceIDs(shown), shown.Unfiltered, shown.RetiredRules, want)
+	}
+}
+
 // Search's Kind keeps one kind of group, and its other orders sort its matches as a group's do.
 func TestSearchFiltersByKindAndSortsByStars(t *testing.T) {
 	c := newRuleLists(t)

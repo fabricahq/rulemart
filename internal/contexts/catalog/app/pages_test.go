@@ -189,7 +189,7 @@ func TestGroupPageListsACanonicalGroupByTheListsSpelling(t *testing.T) {
 }
 
 // A canonical group no library holds yet has its page, which says so; any other group has a page only while a
-// library holds it, so a made-up ID has none.
+// library holds it, current or retired, so a made-up ID has none.
 func TestGroupHasAPageWhenCanonicalOrHeld(t *testing.T) {
 	empty := app.Pages{Store: &reads{}, Groups: canonicalList(t)}
 	held := app.Pages{Store: &reads{ruleResults: views.RuleResults{Unfiltered: 1, Rows: []views.RuleRow{
@@ -205,6 +205,11 @@ func TestGroupHasAPageWhenCanonicalOrHeld(t *testing.T) {
 	got, err := held.GroupPage(context.Background(), "techs/golang", domain.ListChoices{})
 	if err != nil || got.Path != "techs/golang" || got.Canonical != nil || got.Rules.Rows[0].CanonicalGroup != nil {
 		t.Errorf("a held group that isn't canonical: got %+v, %v", got, err)
+	}
+	// Its retired rules are hidden until asked for, but the page offers them.
+	retired := app.Pages{Store: &reads{ruleResults: views.RuleResults{RetiredRules: 1}}, Groups: canonicalList(t)}
+	if got, err := retired.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}); err != nil || got.Rules.RetiredRules != 1 {
+		t.Errorf("a group of only retired rules: got %+v, %v", got, err)
 	}
 }
 

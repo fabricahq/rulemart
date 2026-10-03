@@ -76,9 +76,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: one read lists every kind of list.** The store's `Rules` reads a group's rules, every rule, or a
   search's matches, as `domain.RuleList` describes them, from one query, `ListRules`, so the filters, the orders, the
   unvetted opt-in, and the retired rules have one owner. A group's page is a list with a group and no query. It
-  filters, orders, and pages in SQL, so a search never moves every match to Go. Each row also carries what the list
-  holds before its filters, the sidebar's counts, and when no row passes the filters, a second read of the first
-  rule without them supplies the counts. It replaces `GroupRules` and `Search`.
+  filters, orders, and pages in SQL, so a search never moves every match to Go. Each row also carries the list's
+  summary: its totals, what it holds before its filters, the sidebar's counts, and its retired rules, and a page
+  without rules is one row of only the summary, so the counts never depend on the rows. A group whose rules are all
+  retired keeps its page and offers them. It replaces `GroupRules` and `Search`.
 - **Proposed: stars reach the list as parameters.** `CountRuleStars` stays the one statement that counts, as slice R3
   decided: the read counts the current rules of the vetted libraries in scope first, then passes the counts to
   `ListRules`, which filters and orders by them in the same snapshot.

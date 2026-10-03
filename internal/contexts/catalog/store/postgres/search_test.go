@@ -130,13 +130,10 @@ func TestSearchReturnsTheBestMatchesUpToItsLimitAndCountsThemAll(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantTotal := 3
-		if len(tc.want) == 0 {
-			wantTotal = 0 // a page past the last counts nothing
-		}
-		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != wantTotal || got.NoWords {
-			t.Errorf("limit %d after %d: got %q of %d (no words %v), want %q of %d", tc.limit, tc.skip, sourceIDs(got), got.Total,
-				got.NoWords, tc.want, wantTotal)
+		// A page past the last still counts the list's rules.
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != 3 || got.NoWords {
+			t.Errorf("limit %d after %d: got %q of %d (no words %v), want %q of 3", tc.limit, tc.skip, sourceIDs(got), got.Total,
+				got.NoWords, tc.want)
 		}
 	}
 }

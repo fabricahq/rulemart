@@ -166,8 +166,9 @@ const MaxGroupRules = 500
 
 // GroupPage returns the rules of the group id that choices keep, in their order, at most MaxGroupRules: a canonical
 // group's, matched without regard to case, in every library that holds it, or any other group's, in the libraries that
-// chose exactly that ID. It fails with ErrNotFound for a group that isn't canonical and holds no rule before the
-// filters, so a made-up ID has no page. The page's Path is the list's spelling of a canonical group's ID.
+// chose exactly that ID. It fails with ErrNotFound for a group that isn't canonical and holds no rule, current or
+// retired, before the filters, so a made-up ID has no page while a group whose rules are all retired keeps its own. The
+// page's Path is the list's spelling of a canonical group's ID.
 func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
 	page := views.GroupPage{Path: id}
 	if g, ok := p.Groups.FindIgnoringCase(id); ok {
@@ -178,7 +179,7 @@ func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoi
 	if err != nil {
 		return views.GroupPage{}, err
 	}
-	if page.Canonical == nil && page.Rules.Unfiltered == 0 {
+	if page.Canonical == nil && page.Rules.Unfiltered == 0 && page.Rules.RetiredRules == 0 {
 		return views.GroupPage{}, fmt.Errorf("load group: %w", ErrNotFound)
 	}
 	return page, nil
