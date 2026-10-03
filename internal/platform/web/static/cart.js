@@ -3,13 +3,14 @@
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
  * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
  * project, the signed-in visitor's project checkout is for, as owner/name, new for one that doesn't use Code Rules yet,
- * or empty for the first the picker lists; and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. Each choice lasts
- * only while the cart holds its rule or an item of its library, so the choices stay as small as the cart, which the
- * server bounds. It paints the header's count and each page's cart controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
- * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
- * change, here or in another tab, from the rulemart:cart event. A library's Groups tab keeps the groups ticked to add
- * in its address, as sel, and in its links to each group's page. Without JavaScript, or storage, there's no cart: the
- * stylesheet hides every control marked data-needs-script. */
+ * or empty for the first the picker lists; and confirmed, the unvetted libraries they confirmed adding from.
+ * restOfGroups and confirmed name each library by its owner/name in lowercase. Each choice lasts only while the cart
+ * holds its rule or an item of its library, so the choices stay as small as the cart, which the server bounds. It
+ * paints the header's count and each page's cart controls from the data attributes the page renders, opens the dialogs
+ * that add, and toasts what changed. The cart's page, which cart-page.js renders, reads and changes the cart only
+ * through window.rulemartCart, and learns of each change, here or in another tab, from the rulemart:cart event. A
+ * library's Groups tab keeps the groups ticked to add in its address, as sel, and in its links to each group's page.
+ * Without JavaScript, or storage, there's no cart: the stylesheet hides every control marked data-needs-script. */
 (() => {
   const STORE = 'rulemart-cart';
   // How many items a cart holds, and how long a key may be, as the header's cart link says the server bounds them.
