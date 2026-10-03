@@ -48,20 +48,27 @@ var (
 	refusedKey   = parser.NewContextKey()
 )
 
-// markdown parses rule bodies: CommonMark with GitHub's extensions, adapted to the rule's page.
-var markdown = goldmark.New(
-	goldmark.WithExtensions(extension.GFM),
-	goldmark.WithParserOptions(
-		parser.WithAutoHeadingID(),
-		parser.WithASTTransformers(util.Prioritized(pageTransformer{}, 100)),
-	),
+// extensions are the Markdown Rulemart reads beyond CommonMark: GitHub's, as Code Rules' documentation renders it.
+var extensions = []goldmark.Extender{extension.GFM}
+
+// markdown parses rule bodies, adapted to the rule's page, and linkParser parses them as they're written, to find their
+// links, without the page transformer, which needs the page in its context.
+var (
+	markdown = goldmark.New(
+		goldmark.WithExtensions(extensions...),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+			parser.WithASTTransformers(util.Prioritized(pageTransformer{}, 100)),
+		),
+	)
+	linkParser = goldmark.New(goldmark.WithExtensions(extensions...)).Parser()
 )
 
 // htmlRenderer renders what markdown parses: goldmark's HTML for CommonMark and GitHub's extensions, and
 // ruleNodeRenderer's raw HTML as text and highlighted code. Every node it renders first checks the allowanceWriter
 // it writes to, and stops the whole render once the allowance is spent, so nothing past it is escaped or built.
-// It names GitHub's extensions' renderers itself, so it can wrap them; a parser extension added to markdown needs
-// its renderer added here.
+// It names GitHub's extensions' renderers itself, so it can wrap them; an extension added to extensions needs its
+// renderer added here.
 var htmlRenderer = renderer.NewRenderer(renderer.WithNodeRenderers(
 	util.Prioritized(stopAtAllowance{goldmarkhtml.NewRenderer()}, 1000),
 	util.Prioritized(stopAtAllowance{extension.NewTableHTMLRenderer()}, 500),
@@ -192,18 +199,12 @@ func (w *allowanceWriter) Buffered() int  { return 0 }
 // building past allowance, when the HTML would need more.
 func Code(text, file string, allowance int64) (string, int64, error) {
 	out := allowanceWriter{spent: &spending{limit: allowance}, highlightUntil: time.Now().Add(highlightBudget)}
-	language := strings.TrimPrefix(strings.ToLower(path.Ext(file)), ".")
-	_, _ = out.WriteString("<pre><code")
-	if language != "" {
-		_, _ = out.WriteString(` class="language-` + html.EscapeString(language) + `"`)
-	}
-	_, _ = out.WriteString(">")
 	var lexer chroma.Lexer
 	if text != "" {
 		lexer = lexers.Match(path.Base(file))
 	}
-	writeHighlightedWith(&out, lexer, text, out.highlightUntil)
-	_, _ = out.WriteString("</code></pre>\n")
+	language := strings.TrimPrefix(strings.ToLower(path.Ext(file)), ".")
+	writeCodeBlock(&out, language, lexer, text, out.highlightUntil)
 	if out.err != nil {
 		return "", 0, out.err
 	}
@@ -214,7 +215,7 @@ func Code(text, file string, allowance int64) (string, int64, error) {
 // of it would show, including those that name a link definition, without rewriting them.
 func Links(body string) []string {
 	source := []byte(body)
-	document := goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser().Parse(text.NewReader(source))
+	document := linkParser.Parse(text.NewReader(source))
 	var destinations []string
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -332,29 +333,28 @@ func renderFencedCode(w util.BufWriter, source []byte, node ast.Node, entering b
 		code.Write(line.Value(source))
 	}
 	language := string(block.Language(source))
+	var lexer chroma.Lexer
+	if language != "" {
+		lexer = lexers.Get(language)
+	}
+	writeCodeBlock(w, language, lexer, code.String(), w.(*allowanceWriter).highlightUntil)
+	return ast.WalkSkipChildren, nil
+}
+
+// writeCodeBlock writes code as a block, marked as language when it's named, highlighted as writeHighlighted does.
+func writeCodeBlock(w util.BufWriter, language string, lexer chroma.Lexer, code string, until time.Time) {
 	_, _ = w.WriteString("<pre><code")
 	if language != "" {
 		_, _ = w.WriteString(` class="language-` + html.EscapeString(language) + `"`)
 	}
 	_, _ = w.WriteString(">")
-	writeHighlighted(w, language, code.String(), w.(*allowanceWriter).highlightUntil)
+	writeHighlighted(w, lexer, code, until)
 	_, _ = w.WriteString("</code></pre>\n")
-	return ast.WalkSkipChildren, nil
 }
 
-// writeHighlighted writes code as escaped HTML, wrapping tokens in highlight classes when chroma has a lexer for
-// language, until the time is past until. It writes whatever code remains then escaped, without highlighting.
-func writeHighlighted(w util.BufWriter, language, code string, until time.Time) {
-	var lexer chroma.Lexer
-	if language != "" {
-		lexer = lexers.Get(language)
-	}
-	writeHighlightedWith(w, lexer, code, until)
-}
-
-// writeHighlightedWith writes code as escaped HTML, wrapping tokens in highlight classes when lexer isn't nil, until
+// writeHighlighted writes code as escaped HTML, wrapping tokens in highlight classes when lexer isn't nil, until
 // the time is past until. It writes whatever code remains then escaped, without highlighting.
-func writeHighlightedWith(w util.BufWriter, lexer chroma.Lexer, code string, until time.Time) {
+func writeHighlighted(w util.BufWriter, lexer chroma.Lexer, code string, until time.Time) {
 	if lexer == nil || time.Now().After(until) {
 		_, _ = w.WriteString(html.EscapeString(code))
 		return
