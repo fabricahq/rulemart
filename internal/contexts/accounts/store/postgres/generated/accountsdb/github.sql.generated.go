@@ -144,17 +144,6 @@ func (q *Queries) DiscardInstallationSnapshots(ctx context.Context, installation
 	return result.RowsAffected(), nil
 }
 
-const getGitHubGeneration = `-- name: GetGitHubGeneration :one
-SELECT github_generation FROM accounts WHERE id = $1
-`
-
-func (q *Queries) GetGitHubGeneration(ctx context.Context, accountID int64) (int64, error) {
-	row := q.db.QueryRow(ctx, getGitHubGeneration, accountID)
-	var github_generation int64
-	err := row.Scan(&github_generation)
-	return github_generation, err
-}
-
 const getSnapshot = `-- name: GetSnapshot :one
 
 SELECT snapshot FROM github_snapshots WHERE account_id = $1

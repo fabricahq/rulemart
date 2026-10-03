@@ -75,20 +75,6 @@ func (s *Store) ClaimRead(ctx context.Context, accountID int64, now time.Time, i
 	return claim, nil
 }
 
-// GitHubGeneration returns the account's GitHub generation, as store.Store describes.
-func (s *Store) GitHubGeneration(ctx context.Context, accountID int64) (int64, error) {
-	var generation int64
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		var err error
-		generation, err = accountsdb.New(pool).GetGitHubGeneration(ctx, accountID)
-		return err
-	})
-	if err != nil {
-		return 0, fmt.Errorf("read GitHub generation accountID=%d: %v", accountID, err)
-	}
-	return generation, nil
-}
-
 // SaveSnapshot keeps snapshot as the account's while its GitHub generation is still generation, as store.Store
 // describes.
 func (s *Store) SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot) (bool, error) {

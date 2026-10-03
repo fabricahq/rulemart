@@ -123,36 +123,29 @@ func (g GitHubAccounts) Refresh(ctx context.Context, account domain.Account, ses
 // GitHub so that requests arriving together read it once; then it returns the snapshot kept. When the read fails for a
 // reason other than the token, it keeps the snapshot the account had as the read was claimed, saying so, so pages show
 // what an earlier read found and when, and the next read waits domain.RefreshInterval. When the account's access
-// changes while it reads, such as when the visitor removes access, it reads again, at most maxReads times in all,
-// without that snapshot, which may hold what the visitor can no longer see.
+// changes while it reads, such as when the visitor removes access, which discards that snapshot, it reads again, at
+// most maxReads times in all, each time under a claim of its own, so a request that claimed the read since reads in
+// its place.
 func (g GitHubAccounts) read(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
 	token, err := g.Sessions.GitHubToken(ctx, session)
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	claim, err := g.Store.ClaimRead(ctx, account.ID, g.now(), domain.RefreshInterval)
-	if err != nil {
-		return domain.Snapshot{}, err
-	}
-	if !claim.Claimed {
-		// Another request read GitHub within the minute, or is reading it now: show what it kept, if it has finished.
-		return claim.Snapshot, nil
-	}
-	snapshot, err := g.readOnce(ctx, token, account, claim.Generation, claim.Snapshot)
-	for range maxReads - 1 {
+	for range maxReads {
+		claim, err := g.Store.ClaimRead(ctx, account.ID, g.now(), domain.RefreshInterval)
+		if err != nil {
+			return domain.Snapshot{}, err
+		}
+		if !claim.Claimed {
+			// Another request read GitHub within the minute, or is reading it now: show what it kept, if it has finished.
+			return claim.Snapshot, nil
+		}
+		snapshot, err := g.readOnce(ctx, token, account, claim.Generation, claim.Snapshot)
 		if !errors.Is(err, errAccessChanged) {
 			return snapshot, err
 		}
-		generation, genErr := g.Store.GitHubGeneration(ctx, account.ID)
-		if genErr != nil {
-			return domain.Snapshot{}, genErr
-		}
-		snapshot, err = g.readOnce(ctx, token, account, generation, domain.Snapshot{})
 	}
-	if errors.Is(err, errAccessChanged) {
-		return domain.Snapshot{ReadFailed: true}, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, err)
-	}
-	return snapshot, err
+	return domain.Snapshot{ReadFailed: true}, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, errAccessChanged)
 }
 
 // maxReads bounds how many times read reads GitHub while the account's access keeps changing.

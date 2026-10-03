@@ -13,9 +13,6 @@ UPDATE accounts SET github_tried_at = @now
 WHERE id = @account_id AND (github_tried_at IS NULL OR github_tried_at <= @tried_after)
 RETURNING github_generation;
 
--- name: GetGitHubGeneration :one
-SELECT github_generation FROM accounts WHERE id = @account_id;
-
 -- SaveSnapshot keeps snapshot as the account's, replacing the one it had, unless the account's
 -- GitHub generation is no longer generation. It locks the account's row, so a change to the generation waits for it, or
 -- it for the change, and then sees the change. It returns 1 when it kept the snapshot, and 0 when it didn't.

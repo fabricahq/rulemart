@@ -595,11 +595,20 @@ func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {
 	}
 }
 
-// hookedStore is a store that runs beforeClaim, when set, as each read claims its attempt, so a test can change the
-// account's access at exactly that moment.
+// hookedStore is a store that runs beforeClaim, when set, as each read claims its attempt, and afterRejectedSave after
+// a save it rejected because access changed, so a test can act at exactly those moments.
 type hookedStore struct {
 	store.Store
-	beforeClaim func()
+	beforeClaim       func()
+	afterRejectedSave func()
+}
+
+func (s hookedStore) SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot) (bool, error) {
+	saved, err := s.Store.SaveSnapshot(ctx, accountID, generation, snapshot)
+	if err == nil && !saved && s.afterRejectedSave != nil {
+		s.afterRejectedSave()
+	}
+	return saved, err
 }
 
 func (s hookedStore) ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (store.ReadClaim, error) {
@@ -675,6 +684,59 @@ func TestSimultaneousRequestsReadGitHubOnce(t *testing.T) {
 	together(func() error { _, err := site.accounts.Refresh(ctx, site.account, site.session); return err })
 	if reads() != 2 {
 		t.Errorf("8 refreshes at once read GitHub %d times in all, want twice", reads())
+	}
+}
+
+// A read whose access changed while it was under way reads again only under a claim of its own, as any read does: a
+// request that arrives between its attempts reads GitHub in its place, and once the retry has read, the refresh limit
+// holds again for a request right after it.
+func TestARetryAfterAccessChangedClaimsItsRead(t *testing.T) {
+	for name, compete := range map[string]bool{
+		"a request between attempts reads in the retry's place": true,
+		"the retry holds the refresh limit":                     false,
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			fake := monasGitHub()
+			site := newGitHubSite(t, fake, false)
+			site.snapshot(t)
+			reads := func() int { return fake.Requests("GET /user/orgs") }
+			before := reads()
+			var discard, between sync.Once
+			fake.Fail = func(path string) bool {
+				if strings.Contains(path, "/contents/") {
+					discard.Do(func() {
+						if err := site.accounts.ForgetInstallations(ctx, site.account.ID); err != nil {
+							t.Error(err)
+						}
+					})
+				}
+				return false
+			}
+			refresh := func() domain.Snapshot {
+				got, err := site.accounts.Refresh(ctx, site.account, site.session)
+				if err != nil {
+					t.Error(err)
+				}
+				return got
+			}
+			hooked := hookedStore{Store: site.accounts.Store}
+			if compete {
+				hooked.afterRejectedSave = func() { between.Do(func() { refresh() }) }
+			}
+			site.accounts.Store = hooked
+			site.now = site.now.Add(domain.RefreshInterval)
+
+			got := refresh()
+			refresh()
+
+			if n := reads() - before; n != 2 {
+				t.Errorf("read GitHub %d times, want twice: the first attempt, then one read after access changed", n)
+			}
+			if len(got.Libraries) == 0 {
+				t.Errorf("the refresh returned %+v, want what was read after access changed", got)
+			}
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -294,7 +295,7 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 	ctx := context.Background()
 	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
-	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}); err != nil || !saved {
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}); err != nil || !saved {
 		t.Fatalf("saved %v, %v", saved, err)
 	}
 	signIn(t, s, octocat, "")
@@ -308,7 +309,7 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 // A snapshot reads back as it was saved, with when its contents were read and whether the latest read failed.
 func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	ctx := context.Background()
-	s, _ := newStore(t)
+	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
 	if _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
 		t.Fatalf("before any read: found %v, %v", found, err)
@@ -333,7 +334,7 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 		Truncated:  true,
 		ReadFailed: true,
 	}
-	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), saved); err != nil || !ok {
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
 		t.Fatalf("saved %v, %v", ok, err)
 	}
 	got, found, err := s.Snapshot(ctx, account.ID)
@@ -353,9 +354,9 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 // access changes, which discards the snapshot, the read's save keeps nothing.
 func TestASnapshotIsKeptOnlyAtTheGenerationItsReadBeganAt(t *testing.T) {
 	ctx := context.Background()
-	s, _ := newStore(t)
+	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
-	began := generation(t, s, account.ID)
+	began := generation(t, connString, account.ID)
 	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -368,18 +369,16 @@ func TestASnapshotIsKeptOnlyAtTheGenerationItsReadBeganAt(t *testing.T) {
 	if _, found, _ := s.Snapshot(ctx, account.ID); found {
 		t.Error("kept a snapshot read before access changed")
 	}
-	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{}); err != nil || !saved {
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), domain.Snapshot{}); err != nil || !saved {
 		t.Errorf("at the current generation, saved %v, %v", saved, err)
 	}
 }
 
-// generation returns the account's GitHub generation, which a read notes before reading GitHub.
-func generation(t *testing.T, s *Store, accountID int64) int64 {
+// generation returns the account's GitHub generation, which a read's claim returns.
+func generation(t *testing.T, connString string, accountID int64) int64 {
 	t.Helper()
-	generation, err := s.GitHubGeneration(context.Background(), accountID)
-	if err != nil {
-		t.Fatal(err)
-	}
+	var generation int64
+	postgrestest.QueryRow(t, connString, fmt.Sprintf("SELECT github_generation FROM accounts WHERE id = %d", accountID), &generation)
 	return generation
 }
 
@@ -388,10 +387,10 @@ func generation(t *testing.T, s *Store, accountID int64) int64 {
 // none once it was discarded, with the generation after the discard.
 func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
 	ctx := context.Background()
-	s, _ := newStore(t)
+	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
 	kept := domain.Snapshot{Organizations: []string{"octo-org"}}
-	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), kept); err != nil || !saved {
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), kept); err != nil || !saved {
 		t.Fatalf("saved %v, %v", saved, err)
 	}
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
@@ -405,7 +404,7 @@ func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
 	}
 
 	first := claim(now)
-	if !first.Claimed || first.Generation != generation(t, s, account.ID) || !reflect.DeepEqual(first.Snapshot, kept) {
+	if !first.Claimed || first.Generation != generation(t, connString, account.ID) || !reflect.DeepEqual(first.Snapshot, kept) {
 		t.Errorf("the first claim is %+v, want the read claimed with the kept snapshot", first)
 	}
 	if again := claim(now); again.Claimed || !reflect.DeepEqual(again.Snapshot, kept) {

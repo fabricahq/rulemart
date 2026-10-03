@@ -41,12 +41,10 @@ type Store interface {
 	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, found bool, err error)
 	// ClaimRead claims a read of the account's GitHub account beginning at now, unless one began within interval before
 	// now and its snapshot hasn't been discarded since, so of requests that arrive together, one reads GitHub. In the
-	// same transaction it returns the account's GitHub generation and snapshot as of the claim, which no discard can
-	// come between.
+	// same transaction it returns the account's GitHub generation, how many times its snapshot has been discarded, such
+	// as when its access to private repositories changed, and its snapshot, as of the claim, which no discard can come
+	// between. A read saves what it found with that generation.
 	ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (ReadClaim, error)
-	// GitHubGeneration returns how many times the account's snapshot has been discarded, such as when its access to
-	// private repositories changed. A read notes it before it reads GitHub, and saves what it found with it.
-	GitHubGeneration(ctx context.Context, accountID int64) (int64, error)
 	// SaveSnapshot keeps snapshot as the account's, replacing the one it had, unless the account's GitHub generation is
 	// no longer generation: its snapshot was discarded since the read began, and the read may hold what the account can
 	// no longer see. It returns whether it kept the snapshot.
