@@ -13,13 +13,14 @@
 #   _internal/audit/conformance.sh http://127.0.0.1:8766 http://127.0.0.1:8080 /tmp/rulemart-audit
 #
 # It needs chrome-devtools-axi, which drives a headless Chrome of its own, and a site built with the rulemartdev tag, so
-# it can sign in as test_user. For each route it writes <name>.<width>.<scheme>.prototype.png and
-# <name>.<width>.<scheme>.site.png, full-page, at 1280 and 390 pixels wide, light and dark, and index.html, which shows
-# each pair side by side. Routes only one of the two has, such as the site's /about, have one screenshot. It stops at
-# the first page that doesn't load at the address asked for, with the HTTP status expected, or whose screenshot isn't
-# written, naming the route and quoting the browser tool's output.
+# it can sign in as test_user. Each case is a route, signed out or in, with a dialog or box opened or not, as the table
+# below lists them. For each it writes <name>.signed-<out|in>.<width>.<scheme>.prototype.png and the same .site.png,
+# full-page, at 1280 and 390 pixels wide, light and dark, and index.html, which shows each pair side by side. Routes
+# only one of the two has, such as the site's /about, have one screenshot. It stops at the first page that doesn't load
+# at the address expected, with the HTTP status expected, whose interaction doesn't open, or whose screenshot isn't
+# written, naming the case and quoting the browser tool's output.
 #
-# Set ONLY to an extended regular expression to shoot only the routes whose names match it, such as ONLY='^(rule|me)'
+# Set ONLY to an extended regular expression to shoot only the cases whose names match it, such as ONLY='^(rule|me)'
 # after changing those pages.
 #
 # The prototype keeps its state in localStorage, so the script signs it in by writing that state; the site is signed
@@ -27,6 +28,9 @@
 # their localStorage keys, with rules each catalog has.
 
 set -euo pipefail
+
+# The cases' interactions are associative arrays, which macOS's own bash 3 lacks.
+((BASH_VERSINFO[0] >= 4)) || { echo "conformance.sh needs bash 4 or later, such as Homebrew's" >&2; exit 2; }
 
 if [[ $# -ne 3 ]]; then
   sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'
@@ -66,60 +70,99 @@ js() {
   jq -er 'fromjson | strings' <<<"$result" 2>/dev/null || die "the script $1 didn't return a string:"$'\n'"$axi_out"
 }
 
-# visit opens a URL and checks the page the browser landed on: its address must be the one asked for, so a navigation
-# the tool dropped, which leaves about:blank, or a browser error page stops the audit, and the response's HTTP status
-# must be the one expected.
+# visit opens a URL and checks the page the browser landed on: its address must be the one asked for, or landing, a
+# path on the same origin, when that isn't =, so a navigation the tool dropped, which leaves about:blank, or a browser
+# error page stops the audit, and the response's HTTP status must be the one expected.
 visit() {
-  local url=$1 status=$2 landed
+  local url=$1 status=$2 landing=${3:-=} landed
   axi open "$url"
   axi wait 700
   landed=$(js '(() => { const n = performance.getEntriesByType("navigation")[0]; return JSON.stringify({address: location.href, status: n ? n.responseStatus : 0}) })()')
   local address code
   address=$(jq -r .address <<<"$landed")
   code=$(jq -r .status <<<"$landed")
-  [[ $address == "$url" ]] || die "the browser is on $address, not $url"
+  local want=$url
+  [[ $landing == = ]] || want="${url%%://*}://$(cut -d/ -f3 <<<"$url")$landing"
+  [[ $address == "$want" ]] || die "the browser is on $address, not $want"
   [[ $code == "$status" ]] || die "$url answered HTTP $code, not $status"
 }
 
-# The routes, one per line: a name, the prototype's hash route or - when it has none, the site's path or - when it has
-# none, whether to visit them signed out or signed in, and the HTTP status the site answers with. The prototype's mock data and the site's real libraries hold
-# different rules, so each pair names the closest equivalents: a rule with versions, a rule with assets, a retired rule.
-routes=$(cat <<'EOF'
-home                    #/                                                                                  /                                                                                         out 200
-browse-techs            #/browse/techs                                                                      /browse/techs                                                                             out 200
-browse-practices        #/browse/practices                                                                  /browse/practices                                                                         out 200
-browse-techs-other      #/browse/techs/other                                                                /browse/techs/other                                                                       out 200
-browse-practices-other  #/browse/practices/other                                                            /browse/practices/other                                                                   out 200
-libraries               #/libraries                                                                         /libraries                                                                                out 200
-owner                   #/fabricahq                                                                         /fabricahq                                                                                out 200
-faq                     #/faq                                                                               /faq                                                                                      out 200
-feedback                #/feedback                                                                          /feedback                                                                                 out 200
-group                   #/g/techs/go                                                                        /g/techs/go                                                                               out 200
-group-practice          #/g/practices/testing                                                               /g/practices/testing                                                                      out 200
-search                  #/search?q=retry                                                                    /search?q=retry                                                                           out 200
-library                 #/fabricahq/public-rules                                                            /fabricahq/public-rules                                                                   out 200
-library-rules           #/fabricahq/public-rules?tab=rules                                                  /fabricahq/public-rules?tab=rules                                                         out 200
-library-releases        #/fabricahq/public-rules?tab=releases                                               /fabricahq/code-rules-test-library?tab=releases                                           out 200
-library-group           #/fabricahq/public-rules/techs/go                                                   /fabricahq/public-rules/techs/go                                                          out 200
-rule                    #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints     /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits                  out 200
-rule-versions           #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions out 200
-rule-compare            #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions&compare=1.1.0...2.0.0 /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions&from=2.1.0&to=3.0.0 out 200
-rule-assets             #/fabricahq/public-rules/practices/testing/test-changed-behavior                    /fabricahq/code-rules-test-library/techs/go/use-contexts                                  out 200
-asset                   #/fabricahq/public-rules/practices/testing/test-changed-behavior/assets/why-revert-check.md /fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go   out 200
-rule-retired            #/fabricahq/public-rules/practices/testing/check-retry-limits                       /fabricahq/code-rules-test-library/practices/testing/verify-retries                       out 200
-cart                    #/cart                                                                              /cart                                                                                     out 200
-signin                  #/signin                                                                            /signin                                                                                   out 200
-about                   -                                                                                   /about                                                                                    out 200
-privacy                 -                                                                                   /privacy                                                                                  out 200
-missing                 #/nothing/here/at/all/x/y                                                           /nothing/here/at/all/x/y                                                                  out 404
-home-signed-in          #/                                                                                  /                                                                                         in 200
-rule-signed-in          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints     /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits                  in 200
-me                      #/me                                                                                /me                                                                                       in 200
-me-stars                #/me?tab=stars                                                                      /me?tab=stars                                                                             in 200
-me-add                  #/me/add                                                                            /me/add                                                                                   in 200
-me-add-run              #/me/add/run?repo=josh-padnick/rules-experimental                                   /me/add/run?repo=fabricahq/code-rules-test-library                                        in 200
-me-private              #/me/private                                                                        /me/private                                                                               in 200
-cart-signed-in          #/cart                                                                              /cart                                                                                     in 200
+# The cases, one per line: a name; whether to visit signed out or in; what to open on the page first, - for nothing,
+# star for the dialog Star opens for a visitor who isn't signed in, add for the Add to cart dialog, or newproject for
+# checkout's box for a project that doesn't use Code Rules yet, beside its project picker; the prototype's hash route,
+# or - when it has none; the site's path, or - when it has none; the site's address once it has redirected, or = when
+# it doesn't; and the HTTP status the site answers with. The prototype's mock data and the site's real libraries hold
+# different rules, so each pair names the closest equivalents: a rule with versions, a rule with assets, a retired
+# rule. The prototype has no comparison of library releases, so the site's is beside the prototype's releases tab.
+cases=$(cat <<'EOF'
+home                   out -          #/                                                                                                                 /                                                                                                         =                                  200
+browse-techs           out -          #/browse/techs                                                                                                     /browse/techs                                                                                             =                                  200
+browse-practices       out -          #/browse/practices                                                                                                 /browse/practices                                                                                         =                                  200
+browse-techs-other     out -          #/browse/techs/other                                                                                               /browse/techs/other                                                                                       =                                  200
+browse-practices-other out -          #/browse/practices/other                                                                                           /browse/practices/other                                                                                   =                                  200
+libraries              out -          #/libraries                                                                                                        /libraries                                                                                                =                                  200
+owner                  out -          #/fabricahq                                                                                                        /fabricahq                                                                                                =                                  200
+faq                    out -          #/faq                                                                                                              /faq                                                                                                      =                                  200
+feedback               out -          #/feedback                                                                                                         /feedback                                                                                                 =                                  200
+group                  out -          #/g/techs/go                                                                                                       /g/techs/go                                                                                               =                                  200
+group-practice         out -          #/g/practices/testing                                                                                              /g/practices/testing                                                                                      =                                  200
+search                 out -          #/search?q=retry                                                                                                   /search?q=retry                                                                                           =                                  200
+library                out -          #/fabricahq/public-rules                                                                                           /fabricahq/public-rules                                                                                   =                                  200
+library-rules          out -          #/fabricahq/public-rules?tab=rules                                                                                 /fabricahq/public-rules?tab=rules                                                                         =                                  200
+library-releases       out -          #/fabricahq/public-rules?tab=releases                                                                              /fabricahq/code-rules-test-library?tab=releases                                                           =                                  200
+library-compare        out -          #/fabricahq/public-rules?tab=releases                                                                              /fabricahq/code-rules-test-library?tab=releases&from=2&to=4                                               =                                  200
+library-group          out -          #/fabricahq/public-rules/techs/go                                                                                  /fabricahq/public-rules/techs/go                                                                          =                                  200
+rule                   out -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints                                    /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits                                  =                                  200
+rule-star-dialog       out star       #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints                                    /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits                                  =                                  200
+rule-add-dialog        out add        #/fabricahq/public-rules/practices/testing/test-changed-behavior                                                   /fabricahq/code-rules-test-library/techs/go/use-contexts                                                  =                                  200
+rule-versions          out -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions                       /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions                     =                                  200
+rule-compare           out -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions&compare=1.1.0...2.0.0 /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions&from=2.1.0&to=3.0.0 =                                  200
+rule-assets            out -          #/fabricahq/public-rules/practices/testing/test-changed-behavior                                                   /fabricahq/code-rules-test-library/techs/go/use-contexts                                                  =                                  200
+asset                  out -          #/fabricahq/public-rules/practices/testing/test-changed-behavior/assets/why-revert-check.md                        /fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go                                =                                  200
+rule-retired           out -          #/fabricahq/public-rules/practices/testing/check-retry-limits                                                      /fabricahq/code-rules-test-library/practices/testing/verify-retries                                       =                                  200
+cart                   out -          #/cart                                                                                                             /cart                                                                                                     =                                  200
+about                  out -          -                                                                                                                  /about                                                                                                    =                                  200
+privacy                out -          -                                                                                                                  /privacy                                                                                                  =                                  200
+missing                out -          #/nothing/here/at/all/x/y                                                                                          /nothing/here/at/all/x/y                                                                                  =                                  404
+signin                 out -          #/signin                                                                                                           /signin                                                                                                   =                                  200
+me                     out -          #/me                                                                                                               /me                                                                                                       /signin?return=%2Fme               200
+me-stars               out -          #/me?tab=stars                                                                                                     /me?tab=stars                                                                                             /signin?return=%2Fme%3Ftab%3Dstars 200
+me-add                 out -          #/me/add                                                                                                           /me/add                                                                                                   /signin?return=%2Fme%2Fadd         200
+me-private             out -          #/me/private                                                                                                       /me/private                                                                                               /signin?return=%2Fme%2Fprivate     200
+home                   in  -          #/                                                                                                                 /                                                                                                         =                                  200
+browse-techs           in  -          #/browse/techs                                                                                                     /browse/techs                                                                                             =                                  200
+browse-practices       in  -          #/browse/practices                                                                                                 /browse/practices                                                                                         =                                  200
+browse-techs-other     in  -          #/browse/techs/other                                                                                               /browse/techs/other                                                                                       =                                  200
+browse-practices-other in  -          #/browse/practices/other                                                                                           /browse/practices/other                                                                                   =                                  200
+libraries              in  -          #/libraries                                                                                                        /libraries                                                                                                =                                  200
+owner                  in  -          #/fabricahq                                                                                                        /fabricahq                                                                                                =                                  200
+faq                    in  -          #/faq                                                                                                              /faq                                                                                                      =                                  200
+feedback               in  -          #/feedback                                                                                                         /feedback                                                                                                 =                                  200
+group                  in  -          #/g/techs/go                                                                                                       /g/techs/go                                                                                               =                                  200
+group-practice         in  -          #/g/practices/testing                                                                                              /g/practices/testing                                                                                      =                                  200
+search                 in  -          #/search?q=retry                                                                                                   /search?q=retry                                                                                           =                                  200
+library                in  -          #/fabricahq/public-rules                                                                                           /fabricahq/public-rules                                                                                   =                                  200
+library-rules          in  -          #/fabricahq/public-rules?tab=rules                                                                                 /fabricahq/public-rules?tab=rules                                                                         =                                  200
+library-releases       in  -          #/fabricahq/public-rules?tab=releases                                                                              /fabricahq/code-rules-test-library?tab=releases                                                           =                                  200
+library-compare        in  -          #/fabricahq/public-rules?tab=releases                                                                              /fabricahq/code-rules-test-library?tab=releases&from=2&to=4                                               =                                  200
+library-group          in  -          #/fabricahq/public-rules/techs/go                                                                                  /fabricahq/public-rules/techs/go                                                                          =                                  200
+rule                   in  -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints                                    /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits                                  =                                  200
+rule-add-dialog        in  add        #/fabricahq/public-rules/practices/testing/test-changed-behavior                                                   /fabricahq/code-rules-test-library/techs/go/use-contexts                                                  =                                  200
+rule-versions          in  -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions                       /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions                     =                                  200
+rule-compare           in  -          #/fabricahq/public-rules/practices/comments/comment-role-result-and-constraints?tab=versions&compare=1.1.0...2.0.0 /fabricahq/code-rules-test-library/practices/testing/verify-retry-limits?tab=versions&from=2.1.0&to=3.0.0 =                                  200
+rule-assets            in  -          #/fabricahq/public-rules/practices/testing/test-changed-behavior                                                   /fabricahq/code-rules-test-library/techs/go/use-contexts                                                  =                                  200
+asset                  in  -          #/fabricahq/public-rules/practices/testing/test-changed-behavior/assets/why-revert-check.md                        /fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go                                =                                  200
+rule-retired           in  -          #/fabricahq/public-rules/practices/testing/check-retry-limits                                                      /fabricahq/code-rules-test-library/practices/testing/verify-retries                                       =                                  200
+cart                   in  -          #/cart                                                                                                             /cart                                                                                                     =                                  200
+cart-new-project       in  newproject #/cart                                                                                                             /cart                                                                                                     =                                  200
+about                  in  -          -                                                                                                                  /about                                                                                                    =                                  200
+privacy                in  -          -                                                                                                                  /privacy                                                                                                  =                                  200
+missing                in  -          #/nothing/here/at/all/x/y                                                                                          /nothing/here/at/all/x/y                                                                                  =                                  404
+me                     in  -          #/me                                                                                                               /me                                                                                                       =                                  200
+me-stars               in  -          #/me?tab=stars                                                                                                     /me?tab=stars                                                                                             =                                  200
+me-add                 in  -          #/me/add                                                                                                           /me/add                                                                                                   =                                  200
+me-add-run             in  -          #/me/add/run?repo=josh-padnick/rules-experimental                                                                  /me/add/run?repo=fabricahq/code-rules-test-library                                                        =                                  200
+me-private             in  -          #/me/private                                                                                                       /me/private                                                                                               =                                  200
 EOF
 )
 
@@ -147,13 +190,49 @@ set_state() {
   fi
 }
 
-# shoot visits a URL and writes a full-page screenshot of it to a file, which must then exist and hold an image.
+# The controls each side opens an interaction with, and a script that returns open once the interaction shows, by side
+# and interaction. A new project's box stays open in each cart's saved state, so close_controls close it again.
+declare -A open_controls=(
+  [prototype.star]='[data-act="star"]' [site.star]='a[data-star-signin]'
+  [prototype.add]='[data-act="add-to-cart"]' [site.add]='[data-cart-open]'
+  [prototype.newproject]='[data-act="cart-newproject"]' [site.newproject]='[data-cart-new-project]'
+)
+declare -A shown_checks=(
+  [prototype.star]='document.querySelector("#modal-root .modal")?.textContent.includes("Sign in to star rules") ? "open" : "closed"'
+  [site.star]='document.querySelector("dialog[data-star-dialog]")?.open ? "open" : "closed"'
+  [prototype.add]='document.querySelector("#modal-root .modal")?.textContent.includes("Add to cart") ? "open" : "closed"'
+  [site.add]='document.querySelector("dialog[data-cart-dialog]")?.open ? "open" : "closed"'
+  [prototype.newproject]='[...document.querySelectorAll(".proj-box b")].some((b) => b.textContent === "A new project") ? "open" : "closed"'
+  [site.newproject]='document.querySelector("[data-cart-new-box]")?.hidden === false ? "open" : "closed"'
+)
+declare -A close_controls=([prototype.newproject]='[data-act="cart-existing"]' [site.newproject]='[data-cart-existing]')
+
+# press clicks the control a selector finds, stopping the audit when the page has none.
+press() {
+  [[ $(js "(() => { const c = document.querySelector('$1'); if (!c) return 'missing'; c.click(); return 'ok' })()") == ok ]] ||
+    die "the page has no control $1"
+  axi wait 400
+}
+
+# shoot visits a URL, opens an interaction on it, unless it's -, and writes a full-page screenshot to a file, which
+# must then exist and hold an image. side is prototype or site.
 shoot() {
-  local url=$1 status=$2 file=$3
+  local side=$1 url=$2 status=$3 landing=$4 interaction=$5 file=$6
   rm -f "$file"
-  visit "$url" "$status"
+  visit "$url" "$status" "$landing"
+  if [[ $interaction != - ]]; then
+    press "${open_controls[$side.$interaction]}"
+    [[ $(js "${shown_checks[$side.$interaction]}") == open ]] || die "pressing ${open_controls[$side.$interaction]} didn't open $interaction"
+    # Opening the new project's box moves focus to its field, which scrolls the page, and a full-page screenshot then
+    # draws the sticky header where the page scrolled to.
+    [[ $(js "window.scrollTo(0, 0), 'ok'") == ok ]]
+  fi
   axi screenshot "$file" --full-page
   [[ -s $file ]] || die "the screenshot of $url wasn't written to $file:"$'\n'"$axi_out"
+  if [[ -n ${close_controls[$side.$interaction]:-} ]]; then
+    press "${close_controls[$side.$interaction]}"
+    [[ $(js "${shown_checks[$side.$interaction]}") == closed ]] || die "pressing ${close_controls[$side.$interaction]} didn't close $interaction"
+  fi
 }
 
 index="$out/index.html"
@@ -170,26 +249,27 @@ for state in out in; do
       if [[ $width == 390 ]]; then viewport="390x844x2,mobile,touch"; else viewport="1280x900x1"; fi
       doing="emulating $width px, $scheme"
       axi emulate --viewport "$viewport" --color-scheme "$scheme"
-      while read -r name proto_route site_route visit status; do
+      while read -r name visit interaction proto_route site_route landing status; do
         [[ -z $name || $visit != "$state" ]] && continue
         [[ -n ${ONLY:-} && ! $name =~ $ONLY ]] && continue
-        base="$name.$width.$scheme"
+        base="$name.signed-$state.$width.$scheme"
         echo "$base"
-        doing="shooting $base, signed $state"
+        doing="shooting $base"
         cells=""
         if [[ $proto_route != - ]]; then
-          shoot "$proto/$proto_route" 200 "$out/$base.prototype.png"
+          shoot prototype "$proto/$proto_route" 200 = "$interaction" "$out/$base.prototype.png"
           cells+="<img src=\"$base.prototype.png\" alt=\"Prototype\">"
         else
           cells+="<p>No prototype route.</p>"
         fi
         if [[ $site_route != - ]]; then
-          shoot "$site$site_route" "$status" "$out/$base.site.png"
+          shoot site "$site$site_route" "$status" "$landing" "$interaction" "$out/$base.site.png"
           cells+="<img src=\"$base.site.png\" alt=\"Site\">"
         fi
         class=""; [[ $width == 390 ]] && class=" narrow"
-        echo "<h2 id=\"$base\">$name, $width px, $scheme, signed $state</h2><div class=\"pair$class\">$cells</div>" >>"$index"
-      done <<<"$routes"
+        opened=""; [[ $interaction != - ]] && opened=", $interaction open"
+        echo "<h2 id=\"$base\">$name, signed $state$opened, $width px, $scheme</h2><div class=\"pair$class\">$cells</div>" >>"$index"
+      done <<<"$cases"
     done
   done
 done

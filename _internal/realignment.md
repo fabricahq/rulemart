@@ -78,10 +78,13 @@ Everything else the slice docs proposed is accepted as they state it.
 ## Conformance matrix
 
 Each prototype route, the site's, and how they compare, as slice R8's audit found them on 2026-10-03, side by side at
-1280 and 390 pixels, light and dark, signed out and in. [audit/conformance.sh](audit/conformance.sh) takes those
-screenshots again. "Match" means the same layout, type, spacing, and behavior, where the pages differ only in their
-data: the prototype's libraries are invented, and the site shows the two real ones. Every other difference is named,
-with the decision that chose it, so the next person knows it was chosen, not missed.
+1280 and 390 pixels, light and dark. [audit/conformance.sh](audit/conformance.sh) takes those screenshots again; its
+table lists each case it compares: every public page signed out and signed in, the dashboard's pages signed out, where
+the site redirects to sign-in, and signed in, a comparison of two library releases, and, open, the "Sign in to star
+rules" dialog, the Add to cart dialog, and checkout's project picker with its box for a new project. "Match" means
+the same layout, type, spacing, and behavior, where the pages differ only in their data: the prototype's libraries
+are invented, and the site shows the two real ones. Every other difference is named, with the decision that chose it,
+so the next person knows it was chosen, not missed, and the ones still open say so.
 
 Differences on every page:
 
@@ -114,19 +117,21 @@ Differences on every page:
 | `#/feedback` | `/feedback` | Match, plus "Something broken on Rulemart", as R1 decided; a specific rule's feedback goes to the library's repository until rulemart#27 |
 | Header and footer | Every page | Match, except as listed above |
 | Brand mark, favicons | Every page | Different, as R2 decided |
-| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records, and on a phone the sidebar folds into a Filters disclosure, as R4 decided. The count under the title counts current rules only, even while retired ones show |
-| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided, with the phone's Filters disclosure, as on group pages, and the ranking named above |
+| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records, and on a phone the sidebar folds into a Filters disclosure, as R4 decided. The count under the title counts current rules only, even while retired ones show. **Open:** signed in, the prototype's Libraries filter starts with My libraries, which slice R4's doc planned for once the dashboard existed; the site doesn't offer it yet |
+| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided, with the phone's Filters disclosure, as on group pages, and the ranking named above. **Open:** signed in, it lacks the prototype's My libraries filter, as group pages do |
 | `#/cart` | `/cart` | Match, with the vetted check on each vetted library's avatar. The list of items isn't a live region: screen readers hear a change through its toast or the control that made it |
-| Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects |
+| Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects. "+ Or use a project that doesn't use Code Rules yet" opens the same box for a new project, and moves focus to its repository field, since the button it replaces goes |
 | Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice. The All rules tab lists every rule on one page, as the prototype's does |
 | Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form, which compares as soon as a release is chosen, and each release's Compare link from slice 4; each card links its "GitHub Release page" |
+| None | `/{owner}/{repo}?tab=releases&from=&to=` | Site only, from slice 4: the prototype compares a rule's versions but not two library releases. The page takes the rule comparison's layout: what changed, then each changed rule's text |
 | `#/{owner}/{repo}/{kind}/{group}` | The same | Match; the Whole group box keeps the library's `owner/name` on one line |
-| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile. Star, signed out, opens the "Sign in to star rules" dialog; without a script it goes to sign-in. The Assets panel puts "These files come with the rule" under the rule's own files and the release note under the shared ones, so neither speaks for the other's |
+| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile. Star, signed out, opens the "Sign in to star rules" dialog, which matches the prototype's, with "Sign in" for Continue with GitHub on a local build; without a script it goes to sign-in. Add to cart opens a dialog that matches the prototype's. The Assets panel puts "These files come with the rule" under the rule's own files and the release note under the shared ones, so neither speaks for the other's |
 | Versions tab and compare view | `?tab=versions`, `&from=&to=` | Match: a choice compares at once, and the line reads "N files changed between release/x and release/y, limited to this rule's file", since the site compares the rule's file, not its assets. The Compare button shows only without a script, and each version row's comparison buttons are as wide as each other |
 | Retired rule page | The same address | Match, plus the last version's text, from slice 4 |
 | Asset pages | `/{owner}/{repo}/.../assets/{file}` | Match |
 | Discussion tabs, Discuss modal | None | Deferred, rulemart#27 |
 | `#/signin` | `/signin` | Match |
+| `#/me`, `#/me?tab=stars`, `#/me/add`, `#/me/private`, signed out | The same, which redirect to `/signin?return=` | Match: the prototype draws its sign-in page at the dashboard's address, while the site redirects to its own, which returns there after signing in and adds a line saying what for, such as "Sign in to add a library." |
 | `#/me`, `#/me?tab=stars` | `/me`, `/me?tab=stars` | Match, plus when GitHub was read, with Refresh, a New tag on a library that came to Rulemart in the last day, and the Account section, as slice R7's doc records |
 | `#/me/add`, `#/me/add/run` | `/me/add`, `/me/add/run` | Match, plus when GitHub was read, with Refresh |
 | `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
