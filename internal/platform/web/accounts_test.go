@@ -1011,6 +1011,31 @@ func TestTheSignInPageSaysWhatRulemartReadsFromGitHub(t *testing.T) {
 	}
 }
 
+// With GitHub sign-in configured, the page reads as the prototype's: the perks, Continue with GitHub, and the footnote
+// about what Rulemart reads under it. A local build lists its test users after all of that, not in the button's place.
+func TestTheSignInPageShowsContinueWithGitHubUnderThePerksWithTheFootnoteBelow(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	text := visibleText(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"})))
+
+	order := []string{
+		"Publish your libraries and see who uses them",
+		"Continue with GitHub",
+		"Browsing needs no account. Rulemart reads your public profile and public repos, and never writes to GitHub.",
+	}
+	if web.DevSignIn {
+		order = append(order, "Local build", "Sign in as ")
+	}
+	at := 0
+	for _, want := range order {
+		i := strings.Index(text[at:], want)
+		if i < 0 {
+			t.Fatalf("%q doesn't follow %q in %q", want, text[:at], text)
+		}
+		at += i + len(want)
+	}
+}
+
 // Without accounts, or without GitHub in a release build, pages offer no way to sign in that doesn't work.
 func TestPagesOfferNoSignInThatIsNotAvailable(t *testing.T) {
 	without := map[string]func(*web.Options){
