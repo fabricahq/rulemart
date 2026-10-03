@@ -31,14 +31,12 @@ To try signed-in pages, run `make web-dev` instead of `make web`: it builds the 
 sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub. Without GitHub
 sign-in, that build also serves a fake GitHub in memory,
 [githubtest's `DevFake`](internal/contexts/accounts/github/githubtest/dev.go), so the dashboard at
-<http://127.0.0.1:8080/me> has something to show: `test_user` belongs to the fabricahq organization, which has a
-library to add at `/me/add`, and two projects import the two libraries below at older rule versions, so they have
-updates waiting. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
+<http://127.0.0.1:8080/me> has something to show: `test_user` belongs to the fabricahq organization, which publishes
+the two libraries below, so `/me/add` lists them, and two projects import them at older rule versions, so they have
+updates waiting. The fake lists only public libraries real GitHub has, since the worker reads real GitHub. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
 and a private project. Nothing runs the worker locally, so a library added at `/me/add` stays in progress on
 `/me/add/run` until you run `make worker`, in another terminal, which checks it once; after three minutes the page says
-the check is taking longer than usual, as it does when a deployed check's job is late. Adding
-`fabricahq/rules-experimental` lists a repository GitHub doesn't have, so `make worker` fails its check, as
-`/me/add/run` then shows. Each session seals its GitHub token with a key the build makes at start, so
+the check is taking longer than usual, as it does when a deployed check's job is late. Each session seals its GitHub token with a key the build makes at start, so
 after a restart the dashboard asks you to sign in again before it reads the fake again.
 Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
 sign in with GitHub itself, create an OAuth app whose callback URL is `http://127.0.0.1/account/github/callback`, and
