@@ -187,30 +187,31 @@ templ groupList(kind string, lib libraryView, groups []groupView, selection grou
 	}
 }
 
-// libraryGroupPage shows one group of a library, as the prototype's library group page: its rules, and the Whole
-// group box that adds the group to the cart. Slice R6 finishes its layout.
-templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
+// libraryGroupPage shows one group of a library, as the prototype's library group page: where it is, its icon and
+// name, its rules, the way back to the library's groups, and the Whole group box that adds the group to the cart.
+// selection is the groups the library's Groups tab ticks, which its links back carry.
+templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSelection) {
 	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)) {
 		<div class="page wrap">
 			if !lib.vetted {
 				@unvettedWarning(false)
 			}
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@avatar(lib.avatar, lib.owner, avatarSM)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.fullName() }</a>
+				@libraryAvatar(lib.avatar, lib.owner, avatarSM, lib.vetted)
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href + selection.query()) }>{ lib.name }</a>
 				<span>›</span>
 				<span class="mono">{ g.label.id }</span>
 			</div>
-			<h1 class="title-xl flex items-center gap-[14px]">
+			<h1 class="title-xl flex flex-wrap items-center gap-[14px]">
 				@groupTile(g.label, g.icon, tileTitle)
 				{ g.label.display() }
+				if !g.label.canonical {
+					@notCanonical(flagMD)
+				}
 			</h1>
 			<p class="mt-2 mb-6 text-muted">
-				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
 				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
-				if g.blurb != "" && kindOf(g.label.id) == practicesKind {
-					· { g.blurb }
-				}
+				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }{ practiceBlurb(g) }
 			</p>
 			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
 				<div class="min-w-0">
@@ -219,7 +220,7 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
 							@ruleRow(r)
 						}
 					}
-					<a class="mt-[14px] inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href) }>← Back to all groups in { lib.fullName() }</a>
+					<a class="mt-6 inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href + selection.query()) }>← Back to all groups in { lib.fullName() }</a>
 				</div>
 				<aside class="grid content-start">
 					<div class="rounded-panel border border-border bg-paper p-[18px] wide:sticky wide:top-[84px]">

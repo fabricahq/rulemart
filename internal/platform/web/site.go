@@ -608,7 +608,8 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 }
 
 // libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
-// the cart, or the missing page when the library has no current rules in such a group. A group spelled in another
+// the cart, and its links back carrying the groups the sel parameter ticks, or the missing page when the library has
+// no current rules in such a group. A group spelled in another
 // case redirects to the library's spelling, as a rule does. A shared asset directly under the library's shared asset
 // directory has a path of a group's shape, whose kind is assets, and leads to the asset.
 func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
@@ -622,7 +623,8 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := newLibraryView(page.Library)
-	group, ok := newLibraryContents(view, page, s.assets.iconURL).group(pathInLibrary(r))
+	contents := newLibraryContents(view, page, s.assets.iconURL)
+	group, ok := contents.group(pathInLibrary(r))
 	if !ok {
 		s.notFound(w, r)
 		return
@@ -630,7 +632,8 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, group.label.id, nil) {
 		return
 	}
-	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group))
+	selection := newGroupSelection(r.URL.Query(), contents.current())
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group, selection))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it

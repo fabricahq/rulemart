@@ -332,6 +332,15 @@ func newRetiredRuleRow(lib libraryView, ref libraryRefView, r views.RetiredRuleC
 	return row
 }
 
+// practiceBlurb returns what a library group page's line adds after the group's rules: a practice's blurb, after a
+// separator, or nothing for a technology, whose name says what it is.
+func practiceBlurb(g groupView) string {
+	if g.blurb == "" || kindOf(g.label.id) != practicesKind {
+		return ""
+	}
+	return " · " + g.blurb
+}
+
 // retiredReplacementWord returns how a retired rule's row words its replacement: as first when it starts the line, and
 // as after when it follows the release that retired the rule, retiredIn.
 func retiredReplacementWord(retiredIn, first, after string) string {

@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -200,8 +201,12 @@ func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	body := resp.Body.String()
-	assertShows(t, body, "example/rules › techs/go", "Go", "1 rule in example/rules", "Return errors with context",
+	assertShows(t, body, "rules › techs/go", "Go", "1 rule in example/rules", "Return errors with context",
+		"← Back to all groups in example/rules",
 		"Whole group Adds all 1 Go rule from example/rules.", "Add Go group to cart", "See Go rules from every library →")
+	if text := visibleText(t, body); strings.Contains(text, "The Go language.") {
+		t.Error("a technology's page shows its blurb, though its name says what it is")
+	}
 	control := find(parsePage(t, body), withAttribute("data-cart-control"))
 	if control == nil || attribute(control, "data-cart-group") != "group::example/rules::techs/go" || hasAttribute(control, "data-cart-rule") {
 		t.Errorf("got the control %+v, want one that adds the group", control)
@@ -215,6 +220,25 @@ func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 		if resp := get(t, handler, missing); resp.Code != http.StatusNotFound {
 			t.Errorf("%s: got %d", missing, resp.Code)
 		}
+	}
+}
+
+// A practice's page in a library says what belongs in it, and its links back to the library's groups carry the groups
+// the Groups tab ticked; a group that isn't canonical is flagged, and isn't offered across libraries from here.
+func TestALibrarysGroupPageLeadsBackWithTheTickedGroups(t *testing.T) {
+	practice := get(t, newSite(t, newCatalog()), library+"/practices/testing?sel=techs/go").Body.String()
+	golang := get(t, newSite(t, newMixedCatalog()), mixed+"/techs/golang").Body.String()
+
+	assertShows(t, practice, "1 rule in example/rules · What to test and how.")
+	if got := links(t, practice, "rules"); !slices.Contains(got, library+"?sel=techs/go") || slices.Contains(got, library) {
+		t.Errorf("the page leads back to %q, want the ticked groups", got)
+	}
+	if got := links(t, practice, "Back to all groups"); !slices.Equal(got, []string{library + "?sel=techs/go"}) {
+		t.Errorf("Back leads to %q", got)
+	}
+	assertShows(t, golang, "techs/golang not canonical 1 rule in example/mixed")
+	if strings.Contains(visibleText(t, golang), "from every library") {
+		t.Error("a group that isn't canonical is offered across libraries")
 	}
 }
 
