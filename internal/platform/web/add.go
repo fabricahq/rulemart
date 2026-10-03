@@ -306,7 +306,10 @@ func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 	if listed {
 		view.fullName, view.state, view.failure = listing.Owner+"/"+listing.Name, listing.State, listing.Failure
 		query := "?" + url.Values{"listing": {strconv.FormatInt(listing.ID, 10)}}.Encode()
-		view.retry, view.remove = retryListingHref+query, removeListingHref+query
+		view.retry = retryListingHref + "?" + url.Values{
+			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runHref + "?" + url.Values{"repo": {view.fullName}}.Encode()},
+		}.Encode()
+		view.remove = removeListingHref + query
 		if listing.Library.Owner != "" {
 			owner, name = listing.Library.Owner, listing.Library.Name
 		}

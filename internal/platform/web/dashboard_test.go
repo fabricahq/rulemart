@@ -289,8 +289,14 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	failed := site.get(t, "/me/add/run?repo=octocat%2Fbroken")
 	assertShows(t, failed, "Failed: Looking for rule-library.yaml in octocat/broken The repository has no release/<number> tags.",
 		"Rulemart couldn't add octocat/broken.", "Try again", "Remove", "Back to Dashboard")
-	if strings.Contains(failed, "data-polling") || !slices.Contains(formActions(t, failed), "/me/listings/retry?listing=4") {
-		t.Error("a failed check's page follows it, or offers no Try again")
+	retry := "/me/listings/retry?listing=4&return=%2Fme%2Fadd%2Frun%3Frepo%3Doctocat%252Fbroken"
+	if strings.Contains(failed, "data-polling") || !slices.Contains(formActions(t, failed), retry) {
+		t.Errorf("a failed check's page follows it, or offers no Try again that returns to it: %q", formActions(t, failed))
+	}
+	// Try again stays on the page, which then follows the new check.
+	again := send(t, site.handler, request{method: http.MethodPost, target: retry, cookies: []*http.Cookie{site.session}})
+	if again.StatusCode != http.StatusSeeOther || again.Header.Get("Location") != "/me/add/run?repo=octocat%2Fbroken" {
+		t.Errorf("Try again answered %d to %q, want the run page", again.StatusCode, again.Header.Get("Location"))
 	}
 
 	done := site.get(t, "/me/add/run?repo=example%2Frules")

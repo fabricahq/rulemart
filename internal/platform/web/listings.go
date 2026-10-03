@@ -148,7 +148,8 @@ var removedNotices = map[domain.ListingState]string{
 }
 
 // retryListing asks the worker to check the signed-in visitor's failed listing that the listing parameter names
-// again, and returns to their listings, where it's being checked.
+// again, and returns to their listings, where it's being checked, or to the run page the return parameter names, which
+// follows the check.
 func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 	notice := "listing-retried"
 	s.changeListing(w, r, &notice, func(ctx context.Context, accountID, id int64) error {
@@ -167,8 +168,18 @@ func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listingReturn returns where a change to a listing returns to: the run page target names, as returnPath checks it,
+// or else the listings page.
+func listingReturn(target string) string {
+	back := returnPath(target)
+	if u, err := url.Parse(back); err == nil && u.Path == runHref {
+		return back
+	}
+	return listingsHref
+}
+
 // changeListing applies change to the signed-in visitor's listing that the listing parameter names, and returns to
-// their listings with the notice notices names by *notice, which change may replace. A visitor who isn't signed in
+// their listings, or the run page listingReturn allows, with the notice notices names by *notice, which change may replace. A visitor who isn't signed in
 // is sent to sign in and return to their listings, and a listing they don't have is missing.
 func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *string, change func(ctx context.Context, accountID, id int64) error) {
 	v := visitorOf(r.Context())
@@ -197,7 +208,7 @@ func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *s
 		return
 	}
 	setNotice(w, *notice)
-	seeOther(w, r, listingsHref)
+	seeOther(w, r, listingReturn(r.URL.Query().Get("return")))
 }
 
 // listingsView is what the listings page shows.

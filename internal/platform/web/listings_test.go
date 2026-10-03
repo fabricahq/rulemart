@@ -681,6 +681,13 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 			t.Errorf("%s set the notice %v, want %s", test.target, got, test.notice)
 		}
 	}
+	// Only the run page is a page to return to other than the listings page.
+	for _, back := range []string{"/browse/techs", "https://evil.example/me/add/run", "/me/add/run/x"} {
+		resp := site.signedInPost(t, "/me/listings/retry?"+url.Values{"listing": {"4"}, "return": {back}}.Encode())
+		if got := resp.Header.Get("Location"); got != "/me/listings" {
+			t.Errorf("retrying with the return %q returned to %q, want /me/listings", back, got)
+		}
+	}
 	if !slices.Equal(site.listings.removed, []int64{2, 1, 4, 3}) || !slices.Equal(site.listings.retried, []int64{3}) {
 		t.Fatalf("removed %v and retried %v", site.listings.removed, site.listings.retried)
 	}
