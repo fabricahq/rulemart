@@ -2,7 +2,7 @@
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
  * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
- * and confirmed, the unvetted libraries they confirmed adding from. It paints the header's count and each page's cart
+ * and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. It paints the header's count and each page's cart
  * controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
  * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
  * change, here or in another tab, from the rulemart:cart event. Without JavaScript, or storage, there's no cart: the
@@ -47,6 +47,23 @@
     return out;
   }
 
+  /** Return library, as owner/name, as the cart keys its choices: in lowercase, since the server finds libraries without
+   * regard to case, and the catalog's spelling of one changes when its repository's does. */
+  const libraryKey = (library) => library.toLowerCase();
+
+  /** Return the libraries of value, an object of flags, that are on, as an object of flags keyed by libraryKey, so an
+   * older cart's spelling of a library is the one its page shows now. */
+  const libraryFlags = (value) => Object.fromEntries(Object.keys(flags(value)).map((name) => [libraryKey(name), true]));
+
+  /** Turn library's flag in libraries, an object of flags, on or off, in whichever case it's spelled there. */
+  function setLibraryFlag(libraries, library, on) {
+    const key = libraryKey(library);
+    for (const name of Object.keys(libraries)) {
+      if (libraryKey(name) === key) delete libraries[name];
+    }
+    if (on) libraries[key] = true;
+  }
+
   /** Read the cart from localStorage, keeping only what a cart can hold: well-formed keys, each item once, at most
    * MAX_ITEMS, and choices of the right types. Storage that's empty, refused, or holds anything else is an empty cart. */
   function load() {
@@ -60,8 +77,8 @@
     if (!stored || typeof stored !== 'object') return state;
     if (Array.isArray(stored.cart)) state.cart = distinctKeys(stored.cart.filter(validKey)).slice(0, MAX_ITEMS);
     state.fork = Object.fromEntries(Object.keys(flags(stored.fork)).filter((key) => state.cart.includes(key)).map((key) => [key, true]));
-    state.restOfGroups = flags(stored.restOfGroups);
-    state.confirmed = flags(stored.confirmed);
+    state.restOfGroups = libraryFlags(stored.restOfGroups);
+    state.confirmed = libraryFlags(stored.confirmed);
     if (typeof stored.repo === 'string') state.repo = stored.repo.slice(0, 500);
     return state;
   }
@@ -121,14 +138,13 @@
 
   /** Turn adding the rest of the groups of library's picked rules on or off. */
   function setRestOfGroups(library, on) {
-    if (on) state.restOfGroups[library] = true;
-    else delete state.restOfGroups[library];
+    setLibraryFlag(state.restOfGroups, library, on);
     save();
   }
 
   /** Record that the visitor confirmed adding from library, which Rulemart doesn't vet. */
   function confirm(library) {
-    state.confirmed[library] = true;
+    setLibraryFlag(state.confirmed, library, true);
     save();
   }
 
