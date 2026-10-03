@@ -24,9 +24,6 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
 
-// ErrNoSuchInstallation reports an installation of the app that GitHub doesn't know, such as one uninstalled since.
-var ErrNoSuchInstallation = domain.ErrNoSuchInstallation
-
 // AppConfig names the GitHub App and holds what it signs and checks with.
 type AppConfig struct {
 	// ID is GitHub's numeric ID for the app, which webhook deliveries name. ClientID is its client ID, which its JWTs
@@ -59,7 +56,7 @@ func (a *App) InstallURL() string {
 	return cmp.Or(a.config.WebURL, "https://github.com") + "/apps/" + a.config.Slug + "/installations/new"
 }
 
-// Installation returns the GitHub account installation id is on, or fails with ErrNoSuchInstallation.
+// Installation returns the GitHub account installation id is on, or fails with domain.ErrNoSuchInstallation.
 func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAccount, error) {
 	var installation struct {
 		Account struct {
@@ -70,7 +67,7 @@ func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAc
 	}
 	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
 	if err == nil && !found {
-		err = ErrNoSuchInstallation
+		err = domain.ErrNoSuchInstallation
 	}
 	if err != nil {
 		return domain.InstallationAccount{}, fmt.Errorf("read installation id=%d: %w", id, err)
@@ -80,7 +77,7 @@ func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAc
 }
 
 // InstallationToken returns a token that reads the repositories installation id may, for an hour, or fails with
-// ErrNoSuchInstallation.
+// domain.ErrNoSuchInstallation.
 func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
 	var token struct {
 		Token string `json:"token"`
@@ -88,7 +85,7 @@ func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
 	found, err := a.asApp(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(id, 10)+"/access_tokens", &token)
 	switch {
 	case err == nil && !found:
-		err = ErrNoSuchInstallation
+		err = domain.ErrNoSuchInstallation
 	case err == nil && token.Token == "":
 		err = errors.New("GitHub returned no token")
 	}
@@ -120,7 +117,7 @@ func (a *App) asApp(ctx context.Context, method, path string, v any) (bool, erro
 	}
 	setHeaders(request, jwt, "")
 	found, err := a.api.do(request, maxResponseBytes, v)
-	if errors.Is(err, ErrTokenRefused) {
+	if errors.Is(err, domain.ErrGitHubTokenRefused) {
 		// GitHub refused the JWT: the key may have been rotated, so the next request reads it again.
 		a.config.PrivateKey.Forget()
 		err = errors.New("GitHub refused the app's JWT: check the app's client ID and private key")

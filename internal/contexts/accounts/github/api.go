@@ -27,10 +27,6 @@ const perPage = 100
 // maxListBytes bounds what Rulemart reads of a page of a list. A page of 100 repositories is about 600 KiB.
 const maxListBytes = 4 << 20
 
-// ErrTokenRefused reports a token GitHub refused, such as one whose user revoked Rulemart's authorization: signing in
-// again gives a new one.
-var ErrTokenRefused = domain.ErrGitHubTokenRefused
-
 // API reads GitHub's REST API, at APIURL or a test's server, with whichever token each call names.
 type API struct {
 	baseURL string
@@ -190,7 +186,7 @@ func (a *API) OrganizationRole(ctx context.Context, token, org string) (string, 
 // get reads path from the API with token, at most maxBytes of it, and decodes its JSON into v, or, when v is a
 // *[]byte, keeps its bytes. accept is the media type to ask for, or empty for GitHub's JSON. It returns found false for
 // 404, and 403 that isn't a rate limit's, both of which GitHub answers for a repository or file the token can't see; it
-// fails with ErrTokenRefused for 401. Errors never include the token or the response's text.
+// fails with domain.ErrGitHubTokenRefused for 401. Errors never include the token or the response's text.
 func (a *API) get(ctx context.Context, token, path, accept string, maxBytes int, v any) (bool, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+path, nil)
 	if err != nil {
@@ -209,7 +205,7 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	defer response.Body.Close()
 	switch {
 	case response.StatusCode == http.StatusUnauthorized:
-		return false, ErrTokenRefused
+		return false, domain.ErrGitHubTokenRefused
 	case response.StatusCode == http.StatusNotFound,
 		response.StatusCode == http.StatusForbidden && !rateLimited(response):
 		return false, nil

@@ -14,7 +14,6 @@ import (
 
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 )
 
 // GitHubAccounts reads what signed-in visitors' GitHub accounts hold, and the GitHub App that reads their private
@@ -35,8 +34,8 @@ type GitHubAccounts interface {
 	// it fails with accountsapp.ErrNotYourInstallation otherwise. ForgetInstallations forgets every one.
 	Install(ctx context.Context, account accounts.Account, session accounts.SessionToken, id int64) (accounts.Snapshot, error)
 	ForgetInstallations(ctx context.Context, accountID int64) error
-	// Deliver acts on a delivery of the GitHub App's webhook, failing with github.ErrBadSignature for one GitHub didn't
-	// sign and github.ErrIgnoredEvent for one it does nothing for.
+	// Deliver acts on a delivery of the GitHub App's webhook, failing with accounts.ErrBadSignature for one GitHub didn't
+	// sign and accounts.ErrIgnoredEvent for one it does nothing for.
 	Deliver(ctx context.Context, event string, body []byte, signature string) error
 }
 
@@ -181,9 +180,9 @@ func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 	}
 	err = s.GitHubAccounts.Deliver(r.Context(), r.Header.Get("X-GitHub-Event"), body, r.Header.Get("X-Hub-Signature-256"))
 	switch {
-	case err == nil, errors.Is(err, github.ErrIgnoredEvent):
+	case err == nil, errors.Is(err, accounts.ErrIgnoredEvent):
 		w.WriteHeader(http.StatusNoContent)
-	case errors.Is(err, github.ErrBadSignature):
+	case errors.Is(err, accounts.ErrBadSignature):
 		s.Log.WarnContext(r.Context(), "webhook refused", "route", s.route(r), "requestID", s.requestID(r), "reason", "bad signature")
 		http.Error(w, "the signature isn't the webhook's", http.StatusUnauthorized)
 	default:

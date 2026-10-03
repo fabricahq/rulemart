@@ -9,23 +9,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
 
-// ErrBadSignature reports a delivery whose signature isn't the webhook secret's, which GitHub didn't send.
-var ErrBadSignature = errors.New("the delivery's signature isn't the webhook secret's")
-
-// ErrIgnoredEvent reports a genuine delivery Rulemart has nothing to do for, such as a new installation, which the
-// visitor's return to Rulemart records, or one for another app.
-var ErrIgnoredEvent = errors.New("Rulemart does nothing for this delivery")
-
 // WebhookChange returns the change to an installation a delivery of the app's webhook reports, after checking that
 // signature, its X-Hub-Signature-256 header, is the HMAC-SHA256 of body with the webhook's secret. event is its
-// X-GitHub-Event header. It fails with ErrBadSignature for a delivery GitHub didn't sign, and ErrIgnoredEvent for one
+// X-GitHub-Event header. It fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one
 // that changes nothing Rulemart keeps.
 func (a *App) WebhookChange(ctx context.Context, event string, body []byte, signature string) (domain.InstallationChange, error) {
 	secret, err := a.config.WebhookSecret.Value(ctx)
@@ -33,7 +25,7 @@ func (a *App) WebhookChange(ctx context.Context, event string, body []byte, sign
 		return domain.InstallationChange{}, fmt.Errorf("read the webhook's secret: %v", err)
 	}
 	if !ValidSignature([]byte(secret), body, signature) {
-		return domain.InstallationChange{}, ErrBadSignature
+		return domain.InstallationChange{}, domain.ErrBadSignature
 	}
 	var delivery struct {
 		Action       string `json:"action"`
@@ -48,13 +40,13 @@ func (a *App) WebhookChange(ctx context.Context, event string, body []byte, sign
 	change := domain.InstallationChange{ID: delivery.Installation.ID}
 	switch {
 	case change.ID <= 0 || (delivery.Installation.AppID != 0 && delivery.Installation.AppID != a.config.ID):
-		return domain.InstallationChange{}, ErrIgnoredEvent
+		return domain.InstallationChange{}, domain.ErrIgnoredEvent
 	case event == "installation" && (delivery.Action == "deleted" || delivery.Action == "suspend"):
 		change.Removed = true
 	case event == "installation" && (delivery.Action == "unsuspend" || delivery.Action == "new_permissions_accepted"),
 		event == "installation_repositories":
 	default:
-		return domain.InstallationChange{}, ErrIgnoredEvent
+		return domain.InstallationChange{}, domain.ErrIgnoredEvent
 	}
 	return change, nil
 }

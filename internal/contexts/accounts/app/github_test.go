@@ -374,16 +374,16 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 		event, body, signature string
 		want                   error
 	}{
-		"unsigned":         {"installation", removed, "", github.ErrBadSignature},
-		"signed otherwise": {"installation", removed, signature("another-secret", removed), github.ErrBadSignature},
-		"altered":          {"installation", removed, signature(webhookSecret, strings.Replace(removed, "5", "6", 1)), github.ErrBadSignature},
+		"unsigned":         {"installation", removed, "", domain.ErrBadSignature},
+		"signed otherwise": {"installation", removed, signature("another-secret", removed), domain.ErrBadSignature},
+		"altered":          {"installation", removed, signature(webhookSecret, strings.Replace(removed, "5", "6", 1)), domain.ErrBadSignature},
 		"another app's": {
 			"installation", `{"action":"deleted","installation":{"id":5,"app_id":7}}`,
-			signature(webhookSecret, `{"action":"deleted","installation":{"id":5,"app_id":7}}`), github.ErrIgnoredEvent,
+			signature(webhookSecret, `{"action":"deleted","installation":{"id":5,"app_id":7}}`), domain.ErrIgnoredEvent,
 		},
 		"a new installation": {
 			"installation", `{"action":"created","installation":{"id":5,"app_id":42}}`,
-			signature(webhookSecret, `{"action":"created","installation":{"id":5,"app_id":42}}`), github.ErrIgnoredEvent,
+			signature(webhookSecret, `{"action":"created","installation":{"id":5,"app_id":42}}`), domain.ErrIgnoredEvent,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

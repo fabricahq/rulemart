@@ -12,6 +12,14 @@ import (
 // since.
 var ErrNoSuchInstallation = errors.New("GitHub has no such installation of the app")
 
+// ErrBadSignature reports a delivery of the GitHub App's webhook whose signature isn't the webhook secret's, which
+// GitHub didn't send.
+var ErrBadSignature = errors.New("the delivery's signature isn't the webhook secret's")
+
+// ErrIgnoredEvent reports a genuine delivery of the GitHub App's webhook that Rulemart has nothing to do for, such as a
+// new installation, which the visitor's return to Rulemart records, or one for another app.
+var ErrIgnoredEvent = errors.New("Rulemart does nothing for this delivery")
+
 // Installation is an installation of the GitHub App that an account reads private repositories through.
 type Installation struct {
 	ID int64

@@ -11,7 +11,6 @@ import (
 
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
@@ -100,9 +99,9 @@ func (f *fakeGitHubAccounts) Deliver(_ context.Context, event string, body []byt
 	defer f.mu.Unlock()
 	switch {
 	case signature != "sha256=good":
-		return github.ErrBadSignature
+		return accounts.ErrBadSignature
 	case event != "installation":
-		return github.ErrIgnoredEvent
+		return accounts.ErrIgnoredEvent
 	}
 	f.delivered = append(f.delivered, string(body))
 	return nil

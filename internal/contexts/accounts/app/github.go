@@ -51,7 +51,9 @@ type GitHubApp interface {
 	InstallationToken(ctx context.Context, id int64) (string, error)
 	// InstallationRepositories returns the repositories an installation's token reads, at most limit.
 	InstallationRepositories(ctx context.Context, token string, limit int) ([]domain.GitHubRepository, error)
-	// WebhookChange returns the change to an installation a webhook delivery reports, after checking its signature.
+	// WebhookChange returns the change to an installation a webhook delivery reports, after checking its signature. It
+	// fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one that changes
+	// nothing Rulemart keeps.
 	WebhookChange(ctx context.Context, event string, body []byte, signature string) (domain.InstallationChange, error)
 }
 
