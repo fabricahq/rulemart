@@ -11,6 +11,7 @@ import (
 	"net/url"
 
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 )
 
 // DevSignIn reports whether this build lets visitors sign in as a test user. Only a rulemartdev build does.
@@ -43,12 +44,12 @@ func (s *server) registerDevSignIn(handle func(pattern string, handler http.Hand
 }
 
 // devSignIn signs the visitor in as the test user the as parameter names, as GitHub's callback signs in a GitHub
-// user, and returns them to the return parameter.
+// user, with the token the local build's fake GitHub knows them by, and returns them to the return parameter.
 func (s *server) devSignIn(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	for _, user := range testUsers {
 		if user.Login == query.Get("as") {
-			s.signIn(w, r, user, "", returnPath(query.Get("return")))
+			s.signIn(w, r, user, githubtest.DevToken(user.Login), returnPath(query.Get("return")))
 			return
 		}
 	}

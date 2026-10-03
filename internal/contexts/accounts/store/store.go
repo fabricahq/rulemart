@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
@@ -34,6 +35,25 @@ type Store interface {
 	// DeleteAccount deletes the account signed in with the session whose token hashes to tokenHash, which ends its
 	// sessions, or fails with ErrNotFound when that session has ended or expired, in one statement as EndSessions.
 	DeleteAccount(ctx context.Context, tokenHash []byte) error
+
+	// Snapshot returns the account's GitHub snapshot, and when Rulemart last tried to read it, or found false when it
+	// has none.
+	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, triedAt time.Time, found bool, err error)
+	// SaveSnapshot keeps snapshot as the account's, tried at triedAt, replacing the one it had.
+	SaveSnapshot(ctx context.Context, accountID int64, snapshot domain.Snapshot, triedAt time.Time) error
+	// Installations returns the installations of the GitHub App the account reads private repositories through, in
+	// the order it added them.
+	Installations(ctx context.Context, accountID int64) ([]domain.Installation, error)
+	// AddInstallation records that the account reads private repositories through installation, and discards its
+	// snapshot, in one transaction. Adding one it has changes nothing but the snapshot.
+	AddInstallation(ctx context.Context, accountID int64, installation domain.Installation) error
+	// RemoveInstallations forgets every installation the account reads through, and discards its snapshot, in one
+	// transaction.
+	RemoveInstallations(ctx context.Context, accountID int64) error
+	// InstallationRemoved forgets the installation id for every account, and discards their snapshots, in one statement.
+	InstallationRemoved(ctx context.Context, id int64) error
+	// InstallationChanged discards the snapshots of the accounts that read through the installation id.
+	InstallationChanged(ctx context.Context, id int64) error
 }
 
 // ErrNotFound reports a session that doesn't exist or has expired.

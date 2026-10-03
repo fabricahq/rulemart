@@ -63,6 +63,9 @@ type Options struct {
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
+	// GitHubAccounts reads what signed-in visitors' GitHub accounts hold. Nil, or without a way to sign in, leaves the
+	// dashboard's libraries, projects, and private repositories out.
+	GitHubAccounts GitHubAccounts
 	// Carts checks out the carts visitors' browsers keep. Nil leaves checkout out.
 	Carts Carts
 	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
@@ -252,6 +255,12 @@ func (s *server) handler() http.Handler {
 			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
+		}
+		if s.privateAvailable() {
+			handle("GET "+installedHref, s.installed)
+			// GitHub's deliveries aren't a visitor's: no session, no page.
+			mux.HandleFunc("POST "+webhookHref, s.webhook)
+			s.routes["POST "+webhookHref] = true
 		}
 		if s.Stars != nil {
 			handle("GET "+starredHref, s.starredPage)

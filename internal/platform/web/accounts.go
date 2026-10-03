@@ -70,6 +70,8 @@ const (
 	signInHref = "/sign-in"
 	// signOutHref signs out with POST, and returns to its return parameter.
 	signOutHref = "/sign-out"
+	// dashboardHref is the signed-in visitor's dashboard.
+	dashboardHref = accountHref
 	// accountHref is the signed-in visitor's account page. GitHub has no account named account, so paths under it
 	// can't hide a library's page.
 	accountHref = "/account"
@@ -118,6 +120,8 @@ func accountMenuName(v visitor) string {
 // it did itself, such as starring a rule, whose button then reads Starred, though the page still knows what happened.
 var notices = map[string]string{
 	"signed-out":               "You're signed out.",
+	"private-added":            "Rulemart can now see the private repos you selected.",
+	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
 	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
 	"listed":                   "Listed. Rulemart is checking the repository, which usually takes a few seconds.",

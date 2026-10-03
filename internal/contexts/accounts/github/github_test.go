@@ -120,7 +120,7 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 		"GitHub refuses with text that isn't a code": {
 			`{"error":"<script>` + testCode + `</script>"}`, octocatUser, "an unrecognized error",
 		},
-		"GitHub returns no token":         {`{}`, octocatUser, "GitHub returned no token"},
+		"GitHub returns no token": {`{}`, octocatUser, "GitHub returned no token"},
 		"GitHub returns a token too long to keep": {
 			`{"access_token":"` + strings.Repeat("t", domain.MaxGitHubTokenLength+1) + `"}`, octocatUser, "GitHub returned no token",
 		},

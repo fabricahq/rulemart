@@ -13,6 +13,13 @@
 // sign-in, except in a build with the rulemartdev tag, which offers test users instead; such a build refuses to start
 // on Lambda.
 //
+// With GitHub sign-in, the dashboard reads each visitor's organizations and repositories with their token. The GitHub
+// App "Rulemart by Fabrica" reads the private repositories visitors install it on: GITHUB_APP_ID, GITHUB_APP_CLIENT_ID,
+// and GITHUB_APP_SLUG name it, GITHUB_APP_PRIVATE_KEY holds its private key, in PEM, or GITHUB_APP_PRIVATE_KEY_PARAMETER
+// names the SSM parameter holding it, and GITHUB_APP_WEBHOOK_SECRET or GITHUB_APP_WEBHOOK_SECRET_PARAMETER holds its
+// webhook's secret. Set all of them or none; unset, the dashboard reads public repositories only. A build with the
+// rulemartdev tag and no GitHub sign-in reads a fake GitHub in memory instead, with an app of its own.
+//
 // Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
 // sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
 //
@@ -29,6 +36,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -106,6 +115,13 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 	if err != nil {
 		return nil, err
 	}
+	reader, gitHubApp, err := newGitHubReaders(ctx, os.Getenv, gitHub != nil)
+	if err != nil {
+		return nil, err
+	}
+	if gitHub == nil && web.DevSignIn {
+		reader, gitHubApp, keys = devGitHub(keys)
+	}
 	if gitHub != nil && baseURL == nil && onLambda {
 		return nil, errors.New("set RULEMART_BASE_URL for GitHub sign-in: GitHub sends visitors back to it")
 	}
@@ -132,9 +148,11 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		}
 		listings.Queue = jobsQueue
 	}
+	accountsStore := accountspostgres.New(db)
+	sessions := accountsapp.Sessions{Store: accountsStore, TokenKeys: keys}
 	options := web.Options{
 		Log: logger, RequestID: lambdaRequestID, BaseURL: baseURL,
-		Accounts: accountsapp.Sessions{Store: accountspostgres.New(db), TokenKeys: keys},
+		Accounts: sessions,
 		Listings: listings,
 		Stars:    app.Stars{Store: catalogStore, Vetted: vetted, Groups: groups},
 		Carts:    app.Carts{Store: catalogStore, Vetted: vetted, Groups: groups},
@@ -143,6 +161,13 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 	}
 	if gitHub != nil {
 		options.GitHub = gitHub
+	}
+	if reader != nil {
+		accounts := accountsapp.GitHubAccounts{Store: accountsStore, Sessions: sessions, GitHub: reader}
+		if gitHubApp != nil {
+			accounts.App = gitHubApp
+		}
+		options.GitHubAccounts = accounts
 	}
 	return web.New(pages, options)
 }
@@ -164,6 +189,53 @@ func newGitHub(ctx context.Context, getenv func(string) string) (*github.Client,
 	}
 	return github.New(clientID, clientSecret), nil
 }
+
+// newGitHubReaders returns what reads visitors' GitHub accounts with their tokens, with GitHub sign-in, when
+// gitHubSignIn is true, and the GitHub App that GITHUB_APP_ID, GITHUB_APP_CLIENT_ID, GITHUB_APP_SLUG, and the secrets
+// GITHUB_APP_PRIVATE_KEY and GITHUB_APP_WEBHOOK_SECRET name, or nil when none of them is set. Half of the app's
+// variables, or an app without GitHub sign-in, is a mistake to report at start. getenv reads a variable, such as
+// os.Getenv.
+func newGitHubReaders(ctx context.Context, getenv func(string) string, gitHubSignIn bool) (*github.API, *github.App, error) {
+	key, err := secret.FromEnv(ctx, getenv, "GITHUB_APP_PRIVATE_KEY")
+	if err != nil {
+		return nil, nil, err
+	}
+	webhookSecret, err := secret.FromEnv(ctx, getenv, "GITHUB_APP_WEBHOOK_SECRET")
+	if err != nil {
+		return nil, nil, err
+	}
+	id, slug, clientID := getenv("GITHUB_APP_ID"), getenv("GITHUB_APP_SLUG"), getenv("GITHUB_APP_CLIENT_ID")
+	set := 0
+	for _, present := range []bool{id != "", slug != "", clientID != "", key != nil, webhookSecret != nil} {
+		if present {
+			set++
+		}
+	}
+	var api *github.API
+	if gitHubSignIn {
+		api = github.NewAPI(github.APIURL)
+	}
+	switch {
+	case set == 0:
+		return api, nil, nil
+	case set < 5:
+		return nil, nil, errors.New("set GITHUB_APP_ID, GITHUB_APP_CLIENT_ID, GITHUB_APP_SLUG, GITHUB_APP_PRIVATE_KEY or its _PARAMETER, and GITHUB_APP_WEBHOOK_SECRET or its _PARAMETER together, or none of them")
+	case !gitHubSignIn:
+		return nil, nil, errors.New("set GITHUB_CLIENT_ID for the GitHub App: visitors sign in with GitHub before installing it")
+	}
+	appID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil || appID <= 0 {
+		return nil, nil, fmt.Errorf("read GITHUB_APP_ID: want the app's numeric ID, got %q", id)
+	}
+	if !validSlug.MatchString(slug) {
+		return nil, nil, fmt.Errorf("read GITHUB_APP_SLUG: want the app's name in its URLs, such as rulemart-by-fabrica, got %q", slug)
+	}
+	app := github.NewApp(github.AppConfig{ID: appID, ClientID: clientID, Slug: slug, PrivateKey: key, WebhookSecret: webhookSecret}, api)
+	return api, app, nil
+}
+
+// validSlug matches a GitHub App's slug: lowercase letters, digits, and hyphens.
+var validSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
 // newTokenKeys returns the key that seals sessions' GitHub tokens, which TOKEN_KEY or TOKEN_KEY_PARAMETER holds, or nil
 // when neither is set. GitHub sign-in, when gitHubSignIn is true, needs it, since every session then keeps a token. A

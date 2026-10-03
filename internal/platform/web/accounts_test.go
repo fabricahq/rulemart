@@ -959,7 +959,7 @@ func TestTheSignInPageSaysWhatRulemartReadsFromGitHub(t *testing.T) {
 
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fbrowse%2Ftechs"}))
 
-	assertShows(t, page, "Sign in to Rulemart", "Continue with GitHub", "your GitHub user ID, username, and avatar")
+	assertShows(t, page, "Sign in to Rulemart", "Continue with GitHub", "your GitHub user ID, username, name, and avatar")
 	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatal(err)

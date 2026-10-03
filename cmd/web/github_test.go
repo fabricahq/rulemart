@@ -79,3 +79,49 @@ func TestNewTokenKeysNeedsAValidKeyForGitHubSignIn(t *testing.T) {
 		})
 	}
 }
+
+// The GitHub App needs every one of its variables, and GitHub sign-in, since visitors sign in before installing it;
+// half of them is a mistake to report at start.
+func TestNewGitHubReadersNeedsTheAppsVariablesTogether(t *testing.T) {
+	app := map[string]string{
+		"GITHUB_APP_ID": "123", "GITHUB_APP_CLIENT_ID": "Iv1.abc", "GITHUB_APP_SLUG": "rulemart-by-fabrica",
+		"GITHUB_APP_PRIVATE_KEY": "pem", "GITHUB_APP_WEBHOOK_SECRET": "secret",
+	}
+	without := func(name string) map[string]string {
+		env := map[string]string{}
+		for k, v := range app {
+			if k != name {
+				env[k] = v
+			}
+		}
+		return env
+	}
+	withValue := func(name, value string) map[string]string {
+		env := without(name)
+		env[name] = value
+		return env
+	}
+	for name, tc := range map[string]struct {
+		env          map[string]string
+		gitHubSignIn bool
+		reader, app  bool
+		wantErr      string
+	}{
+		"no sign-in, no app":        {nil, false, false, false, ""},
+		"sign-in, no app":           {nil, true, true, false, ""},
+		"sign-in and the app":       {app, true, true, true, ""},
+		"the app without sign-in":   {app, false, false, false, "set GITHUB_CLIENT_ID"},
+		"the app without its slug":  {without("GITHUB_APP_SLUG"), true, false, false, "together"},
+		"the app without its key":   {without("GITHUB_APP_PRIVATE_KEY"), true, false, false, "together"},
+		"an ID that isn't a number": {withValue("GITHUB_APP_ID", "app"), true, false, false, "GITHUB_APP_ID"},
+		"a slug with a slash":       {withValue("GITHUB_APP_SLUG", "a/b"), true, false, false, "GITHUB_APP_SLUG"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			reader, gitHubApp, err := newGitHubReaders(context.Background(), func(name string) string { return tc.env[name] }, tc.gitHubSignIn)
+			if (reader != nil) != tc.reader || (gitHubApp != nil) != tc.app || (err == nil) != (tc.wantErr == "") ||
+				(err != nil && !strings.Contains(err.Error(), tc.wantErr)) {
+				t.Errorf("got %v, %v, %v; want a reader: %v, an app: %v, an error saying %q", reader, gitHubApp, err, tc.reader, tc.app, tc.wantErr)
+			}
+		})
+	}
+}
