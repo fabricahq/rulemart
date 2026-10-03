@@ -262,8 +262,8 @@ func (s *server) handler() http.Handler {
 	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
 	handle(ownerPattern, s.owner)
 	handle(libraryPattern, s.library)
-	handle(libraryGroupPattern, s.libraryGroup)
-	handle(rulePattern, s.rule)
+	handle(libraryGroupPattern, s.orAsset(s.libraryGroup))
+	handle(rulePattern, s.orAsset(s.rule))
 	handle(notFoundPattern, s.notFound)
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(
 		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))))
@@ -576,13 +576,8 @@ func parseReleaseNumber(text string) (int, error) {
 
 // rule shows a rule's page, or its Versions tab when the tab parameter names it. With versions to compare in the
 // from and to parameters, the Versions tab compares them. Returning from signing in to star the rule, it prompts once
-// to star it. A path under the library's shared asset directory, or a rule's, leads to an asset instead: Code Rules
-// reserves the name assets, so no rule's ID holds it.
+// to star it.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
-	if rulePath, assetPath, ok := requestedAsset(r); ok {
-		s.asset(w, r, rulePath, assetPath)
-		return
-	}
 	if s.withoutStarPrompt(w, r) {
 		return
 	}
@@ -609,14 +604,9 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 
 // libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
 // the cart, and its links back carrying the groups the sel parameter ticks, or the missing page when the library has
-// no current rules in such a group. A group spelled in another
-// case redirects to the library's spelling, as a rule does. A shared asset directly under the library's shared asset
-// directory has a path of a group's shape, whose kind is assets, and leads to the asset.
+// no current rules in such a group. A group spelled in another case redirects to the library's spelling, as a rule
+// does.
 func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
-	if rulePath, assetPath, ok := requestedAsset(r); ok {
-		s.asset(w, r, rulePath, assetPath)
-		return
-	}
 	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
 	if err != nil {
 		s.found(w, r, page.Library, "", err)

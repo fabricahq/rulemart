@@ -47,6 +47,19 @@ func requestedAsset(r *http.Request) (rulePath, assetPath string, ok bool) {
 	return "", "", false
 }
 
+// orAsset returns a handler of the library group and rule pages' paths that shows the asset r's path names, when it
+// names one, and otherwise calls next. A shared asset directly under the library's shared asset directory has a path
+// of a library group's shape, whose kind is assets, and any other asset a path of a rule's.
+func (s *server) orAsset(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if rulePath, assetPath, ok := requestedAsset(r); ok {
+			s.asset(w, r, rulePath, assetPath)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // asset shows the asset at assetPath, a path in the repository, of the rule at rulePath on a page of its own, or with
 // the raw parameter, serves it, when it's an image Rulemart keeps. A shared asset's page shows it with the rule the rule
 // parameter names, or the first rule that lists it.
