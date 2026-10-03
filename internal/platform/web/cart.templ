@@ -143,7 +143,13 @@ templ addToCartDialog(r ruleView) {
 			@dialogHead("Add to cart", "What would you like to add?")
 			<button class={ choiceStyle } type="button" data-cart-pick="rule">
 				<b class="flex items-center gap-[7px] text-[15px] font-semibold">Just this rule</b>
-				<span class="mt-0.5 block text-[13px] text-muted">Adds only “{ r.title }.” It stays in sync with { r.library.fullName() }, and nothing else from the group is added.</span>
+				<span class="mt-0.5 block text-[13px] text-muted">
+					if r.library.vetted {
+						Adds only “{ r.title }.” It stays in sync with { r.library.fullName() }, and nothing else from the group is added.
+					} else {
+						Adds only “{ r.title }.” It's pinned to the commit you review, and nothing else from the group is added.
+					}
+				</span>
 			</button>
 			<button class={ choiceStyle } type="button" data-cart-pick="group">
 				<b class="flex items-center gap-[7px] text-[15px] font-semibold">
@@ -152,12 +158,29 @@ templ addToCartDialog(r ruleView) {
 					{ r.group.display() } group
 				</b>
 				<span class="mt-0.5 block text-[13px] text-muted">
-					Adds this rule and the { strconv.Itoa(r.groupRules-1) } other { r.group.display() } { pluralWord(r.groupRules-1, "rule", "rules") } from { r.library.fullName() }. New rules the library adds to this group arrive when you update.
+					Adds this rule and the { strconv.Itoa(r.groupRules-1) } other { r.group.display() } { pluralWord(r.groupRules-1, "rule", "rules") } from { r.library.fullName() }.{ " " }
+					@groupUpdates(r.library)
 				</span>
 			</button>
-			<p class="mt-[14px] text-[12px] text-faint">At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.</p>
+			<p class="mt-[14px] text-[12px] text-faint">
+				if r.library.vetted {
+					At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.
+				} else {
+					At checkout, you'll pick which project these go into, and you can fork a rule.
+				}
+			</p>
 		</div>
 	</dialog>
+}
+
+// groupUpdates says what a whole group of lib brings later: the rules the library adds to it, or, for a library
+// Rulemart doesn't vet, which checkout pins to the commit reviewed, nothing.
+templ groupUpdates(lib libraryView) {
+	if lib.vetted {
+		New rules the library adds to this group arrive when you update.
+	} else {
+		It's pinned to the commit you review, so rules the library adds later don't arrive.
+	}
 }
 
 // unvettedConfirmation warns, inside a dialog, that library isn't vetted, as its pages do, and asks the visitor to

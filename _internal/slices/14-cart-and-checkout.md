@@ -123,6 +123,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   `localStorage`, and redraws on the `rulemart:cart` event every change sends, from this tab or another.
 - **Proposed: the "also add the rest of the groups" choice is `restOfGroups` throughout**, in the cart's state, the
   checkout's request and answer, and the code, rather than the prototype's `full`, which read as a full cart.
+- **Proposed: an unvetted library's items say they're pinned, not in sync.** Checkout pins such a library to the
+  commit reviewed, so its rule's card reads "Pinned to the reviewed commit" with only Fork, its whole group's row says
+  the same, the dialog and the group page say the rule or group is pinned and that later rules don't arrive, and the
+  Commands footnote leaves its rules out of those `code-rules project update` moves. The prototype shows Stay in
+  sync for every library.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

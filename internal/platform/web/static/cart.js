@@ -180,8 +180,9 @@
   function paintGroups() {
     for (const panel of document.querySelectorAll('[data-cart-groups]')) {
       const n = picksOf(panel).filter((box) => box.checked).length;
+      const updates = panel.dataset.cartVetted === 'false' ? 'are pinned to the commit you review' : `stay in sync with ${panel.dataset.cartLibrary}`;
       panel.querySelector('[data-cart-groups-text]').textContent = n
-        ? `${count(n, 'group', 'groups')} selected. Whole groups stay in sync with ${panel.dataset.cartLibrary}.`
+        ? `${count(n, 'group', 'groups')} selected. Whole groups ${updates}.`
         : 'Select whole groups to add. You can also add single rules from their pages.';
       panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
       panel.querySelector('[data-cart-groups-add]').disabled = n === 0;

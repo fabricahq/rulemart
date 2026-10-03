@@ -89,7 +89,18 @@
     type: 'button', 'aria-label': `Remove ${item.title} from cart`, 'data-cart-drop': item.key, 'data-focus': `drop:${item.key}`,
   }, '×');
 
-  /** Return a rule's row: its icon, title, group and version, Stay in sync or Fork, and Remove. */
+  /** Return the control of a rule that can't stay in sync on its own, which says why, and offers only Fork. */
+  function forkOnly(item, why) {
+    return h('div', 'flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1 max-narrow:justify-start', {},
+      h('span', 'text-[12.5px] text-faint', {}, why),
+      h('span', 'inline-flex rounded-full border border-border p-0.5 text-[12.5px]', {},
+        h('label', 'relative inline-flex cursor-pointer items-center rounded-full px-[11px] py-[3px] whitespace-nowrap text-muted has-checked:bg-surface-header has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-(--focus)', {},
+          h('input', 'pointer-events-none absolute opacity-0', { type: 'checkbox', checked: item.fork, 'aria-label': `Fork ${item.title}`, 'data-cart-fork': item.key, 'data-focus': `fork:${item.key}` }),
+          'Fork')));
+  }
+
+  /** Return a rule's row: its icon, title, group and version, Stay in sync or Fork, or for a rule of an unvetted
+   * library, which stays at the commit reviewed, only Fork, and Remove. */
   function ruleRow(item) {
     const note = leftOutNote(item);
     const title = item.href ? h('a', 'block leading-[1.35] font-semibold text-ink no-underline hover:underline', { href: item.href }, item.title)
@@ -97,7 +108,9 @@
     const meta = note ? [note, item.state === 'retired' && item.href ? h('a', 'text-muted', { href: item.href }, 'See what replaced it') : null]
       : [`Rule in ${item.group.name}`, ' · ', item.version];
     let mode = h('span');
-    if (item.state === 'ready') {
+    if (item.state === 'ready' && item.pinned) {
+      mode = forkOnly(item, 'Pinned to the reviewed commit');
+    } else if (item.state === 'ready') {
       const name = `mode-${item.key}`;
       const option = (value, label) => h('label', 'inline-flex cursor-pointer items-center rounded-full px-[11px] py-[3px] whitespace-nowrap text-muted has-checked:bg-surface-header has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-(--focus)', {},
         h('input', 'pointer-events-none absolute opacity-0', { type: 'radio', name, value, checked: (value === 'fork') === item.fork, 'data-cart-mode': item.key, 'data-focus': `mode:${item.key}:${value}` }),
@@ -112,7 +125,7 @@
   }
 
   /** Return a whole group's row, shaded: its tile, name and tag, how many rules and its ID, the rules it brings,
-   * Stays in sync, and Remove. */
+   * Stays in sync, or for an unvetted library's, that it's pinned, and Remove. */
   function groupRow(item) {
     const note = leftOutNote(item);
     const title = item.href ? h('a', 'leading-[1.35] font-semibold text-ink no-underline hover:underline', { href: item.href }, item.title)
@@ -126,7 +139,7 @@
         h('div', 'mt-[3px] flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-faint', {},
           ...(note ? [note] : [`${count(rules.length, 'rule', 'rules')} · `, h('span', 'mono', {}, item.id)])),
         rules.length ? h('ul', 'mt-2 list-disc pl-4 text-[12.5px] text-muted', {}, ...rules.map((r) => h('li', 'my-0.5', {}, r.title))) : null),
-      h('span', 'mt-1.5 text-[13px] whitespace-nowrap text-faint', {}, item.state === 'ready' ? 'Stays in sync' : ''),
+      h('span', 'mt-1.5 text-[13px] whitespace-nowrap text-faint', {}, item.state !== 'ready' ? '' : item.pinned ? 'Pinned to the reviewed commit' : 'Stays in sync'),
       h('span', 'mt-0.5', {}, removeButton(item)));
   }
 
@@ -214,7 +227,7 @@
       $('[data-cart-full]').hidden = empty;
       if (empty) return;
       const libraries = (answer?.libraries || [])
-        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key] })) }))
+        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted })) }))
         .filter(({ items }) => items.length);
       const items = libraries.flatMap(({ items: held }) => held);
       const rules = items.filter((item) => item.kind === 'rule').length;
@@ -273,11 +286,16 @@
       preview.replaceChildren(...spans);
     }
 
-    /** Say how rules move to newer versions, and on the Commands tab, how to pin a library to a release, as the
-     * checkout's answer suggests. */
+    /** Say how rules move to newer versions, but not those of unvetted libraries, which are pinned to the commit
+     * reviewed, and on the Commands tab, how to pin a library to a release, as the checkout's answer suggests. */
     function showFootnote(prompt) {
       const code = (text) => h('code', '', {}, text);
-      const parts = ['Rules move to newer versions only when your project runs ', code('code-rules project update'), '.'];
+      const { cart, fork } = store.state();
+      const pinned = (answer?.libraries || [])
+        .filter((lib) => !lib.vetted && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key) && !fork[item.key]))
+        .map((lib) => lib.fullName);
+      const parts = ['Rules move to newer versions only when your project runs ', code('code-rules project update'),
+        pinned.length ? `, except those from ${listed(pinned)}, which stay at the commit you review.` : '.'];
       const pin = answer?.pin;
       if (!prompt && pin) {
         parts.push(' To pin a library to one release instead, add ', code(pin.option), ` to its add library command, ${pin.release} being ${pin.library}’s latest.`);
@@ -326,6 +344,8 @@
       const target = event.target;
       if (target.matches('[data-cart-mode]')) {
         store.setFork(target.dataset.cartMode, target.value === 'fork');
+      } else if (target.matches('[data-cart-fork]')) {
+        store.setFork(target.dataset.cartFork, target.checked);
       } else if (target.matches('[data-cart-rest-of-groups]')) {
         store.setRestOfGroups(target.dataset.cartRestOfGroups, target.checked);
       }

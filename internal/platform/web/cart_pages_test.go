@@ -109,6 +109,20 @@ func TestAnUnvettedRulesDialogWarnsFirst(t *testing.T) {
 		t.Fatal("the dialog doesn't ask to confirm first")
 	}
 	assertShows(t, body, "Rulemart hasn't reviewed stranger/rules. At checkout, the prompt asks your agent to review its rules before following them. Add from it anyway Cancel")
+	// The choices, which show once the visitor confirms, say checkout pins the library rather than keeping it in sync.
+	choices := strings.Join(strings.Fields(body), " ")
+	for _, want := range []string{
+		"It's pinned to the commit you review, and nothing else from the group is added.",
+		"from stranger/rules. It's pinned to the commit you review, so rules the library adds later don't arrive.",
+		"At checkout, you'll pick which project these go into, and you can fork a rule.</p>",
+	} {
+		if !strings.Contains(choices, want) {
+			t.Errorf("the dialog's choices lack %q", want)
+		}
+	}
+	if strings.Contains(choices, "stays in sync") || strings.Contains(choices, "arrive when you update") {
+		t.Error("an unvetted library's dialog says its rules stay in sync, though checkout pins them")
+	}
 }
 
 // A retired rule can't be added: its page has no cart control.

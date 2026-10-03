@@ -205,7 +205,7 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
 						@label("mb-1.5") {
 							Whole group
 						}
-						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from { lib.fullName() }. New rules the library adds to this group arrive when you update.</p>
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from { lib.fullName() }.{ " " }@groupUpdates(lib)</p>
 						@groupCartControl(lib, g)
 						if g.label.canonical {
 							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
