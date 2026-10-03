@@ -204,6 +204,11 @@ func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 	assertShows(t, body, "rules › techs/go", "Go", "1 rule in example/rules", "Return errors with context",
 		"← Back to all groups in example/rules",
 		"Whole group Adds all 1 Go rule from example/rules.", "Add Go group to cart", "See Go rules from every library →")
+	// The library's name wraps as one piece, never at its slash.
+	if name := find(parsePage(t, body), withAttribute("data-library-name")); name == nil || nodeText(name) != "example/rules." ||
+		!strings.Contains(attribute(name, "class"), "inline-block") || find(name, func(n *html.Node) bool { return n.Data == "wbr" }) != nil {
+		t.Errorf("the Whole group box's library name can break apart: %+v", name)
+	}
 	if text := visibleText(t, body); strings.Contains(text, "The Go language.") {
 		t.Error("a technology's page shows its blurb, though its name says what it is")
 	}

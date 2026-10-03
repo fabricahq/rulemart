@@ -226,10 +226,9 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSe
 						@label("mb-1.5") {
 							Whole group
 						}
-						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span>
-							// The name wraps after its slash rather than leave "from" alone at a line's end.
-							@breakable(lib.fullName() + ".")
-						</span>{ " " }@groupUpdates(lib)</p>
+						// The library's name moves to the next line whole, rather than break at its slash or a hyphen, unless it's
+						// longer than the line.
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span class="inline-block max-w-full" data-library-name>{ lib.fullName() }.</span>{ " " }@groupUpdates(lib)</p>
 						@groupCartControl(lib, g)
 						if g.label.canonical {
 							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
