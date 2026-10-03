@@ -1,5 +1,5 @@
-// What assembly needs from rendering: where a Markdown file came from, and a renderer that keeps within a byte
-// allowance.
+// What assembly needs from rendering: where a Markdown file came from, where its links lead, and a renderer that keeps
+// within a byte allowance.
 
 package domain
 
@@ -17,8 +17,8 @@ type MarkdownSource struct {
 	Repository string
 	// File is the Markdown file, such as practices/testing/verify-retry-limits.md.
 	File string
-	// Rule is the file of the rule whose version covers File: the rule's own file, or the rule's when File is one of
-	// its own assets. It's empty for a shared asset, which no rule's version covers.
+	// Rule is the path of the rule whose version covers File, such as practices/testing/verify-retry-limits: File is
+	// the rule's own file, or one of its own assets. It's empty for a shared asset, which no rule's version covers.
 	Rule string
 	// Title is the rule's title, which its page shows above the body, so the body's leading heading that repeats it
 	// goes; empty for an asset, whose headings all stay.
@@ -40,8 +40,8 @@ type AssetAddress struct {
 	Image string
 }
 
-// Renderer renders what pages show of a library's files within a byte allowance: Markdown, with Rulemart's link rules,
-// and code. render.Renderer implements it; assembly takes it as a value so that what reads the catalog doesn't carry a
+// Renderer renders what pages show of a library's files within a byte allowance: Markdown, its links and images leading
+// where its MarkdownSource says, and code. render.Renderer implements it; assembly takes it as a value so that what reads the catalog doesn't carry a
 // Markdown renderer.
 type Renderer interface {
 	// Markdown returns the HTML a page shows for a Markdown body, from source, and how many bytes of allowance it used:
@@ -83,4 +83,46 @@ func ResolveLink(from, destination string) (target, suffix string, ok bool) {
 		target = ""
 	}
 	return target, suffix, true
+}
+
+// LinkURL returns where a link in the file leads: a relative destination opens an asset's page on Rulemart, keeping its
+// fragment, or the file on GitHub at the release that holds it, and anything else, such as an absolute URL or a
+// fragment, stays as written.
+func (s MarkdownSource) LinkURL(destination string) string {
+	file, suffix, ok := ResolveLink(s.File, destination)
+	if !ok {
+		return destination
+	}
+	if asset, ok := s.Assets[file]; ok {
+		if _, fragment, _ := strings.Cut(suffix, "#"); fragment != "" {
+			return asset.Page + "#" + fragment
+		}
+		return asset.Page
+	}
+	if file == "" {
+		return TreeURL(s.Repository, s.tagFor(file)) + suffix
+	}
+	return BlobURL(s.Repository, s.tagFor(file), file) + suffix
+}
+
+// ImageURL returns where an image in the file loads from: an asset Rulemart keeps loads from Rulemart, another relative
+// source from GitHub at the release that holds it, and an absolute one stays as written.
+func (s MarkdownSource) ImageURL(destination string) string {
+	file, suffix, ok := ResolveLink(s.File, destination)
+	if !ok || file == "" {
+		return destination
+	}
+	if asset, ok := s.Assets[file]; ok && asset.Image != "" {
+		return asset.Image
+	}
+	return RawURL(s.Repository, s.tagFor(file), file) + suffix
+}
+
+// tagFor returns the release whose tree holds file as the page shows it: the rule's own release for its file and its
+// asset directory, and the latest release for everything else.
+func (s MarkdownSource) tagFor(file string) string {
+	if s.Rule != "" && (file == RuleFile(s.Rule) || strings.HasPrefix(file, RuleAssetDir(s.Rule))) {
+		return s.Tag
+	}
+	return s.LatestTag
 }

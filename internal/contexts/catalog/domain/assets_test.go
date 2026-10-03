@@ -223,7 +223,7 @@ func TestAssembleRendersMarkdownAssetsWithTheirLinks(t *testing.T) {
 		"assets/glossary.md": {Page: "/example/rules/assets/glossary.md"},
 	}
 	ruleSource := MarkdownSource{
-		Repository: "example/rules", File: "techs/go/return-errors.md", Rule: "techs/go/return-errors.md", Title: "Return errors",
+		Repository: "example/rules", File: "techs/go/return-errors.md", Rule: "techs/go/return-errors", Title: "Return errors",
 		Tag: "release/1", LatestTag: "release/1", Assets: addresses,
 	}
 	why := ruleSource

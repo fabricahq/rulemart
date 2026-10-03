@@ -225,7 +225,7 @@ func (a *assembly) renderRule(r Rule, published ReleaseSnapshot, parsed coderule
 	}
 	whenToRead := strings.TrimSpace(parsed.WhenToRead)
 	source := MarkdownSource{
-		Repository: a.repo.FullName(), File: file, Rule: file, Title: parsed.Title,
+		Repository: a.repo.FullName(), File: file, Rule: r.Path, Title: parsed.Title,
 		Tag: published.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
 	}
 	if r.IsCurrent() {

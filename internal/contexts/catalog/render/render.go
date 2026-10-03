@@ -1,5 +1,5 @@
 // Package render renders a library's Markdown, a rule's body or a Markdown file among its assets, and its text files,
-// as the HTML Rulemart's pages show, with Rulemart's link rules, within a byte allowance. Renderer implements
+// as the HTML Rulemart's pages show, with links where domain.MarkdownSource says, within a byte allowance. Renderer implements
 // domain.Renderer, which ingestion's assembly calls; only ingestion links this package, so the web function carries no
 // Markdown parser or highlighter.
 package render
@@ -39,11 +39,6 @@ func (Renderer) Code(text, file string, allowance int64) (string, int64, error) 
 }
 
 func (Renderer) Links(body string) []string { return Links(body) }
-
-// source is the Markdown file being rendered, with the link rules that apply to it.
-type source struct {
-	domain.MarkdownSource
-}
 
 // pageKey carries the source being rendered to pageTransformer, and allowanceKey the allowance that pays for
 // rewritten links. refusedKey holds the allowance's error when rewriting links would pass it.
@@ -103,11 +98,10 @@ func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.Nod
 	})
 }
 
-// Markdown returns the HTML for a Markdown body from source, and the bytes it used of allowance. It drops a leading
-// heading that repeats the rule's title, points relative links at the pages of the assets source names, and other
-// relative links and images at the files on GitHub at the release that holds them, loads images of those assets
-// from Rulemart when it keeps them, highlights fenced code, and escapes raw HTML. goldmark's renderer already drops
-// links with dangerous schemes, such as javascript:.
+// Markdown returns the HTML for body, the Markdown of the file from, and the bytes it used of allowance. It drops a
+// leading heading that repeats the rule's title, points links and images where from's LinkURL and ImageURL say,
+// highlights fenced code, and escapes raw HTML. goldmark's renderer already drops links with dangerous schemes, such
+// as javascript:.
 //
 // A short body can expand, such as many references to one long link definition, so render counts what it builds
 // as it goes, each rewritten link and each byte of HTML, and stops with domain.ErrOverAllowance rather than build past
@@ -116,7 +110,7 @@ func (r allowanceRegisterer) Register(kind ast.NodeKind, renderNode renderer.Nod
 func Markdown(body string, from domain.MarkdownSource, allowance int64) (html string, used int64, err error) {
 	spent := &spending{limit: allowance}
 	context := parser.NewContext()
-	context.Set(pageKey, source{from})
+	context.Set(pageKey, from)
 	context.Set(allowanceKey, spent)
 	source := []byte(body)
 	document := markdown.Parser().Parse(text.NewReader(source), parser.WithContext(context))
@@ -241,7 +235,7 @@ func Links(body string) []string {
 type pageTransformer struct{}
 
 func (pageTransformer) Transform(document *ast.Document, reader text.Reader, context parser.Context) {
-	page := context.Get(pageKey).(source)
+	page := context.Get(pageKey).(domain.MarkdownSource)
 	spent := context.Get(allowanceKey).(*spending)
 	source := reader.Source()
 	if heading, ok := document.FirstChild().(*ast.Heading); ok && page.Title != "" && strings.TrimSpace(string(heading.Text(source))) == strings.TrimSpace(page.Title) {
@@ -268,9 +262,9 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 		var err error
 		switch node := node.(type) {
 		case *ast.Link:
-			node.Destination, err = rewrite(links, node.Destination, page.linkURL)
+			node.Destination, err = rewrite(links, node.Destination, page.LinkURL)
 		case *ast.Image:
-			node.Destination, err = rewrite(images, node.Destination, page.imageURL)
+			node.Destination, err = rewrite(images, node.Destination, page.ImageURL)
 		}
 		if err != nil {
 			return ast.WalkStop, err
@@ -280,48 +274,6 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 	if err != nil {
 		context.Set(refusedKey, err)
 	}
-}
-
-// linkURL returns where a link in the file leads: a relative destination opens an asset's page on Rulemart, keeping its
-// fragment, or the file on GitHub, and anything else, such as an absolute URL or a fragment, stays as written.
-func (p source) linkURL(destination string) string {
-	file, suffix, ok := domain.ResolveLink(p.File, destination)
-	if !ok {
-		return destination
-	}
-	if asset, ok := p.Assets[file]; ok {
-		_, fragment, _ := strings.Cut(suffix, "#")
-		if fragment != "" {
-			return asset.Page + "#" + fragment
-		}
-		return asset.Page
-	}
-	if file == "" {
-		return domain.TreeURL(p.Repository, p.tagFor(file)) + suffix
-	}
-	return domain.BlobURL(p.Repository, p.tagFor(file), file) + suffix
-}
-
-// imageURL returns where an image in the file loads from: an asset Rulemart keeps loads from Rulemart, another relative
-// source from GitHub, and an absolute one stays as written.
-func (p source) imageURL(destination string) string {
-	file, suffix, ok := domain.ResolveLink(p.File, destination)
-	if !ok || file == "" {
-		return destination
-	}
-	if asset, ok := p.Assets[file]; ok && asset.Image != "" {
-		return asset.Image
-	}
-	return domain.RawURL(p.Repository, p.tagFor(file), file) + suffix
-}
-
-// tagFor returns the release whose tree holds file as the page shows it: the rule's own release for its Markdown
-// and its asset directory, assets/<rule name>/ beside it, and the latest release for everything else.
-func (p source) tagFor(file string) string {
-	if p.Rule != "" && (file == p.Rule || strings.HasPrefix(file, domain.RuleAssetDir(strings.TrimSuffix(p.Rule, ".md")))) {
-		return p.Tag
-	}
-	return p.LatestTag
 }
 
 // ruleNodeRenderer renders the nodes Rulemart shows differently from goldmark: raw HTML as escaped text, and fenced

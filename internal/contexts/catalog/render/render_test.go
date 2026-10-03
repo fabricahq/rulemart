@@ -16,7 +16,7 @@ import (
 const unlimited = 1 << 40
 
 var page = domain.MarkdownSource{
-	Repository: "example/rules", File: "practices/testing/verify-retry-limits.md", Rule: "practices/testing/verify-retry-limits.md",
+	Repository: "example/rules", File: "practices/testing/verify-retry-limits.md", Rule: "practices/testing/verify-retry-limits",
 	Title: "Verify retry limits", Tag: "release/2", LatestTag: "release/5",
 }
 

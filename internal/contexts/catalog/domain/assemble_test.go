@@ -531,12 +531,12 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 		t.Fatal(err)
 	}
 
-	source := func(file, title, tag string) MarkdownSource {
-		return MarkdownSource{Repository: "example/rules", File: file, Rule: file, Title: title, Tag: tag, LatestTag: "release/2"}
+	source := func(rule, title, tag string) MarkdownSource {
+		return MarkdownSource{Repository: "example/rules", File: RuleFile(rule), Rule: rule, Title: title, Tag: tag, LatestTag: "release/2"}
 	}
-	backoff := source("practices/testing/check-retry-backoff.md", "Check retry backoff", "release/1")
-	retryLimits := source("practices/testing/verify-retry-limits.md", "Verify retry limits", "release/2")
-	returnErrors := source("techs/go/return-errors.md", "Return errors", "release/1")
+	backoff := source("practices/testing/check-retry-backoff", "Check retry backoff", "release/1")
+	retryLimits := source("practices/testing/verify-retry-limits", "Verify retry limits", "release/2")
+	returnErrors := source("techs/go/return-errors", "Return errors", "release/1")
 	// Each rule's body, then its reading guidance, which is Markdown too.
 	if want := []MarkdownSource{backoff, backoff, retryLimits, retryLimits, returnErrors, returnErrors}; !reflect.DeepEqual(pages, want) {
 		t.Errorf("rendered for %+v, want %+v", pages, want)

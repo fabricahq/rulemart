@@ -137,11 +137,12 @@ web Lambda -> SQS, one job per new listing
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [_internal/decisions.md](_internal/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
-    snapshots within the content budget, addresses such as tags and GitHub URLs, every ingestion limit, and the
+    snapshots within the content budget, addresses such as tags and GitHub URLs, where a rule's links and images
+    lead, every ingestion limit, and the
     cart's keys and the Code Rules commands and prompt its checkout writes, whose golden files are in
     `domain/testdata`; run `go test ./internal/contexts/catalog/domain -update` after changing them, and review the
     diff.
-  - `render` renders rules' and their assets' Markdown with Rulemart's link rules, and their text files as
+  - `render` renders rules' and their assets' Markdown, with links where the domain says, and their text files as
     highlighted code, within a byte allowance. Assembly takes it as an interface, so only ingestion links goldmark
     and chroma, and the web function doesn't.
   - `app` holds the operations: `Ingester` ingests a library, updates one whose release tags changed, or checks a
