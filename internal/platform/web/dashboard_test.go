@@ -201,6 +201,29 @@ func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 	}
 }
 
+// While another request reads the visitor's GitHub account for the first time, a page that shows it says Rulemart is
+// reading it, rather than that it has nothing, and refreshes itself shortly; once the read is kept, it doesn't.
+func TestTheDashboardSaysItsReadingGitHubAndRefreshesWhileAFirstReadIsUnderWay(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
+	site.gitHub.err = accountsapp.ErrGitHubReading
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session}})
+	page := body(t, resp)
+
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Refresh") != "3" {
+		t.Errorf("answered %d with Refresh %q, want 200 with Refresh 3", resp.StatusCode, resp.Header.Get("Refresh"))
+	}
+	assertShows(t, page, "Rulemart is reading your repositories on GitHub. This page will update in a moment.", "Rulemart is reading your projects.")
+	if strings.Contains(page, "Rulemart hasn't read your projects yet.") {
+		t.Error("the page says Rulemart hasn't read the projects, while it's reading them")
+	}
+
+	read := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	if resp := send(t, read.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{read.session}}); resp.Header.Get("Refresh") != "" {
+		t.Errorf("a page with a kept read refreshes itself, Refresh %q", resp.Header.Get("Refresh"))
+	}
+}
+
 // Refresh reads GitHub again and returns to the page it came from, one of the visitor's, saying when it read; a session
 // without a token GitHub takes is sent to sign in again.
 func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {

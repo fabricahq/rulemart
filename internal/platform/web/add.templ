@@ -31,7 +31,9 @@ templ addPage(c chrome, v addView) {
 				<div class={ panelBodyStyle }>
 					if len(v.picks) == 0 {
 						<p class="text-[13.5px] text-muted">
-							if v.gitHub.readAt == "" {
+							if v.gitHub.reading {
+								Rulemart is reading your repositories.
+							} else if v.gitHub.readAt == "" {
 								Rulemart hasn't read your repositories yet.
 							} else {
 								Rulemart found no repository of yours or your organizations' with a <span class="mono">rule-library.yaml</span> and a <span class="mono">release/&lt;number&gt;</span> tag.

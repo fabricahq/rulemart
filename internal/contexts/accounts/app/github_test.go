@@ -444,6 +444,35 @@ func TestASuspendedInstallationsRepositoriesDisappearAndReturnWhenUnsuspended(t 
 	}
 }
 
+// A page that arrives while another request is reading the visitor's GitHub account for the first time, so there's no
+// snapshot to show yet, is told a read is under way, and reads nothing itself; one that arrives once a snapshot is
+// kept shows it.
+func TestASnapshotRequestedWhileTheFirstReadIsUnderWaySaysSo(t *testing.T) {
+	ctx := context.Background()
+	site := newGitHubSite(t, monasGitHub(), false)
+	// Another request claims the first read and hasn't kept anything yet.
+	claim, err := site.accounts.Store.ClaimRead(ctx, site.account.ID, site.now, domain.RefreshInterval)
+	if err != nil || !claim.Claimed {
+		t.Fatalf("claim %+v, %v", claim, err)
+	}
+
+	got, err := site.accounts.Snapshot(ctx, site.account, site.session)
+
+	if !errors.Is(err, ErrGitHubReading) || got.ReadFailed || !got.ReadAt.IsZero() {
+		t.Errorf("got %+v, %v, want an empty snapshot and ErrGitHubReading", got, err)
+	}
+	if reads := site.fake.Requests("GET /user/orgs"); reads != 0 {
+		t.Errorf("read GitHub %d times while another request was reading it", reads)
+	}
+
+	if saved, err := site.accounts.Store.SaveSnapshot(ctx, site.account.ID, claim.Generation, domain.Snapshot{ReadAt: site.now}); err != nil || !saved {
+		t.Fatalf("saved %v, %v", saved, err)
+	}
+	if got, err := site.accounts.Snapshot(ctx, site.account, site.session); err != nil || !got.ReadAt.Equal(site.now) {
+		t.Errorf("once kept, got %+v, %v", got, err)
+	}
+}
+
 // Deleting an account deletes its snapshot and its installations with it.
 func TestDeletingAnAccountDeletesItsGitHubSnapshotAndInstallations(t *testing.T) {
 	fake := monasGitHub()
@@ -702,7 +731,8 @@ func TestAccessRemovedAsAFailingRefreshBeginsStaysRemoved(t *testing.T) {
 }
 
 // Requests that arrive together, such as a dashboard open in two tabs, read GitHub once between them: the refresh
-// limit holds however many ask at once, for a first read and for a refresh.
+// limit holds however many ask at once, for a first read and for a refresh. A request that arrives while the first read
+// is under way is told so.
 func TestSimultaneousRequestsReadGitHubOnce(t *testing.T) {
 	ctx := context.Background()
 	site := newGitHubSite(t, monasGitHub(), false)
@@ -712,7 +742,7 @@ func TestSimultaneousRequestsReadGitHubOnce(t *testing.T) {
 		var wg sync.WaitGroup
 		for range 8 {
 			wg.Go(func() {
-				if err := read(); err != nil {
+				if err := read(); err != nil && !errors.Is(err, ErrGitHubReading) {
 					t.Error(err)
 				}
 			})

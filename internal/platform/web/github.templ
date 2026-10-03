@@ -3,8 +3,8 @@
 package web
 
 // gitHubStatus says how fresh Rulemart's read of the visitor's GitHub account is, for the page whose sections follow:
-// when Rulemart last read it, with Refresh, that the last read failed, or that the visitor must sign in again for
-// Rulemart to read it.
+// when Rulemart last read it, with Refresh, that the last read failed, that it's making the first read now, or that
+// the visitor must sign in again for Rulemart to read it.
 templ gitHubStatus(g gitHubView) {
 	if g.available {
 		<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint" data-github-status>
@@ -20,6 +20,8 @@ templ gitHubStatus(g gitHubView) {
 						}
 					</span>
 					@refreshButton(g.refresh, "Try again")
+				case g.reading:
+					<span class="text-ink" role="status">Rulemart is reading your repositories on GitHub. This page will update in a moment.</span>
 				case g.readAt != "":
 					<span>Read from GitHub { g.readAt }.</span>
 					@refreshButton(g.refresh, "Refresh")

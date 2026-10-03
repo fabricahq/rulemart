@@ -68,6 +68,7 @@ func (s *Store) ClaimRead(ctx context.Context, accountID int64, now time.Time, i
 		return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
 	}
 	if data != nil {
+		claim.Found = true
 		if claim.Snapshot, err = decodeSnapshot(data); err != nil {
 			return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
 		}

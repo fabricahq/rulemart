@@ -84,6 +84,9 @@ type ReadClaim struct {
 	// Snapshot is the account's snapshot as of the claim, empty when it has none: what a failed read keeps, saying
 	// so, and what a request that didn't claim the read shows.
 	Snapshot domain.Snapshot
+	// Found is whether the account had a snapshot as of the claim, so Snapshot is a read's and not empty for want of
+	// one.
+	Found bool
 }
 
 // ErrNotFound reports a session that doesn't exist or has expired.

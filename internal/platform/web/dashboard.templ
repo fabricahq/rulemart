@@ -105,7 +105,9 @@ templ librariesTab(d dashboardView) {
 			<h2 id="used" class={ sectionHeadStyle, "mt-[30px]" }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
 			if len(d.used) == 0 {
 				<p class="py-[13px] text-[13.5px] text-muted">
-					if d.gitHub.readAt == "" {
+					if d.gitHub.reading {
+						Rulemart is reading your projects.
+					} else if d.gitHub.readAt == "" {
 						Rulemart hasn't read your projects yet.
 					} else {
 						None of your projects imports a library that's on Rulemart.

@@ -70,6 +70,10 @@ var ErrNotYourInstallation = errors.New("the installation isn't on the visitor's
 // snapshot returned with it says so, and keeps what an earlier read found.
 var ErrGitHubRead = errors.New("Rulemart couldn't read the visitor's GitHub account")
 
+// ErrGitHubReading reports that another request is reading the visitor's GitHub account and Rulemart has kept no read
+// of it yet, so there's nothing to show until that read is kept.
+var ErrGitHubReading = errors.New("another request is reading the visitor's GitHub account, and none is kept yet")
+
 // readTimeout bounds one read of a visitor's GitHub account, well within the web function's own timeout.
 const readTimeout = 25 * time.Second
 
@@ -104,7 +108,8 @@ func (g GitHubAccounts) InstallURL() string {
 
 // Snapshot returns the account's snapshot, reading the visitor's GitHub account with session's token first when
 // Rulemart has none, such as after signing in. It fails with ErrNoGitHubToken when the session keeps no token GitHub
-// takes, and with an error wrapping ErrGitHubRead, beside the snapshot that says so, when the read failed.
+// takes, with an error wrapping ErrGitHubRead, beside the snapshot that says so, when the read failed, and with
+// ErrGitHubReading when another request is making the account's first read.
 func (g GitHubAccounts) Snapshot(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
 	snapshot, found, err := g.Store.Snapshot(ctx, account.ID)
 	if err != nil || found {
@@ -138,7 +143,11 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 			return domain.Snapshot{}, err
 		}
 		if !claim.Claimed {
-			// Another request read GitHub within the minute, or is reading it now: show what it kept, if it has finished.
+			// Another request read GitHub within the minute, or is reading it now: show what it kept, or say it's
+			// reading when it has kept nothing yet.
+			if !claim.Found {
+				return domain.Snapshot{}, ErrGitHubReading
+			}
 			return claim.Snapshot, nil
 		}
 		snapshot, err := g.readOnce(ctx, token, account, claim.Generation, claim.Snapshot)

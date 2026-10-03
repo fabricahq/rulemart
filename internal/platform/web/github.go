@@ -21,8 +21,8 @@ import (
 type GitHubAccounts interface {
 	// Snapshot returns the account's snapshot, reading GitHub with session's token when Rulemart has none, and Refresh
 	// reads it again unless Rulemart did within a minute. Both fail with accountsapp.ErrNoGitHubToken when the session
-	// keeps no token GitHub takes, and with an error wrapping accountsapp.ErrGitHubRead beside a snapshot that says why
-	// when the read failed.
+	// keeps no token GitHub takes, with an error wrapping accountsapp.ErrGitHubRead beside a snapshot that says why
+	// when the read failed, and with accountsapp.ErrGitHubReading while another request makes the account's first read.
 	Snapshot(ctx context.Context, account accounts.Account, session accounts.SessionToken) (accounts.Snapshot, error)
 	Refresh(ctx context.Context, account accounts.Account, session accounts.SessionToken) (accounts.Snapshot, error)
 	// Installations returns the installations of the GitHub App the account reads private repositories through.
@@ -52,6 +52,10 @@ const (
 // even naming every repository it changed, are far smaller, and a Lambda function's request holds at most 6 MB.
 const maxWebhookBytes = 4 << 20
 
+// readingRefreshSeconds is how long a page waits before loading again while another request makes the visitor's first
+// read of GitHub, which usually takes a few seconds.
+const readingRefreshSeconds = 3
+
 // gitHubView is what a page that shows the visitor's GitHub account knows of it.
 type gitHubView struct {
 	// available is false when Rulemart can't read visitors' GitHub accounts, so pages leave them out.
@@ -59,8 +63,9 @@ type gitHubView struct {
 	// snapshot is what Rulemart last read, and readAt says when, or is empty when it never read it.
 	snapshot accounts.Snapshot
 	readAt   string
-	// failed is true when the latest read failed.
-	failed bool
+	// failed is true when the latest read failed, and reading when another request is making the account's first read,
+	// so there's nothing to show yet.
+	failed, reading bool
 	// signInAgain is the sign-in page for signing in again, when the session keeps no token GitHub takes, or empty.
 	signInAgain string
 	// refresh is where the Refresh button posts.
@@ -84,6 +89,11 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 		view.signInAgain = s.absolute(signInAgainHref(back))
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		s.logFailure(r, err)
+	case errors.Is(err, accountsapp.ErrGitHubReading):
+		// Another request is making the first read, which takes seconds: say so, and load the page again shortly
+		// to show it, with or without scripts.
+		view.reading = true
+		w.Header().Set("Refresh", strconv.Itoa(readingRefreshSeconds))
 	case err != nil:
 		s.fail(w, r, err)
 		return gitHubView{}, false
@@ -121,6 +131,8 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 		setNotice(w, "refreshed")
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		s.logFailure(r, err)
+	case errors.Is(err, accountsapp.ErrGitHubReading):
+		// The page back says another request is reading GitHub, and loads again once it may have finished.
 	case errors.Is(err, accountsapp.ErrNoGitHubToken):
 		seeOther(w, r, s.absolute(signInAgainHref(back)))
 		return
@@ -164,6 +176,8 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		// The installation is recorded; the dashboard says the read failed.
 		s.logFailure(r, err)
+	case errors.Is(err, accountsapp.ErrGitHubReading):
+		// The installation is recorded; the dashboard says another request is reading GitHub with it.
 	case err != nil:
 		s.fail(w, r, err)
 		return
