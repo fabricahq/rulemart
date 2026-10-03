@@ -118,7 +118,7 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 
 	got := site.snapshot(t)
 
-	if !slices.Equal(got.Organizations, []string{"octo-org"}) || !got.ReadAt.Equal(site.now) || got.Truncated || got.Failure != "" {
+	if !slices.Equal(got.Organizations, []string{"octo-org"}) || !got.ReadAt.Equal(site.now) || got.Truncated || got.ReadFailed {
 		t.Errorf("read %+v", got)
 	}
 	wantLibraries := []domain.PublishableRepository{
@@ -209,11 +209,11 @@ func TestAFailedReadKeepsTheLastSnapshotAndSaysSo(t *testing.T) {
 	if !errors.Is(err, ErrGitHubRead) {
 		t.Fatalf("got %v, want ErrGitHubRead", err)
 	}
-	if got.Failure == "" || !got.ReadAt.Equal(first.ReadAt) || len(got.Libraries) != len(first.Libraries) {
+	if !got.ReadFailed || !got.ReadAt.Equal(first.ReadAt) || len(got.Libraries) != len(first.Libraries) {
 		t.Errorf("after a failed read, the snapshot is %+v", got)
 	}
 	again, err := site.accounts.Snapshot(ctx, site.account, site.session)
-	if err != nil || again.Failure == "" {
+	if err != nil || !again.ReadFailed {
 		t.Errorf("the kept snapshot is %+v, %v", again, err)
 	}
 	if _, err := site.accounts.Refresh(ctx, site.account, site.session); err != nil {

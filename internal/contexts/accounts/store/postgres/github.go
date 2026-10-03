@@ -146,7 +146,7 @@ type snapshotRecord struct {
 	Libraries     []libraryRecord `json:"libraries"`
 	Projects      []projectRecord `json:"projects"`
 	Truncated     bool            `json:"truncated,omitempty"`
-	Failure       string          `json:"failure,omitempty"`
+	Failed        bool            `json:"failed,omitempty"`
 }
 
 type repositoryRecord struct {
@@ -181,7 +181,7 @@ type ruleRecord struct {
 func newSnapshotRecord(s domain.Snapshot) snapshotRecord {
 	record := snapshotRecord{
 		Organizations: append([]string{}, s.Organizations...), Libraries: []libraryRecord{}, Projects: []projectRecord{},
-		Truncated: s.Truncated, Failure: s.Failure,
+		Truncated: s.Truncated, Failed: s.ReadFailed,
 	}
 	if !s.ReadAt.IsZero() {
 		record.ReadAt = &s.ReadAt
@@ -212,7 +212,7 @@ func (r repositoryRecord) repository() domain.Repository {
 }
 
 func (r snapshotRecord) snapshot() domain.Snapshot {
-	s := domain.Snapshot{Organizations: r.Organizations, Truncated: r.Truncated, Failure: r.Failure}
+	s := domain.Snapshot{Organizations: r.Organizations, Truncated: r.Truncated, ReadFailed: r.Failed}
 	if r.ReadAt != nil {
 		s.ReadAt = *r.ReadAt
 	}

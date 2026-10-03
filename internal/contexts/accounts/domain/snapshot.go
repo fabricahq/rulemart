@@ -76,9 +76,8 @@ type Snapshot struct {
 	// Truncated is true when the visitor and their organizations hold more repositories than MaxRepositories, so the
 	// read left the least recently pushed out.
 	Truncated bool
-	// Failure says why the latest read failed, so its pages may show an older read's results, or none; it's empty when
-	// the latest read succeeded.
-	Failure string
+	// ReadFailed is true when the latest read failed, so what it holds is an older read's results, or nothing.
+	ReadFailed bool
 }
 
 // PublishableRepository is a repository that holds a rule-library.yaml and a library release tag, release/<n>.

@@ -66,9 +66,6 @@ var ErrNotYourInstallation = errors.New("the installation isn't on the visitor's
 // snapshot returned with it says so, and keeps what an earlier read found.
 var ErrGitHubRead = errors.New("Rulemart couldn't read the visitor's GitHub account")
 
-// readFailure is what a snapshot says when the latest read failed.
-const readFailure = "Rulemart couldn't read your repositories on GitHub just now."
-
 // readTimeout bounds one read of a visitor's GitHub account, well within the web function's own timeout.
 const readTimeout = 25 * time.Second
 
@@ -143,7 +140,7 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 		return previous, ErrNoGitHubToken
 	}
 	if err != nil {
-		previous.Failure = readFailure
+		previous.ReadFailed = true
 		if saveErr := g.Store.SaveSnapshot(ctx, account.ID, previous, now); saveErr != nil {
 			return previous, saveErr
 		}

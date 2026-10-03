@@ -170,9 +170,9 @@ templ gitHubStatus(g gitHubView, page string) {
 				case g.signInAgain != "":
 					<span class="text-ink">Sign in again so Rulemart can read your repositories on GitHub.</span>
 					<a class={ linkButtonStyle } href={ templ.SafeURL(g.signInAgain) }>Sign in again</a>
-				case g.failure != "":
+				case g.failed:
 					<span class="text-ink" role="status">
-						{ g.failure }
+						Rulemart couldn't read your repositories on GitHub just now.
 						if g.readAt != "" {
 							Showing what it read { g.readAt }.
 						}

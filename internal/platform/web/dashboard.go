@@ -99,8 +99,8 @@ type gitHubView struct {
 	// snapshot is what Rulemart last read, and readAt says when, or is empty when it never read it.
 	snapshot accounts.Snapshot
 	readAt   string
-	// failure says why the latest read failed, or is empty.
-	failure string
+	// failed is true when the latest read failed.
+	failed bool
 	// signInAgain is the sign-in page for signing in again, when the session keeps no token GitHub takes, or empty.
 	signInAgain string
 	// refresh is where the Refresh button posts.
@@ -128,7 +128,7 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 		s.fail(w, r, err)
 		return gitHubView{}, false
 	}
-	view.snapshot, view.failure = snapshot, snapshot.Failure
+	view.snapshot, view.failed = snapshot, snapshot.ReadFailed
 	if !snapshot.ReadAt.IsZero() {
 		view.readAt = moment(snapshot.ReadAt, time.Now())
 	}

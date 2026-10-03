@@ -154,7 +154,7 @@ func TestTheDashboardSaysWhenItIncludesPrivateProjects(t *testing.T) {
 // try again; a session without a token GitHub takes is asked to sign in again; a read too large says it stopped.
 func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 	failed := octocatsGitHub()
-	failed.Failure = "Rulemart couldn't read your repositories on GitHub just now."
+	failed.ReadFailed = true
 	site := newDashboardSite(t, failed, octocatsCatalog())
 	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
 	site.gitHub.snapshot = failed

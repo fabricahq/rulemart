@@ -306,7 +306,7 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 }
 
 // A snapshot reads back as it was saved, with when Rulemart last tried to read the account kept apart from when the
-// snapshot's contents were read, since a failed read keeps an older snapshot.
+// snapshot's contents were read, since a failed read keeps an older snapshot and says the read failed.
 func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newStore(t)
@@ -332,7 +332,8 @@ func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 				Rules: []domain.PinnedRule{{Path: "techs/go/return-errors", Version: version}},
 			}},
 		}},
-		Truncated: true,
+		Truncated:  true,
+		ReadFailed: true,
 	}
 	if err := s.SaveSnapshot(ctx, account.ID, saved, triedAt); err != nil {
 		t.Fatal(err)
