@@ -146,14 +146,14 @@ templ pickRow(p pickView) {
 // it found, then says the library is live, with its page and the dashboard. A failed check shows why where the first
 // tick would be, with Try again and Remove. While Rulemart is checking, the page fetches itself again every two seconds.
 templ runPage(c chrome, v runView) {
-	@layout(c, head{title: "Adding " + v.fullName + " · Rulemart", noindex: true, polling: !v.done() && v.state != "failed"}) {
+	@layout(c, head{title: "Adding " + v.fullName + " · Rulemart", noindex: true, polling: v.following()}) {
 		<div class="page wrap max-w-[640px]">
 			@label("") {
 				Publish
 			}
 			<h1 class="title-xl mt-2.5 mb-[18px] [overflow-wrap:anywhere]">Adding { v.fullName }</h1>
 			<div data-poll="run" aria-live="polite">
-				if !v.done() && v.state != "failed" {
+				if v.following() {
 					<span hidden data-polling></span>
 				}
 				<div class={ panelStyle }>
@@ -197,6 +197,12 @@ templ runPage(c chrome, v runView) {
 							<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(v.remove) }>Remove</a>
 							<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Back to Dashboard</a>
 						</div>
+					</div>
+				} else if v.longer {
+					<div class="mt-4 rounded-[10px] border border-border bg-surface px-3.5 py-2.5 text-[13.5px]">
+						<p class="font-medium text-ink">This is taking longer than usual</p>
+						<p class="mt-0.5 text-muted">Rulemart checks it again within the hour. You asked { v.requested }.</p>
+						<a class="mt-1 inline-flex min-h-9 items-center" href={ templ.SafeURL(v.here) }>Refresh status</a>
 					</div>
 				} else {
 					<p class="mt-4 text-[13px] text-muted">Rulemart is reading the repository on GitHub, which usually takes a few seconds. This page follows along.</p>

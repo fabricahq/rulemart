@@ -286,7 +286,8 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	site.listings.byAccount[1] = []views.AccountListing{
-		{ID: 3, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking},
+		{ID: 3, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking, RequestedAt: time.Now().Add(-10 * time.Second)},
+		{ID: 6, Owner: "octocat", Name: "slow", State: domain.ListingChecking, RequestedAt: time.Now().Add(-5 * time.Minute)},
 		{ID: 4, Owner: "octocat", Name: "broken", State: domain.ListingFailed, Failure: "The repository has no release/<number> tags."},
 		{ID: 5, Owner: "Example", Name: "Rules", State: domain.ListingListed, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
 	}
@@ -296,6 +297,18 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 		"Waiting: Watching for new library releases", "This page follows along.")
 	if !strings.Contains(running, "data-polling") || !strings.Contains(running, `<noscript><meta http-equiv="refresh" content="2"></noscript>`) {
 		t.Error("a running check's page doesn't follow it")
+	}
+
+	// Past the time a queued check takes, the page says what the listings page says, and stops following the check,
+	// which the worker's hourly poll picks up; Refresh status reloads it.
+	slow := site.get(t, "/me/add/run?repo=octocat%2Fslow")
+	assertShows(t, slow, "In progress: Looking for rule-library.yaml in octocat/slow",
+		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Refresh status")
+	if strings.Contains(slow, "data-polling") || strings.Contains(slow, `http-equiv="refresh"`) {
+		t.Error("a slow check's page keeps following it every two seconds")
+	}
+	if got := links(t, slow, "Refresh status"); !slices.Equal(got, []string{"/me/add/run?repo=octocat%2Fslow"}) {
+		t.Errorf("Refresh status leads to %q", got)
 	}
 
 	failed := site.get(t, "/me/add/run?repo=octocat%2Fbroken")

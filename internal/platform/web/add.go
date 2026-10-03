@@ -285,7 +285,8 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 
 // runPage follows the check of the signed-in visitor's listing of the repository the repo parameter names: a checklist
 // that ticks once the check finds the library, saying what it found, or shows why it failed, with Try again and Remove.
-// While Rulemart is checking, the page follows the check, with poll.js or by reloading itself.
+// While Rulemart is checking, the page follows the check, with poll.js or by reloading itself, until the check takes
+// longer than usual, as the listings page says, when the next is up to an hour away.
 func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 	account, ok := s.signedIn(w, r, returnPath(r.URL.RequestURI()))
 	if !ok {
@@ -301,7 +302,7 @@ func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	view := runView{fullName: owner + "/" + name}
+	view := runView{fullName: owner + "/" + name, here: runHref + "?" + url.Values{"repo": {owner + "/" + name}}.Encode()}
 	listing, listed := findListing(listings, owner, name)
 	if listed {
 		view.fullName, view.state, view.failure = listing.Owner+"/"+listing.Name, listing.State, listing.Failure
@@ -310,6 +311,10 @@ func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runHref + "?" + url.Values{"repo": {view.fullName}}.Encode()},
 		}.Encode()
 		view.remove = removeListingHref + query
+		if listing.State == domain.ListingChecking {
+			now := time.Now()
+			view.longer, view.requested = now.Sub(listing.RequestedAt) > checkingLonger, moment(listing.RequestedAt, now)
+		}
 		if listing.Library.Owner != "" {
 			owner, name = listing.Library.Owner, listing.Library.Name
 		}
@@ -357,10 +362,18 @@ type runView struct {
 	library *views.Library
 	// retry and remove are where Try again posts and where Remove leads, for the visitor's listing.
 	retry, remove string
+	// longer is true for a check taking longer than checkingLonger, which waits for the worker's hourly poll, and
+	// requested says when the visitor last asked for it, and here is the page's own address.
+	longer          bool
+	requested, here string
 }
 
 // done reports whether the library is live on Rulemart.
 func (v runView) done() bool { return v.library != nil }
+
+// following reports whether the page follows the check every two seconds: while it runs, and isn't taking longer than
+// usual, when the next check is up to an hour away.
+func (v runView) following() bool { return !v.done() && v.state != domain.ListingFailed && !v.longer }
 
 // runStep is one line of the checklist, which ticks once it's done, spins while it's running, and says why it failed.
 type runStep struct {

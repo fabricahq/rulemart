@@ -145,8 +145,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: the run page's checklist ticks every step at once, when Rulemart has the library.** The worker's check
   isn't observable step by step, so while it runs the first step reads "Looking for rule-library.yaml in …" with a
   spinner; once the listing is listed or vetted, each step says what Rulemart found, from the library's page; a
-  failed check shows the reason under the first step, with Try again, Remove, and Back to Dashboard. `poll.js` fetches
-  the page every two seconds and swaps the checklist; without it, `<noscript>` reloads the page as often. Following a
+  failed check shows the reason under the first step, with Try again, which stays on the page, Remove, and Back to
+  Dashboard. `poll.js` fetches the page every two seconds and swaps the checklist; without it, `<noscript>` reloads the
+  page as often. A check queued more than three minutes ago says "This is taking longer than usual", as the listings
+  page does, with Refresh status, and the page stops following it, since the next check is the worker's hourly poll. Following a
   library already on Rulemart, which the visitor didn't list, shows it done. The prototype's "within minutes" reads
   "within the hour", the worker's poll.
 - **Proposed: the picker shows a repository's latest release, not its group count**, which would need reading its
