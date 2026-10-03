@@ -197,8 +197,7 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSe
 				@unvettedWarning(false)
 			}
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@libraryAvatar(lib.avatar, lib.owner, avatarSM, lib.vetted)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href + selection.query()) }>{ lib.name }</a>
+				@libraryCrumb(lib, lib.href+selection.query())
 				<span>›</span>
 				<span class="mono">{ g.label.id }</span>
 			</div>
@@ -368,6 +367,31 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 	}
 }
 
+// ruleCrumbs is where a rule is, at the top of its pages: its library's avatar and name, then its group's icon and
+// name, which lead to the group across libraries, then what the children add.
+templ ruleCrumbs(r ruleView) {
+	<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+		@libraryCrumb(r.library, r.library.href)
+		<span>›</span>
+		@groupTile(r.group, r.groupIcon, tileXS)
+		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>
+			if r.group.canonical {
+				{ r.group.name }
+			} else {
+				<span class="mono">{ r.group.id }</span>
+			}
+		</a>
+		{ children... }
+	</div>
+}
+
+// libraryCrumb is a library at the start of a page's crumbs: its owner's avatar, with the check mark when Rulemart vets
+// it, and its name, leading to href, its page.
+templ libraryCrumb(lib libraryView, href string) {
+	@libraryAvatar(lib.avatar, lib.owner, avatarSM, lib.vetted)
+	<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(href) }>{ lib.name }</a>
+}
+
 // retiredRule says when and why a library release retired a rule, and what replaced it, then shows its last
 // version's text and lists its versions.
 templ retiredRule(r ruleView) {
@@ -438,15 +462,7 @@ templ ruleContent(r ruleView) {
 				@assetsPanel(r.assets)
 			}
 			<dl class="grid gap-[7px] text-[13px]">
-				@kv("Owner") {
-					<a href={ templ.SafeURL(r.library.ownerHref) }>{ r.library.owner }</a>
-				}
-				@kv("Repository") {
-					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.fullName())
-				}
-				@kv("License") {
-					@license(r.library)
-				}
+				@libraryOwnership(r.library)
 				@kv("File") {
 					@factLink(r.fileURL, r.fileName, r.id+".md")
 				}

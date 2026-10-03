@@ -72,39 +72,6 @@ func assetSummary(r ruleView, a assetView) string {
 	return a.fileName() + ": a supporting file of the rule " + r.title + " in " + r.library.fullName() + ", on Rulemart."
 }
 
-// ruleCrumbs is where a rule is, at the top of its pages: its library's avatar and name, then its group's icon and
-// name, which lead to the group across libraries, then what the children add.
-templ ruleCrumbs(r ruleView) {
-	<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-		@libraryAvatar(r.library.avatar, r.library.owner, avatarSM, r.library.vetted)
-		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
-		<span>›</span>
-		@groupTile(r.group, r.groupIcon, tileXS)
-		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>
-			if r.group.canonical {
-				{ r.group.name }
-			} else {
-				<span class="mono">{ r.group.id }</span>
-			}
-		</a>
-		{ children... }
-	</div>
-}
-
-// sidePanel is a panel beside a page's content, as the prototype's: a shaded header bar with its title, small and
-// uppercase, and what aside says at its end, over its body.
-templ sidePanel(title, id string, aside templ.Component) {
-	<section class="overflow-hidden rounded-panel border border-border bg-surface" aria-labelledby={ id }>
-		<div class="flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3">
-			<h2 id={ id } class={ labelStyle }>{ title }</h2>
-			if aside != nil {
-				@aside
-			}
-		</div>
-		{ children... }
-	</section>
-}
-
 // assetsPanel lists a rule's assets, as the prototype's Assets panel: its own files, then the files it shares with
 // the library, each leading to its page, with the one whose page shows the list marked.
 templ assetsPanel(assets []assetView) {
