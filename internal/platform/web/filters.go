@@ -104,6 +104,19 @@ func (v ruleListView) filtered() bool { return !v.choices.Filters.IsZero() }
 // leading to the list without them.
 func (v ruleListView) filteredOut() bool { return v.total == 0 && v.unfiltered > 0 }
 
+// onlyRetired reports whether every rule the list could show is retired and hidden, which the page says, leading to the
+// list that shows them, as the sidebar offers.
+func (v ruleListView) onlyRetired() bool {
+	return v.unfiltered == 0 && !v.choices.Retired && v.offersRetired()
+}
+
+// retiredHref is the page's address with its retired rules shown, keeping its other choices.
+func (v ruleListView) retiredHref() string {
+	choices := v.choices
+	choices.Retired = true
+	return v.href(choices)
+}
+
 // clearHref is the page's address without its filters, keeping its order and whether it includes unvetted libraries
 // and retired rules.
 func (v ruleListView) clearHref() string {

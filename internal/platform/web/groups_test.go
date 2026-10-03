@@ -115,6 +115,25 @@ func TestGroupPageSaysWhenNoRulePassesTheFiltersOrNoLibraryHoldsIt(t *testing.T)
 	}
 }
 
+// A group whose rules are all retired says so while it hides them, rather than that no library has its rules, and leads
+// to the list that shows them, as the sidebar's Show retired rules does.
+func TestGroupPageOfOnlyRetiredRulesSaysSoAndOffersToShowThem(t *testing.T) {
+	c := newBrowsingCatalog()
+	retired := c.groups["practices/accessibility"]
+	retired.Rules.RetiredRules = 1
+	c.groups["practices/accessibility"] = retired
+
+	page := get(t, newSite(t, c), "/g/practices/accessibility").Body.String()
+
+	assertShows(t, page, "Retired Show retired rules", "Rules Every rule in this group is retired. Show retired rules")
+	if strings.Contains(visibleText(t, page), "No library has") {
+		t.Error("the page says no library has the group's rules")
+	}
+	if got := links(t, page, "Show retired rules"); !slices.Equal(got, []string{"/g/practices/accessibility?retired=1"}) {
+		t.Errorf("Show retired rules leads to %q", got)
+	}
+}
+
 // A group that isn't canonical has a page, which says it holds only the libraries that chose its exact ID; an ID no
 // library holds has none.
 func TestGroupPageOfAGroupThatIsntCanonicalSaysSo(t *testing.T) {

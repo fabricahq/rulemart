@@ -47,6 +47,11 @@ templ groupPage(c chrome, g groupPageView) {
 					@resultsHead(g.list, "")
 					if g.list.filteredOut() {
 						@noFilteredRules(g.list)
+					} else if g.list.onlyRetired() {
+						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+							Every rule in this group is retired.{ " " }
+							<a class={ chipStyle } href={ templ.SafeURL(g.list.retiredHref()) }>Show retired rules</a>
+						</div>
 					} else if len(g.rows) == 0 {
 						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">No library has { g.label.display() } rules yet.</div>
 					} else {
