@@ -394,7 +394,7 @@ func ruleCrumbs(r ruleView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = avatar(r.library.avatar, r.library.owner, avatarSM).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryAvatar(r.library.avatar, r.library.owner, avatarSM, r.library.vetted).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -652,7 +652,7 @@ func assetsPanel(assets []assetView) templ.Component {
 				}
 			}
 			if sharedAssets(assets) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<p class=\"px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase\">Shared across the library</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<p class=\"px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase first:pt-1\">Shared across the library</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

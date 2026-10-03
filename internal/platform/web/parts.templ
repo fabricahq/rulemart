@@ -93,6 +93,14 @@ templ labelHeading(class string) {
 	</h2>
 }
 
+// impactLink is a rule's declared impact in its page's head, explained on hover, which leads to Code Rules'
+// explanation of the levels, so a touch or a keyboard reaches what it means too, and screen readers hear it.
+templ impactLink(level string) {
+	<a class="no-underline hover:[&>span]:border-border-strong" href={ templ.SafeURL(impactLevelsDocs) } aria-label={ impactExplanation(level) + " Impact levels." }>
+		@impact(level)
+	</a>
+}
+
 // impact shows a rule's declared impact, explained on hover.
 templ impact(level string) {
 	<span class={ "rounded-[4px] border px-[5px] font-mono text-[10px] font-normal tracking-[.04em] whitespace-nowrap", templ.KV("border-border-strong text-muted", level == "CRITICAL"), templ.KV("border-border text-faint", level != "CRITICAL") } title={ impactExplanation(level) }>{ level }</span>
@@ -414,31 +422,7 @@ templ searchForm(id, query string, autofocus bool) {
 	</form>
 }
 
-// aboutPanel frames a library's or rule's facts beside its content, as label and value pairs, each fact a fact, and
-// a note under them when note isn't nil.
-templ aboutPanel(note templ.Component) {
-	<section class="rounded-card border border-border" aria-labelledby="about">
-		<h2 id="about" class="border-b border-border px-4 py-2.5 text-[12px] font-medium tracking-[.12em] text-muted uppercase">About</h2>
-		<dl class="grid gap-2.5 px-4 py-3.5 text-[13px]">
-			{ children... }
-		</dl>
-		if note != nil {
-			<div class="border-t border-border px-4 py-3 text-[12.5px] text-muted">
-				@note
-			</div>
-		}
-	</section>
-}
-
-// impactNote says what a rule's impact level means, where a touch or a keyboard reaches it, as the impact label's
-// hover text does, and links Code Rules' explanation of the levels.
-templ impactNote(level string) {
-	<p id="impact-meaning">
-		{ impactExplanation(level) } <a class="whitespace-nowrap" href={ templ.SafeURL(impactLevelsDocs) }>Impact levels</a>
-	</p>
-}
-
-// fact is one fact in an aboutPanel. A long value wraps at its parts.
+// fact is one fact in a list of facts, such as an account's. A long value wraps at its parts.
 templ fact(name string) {
 	<div class="flex items-start justify-between gap-4">
 		<dt class="shrink-0 text-muted">{ name }</dt>

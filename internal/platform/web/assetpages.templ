@@ -76,7 +76,7 @@ func assetSummary(r ruleView, a assetView) string {
 // name, which lead to the group across libraries, then what the children add.
 templ ruleCrumbs(r ruleView) {
 	<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-		@avatar(r.library.avatar, r.library.owner, avatarSM)
+		@libraryAvatar(r.library.avatar, r.library.owner, avatarSM, r.library.vetted)
 		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
 		<span>›</span>
 		@groupTile(r.group, r.groupIcon, tileXS)
@@ -116,7 +116,7 @@ templ assetsPanel(assets []assetView) {
 				}
 			}
 			if sharedAssets(assets) {
-				<p class="px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase">Shared across the library</p>
+				<p class="px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase first:pt-1">Shared across the library</p>
 				for _, a := range assets {
 					if a.shared {
 						@assetRow(a)

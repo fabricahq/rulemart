@@ -409,14 +409,15 @@ func TestRulePageShowsTheCurrentVersion(t *testing.T) {
 	}
 }
 
-// An impact label explains itself on hover, which touch and keyboards can't reach, so a rule's page also says what
-// its level means, and links the levels' explanation.
+// An impact label explains itself on hover, which touch and keyboards can't reach, so a rule's head leads it to the
+// levels' explanation, and names it to screen readers by what its level means.
 func TestRulePageSaysWhatItsImpactMeans(t *testing.T) {
 	page := get(t, newSite(t, newCatalog()), errorsRule).Body.String()
 
-	assertShows(t, page, "Impact HIGH High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels")
-	if got := links(t, page, "Impact levels"); len(got) != 1 || !strings.HasPrefix(got[0], "https://code-rules.fabricahq.com/") {
-		t.Errorf("Impact levels links %q", got)
+	impact := find(parsePage(t, page), func(n *html.Node) bool { return n.Data == "a" && strings.Contains(nodeText(n), "HIGH") })
+	if impact == nil || !strings.HasPrefix(attribute(impact, "href"), "https://code-rules.fabricahq.com/") ||
+		attribute(impact, "aria-label") != "High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels." {
+		t.Errorf("the impact is %+v, want a link to the levels named by what HIGH means", impact)
 	}
 }
 
@@ -887,15 +888,15 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	canonical := get(t, handler, returnErrorsGo).Body.String()
 	other := get(t, handler, passContext).Body.String()
 
-	assertShows(t, canonical, "mixed › Go techs/go Go rules in every library ›")
+	assertShows(t, canonical, "mixed › Go techs/go")
 	assertFlagsExplainThemselves(t, canonical, 0)
-	assertShows(t, other, "mixed › techs/golang not canonical techs/golang rules in every library ›")
+	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
-	// Every group's rules in every library that holds it are a page of their own.
-	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go"}) {
+	// The crumbs' group leads to its rules in every library that holds it, which are a page of their own.
+	if got := linksTo(t, canonical, groupPrefix); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
-	if got := links(t, other, "rules in every library"); !slices.Equal(got, []string{"/g/techs/golang"}) {
+	if got := linksTo(t, other, groupPrefix); !slices.Equal(got, []string{"/g/techs/golang"}) {
 		t.Errorf("a group that isn't canonical links %q across libraries", got)
 	}
 }
@@ -1012,5 +1013,64 @@ func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want stri
 		t.Errorf("%s redirects in a circle through %s", target, location)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Errorf("%s leads to a %d, want the page", target, resp.StatusCode)
+	}
+}
+
+// A rule's head links each of its tags to a search for it, and its Rule tab's panels say who publishes it, how fresh it
+// is, where to ask about it, its assets when it has any, and its facts, as the prototype's.
+func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Rule.Tags = []string{"errors", "error wrapping"}
+	page.Assets = []views.Asset{
+		{Path: "techs/go/assets/return-errors/loop.svg", Size: 2458, MediaType: "image/svg+xml", Release: 3, Kept: true},
+		{Path: "assets/glossary.md", Size: 1600, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+	}
+	c.rules["example/rules/techs/go/return-errors"] = page
+	handler := newSite(t, c)
+
+	withAssets := get(t, handler, errorsRule).Body.String()
+	without := get(t, handler, retryRule).Body.String()
+
+	assertShows(t, withAssets,
+		"Return errors with context HIGH 2.0.0 #errors #error wrapping",
+		"About rules Published by example Updated 3 Sep 2026 Questions or suggestions? Ask on GitHub "+
+			"Assets 2 files loop.svg 2.4 KB Shared across the library glossary.md 1.6 KB "+
+			"Not part of this rule's version. Projects get the copy from the newest library release. "+
+			"These files come with the rule when you add it. "+
+			"Owner example Repository rules License MIT File return-errors.md",
+	)
+	for text, want := range map[string]string{
+		"#errors":         "/search?q=errors",
+		"#error wrapping": "/search?q=error+wrapping",
+		"Ask on GitHub":   "https://github.com/example/rules/issues",
+		"loop.svg":        errorsRule + "/assets/loop.svg",
+		"glossary.md":     library + "/assets/glossary.md?rule=techs/go/return-errors",
+	} {
+		if got := links(t, withAssets, text); !slices.Equal(got, []string{want}) {
+			t.Errorf("%s leads to %q, want %s", text, got, want)
+		}
+	}
+	if strings.Contains(visibleText(t, without), "Assets") {
+		t.Error("a rule without assets shows the Assets panel")
+	}
+}
+
+// Discuss and the Discussion tab come with rulemart#27, so a rule's page shows neither yet, but its engage row keeps
+// its place even when it has nothing to show, such as in a library Rulemart doesn't vet, where no one can star a rule.
+func TestRulePageKeepsDiscussionsPlaceEmpty(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Library.Vetted = false
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	body := get(t, newSite(t, c), errorsRule).Body.String()
+
+	if text := visibleText(t, body); strings.Contains(text, "Discuss") || !strings.Contains(text, "Rule Versions , 2") {
+		t.Errorf("the page shows Discuss, or tabs other than Rule and Versions:\n%s", text)
+	}
+	engage := find(parsePage(t, body), withAttribute("data-engage"))
+	if engage == nil || engage.FirstChild != nil && strings.TrimSpace(nodeText(engage)) != "" {
+		t.Errorf("the engage row is %+v, want it kept, empty", engage)
 	}
 }

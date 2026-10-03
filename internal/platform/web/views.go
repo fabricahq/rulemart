@@ -444,9 +444,9 @@ type ruleView struct {
 	// holds no HTML for it, so the page shows the text.
 	whenToRead, whenToReadHTML string
 	group                      groupLabel
-	// groupHref is the group's section on the library's All rules tab, and acrossHref the group's page across
-	// libraries, including unvetted ones when the library is one, so it lists the rule.
-	groupHref, acrossHref string
+	// acrossHref is the group's page across libraries, including unvetted ones when the library is one, so it lists
+	// the rule.
+	acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
@@ -459,12 +459,30 @@ type ruleView struct {
 	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
 	replaces    []replacedRule
 	renamedFrom *replacedRule
+	// tags are the topics the current version lists, each leading to a search for it.
+	tags []tagView
+	// assets are the rule's own files, then the shared files it links to, which its Rule tab lists.
+	assets []assetView
 	// star is the rule's star control, which the rule's page fills in.
 	star starView
 	// groupIcon is the icon of the rule's group, which the page fills in, and groupRules counts the group's current
 	// rules, this one included, which the cart's dialog offers whole.
 	groupIcon  groupIcon
 	groupRules int
+}
+
+// tagView is one of a rule's tags, which leads to a search for it.
+type tagView struct {
+	text, href string
+}
+
+// newTagViews describes tags, each leading to search.
+func newTagViews(tags []string) []tagView {
+	views := make([]tagView, len(tags))
+	for i, tag := range tags {
+		views[i] = tagView{text: tag, href: searchHref + "?" + url.Values{domain.QueryParam: {tag}}.Encode()}
+	}
+	return views
 }
 
 // retiredView is how a library release retired a rule.
@@ -507,8 +525,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	v := ruleView{
 		library: lib, href: ruleHref(lib.href, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
-		html:  r.HTML,
-		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
+		html:       r.HTML,
+		group:      newGroupLabel(r.Group, r.CanonicalGroup),
 		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
@@ -531,6 +549,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	}
 	// The group holds the rule itself while it's current, whatever the links say.
 	v.groupRules = max(page.GroupRuleCount(), 1)
+	v.tags, v.assets = newTagViews(r.Tags), newAssetViews(v, page.Assets, "")
 	// A shared asset's page shows it as this rule's.
 	v.html, v.whenToReadHTML = ruleContext(v.html, lib, r.Path), ruleContext(v.whenToReadHTML, lib, r.Path)
 	if !lib.vetted {

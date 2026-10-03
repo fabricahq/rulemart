@@ -318,35 +318,35 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 			if !r.library.vetted {
 				@unvettedWarning(false)
 			}
-			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@avatar(r.library.avatar, r.library.owner, avatarSM)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
-				<span>›</span>
+			@ruleCrumbs(r) {
 				if r.group.canonical {
-					<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.name }</a>
 					<span class="mono">{ r.group.id }</span>
 				} else {
-					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
 					@notCanonical(flagSM)
 				}
-				<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.display() } rules in every library ›</a>
-			</div>
-			<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-				<div>
+			}
+			<div class="flex flex-wrap items-start justify-between gap-6">
+				<div class="min-w-0">
 					<h1 class="title-xl max-w-[44rem]">{ r.title }</h1>
 					<div class="mt-2.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
 						if r.retired != nil {
 							<span class="rounded-full border border-border-strong px-2.5 text-[12px] font-medium text-ink">Retired</span>
 							<span>Last version <span class="mono">{ r.version }</span></span>
 						} else {
-							@impact(r.impact)
+							@impactLink(r.impact)
 							<span class="mono" title="Latest version">{ r.version }</span>
+							for _, t := range r.tags {
+								<a class="text-faint no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(t.href) } title="Search this tag">#{ t.text }</a>
+							}
 						}
 					</div>
-					if r.star.shown {
-						// The prototype's engage row, which will hold Discuss beside Star too.
-						<div class="mt-[14px] flex flex-wrap items-center gap-2">
-							@starControl(r.star)
+					if r.retired == nil {
+						// The prototype's engage row: Star, then Discuss, which comes with rulemart#27. It keeps its height while
+						// it holds nothing, so Discuss's arrival moves nothing.
+						<div class="mt-[14px] flex min-h-8 flex-wrap items-center gap-2" data-engage>
+							if r.star.shown {
+								@starControl(r.star)
+							}
 						</div>
 					}
 				</div>
@@ -354,6 +354,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					@ruleCartControl(r)
 				}
 			</div>
+			// Discussion's tab comes between Rule and Versions with rulemart#27.
 			if r.retired == nil {
 				@tabs([]tab{
 					{name: "Rule", href: r.href, count: -1, on: current == contentTab},
@@ -366,7 +367,6 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 		</div>
 	}
 }
-
 
 // retiredRule says when and why a library release retired a rule, and what replaced it, then shows its last
 // version's text and lists its versions.
@@ -416,10 +416,12 @@ templ replacesNotes(r ruleView) {
 	}
 }
 
+// ruleContent is a current rule's Rule tab, as the prototype's: what it replaced, when to apply it and its text, and
+// beside them, the About panel, its assets, when it has any, and its facts.
 templ ruleContent(r ruleView) {
 	@replacesNotes(r)
 	<div class="grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
-		<div class="prose">
+		<div class="prose min-w-0">
 			<div class="when-to-apply mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
 				<b class="mb-0.5 block text-[11px] font-semibold tracking-[.1em] text-ink uppercase">When to apply</b>
 				if r.whenToReadHTML != "" {
@@ -431,35 +433,49 @@ templ ruleContent(r ruleView) {
 			@templ.Raw(r.html)
 		</div>
 		<aside class="grid content-start gap-[18px]">
-			@aboutPanel(impactNote(r.impact)) {
-				@fact("Library") {
-					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
-						<span class="mt-0.5 inline-flex">
-							@avatar(r.library.avatar, r.library.owner, avatarXS)
-						</span>
-						<span class="min-w-0 underline underline-offset-4">
-							@breakable(r.library.owner + "/" + r.library.name)
-						</span>
-					</a>
+			@ruleAbout(r)
+			if len(r.assets) > 0 {
+				@assetsPanel(r.assets)
+			}
+			<dl class="grid gap-[7px] text-[13px]">
+				@kv("Owner") {
+					<a href={ templ.SafeURL(r.library.ownerHref) }>{ r.library.owner }</a>
 				}
-				@fact("Repository") {
-					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.owner+"/"+r.library.name)
+				@kv("Repository") {
+					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.fullName())
 				}
-				@fact("License") {
+				@kv("License") {
 					@license(r.library)
 				}
-				@fact("File") {
+				@kv("File") {
 					@factLink(r.fileURL, r.fileName, r.id+".md")
 				}
-				@fact("Updated") {
-					{ r.updated }
-				}
-				@fact("Impact") {
-					@impact(r.impact)
-				}
-			}
+			</dl>
 		</aside>
 	</div>
+}
+
+// ruleAbout is a rule's About panel, as the prototype's: who publishes it, how fresh it is, and where to ask about it,
+// which leads to its library's issues on GitHub until Discuss comes with rulemart#27.
+templ ruleAbout(r ruleView) {
+	@sidePanel("About", "about", nil) {
+		<div class="grid gap-[14px] px-[18px] py-4">
+			<a class="group flex items-center gap-2.5 text-ink no-underline" href={ templ.SafeURL(r.library.href) }>
+				@libraryAvatar(r.library.avatar, r.library.owner, avatarMD, r.library.vetted)
+				<span class="grid min-w-0 gap-px">
+					<span class="text-[14px] font-medium underline-offset-3 group-hover:underline [overflow-wrap:anywhere]">{ r.library.name }</span>
+					<span class="text-[12px] text-faint">Published by { r.library.owner }</span>
+				</span>
+			</a>
+			<div class="flex justify-between gap-3 border-t border-border pt-3 text-[13px]">
+				<span class="text-muted">Updated</span>
+				<span>{ r.updated }</span>
+			</div>
+			<div class="border-t border-border pt-3">
+				<p class="text-[13px] text-muted">Questions or suggestions? <a class="whitespace-nowrap" href={ templ.SafeURL(r.library.githubURL + "/issues") }>Ask on GitHub</a></p>
+			</div>
+		</div>
+	}
 }
 
 // versions lists every version of a rule, newest first, with what it replaced and a way to compare its versions.
