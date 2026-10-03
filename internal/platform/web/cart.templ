@@ -332,7 +332,9 @@ templ cartPage(c chrome, projects projectsView) {
 								<span data-cart-summary></span>
 							}
 							<div class={ checkoutBodyStyle }>
-								<div data-cart-libraries aria-live="polite">
+								// Not a live region: cart-page.js redraws the whole list on every change, which screen readers would read
+								// again. A change is heard through its toast or the control that made it.
+								<div data-cart-libraries>
 									<p class="text-[14px] text-muted">Loading your cart…</p>
 								</div>
 								<button class={ cartLinkButton } type="button" data-cart-clear>Clear cart</button>

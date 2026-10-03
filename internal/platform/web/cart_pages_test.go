@@ -298,6 +298,11 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 			t.Errorf("the page has no %s", part)
 		}
 	}
+	// The script redraws the whole list on every change, so a live region there would read it all again; a change is
+	// heard through its toast or the control that made it.
+	if live := find(doc, func(n *html.Node) bool { return hasAttribute(n, "aria-live") }); live != nil {
+		t.Errorf("the page has a live region that rereads what changes: %+v", live.Attr)
+	}
 	if !strings.Contains(signedOut, `<meta name="robots" content="noindex">`) {
 		t.Error("search engines may index the cart")
 	}
