@@ -29,6 +29,9 @@ type Stars interface {
 	// AccountStars returns the current rules of vetted libraries the account's stars count toward, most recently
 	// starred first.
 	AccountStars(ctx context.Context, accountID int64) ([]views.StarredRule, error)
+	// UncountedStars returns the account's stars that count toward no current rule of a vetted library, which
+	// AccountStars leaves out, most recently starred first. Unstar removes one, by the rule it's on.
+	UncountedStars(ctx context.Context, accountID int64) ([]views.UncountedStar, error)
 }
 
 const (
@@ -37,8 +40,10 @@ const (
 	// stars, so neither hides an owner's or a library's page.
 	starsHref  = "/stars"
 	unstarHref = starsHref + "/remove"
-	// starredHref is the signed-in visitor's Starred rules.
-	starredHref = accountHref + "/stars"
+	// starredHref is the signed-in visitor's Starred rules, the dashboard's second tab.
+	starredHref = dashboardHref + "?tab=" + starsTab
+	// legacyStarredHref is Starred rules' old address, which redirects.
+	legacyStarredHref = accountHref + "/stars"
 	// starPurpose is the sign-in page's to parameter for a visitor who signs in to star a rule.
 	starPurpose = "star"
 	// starPromptParam marks a rule page's address that a visitor returns to after signing in to star it. The page
@@ -205,20 +210,6 @@ func starReturn(query url.Values) string {
 		return "/"
 	}
 	return returnPath(libraryHref(owner, name) + "/" + query.Get("rule"))
-}
-
-// starredPage shows the rules the signed-in visitor's stars count toward, or sends anyone else to sign in first.
-func (s *server) starredPage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r, starredHref)
-	if !ok {
-		return
-	}
-	starred, err := s.Stars.AccountStars(r.Context(), account.ID)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	s.renderPrivate(w, r, http.StatusOK, starredPage(s.chrome, newStarredViews(starred)))
 }
 
 // newStarredViews describes the rules on a visitor's Starred rules as rows that name their groups.

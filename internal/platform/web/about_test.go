@@ -123,7 +123,7 @@ func TestLibraryPagesLeadToAReportAboutTheLibrary(t *testing.T) {
 func TestSignInPageLeadsToPrivacy(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"}))
 
 	if got := links(t, page, "How Rulemart treats your data"); !slices.Equal(got, []string{"/privacy"}) {
 		t.Errorf("leads to %q", got)

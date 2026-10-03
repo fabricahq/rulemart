@@ -127,7 +127,7 @@ func TestPagesLoadCloudflareAnalyticsWithAToken(t *testing.T) {
 func TestSignInPolicyKeepsAnalyticsSources(t *testing.T) {
 	site := newAccountsSite(t, func(o *web.Options) { o.AnalyticsToken = "0123456789abcdef0123456789abcdef" })
 
-	resp := send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"})
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/signin"})
 
 	recorder := httptest.NewRecorder()
 	recorder.Header()["Content-Security-Policy"] = resp.Header.Values("Content-Security-Policy")

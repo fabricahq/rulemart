@@ -292,20 +292,20 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</ul><p>Rulemart sells nothing about you, and shows no ads.</p><h2 id=\"delete\">Deleting your data</h2><p>Delete your account on your <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</ul><p>Rulemart sells nothing about you, and shows no ads.</p><h2 id=\"delete\">Deleting your data</h2><p>Delete your account at the bottom of your <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var18 templ.SafeURL
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(accountHref))
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 153, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 153, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\">account page</a>, under Delete your account. Rulemart deletes your account, sessions, stars, and listings at once, and unlinks its notes of when you listed. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:hello@fabricahq.com\">hello@fabricahq.com</a>.</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\">dashboard</a>, under Delete your account. Rulemart deletes your account, sessions, stars, and listings at once, and unlinks its notes of when you listed. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:hello@fabricahq.com\">hello@fabricahq.com</a>.</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

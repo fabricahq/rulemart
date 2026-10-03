@@ -2,7 +2,8 @@
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
  * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
- * and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. Each choice lasts
+ * project, the signed-in visitor's project checkout is for, as owner/name, new for one that doesn't use Code Rules yet,
+ * or empty for the first the picker lists; and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. Each choice lasts
  * only while the cart holds its rule or an item of its library, so the choices stay as small as the cart, which the
  * server bounds. It paints the header's count and each page's cart controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
  * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
@@ -36,7 +37,7 @@
   /** Return the plural of word for n, with n: 1 rule, 2 rules. */
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-  const fresh = () => ({ cart: [], fork: {}, restOfGroups: {}, repo: '', confirmed: {} });
+  const fresh = () => ({ cart: [], fork: {}, restOfGroups: {}, repo: '', project: '', confirmed: {} });
 
   /** Return the names of value, an object of flags, that are on, at most MAX_ITEMS of them, as an object of flags. */
   function flags(value) {
@@ -82,6 +83,7 @@
     state.restOfGroups = libraryFlags(stored.restOfGroups);
     state.confirmed = libraryFlags(stored.confirmed);
     if (typeof stored.repo === 'string') state.repo = stored.repo.slice(0, 500);
+    if (typeof stored.project === 'string') state.project = stored.project.slice(0, 200);
     return state;
   }
 
@@ -171,6 +173,12 @@
   /** Keep text as the project's repository, which checkout's texts name. */
   function setRepo(text) {
     state.repo = text.slice(0, 500);
+    save();
+  }
+
+  /** Keep project, the visitor's project checkout is for, as owner/name, new, or empty for the picker's first. */
+  function setProject(project) {
+    state.project = project.slice(0, 200);
     save();
   }
 
@@ -408,7 +416,7 @@
   // The cart's store, which the cart's page, cart-page.js, changes the cart through, and the rulemart:cart event, which
   // every change sends once the page's controls show it.
   window.rulemartCart = {
-    /** Return a copy of the cart: cart, fork, restOfGroups, repo, and confirmed, as localStorage keeps them. */
+    /** Return a copy of the cart: cart, fork, restOfGroups, repo, project, and confirmed, as localStorage keeps them. */
     state: () => structuredClone(state),
     inCart,
     add,
@@ -417,6 +425,7 @@
     setRestOfGroups,
     confirm,
     setRepo,
+    setProject,
     clear,
     dropUnknown,
   };

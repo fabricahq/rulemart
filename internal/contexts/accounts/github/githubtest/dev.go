@@ -18,8 +18,8 @@ const (
 	DevInstallation = 1
 )
 
-// DevFake returns a fake GitHub for a local build: test_user belongs to the fabricahq organization, and has a library to
-// add, two projects that import the libraries a local catalog holds, with rule versions behind them, and, once the
+// DevFake returns a fake GitHub for a local build: test_user belongs to the fabricahq organization, which has a library
+// to add, and test_user has two projects that import the libraries a local catalog holds, with rule versions behind them, and, once the
 // GitHub App is installed, a private library and a private project. test_user_2 has nothing. The app's install page
 // sends the visitor back to installedURL, as GitHub sends them to the app's setup URL.
 func DevFake(installedURL string) *Fake {
@@ -33,7 +33,9 @@ func DevFake(installedURL string) *Fake {
 			{Token: DevToken(devUser2), ID: devUser2ID, Login: devUser2},
 		},
 		Repositories: []Repository{
-			{Owner: devUser, Name: "rules-experimental", PushedAt: day(1), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/1"}},
+			// On fabricahq, since no GitHub owner's login holds an underscore, as the test users' do, so Rulemart can't add a
+			// library of theirs. GitHub has no such repository, so adding it fails, as a check of a missing one does.
+			{Owner: "fabricahq", Name: "rules-experimental", PushedAt: day(1), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/1"}},
 			{
 				Owner: devUser, Name: "api-server", PushedAt: day(2),
 				Files: map[string]string{ProvenancePath: Provenance(

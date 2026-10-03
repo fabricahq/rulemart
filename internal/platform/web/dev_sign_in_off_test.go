@@ -15,7 +15,7 @@ func TestAReleaseBuildHasNoDevSignIn(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
 	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/dev-sign-in?as=test_user"})
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"}))
 
 	if web.DevSignIn {
 		t.Error("a build without the rulemartdev tag reports a dev sign-in")

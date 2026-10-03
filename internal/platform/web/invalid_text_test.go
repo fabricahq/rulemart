@@ -94,14 +94,14 @@ func TestTextPostgresCantHoldIsRefusedNotFailed(t *testing.T) {
 			{http.MethodGet, "/example/rules/techs/go/return-errors?tab=versions&from=1.0.0&to=1.0.0" + bad, 0},
 			{http.MethodGet, "/search?q=retry" + bad, 0},
 			{http.MethodGet, "/list?repository=example" + bad + "%2Frules", 0},
-			{http.MethodGet, "/sign-in?return=%2Fexample" + bad, 0},
+			{http.MethodGet, "/signin?return=%2Fexample" + bad, 0},
 			{http.MethodPost, "/list?repository=example%2Frules" + bad, 0},
 			{http.MethodPost, "/stars?library=example%2Frules" + bad + "&rule=techs%2Fgo%2Freturn-errors", http.StatusNotFound},
 			{http.MethodPost, "/stars?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors" + bad, http.StatusNotFound},
 			{http.MethodPost, "/stars/remove?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors" + bad, http.StatusNotFound},
 			{http.MethodPost, "/stars?library=example%2Frules&rule=techs%2Fgo%2Freturn-errors&return=%2Fexample" + bad, 0},
-			{http.MethodPost, "/account/listings/remove?listing=1" + bad, 0},
-			{http.MethodPost, "/account/listings/retry?listing=1" + bad, 0},
+			{http.MethodPost, "/me/listings/remove?listing=1" + bad, 0},
+			{http.MethodPost, "/me/listings/retry?listing=1" + bad, 0},
 		} {
 			for _, signedIn := range []bool{false, true} {
 				req := request{method: r.method, target: r.target}

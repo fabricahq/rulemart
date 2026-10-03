@@ -66,20 +66,26 @@ const (
 
 const (
 	// signInHref is the sign-in page, which takes where to return in its return parameter. POST to it starts
-	// signing in with GitHub.
-	signInHref = "/sign-in"
+	// signing in with GitHub. GitHub has a user named signin, whose page is under /o/.
+	signInHref = "/signin"
 	// signOutHref signs out with POST, and returns to its return parameter.
-	signOutHref = "/sign-out"
-	// dashboardHref is the signed-in visitor's dashboard.
-	dashboardHref = accountHref
-	// accountHref is the signed-in visitor's account page. GitHub has no account named account, so paths under it
-	// can't hide a library's page.
+	signOutHref = "/signout"
+	// dashboardHref is the signed-in visitor's dashboard, and the visitor's pages are under it. GitHub has a user named
+	// me, whose page is under /o/, and whose libraries' pages these take.
+	dashboardHref = "/me"
+	// accountHref holds what GitHub and a local build's dev sign-in send to, rather than pages: GitHub has no account
+	// named account, so paths under it can't hide a library's page.
 	accountHref = "/account"
 	// gitHubCallbackHref is where GitHub sends a visitor back with a code: the OAuth app's callback URL.
 	gitHubCallbackHref = accountHref + "/github/callback"
 	// signOutEverywhereHref and deleteAccountHref end every session of the account, and delete it, with POST.
-	signOutEverywhereHref = accountHref + "/sign-out-everywhere"
-	deleteAccountHref     = accountHref + "/delete"
+	signOutEverywhereHref = dashboardHref + "/account/sign-out-everywhere"
+	deleteAccountHref     = dashboardHref + "/account/delete"
+	// refreshHref reads the visitor's GitHub account again, with POST, and returns to its return parameter.
+	refreshHref = dashboardHref + "/refresh"
+	// legacySignInHref is the sign-in page's old address, and legacyAccountHref the account page's, which redirect.
+	legacySignInHref  = "/sign-in"
+	legacyAccountHref = accountHref
 )
 
 // visitor is who a request is from, which the frame's header shows: a signed-in account, or a visitor who can sign
@@ -98,11 +104,11 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onAccountPage, onListPage, onListingsPage, and onStarredPage are true on the account page, the page that lists a
-	// library, the listings page, and Starred rules, which the menu marks as current.
-	onAccountPage, onListPage, onListingsPage, onStarredPage bool
-	// listings and stars are true when visitors can list libraries and star rules, so the menu links the listings
-	// page and Starred rules.
+	// onDashboard, onListPage, and onStarredPage are true on the dashboard's My libraries, the page that adds a
+	// library, and the dashboard's Starred rules, which the menu marks as current.
+	onDashboard, onListPage, onStarredPage bool
+	// listings and stars are true when visitors can list libraries and star rules, so the menu links adding a library
+	// and Starred rules.
 	listings, stars bool
 	// onSignInPage is true on the sign-in page, whose header marks its Sign in link as the current page.
 	onSignInPage bool
@@ -121,6 +127,7 @@ func accountMenuName(v visitor) string {
 var notices = map[string]string{
 	"signed-out":               "You're signed out.",
 	"private-added":            "Rulemart can now see the private repos you selected.",
+	"private-removed":          "Rulemart no longer reads your private repos. To remove the app from GitHub too, uninstall it in your GitHub settings.",
 	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
 	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
@@ -143,7 +150,10 @@ type noticeLink struct{ phrase, href string }
 
 // noticeLinks are the phrases of notices' text that link to a page, by the notice's key in notices, such as the page
 // a notice says something is on.
-var noticeLinks = map[string]noticeLink{firstStarKey: {phrase: "Starred rules", href: starredHref}}
+var noticeLinks = map[string]noticeLink{
+	firstStarKey:      {phrase: "Starred rules", href: starredHref},
+	"private-removed": {phrase: "your GitHub settings", href: "https://github.com/settings/installations"},
+}
 
 // hasNotice reports whether notices names key, which may say nothing.
 func hasNotice(key string) bool {
@@ -190,9 +200,10 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 // request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
 func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
 	back := returnPath(r.URL.RequestURI())
+	starsTab := r.URL.Path == dashboardHref && r.URL.Query().Get("tab") == starsTab
 	v := visitor{
-		here: back, onAccountPage: r.URL.Path == accountHref, onListPage: r.URL.Path == listHref, onListingsPage: r.URL.Path == listingsHref,
-		onStarredPage: r.URL.Path == starredHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
+		here: back, onDashboard: r.URL.Path == dashboardHref && !starsTab, onListPage: r.URL.Path == listHref,
+		onStarredPage: starsTab, listings: s.listingAvailable(), stars: s.starsAvailable(),
 	}
 	if s.signInAvailable() {
 		v.signIn = s.absolute(signInPageHref(back))
@@ -265,9 +276,9 @@ func returnQuery(back string) string {
 
 // returnPath returns target as a path on this site to return to after signing in or out, or / when it isn't one: an
 // absolute URL, a path another host could take, such as //evil.example or /\evil.example, one with a backslash or a
-// control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, or anything
-// under /account/, which holds the flow's callback and actions that take POST, except the listings and stars pages.
-// The account page itself is one.
+// control character anywhere, one too long for the sign-in cookie, a page of the sign-in flow itself, anything under
+// /account/, which holds GitHub's callback and webhook, or an action under /me that takes POST. The visitor's own
+// pages under /me are ones.
 func returnPath(target string) string {
 	if target == "" || len(target) > maxReturnLength || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") ||
 		strings.ContainsFunc(target, func(r rune) bool { return r == '\\' || r < 0x20 || r == 0x7f }) {
@@ -277,24 +288,39 @@ func returnPath(target string) string {
 	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || u.Opaque != "" {
 		return "/"
 	}
-	if u.Path == signInHref || u.Path == signOutHref || (strings.HasPrefix(u.Path, accountHref+"/") && accountPages[u.Path] == "") {
+	if u.Path == signInHref || u.Path == signOutHref || u.Path == legacySignInHref || strings.HasPrefix(u.Path, accountHref+"/") ||
+		strings.HasPrefix(u.Path, dashboardHref+"/account/") || meActions[u.Path] {
 		return "/"
 	}
 	u.Fragment, u.RawFragment = "", ""
 	return u.String()
 }
 
-// accountPages are the pages under /account/ that only a signed-in visitor can see, which signing in may return to,
-// and what the sign-in page says to a visitor on their way to each.
-var accountPages = map[string]string{
+// meActions are the addresses under /me that take POST, which signing in never returns to.
+var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true}
+
+// signedInPages are what the sign-in page says to a visitor on their way to each of the visitor's own pages, under
+// /me, which only a signed-in visitor can see; one it doesn't name says signInToDashboard.
+var signedInPages = map[string]string{
+	listHref:     "Sign in to add a library.",
+	runHref:      "Sign in to see your library being added.",
 	listingsHref: "Sign in to see your listings.",
-	starredHref:  "Sign in to see your starred rules.",
+	privateHref:  "Sign in to include your private projects.",
 }
 
-// publicPath returns back, a return path, or / when back is the account page or one of accountPages, which a
-// signed-out visitor can't see.
+// signInToDashboard is what the sign-in page says to a visitor on their way to their dashboard.
+const signInToDashboard = "Sign in to see your dashboard."
+
+// signedInPage reports whether path is one of the visitor's own pages, under /me, which a signed-out visitor can't
+// see.
+func signedInPage(path string) bool {
+	return path == dashboardHref || strings.HasPrefix(path, dashboardHref+"/")
+}
+
+// publicPath returns back, a return path, or / when back is one of the visitor's own pages, which a signed-out visitor
+// can't see.
 func publicPath(back string) string {
-	if path, _, _ := strings.Cut(back, "?"); path == accountHref || accountPages[path] != "" {
+	if path, _, _ := strings.Cut(back, "?"); signedInPage(path) {
 		return "/"
 	}
 	return back
@@ -305,13 +331,15 @@ func publicPath(back string) string {
 func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
 	switch {
+	case visitorOf(r.Context()).account != nil && r.URL.Query().Get("again") == "1" && s.signInAvailable():
+		// A signed-in visitor whose session keeps no GitHub token Rulemart can use signs in again for one.
+		s.renderSignIn(w, r, http.StatusOK, back, signInAgainNotice)
 	case visitorOf(r.Context()).account != nil:
 		seeOther(w, r, back)
 	case !s.signInAvailable():
 		s.renderSignIn(w, r, http.StatusNotFound, back, "")
 	case publicPath(back) != back:
-		path, _, _ := strings.Cut(back, "?")
-		s.renderSignIn(w, r, http.StatusOK, back, cmp.Or(accountPages[path], "Sign in to see your account."))
+		s.renderSignIn(w, r, http.StatusOK, back, signInPurpose(back))
 	case r.URL.Query().Get("to") == starPurpose && back != "/":
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star rules. You'll come back to this one.")
 	case r.URL.Query().Get("to") == starPurpose:
@@ -320,6 +348,60 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}
+}
+
+// signInAgainNotice is what the sign-in page says to a signed-in visitor who signs in again for a GitHub token.
+const signInAgainNotice = "Sign in again so Rulemart can read your repositories on GitHub."
+
+// signInAgainHref returns the sign-in page for a signed-in visitor to sign in again, returning to back.
+func signInAgainHref(back string) string {
+	query := url.Values{"again": {"1"}}
+	if back != "/" {
+		query.Set("return", back)
+	}
+	return signInHref + "?" + query.Encode()
+}
+
+// signInPurpose says why a visitor on their way to back, one of their own pages, signs in.
+func signInPurpose(back string) string {
+	u, err := url.Parse(back)
+	if err != nil {
+		return signInToDashboard
+	}
+	if u.Path == dashboardHref && u.Query().Get("tab") == starsTab {
+		return "Sign in to see your starred rules."
+	}
+	return cmp.Or(signedInPages[u.Path], signInToDashboard)
+}
+
+// legacySignIn redirects the sign-in page's old address to its new one, keeping the query.
+func (s *server) legacySignIn(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(signInHref, r))
+}
+
+// legacyAccount redirects the account page's old address to the dashboard, whose Account section took its place.
+func (s *server) legacyAccount(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, dashboardHref)
+}
+
+// legacyList redirects the listing form's old address to the add-a-library page, its repository parameter to the
+// page's url.
+func (s *server) legacyList(w http.ResponseWriter, r *http.Request) {
+	target := listHref
+	if r.URL.Query().Has("repository") {
+		target += "?" + url.Values{"url": {r.URL.Query().Get("repository")}}.Encode()
+	}
+	redirect(w, r, target)
+}
+
+// legacyListings redirects the listings page's old address to its new one.
+func (s *server) legacyListings(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, listingsHref)
+}
+
+// legacyStarred redirects Starred rules' old address to the dashboard's tab.
+func (s *server) legacyStarred(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, starredHref)
 }
 
 // renderSignIn shows the sign-in page with status and notice, which says why the last attempt failed, if it did. It
@@ -466,15 +548,6 @@ func (s *server) signOut(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, publicPath(returnPath(r.URL.Query().Get("return"))))
 }
 
-// accountPage shows the signed-in visitor's account, or sends anyone else to sign in first.
-func (s *server) accountPage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r, accountHref)
-	if !ok {
-		return
-	}
-	s.renderPrivate(w, r, http.StatusOK, accountPage(s.chrome, newAccountView(account)))
-}
-
 // signOutEverywhere ends every session of the signed-in account, this browser's too, and returns home saying so. A
 // visitor already signed out, such as from a tab left open after signing out elsewhere, goes home told they're
 // signed out.
@@ -610,16 +683,16 @@ type testUserView struct {
 	login, action string
 }
 
-// accountView is what the account page shows of the signed-in account.
+// accountView is what the dashboard's Account section shows of the signed-in account.
 type accountView struct {
-	login, avatar, profileURL, gitHubUserID, since string
+	login, name, avatar, profileURL, gitHubUserID, since string
 	// testUser is true for a local build's test user, which isn't a GitHub user, so the page links no profile.
 	testUser bool
 }
 
 func newAccountView(account accounts.Account) accountView {
 	return accountView{
-		login: account.Login, avatar: account.AvatarURL, profileURL: account.ProfileURL(),
+		login: account.Login, name: account.Name, avatar: account.AvatarURL, profileURL: account.ProfileURL(),
 		gitHubUserID: strconv.FormatInt(account.GitHubUserID, 10), since: date(account.CreatedAt),
 		testUser: isTestUser(account.GitHubUserID),
 	}

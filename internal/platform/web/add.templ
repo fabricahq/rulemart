@@ -1,0 +1,227 @@
+// The pages of adding a library: the picker and the form that adds one by its address, and the checklist that follows
+// the listing's check.
+
+package web
+
+// The panel the picker and the checklist sit in, as the prototype draws it: a rounded box in the surface color, with a
+// shaded head.
+const (
+	panelStyle     = "overflow-hidden rounded-panel border border-border bg-surface"
+	panelHeadStyle = "flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3"
+	panelBodyStyle = "px-[18px] py-4"
+	pickRowStyle   = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-3.5 first:border-t-0 max-tiny:grid-cols-1 max-tiny:gap-2"
+	smallPrimaryStyle = "inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85"
+)
+
+// addPage is the prototype's Add a library: the visitor's and their organizations' repositories that publish a
+// library, each with what adding it does, the note on private repositories, and the form that adds any public library
+// by its address, with why it can't, or the repository to add.
+templ addPage(c chrome, v addView) {
+	@layout(c, head{title: "Add a library · Rulemart", noindex: true, caret: v.problem != ""}) {
+		<div class="page wrap max-w-[780px]">
+			@label("") {
+				Publish
+			}
+			<h1 class="title-xl mt-2.5 mb-1.5">Add a library</h1>
+			<p class="mb-5 text-muted">Your repos and your organizations' repos that contain a <span class="mono">rule-library.yaml</span> and have published a library release. The library's page will show its owner, its repository, and that you added it.</p>
+			<section class={ panelStyle } aria-labelledby="your-libraries">
+				<div class={ panelHeadStyle }>
+					<h2 id="your-libraries" class={ labelStyle }>Your libraries on GitHub</h2>
+				</div>
+				<div class={ panelBodyStyle }>
+					if len(v.picks) == 0 {
+						<p class="text-[13.5px] text-muted">
+							if v.gitHub.readAt == "" {
+								Rulemart hasn't read your repositories yet.
+							} else {
+								Rulemart found no repository of yours or your organizations' with a <span class="mono">rule-library.yaml</span> and a <span class="mono">release/&lt;number&gt;</span> tag.
+							}
+						</p>
+					}
+					for _, p := range v.picks {
+						@pickRow(p)
+					}
+				</div>
+			</section>
+			@gitHubStatus(v.gitHub, "add")
+			<div class={ noteStyle, "mt-3.5" }>
+				<span>
+					Only public libraries can be published on Rulemart.
+					if v.gitHub.available && !v.gitHub.private {
+						Rulemart can only see your public repos right now.
+					}
+				</span>
+				if v.gitHub.privateAvailable && !v.gitHub.private {
+					<a href={ templ.SafeURL(privateHref) }>Include private repos</a>
+				}
+			</div>
+			<form class="mt-7" method="get" action={ templ.SafeURL(listHref) }>
+				<label class={ labelStyle, "mb-2 block" } for="library-url">Or add any public library by URL</label>
+				<div class="flex items-start gap-2.5">
+					<input
+						id="library-url"
+						class={ inputStyle, "text-[14px]" }
+						type="text"
+						name="url"
+						value={ v.address }
+						placeholder="https://github.com/owner/repo"
+						autocomplete="off"
+						autocapitalize="off"
+						spellcheck="false"
+						maxlength="300"
+						required
+						if v.problem != "" {
+							aria-invalid="true"
+							aria-describedby="library-url-problem"
+							autofocus
+						} else {
+							aria-describedby="library-url-hint"
+						}
+					/>
+					<button class={ outlineButtonStyle } type="submit">Add</button>
+				</div>
+				if v.problem != "" {
+					<p id="library-url-problem" class="mt-2.5 border-l-2 border-ink pl-2.5 text-[13px] text-ink" role="alert">
+						{ v.problem }
+						if v.problemLink != "" {
+							<a
+								href={ templ.SafeURL(v.problemLink) }
+								if v.problemNofollow {
+									rel="nofollow"
+								}
+							>{ v.problemLinkText }</a>
+						}
+					</p>
+				} else {
+					<p id="library-url-hint" class="mt-2 text-[12px] text-faint">Anyone can add a public library. It will show that you added it.</p>
+				}
+			</form>
+			if v.confirm != nil {
+				<section class={ panelStyle, "mt-4" } aria-label="The library to add">
+					<div class={ panelBodyStyle }>
+						@pickRow(*v.confirm)
+						<p class="mt-1 text-[12.5px] text-faint">Rulemart reads its release tags on GitHub, and shows it, unvetted, until Rulemart's maintainers vet it.</p>
+					</div>
+				</section>
+			}
+		</div>
+	}
+}
+
+// pickRow is a repository on the picker: its name and what it is, then what adding it does: Add this library, a link
+// to its page once it's on Rulemart, to its check while Rulemart adds it, or, dimmed, why a private one can't be added.
+templ pickRow(p pickView) {
+	<div class={ pickRowStyle }>
+		<div class="min-w-0">
+			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", !p.private), templ.KV("font-medium text-faint", p.private) }>{ p.fullName }</p>
+			<p class="text-[12px] text-faint">{ p.detail }</p>
+		</div>
+		switch p.state {
+			case pickPrivate:
+				<span class="text-[13px] text-faint">Private libraries can't be published on Rulemart</span>
+			case pickOnRulemart:
+				<a
+					class={ chipOnStyle }
+					href={ templ.SafeURL(p.href) }
+					if !p.vetted {
+						rel="nofollow"
+					}
+				>✓ On Rulemart</a>
+			case pickAdding:
+				<a class={ quietChipStyle } href={ templ.SafeURL(p.href) }>
+					if p.failed {
+						Couldn't add it
+					} else {
+						Adding…
+					}
+				</a>
+			default:
+				<form method="post" action={ templ.SafeURL(p.action) }>
+					<button class={ smallPrimaryStyle } type="submit" aria-label={ "Add " + p.fullName }>Add this library</button>
+				</form>
+		}
+	</div>
+}
+
+// runPage follows a listing's check, as the prototype's: the checklist ticks once Rulemart has the library, saying what
+// it found, then says the library is live, with its page and the dashboard. A failed check shows why where the first
+// tick would be, with Try again and Remove. While Rulemart is checking, the page fetches itself again every two seconds.
+templ runPage(c chrome, v runView) {
+	@layout(c, head{title: "Adding " + v.fullName + " · Rulemart", noindex: true, polling: !v.done() && v.state != "failed"}) {
+		<div class="page wrap max-w-[640px]">
+			@label("") {
+				Publish
+			}
+			<h1 class="title-xl mt-2.5 mb-[18px] [overflow-wrap:anywhere]">Adding { v.fullName }</h1>
+			<div data-poll="run" aria-live="polite">
+				if !v.done() && v.state != "failed" {
+					<span hidden data-polling></span>
+				}
+				<div class={ panelStyle }>
+					<ol class={ panelBodyStyle }>
+						for _, step := range v.steps() {
+							<li class={ "flex items-start gap-2.5 py-[7px] text-[14px]", templ.KV("text-ink", step.done || step.failed), templ.KV("text-muted", !step.done && !step.failed) }>
+								@runTick(step)
+								<span class="min-w-0 [overflow-wrap:anywhere]">
+									{ step.text }
+									if step.failed {
+										<span class="mt-1 block text-[13px] text-del-ink">{ v.failure }</span>
+									}
+								</span>
+							</li>
+						}
+					</ol>
+				</div>
+				if v.done() {
+					<div class="mt-5">
+						<p class="mb-1.5 text-[17px] font-medium [overflow-wrap:anywhere]">{ v.fullName } is live on Rulemart.</p>
+						<p class="text-[13px] text-muted">Publish a library release with <code>code-rules library release</code>, and Rulemart picks it up within the hour.</p>
+						<div class="mt-3.5 flex flex-wrap gap-2.5">
+							<a
+								class={ cartPrimaryStyle, "no-underline" }
+								href={ templ.SafeURL(libraryHref(v.library.Owner, v.library.Name)) }
+								if !v.library.Vetted {
+									rel="nofollow"
+								}
+							>View library page</a>
+							<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Back to Dashboard</a>
+						</div>
+					</div>
+				} else if v.state == "failed" {
+					<div class="mt-5">
+						<p class="mb-1.5 text-[17px] font-medium [overflow-wrap:anywhere]">Rulemart couldn't add { v.fullName }.</p>
+						<p class="text-[13px] text-muted">Fix what the check found, then try again. Until it's added, another account can add this repository, which replaces yours.</p>
+						<div class="mt-3.5 flex flex-wrap gap-2.5">
+							<form method="post" action={ templ.SafeURL(v.retry) }>
+								<button class={ cartPrimaryStyle } type="submit">Try again</button>
+							</form>
+							<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(v.remove) }>Remove</a>
+							<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Back to Dashboard</a>
+						</div>
+					</div>
+				} else {
+					<p class="mt-4 text-[13px] text-muted">Rulemart is reading the repository on GitHub, which usually takes a few seconds. This page follows along.</p>
+				}
+			</div>
+		</div>
+	}
+}
+
+// runTick is a checklist line's mark: a tick, filled once done, spinning while running, or an exclamation mark once
+// failed.
+templ runTick(step runStep) {
+	switch {
+		case step.done:
+			<span class="mt-px grid size-5 flex-none place-items-center rounded-full border border-ink bg-ink text-[11px] text-paper" aria-hidden="true">✓</span>
+			<span class="sr-only">Done:</span>
+		case step.failed:
+			<span class="mt-px grid size-5 flex-none place-items-center rounded-full border border-del-ink text-[11px] font-semibold text-del-ink" aria-hidden="true">!</span>
+			<span class="sr-only">Failed:</span>
+		case step.running:
+			<span class="mt-px size-5 flex-none animate-spin rounded-full border border-ink border-t-transparent motion-reduce:animate-none" aria-hidden="true"></span>
+			<span class="sr-only">In progress:</span>
+		default:
+			<span class="mt-px size-5 flex-none rounded-full border border-border" aria-hidden="true"></span>
+			<span class="sr-only">Waiting:</span>
+	}
+}

@@ -226,6 +226,11 @@
     const preview = $('[data-cart-preview]');
     const repo = $('[data-cart-repo]');
     const repoNote = $('[data-cart-repo-note]');
+    // The signed-in visitor's projects, as radios, and the box that names a project that doesn't use Code Rules yet,
+    // where the repository field is then; neither is there for a visitor Rulemart knows no project of.
+    const projects = [...root.querySelectorAll('[data-cart-project]')];
+    const newProject = $('[data-cart-new-project]');
+    const newBox = $('[data-cart-new-box]');
     const status = $('[data-cart-status]');
     let tab = 'prompt';
     // What the page knows of the checkout: the cart's revision, and the latest answer, which shows until the next.
@@ -252,13 +257,13 @@
     /** Ask Rulemart to resolve the cart as it is now and write its texts, keeping the answer only while the cart stays
      * so. */
     async function ask() {
-      const { cart, fork, restOfGroups, confirmed, repo: repository } = store.state();
+      const { cart, fork, restOfGroups, confirmed, repo: repository, project } = store.state();
       if (!cart.length) return;
       const { revision } = checkout;
       try {
         const response = await fetch(root.dataset.cartCheckout, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cart, fork, restOfGroups, confirmed, repo: repository }),
+          body: JSON.stringify({ cart, fork, restOfGroups, confirmed, repo: repository, project }),
         });
         if (!response.ok) throw new Error(`checkout answered ${response.status}`);
         const body = await response.json();
@@ -298,14 +303,28 @@
         list.replaceChildren(h('p', 'text-[14px] text-muted', {}, 'Rulemart can’t show your cart right now.'));
       }
       if (focused) root.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
+      showProject();
       showRepository();
       showPreview();
+    }
+
+    /** Show which of the visitor's projects checkout is for: the one the cart names, or the first, or with the new
+     * project's box open, none, for one that doesn't use Code Rules yet. */
+    function showProject() {
+      if (!projects.length) return;
+      const { project } = store.state();
+      const isNew = project === 'new';
+      const chosen = projects.find((radio) => radio.value === project) || projects[0];
+      for (const radio of projects) radio.checked = !isNew && radio === chosen;
+      newBox.hidden = !isNew;
+      newProject.hidden = isNew;
     }
 
     /** Say which repository the texts name, or that what the visitor wrote names none. */
     function showRepository() {
       const { answer } = checkout;
-      const written = store.state().repo.trim() !== '';
+      // A known project names its own repository; the field is for one Rulemart doesn't know.
+      const written = store.state().repo.trim() !== '' && answer?.mode !== 'known';
       const invalid = !!answer?.repositoryInvalid && written;
       const named = answer?.repository && written;
       repoNote.hidden = !invalid && !named;
@@ -404,7 +423,7 @@
     }
 
     root.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-copy-step], [data-cart-retry]');
+      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-copy-step], [data-cart-retry], [data-cart-new-project], [data-cart-existing]');
       if (!target) return;
       if (target.matches('[data-cart-drop]')) {
         // Focus moves to the next item's Remove, or the one before, or Clear cart.
@@ -427,6 +446,12 @@
         copy(0);
       } else if (target.matches('[data-cart-copy-step]')) {
         copy(Number(target.dataset.cartCopyStep));
+      } else if (target.matches('[data-cart-new-project]')) {
+        store.setProject('new');
+        repo.focus();
+      } else if (target.matches('[data-cart-existing]')) {
+        store.setProject('');
+        (projects.find((radio) => radio.checked) || projects[0])?.focus();
       } else if (target.matches('[data-cart-retry]')) {
         // The button goes once the page asks again, so focus moves to the text it updates.
         changed();
@@ -441,6 +466,8 @@
         store.setFork(target.dataset.cartFork, target.checked);
       } else if (target.matches('[data-cart-rest-of-groups]')) {
         store.setRestOfGroups(target.dataset.cartRestOfGroups, target.checked);
+      } else if (target.matches('[data-cart-project]')) {
+        store.setProject(target.value);
       }
     });
     repo.addEventListener('input', () => store.setRepo(repo.value));

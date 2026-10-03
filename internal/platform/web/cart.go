@@ -4,12 +4,16 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"mime"
 	"net/http"
+	"strings"
 
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
+	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
@@ -51,6 +55,9 @@ type checkoutRequest struct {
 	Confirmed    map[string]bool `json:"confirmed"`
 	// Repo is what the visitor wrote as their project's repository, which may name none.
 	Repo string `json:"repo"`
+	// Project is the signed-in visitor's project the checkout is for, as owner/name, new for one that doesn't use Code
+	// Rules yet, which Repo then names, or empty for the first of their projects.
+	Project string `json:"project"`
 }
 
 // checkoutResponse is a cart's checkout, as cart-page.js shows it.
@@ -62,6 +69,9 @@ type checkoutResponse struct {
 	// true when the visitor wrote one that names no GitHub repository.
 	Repository        string `json:"repository"`
 	RepositoryInvalid bool   `json:"repositoryInvalid"`
+	// Mode is known for one of the visitor's projects, new for one that doesn't use Code Rules yet, and unknown for one
+	// Rulemart knows nothing of.
+	Mode string `json:"mode"`
 	// Prompt and Commands import every ready item, and are empty when none is. Commands are steps the Commands tab
 	// shows apart, each with its own Copy, as domain.Checkout's Commands says.
 	Prompt   string            `json:"prompt"`
@@ -162,10 +172,49 @@ type restOfGroupsJSON struct {
 }
 
 // cartPage shows the cart's page, which cart-page.js fills from the cart the browser keeps. It's the same for every
-// visitor but in where the cart's rules go, which offers to sign in to anyone who isn't.
+// visitor but in where the cart's rules go, which offers to sign in to anyone who isn't, and offers a signed-in
+// visitor their projects, from what Rulemart read of their GitHub account.
 func (s *server) cartPage(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
-	s.render(w, r, http.StatusOK, cartPage(s.chrome, v.signIn, v.withGitHub, v.account != nil))
+	view := projectsView{signIn: v.signIn, withGitHub: v.withGitHub, signedIn: v.account != nil}
+	if v.account != nil {
+		gitHub, ok := s.gitHubView(w, r, *v.account, cartHref)
+		if !ok {
+			return
+		}
+		view.gitHub = gitHub
+		for _, p := range gitHub.snapshot.Projects {
+			view.projects = append(view.projects, newProjectOption(p))
+		}
+	}
+	s.render(w, r, http.StatusOK, cartPage(s.chrome, view))
+}
+
+// projectsView is what checkout's Where it goes shows.
+type projectsView struct {
+	// signIn is where signing in starts, empty when sign-in isn't available, and withGitHub is true when it's with
+	// GitHub. signedIn is true for a signed-in visitor.
+	signIn               string
+	withGitHub, signedIn bool
+	// gitHub is what Rulemart read of a signed-in visitor's GitHub account, and projects their projects in it.
+	gitHub   gitHubView
+	projects []projectOption
+}
+
+// projectOption is one of the visitor's projects, as checkout's picker offers it.
+type projectOption struct {
+	repository string
+	private    bool
+	// uses names the libraries it imports.
+	uses string
+}
+
+func newProjectOption(p accounts.Project) projectOption {
+	var uses []string
+	for _, source := range p.Sources {
+		uses = append(uses, cmp.Or(source.Library, source.Name))
+	}
+	return projectOption{repository: p.FullName(), private: p.Private, uses: strings.Join(uses, ", ")}
 }
 
 // redirectToCart redirects the signed-in cart's old addresses to the cart's page, keeping the query.
@@ -188,7 +237,10 @@ func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, r, http.StatusBadRequest, map[string]string{"error": "the cart isn't one Rulemart can read"})
 		return
 	}
-	target, repositoryInvalid := checkoutTarget(req.Repo)
+	target, repositoryInvalid, ok := s.checkoutTarget(w, r, req)
+	if !ok {
+		return
+	}
 	checkout, err := s.Carts.Checkout(r.Context(), app.Cart{Keys: req.Cart, Forks: req.Fork, RestOfGroups: req.RestOfGroups, Confirmed: req.Confirmed}, target)
 	switch {
 	case errors.Is(err, app.ErrCartTooLarge):
@@ -219,11 +271,54 @@ func boundedLibraries(libraries map[string]bool) bool {
 // checkoutUnavailable answers a checkout Rulemart can't give, which cart-page.js shows as being unable to show the cart.
 var checkoutUnavailable = map[string]string{"error": "Rulemart can't check out right now"}
 
-// checkoutTarget returns the project a checkout is for, from repo, what the visitor wrote as its repository, and
-// whether repo names none though it isn't empty. Rulemart doesn't know the visitor's projects yet, so it can't tell
-// whether one uses Code Rules.
-func checkoutTarget(repo string) (domain.CheckoutTarget, bool) {
-	target := domain.CheckoutTarget{Mode: domain.ProjectUnknown}
+// checkoutTarget returns the project req's checkout is for, and whether what the visitor wrote as its repository names
+// none though it isn't empty: for a signed-in visitor with projects, the one req names, or the first, whose sources the
+// texts add to, unless req says it's a new project; otherwise the repository the visitor wrote, which Rulemart knows
+// nothing of. It answers the request with a failure, and returns false, when reading the visitor's projects fails.
+func (s *server) checkoutTarget(w http.ResponseWriter, r *http.Request, req checkoutRequest) (domain.CheckoutTarget, bool, bool) {
+	v := visitorOf(r.Context())
+	if v.account == nil || s.GitHubAccounts == nil {
+		target, invalid := writtenTarget(req.Repo, domain.ProjectUnknown)
+		return target, invalid, true
+	}
+	snapshot, err := s.GitHubAccounts.Snapshot(r.Context(), *v.account, v.token)
+	if err != nil && !errors.Is(err, accountsapp.ErrNoGitHubToken) && !errors.Is(err, accountsapp.ErrGitHubRead) {
+		s.logFailure(r, err)
+		s.writeJSON(w, r, http.StatusServiceUnavailable, checkoutUnavailable)
+		return domain.CheckoutTarget{}, false, false
+	}
+	if len(snapshot.Projects) == 0 {
+		target, invalid := writtenTarget(req.Repo, domain.ProjectUnknown)
+		return target, invalid, true
+	}
+	if req.Project == "new" {
+		target, invalid := writtenTarget(req.Repo, domain.ProjectNew)
+		return target, invalid, true
+	}
+	project := snapshot.Projects[0]
+	for _, p := range snapshot.Projects {
+		if strings.EqualFold(p.FullName(), req.Project) {
+			project = p
+		}
+	}
+	return knownTarget(project), false, true
+}
+
+// knownTarget returns the checkout target of the visitor's project p, which imports its sources under their names.
+func knownTarget(p accounts.Project) domain.CheckoutTarget {
+	target := domain.CheckoutTarget{Mode: domain.ProjectKnown, Repository: p.FullName(), Sources: map[string]string{}}
+	for _, source := range p.Sources {
+		if source.Library != "" {
+			target.Sources[strings.ToLower(source.Library)] = source.Name
+		}
+	}
+	return target
+}
+
+// writtenTarget returns a checkout target of mode, from repo, what the visitor wrote as its repository, and whether
+// repo names none though it isn't empty.
+func writtenTarget(repo string, mode domain.ProjectMode) (domain.CheckoutTarget, bool) {
+	target := domain.CheckoutTarget{Mode: mode}
 	if repo == "" {
 		return target, false
 	}
@@ -239,7 +334,7 @@ func checkoutTarget(repo string) (domain.CheckoutTarget, bool) {
 // an icon file.
 func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, repositoryInvalid bool, iconURL func(string) string) checkoutResponse {
 	resp := checkoutResponse{
-		Libraries: []checkoutLibraryJSON{}, Unknown: checkout.Unknown, Repository: target.Repository,
+		Libraries: []checkoutLibraryJSON{}, Unknown: checkout.Unknown, Repository: target.Repository, Mode: string(target.Mode),
 		RepositoryInvalid: repositoryInvalid, Prompt: checkout.Prompt, Commands: []commandStepJSON{},
 	}
 	if resp.Unknown == nil {

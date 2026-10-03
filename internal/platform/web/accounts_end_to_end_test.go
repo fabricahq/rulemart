@@ -35,18 +35,18 @@ func TestAVisitorSignsInBrowsesAndSignsOutWithStoredSessions(t *testing.T) {
 		t.Fatalf("signing in answered %d", signedIn.StatusCode)
 	}
 	page := send(t, handler, request{method: http.MethodGet, target: library, cookies: []*http.Cookie{session}})
-	assertShows(t, body(t, page), "Signed in as octocat")
-	account := send(t, handler, request{method: http.MethodGet, target: "/account", cookies: []*http.Cookie{session}})
+	assertShows(t, body(t, page), "Signed in as @octocat")
+	account := send(t, handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{session}})
 	assertShows(t, body(t, account), "GitHub user ID 583231")
 
-	out := send(t, handler, request{method: http.MethodPost, target: "/sign-out", cookies: []*http.Cookie{session}})
+	out := send(t, handler, request{method: http.MethodPost, target: "/signout", cookies: []*http.Cookie{session}})
 	if out.StatusCode != http.StatusSeeOther {
 		t.Fatalf("signing out answered %d", out.StatusCode)
 	}
 
 	// The browser may keep the cookie, as one that missed the sign-out's response would: it signs no one in.
-	after := send(t, handler, request{method: http.MethodGet, target: "/account", cookies: []*http.Cookie{session}})
-	if after.StatusCode != http.StatusSeeOther || after.Header.Get("Location") != "/sign-in?return=%2Faccount" {
+	after := send(t, handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{session}})
+	if after.StatusCode != http.StatusSeeOther || after.Header.Get("Location") != "/signin?return=%2Fme" {
 		t.Errorf("after sign-out, the account page answered %d to %q", after.StatusCode, after.Header.Get("Location"))
 	}
 }

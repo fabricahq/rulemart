@@ -59,16 +59,21 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	}
 	handler := site(nil)
 	signIn := accountsSite{handler: handler, gitHub: gitHub}
-	flow, location := startSignIn(t, signIn, "/list")
+	flow, location := startSignIn(t, signIn, "/me/add")
 	session := cookie(callback(t, signIn, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow), sessionCookie)
 	cookies := []*http.Cookie{session}
 
-	listed := send(t, handler, request{method: http.MethodPost, target: "/list?repository=example%2Frules", cookies: cookies})
+	listed := send(t, handler, request{method: http.MethodPost, target: "/me/add?repository=example%2Frules", cookies: cookies})
 	if listed.StatusCode != http.StatusSeeOther || len(queue.bodies) != 1 {
 		t.Fatalf("listing answered %d and queued %q", listed.StatusCode, queue.bodies)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/listings", cookies: cookies})),
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
 		"example/rules Checking")
+	run := body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
+	assertShows(t, run, "Adding example/rules", "In progress: Looking for rule-library.yaml in example/rules")
+	if !strings.Contains(run, "data-polling") || !strings.Contains(run, `http-equiv="refresh"`) {
+		t.Error("the check's page doesn't follow the check")
+	}
 
 	job, err := jobs.Parse(queue.bodies[0])
 	if err != nil {
@@ -82,8 +87,13 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		t.Fatalf("the worker's check: %+v, %v", check, err)
 	}
 
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/account/listings", cookies: cookies})),
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
 		"example/rules Listed, unvetted")
+	run = body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
+	assertShows(t, run, "Done: Found rule-library.yaml in example/rules", "example/rules is live on Rulemart.", "View library page")
+	if strings.Contains(run, "data-polling") {
+		t.Error("the check's page follows a check that's done")
+	}
 	for _, path := range []string{library, errorsRule, "/unvetted"} {
 		page := body(t, send(t, handler, request{method: http.MethodGet, target: path}))
 		if !strings.Contains(page, "not been vetted. Be sure to review") {

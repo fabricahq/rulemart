@@ -69,96 +69,6 @@ const pageActionStyle = "inline-flex min-h-11 shrink-0 items-center justify-cent
 // inputStyle is a text field, outlined in the color of deletion while its value is invalid.
 const inputStyle = "h-11 w-full min-w-0 rounded-[10px] border border-border-strong bg-paper px-3.5 text-[15px] text-ink placeholder:text-faint hover:border-ink focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none aria-invalid:border-del-ink aria-invalid:focus-visible:shadow-[0_0_0_1px_var(--del-ink)]"
 
-// vettedListURL is the reviewed list of vetted libraries, in Rulemart's public repository.
-const vettedListURL = "https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml"
-
-// listPage is the listing form: it says what may be listed and how listing works, asks a signed-in visitor for a
-// repository, then says why they can't list it, or what listing does, with a button that lists it. It asks anyone
-// else to sign in first. A refusal takes the field's focus, which names it.
-templ listPage(c chrome, v listView) {
-	@layout(c, head{title: "List a library · Rulemart", noindex: true, narrow: true, caret: v.problem != ""}) {
-		<div class={ "page wrap", narrowPage }>
-			<h1 class="title-xl">List a library</h1>
-			<p class="mt-2 text-muted">List a public GitHub repository that publishes a <a href="https://code-rules.fabricahq.com">Code Rules</a> library: one with <span class="font-mono text-[.9em]">release/&lt;number&gt;</span> tags, which Code Rules makes each time it releases the library.</p>
-			<ol class="mt-4 grid list-decimal gap-1.5 pl-5 text-[14px] text-muted marker:text-faint">
-				<li>Check confirms the repository's name, and that nobody listed it yet. It doesn't contact GitHub.</li>
-				<li>Once you list it, Rulemart reads its release tags from GitHub, usually within seconds, and shows it with the <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, under a warning. Your listings show how that went.</li>
-				<li>Rulemart's maintainers review listed libraries, and vet the ones they trust by adding them to <a href={ templ.SafeURL(vettedListURL) }>a reviewed list</a> in Rulemart's public repository, which takes as long as a review does. A vetted library shows in browsing and search.</li>
-			</ol>
-			if v.signIn != "" {
-				<div class="mt-7 rounded-card border border-border px-5 py-5">
-					<p class="text-[14.5px] text-ink">Sign in to list a library. Rulemart keeps which account listed each one.</p>
-					<a class={ primaryButtonStyle + " mt-4 no-underline narrow:w-auto" } href={ templ.SafeURL(v.signIn) }>Sign in to list a library</a>
-				</div>
-			} else {
-				<form class="mt-7" method="get" action={ templ.SafeURL(listHref) }>
-					<label class="mb-1.5 block text-[14px] font-medium text-ink" for="repository">GitHub repository</label>
-					<div class="flex items-start gap-2.5 max-narrow:flex-col max-narrow:items-stretch">
-						<div class="min-w-0 flex-1">
-							<input
-								id="repository"
-								class={ inputStyle }
-								type="text"
-								name="repository"
-								value={ v.repository }
-								placeholder="owner/name"
-								autocomplete="off"
-								autocapitalize="off"
-								spellcheck="false"
-								maxlength="300"
-								required
-								if v.problem != "" {
-									aria-invalid="true"
-									aria-describedby="repository-problem"
-									autofocus
-								} else {
-									aria-describedby="repository-hint"
-								}
-							/>
-							<p id="repository-hint" class="mt-1.5 text-[13px] text-faint">Such as fabricahq/public-rules, or its address on GitHub.</p>
-						</div>
-						<button class={ outlineButtonStyle + " min-h-11" } type="submit">Check</button>
-					</div>
-				</form>
-				if v.problem != "" {
-					<div id="repository-problem" class="mt-4 flex gap-3 rounded-card border border-del-ink px-4 py-3 text-[14px]" role="alert">
-						@errorIcon("mt-[3px] size-[18px] shrink-0 text-del-ink")
-						<div class="min-w-0">
-							<p class="text-ink">{ v.problem }</p>
-							if v.existing != nil || v.yourListings {
-								<p class="mt-1 flex flex-wrap gap-x-4">
-									if v.existing != nil && !v.existing.vetted {
-										<a href={ templ.SafeURL(v.existing.href) } rel="nofollow">See { v.existing.owner }/{ v.existing.name }</a>
-									} else if v.existing != nil {
-										<a href={ templ.SafeURL(v.existing.href) }>See { v.existing.owner }/{ v.existing.name }</a>
-									}
-									if v.yourListings {
-										<a href={ templ.SafeURL(listingsHref) }>Your listings</a>
-									}
-								</p>
-							}
-						</div>
-					</div>
-				}
-				if v.confirm != "" {
-					<section class="mt-7 rounded-card border border-border px-5 py-5" aria-labelledby="confirm">
-						<h2 id="confirm" class="text-[1.15rem] tracking-[-.03em]">List this library?</h2>
-						<p class="mt-1 font-mono text-[14px] text-ink [overflow-wrap:anywhere]">{ v.confirm }</p>
-						<ul class="mt-3 grid list-disc gap-1.5 pl-5 text-[14px] text-muted marker:text-faint">
-							<li>Rulemart checks the repository on GitHub, and reads its <span class="font-mono text-[.9em]">release/&lt;number&gt;</span> tags, which takes a few seconds.</li>
-							<li>Its pages say it hasn't been vetted, and search and browsing show it only to visitors who include unvetted libraries, until Rulemart vets it.</li>
-							<li>It takes one of your { strconv.Itoa(domain.MaxAccountListings) } places until then. You can remove your listing at any time.</li>
-						</ul>
-						<form class="mt-5" method="post" action={ templ.SafeURL(v.action) }>
-							<button class={ primaryButtonStyle + " narrow:w-auto" } type="submit">List this library</button>
-						</form>
-					</section>
-				}
-			}
-		</div>
-	}
-}
-
 // errorIcon is a circle with an exclamation mark, in the current text color.
 templ errorIcon(class string) {
 	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -174,16 +84,14 @@ templ errorIcon(class string) {
 templ listingsPage(c chrome, v listingsView) {
 	@layout(c, head{title: "Your listings · Rulemart", noindex: true, narrow: true}) {
 		<div class={ "page wrap", narrowPage }>
-			@label("") {
-				Account
-			}
+			<p class={ labelStyle }><a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(dashboardHref) }>Dashboard</a></p>
 			<div class="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
 				<h1 class="title-xl">Your listings</h1>
-				<a class={ pageActionStyle } href={ templ.SafeURL(listHref) }>List a library</a>
+				<a class={ pageActionStyle } href={ templ.SafeURL(listHref) }>Add a library</a>
 			</div>
 			<p class="mt-1.5 mb-[22px] text-muted">Each listing takes one of your { strconv.Itoa(domain.MaxAccountListings) } places until Rulemart vets its library, failed ones too. You're using { strconv.Itoa(v.held) }.</p>
 			if len(v.listings) == 0 {
-				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">You haven't listed a library. <a href={ templ.SafeURL(listHref) }>List a library</a></div>
+				<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">You haven't added a library. <a href={ templ.SafeURL(listHref) }>Add a library</a></div>
 			} else {
 				@rowList() {
 					for _, l := range v.listings {

@@ -44,7 +44,7 @@ func newFakeGitHubAccounts(snapshot accounts.Snapshot) *fakeGitHubAccounts {
 func (f *fakeGitHubAccounts) read(accountID int64) (accounts.Snapshot, error) {
 	f.reads++
 	if f.err != nil {
-		return f.kept[accountID], f.err
+		return f.snapshot, f.err
 	}
 	f.kept[accountID] = f.snapshot
 	return f.snapshot, nil
@@ -72,7 +72,9 @@ func (f *fakeGitHubAccounts) Installations(_ context.Context, accountID int64) (
 }
 
 func (f *fakeGitHubAccounts) PrivateRepositories() bool { return f.app }
-func (f *fakeGitHubAccounts) InstallURL() string        { return "https://github.com/apps/rulemart-by-fabrica/installations/new" }
+func (f *fakeGitHubAccounts) InstallURL() string {
+	return "https://github.com/apps/rulemart-by-fabrica/installations/new"
+}
 
 func (f *fakeGitHubAccounts) Install(_ context.Context, account accounts.Account, _ accounts.SessionToken, id int64) (accounts.Snapshot, error) {
 	f.mu.Lock()

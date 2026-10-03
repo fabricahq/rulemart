@@ -47,13 +47,13 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]bool{
-		"/account": true, "/account?x=1": true, "/account/listings": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
+		"/me": true, "/account?x=1": true, "/me/listings": true, "/me?tab=stars?x=1": true, "/signin": true, "/signin?return=%2F": true,
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
 		"/": false, "/libraries": false, "/g/techs/go": false, "/browse/techs": false, "/faq": false, "/example/rules": false, "/example/rules?tab=releases": false,
 		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
-		"/sign-in-kit/rules": false, "/accountant/rules": false,
+		"/signin-kit/rules": false, "/accountant/rules": false,
 	} {
 		if got := disallows(rules, path); got != want {
 			t.Errorf("robots.txt disallows %s: %v, want %v", path, got, want)

@@ -1,0 +1,87 @@
+// The page that offers to include a visitor's private projects, by installing the GitHub App.
+
+package web
+
+// privatePage is the prototype's page about private projects: the permissions the GitHub App asks for and why, what
+// Rulemart never does, and what's worth knowing, then Continue to GitHub, or once installed, Done and the way to stop.
+templ privatePage(c chrome, v privateView) {
+	@layout(c, head{title: "Include private projects · Rulemart", noindex: true}) {
+		<div class="page wrap max-w-[820px]">
+			<span class={ quietChipStyle }>Optional</span>
+			<h1 class="title-xl mt-3 mb-2">Include your private projects?</h1>
+			<p class="mb-[22px] text-muted">Rulemart already sees your public repos. To also list private projects that use Code Rules, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p>
+			<div class="overflow-x-auto">
+				<table class="w-full border-collapse text-[13.5px] max-narrow:min-w-[34rem]">
+					<thead>
+						<tr>
+							<th class={ dataHeadStyle } scope="col">On GitHub</th>
+							<th class={ dataHeadStyle } scope="col">Why we ask</th>
+							<th class={ dataHeadStyle } scope="col">If you don't grant it</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<th class={ dataRowHeadStyle } scope="row">Contents: read-only</th>
+							<td class={ dataCellStyle }>To read <span class="mono">.code-rules/generated/provenance.json</span> and <span class="mono">rule-library.yaml</span>, so we can see which of your private projects use Code Rules and which libraries they import.</td>
+							<td class={ dataCellStyle }>We only look at your public repos.</td>
+						</tr>
+						<tr>
+							<th class={ dataRowHeadStyle } scope="row">Metadata: read-only</th>
+							<td class={ dataCellStyle }>GitHub requires this for every app. It lets us list the repos you choose.</td>
+							<td class={ dataCellStyle }>Only applies if you install.</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+			<div class="mt-5 grid grid-cols-2 gap-4 max-narrow:grid-cols-1">
+				<div class="min-w-0 rounded-card border border-border bg-paper p-4">
+					<b class="font-semibold">We never</b>
+					<ul class="mt-2 list-disc pl-[18px] text-[13px] text-muted">
+						<li>Write to your repos, or open issues or PRs</li>
+						<li>Store your code. We keep library names, versions, and group IDs</li>
+						<li>Show private projects to anyone else, or count them in public numbers</li>
+					</ul>
+				</div>
+				<div class="min-w-0 rounded-card border border-border bg-paper p-4">
+					<b class="font-semibold">Worth knowing</b>
+					<p class="mt-2 text-[13px] text-muted">GitHub can't limit an app to one folder, so “Contents” technically covers each repo you select. Rulemart only reads the two files above. Choose <b class="font-semibold text-ink">Only select repositories</b> on GitHub to keep the scope small.</p>
+				</div>
+			</div>
+			<div class="mt-[26px] flex flex-wrap items-center gap-2.5">
+				if v.installed {
+					<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Done</a>
+					<form method="post" action={ templ.SafeURL(removePrivateHref) }>
+						<button class={ outlineButtonStyle } type="submit">Remove access to private repos</button>
+					</form>
+				} else {
+					<a class={ cartPrimaryStyle, "no-underline" } href={ templ.SafeURL(v.installURL) }>
+						@githubMark("size-[15px] flex-none")
+						Continue to GitHub
+					</a>
+					<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Skip, public repos only</a>
+				}
+				<span class="text-[13px] text-faint">You can change this anytime.</span>
+			</div>
+			if v.installed {
+				<p class="mt-5 text-[13px] text-muted">
+					Choose which repos Rulemart reads, or uninstall the app, in its settings on GitHub:
+					for i, in := range v.settings {
+						if i > 0 {
+							{ ", " }
+						}
+						<a href={ templ.SafeURL(in.href) }>{ in.account }</a>
+					}
+					. Removing access here only stops Rulemart reading them.
+				</p>
+			}
+		</div>
+	}
+}
+
+// A data table's header and body cells, as the prototype's table.data.
+const (
+	dataHeadStyle = "border-b border-border px-2.5 py-2 text-left text-[11px] font-medium tracking-[.08em] text-faint uppercase"
+	dataCellStyle = "border-b border-border-subtle px-2.5 py-[11px] text-left align-top font-normal text-muted"
+	// dataRowHeadStyle is a row's first cell, which names it.
+	dataRowHeadStyle = "border-b border-border-subtle px-2.5 py-[11px] text-left align-top font-medium text-ink"
+)

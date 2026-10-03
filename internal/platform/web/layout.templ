@@ -23,6 +23,8 @@ type chrome struct {
 	// list's filters as soon as one changes, on a page that lists rules or libraries. cartPageScript renders the cart's
 	// page, through the store cartScript keeps, and cartCheckoutScript keeps what that page knows of its checkout.
 	caretScript, toastScript, cartScript, filtersScript, cartPageScript, cartCheckoutScript string
+	// pollScript fetches a page that follows something happening elsewhere every two seconds, on a page that asks.
+	pollScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -62,6 +64,10 @@ type head struct {
 	noticePrompts bool
 	// caret loads the script that puts the caret at the end of a field the page focuses.
 	caret bool
+	// polling marks a page that follows something happening elsewhere, such as a library being added: it loads the
+	// script that fetches the page again every two seconds and shows what changed, or without scripts, reloads itself
+	// as often.
+	polling bool
 }
 
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
@@ -194,6 +200,10 @@ templ layout(c chrome, h head) {
 			}
 			<script src={ c.toastScript } defer></script>
 			<script src={ c.cartScript } defer></script>
+			if h.polling {
+				<script src={ c.pollScript } defer></script>
+				<noscript><meta http-equiv="refresh" content="2"/></noscript>
+			}
 			if h.cartPage {
 				// After cart.js, whose store it reads, and cart-checkout.js: deferred scripts run in order.
 				<script src={ c.cartCheckoutScript } defer></script>
