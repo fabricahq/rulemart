@@ -30,6 +30,20 @@ func (q *Queries) AddInstallation(ctx context.Context, arg AddInstallationParams
 	return err
 }
 
+const deleteAccountInstallation = `-- name: DeleteAccountInstallation :exec
+DELETE FROM github_installations WHERE account_id = $1 AND installation_id = $2
+`
+
+type DeleteAccountInstallationParams struct {
+	AccountID      int64
+	InstallationID int64
+}
+
+func (q *Queries) DeleteAccountInstallation(ctx context.Context, arg DeleteAccountInstallationParams) error {
+	_, err := q.db.Exec(ctx, deleteAccountInstallation, arg.AccountID, arg.InstallationID)
+	return err
+}
+
 const deleteAccountInstallations = `-- name: DeleteAccountInstallations :exec
 DELETE FROM github_installations WHERE account_id = $1
 `

@@ -434,3 +434,47 @@ func hmacSHA256(secret, body string) string {
 	mac.Write([]byte(body))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+// An organization's owner who installed the app there stops reading its private repositories once they're no longer
+// an owner, demoted or gone from the organization: the next read checks their role with their own token, forgets the
+// installation for their account, and keeps none of what it read.
+func TestAFormerOrganizationOwnerNoLongerReadsItsPrivateRepositories(t *testing.T) {
+	for name, revoke := range map[string]func(*githubtest.User){
+		"demoted": func(u *githubtest.User) { u.Organizations[0].Role = "member" },
+		"left":    func(u *githubtest.User) { u.Organizations = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			fake := monasGitHub()
+			fake.Users[0].Organizations[0].Role = "admin"
+			fake.Repositories = append(fake.Repositories, githubtest.Repository{
+				Owner: "octo-org", Name: "secret", Private: true, PushedAt: pushed.Add(-8 * time.Hour),
+				Files: map[string]string{domain.ProvenancePath: githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
+			})
+			fake.Installations = []githubtest.Installation{{ID: 2, Account: "octo-org", AccountID: 100, Organization: true, Repositories: []string{"octo-org/secret"}}}
+			site := newGitHubSite(t, fake, true)
+			got, err := site.accounts.Install(ctx, site.account, site.session, 2)
+			if err != nil || !slices.ContainsFunc(got.Projects, func(p domain.Project) bool { return p.FullName() == "octo-org/secret" }) {
+				t.Fatalf("installing read %+v, %v", got.Projects, err)
+			}
+
+			revoke(&fake.Users[0])
+			site.now = site.now.Add(domain.RefreshInterval)
+			got, err = site.accounts.Refresh(ctx, site.account, site.session)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, snapshot := range []domain.Snapshot{got, site.snapshot(t)} {
+				for _, p := range snapshot.Projects {
+					if p.Private {
+						t.Errorf("still shows the private %s", p.FullName())
+					}
+				}
+			}
+			if installations, _ := site.accounts.Installations(ctx, site.account.ID); len(installations) != 0 {
+				t.Errorf("still reads through %+v", installations)
+			}
+		})
+	}
+}

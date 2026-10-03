@@ -51,6 +51,9 @@ type Store interface {
 	// RemoveInstallations forgets every installation the account reads through, and discards its snapshot, in one
 	// transaction.
 	RemoveInstallations(ctx context.Context, accountID int64) error
+	// RemoveInstallation forgets that the account reads through the installation id, and discards its snapshot, in one
+	// transaction. Other accounts that read through it keep it.
+	RemoveInstallation(ctx context.Context, accountID, id int64) error
 	// InstallationRemoved forgets the installation id for every account, and discards their snapshots, in one statement.
 	InstallationRemoved(ctx context.Context, id int64) error
 	// InstallationChanged discards the snapshots of the accounts that read through the installation id.

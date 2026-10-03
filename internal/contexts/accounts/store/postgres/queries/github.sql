@@ -28,6 +28,9 @@ ON CONFLICT (account_id, installation_id) DO NOTHING;
 -- name: DeleteAccountInstallations :exec
 DELETE FROM github_installations WHERE account_id = @account_id;
 
+-- name: DeleteAccountInstallation :exec
+DELETE FROM github_installations WHERE account_id = @account_id AND installation_id = @installation_id;
+
 -- DeleteInstallation forgets the installation for every account that read through it, and discards their snapshots,
 -- which may name private repositories it can no longer read. It returns how many accounts read through it.
 -- name: DeleteInstallation :execrows

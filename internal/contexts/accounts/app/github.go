@@ -137,7 +137,16 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 		return previous, err
 	}
 	now := g.now()
-	snapshot, err := g.scan(ctx, token, account.Login, installations)
+	installations, revoked, err := g.stillPermitted(ctx, token, account, installations)
+	if revoked {
+		// The store discarded the snapshot, whose private parts came through an installation the visitor may no longer
+		// read through, so a failed read keeps none of it.
+		previous = domain.Snapshot{}
+	}
+	var snapshot domain.Snapshot
+	if err == nil {
+		snapshot, err = g.scan(ctx, token, account.Login, installations)
+	}
 	if errors.Is(err, domain.ErrGitHubTokenRefused) {
 		return previous, ErrNoGitHubToken
 	}
@@ -153,6 +162,32 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 		return previous, err
 	}
 	return snapshot, nil
+}
+
+// stillPermitted returns the installations the visitor may still read through, checking with their own token that
+// they still own each organization one is on, as Install checked when they added it: a former owner, demoted or gone
+// from the organization, is no longer permitted, so the installation is forgotten for their account, with its snapshot,
+// and revoked is true.
+func (g GitHubAccounts) stillPermitted(ctx context.Context, token string, account domain.Account, installations []domain.Installation) (permitted []domain.Installation, revoked bool, err error) {
+	for _, installation := range installations {
+		if g.App == nil || strings.EqualFold(installation.Account, account.Login) {
+			permitted = append(permitted, installation)
+			continue
+		}
+		role, err := g.GitHub.OrganizationRole(ctx, token, installation.Account)
+		if err != nil {
+			return nil, revoked, err
+		}
+		if role == "admin" {
+			permitted = append(permitted, installation)
+			continue
+		}
+		if err := g.Store.RemoveInstallation(ctx, account.ID, installation.ID); err != nil {
+			return nil, revoked, err
+		}
+		revoked = true
+	}
+	return permitted, revoked, nil
 }
 
 // scan reads what the snapshot holds: login's organizations, then the public repositories of login and each

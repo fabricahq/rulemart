@@ -105,6 +105,20 @@ func (s *Store) RemoveInstallations(ctx context.Context, accountID int64) error 
 	return nil
 }
 
+// RemoveInstallation forgets one installation of the account's and discards its snapshot, in one transaction.
+func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) error {
+	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		if err := q.DeleteAccountInstallation(ctx, accountsdb.DeleteAccountInstallationParams{AccountID: accountID, InstallationID: id}); err != nil {
+			return err
+		}
+		return q.DeleteSnapshot(ctx, accountID)
+	})
+	if err != nil {
+		return fmt.Errorf("remove GitHub installation accountID=%d installationID=%d: %v", accountID, id, err)
+	}
+	return nil
+}
+
 // InstallationRemoved forgets the installation for every account and discards their snapshots, in one statement.
 func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
