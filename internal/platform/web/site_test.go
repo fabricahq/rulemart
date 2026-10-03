@@ -1045,6 +1045,26 @@ func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want stri
 	}
 }
 
+// Only a rule's own files come with it; the files it shares with its library come from the newest release, so a rule
+// with shared files alone never says its files come with it.
+func TestAssetsPanelSaysOnlyTheRulesOwnFilesComeWithIt(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Assets = []views.Asset{
+		{Path: "assets/glossary.md", Size: 1600, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+		{Path: "assets/terms.md", Size: 800, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+	}
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	text := visibleText(t, get(t, newSite(t, c), errorsRule).Body.String())
+
+	assertShows(t, text, "Assets 2 files Shared across the library glossary.md 1.6 KB terms.md 800 B "+
+		"Not part of this rule's version. Projects get the copy from the newest library release. Owner example")
+	if strings.Contains(text, "come with the rule") || strings.Contains(text, "comes with the rule") {
+		t.Errorf("a rule with only shared files says its files come with it:\n%s", text)
+	}
+}
+
 // A rule's head links each of its tags to a search for it, and its Rule tab's panels say who publishes it, how fresh it
 // is, where to ask about it, its assets when it has any, and its facts, as the prototype's.
 func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
@@ -1064,9 +1084,9 @@ func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
 	assertShows(t, withAssets,
 		"Return errors with context HIGH 2.0.0 #errors #error wrapping",
 		"About rules Published by example Updated 3 Sep 2026 Questions or suggestions? Ask on GitHub "+
-			"Assets 2 files loop.svg 2.4 KB Shared across the library glossary.md 1.6 KB "+
+			"Assets 2 files loop.svg 2.4 KB This file comes with the rule when you add it. "+
+			"Shared across the library glossary.md 1.6 KB "+
 			"Not part of this rule's version. Projects get the copy from the newest library release. "+
-			"These files come with the rule when you add it. "+
 			"Owner example Repository rules License MIT File return-errors.md",
 	)
 	for text, want := range map[string]string{
