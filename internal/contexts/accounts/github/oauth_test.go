@@ -64,6 +64,9 @@ func fakeGitHub(t *testing.T, tokenBody, userBody string) *Client {
 		if got := r.Header.Get("Authorization"); got != "Bearer "+testToken {
 			t.Errorf("the user request authorizes with %q", got)
 		}
+		if got := r.Header.Get("User-Agent"); got != "Rulemart" {
+			t.Errorf("the user request names its client %q", got)
+		}
 		if userBody == "" {
 			http.Error(w, `{"message":"Bad credentials"}`, http.StatusUnauthorized)
 			return

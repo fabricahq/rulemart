@@ -31,8 +31,8 @@ const (
 	userURL      = "https://api.github.com/user"
 )
 
-// requestTimeout bounds each request to GitHub, so a stalled one fails the sign-in well within the web function's
-// timeout.
+// requestTimeout bounds each request to GitHub, at sign-in and in every read of a visitor's GitHub account, so a
+// stalled one fails well within the web function's timeout.
 const requestTimeout = 5 * time.Second
 
 // maxResponseBytes bounds what Rulemart reads of each response. GitHub's are under a few KiB.
@@ -144,9 +144,7 @@ func (c *Client) user(ctx context.Context, token string) (domain.Identity, error
 	if err != nil {
 		return domain.Identity{}, err
 	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	setHeaders(request, token, "")
 	var user struct {
 		ID        int64  `json:"id"`
 		Login     string `json:"login"`

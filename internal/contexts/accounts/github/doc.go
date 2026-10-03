@@ -3,5 +3,5 @@
 // asks for read:org, so the token also reads the organizations the visitor belongs to, and public repositories, which
 // the dashboard reads. The flow uses PKCE, so a code that leaks on its way back is worthless without the verifier the
 // browser kept. API reads a visitor's organizations and repositories, App acts as the GitHub App that reads private
-// repositories where visitors install it, and VerifyWebhook checks the deliveries of that app's webhook.
+// repositories where visitors install it, and App.WebhookChange checks and reads the deliveries of that app's webhook.
 package github
