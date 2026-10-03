@@ -154,6 +154,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
   "Prompt copied" and "Commands copied" on Copy, and a full cart's notice.
 - **Proposed: below 27rem the header shows Rulemart's name without Fabrica's.** The cart icon joined the menu,
   search, and Sign in on a phone's header, which overflowed at 390 pixels with both names.
+- **Kept as they are after browser QA, deliberately**: the prompt names rules by ID, not title, so no library writes
+  into it (above); toasts stay at the viewport's bottom right, Josh's decision for every toast; Clear cart empties
+  the cart at once, without asking, as the prototype's does; and the cart outlasts signing out, since it's the
+  browser's, not the account's, as the prototype's is.
 - **Verified with the real CLI** (Code Rules 0.3.0, built from its v0.3.0 source, since this machine's Homebrew
   install is 0.1.0): the commands of six carts, run in new Git repositories without the installer line, each exited
   0, passed `code-rules project check`, and generated exactly the rules picked; the pull request lists them.
