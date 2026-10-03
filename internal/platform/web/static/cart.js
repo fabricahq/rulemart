@@ -157,7 +157,7 @@
   function paintCount() {
     const n = itemCount();
     for (const link of document.querySelectorAll('[data-cart-link]')) {
-      link.setAttribute('aria-label', n ? `Cart, ${count(n, 'item', 'items')}` : 'Cart');
+      link.setAttribute('aria-label', `Cart, ${count(n, 'item', 'items')}`);
       const badge = link.querySelector('[data-cart-count]');
       badge.textContent = String(n);
       badge.hidden = n === 0;

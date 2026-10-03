@@ -24,14 +24,13 @@ const (
 )
 
 // cartLink is the header's link to the cart, for everyone: a cart, with the count of items the visitor's cart holds,
-// which cart.js paints, in a badge. Marked current on the cart's page. It tells cart.js how many items a cart holds,
-// and how long a key may be, as checkout bounds them.
+// which cart.js paints, in a badge and in its name, such as Cart, 2 items. Marked current on the cart's page. It tells
+// cart.js how many items a cart holds, and how long a key may be, as checkout bounds them.
 templ cartLink(current bool) {
 	<a
 		class={ "relative grid size-9 shrink-0 place-items-center rounded-full text-ink no-underline hover:bg-surface max-wide:size-11", templ.KV("bg-surface", current) }
 		href={ templ.SafeURL(cartHref) }
 		aria-label="Cart"
-		title="Cart"
 		data-cart-link
 		data-cart-max-items={ strconv.Itoa(domain.MaxCartItems) }
 		data-cart-max-key-length={ strconv.Itoa(domain.MaxCartKeyLength) }

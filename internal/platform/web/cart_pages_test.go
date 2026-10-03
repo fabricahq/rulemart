@@ -45,6 +45,9 @@ func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 		if link == nil || attribute(link, "href") != "/cart" || find(link, withAttribute("data-cart-count")) == nil {
 			t.Fatalf("%s: no link to the cart with its count", path)
 		}
+		if hasAttribute(link, "title") {
+			t.Errorf("%s: the cart link's title repeats its name as its description", path)
+		}
 		if attribute(link, "data-cart-max-items") != strconv.Itoa(domain.MaxCartItems) ||
 			attribute(link, "data-cart-max-key-length") != strconv.Itoa(domain.MaxCartKeyLength) {
 			t.Errorf("%s: the cart link doesn't say how much a cart holds", path)
