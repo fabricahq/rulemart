@@ -166,7 +166,7 @@ templ signInPage(c chrome, view signInView) {
 // ways to sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it
 // takes two deliberate clicks.
 templ accountSection(account accountView, listings, stars bool) {
-	<section class="mt-14 max-w-[44rem] border-t border-border pt-8" aria-labelledby="account">
+	<section class="mt-14 border-t border-border pt-8" aria-labelledby="account">
 		<h2 id="account" class="text-[1.15rem] font-semibold tracking-[-.03em]">Account</h2>
 		<dl class="mt-4 grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
 			@fact("GitHub user ID") {

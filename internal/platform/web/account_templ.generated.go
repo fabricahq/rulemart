@@ -737,7 +737,7 @@ func accountSection(account accountView, listings, stars bool) templ.Component {
 			templ_7745c5c3_Var33 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<section class=\"mt-14 max-w-[44rem] border-t border-border pt-8\" aria-labelledby=\"account\"><h2 id=\"account\" class=\"text-[1.15rem] font-semibold tracking-[-.03em]\">Account</h2><dl class=\"mt-4 grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<section class=\"mt-14 border-t border-border pt-8\" aria-labelledby=\"account\"><h2 id=\"account\" class=\"text-[1.15rem] font-semibold tracking-[-.03em]\">Account</h2><dl class=\"mt-4 grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

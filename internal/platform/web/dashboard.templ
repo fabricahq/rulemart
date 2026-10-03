@@ -171,40 +171,37 @@ templ privateProjectsNote(g gitHubView) {
 // starredTab is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty
 // state, then any star that counts toward no rule, under No longer counted, each with Unstar.
 templ starredTab(d dashboardView) {
-	// As wide as search's results, which list rules the same way.
-	<div class="max-w-[52rem]">
-		if len(d.starred) == 0 {
-			<div class="rounded-card border border-dashed border-border-strong px-[22px] py-[22px] text-center text-[14px] text-muted">You haven't starred any rules yet. Star a rule from its page.</div>
-		} else {
-			<h2 class="sr-only">Your starred rules</h2>
-			@ruleRows() {
-				for _, r := range d.starred {
-					@ruleRow(r)
-				}
+	if len(d.starred) == 0 {
+		<div class="rounded-card border border-dashed border-border-strong px-[22px] py-[22px] text-center text-[14px] text-muted">You haven't starred any rules yet. Star a rule from its page.</div>
+	} else {
+		<h2 class="sr-only">Your starred rules</h2>
+		@ruleRows() {
+			for _, r := range d.starred {
+				@ruleRow(r)
 			}
 		}
-		if len(d.uncounted) > 0 {
-			<section class="mt-9" aria-labelledby="uncounted">
-				<h2 id="uncounted" class={ sectionHeadStyle }><span>No longer counted</span><span>{ strconv.Itoa(len(d.uncounted)) }</span></h2>
-				<p class="mt-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
-				for _, u := range d.uncounted {
-					<div class={ listRowStyle }>
-						<div class="min-w-0">
-							<p class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">
-								if u.href != "" {
-									<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) } rel="nofollow">{ u.title }</a>
-								} else {
-									{ u.title }
-								}
-							</p>
-							<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]"><span class="mono">{ u.library } · { u.path }</span> · { u.why }</p>
-						</div>
-						<form method="post" action={ templ.SafeURL(u.unstar) }>
-							<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + u.title }>Unstar</button>
-						</form>
+	}
+	if len(d.uncounted) > 0 {
+		<section class="mt-9" aria-labelledby="uncounted">
+			<h2 id="uncounted" class={ sectionHeadStyle }><span>No longer counted</span><span>{ strconv.Itoa(len(d.uncounted)) }</span></h2>
+			<p class="mt-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
+			for _, u := range d.uncounted {
+				<div class={ listRowStyle }>
+					<div class="min-w-0">
+						<p class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">
+							if u.href != "" {
+								<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) } rel="nofollow">{ u.title }</a>
+							} else {
+								{ u.title }
+							}
+						</p>
+						<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]"><span class="mono">{ u.library } · { u.path }</span> · { u.why }</p>
 					</div>
-				}
-			</section>
-		}
-	</div>
+					<form method="post" action={ templ.SafeURL(u.unstar) }>
+						<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + u.title }>Unstar</button>
+					</form>
+				</div>
+			}
+		</section>
+	}
 }
