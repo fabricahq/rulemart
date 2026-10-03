@@ -5,13 +5,17 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/a-h/templ"
 
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -386,6 +390,24 @@ type runStep struct {
 type runPart struct {
 	text   string
 	strong bool
+}
+
+// runPartsText writes parts' text, each run in stronger type in a b element. It writes them itself, since templ puts a
+// space after an element that ends a line, which would stand before the punctuation that follows a run in stronger
+// type.
+func runPartsText(parts []runPart) templ.Component {
+	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+		for _, part := range parts {
+			text := templ.EscapeString(part.text)
+			if part.strong {
+				text = `<b class="font-semibold">` + text + `</b>`
+			}
+			if _, err := io.WriteString(w, text); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // plain and strong return a step's text as one part, in ordinary and in stronger type.
