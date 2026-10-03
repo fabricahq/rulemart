@@ -159,6 +159,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
 ## Not in this slice
 
 - Discussion (rulemart#27), the dashboard's library totals (R7), the brand mark (R2).
+- Left as they are after browser QA, deliberately: "On Rulemart since" and every other date reads in UTC, as across
+  the site; the owner page's display name waits for R7; and "Select all groups" stays active with every group ticked,
+  as the prototype's does.
 
 ## Verification
 
