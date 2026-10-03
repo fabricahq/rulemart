@@ -49,7 +49,8 @@ the decisions.
   ID, with the chip and the note "techs/golang isn't a canonical group, so it only includes rules from libraries
   that chose this exact name." Rulemart keeps no "similar to" list, so that sentence is left out. The browse pages'
   other-groups rows and the library pages' group rows link to it. Reverses slice 3's "only canonical groups get a
-  page" and replaces the per-library sections.
+  page" and replaces the per-library sections. The sitemap lists every group a vetted library holds, reversing slice
+  9's canonical groups only, within one budget of 45,000 groups and rules, groups first.
 - **Proposed: retired rules are indexed**, using the search document their last version has, and ranked below current
   rules by adding a retired penalty after the score, so a retired rule never outranks a current one that matches as
   well. Reverses slice 4.

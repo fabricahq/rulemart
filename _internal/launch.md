@@ -224,7 +224,7 @@ curl -sI $B/ | grep -iE '^(HTTP|cache-control|vary|strict-transport-security|per
 curl -sI $B/ | grep -i x-cache                      # Hit from cloudfront, the second time
 # Crawlers: robots names the sitemap, the sitemap lists only vetted libraries' pages.
 curl -s $B/robots.txt
-curl -s $B/sitemap.xml | grep -c '<loc>'            # 5 site pages + canonical groups + 2 libraries + their rules: about 155 today
+curl -s $B/sitemap.xml | grep -c '<loc>'            # 5 site pages + groups + 2 libraries + their rules: about 155 today
 curl -s $B/sitemap.xml | grep -c code-rules-test-library   # its pages, until step 7 unvets it
 # Social card and canonical address on a library page.
 curl -s $B/fabricahq/public-rules | grep -oE '<(link rel="canonical"|meta property="og:[a-z:]+")[^>]*>'

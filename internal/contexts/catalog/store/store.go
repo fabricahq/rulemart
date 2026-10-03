@@ -202,9 +202,10 @@ type Reader interface {
 	// a retired rule's, or one of a library that isn't vetted, are 0. The results also count the rules that pass the
 	// filters, and those the list holds before them by library. It leaves each row's CanonicalGroup nil.
 	Rules(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, list domain.RuleList, limit, skip int) (views.RuleResults, error)
-	// Sitemap returns the vetted libraries, at most maxRules of their current rules, the first in owner, name, and ID
-	// order, and the groups that hold them, from one state of the catalog.
-	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRules int) (views.Sitemap, error)
+	// Sitemap returns the vetted libraries, their current rules, and the groups that hold them, at most maxEntries
+	// groups and rules in all: the first groups in ID order, then the first rules in owner, name, and ID order, from
+	// one state of the catalog.
+	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxEntries int) (views.Sitemap, error)
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor

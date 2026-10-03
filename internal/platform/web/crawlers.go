@@ -45,10 +45,10 @@ func (s *server) robots(w http.ResponseWriter, r *http.Request) {
 	writeFile(w, r, "text/plain; charset=utf-8", pageCache, []byte(body.String()))
 }
 
-// newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each canonical
-// group's, then each owner's, then each library's, unless one of the site's pages takes its address, and its rules',
-// within maxBytes, and whether it lists them all: it
-// stops before the address that would pass maxBytes, since a Lambda function's response holds at most 6 MB.
+// newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each group's,
+// then each owner's, then each library's, unless one of the site's pages takes its address, and its rules', within
+// maxBytes, and whether it lists them all: it stops before the address that would pass maxBytes, since a Lambda
+// function's response holds at most 6 MB.
 func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, bool) {
 	const open = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
 	const end = "</urlset>\n"
@@ -127,8 +127,8 @@ type sitemapURL struct {
 }
 
 // sitemap answers GET /sitemap.xml with every page search engines may index, by its canonical address: the site's
-// own pages, each canonical group's, each owner's, and each vetted library's and its current rules'. Never an unvetted library, a
-// search, or a comparison. Its addresses must be absolute, so without a public origin there's no sitemap.
+// own pages, each group's of a vetted library, each owner's, and each vetted library's and its current rules'. Never an
+// unvetted library, a search, or a comparison. Its addresses must be absolute, so without a public origin there's no sitemap.
 func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 	if s.BaseURL == nil {
 		s.notFound(w, r)

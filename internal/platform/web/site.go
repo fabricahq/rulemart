@@ -124,7 +124,7 @@ type Catalog interface {
 	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
 	// query, that choices keep. It fails with app.ErrSearchQueryTooLong for a query it won't run.
 	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error)
-	// Sitemap returns the vetted libraries, with their current rules, and the canonical groups that hold them.
+	// Sitemap returns the vetted libraries, with their current rules, and the groups that hold them, canonical or not.
 	Sitemap(ctx context.Context) (views.Sitemap, error)
 }
 

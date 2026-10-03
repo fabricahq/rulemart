@@ -605,7 +605,8 @@ type Sitemap struct {
 	// Groups are the IDs of the groups that hold the libraries' current rules, each once, in ID order, canonical or
 	// not.
 	Groups []string
-	// Truncated reports that the sitemap left out rules past the most it reads, after its libraries' first rules.
+	// Truncated reports that the sitemap left out groups or rules past the most it reads, after the first groups and
+	// its libraries' first rules.
 	Truncated bool
 }
 

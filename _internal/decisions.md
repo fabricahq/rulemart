@@ -43,8 +43,9 @@ than adding history.
 ## Search engines, sharing, and reports
 
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
-  lists the site's own pages, each canonical group's page, and each vetted library and its current rules, by their
-  canonical addresses on `RULEMART_BASE_URL`, in one file of at most 45,000 rules; without a base URL there's none.
+  lists the site's own pages, the page of each group a vetted library holds, canonical or not, and each vetted library
+  and its current rules, by their canonical addresses on `RULEMART_BASE_URL`, in one file of at most 45,000 groups and
+  rules; without a base URL there's none.
   `/robots.txt` disallows account pages, sign-in, listing, search, the unvetted area, and comparisons, which also say
   `noindex`. [Slice 9](slices/9-launch-readiness.md) explains the choices.
 - **A page with a canonical address describes itself to social sites**, with Open Graph tags and one image of
