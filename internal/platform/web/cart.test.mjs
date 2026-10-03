@@ -105,12 +105,13 @@ test('should keep a confirmation given on the cart\'s page for a library the car
 
 /** Return a library's Groups tab, at /example/rules, with its Add to cart box and a ticked or unticked checkbox and a
  * link to the group's page for each of groups, as static/cart.js finds them, keeping the cart in storage. It returns
- * the boxes, the links, and the address the script leaves in the history. */
+ * the boxes, the links, the address the script leaves in the history, the box's parts by selector, such as its phone
+ * bar, and the page's body, and shows the box's own button on screen when a test calls showButton. */
 function loadGroupsTab(storage, groups) {
-  const stub = () => ({ dataset: {}, hidden: false });
+  const parts = {};
   const panel = {
     dataset: { cartLibrary: 'example/rules', cartVetted: 'true' },
-    querySelector: stub,
+    querySelector: (selector) => (parts[selector] ??= { dataset: {}, hidden: false, offsetHeight: 61 }),
     querySelectorAll: () => [],
   };
   const boxes = groups.map(({ id, checked }) => ({
@@ -126,7 +127,9 @@ function loadGroupsTab(storage, groups) {
     '[data-sel-link]': links,
   };
   const link = { dataset: { cartMaxItems: '100', cartMaxKeyLength: '400' } };
+  const body = { style: { paddingBottom: '' } };
   const document = {
+    body,
     querySelector: (selector) => (selector === '[data-cart-link]' ? link : null),
     querySelectorAll: (selector) => found[selector] || [],
     addEventListener: () => {},
@@ -134,9 +137,20 @@ function loadGroupsTab(storage, groups) {
   const page = { address: '/example/rules?sel=unchanged' };
   const history = { state: null, replaceState: (_state, _title, address) => (page.address = address) };
   const window = { addEventListener: () => {}, dispatchEvent: () => {}, location: { pathname: '/example/rules', hash: '' } };
+  const observers = [];
+  class IntersectionObserver {
+    constructor(callback) {
+      this.callback = callback;
+      observers.push(this);
+    }
+    observe(target) {
+      this.target = target;
+    }
+  }
   vm.runInNewContext(readFileSync(new URL('./static/cart.js', import.meta.url), 'utf8'),
-    { window, document, history, localStorage: storage, CustomEvent, structuredClone, CSS: { escape: (text) => text } });
-  return { boxes, links, page };
+    { window, document, history, localStorage: storage, CustomEvent, structuredClone, CSS: { escape: (text) => text }, IntersectionObserver });
+  const showButton = (shown) => observers.forEach((o) => o.callback([{ target: o.target, isIntersecting: shown }]));
+  return { boxes, links, page, parts, body, showButton };
 }
 
 test('should leave a group the cart holds out of the address and the group links when the page ticks it', () => {
@@ -162,4 +176,27 @@ test('should take the selection out of the address when nothing is ticked', () =
 
   assert.equal(page.address, '/example/rules');
   assert.deepEqual(links.map((link) => link.href), ['/example/rules/techs/go']);
+});
+
+test('should show the phone bar while groups are ticked and the box\'s own button is off screen, padding the page by it', () => {
+  const { parts, body, showButton } = loadGroupsTab(fakeStorage(), [{ id: 'techs/go', checked: true }]);
+  const bar = parts['[data-cart-groups-bar]'];
+
+  assert.equal(bar.hidden, false);
+  assert.equal(body.style.paddingBottom, '61px');
+
+  showButton(true);
+  assert.equal(bar.hidden, true);
+  assert.equal(body.style.paddingBottom, '');
+
+  showButton(false);
+  assert.equal(bar.hidden, false);
+  assert.equal(body.style.paddingBottom, '61px');
+});
+
+test('should hide the phone bar and pad nothing when no group is ticked', () => {
+  const { parts, body } = loadGroupsTab(fakeStorage(), [{ id: 'techs/go', checked: false }]);
+
+  assert.equal(parts['[data-cart-groups-bar]'].hidden, true);
+  assert.equal(body.style.paddingBottom, '');
 });

@@ -248,9 +248,40 @@
       panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
       panel.querySelectorAll('[data-cart-groups-add]').forEach((button) => (button.disabled = n === 0));
       panel.querySelector('[data-cart-groups-clear]').hidden = n === 0;
-      panel.querySelector('[data-cart-groups-bar]').hidden = n === 0;
       panel.querySelector('[data-cart-groups-count]').textContent = `${n} selected`;
     }
+    paintBars();
+  }
+
+  // The Add to cart boxes by their own buttons, which come before their phone bars' buttons, and the boxes whose own
+  // button is on screen, which buttonWatcher keeps where IntersectionObserver exists.
+  const panelsByButton = new Map([...document.querySelectorAll('[data-cart-groups]')]
+    .map((panel) => [panel.querySelector('[data-cart-groups-add]'), panel]));
+  const buttonsShown = new Set();
+  const buttonWatcher = typeof IntersectionObserver === 'function'
+    ? new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const panel = panelsByButton.get(entry.target);
+        if (entry.isIntersecting) buttonsShown.add(panel);
+        else buttonsShown.delete(panel);
+      }
+      paintBars();
+    })
+    : null;
+  panelsByButton.forEach((_panel, button) => buttonWatcher?.observe(button));
+
+  /** Show each Add to cart box's phone bar while groups are ticked for it and its own button is off screen, which the
+   * bar stands in for, and pad the page's bottom by the bars that show, so none covers the end of the page. A bar the
+   * stylesheet hides, above the phone breakpoint, has no height, so it pads nothing. */
+  function paintBars() {
+    if (panelsByButton.size === 0) return;
+    let padding = 0;
+    for (const panel of panelsByButton.values()) {
+      const bar = panel.querySelector('[data-cart-groups-bar]');
+      bar.hidden = buttonsShown.has(panel) || !picksOf(panel).some((box) => box.checked);
+      if (!bar.hidden) padding = Math.max(padding, bar.offsetHeight);
+    }
+    document.body.style.paddingBottom = padding ? `${padding}px` : '';
   }
 
   /** Keep the groups ticked for panel, the ones it would add, in the page's address and in the links to each group's
@@ -396,6 +427,9 @@
     state = load();
     paint();
   });
+
+  // Crossing the phone breakpoint shows or hides the bars' height.
+  window.addEventListener('resize', paintBars);
 
   paint();
   // A group the address ticks that the cart holds already shows held, so the address leaves it out too.

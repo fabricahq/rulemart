@@ -261,7 +261,7 @@ templ groupsCartPanel(lib libraryView, selection groupSelection) {
 			<button class="inline-flex cursor-pointer items-center rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted hover:border-border-strong hover:text-ink" type="button" data-cart-groups-clear hidden?={ len(selection) == 0 }>Clear</button>
 		</div>
 		// Below the narrow breakpoint the box sits after every group, far from the checkboxes, so once any is ticked a
-		// bar at the viewport's bottom says how many and adds them.
+		// bar at the viewport's bottom says how many and adds them, while the box's own button is off screen.
 		<div class="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-border bg-paper px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_24px_-20px_rgb(0_0_0/.4)] narrow:hidden" data-cart-groups-bar hidden?={ len(selection) == 0 }>
 			<span class="text-[14px] font-medium text-ink" data-cart-groups-count>{ strconv.Itoa(len(selection)) } selected</span>
 			<button class={ cartPrimaryStyle } type="button" data-cart-groups-add disabled?={ len(selection) == 0 }>
