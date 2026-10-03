@@ -38,7 +38,7 @@ UPDATE accounts SET github_generation = github_generation + 1, github_tried_at =
 WHERE id IN (SELECT account_id FROM github_installations WHERE installation_id = @installation_id);
 
 -- name: ListInstallations :many
-SELECT installation_id, github_account FROM github_installations
+SELECT installation_id, github_account, suspended FROM github_installations
 WHERE account_id = @account_id
 ORDER BY created_at, installation_id;
 
@@ -68,3 +68,7 @@ DELETE FROM github_snapshots WHERE account_id IN (SELECT account_id FROM gone);
 -- name: DiscardInstallationSnapshots :execrows
 DELETE FROM github_snapshots
 WHERE account_id IN (SELECT account_id FROM github_installations WHERE installation_id = @installation_id);
+
+-- SetInstallationSuspended records, for every account that reads through the installation, whether it's suspended.
+-- name: SetInstallationSuspended :exec
+UPDATE github_installations SET suspended = @suspended WHERE installation_id = @installation_id;

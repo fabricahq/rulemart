@@ -35,6 +35,7 @@ type GithubInstallation struct {
 	AccountID      int64
 	InstallationID int64
 	GithubAccount  string
+	Suspended      bool
 	CreatedAt      pgtype.Timestamptz
 }
 

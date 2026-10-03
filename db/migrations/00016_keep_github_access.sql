@@ -47,6 +47,9 @@ CREATE TABLE github_installations (
     installation_id bigint NOT NULL CHECK (installation_id > 0),
     -- The GitHub account the app is installed on, the visitor's own or an organization's, as GitHub spelled it.
     github_account text NOT NULL CHECK (github_account ~ '^[A-Za-z0-9_-]{1,39}$'),
+    -- Whether the account's owner has suspended the app there, as GitHub's webhook last said. GitHub refuses a suspended
+    -- installation a token, so reads leave out what it reads, and keep it to read through again once it's unsuspended.
+    suspended boolean NOT NULL DEFAULT false,
     created_at timestamptz NOT NULL DEFAULT now(),
     -- An organization's installation can serve each of its owners who connect it.
     PRIMARY KEY (account_id, installation_id)
@@ -56,8 +59,10 @@ CREATE INDEX github_installations_installation_id_idx ON github_installations (i
 
 -- A read replaces the snapshot, and a change to an installation discards it.
 GRANT SELECT, INSERT, UPDATE, DELETE ON github_snapshots TO rulemart_accounts_writer;
--- Installing adds one, and removing access, or GitHub's webhook, deletes it; none changes.
+-- Installing adds one, and removing access, or GitHub's webhook, deletes it; only the webhook's suspensions change one,
+-- and only whether it's suspended.
 GRANT SELECT, INSERT, DELETE ON github_installations TO rulemart_accounts_writer;
+GRANT UPDATE (suspended) ON github_installations TO rulemart_accounts_writer;
 
 -- +goose Down
 -- Up-only migration; no rollback defined.

@@ -80,6 +80,9 @@ type Installation struct {
 	AccountID    int64
 	Organization bool
 	Repositories []string
+	// Suspended is true while the account's owner has suspended the app there: GitHub still describes the installation
+	// but refuses it a token.
+	Suspended bool
 }
 
 // installationToken is the token Fake gives installation id.
@@ -322,6 +325,10 @@ func (f *Fake) installation(w http.ResponseWriter, r *http.Request) {
 func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {
 	in, ok := f.findInstallation(w, r)
 	if !ok {
+		return
+	}
+	if in.Suspended {
+		http.Error(w, `{"message":"This installation has been suspended"}`, http.StatusForbidden)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)

@@ -159,7 +159,7 @@ func (q *Queries) GetSnapshot(ctx context.Context, accountID int64) ([]byte, err
 }
 
 const listInstallations = `-- name: ListInstallations :many
-SELECT installation_id, github_account FROM github_installations
+SELECT installation_id, github_account, suspended FROM github_installations
 WHERE account_id = $1
 ORDER BY created_at, installation_id
 `
@@ -167,6 +167,7 @@ ORDER BY created_at, installation_id
 type ListInstallationsRow struct {
 	InstallationID int64
 	GithubAccount  string
+	Suspended      bool
 }
 
 func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]ListInstallationsRow, error) {
@@ -178,7 +179,7 @@ func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]Lis
 	var items []ListInstallationsRow
 	for rows.Next() {
 		var i ListInstallationsRow
-		if err := rows.Scan(&i.InstallationID, &i.GithubAccount); err != nil {
+		if err := rows.Scan(&i.InstallationID, &i.GithubAccount, &i.Suspended); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -211,4 +212,19 @@ func (q *Queries) SaveSnapshot(ctx context.Context, arg SaveSnapshotParams) (int
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setInstallationSuspended = `-- name: SetInstallationSuspended :exec
+UPDATE github_installations SET suspended = $1 WHERE installation_id = $2
+`
+
+type SetInstallationSuspendedParams struct {
+	Suspended      bool
+	InstallationID int64
+}
+
+// SetInstallationSuspended records, for every account that reads through the installation, whether it's suspended.
+func (q *Queries) SetInstallationSuspended(ctx context.Context, arg SetInstallationSuspendedParams) error {
+	_, err := q.db.Exec(ctx, setInstallationSuspended, arg.Suspended, arg.InstallationID)
+	return err
 }

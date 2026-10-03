@@ -50,7 +50,7 @@ type Store interface {
 	// no longer see. It returns whether it kept the snapshot.
 	SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot) (bool, error)
 	// Installations returns the installations of the GitHub App the account reads private repositories through, in
-	// the order it added them.
+	// the order it added them, suspended ones too.
 	Installations(ctx context.Context, accountID int64) ([]domain.Installation, error)
 	// AddInstallation records that the account reads private repositories through installation, and discards its
 	// snapshot, in one transaction. Adding one it has changes nothing, and keeps the snapshot.
@@ -66,6 +66,9 @@ type Store interface {
 	InstallationRemoved(ctx context.Context, id int64) error
 	// InstallationChanged discards the snapshots of the accounts that read through the installation id.
 	InstallationChanged(ctx context.Context, id int64) error
+	// InstallationSuspended records whether the installation id is suspended for every account that reads through it,
+	// and discards their snapshots, in one transaction.
+	InstallationSuspended(ctx context.Context, id int64, suspended bool) error
 }
 
 // ReadClaim is what ClaimRead found as it claimed a read, or declined to.

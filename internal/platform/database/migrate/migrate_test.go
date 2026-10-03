@@ -72,6 +72,7 @@ func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListAndStarAndNothin
 		"record an install":   `INSERT INTO github_installations (account_id, installation_id, github_account) SELECT id, 1, 'octocat' FROM accounts`,
 		"read the installs":   `SELECT installation_id FROM github_installations`,
 		"forget an install":   `DELETE FROM github_installations WHERE installation_id = 2`,
+		"suspend an install":  `UPDATE github_installations SET suspended = true WHERE installation_id = 2`,
 		"discard a snapshot":  `DELETE FROM github_snapshots WHERE account_id = 0`,
 		"sign it out":         `DELETE FROM sessions`,
 		"delete the account":  `DELETE FROM accounts`,
@@ -247,6 +248,7 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table rules UPDATE",
 		},
 		postgrestest.AccountsWriterRole: {
+			"column github_installations.suspended UPDATE",
 			"column listings.failure UPDATE",
 			"column listings.requested_at UPDATE",
 			"schema public USAGE",

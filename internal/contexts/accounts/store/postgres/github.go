@@ -108,7 +108,7 @@ func (s *Store) Installations(ctx context.Context, accountID int64) ([]domain.In
 	}
 	installations := make([]domain.Installation, len(rows))
 	for i, row := range rows {
-		installations[i] = domain.Installation{ID: row.InstallationID, Account: row.GithubAccount}
+		installations[i] = domain.Installation{ID: row.InstallationID, Account: row.GithubAccount, Suspended: row.Suspended}
 	}
 	return installations, nil
 }
@@ -185,6 +185,25 @@ func (s *Store) InstallationChanged(ctx context.Context, id int64) error {
 	})
 	if err != nil {
 		return fmt.Errorf("discard snapshots of GitHub installation installationID=%d: %v", id, err)
+	}
+	return nil
+}
+
+// InstallationSuspended records whether the installation is suspended, and discards the snapshots of the accounts that
+// read through it, in one transaction.
+func (s *Store) InstallationSuspended(ctx context.Context, id int64, suspended bool) error {
+	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
+			return err
+		}
+		if err := q.SetInstallationSuspended(ctx, accountsdb.SetInstallationSuspendedParams{InstallationID: id, Suspended: suspended}); err != nil {
+			return err
+		}
+		_, err := q.DiscardInstallationSnapshots(ctx, id)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("mark GitHub installation installationID=%d suspended=%t: %v", id, suspended, err)
 	}
 	return nil
 }

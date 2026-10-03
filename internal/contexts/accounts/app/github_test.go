@@ -400,6 +400,50 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 	}
 }
 
+// Suspending the app on GitHub hides the private repositories it reads, without forgetting the installation, and
+// unsuspending it shows them again, each at once, though GitHub refuses a suspended installation a token.
+func TestASuspendedInstallationsRepositoriesDisappearAndReturnWhenUnsuspended(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site := newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+	deliver := func(action string, suspended bool) {
+		t.Helper()
+		fake.Installations[0].Suspended = suspended
+		body := `{"action":"` + action + `","installation":{"id":5,"app_id":42}}`
+		if err := site.accounts.Deliver(ctx, "installation", []byte(body), signature(webhookSecret, body)); err != nil {
+			t.Fatalf("deliver %s: %v", action, err)
+		}
+	}
+	projects := func() []string {
+		t.Helper()
+		var names []string
+		for _, p := range site.snapshot(t).Projects {
+			names = append(names, p.FullName())
+		}
+		return names
+	}
+
+	deliver("suspend", true)
+	if got := projects(); !slices.Equal(got, []string{"mona/api"}) {
+		t.Errorf("while suspended, projects %v, want mona/api only", got)
+	}
+	if installations, err := site.accounts.Installations(ctx, site.account.ID); err != nil || len(installations) != 1 || !installations[0].Suspended {
+		t.Errorf("while suspended, installations %+v, %v, want installation 5, suspended", installations, err)
+	}
+
+	deliver("unsuspend", false)
+	if got := projects(); !slices.Equal(got, []string{"mona/api", "mona/billing"}) {
+		t.Errorf("after unsuspending, projects %v, want mona/api and mona/billing", got)
+	}
+	if installations, err := site.accounts.Installations(ctx, site.account.ID); err != nil || len(installations) != 1 || installations[0].Suspended {
+		t.Errorf("after unsuspending, installations %+v, %v, want installation 5, not suspended", installations, err)
+	}
+}
+
 // Deleting an account deletes its snapshot and its installations with it.
 func TestDeletingAnAccountDeletesItsGitHubSnapshotAndInstallations(t *testing.T) {
 	fake := monasGitHub()

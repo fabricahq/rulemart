@@ -1,5 +1,6 @@
 // Check and read the deliveries of the GitHub App's webhook: GitHub signs each with the webhook's secret, and Rulemart
-// acts on the ones that say an installation was removed, or that the repositories it reads changed.
+// acts on the ones that say an installation was removed, suspended, or unsuspended, or that the repositories it reads
+// changed.
 
 package github
 
@@ -41,10 +42,14 @@ func (a *App) WebhookChange(ctx context.Context, event string, body []byte, sign
 	switch {
 	case change.ID <= 0 || (delivery.Installation.AppID != 0 && delivery.Installation.AppID != a.config.ID):
 		return domain.InstallationChange{}, domain.ErrIgnoredEvent
-	case event == "installation" && (delivery.Action == "deleted" || delivery.Action == "suspend"):
-		change.Removed = true
-	case event == "installation" && (delivery.Action == "unsuspend" || delivery.Action == "new_permissions_accepted"),
-		event == "installation_repositories":
+	case event == "installation" && delivery.Action == "deleted":
+		change.Action = domain.Uninstalled
+	case event == "installation" && delivery.Action == "suspend":
+		change.Action = domain.Suspended
+	case event == "installation" && delivery.Action == "unsuspend":
+		change.Action = domain.Unsuspended
+	case event == "installation" && delivery.Action == "new_permissions_accepted", event == "installation_repositories":
+		change.Action = domain.RepositoriesChanged
 	default:
 		return domain.InstallationChange{}, domain.ErrIgnoredEvent
 	}

@@ -163,6 +163,9 @@ func (g GitHubAccounts) readOnce(ctx context.Context, token string, account doma
 	if err != nil {
 		return previous, err
 	}
+	// GitHub refuses a suspended installation a token, so a read leaves it out, rather than failing, or forgetting it
+	// for being unreadable.
+	installations = slices.DeleteFunc(installations, func(i domain.Installation) bool { return i.Suspended })
 	now := g.now()
 	installations, err = g.stillPermitted(ctx, token, account, installations)
 	var snapshot domain.Snapshot
@@ -476,9 +479,11 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 	return g.Store.RemoveInstallations(ctx, accountID)
 }
 
-// Deliver acts on a delivery of the GitHub App's webhook: an installation removed is forgotten for every account, and
-// one whose repositories changed discards their snapshots, so their next page reads GitHub again. It fails with
-// ErrNoApp without a GitHub App, and as GitHubApp.WebhookChange does for a delivery it doesn't act on.
+// Deliver acts on a delivery of the GitHub App's webhook: an installation uninstalled is forgotten for every account,
+// one suspended is kept but read through by none until it's unsuspended, and each of these, like a change to the
+// repositories one reads, discards the snapshots of the accounts that read through it, so their next page reads GitHub
+// again. It fails with ErrNoApp without a GitHub App, and as GitHubApp.WebhookChange does for a delivery it doesn't act
+// on.
 func (g GitHubAccounts) Deliver(ctx context.Context, event string, body []byte, signature string) error {
 	if g.App == nil {
 		return ErrNoApp
@@ -487,10 +492,14 @@ func (g GitHubAccounts) Deliver(ctx context.Context, event string, body []byte, 
 	if err != nil {
 		return err
 	}
-	if change.Removed {
+	switch change.Action {
+	case domain.Uninstalled:
 		return g.Store.InstallationRemoved(ctx, change.ID)
+	case domain.Suspended, domain.Unsuspended:
+		return g.Store.InstallationSuspended(ctx, change.ID, change.Action == domain.Suspended)
+	default:
+		return g.Store.InstallationChanged(ctx, change.ID)
 	}
-	return g.Store.InstallationChanged(ctx, change.ID)
 }
 
 func (g GitHubAccounts) now() time.Time {

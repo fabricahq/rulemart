@@ -26,6 +26,9 @@ type Installation struct {
 	// Account is the login of the GitHub account the app is installed on, the visitor's own or an organization's, as
 	// GitHub named it when the visitor added the installation; the account may have been renamed since.
 	Account string
+	// Suspended is true while the account's owner has suspended the app on GitHub: GitHub refuses it a token, so reads
+	// leave out what it reads, and keep it to read through again once it's unsuspended.
+	Suspended bool
 }
 
 // SettingsURL returns where on GitHub the installation's repositories are chosen, or the app uninstalled, for the
@@ -48,8 +51,20 @@ type InstallationAccount struct {
 
 // InstallationChange is what GitHub's webhook says happened to an installation of the GitHub App.
 type InstallationChange struct {
-	ID int64
-	// Removed is true when the app was uninstalled or suspended, so it reads nothing for anyone; otherwise the
-	// repositories it may read changed.
-	Removed bool
+	ID     int64
+	Action InstallationAction
 }
+
+// InstallationAction is what happened to an installation of the GitHub App.
+type InstallationAction int
+
+const (
+	// RepositoriesChanged means the repositories the installation may read changed.
+	RepositoriesChanged InstallationAction = iota
+	// Uninstalled means the app was uninstalled, so the installation reads nothing for anyone, ever again.
+	Uninstalled
+	// Suspended means the account's owner suspended the app, so it reads nothing until they unsuspend it.
+	Suspended
+	// Unsuspended means the account's owner unsuspended the app, so it reads what it did before.
+	Unsuspended
+)
