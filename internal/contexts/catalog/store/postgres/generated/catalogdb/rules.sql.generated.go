@@ -184,7 +184,8 @@ library_counts AS (
     GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
 ),
 facets AS (
-    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
+    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM base b WHERE NOT b.retired) AS unfiltered_current,
+           (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
            coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
            coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
            coalesce(array_agg(c.owner_avatar_url ORDER BY c.position), '{}')::text[] AS library_avatar_urls,
@@ -230,7 +231,7 @@ SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, 
        pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
        (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
-       facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.unfiltered, facets.unfiltered_current, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM facets
 LEFT JOIN page pg ON true
@@ -283,6 +284,7 @@ type ListRulesRow struct {
 	Complete          int64
 	Libraries         int64
 	Unfiltered        int64
+	UnfilteredCurrent int64
 	RetiredRules      int64
 	LibraryOwners     []string
 	LibraryNames      []string
@@ -382,6 +384,7 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 			&i.Complete,
 			&i.Libraries,
 			&i.Unfiltered,
+			&i.UnfilteredCurrent,
 			&i.RetiredRules,
 			&i.LibraryOwners,
 			&i.LibraryNames,

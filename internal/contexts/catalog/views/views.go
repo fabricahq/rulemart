@@ -426,10 +426,11 @@ type RuleResults struct {
 	// Total counts the rules that pass the list's filters, Complete those of them that hold every word a search finds,
 	// and Libraries the libraries they come from.
 	Total, Complete, Libraries int
-	// Unfiltered counts the rules the list holds before its filters, and UnfilteredLibraries the libraries they come
-	// from, Fabrica's first, then by owner and name, each with how many of them it holds.
-	Unfiltered          int
-	UnfilteredLibraries []LibraryCount
+	// Unfiltered counts the rules the list holds before its filters, retired ones too while it shows them, and
+	// UnfilteredLibraries the libraries they come from, Fabrica's first, then by owner and name, each with how many of
+	// them it holds. UnfilteredCurrent counts only the current rules among them, as a page's count of its rules does.
+	Unfiltered, UnfilteredCurrent int
+	UnfilteredLibraries           []LibraryCount
 	// RetiredRules counts the retired rules of the list's group, or of every group, in its libraries, whether or not
 	// the list holds them, so a page offers to show them only when there are some.
 	RetiredRules int

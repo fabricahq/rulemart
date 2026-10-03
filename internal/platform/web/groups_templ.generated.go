@@ -190,11 +190,11 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if g.list.unfiltered > 0 {
+			if g.list.current > 0 {
 				var templ_7745c5c3_Var11 string
-				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(plural(g.list.unfiltered, "rule", "rules"))
+				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(plural(g.list.current, "rule", "rules"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 36, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 37, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -207,7 +207,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(plural(len(g.list.libraryFilters), "library", "libraries"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 36, Col: 117}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 37, Col: 114}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -221,7 +221,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(" · ")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 38, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 39, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 					if templ_7745c5c3_Err != nil {
@@ -236,7 +236,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(g.description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 41, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 42, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -283,7 +283,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(" ")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 52, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 53, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -318,7 +318,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 					var templ_7745c5c3_Var19 templ.SafeURL
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(g.list.retiredHref()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 53, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 54, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -336,7 +336,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(g.label.display())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 56, Col: 152}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 57, Col: 152}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -383,7 +383,7 @@ func groupPage(c chrome, g groupPageView) templ.Component {
 						var templ_7745c5c3_Var22 string
 						templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(plural(len(g.rows), "rule", "rules"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 64, Col: 110}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `groups.templ`, Line: 65, Col: 110}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 						if templ_7745c5c3_Err != nil {
