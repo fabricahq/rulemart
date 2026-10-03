@@ -102,3 +102,64 @@ test('should keep a confirmation given on the cart\'s page for a library the car
 
   assert.deepEqual(Object.keys(stored(storage).confirmed), ['stranger/rules']);
 });
+
+/** Return a library's Groups tab, at /example/rules, with its Add to cart box and a ticked or unticked checkbox and a
+ * link to the group's page for each of groups, as static/cart.js finds them, keeping the cart in storage. It returns
+ * the boxes, the links, and the address the script leaves in the history. */
+function loadGroupsTab(storage, groups) {
+  const stub = () => ({ dataset: {}, hidden: false });
+  const panel = {
+    dataset: { cartLibrary: 'example/rules', cartVetted: 'true' },
+    querySelector: stub,
+    querySelectorAll: () => [],
+  };
+  const boxes = groups.map(({ id, checked }) => ({
+    dataset: { cartPickGroup: `group::example/rules::${id}`, cartGroupId: id, cartLibrary: 'example/rules' },
+    checked,
+    disabled: false,
+  }));
+  const links = groups.map(({ id }) => ({ dataset: { selLink: `/example/rules/${id}` }, href: `/example/rules/${id}` }));
+  const found = {
+    '[data-cart-groups]': [panel],
+    '[data-cart-pick-group]': boxes,
+    '[data-cart-pick-group][data-cart-library="example/rules"]': boxes,
+    '[data-sel-link]': links,
+  };
+  const link = { dataset: { cartMaxItems: '100', cartMaxKeyLength: '400' } };
+  const document = {
+    querySelector: (selector) => (selector === '[data-cart-link]' ? link : null),
+    querySelectorAll: (selector) => found[selector] || [],
+    addEventListener: () => {},
+  };
+  const page = { address: '/example/rules?sel=unchanged' };
+  const history = { state: null, replaceState: (_state, _title, address) => (page.address = address) };
+  const window = { addEventListener: () => {}, dispatchEvent: () => {}, location: { pathname: '/example/rules', hash: '' } };
+  vm.runInNewContext(readFileSync(new URL('./static/cart.js', import.meta.url), 'utf8'),
+    { window, document, history, localStorage: storage, CustomEvent, structuredClone, CSS: { escape: (text) => text } });
+  return { boxes, links, page };
+}
+
+test('should leave a group the cart holds out of the address and the group links when the page ticks it', () => {
+  const storage = fakeStorage({ [STORE]: JSON.stringify({ cart: ['group::example/rules::techs/go'] }) });
+
+  const { boxes, links, page } = loadGroupsTab(storage, [
+    { id: 'techs/go', checked: true },
+    { id: 'techs/react', checked: false },
+    { id: 'practices/testing', checked: true },
+  ]);
+
+  assert.deepEqual(boxes.map((box) => [box.checked, box.disabled]), [[true, true], [false, false], [true, false]]);
+  assert.equal(page.address, '/example/rules?sel=practices/testing');
+  assert.deepEqual(links.map((link) => link.href), [
+    '/example/rules/techs/go?sel=practices/testing',
+    '/example/rules/techs/react?sel=practices/testing',
+    '/example/rules/practices/testing?sel=practices/testing',
+  ]);
+});
+
+test('should take the selection out of the address when nothing is ticked', () => {
+  const { links, page } = loadGroupsTab(fakeStorage(), [{ id: 'techs/go', checked: false }]);
+
+  assert.equal(page.address, '/example/rules');
+  assert.deepEqual(links.map((link) => link.href), ['/example/rules/techs/go']);
+});

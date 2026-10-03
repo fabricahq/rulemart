@@ -110,7 +110,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 }
 
 // A listed library's links to a group's rules in every library include unvetted libraries, so they reach its rules,
-// even in a group only it holds, from the library's page and from a rule's.
+// even in a group only it holds, from a rule's page.
 func TestAnUnvettedLibrarysLinksToAGroupAcrossLibrariesReachItsRules(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/house-style", "House style")
@@ -143,8 +143,8 @@ changes: {techs/house-style/keep-it-plain: {change: new, summaries: [Add the rul
 	}
 	handler := newSite(t, app.Pages{Store: webStore, Groups: groups})
 
-	for _, path := range []string{library, library + "/techs/house-style/keep-it-plain"} {
-		hrefs := links(t, get(t, handler, path).Body.String(), "rules in every library")
+	for _, path := range []string{library + "/techs/house-style/keep-it-plain"} {
+		hrefs := linksTo(t, get(t, handler, path).Body.String(), groupPrefix)
 		if len(hrefs) != 1 {
 			t.Fatalf("%s: got links %q to the group in every library, want one", path, hrefs)
 		}

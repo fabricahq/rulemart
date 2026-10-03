@@ -457,9 +457,10 @@ func withQuery(target string, r *http.Request) string {
 	return target
 }
 
-// library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
-// starting at the release the until parameter names, if any. With releases to compare in the from and to
-// parameters, the releases tab compares them.
+// library shows a library's tab that the tab parameter names: its groups by default, with the ones the sel parameter
+// ticks, its rules, with its retired rules in place when the retired parameter is 1, or its releases, starting at the
+// release the until parameter names, if any. With releases to compare in the from and to parameters, the releases tab
+// compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
@@ -478,7 +479,9 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 			tab = groupsTab
 		}
 		contents := newLibraryContents(view, page, s.assets.iconURL)
-		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab))
+		selection := newGroupSelection(query, contents.current())
+		retired := tab == rulesTab && query.Get(domain.RetiredParam) == "1"
+		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab, selection, retired))
 	}
 }
 

@@ -204,7 +204,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		page = views.LibraryPage{Library: lib, Links: links}
 		for _, r := range retired {
 			page.Retired = append(page.Retired, views.RetiredRuleCard{
-				Path: r.Path, Title: r.Title.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
+				Path: r.Path, Group: r.GroupPath, Title: r.Title.String, Impact: r.Impact.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
 				ReplacedBy: r.ReplacedBy.String,
 			})
 		}
@@ -597,7 +597,7 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
-		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
+		Groups: int(row.GroupCount), Rules: int(row.RuleCount), AddedBy: row.AddedBy, AddedAt: row.AddedAt.Time,
 	}, row.ID, nil
 }
 

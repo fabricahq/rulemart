@@ -15,6 +15,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // day returns noon UTC on day n of September 2026.
@@ -283,7 +284,11 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
 		t.Errorf("latest release tagged at %s, want %s", page.Library.LatestTaggedAt, day(3))
 	}
-	page.Library.LatestTaggedAt = day(3)
+	// Without a listing, the library came to Rulemart when it was first ingested, a moment ago.
+	if since := time.Since(page.Library.AddedAt); since < 0 || since > time.Minute {
+		t.Errorf("the library came to Rulemart at %s, want when it was ingested", page.Library.AddedAt)
+	}
+	page.Library.LatestTaggedAt, page.Library.AddedAt = day(3), time.Time{}
 	if page.Library != wantLibrary {
 		t.Errorf("library is %+v, want %+v", page.Library, wantLibrary)
 	}
@@ -302,9 +307,9 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		t.Errorf("rules are %+v, want %+v", page.Rules, wantRules)
 	}
 	wantRetired := []views.RetiredRuleCard{
-		{Path: "practices/legacy/old-habit", Title: "Old habit", LastVersion: v(1, 0, 0), RetiredIn: 3},
-		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", LastVersion: v(1, 0, 0), RetiredIn: 3,
-			ReplacedBy: "practices/testing/verify-retry-limits"},
+		{Path: "practices/legacy/old-habit", Group: "practices/legacy", Title: "Old habit", Impact: "HIGH", LastVersion: v(1, 0, 0), RetiredIn: 3},
+		{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", Title: "Check retry backoff", Impact: "HIGH",
+			LastVersion: v(1, 0, 0), RetiredIn: 3, ReplacedBy: "practices/testing/verify-retry-limits"},
 	}
 	if !reflect.DeepEqual(page.Retired, wantRetired) {
 		t.Errorf("retired rules are %+v, want %+v", page.Retired, wantRetired)
@@ -425,5 +430,30 @@ func TestRulePageReadsTagsAndAssets(t *testing.T) {
 	}
 	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a file kept without bytes: got %v, want ErrNotFound", err)
+	}
+}
+
+// A listed library names who listed it, by the login the listing's account signed in with last, and came to Rulemart
+// when it was listed, vetted since or not; one vetted without a listing names no one.
+func TestLibraryPageNamesWhoListedTheLibrary(t *testing.T) {
+	db, connString := databasetest.New(t)
+	if _, err := postgres.New(db).ReplaceLibrary(context.Background(), unvetted()); err != nil {
+		t.Fatal(err)
+	}
+	listedAt := time.Date(2026, 9, 20, 8, 0, 0, 0, time.UTC)
+	postgrestest.Exec(t, connString, `WITH account AS (
+		INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (99, 'Lister', '') RETURNING id
+	) INSERT INTO listings (account_id, host, owner, name, host_repository_id, created_at)
+	SELECT id, 'github', 'stranger', 'unvetted-rules', '8', $1 FROM account`, listedAt)
+	reader := postgres.New(databasetest.AsWebRole(t, connString))
+
+	for name, vettedNow := range map[string][]domain.LibraryKey{"unvetted": nil, "vetted since": {{Host: domain.GitHub, RepositoryID: "8"}}} {
+		page, err := reader.LibraryPage(context.Background(), vettedNow, "stranger", "unvetted-rules")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Library.AddedBy != "Lister" || !page.Library.AddedAt.Equal(listedAt) {
+			t.Errorf("%s: added by %q at %s, want Lister at %s", name, page.Library.AddedBy, page.Library.AddedAt, listedAt)
+		}
 	}
 }

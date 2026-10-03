@@ -320,14 +320,19 @@ templ ruleRow(r ruleRowView) {
 					}
 				</span>
 			</div>
-			if r.retired && r.renamed {
+			if r.retired && (r.retiredIn != "" || r.replacedBy != "") {
 				<p class="mt-1 text-[12.5px] text-faint">
-					Renamed to{ " " }<span class="mono text-muted">
-						@breakable(r.replacedBy)
-					</span>
+					if r.retiredIn != "" {
+						Retired in <span class="mono">{ r.retiredIn }</span>{ retiredSeparator(r) }
+					}
+					if r.renamed {
+						{ retiredReplacementWord(r.retiredIn, "Renamed to", "renamed to") }{ " " }<span class="mono text-muted">
+							@breakable(r.replacedBy)
+						</span>
+					} else if r.replacedBy != "" {
+						{ retiredReplacementWord(r.retiredIn, "Replaced by", "replaced by") } <span class="text-muted">{ r.replacedBy }</span>
+					}
 				</p>
-			} else if r.retired && r.replacedBy != "" {
-				<p class="mt-1 text-[12.5px] text-faint">Replaced by <span class="text-muted">{ r.replacedBy }</span></p>
 			}
 			if len(r.missing) > 0 {
 				<p class="mt-1 text-[12.5px] text-muted">
@@ -450,30 +455,55 @@ templ factLink(href, text, title string) {
 	</a>
 }
 
-// libraryFacts is the facts every library page shows beside its content, and where to report the library.
+// libraryFacts is the facts every library page shows beside its content, as the prototype's: who owns it, where it
+// is, its license and latest release, when it came to Rulemart and who added it, and where to report it.
 templ libraryFacts(lib libraryView) {
-	@aboutPanel(reportLibrary(lib)) {
-		@fact("Owner") {
+	<dl class="grid gap-[7px] px-0.5 text-[13px]">
+		@kv("Owner") {
 			<a href={ templ.SafeURL(lib.ownerHref) }>{ lib.owner }</a>
 		}
-		@fact("Repository") {
+		@kv("Repository") {
 			@factLink(lib.githubURL, lib.name, "github.com/"+lib.owner+"/"+lib.name)
 		}
-		@fact("License") {
+		@kv("License") {
 			@license(lib)
 		}
-		@fact("Latest library release") {
+		@kv("Latest library release") {
 			@factLink(lib.latestHref, lib.latestTag, "What "+lib.latestTag+" published")
 		}
-		@fact("Updated") {
+		@kv("Updated") {
 			{ lib.updated }
 		}
-	}
+		@kv("On Rulemart since") {
+			{ lib.addedOn }
+		}
+		@kv("Added by") {
+			if lib.addedBy != "" {
+				<a href={ templ.SafeURL(domain.OwnerURL(lib.addedBy)) } rel="nofollow">{ "@" + lib.addedBy }</a>
+			} else {
+				Fabrica
+			}
+		}
+	</dl>
+	<p class="px-0.5 text-[12.5px] text-muted">
+		@reportLibrary(lib)
+	</p>
+}
+
+// kv is one fact in a list of facts, as the prototype's: its name, then its value at the right, which wraps at its
+// parts when it's long.
+templ kv(name string) {
+	<div class="flex justify-between gap-3">
+		<dt class="whitespace-nowrap text-muted">{ name }</dt>
+		<dd class="min-w-0 text-right [overflow-wrap:anywhere]">
+			{ children... }
+		</dd>
+	</div>
 }
 
 // reportLibrary leads to a report about lib on GitHub, with the library filled in.
 templ reportLibrary(lib libraryView) {
-	<p>Rules harmful, misleading, or not what they claim? <a class="whitespace-nowrap" href={ templ.SafeURL(reportLibraryURL(lib.fullName())) }>Report this library</a></p>
+	Rules harmful, misleading, or not what they claim? <a class="whitespace-nowrap" href={ templ.SafeURL(reportLibraryURL(lib.fullName())) }>Report this library</a>
 }
 
 // license shows the declared SPDX expression, or else a link to the declared license file.

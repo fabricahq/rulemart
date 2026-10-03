@@ -58,6 +58,11 @@ type Library struct {
 	LatestTaggedAt time.Time
 	// Groups counts the groups that hold current rules, and Rules the current rules.
 	Groups, Rules int
+	// AddedBy is the login of the account whose listing named the library, as it last signed in, or empty for a
+	// library vetted without one. AddedAt is when that listing was made, or without one, when the library was first
+	// ingested.
+	AddedBy string
+	AddedAt time.Time
 }
 
 // FullName returns the library's repository as owner/name.
@@ -76,19 +81,21 @@ type LibraryPage struct {
 
 // RetiredRuleCard is a retired rule in a library's list of rules.
 type RetiredRuleCard struct {
-	// Path is the rule's ID.
-	Path string
-	// Title is its last version's, or empty when the catalog doesn't have it yet.
-	Title       string
-	LastVersion coderules.RuleVersion
+	// Path is the rule's ID, and Group its group's path.
+	Path, Group string
+	// CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
+	CanonicalGroup *CanonicalGroup
+	// Title and Impact are its last version's, or empty when the catalog doesn't have them yet.
+	Title, Impact string
+	LastVersion   coderules.RuleVersion
 	// RetiredIn is the number of the library release that retired the rule.
 	RetiredIn int
 	// ReplacedBy is the ID of the rule that replaced it, or empty when its retirement named none.
 	ReplacedBy string
 	// Replacements are that rule, then while it's retired, the rule that replaced it, and so on, to a rule current now.
 	Replacements []RuleRef
-	// Renamed reports that the replacement is the same rule under a new ID: added by the release that retired this
-	// one, under its title.
+	// Renamed reports that every replacement in the chain is the same rule under a new ID: added by the release that
+	// retired the one before, under its title.
 	Renamed bool
 }
 

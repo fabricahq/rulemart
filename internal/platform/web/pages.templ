@@ -3,7 +3,11 @@
 
 package web
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
 
 // librariesPage lists every vetted library, and the unvetted ones too when unvetted is true, under a lede that says
 // anyone can list a public library, leading to listing one when canList is true, and where the unvetted ones are, and
@@ -56,30 +60,47 @@ const (
 	releasesTab libraryTab = "releases"
 )
 
-// libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
-templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab) {
-	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, current, true) {
+// libraryPage shows a library's groups, with selection ticked, beside the box that adds them to the cart, or with
+// rulesTab its rules by group, with its retired rules in place when retired is true, beside its facts.
+templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab, selection groupSelection, retired bool) {
+	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), filters: current == rulesTab}, lib, current, libraryAside(lib, current, selection)) {
 		if current == rulesTab {
-			@allRules(contents)
+			@allRules(lib, contents, retired)
 		} else {
-			@groupList("Technologies", lib, contents.techs)
-			@groupList("Practices", lib, contents.practices)
+			@groupList("Technologies", lib, ofKind(contents.current(), techsKind), selection)
+			@groupList("Practices", lib, ofKind(contents.current(), practicesKind), selection)
 		}
 	}
 }
 
-// libraryFrame is every page about a library: its name, its tabs with current on, and the
-// tab's content, beside the library's facts when withFacts, under the warning when the library isn't vetted.
-templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
+// libraryAside is what a library's page shows beside its tab: on the Groups tab, the box that adds the ticked groups,
+// selection, to the cart, then the library's facts.
+templ libraryAside(lib libraryView, current libraryTab, selection groupSelection) {
+	if current == groupsTab {
+		@groupsCartPanel(lib, selection)
+	}
+	@libraryFacts(lib)
+}
+
+// libraryFrame is every page about a library, as the prototype's library page: its owner's large avatar, with the
+// check mark when it's vetted, its name, description, and a link to GitHub, its tabs with current on, and the tab's
+// content, beside aside, unless it's nil, under the warning when the library isn't vetted. Discussion's tab will
+// follow Library releases, with rulemart#27.
+templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, aside templ.Component) {
 	@layout(c, libraryHead(h, lib)) {
 		<div class="page wrap">
 			if !lib.vetted {
 				@unvettedWarning(false)
 			}
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
-				@avatar(lib.avatar, lib.owner, avatarLG)
-				<div>
-					<h1 class="title-xl"><span class="text-faint">{ lib.owner } /</span> <span class="inline-block">{ lib.name }</span></h1>
+				@libraryAvatar(lib.avatar, lib.owner, avatarLG, lib.vetted)
+				<div class="min-w-0">
+					<h1 class="title-xl flex flex-wrap items-center gap-2.5">
+						{ lib.name }
+						if lib.vetted {
+							<span class="sr-only">{ vettedTitle }</span>
+						}
+					</h1>
 					if lib.description != "" {
 						<p class="mt-1.5 mb-2.5 text-muted">{ lib.description }</p>
 					}
@@ -96,16 +117,13 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 				{name: "All rules", href: lib.href + "?tab=rules", count: lib.rules, on: current == rulesTab},
 				{name: "Library releases", href: releasesHref(lib), count: lib.releases, on: current == releasesTab},
 			})
-			if withFacts {
+			if aside != nil {
 				<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
 					<div class="min-w-0">
 						{ children... }
 					</div>
 					<aside class="grid content-start gap-[18px]">
-						if current == groupsTab {
-							@groupsCartPanel(lib)
-						}
-						@libraryFacts(lib)
+						@aside
 					</aside>
 				</div>
 			} else {
@@ -115,11 +133,11 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 	}
 }
 
-// groupList lists one kind of group, each leading to its rules on the All rules tab, to its page in the library, and a
-// canonical group also to its page across libraries, with a checkbox that picks it for the cart, which shades the row
-// and marks its edge while ticked, as the prototype's selected rows. The row's main link covers the row, and the other
-// links and the checkbox sit above it.
-templ groupList(kind string, lib libraryView, groups []groupView) {
+// groupList lists one kind of group, as the prototype's Groups tab: each row a label that ticks the group, with
+// selection's ticked, for the Add to cart box of its library, which shades the row and marks its edge while ticked,
+// showing the group's icon, name, and ID, or its ID flagged as not canonical, a practice's blurb, the In cart badge
+// once the cart holds it, and its rules, leading to its page in the library with the selection.
+templ groupList(kind string, lib libraryView, groups []groupView, selection groupSelection) {
 	if len(groups) > 0 {
 		@labelHeading("mt-[22px] mb-2 first:mt-0") {
 			{ kind } · { strconv.Itoa(len(groups)) }
@@ -127,40 +145,42 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		@rowList() {
 			for _, g := range groups {
 				@rowItem() {
-					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[[data-cart-pick-group]:checked:enabled]:bg-surface has-[[data-cart-pick-group]:checked:enabled]:shadow-[inset_3px_0_var(--ink)] has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
-						<div class="flex min-w-0 items-center gap-3">
-							@groupPick(lib, g)
+					<label class="grid cursor-pointer grid-cols-[20px_minmax(150px,220px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[[data-cart-pick-group]:disabled]:cursor-default has-[[data-cart-pick-group]:checked:enabled]:bg-surface has-[[data-cart-pick-group]:checked:enabled]:shadow-[inset_3px_0_var(--ink)] max-narrow:grid-cols-[20px_minmax(0,1fr)_auto]">
+						<span class="grid place-items-center">
+							@groupPick(lib, g, selection.has(g.label.id))
+						</span>
+						<span class="flex min-w-0 items-center gap-2.5">
 							@groupTile(g.label, g.icon, tileMD)
-							<div class="min-w-0">
-								<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+							<span class="min-w-0">
+								<b class="block text-[14px] leading-[1.65] font-semibold">
 									if g.label.canonical {
 										{ g.label.name }
 									} else {
 										@breakable(g.label.id)
 									}
-								</a>
-								if g.label.canonical {
-									<span class="block font-mono text-[12px] leading-[20px] text-faint">
-										@breakable(g.label.id)
-									</span>
-								} else {
-									<span class="block leading-[20px]">
+								</b>
+								<span class="block">
+									if g.label.canonical {
+										<span class="font-mono text-[12px] text-faint">
+											@breakable(g.label.id)
+										</span>
+									} else {
 										@notCanonical(flagMD)
-									</span>
-								}
-							</div>
-						</div>
-						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden max-narrow:[@media(scripting:enabled)]:pl-[68px]">
-							if g.blurb != "" {
-								<p>{ g.blurb }</p>
-							}
-							<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
-						</div>
-						<span class="flex items-center gap-2 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-							@groupHeldBadge(lib, g)
-							<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id)) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+									}
+								</span>
+							</span>
 						</span>
-					</div>
+						<p class="text-[13px] text-muted max-narrow:col-start-2 max-narrow:col-end-[-1] max-narrow:row-start-2 max-narrow:empty:hidden">
+							// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
+							if kindOf(g.label.id) == practicesKind {
+								{ g.blurb }
+							}
+						</p>
+						<span class="inline-flex items-center gap-2 text-[12.5px] whitespace-nowrap text-faint max-narrow:col-start-3 max-narrow:row-start-1">
+							@groupHeldBadge(lib, g)
+							<a class="text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id) + selection.query()) } data-sel-link={ libraryGroupHref(lib.href, g.label.id) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+						</span>
+					</label>
 				}
 			}
 		}
@@ -219,59 +239,51 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
 	}
 }
 
-// allRules lists every current rule under its group.
-templ allRules(contents libraryContents) {
+// allRules lists every current rule under its group, as the prototype's All rules tab, and when retired is true, each
+// group's retired rules after its current ones, grayed out, with the control that shows them when the library has any.
+templ allRules(lib libraryView, contents libraryContents, retired bool) {
+	if contents.hasRetired || retired {
+		<div class="mb-4">
+			@retiredOptIn(lib.href, retired)
+		</div>
+	}
 	for _, g := range contents.all() {
-		<div class="mt-8 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-0.5 pb-[7px] first:mt-0">
-			<h2 class="flex scroll-mt-20 items-center gap-2 text-[11px] tracking-[.1em] text-faint uppercase" id={ g.anchor }>
-				@groupTile(g.label, g.icon, tileXS)
+		if len(g.rules) > 0 || (retired && len(g.retired) > 0) {
+			<h2 class="mt-[30px] flex scroll-mt-20 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first-of-type:mt-0" id={ g.anchor }>
 				if g.label.canonical {
-					<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
+					{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span>
 				} else {
 					<span class="mono tracking-normal normal-case">{ g.label.id }</span>
 					@notCanonical(flagSM)
 				}
 			</h2>
-		</div>
-		@ruleRows() {
-			for _, r := range g.rules {
-				@ruleRow(r)
-			}
-		}
-	}
-	if len(contents.retired) > 0 {
-		<h2 class="mt-8 mb-3 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase" id="retired">Retired</h2>
-		@rowList() {
-			for _, r := range contents.retired {
-				@rowItem() {
-					@retiredRuleRow(r)
+			@ruleRows() {
+				for _, r := range g.rules {
+					@ruleRow(r)
+				}
+				if retired {
+					for _, r := range g.retired {
+						@ruleRow(r)
+					}
 				}
 			}
 		}
 	}
 }
 
-// retiredRuleRow is a retired rule in the All rules tab, leading to its page.
-templ retiredRuleRow(r retiredRuleCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_14px] items-center gap-[18px] px-[18px] py-3 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(r.href) }>
-		<div class="min-w-0">
-			<div class="text-[14px] leading-[1.35] font-semibold">{ r.title }</div>
-			<div class="mt-0.5 text-[12.5px] text-muted">
-				<span class="mono text-faint">
-					@breakable(r.id)
-				</span> · last version <span class="mono">{ r.lastVersion }</span> · retired in <span class="mono">{ r.retiredTag }</span>
-				if len(r.replacedBy) > 0 {
-					·
-					for _, step := range rowChainSteps(r.replacedBy, r.renamed) {
-						{ step.prefix }<span class="mono">
-							@breakable(step.id)
-						</span>
-					}
-				}
-			</div>
-		</div>
-		<span class="text-[12.5px] text-muted" aria-hidden="true">›</span>
-	</a>
+// retiredOptIn is the All rules tab's control that shows a library's retired rules in place, at path: a form with one
+// checkbox, which filters.js submits as soon as it changes, and which shows an Apply button without scripts, as the
+// unvetted opt-in does.
+templ retiredOptIn(path string, retired bool) {
+	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
+		<input type="hidden" name="tab" value={ string(rulesTab) }/>
+		<label class={ filterLabel }>
+			<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ retired }/> Show retired rules
+		</label>
+		<noscript>
+			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>
+		</noscript>
+	</form>
 }
 
 // ruleTab names a tab of a rule's page.

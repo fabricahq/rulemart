@@ -77,8 +77,8 @@ func (p Pages) UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, erro
 }
 
 // LibraryPage returns the library owner/name, vetted or listed, matched without regard to case, with its groups,
-// current rules, and retired rules, each with its chain of replacements to now and whether it was renamed, or
-// ErrNotFound.
+// current rules, and retired rules, each with its group as pages show it, its chain of replacements to now, and
+// whether every step of it was a rename, or ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {
 	page, err := p.Store.LibraryPage(ctx, p.Vetted, owner, name)
 	if err != nil {
@@ -89,7 +89,9 @@ func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.Libra
 	}
 	links := newRuleLinks(page.Links)
 	for i, r := range page.Retired {
-		page.Retired[i].Replacements, page.Retired[i].Renamed = links.replacements(r.Path), links.renamed(r.Path)
+		retired := &page.Retired[i]
+		retired.CanonicalGroup = p.canonical(r.Group)
+		retired.Replacements, retired.Renamed = links.replacements(r.Path), links.renamedThroughout(r.Path)
 	}
 	return page, nil
 }

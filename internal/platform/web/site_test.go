@@ -222,7 +222,7 @@ func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) 
 var exampleRules = views.Library{
 	Vetted: true, Owner: "example", Name: "rules", Description: "Example rules for tests.",
 	OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", LicenseExpression: "MIT", LicenseFile: "LICENSE",
-	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
+	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2, AddedAt: day(1),
 }
 
 // goGroup and testingGroup are how the canonical group list shows techs/go and practices/testing.
@@ -362,11 +362,13 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	assertShows(t, resp.Body.String(),
-		"example / rules Example rules for tests.",
+		"rules Vetted by Rulemart Example rules for tests. View on GitHub",
 		"Groups , 2", "All rules , 2", "Library releases , 3",
-		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
-		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
+		// Technologies' names say what they are, so only practices show what belongs in them.
+		"Technologies · 1 Go techs/go 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Owner example Repository rules License MIT Latest library release release/3 Updated 3 Sep 2026 "+
+			"On Rulemart since 1 Sep 2026 Added by Fabrica Rules harmful, misleading, or not what they claim? Report this library",
 	)
 	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
 		t.Fatal("the latest release doesn't link to it on the Library releases tab")
@@ -842,12 +844,13 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 	assertShows(t, page,
 		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
 		// its library.
-		"Technologies · 3 Go techs/go The Go language. Go rules in every library › 1 rule ›",
-		"techs/golang not canonical More Go rules. techs/golang rules in every library › 1 rule ›",
-		"Goose techs/goose Goose rules in every library › 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
+		"Technologies · 3 Go techs/go 1 rule ›",
+		"techs/golang not canonical 1 rule ›",
+		"Goose techs/goose 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
 	)
-	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") {
+	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") ||
+		strings.Contains(text, "More Go rules.") {
 		t.Error("the page shows a group's reading guidance")
 	}
 	assertFlagsExplainThemselves(t, page, 1)
@@ -897,15 +900,44 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	}
 }
 
-// A library's groups lead to their rules in the library, and to their page across libraries, canonical or not.
-func TestLibraryPageLinksGroupsAcrossLibraries(t *testing.T) {
-	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
+// A library's groups each lead to their page in the library, carrying the groups the address ticks, which the page
+// ticks, counts, and offers to add, leaving out an ID the library doesn't have.
+func TestLibraryPageCarriesItsTickedGroups(t *testing.T) {
+	handler := newSite(t, newMixedCatalog())
 
-	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/golang", "/g/techs/goose", "/g/practices/testing"}) {
-		t.Errorf("the groups link %q across libraries", got)
+	plain := get(t, handler, mixed).Body.String()
+	ticked := get(t, handler, mixed+"?sel=TECHS/GO,techs/nothing&sel=practices/testing").Body.String()
+
+	if got := links(t, plain, "1 rule"); !slices.Equal(got, []string{mixed + "/techs/go", mixed + "/techs/golang", mixed + "/techs/goose", mixed + "/practices/testing"}) {
+		t.Errorf("the groups lead to %q", got)
 	}
-	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang", "/g/techs/golang"}) {
-		t.Errorf("techs/golang links %q", got)
+	assertShows(t, plain, "Add to cart Select whole groups to add. You can also add single rules from their pages. Add groups to cart Select all groups")
+	sel := "?sel=techs/go,practices/testing"
+	if got := links(t, ticked, "1 rule"); !slices.Equal(got, []string{mixed + "/techs/go" + sel, mixed + "/techs/golang" + sel, mixed + "/techs/goose" + sel, mixed + "/practices/testing" + sel}) {
+		t.Errorf("the groups lead to %q, without the ticked groups", got)
+	}
+	assertShows(t, ticked, "2 groups selected. Whole groups stay in sync with example/mixed. Add 2 groups to cart Select all groups Clear")
+	if checked := regexp.MustCompile(`data-cart-group-id="([^"]+)"[^>]* checked`).FindAllStringSubmatch(ticked, -1); len(checked) != 2 ||
+		checked[0][1] != "techs/go" || checked[1][1] != "practices/testing" {
+		t.Errorf("the ticked boxes are %q", checked)
+	}
+	if strings.Contains(ticked, "data-cart-groups-add disabled") || !strings.Contains(plain, "data-cart-groups-add disabled") {
+		t.Error("the Add button isn't disabled exactly when nothing is ticked")
+	}
+}
+
+// A library that came to Rulemart through a listing names who listed it, on their GitHub profile.
+func TestLibraryPageNamesWhoListedIt(t *testing.T) {
+	c := newCatalog()
+	lib := c.pages["example/rules"]
+	lib.Library.AddedBy, lib.Library.AddedAt = "lister", day(2)
+	c.pages["example/rules"] = lib
+
+	page := get(t, newSite(t, c), library).Body.String()
+
+	assertShows(t, page, "On Rulemart since 2 Sep 2026 Added by @lister")
+	if got := links(t, page, "@lister"); !slices.Equal(got, []string{"https://github.com/lister"}) {
+		t.Errorf("Added by links %q", got)
 	}
 }
 

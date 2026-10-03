@@ -90,6 +90,25 @@ func links(t *testing.T, body, text string) []string {
 	return hrefs
 }
 
+// linksTo returns the href of every link in an HTML body that leads to an address starting with prefix.
+func linksTo(t *testing.T, body, prefix string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hrefs []string
+	for n := range doc.Descendants() {
+		if href := attribute(n, "href"); n.Type == html.ElementNode && n.Data == "a" && strings.HasPrefix(href, prefix) {
+			hrefs = append(hrefs, href)
+		}
+	}
+	return hrefs
+}
+
+// groupPrefix starts the address of every group's page across libraries.
+const groupPrefix = "/g/"
+
 // nodeText returns the text under n, with whitespace collapsed.
 func nodeText(n *html.Node) string {
 	var text strings.Builder

@@ -79,8 +79,14 @@ func (q *Queries) GetAssetHTML(ctx context.Context, arg GetAssetHTMLParams) (str
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
-       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
+       coalesce(listing.github_login, '')::text AS added_by, coalesce(listing.created_at, l.created_at)::timestamptz AS added_at
 FROM libraries l
+LEFT JOIN LATERAL (
+    SELECT a.github_login, s.created_at
+    FROM listings s JOIN accounts a ON a.id = s.account_id
+    WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id
+) listing ON true
 JOIN LATERAL (
     SELECT number, tagged_at FROM library_releases WHERE library_id = l.id ORDER BY number DESC LIMIT 1
 ) latest ON true
@@ -115,10 +121,13 @@ type GetLibraryRow struct {
 	RuleCount         int64
 	GroupCount        int64
 	Vetted            bool
+	AddedBy           string
+	AddedAt           pgtype.Timestamptz
 }
 
 // GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
-// latest release, and how many current rules it holds and in how many groups.
+// latest release, how many current rules it holds and in how many groups, and when it came to Rulemart: when its
+// listing was made, with the login of the account that made it, or when it was first ingested, without a listing.
 func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibraryRow, error) {
 	row := q.db.QueryRow(ctx, getLibrary,
 		arg.Vetted,
@@ -140,6 +149,8 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 		&i.RuleCount,
 		&i.GroupCount,
 		&i.Vetted,
+		&i.AddedBy,
+		&i.AddedAt,
 	)
 	return i, err
 }
@@ -537,11 +548,13 @@ func (q *Queries) ListReleases(ctx context.Context, libraryID int64) ([]ListRele
 }
 
 const listRetiredRules = `-- name: ListRetiredRules :many
-SELECT r.path, retired.number AS retired_in, r.replaced_by, last.title, last.major, last.minor, last.patch
+SELECT r.path, g.path AS group_path, retired.number AS retired_in, r.replaced_by, last.title, last.impact, last.major,
+       last.minor, last.patch
 FROM rules r
+JOIN library_groups g ON g.id = r.group_id
 JOIN library_releases retired ON retired.id = r.retired_in_release_id
 JOIN LATERAL (
-    SELECT v.title, v.major, v.minor, v.patch FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+    SELECT v.title, v.impact, v.major, v.minor, v.patch FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) last ON true
 WHERE r.library_id = $1
@@ -550,16 +563,18 @@ ORDER BY r.path COLLATE "C"
 
 type ListRetiredRulesRow struct {
 	Path       string
+	GroupPath  string
 	RetiredIn  int32
 	ReplacedBy pgtype.Text
 	Title      pgtype.Text
+	Impact     pgtype.Text
 	Major      int32
 	Minor      int32
 	Patch      int32
 }
 
-// ListRetiredRules returns the library's retired rules, in path order, each with its last version and that version's
-// title.
+// ListRetiredRules returns the library's retired rules, in path order, each with its group, and its last version and
+// that version's title and impact.
 func (q *Queries) ListRetiredRules(ctx context.Context, libraryID int64) ([]ListRetiredRulesRow, error) {
 	rows, err := q.db.Query(ctx, listRetiredRules, libraryID)
 	if err != nil {
@@ -571,9 +586,11 @@ func (q *Queries) ListRetiredRules(ctx context.Context, libraryID int64) ([]List
 		var i ListRetiredRulesRow
 		if err := rows.Scan(
 			&i.Path,
+			&i.GroupPath,
 			&i.RetiredIn,
 			&i.ReplacedBy,
 			&i.Title,
+			&i.Impact,
 			&i.Major,
 			&i.Minor,
 			&i.Patch,
