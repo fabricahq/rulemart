@@ -55,7 +55,7 @@ func assetLibrary(t *testing.T) *gittest.Library {
 	lib.Write("practices/testing/assets/test-changed-behavior/why.md", "## Why it works\n\nRead the [glossary](../../../../assets/glossary.md).\n")
 	lib.Write("practices/testing/assets/test-changed-behavior/cases.json", "{\"cases\": [1.005]}\n")
 	lib.Write("practices/testing/assets/test-changed-behavior/big.png", strings.Repeat("x", 300<<10))
-	lib.Write("assets/glossary.md", "## Terms\n\nA regression test fails on the old code.\n")
+	lib.Write("assets/glossary.md", "# Terms\n\nA regression test fails on the old code.\n")
 	lib.Release(1, `formatVersion: 1
 release: 1
 rules:
@@ -199,7 +199,7 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 	}{
 		whyPage: {[]string{
 			"rules › Testing › Test the behavior you changed",
-			"Assets 5 files big.png 300 KB cases.json 19 B loop.svg 117 B why.md 70 B Shared across the library glossary.md 51 B " +
+			"Assets 5 files big.png 300 KB cases.json 19 B loop.svg 117 B why.md 70 B Shared across the library glossary.md 50 B " +
 				"Not part of this rule's version. Projects get the copy from the newest library release. These files come with " +
 				"the rule when you add it.",
 			"why.md Supporting file for this rule, part of version 1.0.0 · 70 B View on GitHub Raw",
@@ -212,7 +212,7 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 			`href="https://github.com/example/rules/blob/release/1/practices/testing/assets/test-changed-behavior/big.png"`,
 		},
 		glossaryPage + behaviorQuery: {[]string{
-			"glossary.md Shared file in example/rules, used by this rule. Not part of the rule's version; this copy is from release/1 · 51 B",
+			"glossary.md Shared file in example/rules, used by this rule. Not part of the rule's version; this copy is from release/1 · 50 B",
 			"Terms A regression test fails on the old code.", "← Back to Test the behavior you changed",
 		}, `href="https://raw.githubusercontent.com/example/rules/refs/tags/release/1/assets/glossary.md"`},
 	} {
@@ -228,6 +228,10 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 			}
 			if current := strings.Count(page, `aria-current="page"`); current != 1 {
 				t.Errorf("the Assets panel marks %d files, want the page's", current)
+			}
+			// The file's name is the page's one top heading, so a Markdown file's own headings go a level down.
+			if headings := strings.Count(page, "<h1"); headings != 1 {
+				t.Errorf("the page has %d top headings, want the file's name alone", headings)
 			}
 			assertRunsNothingFromRules(t, page)
 		})

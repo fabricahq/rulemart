@@ -151,8 +151,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   lister's `@login`, or "Fabrica" for a library vetted without a listing.
 - **Proposed: a library group page flags a group that isn't canonical** beside its ID in the title, as its rows do.
 - **Proposed: sizes read in bytes below 1 KB, then KB and MB of 1,024**, to one decimal place below 100.
-- **Proposed: rendered Markdown styles a level-one heading**, which a rule's body drops when it repeats the title, but
-  an asset's Markdown often opens with.
+- **Proposed: an asset's page takes its Markdown's headings a level down**, after browser QA, so the file's name stays
+  the page's one top heading, as a retired rule's page does with its last text. Rendered Markdown still styles a
+  level-one heading, which a rule's body can hold when it doesn't repeat the title.
 
 ## Not in this slice
 

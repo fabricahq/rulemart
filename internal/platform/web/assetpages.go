@@ -98,7 +98,8 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 	i := slices.IndexFunc(assets, func(a assetView) bool { return a.path == assetPath })
 	assets[i].current = true
 	canonical := assetPagePath(rule.library, rule.id, assetPath)
-	html := pageHTML(page.HTML, rule.library, rule.id)
+	// The file's name is the page's top heading, so a Markdown file's own headings go a level down.
+	html := demoteHeadings(pageHTML(page.HTML, rule.library, rule.id))
 	s.render(w, r, http.StatusOK, assetPage(s.pageChrome(canonical), rule, assets[i], assets, html))
 }
 
