@@ -293,8 +293,11 @@ for p in /browse/techs /browse/practices /g/techs/go /fabricahq /faq /feedback /
   curl -s -o /dev/null -w "%{http_code} $p\n" "$B$p"
 done
 for p in /groups /groups/techs/go /sign-in /list /account; do curl -s -o /dev/null -w "%{http_code} $p -> %{redirect_url}\n" $B$p; done
-# The webhook is not wired yet: GitHub's deliveries get 403 at the Function URL, as "Two facts" says.
-curl -si -X POST $B/account/github/webhook | head -1  # 403
+# The webhook is not wired yet: a delivery with a body and no x-amz-content-sha256, as GitHub sends one, fails
+# CloudFront's signing and gets 403 at the Function URL, as "Two facts" says.
+curl -si -X POST -H 'Content-Type: application/json' -d '{"action":"deleted"}' $B/account/github/webhook | head -1  # 403
+# An empty POST passes the signing and reaches the function, which refuses it for want of GitHub's signature.
+curl -si -X POST $B/account/github/webhook | head -1  # 401
 ```
 
 In a browser, signed in with GitHub:
