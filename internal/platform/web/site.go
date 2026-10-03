@@ -200,7 +200,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"), cartPageScript: assets.url("cart-page.js"), cartCheckoutScript: assets.url("cart-checkout.js"),
-			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), starScript: assets.url("star.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),

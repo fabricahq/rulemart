@@ -29,13 +29,42 @@ templ starControl(star starView) {
 			</button>
 		</form>
 	} else if star.signIn != "" {
-		<a class={ starButtonStyle, unstarredStyle, "no-underline" } href={ templ.SafeURL(star.signIn) } title={ "Sign in to star this rule. " + starExplanation }>
+		<a class={ starButtonStyle, unstarredStyle, "no-underline" } href={ templ.SafeURL(star.signIn) } title={ "Sign in to star this rule. " + starExplanation } data-star-signin>
 			<span class="sr-only">Sign in to star { star.title }, { starCountText(star.count) }</span>
 			@starFace(star.count, false, "Star")
 		</a>
+		@starSignInDialog(star)
 	} else {
 		@starCount(star.count, false, "text-[13px] text-muted")
 	}
+}
+
+// starSignInDialog is the prototype's "Sign in to star rules" dialog, which star.js opens in place of following the
+// star's sign-in link. Continue follows that link, so the page after signing in asks to star the rule, and the close
+// and Not now buttons close it through their forms' dialog method, with no script.
+templ starSignInDialog(star starView) {
+	<dialog class={ dialogStyle } aria-labelledby="star-sign-in-title" data-star-dialog>
+		<div class="mb-[14px] flex items-start justify-between gap-3">
+			<h2 class="text-[1.35rem] tracking-[-.035em]" id="star-sign-in-title">Sign in to star rules</h2>
+			<form method="dialog">
+				<button class={ dialogCloseStyle } aria-label="Close">×</button>
+			</form>
+		</div>
+		<p class="text-muted">Star this rule if you find it useful.</p>
+		<div class="mt-4 flex flex-wrap gap-2.5">
+			<a class={ cartPrimaryStyle } href={ templ.SafeURL(star.signIn) }>
+				if star.withGitHub {
+					@githubMark("size-[15px]")
+					Continue with GitHub
+				} else {
+					Sign in
+				}
+			</a>
+			<form method="dialog">
+				<button class={ outlineButtonStyle }>Not now</button>
+			</form>
+		</div>
+	</dialog>
 }
 
 // starLabel is what the star button reads: Starred once starred, and Star otherwise.

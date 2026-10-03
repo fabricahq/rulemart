@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -327,7 +328,8 @@ func TestARulesPagesOfferAVisitorWhoIsntSignedInToSignInAndStar(t *testing.T) {
 		if got := links(t, page, "Star"); !slices.Equal(got, []string{want}) {
 			t.Errorf("%s: Star leads to %q, want %q", path, got, want)
 		}
-		if got := accessibleNames(t, page, want); !slices.Equal(got, []string{"Sign in to star Return errors with context, 1,234 stars"}) {
+		// The star's sign-in dialog's Continue with GitHub leads there too.
+		if got := accessibleNames(t, page, want); !slices.Equal(got, []string{"Sign in to star Return errors with context, 1,234 stars", "Continue with GitHub"}) {
 			t.Errorf("%s: the star link is named %q", path, got)
 		}
 		if postsStar(t, page) {
@@ -340,6 +342,47 @@ func TestARulesPagesOfferAVisitorWhoIsntSignedInToSignInAndStar(t *testing.T) {
 	assertShows(t, page, "Sign in to star rules.")
 	if strings.Contains(page, "come back") {
 		t.Error("the sign-in page promises a return it won't make")
+	}
+}
+
+// With a script, Star first opens the prototype's dialog, "Sign in to star rules", whose Continue with GitHub follows
+// the same sign-in path as the link, so the page after signing in still asks to star the rule, and whose Not now and
+// close buttons close it without a script of their own. A signed-in visitor's page has no such dialog.
+func TestARulesStarOpensASignInDialogForAVisitorWhoIsntSignedIn(t *testing.T) {
+	site := newStarSite(t)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule}))
+	doc := parsePage(t, page)
+
+	want := "/signin?" + url.Values{"return": {errorsRule + "?star=1"}, "to": {"star"}}.Encode()
+	opener := find(doc, func(n *html.Node) bool { return n.Data == "a" && hasAttribute(n, "data-star-signin") })
+	if opener == nil || attribute(opener, "href") != want {
+		t.Fatalf("no Star link opens the dialog with the sign-in path %q", want)
+	}
+	dialog := find(doc, func(n *html.Node) bool { return n.Data == "dialog" && hasAttribute(n, "data-star-dialog") })
+	if dialog == nil {
+		t.Fatal("the page has no star sign-in dialog")
+	}
+	assertShows(t, visibleTextOf(dialog), "Sign in to star rules", "Star this rule if you find it useful.", "Continue with GitHub", "Not now")
+	continueLink := find(dialog, func(n *html.Node) bool { return n.Data == "a" && strings.Contains(nodeText(n), "Continue with GitHub") })
+	if continueLink == nil || attribute(continueLink, "href") != want {
+		t.Errorf("Continue with GitHub doesn't lead to %q", want)
+	}
+	var closers []string
+	for n := range dialog.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "button" && n.Parent != nil && n.Parent.Data == "form" && attribute(n.Parent, "method") == "dialog" {
+			closers = append(closers, strings.TrimSpace(cmp.Or(attribute(n, "aria-label"), nodeText(n))))
+		}
+	}
+	if !slices.Equal(closers, []string{"Close", "Not now"}) {
+		t.Errorf("the dialog's buttons that close it are %q, want Close and Not now", closers)
+	}
+	if !loadsScript(doc, "star.js") {
+		t.Error("the page doesn't load the script that opens the dialog")
+	}
+
+	signedIn := parsePage(t, body(t, site.signedInGet(t, errorsRule)))
+	if find(signedIn, func(n *html.Node) bool { return n.Data == "dialog" && hasAttribute(n, "data-star-dialog") }) != nil || loadsScript(signedIn, "star.js") {
+		t.Error("a signed-in visitor's page has the star sign-in dialog")
 	}
 }
 

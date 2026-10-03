@@ -131,9 +131,12 @@ templ dialogHead(title, ask string) {
 				<p class="mt-1 text-[13px] text-muted">{ ask }</p>
 			}
 		</div>
-		<button class="cursor-pointer rounded-sm px-1.5 py-0.5 text-[22px] leading-none text-muted hover:bg-surface hover:text-ink" type="button" aria-label="Close" data-cart-close>×</button>
+		<button class={ dialogCloseStyle } type="button" aria-label="Close" data-cart-close>×</button>
 	</div>
 }
+
+// dialogCloseStyle is a dialog's × button, in its head.
+const dialogCloseStyle = "cursor-pointer rounded-sm px-1.5 py-0.5 text-[22px] leading-none text-muted hover:bg-surface hover:text-ink"
 
 // choiceStyle is one of a dialog's choices: a card-like button.
 const choiceStyle = "mt-2.5 grid w-full cursor-pointer gap-1 rounded-[14px] border border-border bg-paper px-4 py-3.5 text-left transition-colors duration-[120ms] hover:border-ink hover:bg-surface"
