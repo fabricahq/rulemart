@@ -151,8 +151,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   page does, with Refresh status, and the page stops following it, since the next check is the worker's hourly poll. Following a
   library already on Rulemart, which the visitor didn't list, shows it done. The prototype's "within minutes" reads
   "within the hour", the worker's poll.
-- **Proposed: the picker shows a repository's latest release, not its group count**, which would need reading its
-  manifest or release record: "Public · release/3". It orders rows as the prototype: what the visitor can add, what
+- **Proposed: the picker shows a repository's latest release, not its group count**: "Public · release/3". The read
+  learns a repository is publishable from its root listing, which shows `rule-library.yaml` is there without reading
+  it, and from its tags. Groups are the folders under `techs/` and `practices/` at the latest release, so counting
+  them costs up to two more requests per publishable repository, at a tag the read doesn't otherwise visit, against
+  the read's 25-second deadline and the visitor's rate limit, for a number the library's page shows once it's added. It orders rows as the prototype: what the visitor can add, what
   Rulemart is adding (linked to its check), what Rulemart has, then private ones; a library the visitor's organizations
   publish on Rulemart that the read didn't reach is listed as on Rulemart too. The URL form keeps the listing's checks,
   in the prototype's words, and shows an address it accepts as a row to add, since a GET form can't post.
