@@ -261,7 +261,13 @@ than adding history.
   `internal/platform` holds runtime that contexts share, such as the database, migrations, and the web server, which
   stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
-  `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
+  `internal/contexts/accounts` owns accounts, sessions, and what Rulemart read of visitors' GitHub accounts, with the
+  same layout, plus `github`, its adapter for GitHub: the OAuth app that signs visitors in, the REST API reads of a
+  visitor's organizations and repositories, and the GitHub App that reads private repositories, with its webhook.
+  `github/githubtest` is a fake GitHub for tests and the local build's dev sign-in; release builds never link it.
+  Neither context imports the other: a page that combines them, such as the dashboard, which matches a visitor's
+  GitHub snapshot against the catalog's libraries for their projects' updates, reads each and combines them in the
+  web server.
   Stars and listings live in the catalog context, since each names a library or rule, and pages read them with the
   catalog from one snapshot; so does checkout, which resolves the keys a browser's cart sends against one snapshot
   of the catalog. A context added later gets the same layout.
