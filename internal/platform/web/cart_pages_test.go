@@ -141,7 +141,8 @@ func TestALibrarysGroupsOfferThemToTheCart(t *testing.T) {
 }
 
 // A library's group has a page of its own, with its rules and the Whole group box that adds it; another spelling of
-// its ID redirects there, and a group the library doesn't have is missing.
+// its library or ID redirects there, and a group the library doesn't have is missing, as is a group's ID in one
+// segment, whose slash is percent-encoded, which no link writes.
 func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
@@ -157,11 +158,15 @@ func TestALibrarysGroupHasAPageThatAddsIt(t *testing.T) {
 	if control == nil || attribute(control, "data-cart-group") != "group::example/rules::techs/go" || hasAttribute(control, "data-cart-rule") {
 		t.Errorf("got the control %+v, want one that adds the group", control)
 	}
-	if resp := get(t, handler, library+"/Techs/Go"); resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != library+"/techs/go" {
-		t.Errorf("another spelling: got %d to %q", resp.Code, resp.Header().Get("Location"))
+	for _, spelling := range []string{library + "/Techs/Go", "/Example/Rules/techs/go"} {
+		if resp := get(t, handler, spelling); resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != library+"/techs/go" {
+			t.Errorf("%s: got %d to %q", spelling, resp.Code, resp.Header().Get("Location"))
+		}
 	}
-	if resp := get(t, handler, library+"/techs/rust"); resp.Code != http.StatusNotFound {
-		t.Errorf("a group the library doesn't have: got %d", resp.Code)
+	for _, missing := range []string{library + "/techs/rust", library + "/techs%2Fgo", "/example/missing/techs/go"} {
+		if resp := get(t, handler, missing); resp.Code != http.StatusNotFound {
+			t.Errorf("%s: got %d", missing, resp.Code)
+		}
 	}
 }
 

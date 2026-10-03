@@ -166,6 +166,58 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 	}
 }
 
+// libraryGroupPage shows one group of a library, as the prototype's library group page: its rules, and the Whole
+// group box that adds the group to the cart. Slice R6 finishes its layout.
+templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
+	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)) {
+		<div class="page wrap">
+			if !lib.vetted {
+				@unvettedWarning(false)
+			}
+			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+				@avatar(lib.avatar, lib.owner, avatarSM)
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.fullName() }</a>
+				<span>›</span>
+				<span class="mono">{ g.label.id }</span>
+			</div>
+			<h1 class="title-xl flex items-center gap-[14px]">
+				@groupTile(g.label, g.icon, tileTitle)
+				{ g.label.display() }
+			</h1>
+			<p class="mt-2 mb-6 text-muted">
+				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
+				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
+				if g.blurb != "" && kindOf(g.label.id) == practicesKind {
+					· { g.blurb }
+				}
+			</p>
+			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
+				<div class="min-w-0">
+					@ruleRows() {
+						for _, r := range g.rules {
+							@ruleRow(r)
+						}
+					}
+					<a class="mt-[14px] inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href) }>← Back to all groups in { lib.fullName() }</a>
+				</div>
+				<aside class="grid content-start">
+					<div class="rounded-panel border border-border bg-paper p-[18px] wide:sticky wide:top-[84px]">
+						@label("mb-1.5") {
+							Whole group
+						}
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from { lib.fullName() }. New rules the library adds to this group arrive when you update.</p>
+						@groupCartControl(lib, g)
+						if g.label.canonical {
+							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
+						}
+					</div>
+				</aside>
+			</div>
+		</div>
+		@confirmDialog(lib)
+	}
+}
+
 // allRules lists every current rule under its group.
 templ allRules(contents libraryContents) {
 	for _, g := range contents.all() {

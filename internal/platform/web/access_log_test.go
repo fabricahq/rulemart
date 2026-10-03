@@ -85,7 +85,8 @@ func TestAccessLogRecordsTheRoutePatternNotThePath(t *testing.T) {
 		{"/example", "/{owner}", http.StatusOK},
 		{"/nothing-here", "/{owner}", http.StatusNotFound},
 		{"/o/example", "/o/{login}", http.StatusMovedPermanently},
-		{"/nothing/here/at/all", "/{owner}/{repo}/{rule...}", http.StatusNotFound},
+		{"/nothing/here/at/all", "/{owner}/{repo}/{kind}/{group}", http.StatusNotFound},
+		{"/nothing/here/at/all/really", "/{owner}/{repo}/{rule...}", http.StatusNotFound},
 		{"/_static/000000000000/missing.css", "/_static/{version}/{file...}", http.StatusNotFound},
 	} {
 		_, line := accessLine(t, handler, logs, httptest.NewRequest(http.MethodGet, tc.path, nil))

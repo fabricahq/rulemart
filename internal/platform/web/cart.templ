@@ -1,7 +1,7 @@
 // The cart's parts: the header's link to the cart, the controls that add to it from rule and group pages, the dialogs
-// that ask what to add and confirm adding from an unvetted library, and the library group page. cart.js keeps the
-// cart in the visitor's browser and paints these from the data attributes they carry; without JavaScript, the
-// stylesheet hides every part marked data-needs-script, since the cart can't work.
+// that ask what to add and confirm adding from an unvetted library, and the cart's page. cart.js keeps the cart in the
+// visitor's browser and paints these from the data attributes they carry; without JavaScript, the stylesheet hides
+// every part marked data-needs-script, since the cart can't work.
 
 package web
 
@@ -59,16 +59,44 @@ templ ruleCartControl(r ruleView) {
 			@cartIcon("size-[15px] flex-none")
 			Add to cart
 		</button>
-		@heldControls()
+		@heldControls(heldAtEnd)
 	</div>
 	@addToCartDialog(r)
 }
 
+// groupCartControl is a library group page's cart control: Add <Group> group to cart, which adds the group whole, or
+// once the cart holds it, the In cart pill, Checkout, and a way to remove it. cart.js shows the state the cart is in.
+templ groupCartControl(lib libraryView, g groupView) {
+	<div
+		class="flex flex-col gap-2"
+		data-needs-script
+		data-cart-control
+		data-cart-library={ lib.fullName() }
+		data-cart-vetted={ strconv.FormatBool(lib.vetted) }
+		data-cart-group={ cartKey(lib, domain.CartGroup, g.label.id) }
+		data-cart-group-name={ g.label.display() }
+	>
+		<button class={ cartPrimaryStyle, "w-full" } type="button" data-cart-add-group>
+			@cartIcon("size-[15px] flex-none")
+			Add { g.label.display() } group to cart
+		</button>
+		@heldControls(heldAcross)
+	</div>
+}
+
+// heldAlign is how heldControls sit: heldAtEnd at the end of a page's head, or heldAcross across a box.
+type heldAlign int
+
+const (
+	heldAtEnd heldAlign = iota
+	heldAcross
+)
+
 // heldControls are what a cart control shows once the cart holds its item: the In cart pill, which names a group
 // the cart holds whole when it covers the item, Checkout, and Remove, which cart.js names and shows.
-templ heldControls() {
-	<div class="flex flex-col items-end gap-2 max-narrow:items-start" data-cart-held hidden>
-		<div class="flex flex-wrap items-center gap-2.5">
+templ heldControls(align heldAlign) {
+	<div class={ "flex flex-col", templ.KV("items-end gap-2 max-narrow:items-start", align == heldAtEnd), templ.KV("items-start gap-2.5", align == heldAcross) } data-cart-held hidden>
+		<div class={ "flex items-center gap-2.5", templ.KV("flex-wrap", align == heldAtEnd), templ.KV("w-full justify-between", align == heldAcross) }>
 			<span class={ inCartStyle }>
 				@checkIcon("size-3.5 flex-none")
 				<span data-cart-held-text>In cart</span>
@@ -197,81 +225,6 @@ templ groupHeldBadge(lib libraryView, g groupView) {
 		@checkIcon("size-3 flex-none")
 		In cart
 	</span>
-}
-
-// libraryGroupPage shows one group of a library, as the prototype's library group page: its rules, and the Whole
-// group box that adds the group to the cart. Slice R6 finishes its layout.
-templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
-	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)) {
-		<div class="page wrap">
-			if !lib.vetted {
-				@unvettedWarning(false)
-			}
-			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@avatar(lib.avatar, lib.owner, avatarSM)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.fullName() }</a>
-				<span>›</span>
-				<span class="mono">{ g.label.id }</span>
-			</div>
-			<h1 class="title-xl flex items-center gap-[14px]">
-				@groupTile(g.label, g.icon, tileTitle)
-				{ g.label.display() }
-			</h1>
-			<p class="mt-2 mb-6 text-muted">
-				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
-				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
-				if g.blurb != "" && kindOf(g.label.id) == practicesKind {
-					· { g.blurb }
-				}
-			</p>
-			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
-				<div class="min-w-0">
-					@ruleRows() {
-						for _, r := range g.rules {
-							@ruleRow(r)
-						}
-					}
-					<a class="mt-[14px] inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href) }>← Back to all groups in { lib.fullName() }</a>
-				</div>
-				<aside class="grid content-start">
-					<div class="rounded-panel border border-border bg-paper p-[18px] wide:sticky wide:top-[84px]">
-						@label("mb-1.5") {
-							Whole group
-						}
-						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from { lib.fullName() }. New rules the library adds to this group arrive when you update.</p>
-						<div
-							class="flex flex-col gap-2"
-							data-needs-script
-							data-cart-control
-							data-cart-library={ lib.fullName() }
-							data-cart-vetted={ strconv.FormatBool(lib.vetted) }
-							data-cart-group={ cartKey(lib, domain.CartGroup, g.label.id) }
-							data-cart-group-name={ g.label.display() }
-						>
-							<button class={ cartPrimaryStyle, "w-full" } type="button" data-cart-add-group>
-								@cartIcon("size-[15px] flex-none")
-								Add { g.label.display() } group to cart
-							</button>
-							<div class="flex flex-col items-start gap-2.5" data-cart-held hidden>
-								<div class="flex w-full items-center justify-between gap-2.5">
-									<span class={ inCartStyle }>
-										@checkIcon("size-3.5 flex-none")
-										<span data-cart-held-text>In cart</span>
-									</span>
-									<a class={ cartPrimaryStyle } href={ templ.SafeURL(cartHref) }>Checkout</a>
-								</div>
-								<button class={ cartLinkButton } type="button" data-cart-remove>Remove from cart</button>
-							</div>
-						</div>
-						if g.label.canonical {
-							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
-						}
-					</div>
-				</aside>
-			</div>
-		</div>
-		@confirmDialog(lib)
-	}
 }
 
 // cartIcon is a shopping cart, in the current text color.

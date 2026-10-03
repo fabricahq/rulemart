@@ -188,8 +188,6 @@ func (s *server) handler() http.Handler {
 		mux.HandleFunc(pattern, s.withVisitor(handler))
 		s.routes[pattern] = true
 	}
-	mux.HandleFunc(staticPattern, s.assets.serve)
-	s.routes[staticPattern] = true
 	// Browsers ask for /favicon.ico wherever a page names no icon they take, such as for a file that isn't a page.
 	mux.HandleFunc(faviconPattern, s.assets.serveFavicon)
 	s.routes[faviconPattern] = true
@@ -252,22 +250,48 @@ func (s *server) handler() http.Handler {
 	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
 	handle(ownerPattern, s.owner)
 	handle(libraryPattern, s.library)
+	handle(libraryGroupPattern, s.libraryGroup)
 	handle(rulePattern, s.rule)
 	handle(notFoundPattern, s.notFound)
-	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux))))))
+	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(
+		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))))
 }
 
-// The routes that take every path the site's own pages don't: an owner's, a library's, and a rule's pages, which
-// GitHub's spelling of their names addresses, and the missing page.
+// The routes that take every path the site's own pages don't: an owner's, a library's, a library group's, and a
+// rule's pages, which GitHub's spelling of their names addresses, and the missing page. A group's ID has two parts and
+// a rule's at least three, so a library group's page takes exactly four segments, and a rule's page the rest.
 const (
-	ownerPattern    = "GET /{owner}"
-	libraryPattern  = "GET /{owner}/{repo}"
-	rulePattern     = "GET /{owner}/{repo}/{rule...}"
-	notFoundPattern = "/"
+	ownerPattern        = "GET /{owner}"
+	libraryPattern      = "GET /{owner}/{repo}"
+	libraryGroupPattern = "GET /{owner}/{repo}/{kind}/{group}"
+	rulePattern         = "GET /{owner}/{repo}/{rule...}"
+	notFoundPattern     = "/"
 )
 
 // catchAllPatterns are the routes of the paths the site's own pages don't take.
-var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true, rulePattern: true, notFoundPattern: true}
+var catchAllPatterns = map[string]bool{
+	ownerPattern: true, libraryPattern: true, libraryGroupPattern: true, rulePattern: true, notFoundPattern: true,
+}
+
+// withStaticFiles answers a request staticPattern takes with the static files, and every other request with next, the
+// pages, recording the pattern in s.routes. The static files can't share the pages' mux: staticPattern and
+// libraryGroupPattern both match paths such as /_static/<version>/icons/go.svg, and neither matches only some of the
+// other's, so ServeMux refuses to hold both. No GitHub login holds an underscore, so no owner's pages are under
+// /_static.
+func (s *server) withStaticFiles(next http.Handler) http.Handler {
+	files := http.NewServeMux()
+	files.Handle(staticPattern, s.assets)
+	s.routes[staticPattern] = true
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handler also names staticPattern for a path it would redirect to one the pattern takes, such as
+		// /_static/missing, which stays a page's path.
+		if handler, _ := files.Handler(r); handler == http.Handler(s.assets) {
+			files.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
 // old groups, with pages under them, cart, with its checkout, a POST, and libraries, search, unvetted, list, about,
@@ -540,11 +564,6 @@ func parseReleaseNumber(text string) (int, error) {
 // from and to parameters, the Versions tab compares them. Returning from signing in to star the rule, it prompts once
 // to star it.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
-	if strings.Count(r.PathValue("rule"), "/") == 1 {
-		// A rule's ID has at least three parts, so two name a group.
-		s.libraryGroup(w, r)
-		return
-	}
 	if s.withoutStarPrompt(w, r) {
 		return
 	}
@@ -569,28 +588,25 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
 }
 
-// libraryGroup shows one group of a library, whose ID the rule wildcard holds, with the box that adds it to the cart,
-// or the missing page when the library has no current rules in such a group. A group spelled in another case
-// redirects to the library's spelling, as a rule does.
+// libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
+// the cart, or the missing page when the library has no current rules in such a group. A group spelled in another
+// case redirects to the library's spelling, as a rule does.
 func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
-	id := r.PathValue("rule")
-	if err == nil {
-		i := slices.IndexFunc(page.Groups, func(g views.Group) bool { return strings.EqualFold(g.Path, id) })
-		if i < 0 {
-			s.notFound(w, r)
-			return
-		}
-		id = page.Groups[i].Path
-	}
-	if !s.found(w, r, page.Library, id, err) {
+	if err != nil {
+		s.found(w, r, page.Library, "", err)
 		return
 	}
 	view := newLibraryView(page.Library)
-	contents := newLibraryContents(view, page, s.assets.iconURL)
-	i := slices.IndexFunc(contents.all(), func(g groupView) bool { return g.label.id == id })
-	group := contents.all()[i]
-	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view, id)), view, group))
+	group, ok := newLibraryContents(view, page, s.assets.iconURL).group(pathInLibrary(r))
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	if !s.found(w, r, page.Library, group.label.id, nil) {
+		return
+	}
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view, group.label.id)), view, group))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
@@ -643,9 +659,10 @@ func (s *server) pageChrome(href string) chrome {
 	return c
 }
 
-// found reports whether a page's data loaded, for the library lib and, on a rule's page, the rule at rulePath, and is
-// at the path that GitHub's spelling of the library's owner and name, and the library's of the rule's ID, give.
-// Otherwise it answers the request itself: with a missing page, a failure, or a redirect to that path.
+// found reports whether a page's data loaded, for the library lib and, on a rule's or a library group's page, the rule
+// or group at rulePath, and is at the path that GitHub's spelling of the library's owner and name, and the library's of
+// the rule's or group's ID, give. Otherwise it answers the request itself: with a missing page, a failure, or a
+// redirect to that path.
 func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, rulePath string, err error) bool {
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
@@ -655,7 +672,7 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		s.fail(w, r, err)
 		return false
 	}
-	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != r.PathValue("rule") {
+	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != pathInLibrary(r) {
 		canonical := url.URL{Path: libraryHref(lib.Owner, lib.Name), RawQuery: r.URL.RawQuery}
 		if rulePath != "" {
 			canonical.Path += "/" + rulePath
@@ -664,6 +681,15 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		return false
 	}
 	return true
+}
+
+// pathInLibrary returns the ID of the rule or group whose page r asks for, as its path spells it, or "" for any other
+// page.
+func pathInLibrary(r *http.Request) string {
+	if kind := r.PathValue("kind"); kind != "" {
+		return kind + "/" + r.PathValue("group")
+	}
+	return r.PathValue("rule")
 }
 
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {

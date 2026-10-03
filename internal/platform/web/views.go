@@ -323,6 +323,16 @@ func (c libraryContents) all() []groupView {
 	return append(append([]groupView{}, c.techs...), c.practices...)
 }
 
+// group returns the group whose ID is id, matched without regard to case, and whether there is one.
+func (c libraryContents) group(id string) (groupView, bool) {
+	all := c.all()
+	i := slices.IndexFunc(all, func(g groupView) bool { return strings.EqualFold(g.label.id, id) })
+	if i < 0 {
+		return groupView{}, false
+	}
+	return all[i], true
+}
+
 // ruleView is what a rule's page shows.
 type ruleView struct {
 	library                 libraryView
