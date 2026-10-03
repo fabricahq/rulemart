@@ -480,7 +480,7 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		}
 		contents := newLibraryContents(view, page, s.assets.iconURL)
 		selection := newGroupSelection(query, contents.current())
-		retired := tab == rulesTab && query.Get(domain.RetiredParam) == "1"
+		retired := tab == rulesTab && domain.RetiredChosen(query)
 		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab, selection, retired))
 	}
 }

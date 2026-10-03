@@ -240,11 +240,14 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSe
 }
 
 // allRules lists every current rule under its group, as the prototype's All rules tab, and when retired is true, each
-// group's retired rules after its current ones, grayed out, with the control that shows them when the library has any.
+// group's retired rules after its current ones, grayed out, with the control that shows them when the library has any,
+// a one-checkbox form as the unvetted opt-in is.
 templ allRules(lib libraryView, contents libraryContents, retired bool) {
 	if contents.hasRetired || retired {
 		<div class="mb-4">
-			@retiredOptIn(lib.href, retired)
+			@optInForm(lib.href, domain.RetiredParam, "Show retired rules", retired) {
+				<input type="hidden" name="tab" value={ string(rulesTab) }/>
+			}
 		</div>
 	}
 	for _, g := range contents.all() {
@@ -269,21 +272,6 @@ templ allRules(lib libraryView, contents libraryContents, retired bool) {
 			}
 		}
 	}
-}
-
-// retiredOptIn is the All rules tab's control that shows a library's retired rules in place, at path: a form with one
-// checkbox, which filters.js submits as soon as it changes, and which shows an Apply button without scripts, as the
-// unvetted opt-in does.
-templ retiredOptIn(path string, retired bool) {
-	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
-		<input type="hidden" name="tab" value={ string(rulesTab) }/>
-		<label class={ filterLabel }>
-			<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ retired }/> Show retired rules
-		</label>
-		<noscript>
-			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>
-		</noscript>
-	</form>
 }
 
 // ruleTab names a tab of a rule's page.

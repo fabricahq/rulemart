@@ -257,12 +257,18 @@ func newListedRuleRow(r views.RuleRow) ruleRowView {
 	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
 	row.retired, row.missing = r.Retired, r.Missing
 	if r.Replacement != nil {
-		row.replacedBy = titleOrID(r.Replacement.Title, r.Replacement.Path)
-		if r.Renamed {
-			row.replacedBy, row.renamed = r.Replacement.Path, true
-		}
+		row.replacedBy, row.renamed = replacementName(*r.Replacement, r.Renamed), r.Renamed
 	}
 	return row
+}
+
+// replacementName returns how a retired rule's row names ref, the last rule that replaced it: by ID when renamed
+// reports that it's the same rule under a new ID, the one thing that tells the two apart, and otherwise by title.
+func replacementName(ref views.RuleRef, renamed bool) string {
+	if renamed {
+		return ref.Path
+	}
+	return titleOrID(ref.Title, ref.Path)
 }
 
 // libraryContents is a library's groups, split by kind, in path order, each with its current rules and its retired
@@ -284,7 +290,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	// shows it.
 	retiredGroups := map[string]views.Group{}
 	for _, r := range page.Retired {
-		retired[r.Group] = append(retired[r.Group], newRetiredRuleRow(lib, ref, r))
+		retired[r.Group] = append(retired[r.Group], newRetiredRuleRow(ref, r))
 		retiredGroups[r.Group] = views.Group{Path: r.Group, Canonical: r.CanonicalGroup}
 	}
 	groups := slices.Clone(page.Groups)
@@ -315,19 +321,13 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	return result
 }
 
-// newRetiredRuleRow describes r, a retired rule of lib, whose page names it as ref, as a row on the All rules tab:
+// newRetiredRuleRow describes r, a retired rule of the library ref, as a row on the All rules tab:
 // grayed out, with the release that retired it and the last of the rules that replaced it.
-func newRetiredRuleRow(lib libraryView, ref libraryRefView, r views.RetiredRuleCard) ruleRowView {
-	row := ruleRowView{
-		href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), impact: r.Impact, library: ref,
-		retired: true, retiredIn: domain.ReleaseTag(r.RetiredIn), renamed: r.Renamed,
-	}
+func newRetiredRuleRow(ref libraryRefView, r views.RetiredRuleCard) ruleRowView {
+	row := newRuleRow(ref, false, views.RuleCard{Path: r.Path, Group: r.Group, Title: r.Title, Impact: r.Impact})
+	row.retired, row.retiredIn = true, domain.ReleaseTag(r.RetiredIn)
 	if n := len(r.Replacements); n > 0 {
-		last := r.Replacements[n-1]
-		row.replacedBy = titleOrID(last.Title, last.Path)
-		if r.Renamed {
-			row.replacedBy = last.Path
-		}
+		row.replacedBy, row.renamed = replacementName(r.Replacements[n-1], r.Renamed), r.Renamed
 	}
 	return row
 }

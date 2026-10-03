@@ -84,16 +84,12 @@ templ filterForm(v ruleListView) {
 		}
 		if v.offersRetired() {
 			@filterGroup("Retired", "") {
-				<label class={ filterLabel }>
-					<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ v.choices.Retired }/> Show retired rules
-				</label>
+				@optInCheckbox(domain.RetiredParam, "Show retired rules", v.choices.Retired)
 			}
 		}
 		// Its one long label takes the whole width where the sidebar has two columns.
 		@filterGroup("Unvetted", "max-wide:col-span-full") {
-			<label class={ filterLabel }>
-				<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ v.choices.Unvetted }/> Include unvetted libraries
-			</label>
+			@optInCheckbox(domain.UnvettedParam, "Include unvetted libraries", v.choices.Unvetted)
 			<p class="mt-0.5 pl-[21px] text-[12px] leading-[1.45] text-faint">
 				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(aboutHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
 			</p>
@@ -170,16 +166,28 @@ templ noFilteredRules(v ruleListView) {
 	</div>
 }
 
-// unvettedOptIn is the control that includes unvetted libraries in a list of libraries or groups, at path: a form
-// with one checkbox, which filters.js submits as soon as it changes, and which shows an Apply button without scripts.
-// Like the sidebar, its checkbox shows only what the address holds.
+// unvettedOptIn is the control that includes unvetted libraries in a list of libraries or groups, at path, as
+// optInForm draws it. Like the sidebar, its checkbox shows only what the address holds.
 templ unvettedOptIn(path string, unvetted bool) {
+	@optInForm(path, domain.UnvettedParam, "Include unvetted libraries", unvetted)
+}
+
+// optInForm is a page's control that adds something to its list, at path: a form with one checkbox, optInCheckbox,
+// which filters.js submits as soon as it changes, and which shows an Apply button without scripts. Its children are
+// the hidden fields that keep the rest of the page's address.
+templ optInForm(path, name, text string, checked bool) {
 	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
-		<label class={ filterLabel }>
-			<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ unvetted }/> Include unvetted libraries
-		</label>
+		{ children... }
+		@optInCheckbox(name, text, checked)
 		<noscript>
 			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>
 		</noscript>
 	</form>
+}
+
+// optInCheckbox is a checkbox labeled text that sets the query parameter name to 1.
+templ optInCheckbox(name, text string, checked bool) {
+	<label class={ filterLabel }>
+		<input class={ filterInput } type="checkbox" name={ name } value="1" checked?={ checked }/> { text }
+	</label>
 }
