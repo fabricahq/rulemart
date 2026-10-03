@@ -7,13 +7,15 @@ import (
 	"errors"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 )
 
 // MarkdownSource is where a Markdown file came from, which its relative links and images resolve against: a rule's
 // file, or one of the Markdown files among its assets.
 type MarkdownSource struct {
-	// Repository is the library's GitHub repository, as owner/name.
+	// Repository is the library's GitHub repository, as owner/name, which links to its pages on Rulemart and its files
+	// on GitHub name. Assembly renders with LibraryPlaceholder in its place.
 	Repository string
 	// File is the Markdown file, such as practices/testing/verify-retry-limits.md.
 	File string
@@ -125,4 +127,21 @@ func (s MarkdownSource) tagFor(file string) string {
 		return s.Tag
 	}
 	return s.LatestTag
+}
+
+// LibraryPlaceholder stands in for a library's owner/name in the links assembly renders, which LinksForLibrary
+// replaces with the address of the library a page shows. Stored text then names no library: copied to another
+// library's rows, or read after the library's repository is renamed, it still leads only within the library whose
+// page shows it. No GitHub login holds an underscore, so no library's address holds it.
+const LibraryPlaceholder = "_owner_/_name_"
+
+// placeholderLink matches the start of a link or image's address that names LibraryPlaceholder: a page of Rulemart's,
+// a file on GitHub, or a raw file there. Rendering escapes every < in text, so only its own attributes match.
+var placeholderLink = regexp.MustCompile(`((?:href|src)="(?:https://github\.com|https://raw\.githubusercontent\.com)?/)` +
+	regexp.QuoteMeta(LibraryPlaceholder) + `/`)
+
+// LinksForLibrary returns html, as assembly rendered it, with each link and image that names LibraryPlaceholder naming
+// fullName, the owner/name of the library whose page shows it.
+func LinksForLibrary(html, fullName string) string {
+	return placeholderLink.ReplaceAllString(html, "${1}"+strings.ReplaceAll(fullName, "$", "$$")+"/")
 }

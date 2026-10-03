@@ -1,12 +1,22 @@
 package web_test
 
 import (
+	"context"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+
+	shipped "github.com/fabricahq/rulemart/catalog"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/render"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
+	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 )
 
 // The paths of the asset library's rule and its assets' pages.
@@ -23,10 +33,16 @@ const (
 // loopSVG is an image a rule shows, with a script that must never run from Rulemart's origin.
 const loopSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4"><script>alert(1)</script><rect width="4" height="4"/></svg>`
 
-// newAssetSite ingests a library whose rule has its own image, Markdown, code, and an image too large to keep, and
-// links a shared glossary, a shared file no release has, and another rule, and whose Markdown file links the glossary
-// too; a second rule links the glossary. It returns the pages' handler.
+// newAssetSite ingests assetLibrary, and returns the pages' handler.
 func newAssetSite(t *testing.T) http.Handler {
+	t.Helper()
+	return ingest(t, assetLibrary(t))
+}
+
+// assetLibrary returns a library whose rule has its own image, Markdown, code, and an image too large to keep, and
+// links a shared glossary, a shared file no release has, and another rule, and whose Markdown file links the glossary
+// too; a second rule links the glossary.
+func assetLibrary(t *testing.T) *gittest.Library {
 	t.Helper()
 	lib := gittest.NewLibrary(t)
 	lib.Group("practices/testing", "Testing")
@@ -49,7 +65,7 @@ changes:
   practices/testing/test-changed-behavior: {change: new, summaries: [Add the rule.]}
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
 `)
-	return ingest(t, lib)
+	return lib
 }
 
 // A rule's text leads to its assets' pages, a shared one's naming the rule, loads its images from Rulemart when it
@@ -74,6 +90,58 @@ func TestRulePageLinksAndListsItsAssets(t *testing.T) {
 		}
 	}
 	assertRunsNothingFromRules(t, page)
+}
+
+// A rule's links lead within the library whose page shows them, to its assets' pages and its repository on GitHub,
+// even when the library's address isn't the one its text was rendered under, as when a library's rows are copied to
+// another, or its repository is renamed.
+func TestRulePageLinksOnlyWithinItsOwnLibrary(t *testing.T) {
+	db, connString := databasetest.New(t)
+	repo := assetLibrary(t).Repository(7)
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(context.Background(), connString)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(context.Background())
+	if _, err := conn.Exec(context.Background(), "UPDATE libraries SET owner = 'stranger'"); err != nil {
+		t.Fatal(err)
+	}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newSite(t, app.Pages{
+		Store: postgres.New(databasetest.AsWebRole(t, connString)), Vetted: []domain.LibraryKey{{Host: repo.Host, RepositoryID: repo.ID}},
+		Groups: groups,
+	})
+	const stranger = "/stranger/rules/practices/testing/test-changed-behavior"
+
+	for path, want := range map[string]map[string]string{
+		stranger: {
+			"why":           stranger + "/assets/why.md",
+			"the glossary":  "/stranger/rules/assets/glossary.md" + behaviorQuery + "#terms",
+			"the gone file": "https://github.com/stranger/rules/blob/release/1/assets/gone.md",
+		},
+		stranger + "/assets/why.md": {"glossary": "/stranger/rules/assets/glossary.md" + behaviorQuery},
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.Code)
+		}
+		page := resp.Body.String()
+		for text, href := range want {
+			if got := links(t, page, text); !slices.Contains(got, href) {
+				t.Errorf("%s: %q leads to %q, want %q", path, text, got, href)
+			}
+		}
+		if strings.Contains(page, "example/rules") {
+			t.Errorf("%s names example/rules, the library's address when its text was rendered:\n%s", path, page)
+		}
+	}
 }
 
 // Each asset's page says what it is to the rule and shows it: Markdown rendered with its links, code highlighted, an

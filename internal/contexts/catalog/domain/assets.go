@@ -237,7 +237,8 @@ func (a *assembly) sharedTargets(from, body string) []string {
 	return targets
 }
 
-// addresses returns where Rulemart shows each of paths, assets of the rule at rulePath, or nil for none.
+// addresses returns where Rulemart shows each of paths, assets of the rule at rulePath, or nil for none, naming the
+// library as LibraryPlaceholder.
 func (a *assembly) addresses(rulePath string, paths []string) map[string]AssetAddress {
 	if len(paths) == 0 {
 		return nil
@@ -245,7 +246,7 @@ func (a *assembly) addresses(rulePath string, paths []string) map[string]AssetAd
 	addresses := make(map[string]AssetAddress, len(paths))
 	for _, p := range paths {
 		asset := a.read.assets[p]
-		address := AssetAddress{Page: AssetPagePath(a.repo.FullName(), rulePath, p)}
+		address := AssetAddress{Page: AssetPagePath(LibraryPlaceholder, rulePath, p)}
 		if AssetKindOf(asset.MediaType) == AssetImage && asset.Content != nil {
 			address.Image = AssetImagePath(address.Page)
 		}
@@ -291,7 +292,7 @@ func (a *assembly) renderSharedAssets() error {
 	slices.Sort(shared)
 	latest := a.releases[len(a.releases)-1].Tag
 	return a.renderAssets(shared, MarkdownSource{
-		Repository: a.repo.FullName(), Tag: latest, LatestTag: latest, Assets: a.addresses("", shared),
+		Repository: LibraryPlaceholder, Tag: latest, LatestTag: latest, Assets: a.addresses("", shared),
 	})
 }
 

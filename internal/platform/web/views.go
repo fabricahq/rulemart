@@ -704,11 +704,12 @@ const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercas
 var linkTag = regexp.MustCompile(`<a\s`)
 
 // pageHTML returns stored, HTML that ingestion's renderer wrote for the rule at rulePath in lib or one of its assets,
-// as a page of lib shows it: with each link to a shared asset's page naming the rule, and when lib isn't vetted, every
-// link marked as its author's.
+// as a page of lib shows it: with its links within the library leading within lib, each link to a shared asset's page
+// naming the rule, and when lib isn't vetted, every link marked as its author's.
 func pageHTML(stored string, lib libraryView, rulePath string) string {
+	html := domain.LinksForLibrary(stored, lib.fullName())
 	// A shared asset's page shows it as this rule's.
-	html := ruleContext(stored, lib, rulePath)
+	html = ruleContext(html, lib, rulePath)
 	if !lib.vetted {
 		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
 		html = untrustedLinks(html)

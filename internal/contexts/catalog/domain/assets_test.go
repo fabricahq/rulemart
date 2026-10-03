@@ -214,22 +214,22 @@ func TestAssembleRendersMarkdownAssetsWithTheirLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	addresses := map[string]AssetAddress{
-		dir + "big.png": {Page: "/example/rules/techs/go/return-errors/assets/big.png"},
+		dir + "big.png": {Page: "/_owner_/_name_/techs/go/return-errors/assets/big.png"},
 		dir + "loop.svg": {
-			Page:  "/example/rules/techs/go/return-errors/assets/loop.svg",
-			Image: "/example/rules/techs/go/return-errors/assets/loop.svg?raw=1",
+			Page:  "/_owner_/_name_/techs/go/return-errors/assets/loop.svg",
+			Image: "/_owner_/_name_/techs/go/return-errors/assets/loop.svg?raw=1",
 		},
-		dir + "why.md":       {Page: "/example/rules/techs/go/return-errors/assets/why.md"},
-		"assets/glossary.md": {Page: "/example/rules/assets/glossary.md"},
+		dir + "why.md":       {Page: "/_owner_/_name_/techs/go/return-errors/assets/why.md"},
+		"assets/glossary.md": {Page: "/_owner_/_name_/assets/glossary.md"},
 	}
 	ruleSource := MarkdownSource{
-		Repository: "example/rules", File: "techs/go/return-errors.md", Rule: "techs/go/return-errors", Title: "Return errors",
+		Repository: LibraryPlaceholder, File: "techs/go/return-errors.md", Rule: "techs/go/return-errors", Title: "Return errors",
 		Tag: "release/1", LatestTag: "release/1", Assets: addresses,
 	}
 	why := ruleSource
 	why.File, why.Title = dir+"why.md", ""
 	glossary := MarkdownSource{
-		Repository: "example/rules", File: "assets/glossary.md", Tag: "release/1", LatestTag: "release/1",
+		Repository: LibraryPlaceholder, File: "assets/glossary.md", Tag: "release/1", LatestTag: "release/1",
 		Assets: map[string]AssetAddress{"assets/glossary.md": addresses["assets/glossary.md"]},
 	}
 	for file, want := range map[string]MarkdownSource{ruleSource.File: ruleSource, why.File: why, glossary.File: glossary} {

@@ -64,3 +64,22 @@ func TestImageURLLoadsAKeptImageFromRulemartAndOthersFromGitHub(t *testing.T) {
 		}
 	}
 }
+
+// Assembly renders links with LibraryPlaceholder, which a page of a library replaces with the library's address:
+// links to its pages, its images, and its files on GitHub, raw or not, and nothing else.
+func TestLinksForLibraryLeadsWithinTheLibraryAPageShows(t *testing.T) {
+	stored := `<p><a href="/_owner_/_name_/assets/glossary.md#terms">glossary</a> <img src="/_owner_/_name_/techs/go/x/assets/a.svg?raw=1" alt="a"> ` +
+		`<a href="https://github.com/_owner_/_name_/tree/release/5">repository</a> ` +
+		`<img src="https://raw.githubusercontent.com/_owner_/_name_/refs/tags/release/2/a.png" alt="b"> ` +
+		`<a href="https://example.com/_owner_/_name_/">elsewhere</a> /_owner_/_name_/ in text</p>`
+
+	got := LinksForLibrary(stored, "stranger/rules")
+
+	want := `<p><a href="/stranger/rules/assets/glossary.md#terms">glossary</a> <img src="/stranger/rules/techs/go/x/assets/a.svg?raw=1" alt="a"> ` +
+		`<a href="https://github.com/stranger/rules/tree/release/5">repository</a> ` +
+		`<img src="https://raw.githubusercontent.com/stranger/rules/refs/tags/release/2/a.png" alt="b"> ` +
+		`<a href="https://example.com/_owner_/_name_/">elsewhere</a> /_owner_/_name_/ in text</p>`
+	if got != want {
+		t.Errorf("got\n%s\nwant\n%s", got, want)
+	}
+}

@@ -532,7 +532,7 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 	}
 
 	source := func(rule, title, tag string) MarkdownSource {
-		return MarkdownSource{Repository: "example/rules", File: RuleFile(rule), Rule: rule, Title: title, Tag: tag, LatestTag: "release/2"}
+		return MarkdownSource{Repository: LibraryPlaceholder, File: RuleFile(rule), Rule: rule, Title: title, Tag: tag, LatestTag: "release/2"}
 	}
 	backoff := source("practices/testing/check-retry-backoff", "Check retry backoff", "release/1")
 	retryLimits := source("practices/testing/verify-retry-limits", "Verify retry limits", "release/2")

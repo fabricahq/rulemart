@@ -100,6 +100,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   own file and asset directory, and the latest release for library-wide files, as the prototype's `ghFileUrl` and the
   renderer already did. The spec says "at the rule's release tag", but a library-wide file isn't part of the rule's
   version, and the newest release holds the copy a project gets.
+- **Proposed: stored text names no library.** Assembly renders links to a library's pages and its files on GitHub with
+  a placeholder in place of its owner and name, which pages fill in with the library they show, as they add `?rule=`.
+  Copied to another library's rows, as a local fixture of an unvetted copy was, or read after a repository is
+  renamed, a rule's text still leads only within the library whose page shows it. Text stored before this release
+  names its library, as before, until the worker ingests it again.
 - **Proposed: an image's bytes are served at its page's address with `?raw=1`**, from the asset table, as the type
   ingestion recorded, with `nosniff`, `Cache-Control: public, max-age=86400`, and a content security policy of its own,
   `default-src 'none'; style-src 'unsafe-inline'; sandbox`, so an SVG a library wrote can't run or load anything even
