@@ -44,7 +44,8 @@ type checkoutRequest struct {
 	Cart []string `json:"cart"`
 	// Fork marks the keys of the rules the visitor forks. RestOfGroups marks the libraries, as owner/name, whose rules'
 	// groups the visitor adds the rest of, and Confirmed the libraries the visitor confirmed adding from though Rulemart
-	// doesn't vet them.
+	// doesn't vet them; each names at most domain.MaxCartItems libraries, as many as a cart's items can, each in at
+	// most domain.MaxCartKeyLength characters, since checkout looks each library up in them.
 	Fork         map[string]bool `json:"fork"`
 	RestOfGroups map[string]bool `json:"restOfGroups"`
 	Confirmed    map[string]bool `json:"confirmed"`
@@ -174,7 +175,8 @@ func (s *server) redirectToCart(w http.ResponseWriter, r *http.Request) {
 
 // checkout answers a cart that cart-page.js posts, as checkoutRequest describes it, with its checkout. Another site
 // can't post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that
-// isn't such a cart, or holds more than domain.MaxCartItems keys, is refused with 400.
+// isn't such a cart, holds more than domain.MaxCartItems keys, or names more libraries than checkoutRequest allows, is
+// refused with 400.
 func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
 		s.writeJSON(w, r, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
@@ -182,7 +184,7 @@ func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	var req checkoutRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCheckoutBytes))
-	if err := decoder.Decode(&req); err != nil {
+	if err := decoder.Decode(&req); err != nil || !boundedLibraries(req.RestOfGroups) || !boundedLibraries(req.Confirmed) {
 		s.writeJSON(w, r, http.StatusBadRequest, map[string]string{"error": "the cart isn't one Rulemart can read"})
 		return
 	}
@@ -198,6 +200,20 @@ func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, r, http.StatusOK, newCheckoutResponse(checkout, target, repositoryInvalid, s.assets.iconURL))
+}
+
+// boundedLibraries reports whether libraries, one of checkoutRequest's choices that name libraries, stays within the
+// bounds it says.
+func boundedLibraries(libraries map[string]bool) bool {
+	if len(libraries) > domain.MaxCartItems {
+		return false
+	}
+	for name := range libraries {
+		if len(name) > domain.MaxCartKeyLength {
+			return false
+		}
+	}
+	return true
 }
 
 // checkoutUnavailable answers a checkout Rulemart can't give, which cart-page.js shows as being unable to show the cart.

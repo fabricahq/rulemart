@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -217,6 +218,53 @@ func TestCheckoutReportsARepositoryThatNamesNone(t *testing.T) {
 	}
 	if !answer.RepositoryInvalid || answer.Repository != "" || carts.target.Repository != "" {
 		t.Errorf("got invalid %t, repository %q, target %+v, want invalid and no project named", answer.RepositoryInvalid, answer.Repository, carts.target)
+	}
+}
+
+// libraryFlags returns n libraries, each named by a key of length characters, all on, as the checkout's maps of
+// libraries hold them, as JSON.
+func libraryFlags(t *testing.T, n, length int) string {
+	t.Helper()
+	flags := map[string]bool{}
+	for i := range n {
+		name := fmt.Sprintf("owner%d/", i)
+		flags[name+strings.Repeat("r", length-len(name))] = true
+	}
+	body, err := json.Marshal(flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
+// The choices that name libraries, confirmed and restOfGroups, hold at most domain.MaxCartItems libraries, as many as
+// a cart's items can name, each named by at most domain.MaxCartKeyLength characters: a cart's at the bounds checks
+// out, and one past either is refused without checking out.
+func TestCheckoutBoundsTheLibrariesItsChoicesName(t *testing.T) {
+	for _, field := range []string{"confirmed", "restOfGroups"} {
+		for _, c := range []struct {
+			name          string
+			flags, length int
+			want          int
+		}{
+			{"at the bounds", domain.MaxCartItems, domain.MaxCartKeyLength, http.StatusOK},
+			{"one library too many", domain.MaxCartItems + 1, 20, http.StatusBadRequest},
+			{"a name too long", 1, domain.MaxCartKeyLength + 1, http.StatusBadRequest},
+		} {
+			t.Run(field+" "+c.name, func(t *testing.T) {
+				carts := &fakeCarts{}
+				handler := newSiteWith(t, web.Options{Carts: carts})
+
+				resp := postCheckout(t, handler, `{"cart":[],"`+field+`":`+libraryFlags(t, c.flags, c.length)+`}`, nil)
+
+				if resp.Code != c.want {
+					t.Errorf("got %d, want %d: %s", resp.Code, c.want, resp.Body)
+				}
+				if checkedOut := carts.cart != nil; checkedOut != (c.want == http.StatusOK) {
+					t.Errorf("checked out %t, want %t", checkedOut, c.want == http.StatusOK)
+				}
+			})
+		}
 	}
 }
 

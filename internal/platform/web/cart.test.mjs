@@ -50,10 +50,55 @@ test('should stop adding the rest of a library\'s groups when turned off under a
 });
 
 test('should keep one choice per library when it is turned on under one spelling and off under another', () => {
-  const cart = loadCart(fakeStorage());
+  const cart = loadCart(fakeStorage({ [STORE]: JSON.stringify({ cart: ['acme/rules::techs/go/return-errors'] }) }));
 
   cart.setRestOfGroups('Acme/Rules', true);
   cart.setRestOfGroups('ACME/rules', false);
 
   assert.deepEqual(Object.keys(cart.state().restOfGroups), []);
+});
+
+test('should drop the choices for libraries and rules the cart no longer holds when it saves', () => {
+  const storage = fakeStorage({
+    [STORE]: JSON.stringify({
+      cart: ['acme/rules::techs/go/return-errors', 'group::stranger/rules::techs/go'],
+      fork: { 'acme/rules::techs/go/return-errors': true },
+      restOfGroups: { 'acme/rules': true, 'left/rules': true },
+      confirmed: { 'stranger/rules': true, 'left/rules': true },
+    }),
+  });
+  const cart = loadCart(storage);
+
+  cart.remove('group::stranger/rules::techs/go');
+
+  assert.deepEqual(Object.keys(stored(storage).restOfGroups), ['acme/rules']);
+  assert.deepEqual(Object.keys(stored(storage).confirmed), []);
+  assert.deepEqual(Object.keys(stored(storage).fork), ['acme/rules::techs/go/return-errors']);
+});
+
+test('should drop a fork set for a rule the cart does not hold when it saves', () => {
+  const storage = fakeStorage();
+  const cart = loadCart(storage);
+
+  cart.setFork('acme/rules::techs/go/return-errors', true);
+
+  assert.deepEqual(Object.keys(stored(storage).fork), []);
+});
+
+test('should keep a confirmation given while adding the library\'s first item', () => {
+  const storage = fakeStorage();
+  const cart = loadCart(storage);
+
+  cart.add(['Stranger/Rules::techs/go/use-go'], 'Stranger/Rules');
+
+  assert.deepEqual(Object.keys(stored(storage).confirmed), ['stranger/rules']);
+});
+
+test('should keep a confirmation given on the cart\'s page for a library the cart holds', () => {
+  const storage = fakeStorage({ [STORE]: JSON.stringify({ cart: ['group::Stranger/Rules::techs/go'] }) });
+  const cart = loadCart(storage);
+
+  cart.confirm('stranger/rules');
+
+  assert.deepEqual(Object.keys(stored(storage).confirmed), ['stranger/rules']);
 });

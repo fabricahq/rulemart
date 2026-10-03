@@ -2,8 +2,9 @@
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
  * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
- * and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. It paints the header's count and each page's cart
- * controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
+ * and confirmed, the unvetted libraries they confirmed adding from, both by owner/name in lowercase. Each choice lasts
+ * only while the cart holds its rule or an item of its library, so the choices stay as small as the cart, which the
+ * server bounds. It paints the header's count and each page's cart controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
  * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
  * change, here or in another tab, from the rulemart:cart event. Without JavaScript, or storage, there's no cart: the
  * stylesheet hides every control marked data-needs-script. */
@@ -85,8 +86,23 @@
 
   let state = load();
 
-  /** Keep the cart, and paint every page part that shows it. A browser that refuses storage keeps it for this page. */
+  /** Return the library, as owner/name, of the item key names. */
+  const libraryOf = (key) => key.replace(/^group::/, '').split('::')[0];
+
+  /** Drop the choices for what the cart no longer holds: forks of rules it doesn't hold, and choices for libraries it
+   * holds no item of. */
+  function prune() {
+    const libraries = new Set(state.cart.map((key) => libraryKey(libraryOf(key))));
+    const held = (choices, has) => Object.fromEntries(Object.keys(choices).filter(has).map((name) => [name, true]));
+    state.fork = held(state.fork, (key) => state.cart.includes(key));
+    state.restOfGroups = held(state.restOfGroups, (library) => libraries.has(libraryKey(library)));
+    state.confirmed = held(state.confirmed, (library) => libraries.has(libraryKey(library)));
+  }
+
+  /** Keep the cart, without the choices for what it no longer holds, and paint every page part that shows it. A browser
+   * that refuses storage keeps it for this page. */
   function save() {
+    prune();
     try {
       localStorage.setItem(STORE, JSON.stringify(state));
     } catch {
@@ -110,11 +126,14 @@
   const toast = (text) => window.rulemartToast?.(text);
 
   /** Add keys the cart doesn't hold, in order, while it has room, and return how many it added, saying so when the
-   * cart is full. Keys it holds already count as added, since the visitor sees them in it. */
-  function add(keys) {
+   * cart is full. Keys it holds already count as added, since the visitor sees them in it. confirmed, when given, is
+   * the library the visitor confirmed adding them from though Rulemart doesn't vet it, which is recorded with them,
+   * since a confirmation lasts only while the cart holds an item of its library. */
+  function add(keys, confirmed = '') {
     const adding = distinctKeys(keys.filter((key) => validKey(key) && !inCart(key)));
     const room = Math.max(MAX_ITEMS - state.cart.length, 0);
     state.cart.push(...adding.slice(0, room));
+    if (confirmed) setLibraryFlag(state.confirmed, confirmed, true);
     save();
     if (adding.length > room) {
       toast(`Your cart holds ${MAX_ITEMS} items, as many as it can. Remove some, or add a whole group.`);
@@ -142,7 +161,7 @@
     save();
   }
 
-  /** Record that the visitor confirmed adding from library, which Rulemart doesn't vet. */
+  /** Record that the visitor confirmed adding from library, which Rulemart doesn't vet, and whose items the cart holds. */
   function confirm(library) {
     setLibraryFlag(state.confirmed, library, true);
     save();
@@ -154,11 +173,9 @@
     save();
   }
 
-  /** Empty the cart, with its forks and choices to add the rest of groups, keeping the repository and the libraries confirmed. */
+  /** Empty the cart, with every choice for its items, keeping the repository. */
   function clear() {
     state.cart = [];
-    state.fork = {};
-    state.restOfGroups = {};
     save();
   }
 
@@ -237,8 +254,9 @@
 
   const dialog = document.querySelector('dialog[data-cart-dialog]');
   // What the open dialog acts on: opener, the control or Add to cart box that opened it, whose item its choices add,
-  // opener's library, which confirming records, and then, what confirming goes on to do: show the dialog's choices, or
-  // add what the visitor asked to. Null while the dialog is closed.
+  // opener's library, which confirming passes to then, what confirming goes on to do: show the dialog's choices, or
+  // add what the visitor asked to, with the library confirmed; and confirmed, that library once the visitor confirmed
+  // it and the dialog shows its choices. Null while the dialog is closed.
   let pending = null;
 
   /** Show the dialog's step, confirm or choose, and hide the other. */
@@ -253,16 +271,16 @@
     dialog.showModal();
   }
 
-  /** Run then, after the visitor confirms adding from opener's library when opener, the control that asks, says it
-   * isn't vetted; at once otherwise. */
+  /** Run then with the library the visitor confirmed adding from, after they confirm adding from opener's library
+   * when opener, the control that asks, says it isn't vetted; at once, with none, otherwise. */
   function confirmed(opener, then) {
     if (opener.dataset.cartVetted !== 'false' || !dialog) {
-      then();
+      then('');
       return;
     }
-    openDialog(opener, 'confirm', () => {
+    openDialog(opener, 'confirm', (library) => {
       dialog.close();
-      then();
+      then(library);
     });
   }
 
@@ -279,25 +297,26 @@
     if (target.matches('[data-cart-open]')) {
       // A rule page's dialog: for an unvetted library, the warning first, then the choices, the first of them focused,
       // since the button that confirmed is gone.
-      openDialog(control, control.dataset.cartVetted === 'false' ? 'confirm' : 'choose', () => {
+      openDialog(control, control.dataset.cartVetted === 'false' ? 'confirm' : 'choose', (library) => {
+        pending.confirmed = library;
         showStep('choose');
         dialog.querySelector('[data-cart-pick]').focus();
       });
     } else if (target.matches('[data-cart-confirm]')) {
-      confirm(opened.library);
-      opened.then();
+      // The confirmation is recorded with what it adds, if the visitor goes on to add anything.
+      opened.then(opened.library);
     } else if (target.matches('[data-cart-close]')) {
       dialog.close();
     } else if (target.matches('[data-cart-pick]')) {
       dialog.close();
       const { opener } = opened;
-      if (add([target.dataset.cartPick === 'group' ? opener.dataset.cartGroup : opener.dataset.cartRule])) {
+      if (add([target.dataset.cartPick === 'group' ? opener.dataset.cartGroup : opener.dataset.cartRule], opened.confirmed)) {
         toast('Added to cart');
         focusCheckout(opener);
       }
     } else if (target.matches('[data-cart-add-group]')) {
-      confirmed(control, () => {
-        if (add([control.dataset.cartGroup])) {
+      confirmed(control, (library) => {
+        if (add([control.dataset.cartGroup], library)) {
           toast('Added to cart');
           focusCheckout(control);
         }
@@ -309,8 +328,8 @@
     } else if (target.matches('[data-cart-groups-add]')) {
       const panel = target.closest('[data-cart-groups]');
       const picked = picksOf(panel).filter((box) => box.checked);
-      confirmed(panel, () => {
-        const added = add(picked.map((box) => box.dataset.cartPickGroup));
+      confirmed(panel, (library) => {
+        const added = add(picked.map((box) => box.dataset.cartPickGroup), library);
         // The cart holds what it added, whose boxes now show so; the rest, if it filled up, go back unticked.
         picked.filter((box) => !box.disabled).forEach((box) => (box.checked = false));
         paintGroups();

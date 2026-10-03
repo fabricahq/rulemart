@@ -40,7 +40,9 @@ storage goes. [realignment.md](../realignment.md) records the decision.
 
 - **Proposed: the cart is a `localStorage` entry**, `rulemart-cart`, holding the prototype's state: `cart` (ordered
   keys `owner/repo::group/slug` and `group::owner/repo::group`), `fork` (per rule key), `full` (per library),
-  `project`, `repo`, and `confirmed` (per unvetted library). At most 100 items. A script, `cart.js`, owns it: it
+  `project`, `repo`, and `confirmed` (per unvetted library). At most 100 items, and each choice lasts only while the
+  cart holds its rule or an item of its library, so the checkout's maps of libraries stay within the 100 the server
+  allows. A script, `cart.js`, owns it: it
   paints the badge and each page's In cart state from data attributes the page renders (the page's library, group,
   and rule keys), handles the modal, and renders `/cart`.
 - **Proposed: `/cart` is one server-rendered page whose content the script fills**, by posting the cart's keys to
