@@ -3,11 +3,13 @@ package postgres
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
@@ -300,5 +302,50 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 	postgrestest.QueryRow(t, connString, "SELECT count(*) FROM github_snapshots", &kept)
 	if kept != 0 {
 		t.Errorf("%d snapshots outlived signing in again", kept)
+	}
+}
+
+// A snapshot reads back as it was saved, with when Rulemart last tried to read the account kept apart from when the
+// snapshot's contents were read, since a failed read keeps an older snapshot.
+func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	if _, _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
+		t.Fatalf("before any read: found %v, %v", found, err)
+	}
+	version, err := coderules.ParseRuleVersion("1.2.0", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Postgres keeps microseconds.
+	readAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	triedAt := readAt.Add(time.Hour)
+	saved := domain.Snapshot{
+		ReadAt:        readAt,
+		Organizations: []string{"octo-org"},
+		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3}},
+		Projects: []domain.Project{{
+			Repository: domain.Repository{Owner: "octocat", Name: "app", Private: true},
+			Sources: []domain.Source{{
+				Name: "octo", Library: "octo-org/rules", Release: 3, Groups: []string{"techs/go"},
+				Rules: []domain.PinnedRule{{Path: "techs/go/return-errors", Version: version}},
+			}},
+		}},
+		Truncated: true,
+	}
+	if err := s.SaveSnapshot(ctx, account.ID, saved, triedAt); err != nil {
+		t.Fatal(err)
+	}
+	got, gotTriedAt, found, err := s.Snapshot(ctx, account.ID)
+	if err != nil || !found {
+		t.Fatalf("after saving: found %v, %v", found, err)
+	}
+	if !gotTriedAt.Equal(triedAt) || !got.ReadAt.Equal(readAt) {
+		t.Errorf("tried at %v and read at %v, want %v and %v", gotTriedAt, got.ReadAt, triedAt, readAt)
+	}
+	got.ReadAt = saved.ReadAt
+	if !reflect.DeepEqual(got, saved) {
+		t.Errorf("read back\n%+v\nwant\n%+v", got, saved)
 	}
 }

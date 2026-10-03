@@ -23,8 +23,9 @@ ALTER TABLE sessions ADD COLUMN github_token bytea CHECK (length(github_token) B
 
 CREATE TABLE github_snapshots (
     account_id bigint PRIMARY KEY REFERENCES accounts ON DELETE CASCADE,
-    -- When Rulemart read it, which pages show, and which keeps a refresh to once a minute.
-    read_at timestamptz NOT NULL,
+    -- When Rulemart last tried to read the account, whether or not the read succeeded, which keeps a refresh to once a
+    -- minute. When the snapshot's contents were read, which pages show, is in the snapshot.
+    tried_at timestamptz NOT NULL,
     -- The organizations, publishable repositories, and projects the read found, as accounts' store encodes them. Only
     -- the account whose snapshot it is sees it, so it may name private repositories.
     snapshot jsonb NOT NULL CHECK (jsonb_typeof(snapshot) = 'object')

@@ -82,11 +82,11 @@ func (q *Queries) DiscardInstallationSnapshots(ctx context.Context, installation
 
 const getSnapshot = `-- name: GetSnapshot :one
 
-SELECT read_at, snapshot FROM github_snapshots WHERE account_id = $1
+SELECT tried_at, snapshot FROM github_snapshots WHERE account_id = $1
 `
 
 type GetSnapshotRow struct {
-	ReadAt   pgtype.Timestamptz
+	TriedAt  pgtype.Timestamptz
 	Snapshot []byte
 }
 
@@ -95,7 +95,7 @@ type GetSnapshotRow struct {
 func (q *Queries) GetSnapshot(ctx context.Context, accountID int64) (GetSnapshotRow, error) {
 	row := q.db.QueryRow(ctx, getSnapshot, accountID)
 	var i GetSnapshotRow
-	err := row.Scan(&i.ReadAt, &i.Snapshot)
+	err := row.Scan(&i.TriedAt, &i.Snapshot)
 	return i, err
 }
 
@@ -131,19 +131,19 @@ func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]Lis
 }
 
 const saveSnapshot = `-- name: SaveSnapshot :exec
-INSERT INTO github_snapshots (account_id, read_at, snapshot)
+INSERT INTO github_snapshots (account_id, tried_at, snapshot)
 VALUES ($1, $2, $3)
-ON CONFLICT (account_id) DO UPDATE SET read_at = EXCLUDED.read_at, snapshot = EXCLUDED.snapshot
+ON CONFLICT (account_id) DO UPDATE SET tried_at = EXCLUDED.tried_at, snapshot = EXCLUDED.snapshot
 `
 
 type SaveSnapshotParams struct {
 	AccountID int64
-	ReadAt    pgtype.Timestamptz
+	TriedAt   pgtype.Timestamptz
 	Snapshot  []byte
 }
 
-// SaveSnapshot keeps snapshot as the account's, read at read_at, replacing the one it had.
+// SaveSnapshot keeps snapshot as the account's, tried at tried_at, replacing the one it had.
 func (q *Queries) SaveSnapshot(ctx context.Context, arg SaveSnapshotParams) error {
-	_, err := q.db.Exec(ctx, saveSnapshot, arg.AccountID, arg.ReadAt, arg.Snapshot)
+	_, err := q.db.Exec(ctx, saveSnapshot, arg.AccountID, arg.TriedAt, arg.Snapshot)
 	return err
 }

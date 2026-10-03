@@ -38,7 +38,7 @@ type GithubInstallation struct {
 
 type GithubSnapshot struct {
 	AccountID int64
-	ReadAt    pgtype.Timestamptz
+	TriedAt   pgtype.Timestamptz
 	Snapshot  []byte
 }
 

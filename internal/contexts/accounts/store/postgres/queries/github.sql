@@ -2,13 +2,13 @@
 -- repositories through.
 
 -- name: GetSnapshot :one
-SELECT read_at, snapshot FROM github_snapshots WHERE account_id = @account_id;
+SELECT tried_at, snapshot FROM github_snapshots WHERE account_id = @account_id;
 
--- SaveSnapshot keeps snapshot as the account's, read at read_at, replacing the one it had.
+-- SaveSnapshot keeps snapshot as the account's, tried at tried_at, replacing the one it had.
 -- name: SaveSnapshot :exec
-INSERT INTO github_snapshots (account_id, read_at, snapshot)
-VALUES (@account_id, @read_at, @snapshot)
-ON CONFLICT (account_id) DO UPDATE SET read_at = EXCLUDED.read_at, snapshot = EXCLUDED.snapshot;
+INSERT INTO github_snapshots (account_id, tried_at, snapshot)
+VALUES (@account_id, @tried_at, @snapshot)
+ON CONFLICT (account_id) DO UPDATE SET tried_at = EXCLUDED.tried_at, snapshot = EXCLUDED.snapshot;
 
 -- name: DeleteSnapshot :exec
 DELETE FROM github_snapshots WHERE account_id = @account_id;

@@ -37,7 +37,7 @@ func (s *Store) Snapshot(ctx context.Context, accountID int64) (domain.Snapshot,
 	if err := json.Unmarshal(row.Snapshot, &record); err != nil {
 		return domain.Snapshot{}, time.Time{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: decode it: %v", accountID, err)
 	}
-	return record.snapshot(), row.ReadAt.Time, true, nil
+	return record.snapshot(), row.TriedAt.Time, true, nil
 }
 
 // SaveSnapshot keeps snapshot as the account's, as store.Store describes.
@@ -48,7 +48,7 @@ func (s *Store) SaveSnapshot(ctx context.Context, accountID int64, snapshot doma
 	}
 	err = s.db.Run(ctx, func(pool *pgxpool.Pool) error {
 		return accountsdb.New(pool).SaveSnapshot(ctx, accountsdb.SaveSnapshotParams{
-			AccountID: accountID, ReadAt: pgtype.Timestamptz{Time: triedAt, Valid: true}, Snapshot: data,
+			AccountID: accountID, TriedAt: pgtype.Timestamptz{Time: triedAt, Valid: true}, Snapshot: data,
 		})
 	})
 	if err != nil {
