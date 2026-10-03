@@ -152,10 +152,14 @@ templ addToCartDialog(r ruleView) {
 				</span>
 			</button>
 			<button class={ choiceStyle } type="button" data-cart-pick="group">
-				<b class="flex items-center gap-[7px] text-[15px] font-semibold">
+				// The group's icon and name stay together on a narrow phone, and the words around them wrap.
+				<b class="flex flex-wrap items-center gap-x-[7px] text-[15px] font-semibold">
 					The whole
-					@groupTile(r.group, r.groupIcon, tileXS)
-					{ r.group.display() } group
+					<span class="inline-flex items-center gap-[7px] whitespace-nowrap">
+						@groupTile(r.group, r.groupIcon, tileXS)
+						{ r.group.display() }
+					</span>
+					group
 				</b>
 				<span class="mt-0.5 block text-[13px] text-muted">
 					Adds this rule and the { strconv.Itoa(r.groupRules-1) } other { r.group.display() } { pluralWord(r.groupRules-1, "rule", "rules") } from { r.library.fullName() }.{ " " }
