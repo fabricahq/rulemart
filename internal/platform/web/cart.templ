@@ -48,6 +48,7 @@ templ cartLink(current bool) {
 // holds the rule, or its whole group, the In cart pill, Checkout, and a way to remove it. cart.js shows the state
 // the cart is in.
 templ ruleCartControl(r ruleView) {
+	@cartNeedsScript("max-w-[16rem] text-right max-narrow:text-left")
 	<div
 		class="flex flex-col items-end gap-2 max-narrow:items-start"
 		data-needs-script
@@ -85,6 +86,15 @@ templ groupCartControl(lib libraryView, g groupView) {
 		</button>
 		@heldControls(heldAcross)
 	</div>
+	@cartNeedsScript("")
+}
+
+// cartNeedsScript says, where scripts don't run, why a page offers no way to add to the cart, as the cart's page
+// does: the cart lives in the browser.
+templ cartNeedsScript(class string) {
+	<noscript>
+		<p class={ "text-[13px] text-muted", class }>Your cart lives in your browser, so adding to it needs JavaScript.</p>
+	</noscript>
 }
 
 // heldAlign is how heldControls sit: heldAtEnd at the end of a page's head, or heldAcross across a box.

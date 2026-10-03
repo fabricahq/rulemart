@@ -125,6 +125,24 @@ func TestAnUnvettedRulesDialogWarnsFirst(t *testing.T) {
 	}
 }
 
+// Without JavaScript the cart can't work, so its controls hide, and a rule's page and a library group's page say why
+// there's nothing to add with.
+func TestPagesThatAddSayTheCartNeedsJavaScript(t *testing.T) {
+	handler := newSite(t, newCatalog())
+
+	for _, path := range []string{errorsRule, library + "/techs/go"} {
+		doc := parsePage(t, get(t, handler, path).Body.String())
+
+		noscript := find(doc, func(n *html.Node) bool {
+			return n.Data == "noscript" && n.FirstChild != nil &&
+				strings.Contains(n.FirstChild.Data, "Your cart lives in your browser, so adding to it needs JavaScript.")
+		})
+		if noscript == nil {
+			t.Errorf("%s: without JavaScript, the page doesn't say why it can't add to the cart", path)
+		}
+	}
+}
+
 // A retired rule can't be added: its page has no cart control.
 func TestARetiredRuleOffersNothingToAdd(t *testing.T) {
 	handler := newSite(t, newStarCatalog())
