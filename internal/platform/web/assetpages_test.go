@@ -144,6 +144,50 @@ func TestRulePageLinksOnlyWithinItsOwnLibrary(t *testing.T) {
 	}
 }
 
+// Two libraries with the same rules and assets each show their own owner's avatar, which ingestion stores from the
+// repository's owner, and lead their links only within themselves.
+func TestLibrariesWithTheSamePathsShowOnlyTheirOwn(t *testing.T) {
+	example, stranger := assetLibrary(t).Repository(7), assetLibrary(t).Repository(8)
+	stranger.Owner, stranger.OwnerAvatarURL = "stranger", "https://avatars.githubusercontent.com/u/2?v=4"
+	db, connString := databasetest.New(t)
+	repos := byName{"example/rules": example, "stranger/rules": stranger}
+	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	for name := range repos {
+		if _, err := ingester.Ingest(context.Background(), "https://github.com/"+name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newSite(t, app.Pages{
+		Store:  postgres.New(databasetest.AsWebRole(t, connString)),
+		Vetted: []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "7"}, {Host: domain.GitHub, RepositoryID: "8"}},
+		Groups: groups,
+	})
+
+	for own, other := range map[domain.Repository]domain.Repository{example: stranger, stranger: example} {
+		base := "/" + own.FullName()
+		for _, path := range []string{
+			base, base + "?tab=rules", base + "/practices/testing", base + "/practices/testing/test-changed-behavior",
+			base + "/practices/testing/test-changed-behavior/assets/why.md",
+		} {
+			resp := get(t, handler, path)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("%s: got %d", path, resp.Code)
+			}
+			page := resp.Body.String()
+			if !strings.Contains(page, `src="`+own.OwnerAvatarURL+`"`) {
+				t.Errorf("%s doesn't show its owner's avatar, %s", path, own.OwnerAvatarURL)
+			}
+			if strings.Contains(page, other.OwnerAvatarURL) || strings.Contains(page, other.FullName()) {
+				t.Errorf("%s shows %s's avatar or address:\n%s", path, other.FullName(), page)
+			}
+		}
+	}
+}
+
 // Each asset's page says what it is to the rule and shows it: Markdown rendered with its links, code highlighted, an
 // image from Rulemart, or, for a file Rulemart doesn't keep, a link to it on GitHub; the Assets panel marks it.
 func TestAssetPagesShowEachAsset(t *testing.T) {
