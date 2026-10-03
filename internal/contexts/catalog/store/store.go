@@ -196,11 +196,13 @@ type Reader interface {
 	Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error)
 	// Rules returns one page of the list of rules list describes, after its filters and in its order: at most limit
 	// rules, which must be at least 1, after the first skip. Its libraries are the vetted ones, and with list.Unvetted,
-	// the ones listings name too. A list with a query holds the rules that match it, current and retired; one without holds every current rule, and with list.Retired, every retired one too. Every order puts
-	// the rules that hold every word to find first, and a retired rule after the current ones it ties with, and each
-	// group's rules together, in the order of the group's first. Each rule's stars are counted as Stars counts them;
-	// a retired rule's, or one of a library that isn't vetted, are 0. The results also count the rules that pass the
-	// filters, and those the list holds before them by library. It leaves each row's CanonicalGroup nil.
+	// the ones listings name too. A list with a query holds the rules that match it, current and retired; one without
+	// holds every current rule, and with list.Retired, every retired one too. Every order puts the current rules that
+	// hold every word to find first, then the other current rules, then the retired rules, and each group's rules in a
+	// tier together, in the order of the group's first. Each rule's stars are counted as Stars counts them; a retired
+	// rule's, or one of a library that isn't vetted, are 0. The results also count the rules that pass the filters,
+	// those the list holds before them by library, and its group's retired rules, whichever rules the page holds. It
+	// leaves each row's CanonicalGroup nil.
 	Rules(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, list domain.RuleList, limit, skip int) (views.RuleResults, error)
 	// Sitemap returns the vetted libraries, their current rules, and the groups that hold them, at most maxEntries
 	// groups and rules in all: the first groups in ID order, then the first rules in owner, name, and ID order, from
