@@ -157,9 +157,10 @@ func (f *Fake) organizations(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	size, first := pageBounds(r.URL.Query())
 	orgs := []map[string]string{}
-	for _, m := range u.Organizations {
-		orgs = append(orgs, map[string]string{"login": m.Organization})
+	for i := first; i < min(first+size, len(u.Organizations)); i++ {
+		orgs = append(orgs, map[string]string{"login": u.Organizations[i].Organization})
 	}
 	writeJSON(w, orgs)
 }
@@ -414,9 +415,19 @@ func sortedByPush(repos []Repository) []Repository {
 	return sorted
 }
 
-// page returns the page of repos query's page and per_page parameters name, as GitHub pages lists, 30 a page by
-// default.
+// page returns the page of repos query's page and per_page parameters name, as pageBounds reads them.
 func page(repos []Repository, query url.Values) []map[string]any {
+	size, first := pageBounds(query)
+	out := []map[string]any{}
+	for i := first; i < min(first+size, len(repos)); i++ {
+		out = append(out, repositoryJSON(repos[i]))
+	}
+	return out
+}
+
+// pageBounds returns the size of the page of a list query's page and per_page parameters name, as GitHub pages lists,
+// 30 a page by default, and the index of its first item.
+func pageBounds(query url.Values) (size, first int) {
 	size, err := strconv.Atoi(query.Get("per_page"))
 	if err != nil || size <= 0 || size > 100 {
 		size = 30
@@ -425,11 +436,7 @@ func page(repos []Repository, query url.Values) []map[string]any {
 	if err != nil || n < 1 {
 		n = 1
 	}
-	out := []map[string]any{}
-	for i := (n - 1) * size; i < min(n*size, len(repos)); i++ {
-		out = append(out, repositoryJSON(repos[i]))
-	}
-	return out
+	return size, (n - 1) * size
 }
 
 func bearer(r *http.Request) string {

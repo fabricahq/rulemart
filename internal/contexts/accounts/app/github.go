@@ -25,8 +25,9 @@ import (
 // installation's token. accounts/github.API implements it. A read refused for the token fails with
 // domain.ErrGitHubTokenRefused.
 type GitHubReader interface {
-	// Organizations returns the logins of the token's user's organizations, at most domain.MaxOrganizations.
-	Organizations(ctx context.Context, token string) ([]string, error)
+	// Organizations returns the logins of the token's user's organizations, at most domain.MaxOrganizations, and
+	// whether the user belongs to more.
+	Organizations(ctx context.Context, token string) (logins []string, more bool, err error)
 	// Repositories returns owner's public repositories, an organization's when organization is true, the most recently
 	// pushed first, at most limit, and whether owner has more.
 	Repositories(ctx context.Context, token, owner string, organization bool, limit int) (repos []domain.GitHubRepository, more bool, err error)
@@ -241,14 +242,14 @@ func (g GitHubAccounts) stillPermitted(ctx context.Context, token string, accoun
 	return installations, nil
 }
 
-// scan reads what the snapshot holds: login's organizations, then the public repositories of login and each
-// organization, and the private repositories each installation reads, the domain.MaxRepositories most recently pushed of
+// scan reads what the snapshot holds: login's organizations, the first domain.MaxOrganizations of them, then the public
+// repositories of login and each organization, and the private repositories each installation reads, the domain.MaxRepositories most recently pushed of
 // them, and in each, whether it publishes a library and whether it's a project. An installation GitHub no longer knows
 // is forgotten, and the scan fails with errAccessChanged.
 func (g GitHubAccounts) scan(ctx context.Context, token, login string, installations []domain.Installation) (domain.Snapshot, error) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
-	orgs, err := g.GitHub.Organizations(ctx, token)
+	orgs, moreOrgs, err := g.GitHub.Organizations(ctx, token)
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
@@ -256,7 +257,7 @@ func (g GitHubAccounts) scan(ctx context.Context, token, login string, installat
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	snapshot := domain.Snapshot{Organizations: orgs, Truncated: more || len(candidates) > domain.MaxRepositories}
+	snapshot := domain.Snapshot{Organizations: orgs, Truncated: moreOrgs || more || len(candidates) > domain.MaxRepositories}
 	candidates = candidates[:min(len(candidates), domain.MaxRepositories)]
 	libraries := make([]*domain.PublishableRepository, len(candidates))
 	projects := make([]*domain.Project, len(candidates))

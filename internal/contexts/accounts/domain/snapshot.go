@@ -66,8 +66,9 @@ type Snapshot struct {
 	Libraries []PublishableRepository
 	// Projects are the repositories whose provenance file names the libraries they import, by full name.
 	Projects []Project
-	// Truncated is true when the visitor and their organizations hold more repositories than MaxRepositories, so the
-	// read left the least recently pushed out.
+	// Truncated is true when the read left repositories out: the visitor and their organizations hold more than
+	// MaxRepositories, so it left the least recently pushed out, or the visitor belongs to more organizations than
+	// MaxOrganizations, so it left the rest's out.
 	Truncated bool
 	// ReadFailed is true when the latest read failed, so what it holds is an older read's results, or nothing.
 	ReadFailed bool

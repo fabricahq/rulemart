@@ -25,7 +25,7 @@ templ gitHubStatus(g gitHubView) {
 					@refreshButton(g.refresh, "Refresh")
 			}
 			if g.snapshot.Truncated {
-				<span class="basis-full">Rulemart reads your 200 most recently pushed repositories, and yours and your organizations' hold more.</span>
+				<span class="basis-full">Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.</span>
 			}
 		</div>
 	}

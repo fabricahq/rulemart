@@ -191,7 +191,7 @@ func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 	truncated := octocatsGitHub()
 	truncated.Truncated = true
 	assertShows(t, newDashboardSite(t, truncated, octocatsCatalog()).get(t, "/me"),
-		"Rulemart reads your 200 most recently pushed repositories, and yours and your organizations' hold more.")
+		"Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.")
 
 	broken := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	broken.gitHub.err = errors.New("connection refused")

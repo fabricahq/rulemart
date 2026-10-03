@@ -39,19 +39,29 @@ func NewAPI(baseURL string) *API {
 }
 
 // Organizations returns the logins of the organizations the token's user belongs to, at most domain.MaxOrganizations,
-// in GitHub's order, including memberships the user keeps private, which read:org reveals.
-func (a *API) Organizations(ctx context.Context, token string) ([]string, error) {
+// in GitHub's order, including memberships the user keeps private, which read:org reveals, and whether the user
+// belongs to more.
+func (a *API) Organizations(ctx context.Context, token string) ([]string, bool, error) {
 	var orgs []struct {
 		Login string `json:"login"`
 	}
 	if _, err := a.get(ctx, token, "/user/orgs?per_page="+strconv.Itoa(domain.MaxOrganizations), "", maxListBytes, &orgs); err != nil {
-		return nil, fmt.Errorf("list the user's organizations: %w", err)
+		return nil, false, fmt.Errorf("list the user's organizations: %w", err)
 	}
 	logins := make([]string, 0, len(orgs))
 	for _, o := range orgs {
 		logins = append(logins, o.Login)
 	}
-	return logins, nil
+	if len(orgs) < domain.MaxOrganizations {
+		return logins, false, nil
+	}
+	// A full page leaves the user's next organization, if any, to a page of one past it.
+	var next []json.RawMessage
+	path := "/user/orgs?per_page=1&page=" + strconv.Itoa(domain.MaxOrganizations+1)
+	if _, err := a.get(ctx, token, path, "", maxListBytes, &next); err != nil {
+		return nil, false, fmt.Errorf("list the user's organizations past the first %d: %w", domain.MaxOrganizations, err)
+	}
+	return logins, len(next) > 0, nil
 }
 
 // Repositories returns the public repositories owner owns, an organization's when organization is true and a user's

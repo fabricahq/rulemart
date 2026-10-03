@@ -842,6 +842,32 @@ func TestARepeatedInstallationCallbackWhoseReadFailsKeepsTheSnapshot(t *testing.
 	}
 }
 
+// A visitor in more organizations than a read lists repositories of is told the read left repositories out; exactly as
+// many is complete.
+func TestAReadSaysWhenItLeftOrganizationsOut(t *testing.T) {
+	for _, tc := range []struct {
+		organizations int
+		truncated     bool
+	}{
+		{domain.MaxOrganizations, false},
+		{domain.MaxOrganizations + 1, true},
+	} {
+		t.Run(fmt.Sprint(tc.organizations), func(t *testing.T) {
+			user := githubtest.User{Token: monaToken, ID: monaID, Login: "mona"}
+			for i := range tc.organizations {
+				user.Organizations = append(user.Organizations, githubtest.Membership{Organization: fmt.Sprintf("org-%03d", i), Role: "member"})
+			}
+			site := newGitHubSite(t, &githubtest.Fake{Users: []githubtest.User{user}}, false)
+
+			got := site.snapshot(t)
+
+			if got.Truncated != tc.truncated || len(got.Organizations) != domain.MaxOrganizations {
+				t.Errorf("truncated %v with %d organizations, want %v with %d", got.Truncated, len(got.Organizations), tc.truncated, domain.MaxOrganizations)
+			}
+		})
+	}
+}
+
 // A visitor with no organizations and more repositories than a read looks into is told the read stopped short, though
 // one owner's listing never returns more than the read takes; exactly as many is complete.
 func TestAReadOfOneOwnerSaysWhenItLeftRepositoriesOut(t *testing.T) {

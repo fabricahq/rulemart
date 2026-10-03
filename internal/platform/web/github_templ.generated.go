@@ -136,7 +136,7 @@ func gitHubStatus(g gitHubView) templ.Component {
 				}
 			}
 			if g.snapshot.Truncated {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"basis-full\">Rulemart reads your 200 most recently pushed repositories, and yours and your organizations' hold more.</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"basis-full\">Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
