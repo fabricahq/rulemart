@@ -46,11 +46,13 @@ than adding history.
 ## Search engines, sharing, and reports
 
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
-  lists the site's own pages, the page of each group a vetted library holds, canonical or not, and each vetted library
-  and its current rules, by their canonical addresses on `RULEMART_BASE_URL`, in one file of at most 45,000 groups and
-  rules; without a base URL there's none.
-  `/robots.txt` disallows account pages, sign-in, listing, search, the unvetted area, and comparisons, which also say
-  `noindex`. [Slice 9](slices/9-launch-readiness.md) explains the choices.
+  lists the site's own pages, the page of each group a vetted library holds, canonical or not, each owner's page, and
+  each vetted library with its groups and current rules, by their canonical addresses on `RULEMART_BASE_URL`, in one
+  file of at most 45,000 groups and rules; without a base URL there's none. It leaves out rules' assets' pages, which
+  belong to their rule's.
+  `/robots.txt` disallows the visitor's own pages under `/me`, the cart, sign-in, listing, search, the unvetted area,
+  and comparisons, which also say `noindex`, and leaves owners' `/o/` addresses open.
+  [Slice 9](slices/9-launch-readiness.md) and [slice R8](slices/17-launch-gate.md) explain the choices.
 - **A page with a canonical address describes itself to social sites**, with Open Graph tags and one image of
   Rulemart's; a page without one, such as an unvetted library's, shows no card.
 - **Reports and requests to vet a library are GitHub issues** in Rulemart's public repository, through issue forms,
@@ -198,7 +200,11 @@ than adding history.
   minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
   sees it. GitHub returns a visitor who installed the app to `/me/github/installed`, which records the installation
   once GitHub says it's on their account or an organization they own, and the app's webhook, signed with its secret,
-  forgets an uninstalled one. [Slice R7](slices/16-dashboard-and-add-a-library.md) explains the choices.
+  forgets an uninstalled one. Until infrastructure gives the webhook an unsigned path to the function, GitHub's
+  deliveries are refused at the Function URL: the visitor's next read forgets an uninstalled installation, while a
+  suspended one makes their reads fail, keeping what was read last, until it's unsuspended or they stop including
+  private projects, as [launch.md](launch.md) says. [Slice R7](slices/16-dashboard-and-add-a-library.md) explains the
+  choices.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
   and an account keeps at most 20.
