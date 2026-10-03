@@ -37,21 +37,24 @@ type Store interface {
 	// sessions, or fails with ErrNotFound when that session has ended or expired, in one statement as EndSessions.
 	DeleteAccount(ctx context.Context, tokenHash []byte) error
 
-	// Snapshot returns the account's GitHub snapshot, and when Rulemart last tried to read it, or found false when it
-	// has none.
-	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, triedAt time.Time, found bool, err error)
+	// Snapshot returns the account's GitHub snapshot, or found false when it has none.
+	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, found bool, err error)
+	// ClaimRead claims a read of the account's GitHub account beginning at now, in one statement, unless one began
+	// within interval before now and its snapshot hasn't been discarded since. It returns whether it claimed the read,
+	// so of requests that arrive together, one reads GitHub.
+	ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (bool, error)
 	// GitHubGeneration returns how many times the account's snapshot has been discarded, such as when its access to
 	// private repositories changed. A read notes it before it reads GitHub, and saves what it found with it.
 	GitHubGeneration(ctx context.Context, accountID int64) (int64, error)
-	// SaveSnapshot keeps snapshot as the account's, tried at triedAt, replacing the one it had, unless the account's
-	// GitHub generation is no longer generation: its snapshot was discarded since the read began, and the read may hold
-	// what the account can no longer see. It returns whether it kept the snapshot.
-	SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot, triedAt time.Time) (bool, error)
+	// SaveSnapshot keeps snapshot as the account's, replacing the one it had, unless the account's GitHub generation is
+	// no longer generation: its snapshot was discarded since the read began, and the read may hold what the account can
+	// no longer see. It returns whether it kept the snapshot.
+	SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot) (bool, error)
 	// Installations returns the installations of the GitHub App the account reads private repositories through, in
 	// the order it added them.
 	Installations(ctx context.Context, accountID int64) ([]domain.Installation, error)
 	// AddInstallation records that the account reads private repositories through installation, and discards its
-	// snapshot, in one transaction. Adding one it has changes nothing but the snapshot.
+	// snapshot, in one transaction. Adding one it has changes nothing, and keeps the snapshot.
 	AddInstallation(ctx context.Context, accountID int64, installation domain.Installation) error
 	// RemoveInstallations forgets every installation the account reads through, and discards its snapshot, in one
 	// transaction.

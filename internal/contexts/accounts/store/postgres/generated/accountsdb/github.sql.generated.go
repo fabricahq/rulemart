@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const addInstallation = `-- name: AddInstallation :exec
+const addInstallation = `-- name: AddInstallation :execrows
 INSERT INTO github_installations (account_id, installation_id, github_account)
 VALUES ($1, $2, $3)
 ON CONFLICT (account_id, installation_id) DO NOTHING
@@ -24,25 +24,29 @@ type AddInstallationParams struct {
 }
 
 // AddInstallation records that the account reads private repositories through the installation. Recording it again
-// changes nothing.
-func (q *Queries) AddInstallation(ctx context.Context, arg AddInstallationParams) error {
-	_, err := q.db.Exec(ctx, addInstallation, arg.AccountID, arg.InstallationID, arg.GithubAccount)
-	return err
+// changes nothing. It returns 1 when it recorded the installation, and 0 when the account had it.
+func (q *Queries) AddInstallation(ctx context.Context, arg AddInstallationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addInstallation, arg.AccountID, arg.InstallationID, arg.GithubAccount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const advanceGitHubGeneration = `-- name: AdvanceGitHubGeneration :exec
-UPDATE accounts SET github_generation = github_generation + 1 WHERE id = $1
+UPDATE accounts SET github_generation = github_generation + 1, github_tried_at = NULL WHERE id = $1
 `
 
 // AdvanceGitHubGeneration notes a change to the account's access, which a read under way mustn't undo. Run it before
-// discarding the snapshot, in the same transaction, so a save that waited for it sees it.
+// discarding the snapshot, in the same transaction, so a save that waited for it sees it. The next read needn't wait
+// out the minute since the last.
 func (q *Queries) AdvanceGitHubGeneration(ctx context.Context, accountID int64) error {
 	_, err := q.db.Exec(ctx, advanceGitHubGeneration, accountID)
 	return err
 }
 
 const advanceInstallationGenerations = `-- name: AdvanceInstallationGenerations :exec
-UPDATE accounts SET github_generation = github_generation + 1
+UPDATE accounts SET github_generation = github_generation + 1, github_tried_at = NULL
 WHERE id IN (SELECT account_id FROM github_installations WHERE installation_id = $1)
 `
 
@@ -51,6 +55,27 @@ WHERE id IN (SELECT account_id FROM github_installations WHERE installation_id =
 func (q *Queries) AdvanceInstallationGenerations(ctx context.Context, installationID int64) error {
 	_, err := q.db.Exec(ctx, advanceInstallationGenerations, installationID)
 	return err
+}
+
+const claimGitHubRead = `-- name: ClaimGitHubRead :execrows
+UPDATE accounts SET github_tried_at = $1
+WHERE id = $2 AND (github_tried_at IS NULL OR github_tried_at <= $3)
+`
+
+type ClaimGitHubReadParams struct {
+	Now        pgtype.Timestamptz
+	AccountID  int64
+	TriedAfter pgtype.Timestamptz
+}
+
+// ClaimGitHubRead claims a read of the account's GitHub account beginning at now, unless one began after
+// tried_after. It returns 1 when it claimed the read, and 0 when it didn't.
+func (q *Queries) ClaimGitHubRead(ctx context.Context, arg ClaimGitHubReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimGitHubRead, arg.Now, arg.AccountID, arg.TriedAfter)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteAccountInstallation = `-- name: DeleteAccountInstallation :exec
@@ -130,21 +155,16 @@ func (q *Queries) GetGitHubGeneration(ctx context.Context, accountID int64) (int
 
 const getSnapshot = `-- name: GetSnapshot :one
 
-SELECT tried_at, snapshot FROM github_snapshots WHERE account_id = $1
+SELECT snapshot FROM github_snapshots WHERE account_id = $1
 `
-
-type GetSnapshotRow struct {
-	TriedAt  pgtype.Timestamptz
-	Snapshot []byte
-}
 
 // GitHub: what Rulemart read of an account's GitHub account, and the installations of the GitHub App it reads private
 // repositories through.
-func (q *Queries) GetSnapshot(ctx context.Context, accountID int64) (GetSnapshotRow, error) {
+func (q *Queries) GetSnapshot(ctx context.Context, accountID int64) ([]byte, error) {
 	row := q.db.QueryRow(ctx, getSnapshot, accountID)
-	var i GetSnapshotRow
-	err := row.Scan(&i.TriedAt, &i.Snapshot)
-	return i, err
+	var snapshot []byte
+	err := row.Scan(&snapshot)
+	return snapshot, err
 }
 
 const listInstallations = `-- name: ListInstallations :many
@@ -179,29 +199,23 @@ func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]Lis
 }
 
 const saveSnapshot = `-- name: SaveSnapshot :execrows
-INSERT INTO github_snapshots (account_id, tried_at, snapshot)
-SELECT id, $1, $2 FROM accounts WHERE id = $3 AND github_generation = $4
+INSERT INTO github_snapshots (account_id, snapshot)
+SELECT id, $1 FROM accounts WHERE id = $2 AND github_generation = $3
 FOR UPDATE
-ON CONFLICT (account_id) DO UPDATE SET tried_at = EXCLUDED.tried_at, snapshot = EXCLUDED.snapshot
+ON CONFLICT (account_id) DO UPDATE SET snapshot = EXCLUDED.snapshot
 `
 
 type SaveSnapshotParams struct {
-	TriedAt    pgtype.Timestamptz
 	Snapshot   []byte
 	AccountID  int64
 	Generation int64
 }
 
-// SaveSnapshot keeps snapshot as the account's, tried at tried_at, replacing the one it had, unless the account's
+// SaveSnapshot keeps snapshot as the account's, replacing the one it had, unless the account's
 // GitHub generation is no longer generation. It locks the account's row, so a change to the generation waits for it, or
 // it for the change, and then sees the change. It returns 1 when it kept the snapshot, and 0 when it didn't.
 func (q *Queries) SaveSnapshot(ctx context.Context, arg SaveSnapshotParams) (int64, error) {
-	result, err := q.db.Exec(ctx, saveSnapshot,
-		arg.TriedAt,
-		arg.Snapshot,
-		arg.AccountID,
-		arg.Generation,
-	)
+	result, err := q.db.Exec(ctx, saveSnapshot, arg.Snapshot, arg.AccountID, arg.Generation)
 	if err != nil {
 		return 0, err
 	}

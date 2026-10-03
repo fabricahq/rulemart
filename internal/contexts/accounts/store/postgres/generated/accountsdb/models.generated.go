@@ -17,6 +17,7 @@ type Account struct {
 	SignedInAt       pgtype.Timestamptz
 	GithubName       string
 	GithubGeneration int64
+	GithubTriedAt    pgtype.Timestamptz
 }
 
 type Asset struct {
@@ -39,7 +40,6 @@ type GithubInstallation struct {
 
 type GithubSnapshot struct {
 	AccountID int64
-	TriedAt   pgtype.Timestamptz
 	Snapshot  []byte
 }
 

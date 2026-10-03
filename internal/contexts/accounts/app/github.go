@@ -104,27 +104,26 @@ func (g GitHubAccounts) InstallURL() string {
 // Rulemart has none, such as after signing in. It fails with ErrNoGitHubToken when the session keeps no token GitHub
 // takes, and with an error wrapping ErrGitHubRead, beside the snapshot that says so, when the read failed.
 func (g GitHubAccounts) Snapshot(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
-	snapshot, _, found, err := g.Store.Snapshot(ctx, account.ID)
+	snapshot, found, err := g.Store.Snapshot(ctx, account.ID)
 	if err != nil || found {
 		return snapshot, err
 	}
 	return g.read(ctx, account, session, domain.Snapshot{})
 }
 
-// Refresh reads the visitor's GitHub account again, unless Rulemart tried within domain.RefreshInterval, and returns
-// the account's snapshot, failing as Snapshot does.
+// Refresh reads the visitor's GitHub account again, unless a read began within domain.RefreshInterval, and returns the
+// account's snapshot, failing as Snapshot does.
 func (g GitHubAccounts) Refresh(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
-	snapshot, triedAt, found, err := g.Store.Snapshot(ctx, account.ID)
+	snapshot, _, err := g.Store.Snapshot(ctx, account.ID)
 	if err != nil {
 		return domain.Snapshot{}, err
-	}
-	if found && g.now().Sub(triedAt) < domain.RefreshInterval {
-		return snapshot, nil
 	}
 	return g.read(ctx, account, session, snapshot)
 }
 
-// read reads the visitor's GitHub account with session's token, and keeps what it found as the account's snapshot. When
+// read reads the visitor's GitHub account with session's token, and keeps what it found as the account's snapshot,
+// unless a read began within domain.RefreshInterval since the snapshot was last discarded, claimed before contacting
+// GitHub so that requests arriving together read it once; then it returns the snapshot kept. When
 // the read fails for a reason other than the token, it keeps previous, saying so, so pages show what an earlier read
 // found and when, and the next read waits domain.RefreshInterval. When the account's access changes while it reads,
 // such as when the visitor removes access, it reads again, at most maxReads times in all, without previous, which may
@@ -133,6 +132,15 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 	token, err := g.Sessions.GitHubToken(ctx, session)
 	if err != nil {
 		return previous, err
+	}
+	claimed, err := g.Store.ClaimRead(ctx, account.ID, g.now(), domain.RefreshInterval)
+	if err != nil {
+		return previous, err
+	}
+	if !claimed {
+		// Another request read GitHub within the minute, or is reading it now: show what it kept, if it has finished.
+		snapshot, _, err := g.Store.Snapshot(ctx, account.ID)
+		return snapshot, err
 	}
 	for range maxReads - 1 {
 		snapshot, err := g.readOnce(ctx, token, account, previous)
@@ -181,7 +189,7 @@ func (g GitHubAccounts) readOnce(ctx context.Context, token string, account doma
 	}
 	if err != nil {
 		previous.ReadFailed = true
-		saved, saveErr := g.Store.SaveSnapshot(ctx, account.ID, generation, previous, now)
+		saved, saveErr := g.Store.SaveSnapshot(ctx, account.ID, generation, previous)
 		if saveErr != nil {
 			return previous, saveErr
 		}
@@ -191,7 +199,7 @@ func (g GitHubAccounts) readOnce(ctx context.Context, token string, account doma
 		return previous, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, err)
 	}
 	snapshot.ReadAt = now
-	saved, err := g.Store.SaveSnapshot(ctx, account.ID, generation, snapshot, now)
+	saved, err := g.Store.SaveSnapshot(ctx, account.ID, generation, snapshot)
 	if err != nil {
 		return previous, err
 	}

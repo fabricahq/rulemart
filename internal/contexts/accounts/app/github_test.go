@@ -519,7 +519,7 @@ func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {
 
 			got, _ := site.accounts.Refresh(ctx, site.account, site.session)
 
-			kept, _, _, err := site.accounts.Store.Snapshot(ctx, site.account.ID)
+			kept, _, err := site.accounts.Store.Snapshot(ctx, site.account.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -531,5 +531,65 @@ func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Requests that arrive together, such as a dashboard open in two tabs, read GitHub once between them: the refresh
+// limit holds however many ask at once, for a first read and for a refresh.
+func TestSimultaneousRequestsReadGitHubOnce(t *testing.T) {
+	ctx := context.Background()
+	site := newGitHubSite(t, monasGitHub(), false)
+	reads := func() int { return site.fake.Requests("GET /user/orgs") }
+	together := func(read func() error) {
+		t.Helper()
+		var wg sync.WaitGroup
+		for range 8 {
+			wg.Go(func() {
+				if err := read(); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		wg.Wait()
+	}
+
+	together(func() error { _, err := site.accounts.Snapshot(ctx, site.account, site.session); return err })
+	if reads() != 1 {
+		t.Errorf("a first read by 8 requests at once read GitHub %d times, want once", reads())
+	}
+	site.now = site.now.Add(domain.RefreshInterval)
+	together(func() error { _, err := site.accounts.Refresh(ctx, site.account, site.session); return err })
+	if reads() != 2 {
+		t.Errorf("8 refreshes at once read GitHub %d times in all, want twice", reads())
+	}
+}
+
+// GitHub's return from installing the app, repeated, such as by reloading it, records the installation once, reads
+// GitHub at most once a minute, and keeps the snapshot the first return read.
+func TestARepeatedInstallationCallbackKeepsItsSnapshotAndTheRefreshLimit(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site := newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+	reads := site.fake.Requests("GET /user/orgs")
+
+	for range 3 {
+		got, err := site.accounts.Install(ctx, site.account, site.session, 5)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Projects) != 2 {
+			t.Errorf("a repeated return shows projects %+v, want mona/api and mona/billing", got.Projects)
+		}
+	}
+
+	if again := site.fake.Requests("GET /user/orgs"); again != reads {
+		t.Errorf("repeated returns read GitHub %d more times, want none within the minute", again-reads)
+	}
+	if kept := site.snapshot(t); len(kept.Projects) != 2 {
+		t.Errorf("after repeated returns, the kept projects are %+v", kept.Projects)
 	}
 }

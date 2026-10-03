@@ -294,7 +294,7 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 	ctx := context.Background()
 	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
-	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now()); err != nil || !saved {
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}); err != nil || !saved {
 		t.Fatalf("saved %v, %v", saved, err)
 	}
 	signIn(t, s, octocat, "")
@@ -305,13 +305,12 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 	}
 }
 
-// A snapshot reads back as it was saved, with when Rulemart last tried to read the account kept apart from when the
-// snapshot's contents were read, since a failed read keeps an older snapshot and says the read failed.
-func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
+// A snapshot reads back as it was saved, with when its contents were read and whether the latest read failed.
+func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newStore(t)
 	_, account := signIn(t, s, octocat, "")
-	if _, _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
+	if _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
 		t.Fatalf("before any read: found %v, %v", found, err)
 	}
 	version, err := coderules.ParseRuleVersion("1.2.0", "test")
@@ -320,7 +319,6 @@ func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 	}
 	// Postgres keeps microseconds.
 	readAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	triedAt := readAt.Add(time.Hour)
 	saved := domain.Snapshot{
 		ReadAt:        readAt,
 		Organizations: []string{"octo-org"},
@@ -335,15 +333,15 @@ func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 		Truncated:  true,
 		ReadFailed: true,
 	}
-	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), saved, triedAt); err != nil || !ok {
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), saved); err != nil || !ok {
 		t.Fatalf("saved %v, %v", ok, err)
 	}
-	got, gotTriedAt, found, err := s.Snapshot(ctx, account.ID)
+	got, found, err := s.Snapshot(ctx, account.ID)
 	if err != nil || !found {
 		t.Fatalf("after saving: found %v, %v", found, err)
 	}
-	if !gotTriedAt.Equal(triedAt) || !got.ReadAt.Equal(readAt) {
-		t.Errorf("tried at %v and read at %v, want %v and %v", gotTriedAt, got.ReadAt, triedAt, readAt)
+	if !got.ReadAt.Equal(readAt) {
+		t.Errorf("read at %v, want %v", got.ReadAt, readAt)
 	}
 	got.ReadAt = saved.ReadAt
 	if !reflect.DeepEqual(got, saved) {
@@ -362,15 +360,15 @@ func TestASnapshotIsKeptOnlyAtTheGenerationItsReadBeganAt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	saved, err := s.SaveSnapshot(ctx, account.ID, began, domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now())
+	saved, err := s.SaveSnapshot(ctx, account.ID, began, domain.Snapshot{Organizations: []string{"octo-org"}})
 
 	if err != nil || saved {
 		t.Fatalf("saved %v, %v, want nothing kept", saved, err)
 	}
-	if _, _, found, _ := s.Snapshot(ctx, account.ID); found {
+	if _, found, _ := s.Snapshot(ctx, account.ID); found {
 		t.Error("kept a snapshot read before access changed")
 	}
-	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{}, time.Now()); err != nil || !saved {
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{}); err != nil || !saved {
 		t.Errorf("at the current generation, saved %v, %v", saved, err)
 	}
 }
@@ -383,4 +381,34 @@ func generation(t *testing.T, s *Store, accountID int64) int64 {
 		t.Fatal(err)
 	}
 	return generation
+}
+
+// Of reads that try to begin within a minute of each other, one is claimed, until the snapshot is discarded, which lets
+// the next read begin at once.
+func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	claim := func(at time.Time) bool {
+		t.Helper()
+		claimed, err := s.ClaimRead(ctx, account.ID, at, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return claimed
+	}
+
+	if !claim(now) || claim(now) || claim(now.Add(time.Minute-time.Second)) {
+		t.Error("claimed other than the first read within the minute")
+	}
+	if !claim(now.Add(time.Minute)) {
+		t.Error("didn't claim a read a minute later")
+	}
+	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !claim(now.Add(time.Minute + time.Second)) {
+		t.Error("didn't claim a read once the snapshot was discarded")
+	}
 }

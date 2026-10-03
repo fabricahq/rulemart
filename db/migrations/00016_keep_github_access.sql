@@ -27,14 +27,16 @@ ALTER TABLE sessions ADD COLUMN github_token bytea CHECK (length(github_token) B
 -- back what the removal discarded. A change adds one before it discards the snapshot, in the same transaction, so a
 -- read's save that locks the account's row first is discarded after it.
 ALTER TABLE accounts ADD COLUMN github_generation bigint NOT NULL DEFAULT 0;
+-- When a read of the account's GitHub account last began, whether or not it succeeded, or NULL when none has since its
+-- snapshot was last discarded. A read claims it before contacting GitHub, in one statement, only when it's NULL or a
+-- minute old, so requests that arrive together read GitHub once between them.
+ALTER TABLE accounts ADD COLUMN github_tried_at timestamptz;
 
 CREATE TABLE github_snapshots (
     account_id bigint PRIMARY KEY REFERENCES accounts ON DELETE CASCADE,
-    -- When Rulemart last tried to read the account, whether or not the read succeeded, which keeps a refresh to once a
-    -- minute. When the snapshot's contents were read, which pages show, is in the snapshot.
-    tried_at timestamptz NOT NULL,
     -- The organizations, publishable repositories, and projects the read found, as accounts' store encodes them. Only
-    -- the account whose snapshot it is sees it, so it may name private repositories.
+    -- the account whose snapshot it is sees it, so it may name private repositories. When they were read, which pages
+    -- show, is in the snapshot.
     snapshot jsonb NOT NULL CHECK (jsonb_typeof(snapshot) = 'object')
 );
 
