@@ -169,30 +169,23 @@ templ changeItemView(item changeItem) {
 		}
 		if len(item.replacedBy) > 0 {
 			<div>
-				@replacementChain(item.replacedBy, false, false)
+				@replacementChain(chainSteps(item.replacedBy, false), false)
 			</div>
 		}
 	</li>
 }
 
-// replacementChain names a retired rule's replacement, then the rule that replaced that one, and so on, or with
-// renamed, the rule's new ID. With prominent, as at the head of a retired rule's page, each title is in stronger type
-// with its ID beside it, as the prototype's is.
-templ replacementChain(links []ruleLink, renamed, prominent bool) {
-	for _, step := range chainSteps(links, renamed) {
+// replacementChain shows steps, a chain of replacements as chainSteps or headChainSteps words it. With bold, as at the
+// head of a retired rule's page, each title is in stronger type, as the prototype's is.
+templ replacementChain(steps []chainStep, bold bool) {
+	for _, step := range steps {
 		{ step.prefix }<a href={ templ.SafeURL(step.link.href) }>
-			if prominent {
+			if bold {
 				<b class="font-semibold">{ step.link.title }</b>
 			} else {
 				{ step.link.title }
 			}
-		</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">
-			if prominent {
-				{ step.link.id }
-			} else {
-				{ step.id }
-			}
-		</span>{ step.suffix }
+		</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">{ step.id }</span>{ step.suffix }
 	}
 }
 
