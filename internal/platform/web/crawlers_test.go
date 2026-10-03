@@ -91,6 +91,23 @@ func TestWithoutABaseURLThereIsNoSitemap(t *testing.T) {
 	}
 }
 
+// A local build names its own loopback origin, so robots.txt names the sitemap there and the sitemap answers.
+func TestALoopbackBaseURLServesTheSitemap(t *testing.T) {
+	base, err := web.ParseBaseURL("http://127.0.0.1:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newSiteWith(t, web.Options{BaseURL: base})
+
+	if body := get(t, handler, "/robots.txt").Body.String(); !slices.Contains(strings.Split(body, "\n"), "Sitemap: http://127.0.0.1:8080/sitemap.xml") {
+		t.Errorf("robots.txt names no sitemap on the loopback origin:\n%s", body)
+	}
+	resp := get(t, handler, "/sitemap.xml")
+	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "<loc>http://127.0.0.1:8080/</loc>") {
+		t.Errorf("/sitemap.xml answered %d:\n%s", resp.Code, resp.Body)
+	}
+}
+
 // urlset is a sitemap file as the protocol defines it.
 type urlset struct {
 	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`

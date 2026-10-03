@@ -79,8 +79,9 @@ login may only do what its group roles' grants allow, as the deployed functions 
 catalog and writes accounts, sessions, GitHub snapshots and installations, listings, and stars, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
-Pages name no canonical address locally, so there's no sitemap and no social card; to see them, run
-`RULEMART_BASE_URL=https://rulemart.example make web`, then open <http://127.0.0.1:8080/sitemap.xml>. To try Cloudflare
+`make web-dev` names <http://127.0.0.1:8080>, the loopback address it serves at, as the pages' canonical origin, so
+robots.txt names <http://127.0.0.1:8080/sitemap.xml> and the social card points there too; `make web` names none, so
+it has no sitemap, unless `RULEMART_BASE_URL` names one, such as `https://rulemart.example`. To try Cloudflare
 Web Analytics, set `CLOUDFLARE_WEB_ANALYTICS_TOKEN` to a site's token: pages then load its beacon, and the content
 security policy allows it. `/about` and `/privacy` describe Rulemart and what it keeps; when a change alters what
 Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/about.templ` with it.

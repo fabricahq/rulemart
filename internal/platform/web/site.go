@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -74,8 +75,8 @@ type Options struct {
 	AnalyticsToken string
 }
 
-// ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
-// https://rulemart.fabricahq.com. Empty text gives nil.
+// ParseBaseURL parses text as Options.BaseURL: an https origin, or an http one on a loopback host, with no path,
+// query, or fragment, such as https://rulemart.fabricahq.com. Empty text gives nil.
 func ParseBaseURL(text string) (*url.URL, error) {
 	if text == "" {
 		return nil, nil
@@ -90,13 +91,24 @@ func ParseBaseURL(text string) (*url.URL, error) {
 	return u, nil
 }
 
-// checkBaseURL reports whether u is an https origin and nothing more, so a page's path appends to it as is.
+// checkBaseURL reports whether u is an origin and nothing more, so a page's path appends to it as is: an https one, or
+// an http one on a loopback host, such as a local build's http://127.0.0.1:8080.
 func checkBaseURL(u *url.URL) error {
-	if u.Scheme != "https" || u.Host == "" || u.Opaque != "" || u.User != nil || u.Path != "" || u.RawPath != "" ||
-		u.ForceQuery || u.RawQuery != "" || u.Fragment != "" {
-		return errors.New("want an https origin with no path, query, or fragment, such as https://rulemart.example")
+	if (u.Scheme != "https" && (u.Scheme != "http" || !isLoopback(u.Hostname()))) || u.Host == "" || u.Opaque != "" ||
+		u.User != nil || u.Path != "" || u.RawPath != "" || u.ForceQuery || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("want an https origin, or an http one on a loopback host, with no path, query, or fragment, " +
+			"such as https://rulemart.example")
 	}
 	return nil
+}
+
+// isLoopback reports whether host, without a port, names this machine: localhost or a loopback address.
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
 }
 
 // Catalog reads what the pages show. app.Pages implements it, finding the vetted libraries, and the ones listings name

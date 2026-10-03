@@ -6,7 +6,6 @@
 package main
 
 import (
-	"cmp"
 	"net/http/httptest"
 	"os"
 
@@ -20,8 +19,7 @@ import (
 // devGitHub serves DevFake, whose app's install page returns to this server's setup URL, and returns what reads it,
 // with keys, or a new random key when keys is nil. Tokens sealed with a random key open only until the server stops.
 func devGitHub(keys accountsapp.TokenKeys) (*github.API, *github.App, accountsapp.TokenKeys) {
-	addr := cmp.Or(os.Getenv("ADDR"), "127.0.0.1:8080")
-	fake := githubtest.DevFake("http://" + addr + "/me/github/installed")
+	fake := githubtest.DevFake("http://" + listenAddr(os.Getenv) + "/me/github/installed")
 	server := httptest.NewServer(fake.Handler())
 	api := github.NewAPI(server.URL)
 	app := github.NewApp(github.AppConfig{

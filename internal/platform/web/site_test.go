@@ -626,16 +626,22 @@ func TestPagesNameNoCanonicalAddressWithoutABaseURL(t *testing.T) {
 	}
 }
 
-// A page's path is appended to the base URL as it is, so anything but a bare https origin would name wrong addresses.
-func TestParseBaseURLAcceptsOnlyAnHTTPSOrigin(t *testing.T) {
-	if got, err := web.ParseBaseURL("https://rulemart.example"); err != nil || got.String() != "https://rulemart.example" {
-		t.Fatalf("got %v, %v", got, err)
+// A page's path is appended to the base URL as it is, so anything but a bare origin would name wrong addresses, and
+// plain http is only for a server on this machine, as a local build's.
+func TestParseBaseURLAcceptsAnHTTPSOriginOrALoopbackOne(t *testing.T) {
+	for _, text := range []string{
+		"https://rulemart.example", "http://127.0.0.1:8080", "http://localhost:8080", "http://[::1]:8080", "http://127.0.0.1",
+	} {
+		if got, err := web.ParseBaseURL(text); err != nil || got.String() != text {
+			t.Errorf("parsed %q as %v, %v", text, got, err)
+		}
 	}
 	if got, err := web.ParseBaseURL(""); err != nil || got != nil {
 		t.Fatalf("empty text gave %v, %v, want none", got, err)
 	}
 	for _, text := range []string{
-		"http://rulemart.example", "https://rulemart.example/", "https://rulemart.example/catalog",
+		"http://rulemart.example", "http://192.168.1.2:8080", "http://0.0.0.0:8080", "http://127.0.0.1:8080/",
+		"https://rulemart.example/", "https://rulemart.example/catalog",
 		"https://rulemart.example?q", "https://rulemart.example#top", "https://user@rulemart.example", "https://",
 		"rulemart.example", "https:rulemart.example",
 	} {
