@@ -161,6 +161,11 @@
   [data-autofocused][data-prompt]:focus-visible { outline: none; }
   :where(p, h1, h2, h3, h4, li, td) { overflow-wrap: anywhere; }
   h1, h2, h3, h4 { font-weight: 500; color: var(--ink); }
+  /* Checkboxes and radio buttons are drawn in ink, as the prototype's are, with the margins browsers give each, which
+     the prototype keeps and the reset takes away. */
+  input:where([type='checkbox'], [type='radio']) { width: 13px; height: 13px; accent-color: var(--ink); }
+  input[type='checkbox'] { margin: 3px 3px 3px 4px; }
+  input[type='radio'] { margin: 3px 3px 0 5px; }
   /* Search fields draw no browser clear button, which would show in the browser's own color. */
   input[type='search']::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 }

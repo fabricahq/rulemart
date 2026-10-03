@@ -1493,14 +1493,14 @@ func groupPick(lib libraryView, g groupView, checked bool) templ.Component {
 			templ_7745c5c3_Var79 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "<input class=\"m-[3px_3px_3px_4px] size-[13px] cursor-pointer accent-(--ink) disabled:cursor-default\" type=\"checkbox\" data-needs-script data-cart-pick-group=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "<input class=\"cursor-pointer disabled:cursor-default\" type=\"checkbox\" data-needs-script data-cart-pick-group=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var80 string
 		templ_7745c5c3_Var80, templ_7745c5c3_Err = templ.ResolveAttributeValue(cartKey(lib, domain.CartGroup, g.label.id))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 201}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 154}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var80)
 		if templ_7745c5c3_Err != nil {
@@ -1513,7 +1513,7 @@ func groupPick(lib libraryView, g groupView, checked bool) templ.Component {
 		var templ_7745c5c3_Var81 string
 		templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.ResolveAttributeValue(g.label.id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 235}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 188}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var81)
 		if templ_7745c5c3_Err != nil {
@@ -1526,7 +1526,7 @@ func groupPick(lib libraryView, g groupView, checked bool) templ.Component {
 		var templ_7745c5c3_Var82 string
 		templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.ResolveAttributeValue(lib.fullName())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 272}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 225}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var82)
 		if templ_7745c5c3_Err != nil {
@@ -1539,7 +1539,7 @@ func groupPick(lib libraryView, g groupView, checked bool) templ.Component {
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.ResolveAttributeValue("Select " + g.label.display())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 317}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 280, Col: 270}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var83)
 		if templ_7745c5c3_Err != nil {
@@ -2355,14 +2355,14 @@ func projectSection(v projectsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			for _, p := range v.projects {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 176, "<label class=\"grid cursor-pointer grid-cols-[18px_minmax(0,1fr)] items-start gap-3 border-t border-border-subtle px-4 py-3 first:border-t-0 has-checked:bg-surface\"><input class=\"mt-[3px] size-[13px] accent-(--ink)\" type=\"radio\" name=\"cart-project\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 176, "<label class=\"grid cursor-pointer grid-cols-[18px_minmax(0,1fr)] items-start gap-3 border-t border-border-subtle px-4 py-3 first:border-t-0 has-checked:bg-surface\"><input class=\"m-[3px_0_0]\" type=\"radio\" name=\"cart-project\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var133 string
 				templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.repository)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 412, Col: 109}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 413, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var133)
 				if templ_7745c5c3_Err != nil {
@@ -2375,7 +2375,7 @@ func projectSection(v projectsView) templ.Component {
 				var templ_7745c5c3_Var134 string
 				templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(p.repository)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 414, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 415, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 				if templ_7745c5c3_Err != nil {
@@ -2389,7 +2389,7 @@ func projectSection(v projectsView) templ.Component {
 					var templ_7745c5c3_Var135 string
 					templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(" ")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 416, Col: 12}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 417, Col: 12}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 					if templ_7745c5c3_Err != nil {
@@ -2425,7 +2425,7 @@ func projectSection(v projectsView) templ.Component {
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(p.uses)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 418, Col: 96}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 419, Col: 96}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2510,7 +2510,7 @@ func projectSection(v projectsView) templ.Component {
 					var templ_7745c5c3_Var143 templ.SafeURL
 					templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privateHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 437, Col: 116}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 438, Col: 116}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 					if templ_7745c5c3_Err != nil {
@@ -2560,7 +2560,7 @@ func projectSection(v projectsView) templ.Component {
 				var templ_7745c5c3_Var146 templ.SafeURL
 				templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.signIn))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 449, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 450, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 				if templ_7745c5c3_Err != nil {
@@ -2667,7 +2667,7 @@ func projectsFootnote(g gitHubView) templ.Component {
 			var templ_7745c5c3_Var149 string
 			templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.JoinStringErrs(g.readAt + ".")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 478, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 479, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var149))
 			if templ_7745c5c3_Err != nil {
@@ -2681,7 +2681,7 @@ func projectsFootnote(g gitHubView) templ.Component {
 			var templ_7745c5c3_Var150 string
 			templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(".")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 480, Col: 8}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 481, Col: 8}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 			if templ_7745c5c3_Err != nil {
@@ -2700,7 +2700,7 @@ func projectsFootnote(g gitHubView) templ.Component {
 			var templ_7745c5c3_Var151 templ.SafeURL
 			templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privateHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 483, Col: 39}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 484, Col: 39}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 			if templ_7745c5c3_Err != nil {

@@ -277,7 +277,7 @@ templ groupsCartPanel(lib libraryView, selection groupSelection) {
 // when checked is true. cart.js ticks and disables it while the cart holds the group, so the box counts only what it
 // would add, and keeps the address's selection, which data-cart-group-id names it in, as it changes.
 templ groupPick(lib libraryView, g groupView, checked bool) {
-	<input class="m-[3px_3px_3px_4px] size-[13px] cursor-pointer accent-(--ink) disabled:cursor-default" type="checkbox" data-needs-script data-cart-pick-group={ cartKey(lib, domain.CartGroup, g.label.id) } data-cart-group-id={ g.label.id } data-cart-library={ lib.fullName() } aria-label={ "Select " + g.label.display() } checked?={ checked }/>
+	<input class="cursor-pointer disabled:cursor-default" type="checkbox" data-needs-script data-cart-pick-group={ cartKey(lib, domain.CartGroup, g.label.id) } data-cart-group-id={ g.label.id } data-cart-library={ lib.fullName() } aria-label={ "Select " + g.label.display() } checked?={ checked }/>
 }
 
 // groupHeldBadge is a group row's In cart badge, which cart.js shows once the cart holds the group.
@@ -409,7 +409,8 @@ templ projectSection(v projectsView) {
 		<div class="overflow-hidden rounded-card border border-border" role="radiogroup" aria-label="Your projects">
 			for _, p := range v.projects {
 				<label class="grid cursor-pointer grid-cols-[18px_minmax(0,1fr)] items-start gap-3 border-t border-border-subtle px-4 py-3 first:border-t-0 has-checked:bg-surface">
-					<input class="mt-[3px] size-[13px] accent-(--ink)" type="radio" name="cart-project" value={ p.repository } data-cart-project/>
+					// The prototype sets this radio flush in its column, without the left margin radios have elsewhere.
+					<input class="m-[3px_0_0]" type="radio" name="cart-project" value={ p.repository } data-cart-project/>
 					<span class="min-w-0">
 						<b class="font-semibold [overflow-wrap:anywhere]">{ p.repository }</b>
 						if p.private {
