@@ -345,9 +345,10 @@ func TestARulesPagesOfferAVisitorWhoIsntSignedInToSignInAndStar(t *testing.T) {
 	}
 }
 
-// With a script, Star first opens the prototype's dialog, "Sign in to star rules", whose Continue with GitHub follows
-// the same sign-in path as the link, so the page after signing in still asks to star the rule, and whose Not now and
-// close buttons close it without a script of their own. A signed-in visitor's page has no such dialog.
+// With a script, Star first opens the prototype's dialog, "Sign in to star rules", as star.test.mjs tests. Its Continue
+// with GitHub follows the same sign-in path as the link, so the page after signing in still asks to star the rule, and
+// its Not now and close buttons close it through their forms' dialog method, which returns focus to Star, without a
+// script of their own. A signed-in visitor's page has no such dialog.
 func TestARulesStarOpensASignInDialogForAVisitorWhoIsntSignedIn(t *testing.T) {
 	site := newStarSite(t)
 	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: errorsRule}))

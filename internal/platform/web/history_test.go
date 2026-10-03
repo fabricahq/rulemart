@@ -347,10 +347,9 @@ func TestReleaseComparisonOfOneReleaseAsksForTwo(t *testing.T) {
 	assertShows(t, page, "Choose two different library releases to compare.")
 }
 
-// A rule's Versions tab compares each version with the one before, and the first with the latest, and leads to the
-// release that published each.
 // Choosing a version or a release to compare shows the comparison at once, as the prototype's does, through
-// compare.js; only without a script does the form show its Compare button. Every page with the form loads the script.
+// compare.js, which compare.test.mjs tests: the form it submits asks for the page's own tab with the two choices, from
+// and to. Only without a script does the form show its Compare button. Every page with the form loads the script.
 func TestCompareFormsSubmitOnChangeAndShowTheirButtonOnlyWithoutAScript(t *testing.T) {
 	handler := newSite(t, historyCatalog())
 
@@ -366,6 +365,17 @@ func TestCompareFormsSubmitOnChangeAndShowTheirButtonOnlyWithoutAScript(t *testi
 		if !loadsScript(doc, "compare.js") {
 			t.Errorf("%s: doesn't load compare.js", path)
 		}
+		var fields []string
+		for n := range form.Descendants() {
+			if n.Type == html.ElementNode && (n.Data == "select" || n.Data == "input") {
+				fields = append(fields, n.Data+" "+attribute(n, "name"))
+			}
+		}
+		if page, _, _ := strings.Cut(path, "?"); attribute(form, "method") != "get" || attribute(form, "action") != page ||
+			!slices.Equal(fields, []string{"input tab", "select from", "select to"}) {
+			t.Errorf("%s: the form sends %s %s with %q, want get %s with the tab, from, and to", path,
+				attribute(form, "method"), attribute(form, "action"), fields, page)
+		}
 		noscript := find(form, func(n *html.Node) bool { return n.Data == "noscript" })
 		if noscript == nil || !strings.Contains(nodeText(noscript), "Compare") {
 			t.Errorf("%s: the Compare button shows with a script too", path)
@@ -373,6 +383,8 @@ func TestCompareFormsSubmitOnChangeAndShowTheirButtonOnlyWithoutAScript(t *testi
 	}
 }
 
+// A rule's Versions tab compares each version with the one before, and the first with the latest, and leads to the
+// release that published each.
 func TestRuleVersionsTabLeadsToComparisonsAndReleases(t *testing.T) {
 	page := get(t, newSite(t, historyCatalog()), errorsRule+"?tab=versions").Body.String()
 
