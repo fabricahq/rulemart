@@ -187,8 +187,8 @@ func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 	}
 }
 
-// Refresh reads GitHub again and returns to the page it came from, one of the visitor's; a session without a token
-// GitHub takes is sent to sign in again.
+// Refresh reads GitHub again and returns to the page it came from, one of the visitor's, saying when it read; a session
+// without a token GitHub takes is sent to sign in again.
 func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	site.get(t, "/me")
@@ -206,6 +206,18 @@ func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	}
 	if site.gitHub.reads != 5 {
 		t.Errorf("read GitHub %d times, want once for the page and once a refresh", site.gitHub.reads)
+	}
+	// A refresh says when Rulemart last read GitHub, which it does at most once a minute, so a second press within the
+	// minute isn't met with nothing.
+	site.gitHub.snapshot.ReadAt = time.Now().Add(-20 * time.Second)
+	refreshed := send(t, site.handler, request{method: http.MethodPost, target: "/me/refresh", cookies: []*http.Cookie{site.session}})
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session, cookie(refreshed, noticeCookie)}}))
+	if got, kind := toastText(t, page), noticeToast(t, page); got != "Read from GitHub less than a minute ago" || kind != "status" {
+		t.Errorf("after Refresh, the dashboard toasts %q as a %q toast, want a status toast", got, kind)
+	}
+	site.gitHub.snapshot.ReadFailed = true
+	if failed := send(t, site.handler, request{method: http.MethodPost, target: "/me/refresh", cookies: []*http.Cookie{site.session}}); cookie(failed, noticeCookie) != nil {
+		t.Error("a refresh that couldn't read GitHub leaves a notice, beside the page's own failure")
 	}
 	site.gitHub.err = accountsapp.ErrNoGitHubToken
 	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/refresh", cookies: []*http.Cookie{site.session}})

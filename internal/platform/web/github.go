@@ -102,7 +102,8 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 }
 
 // refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages
-// that show it, the dashboard by default, which says how the read went.
+// that show it, the dashboard by default, which says how the read went. A read that succeeded, now or within the
+// minute, says so in a toast.
 func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
 	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref {
@@ -113,8 +114,11 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, s.absolute(signInPageHref(back)))
 		return
 	}
-	_, err := s.GitHubAccounts.Refresh(r.Context(), *v.account, v.token)
+	snapshot, err := s.GitHubAccounts.Refresh(r.Context(), *v.account, v.token)
 	switch {
+	case err == nil && !snapshot.ReadFailed && time.Since(snapshot.ReadAt) < accounts.RefreshInterval:
+		// Rulemart reads GitHub at most once a minute, so a press within the minute says so rather than nothing.
+		setNotice(w, "refreshed")
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		s.logFailure(r, err)
 	case errors.Is(err, accountsapp.ErrNoGitHubToken):

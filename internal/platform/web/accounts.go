@@ -130,6 +130,7 @@ var notices = map[string]string{
 	// A library's page names itself, as shownNotice fills it in.
 	alreadyListedKey:           "That library is already on Rulemart",
 	"signed-out":               "You're signed out.",
+	"refreshed":                "Read from GitHub less than a minute ago",
 	"private-added":            "Rulemart can now see the private repos you selected.",
 	"private-removed":          "Private repo access removed",
 	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
