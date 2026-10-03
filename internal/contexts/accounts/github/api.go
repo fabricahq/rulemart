@@ -57,46 +57,55 @@ func (a *API) Organizations(ctx context.Context, token string) ([]string, error)
 // Repositories returns the public repositories owner owns, an organization's when organization is true and a user's
 // otherwise, the most recently pushed first, at most limit of them.
 func (a *API) Repositories(ctx context.Context, token, owner string, organization bool, limit int) ([]domain.GitHubRepository, error) {
-	path := "/users/" + url.PathEscape(owner) + "/repos?type=owner&sort=pushed&direction=desc"
+	path := "/users/" + url.PathEscape(owner) + "/repos?type=owner&sort=pushed&direction=desc&"
 	if organization {
-		path = "/orgs/" + url.PathEscape(owner) + "/repos?type=public&sort=pushed&direction=desc"
+		path = "/orgs/" + url.PathEscape(owner) + "/repos?type=public&sort=pushed&direction=desc&"
 	}
-	repositories, err := a.repositories(ctx, token, path, "", limit)
+	repositories, _, err := a.repositories(ctx, token, path, "", limit, limit/perPage+1, keepAll)
 	if err != nil {
 		return nil, fmt.Errorf("list repositories owner=%q: %w", owner, err)
 	}
 	return repositories, nil
 }
 
-// repositories returns the repositories the list at path holds, page by page, at most limit of them. field names the
-// field of each page's object that holds them, or is empty for a page that's a list itself.
-func (a *API) repositories(ctx context.Context, token, path, field string, limit int) ([]domain.GitHubRepository, error) {
-	var found []domain.GitHubRepository
-	for page := 1; len(found) < limit; page++ {
+// repositories returns the repositories the list at path holds that keep returns true for, in the list's order, page
+// by page, at most limit of them, reading at most maxPages pages. more reports that it left some out: the list held
+// more that keep took than limit, or pages remained past maxPages. path ends with its query's ? or &. field names the field of each page's object that
+// holds them, or is empty for a page that's a list itself.
+func (a *API) repositories(ctx context.Context, token, path, field string, limit, maxPages int, keep func(domain.GitHubRepository) bool) (found []domain.GitHubRepository, more bool, err error) {
+	for page := 1; ; page++ {
+		if page > maxPages {
+			return found, true, nil
+		}
 		var repos []repositoryJSON
-		var err error
+		url := path + "per_page=" + strconv.Itoa(perPage) + "&page=" + strconv.Itoa(page)
 		if field == "" {
-			_, err = a.get(ctx, token, path+"&per_page="+strconv.Itoa(perPage)+"&page="+strconv.Itoa(page), "", maxListBytes, &repos)
+			_, err = a.get(ctx, token, url, "", maxListBytes, &repos)
 		} else {
 			var object map[string]json.RawMessage
-			if _, err = a.get(ctx, token, path+"&per_page="+strconv.Itoa(perPage)+"&page="+strconv.Itoa(page), "", maxListBytes, &object); err == nil {
+			if _, err = a.get(ctx, token, url, "", maxListBytes, &object); err == nil {
 				err = json.Unmarshal(object[field], &repos)
 			}
 		}
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for _, r := range repos {
-			if repo, ok := r.repository(); ok && len(found) < limit {
+			if repo, ok := r.repository(); ok && keep(repo) {
+				if len(found) == limit {
+					return found, true, nil
+				}
 				found = append(found, repo)
 			}
 		}
 		if len(repos) < perPage {
-			break
+			return found, false, nil
 		}
 	}
-	return found, nil
 }
+
+// keepAll keeps every repository a list holds.
+func keepAll(domain.GitHubRepository) bool { return true }
 
 // repositoryJSON is a repository as GitHub's lists describe it.
 type repositoryJSON struct {

@@ -340,7 +340,8 @@ func (f *Fake) installationRepositories(w http.ResponseWriter, r *http.Request) 
 				repos = append(repos, repo)
 			}
 		}
-		paged := page(sortedByPush(repos), r.URL.Query())
+		// GitHub documents no order for this list and no way to sort it, so the fake keeps the order it holds them in.
+		paged := page(repos, r.URL.Query())
 		writeJSON(w, map[string]any{"total_count": len(repos), "repositories": paged})
 		return
 	}

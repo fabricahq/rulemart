@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -95,14 +96,24 @@ func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
 	return token.Token, nil
 }
 
-// InstallationRepositories returns the repositories an installation's token reads, the most recently pushed first, at
-// most limit of them.
-func (a *App) InstallationRepositories(ctx context.Context, token string, limit int) ([]domain.GitHubRepository, error) {
-	repositories, err := a.api.repositories(ctx, token, "/installation/repositories?sort=pushed", "repositories", limit)
+// maxInstallationPages bounds the pages of an installation's repositories a read lists: GitHub lists them in an order of
+// its own, which can't be sorted, so a read lists them all, up to this budget, to find the most recently pushed.
+const maxInstallationPages = 10
+
+// InstallationRepositories returns the private repositories an installation's token reads, the most recently pushed
+// first, at most limit of them; the visitor's own token reads the public ones. more reports that it left some out:
+// there were more than limit, or more than maxInstallationPages pages to list.
+func (a *App) InstallationRepositories(ctx context.Context, token string, limit int) (repos []domain.GitHubRepository, more bool, err error) {
+	private := func(r domain.GitHubRepository) bool { return r.Private }
+	repos, more, err = a.api.repositories(ctx, token, "/installation/repositories?", "repositories", maxInstallationPages*perPage, maxInstallationPages, private)
 	if err != nil {
-		return nil, fmt.Errorf("list the installation's repositories: %w", err)
+		return nil, false, fmt.Errorf("list the installation's repositories: %w", err)
 	}
-	return repositories, nil
+	slices.SortStableFunc(repos, func(a, b domain.GitHubRepository) int { return b.PushedAt.Compare(a.PushedAt) })
+	if len(repos) > limit {
+		repos, more = repos[:limit], true
+	}
+	return repos, more, nil
 }
 
 // asApp sends a request to path, signed as the app, and decodes its JSON into v, as API.get does.

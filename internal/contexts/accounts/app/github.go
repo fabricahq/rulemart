@@ -49,8 +49,9 @@ type GitHubApp interface {
 	// InstallationToken returns a token that reads what installation id may, or fails with
 	// domain.ErrNoSuchInstallation.
 	InstallationToken(ctx context.Context, id int64) (string, error)
-	// InstallationRepositories returns the repositories an installation's token reads, at most limit.
-	InstallationRepositories(ctx context.Context, token string, limit int) ([]domain.GitHubRepository, error)
+	// InstallationRepositories returns the private repositories an installation's token reads, the most recently
+	// pushed first, at most limit, and whether it left some out.
+	InstallationRepositories(ctx context.Context, token string, limit int) (repos []domain.GitHubRepository, more bool, err error)
 	// WebhookChange returns the change to an installation a webhook delivery reports, after checking its signature. It
 	// fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one that changes
 	// nothing Rulemart keeps.
@@ -248,11 +249,11 @@ func (g GitHubAccounts) scan(ctx context.Context, token, login string, installat
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	candidates, tokens, err := g.candidates(ctx, token, login, orgs, installations)
+	candidates, tokens, more, err := g.candidates(ctx, token, login, orgs, installations)
 	if err != nil {
 		return domain.Snapshot{}, err
 	}
-	snapshot := domain.Snapshot{Organizations: orgs, Truncated: len(candidates) > domain.MaxRepositories}
+	snapshot := domain.Snapshot{Organizations: orgs, Truncated: more || len(candidates) > domain.MaxRepositories}
 	candidates = candidates[:min(len(candidates), domain.MaxRepositories)]
 	libraries := make([]*domain.PublishableRepository, len(candidates))
 	projects := make([]*domain.Project, len(candidates))
@@ -283,11 +284,11 @@ func (g GitHubAccounts) scan(ctx context.Context, token, login string, installat
 
 // candidates returns the repositories a scan may look into, each once, the most recently pushed first: the public
 // repositories login and orgs own, then the private repositories installations read, with the token that reads each by
-// its installation, 0 for the visitor's own token.
-func (g GitHubAccounts) candidates(ctx context.Context, token, login string, orgs []string, installations []domain.Installation) ([]domain.GitHubRepository, map[int64]string, error) {
+// its installation, 0 for the visitor's own token, and whether a listing left some out.
+func (g GitHubAccounts) candidates(ctx context.Context, token, login string, orgs []string, installations []domain.Installation) (all []domain.GitHubRepository, tokens map[int64]string, more bool, err error) {
 	owners := append([]string{login}, orgs...)
 	lists := make([][]domain.GitHubRepository, len(owners)+len(installations))
-	tokens := map[int64]string{0: token}
+	tokens = map[int64]string{0: token}
 	var mu sync.Mutex
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.SetLimit(readConcurrency)
@@ -301,9 +302,10 @@ func (g GitHubAccounts) candidates(ctx context.Context, token, login string, org
 	if g.App != nil {
 		for i, installation := range installations {
 			group.Go(func() error {
-				repos, installationToken, err := g.installationRepositories(groupCtx, installation)
+				repos, installationToken, left, err := g.installationRepositories(groupCtx, installation)
 				mu.Lock()
 				tokens[installation.ID] = installationToken
+				more = more || left
 				mu.Unlock()
 				lists[len(owners)+i] = repos
 				return err
@@ -311,9 +313,8 @@ func (g GitHubAccounts) candidates(ctx context.Context, token, login string, org
 		}
 	}
 	if err := group.Wait(); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	var all []domain.GitHubRepository
 	seen := map[string]bool{}
 	for _, list := range lists {
 		for _, repo := range list {
@@ -324,36 +325,31 @@ func (g GitHubAccounts) candidates(ctx context.Context, token, login string, org
 		}
 	}
 	slices.SortStableFunc(all, func(a, b domain.GitHubRepository) int { return b.PushedAt.Compare(a.PushedAt) })
-	return all, tokens, nil
+	return all, tokens, more, nil
 }
 
-// installationRepositories returns the private repositories installation reads, each marked with it, and the token that
-// reads them. An installation GitHub no longer knows is forgotten, and the read fails with errAccessChanged, to read
-// again without it.
-func (g GitHubAccounts) installationRepositories(ctx context.Context, installation domain.Installation) ([]domain.GitHubRepository, string, error) {
+// installationRepositories returns the private repositories installation reads, the domain.MaxRepositories most
+// recently pushed, each marked with it, the token that reads them, and whether it left some out. An installation GitHub
+// no longer knows is forgotten, and the read fails with errAccessChanged, to read again without it.
+func (g GitHubAccounts) installationRepositories(ctx context.Context, installation domain.Installation) ([]domain.GitHubRepository, string, bool, error) {
 	token, err := g.App.InstallationToken(ctx, installation.ID)
 	if errors.Is(err, domain.ErrNoSuchInstallation) {
 		if err := g.Store.InstallationRemoved(ctx, installation.ID); err != nil {
-			return nil, "", err
+			return nil, "", false, err
 		}
-		return nil, "", errAccessChanged
+		return nil, "", false, errAccessChanged
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
-	repos, err := g.App.InstallationRepositories(ctx, token, domain.MaxRepositories)
+	repos, more, err := g.App.InstallationRepositories(ctx, token, domain.MaxRepositories)
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
 	}
-	private := repos[:0]
-	for _, repo := range repos {
-		// The visitor's token reads public repositories already.
-		if repo.Private {
-			repo.Installation = installation.ID
-			private = append(private, repo)
-		}
+	for i := range repos {
+		repos[i].Installation = installation.ID
 	}
-	return private, token, nil
+	return repos, token, more, nil
 }
 
 // inspect returns repo as a library when its root holds rule-library.yaml and it has a library release tag, and as a
