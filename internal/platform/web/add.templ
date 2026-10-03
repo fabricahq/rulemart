@@ -9,7 +9,7 @@ const (
 	panelStyle     = "overflow-hidden rounded-panel border border-border bg-surface"
 	panelHeadStyle = "flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3"
 	panelBodyStyle = "px-[18px] py-4"
-	pickRowStyle   = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-3.5 first:border-t-0 max-tiny:grid-cols-1 max-tiny:gap-2"
+	pickRowStyle   = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-3.5 first:border-t-0 max-tiny:grid-cols-1 max-tiny:justify-items-start max-tiny:gap-2"
 	smallPrimaryStyle = "inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85"
 )
 
@@ -115,10 +115,14 @@ templ pickRow(p pickView) {
 		<div class="min-w-0">
 			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", !p.private), templ.KV("font-medium text-faint", p.private) }>{ p.fullName }</p>
 			<p class="text-[12px] text-faint">{ p.detail }</p>
+			if p.state == pickPrivate {
+				// Beside the name, on a phone, it would squeeze the name into a sliver.
+				<p class="mt-1 text-[13px] text-faint narrow:hidden">Private libraries can't be published on Rulemart</p>
+			}
 		</div>
 		switch p.state {
 			case pickPrivate:
-				<span class="text-[13px] text-faint">Private libraries can't be published on Rulemart</span>
+				<span class="text-[13px] text-faint max-narrow:hidden">Private libraries can't be published on Rulemart</span>
 			case pickOnRulemart:
 				<a
 					class={ chipOnStyle }

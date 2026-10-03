@@ -67,7 +67,7 @@ func privatePage(c chrome, v privateView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">Optional</span><h1 class=\"title-xl mt-3 mb-2\">Include your private projects?</h1><p class=\"mb-[22px] text-muted\">Rulemart already sees your public repos. To also list private projects that use Code Rules, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p><div class=\"overflow-x-auto\"><table class=\"w-full border-collapse text-[13.5px] max-narrow:min-w-[34rem]\"><thead><tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">Optional</span><h1 class=\"title-xl mt-3 mb-2\">Include your private projects?</h1><p class=\"mb-[22px] text-muted\">Rulemart already sees your public repos. To also list private projects that use Code Rules, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p><div><table class=\"w-full border-collapse text-[13.5px]\"><thead><tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -177,7 +177,7 @@ func privatePage(c chrome, v privateView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono\">.code-rules/generated/provenance.json</span> and <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use Code Rules and which libraries they import.</td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono [overflow-wrap:anywhere]\">.code-rules/generated/provenance.json</span> and <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use Code Rules and which libraries they import.</td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
