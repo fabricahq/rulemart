@@ -544,11 +544,16 @@ type CartLibrary struct {
 	Rules []CartRule
 }
 
+// MaxCartTitleRunes bounds a rule's title as a cart shows it. A library may write a title of any length, up to its whole
+// rule file, so a longer one is cut short, which keeps a checkout within what a response holds.
+const MaxCartTitleRunes = 200
+
 // CartRule is a rule of a group a cart names, with its newest version.
 type CartRule struct {
 	// Path is the rule's ID, and Group its group's, as the library spells them.
 	Path, Group string
-	// Title is the newest version's, or empty when the catalog doesn't have it yet.
+	// Title is the newest version's, cut to MaxCartTitleRunes characters with an ellipsis when it's longer, or empty when
+	// the catalog doesn't have it yet.
 	Title   string
 	Version coderules.RuleVersion
 	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.

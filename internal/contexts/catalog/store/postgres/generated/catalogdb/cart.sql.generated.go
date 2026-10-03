@@ -7,8 +7,6 @@ package catalogdb
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const findCartLibraries = `-- name: FindCartLibraries :many
@@ -78,7 +76,7 @@ func (q *Queries) FindCartLibraries(ctx context.Context, arg FindCartLibrariesPa
 }
 
 const listCartRules = `-- name: ListCartRules :many
-SELECT r.library_id, r.path, g.path AS group_path, v.title, v.major, v.minor, v.patch,
+SELECT r.library_id, r.path, g.path AS group_path, left(coalesce(v.title, ''), $1::integer) AS title, v.major, v.minor, v.patch,
        coalesce(retired.number, 0)::integer AS retired_in
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
@@ -88,11 +86,12 @@ JOIN LATERAL (
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
 LEFT JOIN library_releases retired ON retired.id = r.retired_in_release_id
-WHERE g.library_id = ANY ($1::bigint[]) AND g.library_id::text || '/' || lower(g.path) = ANY ($2::text[])
+WHERE g.library_id = ANY ($2::bigint[]) AND g.library_id::text || '/' || lower(g.path) = ANY ($3::text[])
 ORDER BY r.library_id, g.path, lower(v.title), r.path
 `
 
 type ListCartRulesParams struct {
+	TitleRunes int32
 	LibraryIds []int64
 	Groups     []string
 }
@@ -101,7 +100,7 @@ type ListCartRulesRow struct {
 	LibraryID int64
 	Path      string
 	GroupPath string
-	Title     pgtype.Text
+	Title     string
 	Major     int32
 	Minor     int32
 	Patch     int32
@@ -109,11 +108,12 @@ type ListCartRulesRow struct {
 }
 
 // ListCartRules returns the rules, current and retired, of the groups groups names, each as the library's ID, a
-// slash, and the group's path in lowercase, of the libraries library_ids, with each rule's newest version: its title and version, and for a retired
-// rule, the release that retired it. They're in order of library, then group, then title and ID, as a library's page
-// lists them.
+// slash, and the group's path in lowercase, of the libraries library_ids, with each rule's newest version: its title,
+// or ” when it has none, at most title_runes characters of it, since a library may write one of any length, and its
+// version, and for a retired rule, the release that retired it. They're in order of library, then group, then title and ID, as a
+// library's page lists them.
 func (q *Queries) ListCartRules(ctx context.Context, arg ListCartRulesParams) ([]ListCartRulesRow, error) {
-	rows, err := q.db.Query(ctx, listCartRules, arg.LibraryIds, arg.Groups)
+	rows, err := q.db.Query(ctx, listCartRules, arg.TitleRunes, arg.LibraryIds, arg.Groups)
 	if err != nil {
 		return nil, err
 	}

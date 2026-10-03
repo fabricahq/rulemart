@@ -20,11 +20,12 @@ WHERE l.host = @host
   );
 
 -- ListCartRules returns the rules, current and retired, of the groups groups names, each as the library's ID, a
--- slash, and the group's path in lowercase, of the libraries library_ids, with each rule's newest version: its title and version, and for a retired
--- rule, the release that retired it. They're in order of library, then group, then title and ID, as a library's page
--- lists them.
+-- slash, and the group's path in lowercase, of the libraries library_ids, with each rule's newest version: its title,
+-- or '' when it has none, at most title_runes characters of it, since a library may write one of any length, and its
+-- version, and for a retired rule, the release that retired it. They're in order of library, then group, then title and ID, as a
+-- library's page lists them.
 -- name: ListCartRules :many
-SELECT r.library_id, r.path, g.path AS group_path, v.title, v.major, v.minor, v.patch,
+SELECT r.library_id, r.path, g.path AS group_path, left(coalesce(v.title, ''), @title_runes::integer) AS title, v.major, v.minor, v.patch,
        coalesce(retired.number, 0)::integer AS retired_in
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id

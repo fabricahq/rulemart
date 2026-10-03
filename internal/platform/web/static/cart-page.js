@@ -137,20 +137,20 @@
       mode, removeButton(item));
   }
 
-  // How many of a whole group's rules its row lists before it offers the rest.
-  const SHOWN_RULES = 5;
-
-  /** Return the list of the rules a whole group brings, the first SHOWN_RULES of them unless the visitor expanded it,
-   * and the button that lists the rest. */
-  function ruleList(item, rules) {
+  /** Return the list of the first rules a whole group brings, as many as the checkout lists, and how many others it
+   * brings, which link to the group's page, where they're all listed. */
+  function ruleList(item) {
+    const rules = item.rules || [];
     if (!rules.length) return [];
-    const shown = item.expanded ? rules : rules.slice(0, SHOWN_RULES);
-    const list = h('ul', 'mt-2 list-disc pl-4 text-[12.5px] text-muted focus:outline-none', { tabindex: '-1', 'data-focus': `rules:${item.key}` },
-      ...shown.map((r) => h('li', 'my-0.5', {}, r.title)));
-    if (shown.length === rules.length) return [list];
-    return [list, h('button', 'mt-1 ml-4 cursor-pointer text-[12.5px] text-muted underline underline-offset-4 hover:text-ink', {
-      type: 'button', 'data-cart-more': item.key, 'aria-label': `Show the other ${rules.length - shown.length} ${item.title} rules`,
-    }, `+${rules.length - shown.length} more`)];
+    const list = h('ul', 'mt-2 list-disc pl-4 text-[12.5px] text-muted', {}, ...rules.map((r) => h('li', 'my-0.5', {}, r.title)));
+    const others = item.ruleCount - rules.length;
+    if (others <= 0) return [list];
+    const more = `+${others} more`;
+    return [list, item.href
+      ? h('a', 'mt-1 ml-4 inline-block text-[12.5px] text-muted underline underline-offset-4 hover:text-ink', {
+        href: item.href, 'aria-label': `See all ${item.ruleCount} ${item.title} rules`,
+      }, more)
+      : h('span', 'mt-1 ml-4 inline-block text-[12.5px] text-muted', {}, more)];
   }
 
   /** Return a whole group's row, shaded: its tile, name and tag, how many rules and its ID, the rules it brings,
@@ -159,15 +159,14 @@
     const note = leftOutNote(item);
     const title = item.href ? h('a', 'leading-[1.35] font-semibold text-ink no-underline hover:underline', { href: item.href }, item.title)
       : h('span', 'leading-[1.35] font-semibold', {}, item.title);
-    const rules = item.rules || [];
     return h('li', 'grid grid-cols-[36px_minmax(0,1fr)_auto_28px] items-start gap-[14px] bg-surface px-4 py-3 max-narrow:grid-cols-[36px_minmax(0,1fr)_28px] max-narrow:[&>:nth-child(3)]:col-start-2 max-narrow:[&>:nth-child(3)]:row-start-2 max-narrow:[&>:nth-child(3)]:mt-0 max-narrow:[&>:nth-child(4)]:col-start-3 max-narrow:[&>:nth-child(4)]:row-start-1', {},
       groupTile(item.group),
       h('div', 'min-w-0', {},
         h('div', 'flex flex-wrap items-center gap-2', {}, title,
           h('span', 'rounded-full border border-border px-2 text-[11px] leading-[18px] font-medium whitespace-nowrap text-muted', {}, 'Whole group')),
         h('div', 'mt-[3px] flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-faint', {},
-          ...(note ? [note] : [`${count(rules.length, 'rule', 'rules')} · `, h('span', 'mono', {}, item.id)])),
-        ...ruleList(item, rules)),
+          ...(note ? [note] : [`${count(item.ruleCount || 0, 'rule', 'rules')} · `, h('span', 'mono', {}, item.id)])),
+        ...ruleList(item)),
       h('span', 'mt-1.5 text-[13px] whitespace-nowrap text-faint', {}, item.state !== 'ready' ? '' : item.pinned ? 'Pinned to the reviewed commit' : 'Stays in sync'),
       h('span', 'mt-0.5', {}, removeButton(item)));
   }
@@ -214,8 +213,6 @@
     // What the page knows of the checkout: the cart's revision, and the latest answer, which shows until the next.
     let checkout = checkouts.start();
     let timer;
-    // The keys of the whole groups whose every rule the visitor asked to see.
-    const expanded = new Set();
     // The lines the preview showed last, of its tab, so lines that change stand out briefly.
     let shown = { tab: null, lines: new Set() };
     repo.value = store.state().repo;
@@ -267,7 +264,7 @@
       if (empty) return;
       const { answer } = checkout;
       const libraries = (answer?.libraries || [])
-        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: lib.vetted && !!fork[item.key], pinned: !lib.vetted, expanded: expanded.has(item.key) })) }))
+        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: lib.vetted && !!fork[item.key], pinned: !lib.vetted })) }))
         .filter(({ items }) => items.length);
       const items = libraries.flatMap(({ items: held }) => held);
       // A rule its whole group brings counts with the group.
@@ -380,15 +377,8 @@
     }
 
     root.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-more], [data-cart-retry]');
+      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-retry]');
       if (!target) return;
-      if (target.matches('[data-cart-more]')) {
-        // The button goes once the list shows every rule, so focus moves to the list.
-        expanded.add(target.dataset.cartMore);
-        show();
-        root.querySelector(`[data-focus="${CSS.escape(`rules:${target.dataset.cartMore}`)}"]`)?.focus();
-        return;
-      }
       if (target.matches('[data-cart-drop]')) {
         // Focus moves to the next item's Remove, or the one before, or Clear cart.
         const drops = [...root.querySelectorAll('[data-cart-drop]')];

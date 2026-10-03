@@ -151,8 +151,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: signed in, Where it goes says what counts as a project and keeps "Enter your project"**: "We didn't
   find any of your projects using Code Rules: repositories with `.code-rules/generated/provenance.json`", then the
   heading and the field, which names the project. R7 replaces the sentence with the picker.
-- **Proposed: a whole group's row lists its first 5 rules and "+N more"**, which lists the rest, since a group such as
-  React brings 39. The prototype lists them all.
+- **Proposed: a whole group's row lists its first 5 rules and "+N more"**, which links to the group's page, since a
+  group such as React brings 39. The checkout sends only those 5 titles and the group's count, and cuts every title it
+  sends to 200 characters, since a library may write a title of any length, and a checkout larger than a page may be
+  fails as one Rulemart can't give, so the answer always fits a Lambda function's response. The prototype lists them
+  all.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

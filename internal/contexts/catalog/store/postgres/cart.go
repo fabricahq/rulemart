@@ -39,14 +39,15 @@ func (s *Store) CartLibraries(ctx context.Context, vetted []domain.LibraryKey, i
 			ids[i], byID[row.ID] = row.ID, &libraries[i]
 			groups = append(groups, cartGroups(row.ID, row.Owner+"/"+row.Name, items)...)
 		}
-		rules, err := q.ListCartRules(ctx, catalogdb.ListCartRulesParams{LibraryIds: ids, Groups: groups})
+		// One character more than a cart shows tells a title that's cut from one that fits.
+		rules, err := q.ListCartRules(ctx, catalogdb.ListCartRulesParams{LibraryIds: ids, Groups: groups, TitleRunes: views.MaxCartTitleRunes + 1})
 		if err != nil {
 			return fmt.Errorf("list rules: %v", err)
 		}
 		for _, row := range rules {
 			lib := byID[row.LibraryID]
 			lib.Rules = append(lib.Rules, views.CartRule{
-				Path: row.Path, Group: row.GroupPath, Title: row.Title.String, Version: version(row.Major, row.Minor, row.Patch),
+				Path: row.Path, Group: row.GroupPath, Title: cartTitle(row.Title), Version: version(row.Major, row.Minor, row.Patch),
 				RetiredIn: int(row.RetiredIn),
 			})
 		}
@@ -56,6 +57,16 @@ func (s *Store) CartLibraries(ctx context.Context, vetted []domain.LibraryKey, i
 		return nil, fmt.Errorf("load cart items=%d: %v", len(items), err)
 	}
 	return libraries, nil
+}
+
+// cartTitle returns title as a cart shows it: cut to views.MaxCartTitleRunes characters, with an ellipsis, when it's
+// longer.
+func cartTitle(title string) string {
+	runes := []rune(title)
+	if len(runes) <= views.MaxCartTitleRunes {
+		return title
+	}
+	return strings.TrimRight(string(runes[:views.MaxCartTitleRunes-1]), " ") + "…"
 }
 
 // cartFullNames returns the libraries items name, as FindCartLibraries matches them: owner/name in lowercase.

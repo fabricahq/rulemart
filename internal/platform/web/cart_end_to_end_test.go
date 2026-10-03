@@ -2,12 +2,14 @@ package web_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	shipped "github.com/fabricahq/rulemart/catalog"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -16,6 +18,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
@@ -38,25 +41,7 @@ changes:
   techs/go/close-bodies: {change: new, summaries: [Add the rule.]}
   practices/testing/verify-retries: {change: new, summaries: [Add the rule.]}
 `)
-	db, connString := databasetest.New(t)
-	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
-	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
-		t.Fatal(err)
-	}
-	groups, err := shipped.CanonicalGroups()
-	if err != nil {
-		t.Fatal(err)
-	}
-	vetted := []domain.LibraryKey{{Host: repo.Host, RepositoryID: repo.ID}}
-	webStore := postgres.New(databasetest.AsWebRole(t, connString))
-	handler, err := web.New(app.Pages{Store: webStore, Vetted: vetted, Groups: groups}, web.Options{
-		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Carts: app.Carts{Store: webStore, Vetted: vetted, Groups: groups},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	handler := newCheckoutSite(t, lib)
 
 	resp := postCheckout(t, handler, `{"cart":["group::Example/Rules::techs/go","example/rules::practices/testing/verify-retries",
 		"example/rules::techs/go/never-was","nowhere/rules::techs/go/x","example/rules::techs/go/return-errors","?"]}`, nil)
@@ -82,7 +67,7 @@ changes:
 		t.Errorf("got %q, unknown %q, want\n%q", states, answer.Unknown, want)
 	}
 	group := answer.Libraries[0].Items[0]
-	if group.Title != "Go" || len(group.Rules) != 2 || group.Href != "/example/rules/techs/go" {
+	if group.Title != "Go" || len(group.Rules) != 2 || group.RuleCount != 2 || group.Href != "/example/rules/techs/go" {
 		t.Errorf("got the group %+v, want Go with its two rules", group)
 	}
 	commands := "code-rules project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
@@ -93,5 +78,93 @@ changes:
 	}
 	if !strings.Contains(answer.Prompt, "- The whole Go group (techs/go), including rules the library adds to it later") {
 		t.Errorf("the prompt doesn't name the group:\n%s", answer.Prompt)
+	}
+}
+
+// newCheckoutSite ingests lib, as GitHub repository 7, which Rulemart vets, and returns the site, reading the catalog as
+// the web function's role.
+func newCheckoutSite(t *testing.T, lib *gittest.Library) http.Handler {
+	t.Helper()
+	db, connString := databasetest.New(t)
+	repo := lib.Repository(7)
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
+		t.Fatal(err)
+	}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vetted := []domain.LibraryKey{{Host: repo.Host, RepositoryID: repo.ID}}
+	webStore := postgres.New(databasetest.AsWebRole(t, connString))
+	handler, err := web.New(app.Pages{Store: webStore, Vetted: vetted, Groups: groups}, web.Options{
+		Log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Carts: app.Carts{Store: webStore, Vetted: vetted, Groups: groups},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler
+}
+
+// A Lambda function's response holds at most 6 MB, so a checkout must fit however long the titles a library writes.
+const lambdaResponseBytes = 6_000_000
+
+// A library may write a title of any length, up to its whole rule file, so a cart of a whole group of many rules with
+// very long titles, and of each of those rules, would answer with more than a Lambda function's response holds. The
+// group lists its first rules by their titles, with how many it brings, and every title is cut short.
+func TestACartOfRulesWithVeryLongTitlesChecksOutWithinAResponse(t *testing.T) {
+	const rules = 30
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/go", "Go")
+	var record, changes strings.Builder
+	record.WriteString("formatVersion: 1\nrelease: 1\nrules:\n")
+	var cart []string
+	for i := range rules {
+		id := fmt.Sprintf("techs/go/rule-%02d", i)
+		title := fmt.Sprintf("Rule %02d ", i) + strings.Repeat("and a title that goes on ", 8_400)
+		lib.Write(id+".md", "---\ntitle: "+title+"\nwhenToRead: When writing Go.\nimpact: HIGH\nimpactDescription: Prevents mistakes.\n---\n\nWrite Go.\n")
+		record.WriteString("  " + id + ": 1.0.0\n")
+		changes.WriteString("  " + id + ": {change: new, summaries: [Add the rule.]}\n")
+		cart = append(cart, `"example/rules::`+id+`"`)
+	}
+	record.WriteString("changes:\n" + changes.String())
+	lib.Release(1, record.String())
+	handler := newCheckoutSite(t, lib)
+
+	resp := postCheckout(t, handler, `{"cart":["group::example/rules::techs/go",`+strings.Join(cart, ",")+`]}`, nil)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("got %d: %.500s", resp.Code, resp.Body)
+	}
+	if n := resp.Body.Len(); n > lambdaResponseBytes {
+		t.Fatalf("answered %d bytes, more than a Lambda function's response holds", n)
+	}
+	answer := decode(t, resp)
+	items := answer.Libraries[0].Items
+	group := items[0]
+	var listed []string
+	for _, r := range group.Rules {
+		listed = append(listed, r.Title[:len("Rule 00")])
+	}
+	if want := []string{"Rule 00", "Rule 01", "Rule 02", "Rule 03", "Rule 04"}; group.RuleCount != rules || !slices.Equal(listed, want) {
+		t.Errorf("the group lists %q of %d rules, want %q of %d", listed, group.RuleCount, want, rules)
+	}
+	for _, r := range group.Rules {
+		assertShortTitle(t, r.Title)
+	}
+	for _, it := range items[1:] {
+		assertShortTitle(t, it.Title)
+	}
+	if len(items) != rules+1 || !strings.Contains(answer.Commands, "--groups techs/go") {
+		t.Errorf("got %d items and the commands\n%s\nwant the group and its %d rules, importing the group", len(items), answer.Commands, rules)
+	}
+}
+
+// assertShortTitle fails t unless title is cut short, as the cart shows it, with an ellipsis.
+func assertShortTitle(t *testing.T, title string) {
+	t.Helper()
+	if n := utf8.RuneCountInString(title); n > views.MaxCartTitleRunes || !strings.HasSuffix(title, "…") {
+		t.Errorf("got a title of %d characters ending %q, want at most %d ending with an ellipsis", n, title[max(len(title)-10, 0):], views.MaxCartTitleRunes)
 	}
 }

@@ -28,8 +28,9 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// maxPageBytes bounds a page Rulemart sends: a Lambda function's response holds at most 6 MB. Pages bound what they
-// show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
+// maxPageBytes bounds a page Rulemart sends, and a cart's checkout: a Lambda function's response holds at most 6 MB.
+// Pages bound what they show from a library, so only a library far past any Rulemart knows reaches it; such a page says
+// it's too large, and such a checkout fails.
 const maxPageBytes = 5 << 20
 
 // pageCache lets CloudFront keep a page for a minute, so a new library release, or a new star, shows within a

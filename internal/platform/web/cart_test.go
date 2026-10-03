@@ -57,7 +57,8 @@ type checkoutAnswer struct {
 				Canonical bool
 				Icon      *struct{ Src string }
 			}
-			Rules []struct{ Title, Href string }
+			Rules     []struct{ Title, Href string }
+			RuleCount int
 		}
 		RestOfGroups *struct {
 			Groups []string
@@ -154,7 +155,8 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 		t.Errorf("got the rule %+v", rule)
 	}
 	if group.Kind != "group" || group.Title != "techs/golang" || group.Group.Canonical || group.Group.Icon != nil ||
-		group.Href != "/example/rules/techs/golang" || len(group.Rules) != 1 || group.Rules[0].Href != "/example/rules/techs/golang/pass-context" {
+		group.Href != "/example/rules/techs/golang" || len(group.Rules) != 1 || group.RuleCount != 1 ||
+		group.Rules[0].Href != "/example/rules/techs/golang/pass-context" {
 		t.Errorf("got the group %+v", group)
 	}
 	if retired.State != "retired" || retired.RetiredIn != "release/4" || retired.Href != "/example/rules/techs/go/old" {
@@ -169,6 +171,22 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 	}
 	if answer.Pin == nil || *answer.Pin != (struct{ Library, Release, Option string }{"example/rules", "release/6", "--ref release/6"}) {
 		t.Errorf("got the pin %+v, want example/rules at release/6", answer.Pin)
+	}
+}
+
+// A checkout's answer must fit a Lambda function's response, so one that wouldn't is refused, before anything of it is
+// written, with the failure cart-page.js shows as Rulemart being unable to show the cart.
+func TestCheckoutRefusesAnAnswerTooLargeToSend(t *testing.T) {
+	carts := &fakeCarts{checkout: views.Checkout{Prompt: strings.Repeat("x", 6<<20), Commands: "the commands"}}
+	handler := newSiteWith(t, web.Options{Carts: carts})
+
+	resp := postCheckout(t, handler, `{"cart":["example/rules::techs/go/return-errors"]}`, nil)
+
+	if resp.Code != http.StatusServiceUnavailable {
+		t.Fatalf("got %d, want 503", resp.Code)
+	}
+	if resp.Body.Len() > 1<<10 || !strings.Contains(resp.Body.String(), `"error"`) || strings.Contains(resp.Body.String(), "the commands") {
+		t.Errorf("answered %d bytes, starting %.200q, want only the error", resp.Body.Len(), resp.Body)
 	}
 }
 

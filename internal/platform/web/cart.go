@@ -114,9 +114,14 @@ type checkoutItemJSON struct {
 	Fork      bool   `json:"fork,omitempty"`
 	InGroup   bool   `json:"inGroup,omitempty"`
 	RetiredIn string `json:"retiredIn,omitempty"`
-	// Rules are the current rules a whole group brings.
-	Rules []ruleLinkJSON `json:"rules,omitempty"`
+	// Rules are the first previewRules of the current rules a whole group brings, and RuleCount how many it brings.
+	Rules     []ruleLinkJSON `json:"rules,omitempty"`
+	RuleCount int            `json:"ruleCount,omitempty"`
 }
+
+// previewRules is how many of a whole group's rules its item lists, as the cart's page shows them, which links the rest
+// to the group's page: a group may bring thousands, and the answer must fit a response.
+const previewRules = 5
 
 // groupJSON is a group as the cart shows it: its ID, its name, which is its ID when it isn't canonical, and its icon.
 type groupJSON struct {
@@ -164,28 +169,31 @@ func (s *server) redirectToCart(w http.ResponseWriter, r *http.Request) {
 // isn't such a cart, or holds more than domain.MaxCartItems keys, is refused with 400.
 func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
-		writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
+		s.writeJSON(w, r, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
 		return
 	}
 	var req checkoutRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCheckoutBytes))
 	if err := decoder.Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the cart isn't one Rulemart can read"})
+		s.writeJSON(w, r, http.StatusBadRequest, map[string]string{"error": "the cart isn't one Rulemart can read"})
 		return
 	}
 	target, repositoryInvalid := checkoutTarget(req.Repo)
 	checkout, err := s.Carts.Checkout(r.Context(), app.Cart{Keys: req.Cart, Forks: req.Fork, RestOfGroups: req.RestOfGroups, Confirmed: req.Confirmed}, target)
 	switch {
 	case errors.Is(err, app.ErrCartTooLarge):
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the cart holds more items than it may"})
+		s.writeJSON(w, r, http.StatusBadRequest, map[string]string{"error": "the cart holds more items than it may"})
 		return
 	case err != nil:
 		s.logFailure(r, err)
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Rulemart can't check out right now"})
+		s.writeJSON(w, r, http.StatusServiceUnavailable, checkoutUnavailable)
 		return
 	}
-	writeJSON(w, http.StatusOK, newCheckoutResponse(checkout, target, repositoryInvalid, s.assets.iconURL))
+	s.writeJSON(w, r, http.StatusOK, newCheckoutResponse(checkout, target, repositoryInvalid, s.assets.iconURL))
 }
+
+// checkoutUnavailable answers a checkout Rulemart can't give, which cart-page.js shows as being unable to show the cart.
+var checkoutUnavailable = map[string]string{"error": "Rulemart can't check out right now"}
 
 // checkoutTarget returns the project a checkout is for, from repo, what the visitor wrote as its repository, and
 // whether repo names none though it isn't empty. Rulemart doesn't know the visitor's projects yet, so it can't tell
@@ -256,9 +264,10 @@ func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, i
 		if it.State != views.CartItemMissing && !gone {
 			item.Href = libraryGroupHref(libraryHref, it.Item.Path)
 		}
-		for _, r := range it.Rules {
+		for _, r := range it.Rules[:min(len(it.Rules), previewRules)] {
 			item.Rules = append(item.Rules, ruleLinkJSON{Title: titleOrID(r.Title, r.Path), Href: ruleHref(libraryHref, r.Path)})
 		}
+		item.RuleCount = len(it.Rules)
 	case domain.CartRule:
 		item.Title = titleOrID(it.Title, it.Item.Path)
 		if it.State != views.CartItemMissing && !gone {
@@ -274,11 +283,25 @@ func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, i
 	return item
 }
 
-// writeJSON answers with status and value as JSON, which no cache keeps.
-func writeJSON(w http.ResponseWriter, status int, value any) {
+// writeJSON answers r with status and value as JSON, which no cache keeps. It encodes the whole answer before writing,
+// so an answer larger than maxPageBytes, which the bounds on what a checkout lists keep it from reaching, is refused,
+// before anything of it is written, as a checkout Rulemart can't give.
+func (s *server) writeJSON(w http.ResponseWriter, r *http.Request, status int, value any) {
+	body, err := json.Marshal(value)
+	switch {
+	case err != nil:
+		s.logFailure(r, err)
+		s.writeJSON(w, r, http.StatusServiceUnavailable, checkoutUnavailable)
+		return
+	case len(body) > maxPageBytes:
+		s.Log.WarnContext(r.Context(), "response too large", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
+			"bytes", len(body))
+		s.writeJSON(w, r, http.StatusServiceUnavailable, checkoutUnavailable)
+		return
+	}
 	header := w.Header()
 	header.Set("Content-Type", "application/json; charset=utf-8")
 	header.Set("Cache-Control", privateCache)
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	_, _ = w.Write(body)
 }
