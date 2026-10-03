@@ -2,12 +2,12 @@
 
 ## Set up
 
-You need the Go version in [go.mod](go.mod), Docker, Python 3.11 or later, and a C compiler for sqlc. There's no
-Node.
+You need the Go version in [go.mod](go.mod), Docker, Python 3.11 or later, and a C compiler for sqlc. Node is
+optional and needs no packages: with it, `make check` also runs the site scripts' tests, which CI always runs.
 
 ```sh
 make db     # start Postgres 18 in Docker on 127.0.0.1:55432
-make check  # vet, and run every test with the race detector
+make check  # vet, run every test with the race detector, and the scripts' tests with Node when it's installed
 ```
 
 Tests create their own databases on that server and drop them afterward. `make db-stop` removes the container.

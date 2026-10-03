@@ -1,11 +1,13 @@
 /** @fileoverview The cart's page, /cart, which the server renders as a shell and this script fills from the cart that
  * cart.js keeps: the empty state, or the items by library, with their choices, and the prompt and commands that check
- * them out, which it asks Rulemart for each time the cart changes. It reads and changes the cart only through
- * window.rulemartCart, and shows each change, here or in another tab, when cart.js sends the rulemart:cart event. */
+ * them out, which it asks Rulemart for each time the cart changes, keeping what it knows of them as cart-checkout.js
+ * says. It reads and changes the cart only through window.rulemartCart, and shows each change, here or in another
+ * tab, when cart.js sends the rulemart:cart event. */
 (() => {
   const store = window.rulemartCart;
+  const checkouts = window.rulemartCheckout;
   const page = document.querySelector('[data-cart-page]');
-  if (!store || !page) return;
+  if (!store || !checkouts || !page) return;
 
   const toast = (text) => window.rulemartToast?.(text);
 
@@ -198,10 +200,10 @@
     const preview = $('[data-cart-preview]');
     const repo = $('[data-cart-repo]');
     const repoNote = $('[data-cart-repo-note]');
+    const status = $('[data-cart-status]');
     let tab = 'prompt';
-    let answer = null;
-    let failed = false;
-    let asked = 0;
+    // What the page knows of the checkout: the cart's revision, and the latest answer, which shows until the next.
+    let checkout = checkouts.start();
     let timer;
     // The keys of the whole groups whose every rule the visitor asked to see.
     const expanded = new Set();
@@ -212,14 +214,23 @@
     /** Ask for the cart's checkout, a moment after the last change, so typing asks once. */
     const request = () => {
       clearTimeout(timer);
-      timer = setTimeout(checkout, answer ? 200 : 0);
+      timer = setTimeout(ask, checkout.answer ? 200 : 0);
     };
 
-    /** Ask Rulemart to resolve the cart and write its texts, keeping only the latest answer. */
-    async function checkout() {
+    /** Mark the checkout out of date, at once, and ask for the cart's, since the cart changed, or the visitor asked
+     * again. */
+    function changed() {
+      checkout = checkouts.change(checkout);
+      show();
+      request();
+    }
+
+    /** Ask Rulemart to resolve the cart as it is now and write its texts, keeping the answer only while the cart stays
+     * so. */
+    async function ask() {
       const { cart, fork, restOfGroups, confirmed, repo: repository } = store.state();
       if (!cart.length) return;
-      const id = ++asked;
+      const { revision } = checkout;
       try {
         const response = await fetch(root.dataset.cartCheckout, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
@@ -227,14 +238,13 @@
         });
         if (!response.ok) throw new Error(`checkout answered ${response.status}`);
         const body = await response.json();
-        if (id !== asked) return;
-        answer = body;
-        failed = false;
+        const before = checkout;
+        checkout = checkouts.accept(checkout, revision, body);
+        if (checkout === before) return;
         // Keys no page writes, such as from an older cart, name nothing to show.
         if (body.unknown.length) store.dropUnknown(body.unknown);
       } catch {
-        if (id !== asked) return;
-        failed = true;
+        checkout = checkouts.fail(checkout, revision);
       }
       show();
     }
@@ -246,6 +256,7 @@
       $('[data-cart-empty]').hidden = !empty;
       $('[data-cart-full]').hidden = empty;
       if (empty) return;
+      const { answer } = checkout;
       const libraries = (answer?.libraries || [])
         .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted, expanded: expanded.has(item.key) })) }))
         .filter(({ items }) => items.length);
@@ -259,7 +270,7 @@
       const focused = document.activeElement?.dataset?.focus;
       if (answer) {
         list.replaceChildren(...libraries.map(({ lib, items: held }) => libraryBlock(lib, held)));
-      } else if (failed) {
+      } else if (checkout.failed) {
         list.replaceChildren(h('p', 'text-[14px] text-muted', {}, 'Rulemart can’t show your cart right now.'));
       }
       if (focused) root.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
@@ -269,6 +280,7 @@
 
     /** Say which repository the texts name, or that what the visitor wrote names none. */
     function showRepository() {
+      const { answer } = checkout;
       const written = store.state().repo.trim() !== '';
       const invalid = !!answer?.repositoryInvalid && written;
       const named = answer?.repository && written;
@@ -278,8 +290,9 @@
       repo.setAttribute('aria-invalid', String(invalid));
     }
 
-    /** Show the tab's text, with each line that wasn't there last time briefly marked, and the copy button and
-     * footnote that go with it. */
+    /** Show the tab's text, dimmed while it's out of date, with each line that wasn't there last time briefly marked,
+     * whether it's out of date, and the copy button, which copies only text that matches the cart, and footnote that
+     * go with it. */
     function showPreview() {
       const prompt = tab === 'prompt';
       for (const button of root.querySelectorAll('[data-cart-tab]')) button.setAttribute('aria-pressed', String(button.dataset.cartTab === tab));
@@ -287,11 +300,16 @@
       const copy = $('[data-cart-copy]');
       copy.textContent = prompt ? 'Copy prompt for agent' : 'Copy commands';
       showFootnote(prompt);
+      showStatus(prompt);
+      const { answer } = checkout;
+      const current = checkouts.isCurrent(checkout);
       const text = answer ? (prompt ? answer.prompt : answer.commands) : '';
-      copy.disabled = !text;
+      copy.disabled = !current || !text;
+      preview.classList.toggle('opacity-50', !!answer && !current);
+      preview.setAttribute('aria-busy', String(checkouts.isPending(checkout)));
       if (!text) {
-        const why = failed ? 'Rulemart can’t write your checkout right now. Try again in a minute.'
-          : answer ? 'Nothing in your cart can be checked out yet. Remove what checkout leaves out, or confirm its library.' : 'Writing your checkout…';
+        const why = answer ? 'Nothing in your cart can be checked out yet. Remove what checkout leaves out, or confirm its library.'
+          : checkout.failed ? '' : 'Writing your checkout…';
         preview.replaceChildren(h('span', 'font-sans text-[13px] text-muted', {}, why));
         shown = { tab: null, lines: new Set() };
         return;
@@ -307,11 +325,25 @@
       preview.replaceChildren(...spans);
     }
 
+    /** Say that the tab's text is out of date: updating, once the page has an answer to show meanwhile, or that
+     * updating failed, with a button to ask again. */
+    function showStatus(prompt) {
+      const failed = checkout.failed;
+      status.className = failed ? 'mt-2.5 border-l-2 border-ink pl-2.5 text-[13px] text-ink' : 'mt-2.5 text-[13px] text-muted empty:mt-0';
+      if (failed) {
+        status.replaceChildren(`Couldn’t update the ${prompt ? 'prompt' : 'commands'}. `,
+          h('button', 'cursor-pointer underline underline-offset-4 hover:text-muted', { type: 'button', 'data-cart-retry': true, 'data-focus': 'retry' }, 'Try again'));
+      } else {
+        status.replaceChildren(checkout.answer && checkouts.isPending(checkout) ? 'Updating…' : '');
+      }
+    }
+
     /** Say how rules move to newer versions, but not those of unvetted libraries, which are pinned to the commit
      * reviewed, and on the Commands tab, how to pin a library to a release, as the checkout's answer suggests. */
     function showFootnote(prompt) {
       const code = (text) => h('code', '', {}, text);
       const { cart, fork } = store.state();
+      const { answer } = checkout;
       const pinned = (answer?.libraries || [])
         .filter((lib) => !lib.vetted && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key) && !fork[item.key]))
         .map((lib) => lib.fullName);
@@ -326,7 +358,8 @@
 
     /** Copy the tab's text, or select it to copy by hand when the browser refuses. */
     async function copy() {
-      const text = answer ? (tab === 'prompt' ? answer.prompt : answer.commands) : '';
+      const { answer } = checkout;
+      const text = answer && checkouts.isCurrent(checkout) ? (tab === 'prompt' ? answer.prompt : answer.commands) : '';
       if (!text) return;
       try {
         await navigator.clipboard.writeText(text);
@@ -338,7 +371,7 @@
     }
 
     root.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-more]');
+      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-more], [data-cart-retry]');
       if (!target) return;
       if (target.matches('[data-cart-more]')) {
         // The button goes once the list shows every rule, so focus moves to the list.
@@ -366,6 +399,10 @@
         showPreview();
       } else if (target.matches('[data-cart-copy]')) {
         copy();
+      } else if (target.matches('[data-cart-retry]')) {
+        // The button goes once the page asks again, so focus moves to the text it updates.
+        changed();
+        preview.focus();
       }
     });
     root.addEventListener('change', (event) => {
@@ -379,11 +416,10 @@
       }
     });
     repo.addEventListener('input', () => store.setRepo(repo.value));
-    // Each change to the cart, here or in another tab, shows at once, and asks for the texts again.
+    // Each change to the cart, here or in another tab, shows at once, out of date, and asks for the texts again.
     window.addEventListener('rulemart:cart', () => {
       if (document.activeElement !== repo) repo.value = store.state().repo;
-      show();
-      request();
+      changed();
     });
     show();
     request();

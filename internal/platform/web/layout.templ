@@ -21,8 +21,8 @@ type chrome struct {
 	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it. toastScript shows
 	// toasts, the page's notice and a script's, and cartScript keeps the cart, on every page. filtersScript submits a
 	// list's filters as soon as one changes, on a page that lists rules or libraries. cartPageScript renders the cart's
-	// page, through the store cartScript keeps.
-	caretScript, toastScript, cartScript, filtersScript, cartPageScript string
+	// page, through the store cartScript keeps, and cartCheckoutScript keeps what that page knows of its checkout.
+	caretScript, toastScript, cartScript, filtersScript, cartPageScript, cartCheckoutScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -195,7 +195,8 @@ templ layout(c chrome, h head) {
 			<script src={ c.toastScript } defer></script>
 			<script src={ c.cartScript } defer></script>
 			if h.cartPage {
-				// After cart.js, whose store it reads: deferred scripts run in order.
+				// After cart.js, whose store it reads, and cart-checkout.js: deferred scripts run in order.
+				<script src={ c.cartCheckoutScript } defer></script>
 				<script src={ c.cartPageScript } defer></script>
 			}
 		</head>

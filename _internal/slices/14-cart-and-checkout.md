@@ -115,7 +115,7 @@ The spec's Proposed decisions are built as written, except where an entry here s
   `/cart`, builds item rows with the site's classes, which Tailwind now reads from it too, and the server renders
   everything else, the cards, the project section, and the dialogs, so only what depends on the cart is built in the
   browser. Each change shows at once from the last answer and asks again, at most every 200 ms while typing, keeping
-  only the latest answer.
+  only the answer for the cart as it is now.
 - **Proposed: `cart.js` owns the cart, and the page script changes it only through the store's API.** `cart.js`,
   on every page, keeps the cart and paints the header and the controls that add; it exposes `window.rulemartCart`,
   as `toast.js` exposes `window.rulemartToast`, with named operations (add, remove, fork, add the rest of the
@@ -154,6 +154,16 @@ The spec's Proposed decisions are built as written, except where an entry here s
   "Prompt copied" and "Commands copied" on Copy, and a full cart's notice.
 - **Proposed: below 27rem the header shows Rulemart's name without Fabrica's.** The cart icon joined the menu,
   search, and Sign in on a phone's header, which overflowed at 390 pixels with both names.
+- **Proposed: the cart's page never offers text the cart has outgrown.** Every change advances the cart's revision
+  before the 200 ms wait, so the prompt and commands dim at once, "Updating…" shows, and Copy is off until the answer
+  for that revision arrives; an answer or a failure for an earlier revision is ignored. A failed update says
+  "Couldn't update the prompt." (or the commands) with Try again, even while an earlier answer shows. A small script,
+  `cart-checkout.js`, loaded on `/cart` before `cart-page.js`, keeps that state as plain values, so it's tested
+  without a browser.
+- **Proposed: the scripts' pure logic is tested with Node's own test runner**, in `*.test.mjs` files beside the web
+  package's Go tests, outside `static/`, which the site embeds and serves. `make check` runs them through
+  `make check-js` when `node` is installed and says it skipped them when it isn't; CI's runners have Node. The
+  repository still has no Node packages.
 - **Kept as they are after browser QA, deliberately**: the prompt names rules by ID, not title, so no library writes
   into it (above); toasts stay at the viewport's bottom right, Josh's decision for every toast; Clear cart empties
   the cart at once, without asking, as the prototype's does; and the cart outlasts signing out, since it's the
@@ -169,7 +179,7 @@ The spec's Proposed decisions are built as written, except where an entry here s
 
 ## Verification
 
-- `make check` and `make check-generated` pass. Golden tests for the prompt and commands in every mode, with
+- `make check`, with its JavaScript tests, and `make check-generated` pass. Golden tests for the prompt and commands in every mode, with
   forks, full groups, several libraries, and an unvetted library.
 - Endpoint tests: resolution of every item state, unknown keys, the 100-item cap, cross-origin refused, unvetted
   without confirmation, a library gone, the texts.

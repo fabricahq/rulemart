@@ -34,7 +34,7 @@ func loadsScript(doc *html.Node, file string) bool {
 
 // Every page's header links the cart for everyone, signed in or not, telling the script that paints its count and
 // keeps the cart how much a cart holds, and loads that script and the one that shows its toasts, but not the cart
-// page's own script.
+// page's own scripts.
 func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
@@ -57,8 +57,10 @@ func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 				t.Errorf("%s: doesn't load %s", path, script)
 			}
 		}
-		if loadsScript(doc, "cart-page.js") {
-			t.Errorf("%s: loads the cart page's script", path)
+		for _, script := range []string{"cart-page.js", "cart-checkout.js"} {
+			if loadsScript(doc, script) {
+				t.Errorf("%s: loads the cart page's %s", path, script)
+			}
 		}
 	}
 }
@@ -229,13 +231,15 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 	signedIn := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/cart", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 
 	doc := parsePage(t, signedOut)
-	if !loadsScript(doc, "cart-page.js") {
-		t.Error("the page doesn't load the script that fills it")
+	for _, script := range []string{"cart-page.js", "cart-checkout.js"} {
+		if !loadsScript(doc, script) {
+			t.Errorf("the page doesn't load %s, which fills it", script)
+		}
 	}
 	if page := find(doc, withAttribute("data-cart-page")); page == nil || attribute(page, "data-cart-checkout") != "/cart/checkout.json" {
 		t.Error("the page doesn't name where it checks out")
 	}
-	for _, part := range []string{"data-cart-page", "data-cart-empty", "data-cart-full", "data-cart-libraries", "data-cart-preview", "data-cart-repo"} {
+	for _, part := range []string{"data-cart-page", "data-cart-empty", "data-cart-full", "data-cart-libraries", "data-cart-preview", "data-cart-status", "data-cart-repo"} {
 		if find(doc, withAttribute(part)) == nil {
 			t.Errorf("the page has no %s", part)
 		}
