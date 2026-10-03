@@ -40,7 +40,8 @@ type Cart struct {
 
 // Checkout resolves cart against the catalog, and returns each item's state with the texts that import every ready
 // item into target. It fails with ErrCartTooLarge when cart holds more than domain.MaxCartItems keys. A key the cart
-// repeats counts once, and one that names no item is listed as unknown.
+// repeats counts once, as do keys that spell one item in different cases, and one that names no item is listed as
+// unknown.
 func (c Carts) Checkout(ctx context.Context, cart Cart, target domain.CheckoutTarget) (views.Checkout, error) {
 	if len(cart.Keys) > domain.MaxCartItems {
 		return views.Checkout{}, fmt.Errorf("check out cart keys=%d: %w", len(cart.Keys), ErrCartTooLarge)
@@ -130,6 +131,8 @@ func hasName(names map[string]bool, fullName string) bool {
 
 // resolve returns one library's items, each named by the key at the same index, as the catalog has them in lib, or
 // as gone when lib is nil, with the visitor's choices in cart, and the offer to import the rest of their rules' groups.
+// Keys that name one item, spelling it in different cases, resolve to it once: the first names it, and its choice
+// stands, so the cart's page, which shows that key's row and choice, matches the texts.
 func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLibrary, cart Cart) views.ResolvedLibrary {
 	resolved := views.ResolvedLibrary{Library: views.LibraryRef{Owner: items[0].Owner, Name: items[0].Name}, Gone: lib == nil}
 	if lib != nil {
@@ -137,8 +140,13 @@ func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLi
 		resolved.Confirmed = !lib.Vetted && hasName(cart.Confirmed, lib.Library.FullName())
 		resolved.RestOfGroupsAdded = hasName(cart.RestOfGroups, lib.Library.FullName())
 	}
+	seen := map[string]bool{}
 	for i, item := range items {
-		resolved.Items = append(resolved.Items, c.resolveItem(item, keys[i], lib, resolved.Confirmed, cart.Forks[keys[i]]))
+		it := c.resolveItem(item, keys[i], lib, resolved.Confirmed, cart.Forks[keys[i]])
+		if id := itemIdentity(it); !seen[id] {
+			seen[id] = true
+			resolved.Items = append(resolved.Items, it)
+		}
 	}
 	markRulesInGroups(resolved.Items)
 	resolved.RestOfGroups, resolved.RestOfGroupsRules = restOfGroups(resolved, lib)
@@ -180,6 +188,17 @@ func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibr
 		it.State = views.CartItemUnvetted
 	}
 	return it
+}
+
+// itemIdentity returns what names it within its library: its kind and its path, which resolution respells as the
+// catalog does when the library has the item, or in lowercase when it's missing or gone, since keys match either
+// without regard to case.
+func itemIdentity(it views.ResolvedItem) string {
+	path := it.Item.Path
+	if it.State == views.CartItemMissing || it.State == views.CartItemGone {
+		path = strings.ToLower(path)
+	}
+	return string(it.Item.Kind) + " " + path
 }
 
 // markRulesInGroups marks each ready rule of items whose group items hold whole, ready, as InGroup.

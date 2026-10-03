@@ -24,6 +24,13 @@
   /** Report whether key is one the cart can hold. */
   const validKey = (key) => typeof key === 'string' && key.length <= MAX_KEY && (RULE_KEY.test(key) || GROUP_KEY.test(key));
 
+  /** Report whether keys a and b name one item: the server finds libraries, groups, and rules without regard to case,
+   * so keys that differ only in case name the same one. */
+  const sameKey = (a, b) => a.toLowerCase() === b.toLowerCase();
+
+  /** Return keys without those that name an item an earlier key names, in order. */
+  const distinctKeys = (keys) => keys.filter((key, i) => keys.findIndex((other) => sameKey(other, key)) === i);
+
   /** Return the plural of word for n, with n: 1 rule, 2 rules. */
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -40,7 +47,7 @@
     return out;
   }
 
-  /** Read the cart from localStorage, keeping only what a cart can hold: well-formed keys, each once, at most
+  /** Read the cart from localStorage, keeping only what a cart can hold: well-formed keys, each item once, at most
    * MAX_ITEMS, and choices of the right types. Storage that's empty, refused, or holds anything else is an empty cart. */
   function load() {
     const state = fresh();
@@ -51,7 +58,7 @@
       return state;
     }
     if (!stored || typeof stored !== 'object') return state;
-    if (Array.isArray(stored.cart)) state.cart = [...new Set(stored.cart.filter(validKey))].slice(0, MAX_ITEMS);
+    if (Array.isArray(stored.cart)) state.cart = distinctKeys(stored.cart.filter(validKey)).slice(0, MAX_ITEMS);
     state.fork = Object.fromEntries(Object.keys(flags(stored.fork)).filter((key) => state.cart.includes(key)).map((key) => [key, true]));
     state.restOfGroups = flags(stored.restOfGroups);
     state.confirmed = flags(stored.confirmed);
@@ -71,7 +78,8 @@
     paint();
   }
 
-  const inCart = (key) => !!key && state.cart.includes(key);
+  /** Report whether the cart holds the item key names, in whichever case the cart spells it. */
+  const inCart = (key) => !!key && state.cart.some((held) => sameKey(held, key));
 
   /** Return the key of the whole group of the rule key names, or '' for a group's key. */
   function groupKeyOf(key) {
@@ -87,7 +95,7 @@
   /** Add keys the cart doesn't hold, in order, while it has room, and return how many it added, saying so when the
    * cart is full. Keys it holds already count as added, since the visitor sees them in it. */
   function add(keys) {
-    const adding = keys.filter((key) => validKey(key) && !inCart(key));
+    const adding = distinctKeys(keys.filter((key) => validKey(key) && !inCart(key)));
     const room = Math.max(MAX_ITEMS - state.cart.length, 0);
     state.cart.push(...adding.slice(0, room));
     save();
@@ -97,10 +105,10 @@
     return keys.length - adding.length + Math.min(adding.length, room);
   }
 
-  /** Remove key from the cart, with its fork. */
+  /** Remove the item key names from the cart, in whichever case the cart spells it, with its fork. */
   function remove(key) {
-    state.cart = state.cart.filter((held) => held !== key);
-    delete state.fork[key];
+    for (const held of state.cart.filter((held) => sameKey(held, key))) delete state.fork[held];
+    state.cart = state.cart.filter((held) => !sameKey(held, key));
     save();
   }
 

@@ -256,6 +256,44 @@ func TestCheckoutMarksARuleItsWholeGroupBrings(t *testing.T) {
 	}
 }
 
+// Keys that spell one rule or group in different cases resolve to it once, as pages find it without regard to case:
+// one item, named by the first key, whose choice stands, and one command, never a second copy of the same import.
+func TestCheckoutResolvesKeysThatDifferOnlyInCaseToOneItem(t *testing.T) {
+	carts, _ := newCarts(t)
+	for _, c := range []struct {
+		name  string
+		forks map[string]bool
+		want  string
+	}{
+		{"both forked", map[string]bool{"acme/rules::techs/go/close-bodies": true, "ACME/Rules::techs/go/Close-Bodies": true}, "add rule techs/go/close-bodies"},
+		{"the first synced", map[string]bool{"ACME/Rules::techs/go/Close-Bodies": true}, "--rules techs/go/close-bodies"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			cart := app.Cart{
+				Keys: []string{
+					"acme/rules::techs/go/close-bodies", "group::acme/rules::practices/testing",
+					"ACME/Rules::techs/go/Close-Bodies", "group::Acme/rules::Practices/Testing",
+				},
+				Forks: c.forks,
+			}
+
+			checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"acme/rules::techs/go/close-bodies ready", "group::acme/rules::practices/testing ready"}
+			if got := states(checkout); !slices.Equal(got, want) {
+				t.Errorf("got\n%q\nwant\n%q", got, want)
+			}
+			if strings.Count(checkout.Commands, "close-bodies") != 1 || !strings.Contains(checkout.Commands, c.want) ||
+				strings.Count(checkout.Commands, "--groups practices/testing") != 1 {
+				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, checkout.Commands)
+			}
+		})
+	}
+}
+
 // A cart holds at most domain.MaxCartItems keys: one more is refused without reading the catalog.
 func TestCheckoutRefusesACartOfMoreThanTheMostItems(t *testing.T) {
 	carts, s := newCarts(t)
