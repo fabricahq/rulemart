@@ -21,7 +21,11 @@ var ErrNoGitHubToken = errors.New("the session keeps no GitHub token Rulemart ca
 
 // TokenKeys gives the key that seals sessions' GitHub tokens, such as from an SSM parameter.
 type TokenKeys interface {
+	// TokenKey returns the key, which may be one read earlier and kept.
 	TokenKey(ctx context.Context) (domain.TokenKey, error)
+	// RereadTokenKey reads the key again, and keeps it for TokenKey: an operator may have replaced it since it was
+	// read, so a token sealed under the new key opens with it.
+	RereadTokenKey(ctx context.Context) (domain.TokenKey, error)
 }
 
 // FixedTokenKey gives one key that never changes, such as a local build's random one.
@@ -29,6 +33,9 @@ type FixedTokenKey struct{ Key domain.TokenKey }
 
 // TokenKey returns k's key.
 func (k FixedTokenKey) TokenKey(context.Context) (domain.TokenKey, error) { return k.Key, nil }
+
+// RereadTokenKey returns k's key, which never changes.
+func (k FixedTokenKey) RereadTokenKey(context.Context) (domain.TokenKey, error) { return k.Key, nil }
 
 // Sessions signs visitors in and out.
 type Sessions struct {
@@ -90,6 +97,15 @@ func (s Sessions) GitHubToken(ctx context.Context, token domain.SessionToken) (s
 		return "", fmt.Errorf("open the session's GitHub token: %v", err)
 	}
 	gitHubToken, err := key.Open(sealed, token.Hash())
+	if errors.Is(err, domain.ErrTokenUnreadable) {
+		// The key kept may be one an operator has since replaced, and another instance sealed the token under the new
+		// one: read the key again, once, before asking the visitor to sign in again.
+		key, err = s.TokenKeys.RereadTokenKey(ctx)
+		if err != nil {
+			return "", fmt.Errorf("open the session's GitHub token: %v", err)
+		}
+		gitHubToken, err = key.Open(sealed, token.Hash())
+	}
 	if errors.Is(err, domain.ErrTokenUnreadable) {
 		return "", ErrNoGitHubToken
 	}

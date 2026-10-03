@@ -153,7 +153,12 @@ page, and keeps working on the new cache settings.
       ```
 
       Replacing `/rulemart/prod/token-key` later leaves every session's token sealed under the old key: each visitor
-      is asked to sign in again before the dashboard reads GitHub. Nothing else breaks.
+      is asked to sign in again before the dashboard reads GitHub. Warm web instances keep the key they read, and
+      seal new sessions' tokens with it, until something makes them read it again: an instance that can't open a
+      token reads the parameter once more, but one that only seals never does. So after replacing the parameter,
+      also make every instance start fresh, so all of them seal with the new key: any update to the web function's
+      configuration, such as `aws lambda update-function-configuration` changing its description, replaces its
+      instances. Sessions sealed under the old key ask for sign-in again. Nothing else breaks.
 
 5. **CloudFront**: `terragrunt --working-dir .terragrunt-stack/cdn run plan`, then `apply`. Expect the default
    behavior's allowed methods to become all seven, its cache policy's cookies a whitelist of

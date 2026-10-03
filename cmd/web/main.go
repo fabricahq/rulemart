@@ -279,6 +279,12 @@ func (k tokenKeys) TokenKey(ctx context.Context) (accounts.TokenKey, error) {
 	return key, nil
 }
 
+// RereadTokenKey reads the secret's key again, as accountsapp.TokenKeys asks, and keeps it for TokenKey.
+func (k tokenKeys) RereadTokenKey(ctx context.Context) (accounts.TokenKey, error) {
+	k.secret.Forget()
+	return k.TokenKey(ctx)
+}
+
 // lambdaRequestID returns the Lambda request ID of a request the Function URL delivered, or "" for another.
 func lambdaRequestID(r *http.Request) string {
 	context, ok := core.GetAPIGatewayV2ContextFromContext(r.Context())
