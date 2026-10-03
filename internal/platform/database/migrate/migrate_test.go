@@ -17,9 +17,9 @@ import (
 )
 
 // The web function connects as the web role, which may read the catalog, its listings and rules' stars, and the
-// schema version, through its membership in the catalog reader role, and write accounts, sessions, listings, stars,
-// and carts, through its membership in the accounts writer role, and nothing else.
-func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRulesAndNothingElse(t *testing.T) {
+// schema version, through its membership in the catalog reader role, and write accounts, sessions, listings, and
+// stars, through its membership in the accounts writer role, and nothing else.
+func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListAndStarAndNothingElse(t *testing.T) {
 	ctx := context.Background()
 	connString := postgrestest.New(t)
 	if _, err := Up(ctx, connString); err != nil {
@@ -61,11 +61,6 @@ func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRu
 		"count its stars":    `SELECT r.path, count(s.*) FROM rules r LEFT JOIN rule_stars s ON s.rule_id = r.id GROUP BY r.path`,
 		"follow its line":    `SELECT p.path FROM rules r JOIN rules p ON p.library_id = r.library_id AND p.replaced_by = r.path`,
 		"unstar it":          `DELETE FROM rule_stars USING rules r WHERE rule_stars.rule_id = r.id AND r.path = 'gone'`,
-		"lock its cart":      `SELECT id FROM accounts FOR UPDATE`,
-		"add to its cart":    `INSERT INTO cart_items (account_id, library_id, kind, path) SELECT a.id, l.id, 'rule', 'techs/go/x' FROM accounts a, libraries l`,
-		"read its cart":      `SELECT c.path, l.name FROM cart_items c JOIN libraries l ON l.id = c.library_id`,
-		"confirm an item":    `UPDATE cart_items SET unvetted_confirmed_at = now()`,
-		"remove an item":     `DELETE FROM cart_items WHERE path = 'gone'`,
 		"sign it out":        `DELETE FROM sessions`,
 		"delete the account": `DELETE FROM accounts`,
 	} {
@@ -81,8 +76,6 @@ func TestMigrationsLetTheWebRoleReadTheCatalogSignVisitorsInListStarAndCollectRu
 		"fake a check":           `UPDATE listings SET checked_at = now()`,
 		"backdate a star":        `UPDATE rule_stars SET created_at = now() - interval '1 year'`,
 		"move a star":            `UPDATE rule_stars SET rule_id = rule_id + 1`,
-		"move a cart item":       `UPDATE cart_items SET path = 'techs/go/y'`,
-		"backdate a cart item":   `UPDATE cart_items SET added_at = now() - interval '1 year'`,
 		"empty the accounts":     `TRUNCATE accounts CASCADE`,
 		"change the schema":      `CREATE TABLE intruder (id integer)`,
 		"read skeleton messages": `SELECT count(*) FROM hello_messages`,
@@ -143,7 +136,6 @@ func TestMigrationsLetTheWorkerRoleWriteTheCatalogAndNothingElse(t *testing.T) {
 		"read the stars":         `SELECT count(*) FROM rule_stars`,
 		"star a rule":            `INSERT INTO rule_stars (account_id, rule_id) VALUES (1, 1)`,
 		"unstar a rule":          `DELETE FROM rule_stars`,
-		"read the carts":         `SELECT count(*) FROM cart_items`,
 	} {
 		_, err := conn.Exec(ctx, statement)
 		var pgErr *pgconn.PgError
@@ -227,7 +219,6 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table rules UPDATE",
 		},
 		postgrestest.AccountsWriterRole: {
-			"column cart_items.unvetted_confirmed_at UPDATE",
 			"column listings.failure UPDATE",
 			"column listings.requested_at UPDATE",
 			"schema public USAGE",
@@ -235,9 +226,6 @@ func TestMigrationsGrantTheGroupRolesAndNotTheLogins(t *testing.T) {
 			"table accounts INSERT",
 			"table accounts SELECT",
 			"table accounts UPDATE",
-			"table cart_items DELETE",
-			"table cart_items INSERT",
-			"table cart_items SELECT",
 			"table listing_requests DELETE",
 			"table listing_requests INSERT",
 			"table listing_requests SELECT",

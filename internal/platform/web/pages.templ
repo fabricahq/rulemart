@@ -85,9 +85,6 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 					}
 				</div>
 				<div class="flex flex-wrap items-center gap-2.5 max-narrow:col-span-full">
-					if lib.cart.shown {
-						@cartButton(lib.cart)
-					}
 					@smallButton(lib.githubURL) {
 						@githubMark("size-[15px] flex-none")
 						View on GitHub
@@ -125,7 +122,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		@rowList() {
 			for _, g := range groups {
 				@rowItem() {
-					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto]", templ.KV("grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]", !g.cart.shown), templ.KV("grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto_auto]", g.cart.shown) }>
+					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
 						<div class="flex min-w-0 items-center gap-3">
 							@groupTile(g.label, g.icon, tileMD)
 							<div class="min-w-0">
@@ -154,12 +151,6 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 							<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
 						</div>
 						<span class="text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">{ plural(len(g.rules), "rule", "rules") } ›</span>
-						if g.cart.shown {
-							// As wide as In cart, so every row's count lines up whichever its control reads.
-							<div class="relative z-10 flex justify-end narrow:min-w-[5.25rem] max-narrow:col-span-full max-narrow:row-start-3 max-narrow:justify-start max-narrow:pl-10">
-								@cartButton(g.cart)
-							</div>
-						}
 					</div>
 				}
 			}
@@ -180,9 +171,6 @@ templ allRules(contents libraryContents) {
 					@notCanonical(flagSM)
 				}
 			</h2>
-			if g.cart.shown {
-				@cartButton(g.cart)
-			}
 		</div>
 		@ruleRows() {
 			for _, r := range g.rules {
@@ -288,9 +276,6 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 						</div>
 					}
 				</div>
-				if r.cart.shown {
-					@cartButton(r.cart)
-				}
 			</div>
 			if r.retired == nil {
 				@tabs([]tab{

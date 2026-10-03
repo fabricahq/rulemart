@@ -17,15 +17,6 @@ type Account struct {
 	SignedInAt   pgtype.Timestamptz
 }
 
-type CartItem struct {
-	AccountID           int64
-	LibraryID           int64
-	Kind                string
-	Path                string
-	UnvettedConfirmedAt pgtype.Timestamptz
-	AddedAt             pgtype.Timestamptz
-}
-
 type HelloMessage struct {
 	ID         int64
 	MessageID  string

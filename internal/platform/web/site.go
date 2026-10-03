@@ -2,9 +2,8 @@
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
-// a library; starring rules; and collecting rules in a cart and checking it out. It reads the catalog from its page
-// reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
-// from catalog/app.Stars, and carts from catalog/app.Cart.
+// a library; and starring rules. It reads the catalog from its page reads, which app.Pages implements, accounts from
+// accounts/app.Sessions, listings from catalog/app.Listings, and stars from catalog/app.Stars.
 package web
 
 import (
@@ -62,8 +61,6 @@ type Options struct {
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
-	// Cart keeps signed-in visitors' carts. Nil, or without a way to sign in, leaves carts out.
-	Cart Cart
 	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
 	// beacon with, and the content security policy allows. Empty leaves analytics out: no page loads another site's
 	// script. New refuses one that can't be a token.
@@ -171,7 +168,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"),
-			copyScript:  assets.url("copy.js"), toastScript: assets.url("toast.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -240,15 +237,6 @@ func (s *server) handler() http.Handler {
 			// Reserved as signInSections lists, so an owner named stars would have their page under /o/.
 			handle("POST "+starsHref, s.starRule)
 			handle("POST "+unstarHref, s.unstarRule)
-		}
-		if s.Cart != nil {
-			handle("GET "+cartHref, s.cartPage)
-			handle("POST "+cartHref, s.addToCart)
-			handle("POST "+removeFromCartHref, s.removeFromCart)
-			handle("GET "+emptyCartHref, s.emptyCartPage)
-			handle("POST "+emptyCartHref, s.emptyCart)
-			handle("GET "+confirmCartHref, s.confirmCartPage)
-			handle("GET "+checkoutHref, s.checkoutPage)
 		}
 	}
 	// An owner's page has one segment, like the site's own pages, which come first, so an owner whose login is one
@@ -429,9 +417,6 @@ func withQuery(target string, r *http.Request) string {
 // starting at the release the until parameter names, if any. With releases to compare in the from and to
 // parameters, the releases tab compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
 	switch tab := libraryTab(query.Get("tab")); {
@@ -444,15 +429,11 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		if !s.found(w, r, page.Library, "", err) {
 			return
 		}
-		view, err := s.libraryView(r, page.Library)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
+		view := newLibraryView(page.Library)
 		if tab != rulesTab {
 			tab = groupsTab
 		}
-		contents := s.withGroupCarts(r, &view, newLibraryContents(view, page, s.assets.iconURL))
+		contents := newLibraryContents(view, page, s.assets.iconURL)
 		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab))
 	}
 }
@@ -477,11 +458,7 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, page.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(page.Library)
 	if release != 0 && page.Newer == 0 {
 		w.Header().Set("Cache-Control", pageCache)
 		http.Redirect(w, r, releasesHref(view), http.StatusFound)
@@ -497,11 +474,7 @@ func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner,
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, page.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(page.Library)
 	s.render(w, r, http.StatusNotFound, releasesNotFoundPage(s.chrome, view, newReleasesView(view, page),
 		"This library has no such release to show or compare."))
 }
@@ -524,11 +497,7 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 	if !s.found(w, r, comparison.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, comparison.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(comparison.Library)
 	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
@@ -575,9 +544,6 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
 	if tab != versionsTab {
 		tab = contentTab
 	}
@@ -585,12 +551,6 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.fail(w, r, err)
 		return
-	}
-	item := domain.CartItem{Owner: page.Library.Owner, Name: page.Library.Name, Kind: domain.CartRule, Path: page.Rule.Path}
-	view.cart = s.newCartControl(r, page.Library.Vetted, view.retired != nil, item, "Add to cart", "the rule "+view.title)
-	view.library.cartNotice = view.cart.notice
-	if view.cart.prompt {
-		view.library.cartOffer = &view.cart
 	}
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
 }
@@ -629,38 +589,6 @@ func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error
 		return ruleView{}, err
 	}
 	return view, nil
-}
-
-// libraryView describes lib for the page r asks for, with the cart's control that adds the whole library.
-func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
-	view := newLibraryView(lib)
-	whole := domain.CartItem{Owner: lib.Owner, Name: lib.Name, Kind: domain.CartLibrary}
-	view.cart = s.newCartControl(r, lib.Vetted, false, whole, "Add library to cart", "every group of "+lib.FullName())
-	view.cartNotice = view.cart.notice
-	if view.cart.prompt {
-		view.cartOffer = &view.cart
-	}
-	return view, nil
-}
-
-// withGroupCarts gives each group of contents, a library's groups on the page r asks for, the cart's control that
-// adds it, and lib the notice one gives, if any.
-func (s *server) withGroupCarts(r *http.Request, lib *libraryView, contents libraryContents) libraryContents {
-	for _, groups := range [][]groupView{contents.techs, contents.practices} {
-		for i, g := range groups {
-			item := domain.CartItem{Owner: lib.owner, Name: lib.name, Kind: domain.CartGroup, Path: g.label.id}
-			name := g.label.id
-			if g.label.canonical {
-				name = g.label.name
-			}
-			groups[i].cart = s.newCartControl(r, lib.vetted, false, item, "Add", "the group "+name)
-			lib.cartNotice = cmp.Or(lib.cartNotice, groups[i].cart.notice)
-			if groups[i].cart.prompt {
-				lib.cartOffer = &groups[i].cart
-			}
-		}
-	}
-	return contents
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on

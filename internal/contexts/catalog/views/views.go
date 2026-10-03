@@ -1,7 +1,7 @@
 // Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
 // groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
 // between two of them, the groups across libraries, lists of rules across libraries, a group's or a search's, the sitemap,
-// and an account's listings, starred rules, and cart. They're plain values, read from one state of the catalog,
+// and an account's listings and starred rules. They're plain values, read from one state of the catalog,
 // with nothing of how it's stored.
 package views
 
@@ -516,86 +516,6 @@ type StarredRule struct {
 	// StarredAt is when the account last starred Rule or a rule it replaced.
 	StarredAt time.Time
 }
-
-// Cart is an account's cart: what it holds from each library, and what checking it out imports.
-type Cart struct {
-	// Libraries are in order of their owners and names, without regard to case.
-	Libraries []CartLibrary
-	// Checkout imports every item whose State is CartItemReady or CartItemCovered.
-	Checkout domain.Checkout
-}
-
-// Items counts the cart's items.
-func (c Cart) Items() int {
-	n := 0
-	for _, lib := range c.Libraries {
-		n += len(lib.Items)
-	}
-	return n
-}
-
-// CartLibrary is a library in an account's cart, with the cart's items from it.
-type CartLibrary struct {
-	Library LibraryRef
-	// Vetted is false for a library the release doesn't vet, and Listed true for one of those that a listing names,
-	// whose pages show it as unvetted. A library neither vetted nor listed has no pages.
-	Vetted, Listed bool
-	// LatestRelease is the number of the library's latest release, which checkout pins it to, and LatestCommit the
-	// commit its tag pointed to when Rulemart ingested it.
-	LatestRelease int
-	LatestCommit  string
-	// Items are the whole library first, then its groups, then its rules, each in ID order.
-	Items []CartItem
-}
-
-// CartItem is an item of a cart, as the cart shows it now.
-type CartItem struct {
-	Item domain.CartItem
-	// Group is a rule's group's ID, or a group's own; it's empty for a whole library, and for a rule the library no
-	// longer has. CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
-	Group          string
-	CanonicalGroup *CanonicalGroup
-	// Title is a rule's newest version's title, and empty for a group, a whole library, or a rule whose title the
-	// catalog doesn't have.
-	Title string
-	// Rules counts the current rules of a group or a whole library.
-	Rules int
-	// RetiredIn is the number of the library release that retired a rule, or 0 while it's current.
-	RetiredIn int
-	// Confirmed reports that the visitor confirmed adding the item from a library Rulemart didn't vet.
-	Confirmed bool
-	State     CartItemState
-	// CoveredBy is the item of the same library that imports this one already, when State is CartItemCovered.
-	CoveredBy domain.CartItem
-	AddedAt   time.Time
-}
-
-// HeldCartItem is an item an account's cart holds, as pages that offer to add it read it.
-type HeldCartItem struct {
-	Item domain.CartItem
-	// Confirmed reports that the visitor confirmed adding the item from a library Rulemart didn't vet.
-	Confirmed bool
-}
-
-// CartItemState says whether checkout imports a cart's item, or why it leaves it out.
-type CartItemState string
-
-const (
-	// CartItemReady is an item checkout imports.
-	CartItemReady CartItemState = "ready"
-	// CartItemCovered is an item another of its library's items imports already, such as a rule whose group the cart
-	// holds.
-	CartItemCovered CartItemState = "covered"
-	// CartItemRetired is a rule a library release retired.
-	CartItemRetired CartItemState = "retired"
-	// CartItemMissing is a rule the library no longer has, or a group with no current rules.
-	CartItemMissing CartItemState = "missing"
-	// CartItemUnconfirmed is an item of a library the release doesn't vet, which the visitor didn't confirm adding as
-	// unvetted, such as one added before the library lost its vetting.
-	CartItemUnconfirmed CartItemState = "unconfirmed"
-	// CartItemGone is an item of a library that's neither vetted nor listed, which has no pages.
-	CartItemGone CartItemState = "gone"
-)
 
 // Sitemap is what search engines may index: every vetted library, with its current rules, and the groups that hold
 // them.

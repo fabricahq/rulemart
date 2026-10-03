@@ -34,7 +34,7 @@ func TestEveryOneSegmentRouteIsReservedFromOwners(t *testing.T) {
 func everyRoute(t *testing.T) map[string]string {
 	t.Helper()
 	s, err := newServer(nil, Options{
-		Accounts: struct{ Accounts }{}, Listings: struct{ Listings }{}, Stars: struct{ Stars }{}, Cart: struct{ Cart }{},
+		Accounts: struct{ Accounts }{}, Listings: struct{ Listings }{}, Stars: struct{ Stars }{},
 	})
 	if err != nil {
 		t.Fatal(err)
