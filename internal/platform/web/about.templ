@@ -153,9 +153,11 @@ templ privacyPage(c chrome, analytics bool) {
 				<h2 id="analytics">Analytics</h2>
 				if analytics {
 					<p>
-						Rulemart counts page views with <a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web Analytics</a>,
-						which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends
-						it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded.
+						Rulemart counts page views on every page, signed in or not, with
+						<a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web Analytics</a>, which sets no cookie and
+						doesn't record a page address's query, such as a search's words. Your browser sends it each page's address,
+						the page you came from, your browser's user agent, and how quickly the page loaded. No address names you or
+						holds what's in your cart, so Cloudflare can't tell who you are or what you chose.
 					</p>
 				} else {
 					<p>Rulemart uses no analytics service.</p>

@@ -71,14 +71,24 @@ func octocatsCatalog() catalog {
 
 func newDashboardSite(t *testing.T, snapshot accounts.Snapshot, c catalog) dashboardSite {
 	t.Helper()
+	return newDashboardSiteWith(t, snapshot, c, nil)
+}
+
+// newDashboardSiteWith is newDashboardSite with its options adjusted by adjust, if not nil.
+func newDashboardSiteWith(t *testing.T, snapshot accounts.Snapshot, c catalog, adjust func(*web.Options)) dashboardSite {
+	t.Helper()
 	site := dashboardSite{
 		accounts: newFakeAccounts(), gitHub: newFakeGitHubAccounts(snapshot), logs: &bytes.Buffer{},
 		listings: &fakeListings{byAccount: map[int64][]views.AccountListing{}},
 	}
-	handler, err := web.New(c, web.Options{
+	options := web.Options{
 		Log: slog.New(slog.NewJSONHandler(site.logs, nil)), Accounts: site.accounts, GitHub: &fakeGitHub{identity: octocat},
 		Listings: site.listings, Stars: newFakeStars(), GitHubAccounts: site.gitHub,
-	})
+	}
+	if adjust != nil {
+		adjust(&options)
+	}
+	handler, err := web.New(c, options)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -267,7 +267,7 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if analytics {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<p>Rulemart counts page views with <a href=\"https://www.cloudflare.com/web-analytics/\">Cloudflare Web Analytics</a>, which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<p>Rulemart counts page views on every page, signed in or not, with <a href=\"https://www.cloudflare.com/web-analytics/\">Cloudflare Web Analytics</a>, which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded. No address names you or holds what's in your cart, so Cloudflare can't tell who you are or what you chose.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -299,7 +299,7 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 			var templ_7745c5c3_Var18 templ.SafeURL
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 177, Col: 85}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 179, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {

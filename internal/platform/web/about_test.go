@@ -92,7 +92,7 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 	if strings.Contains(visibleText(t, without.Body.String()), "Cloudflare Web Analytics") {
 		t.Error("without a token, the page names Cloudflare Web Analytics")
 	}
-	assertShows(t, with.Body.String(), "Cloudflare Web Analytics", "sets no cookie")
+	assertShows(t, with.Body.String(), "Cloudflare Web Analytics", "sets no cookie", "on every page, signed in or not")
 }
 
 // httptestResponse is a response's status and body, for tests that check two at once.
