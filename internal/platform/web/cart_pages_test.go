@@ -2,11 +2,13 @@ package web_test
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
 	"golang.org/x/net/html"
 
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
@@ -30,8 +32,9 @@ func loadsScript(doc *html.Node, file string) bool {
 	return find(doc, func(n *html.Node) bool { return n.Data == "script" && strings.HasSuffix(attribute(n, "src"), "/"+file) }) != nil
 }
 
-// Every page's header links the cart for everyone, signed in or not, and loads the script that paints its count and
-// keeps the cart, and the one that shows its toasts, but not the cart page's own script.
+// Every page's header links the cart for everyone, signed in or not, telling the script that paints its count and
+// keeps the cart how much a cart holds, and loads that script and the one that shows its toasts, but not the cart
+// page's own script.
 func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
@@ -40,7 +43,11 @@ func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 
 		link := find(doc, withAttribute("data-cart-link"))
 		if link == nil || attribute(link, "href") != "/cart" || find(link, withAttribute("data-cart-count")) == nil {
-			t.Errorf("%s: no link to the cart with its count", path)
+			t.Fatalf("%s: no link to the cart with its count", path)
+		}
+		if attribute(link, "data-cart-max-items") != strconv.Itoa(domain.MaxCartItems) ||
+			attribute(link, "data-cart-max-key-length") != strconv.Itoa(domain.MaxCartKeyLength) {
+			t.Errorf("%s: the cart link doesn't say how much a cart holds", path)
 		}
 		for _, script := range []string{"cart.js", "toast.js"} {
 			if !loadsScript(doc, script) {
@@ -189,6 +196,9 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 	doc := parsePage(t, signedOut)
 	if !loadsScript(doc, "cart-page.js") {
 		t.Error("the page doesn't load the script that fills it")
+	}
+	if page := find(doc, withAttribute("data-cart-page")); page == nil || attribute(page, "data-cart-checkout") != "/cart/checkout.json" {
+		t.Error("the page doesn't name where it checks out")
 	}
 	for _, part := range []string{"data-cart-page", "data-cart-empty", "data-cart-full", "data-cart-libraries", "data-cart-preview", "data-cart-repo"} {
 		if find(doc, withAttribute(part)) == nil {

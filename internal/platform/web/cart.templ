@@ -24,7 +24,8 @@ const (
 )
 
 // cartLink is the header's link to the cart, for everyone: a cart, with the count of items the visitor's cart holds,
-// which cart.js paints, in a badge. Marked current on the cart's page.
+// which cart.js paints, in a badge. Marked current on the cart's page. It tells cart.js how many items a cart holds,
+// and how long a key may be, as checkout bounds them.
 templ cartLink(current bool) {
 	<a
 		class={ "relative grid size-9 shrink-0 place-items-center rounded-full text-ink no-underline hover:bg-surface max-wide:size-11", templ.KV("bg-surface", current) }
@@ -32,6 +33,8 @@ templ cartLink(current bool) {
 		aria-label="Cart"
 		title="Cart"
 		data-cart-link
+		data-cart-max-items={ strconv.Itoa(domain.MaxCartItems) }
+		data-cart-max-key-length={ strconv.Itoa(domain.MaxCartKeyLength) }
 		if current {
 			aria-current="page"
 		}
@@ -244,16 +247,16 @@ templ checkIcon(class string) {
 }
 
 // cartPage is the cart's page, as the prototype's: a shell that cart-page.js fills from the cart the browser keeps,
-// which it checks out at checkoutHref. An empty cart shows the empty state; a cart with items, the three numbered
-// cards: what you're adding, where it goes, and the finished prompt and commands. Without JavaScript, the page says the
-// cart needs it. signIn is where signing in starts, empty when sign-in isn't available; a signed-in visitor has no
-// projects Rulemart knows of yet.
+// which it checks out at checkoutHref, which the shell names. An empty cart shows the empty state; a cart with items,
+// the three numbered cards: what you're adding, where it goes, and the finished prompt and commands. Without
+// JavaScript, the page says the cart needs it. signIn is where signing in starts, empty when sign-in isn't available; a
+// signed-in visitor has no projects Rulemart knows of yet.
 templ cartPage(c chrome, signIn string, withGitHub, signedIn bool) {
 	@layout(c, head{title: "Cart · Rulemart", description: "The rules you picked on Rulemart, and the prompt and commands that add them to your project.", noindex: true, section: cartHref, cartPage: true}) {
 		<noscript>
 			@cartEmptyFrame("Your cart needs JavaScript", "Your cart lives in your browser, which keeps the rules you add until you check out. Turn on JavaScript to add rules and check out.")
 		</noscript>
-		<div data-needs-script data-cart-page>
+		<div data-needs-script data-cart-page data-cart-checkout={ checkoutHref }>
 			<div data-cart-empty hidden>
 				@cartEmptyFrame("Your cart is empty", "Browse rules and add the ones you want. When you check out, you get one prompt for your agent and the exact commands to run.")
 			</div>

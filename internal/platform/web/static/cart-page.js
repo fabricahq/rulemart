@@ -12,7 +12,6 @@
   /** Return the plural of word for n, with n: 1 rule, 2 rules. */
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-  const CHECKOUT = '/cart/checkout.json';
   const SVG = 'http://www.w3.org/2000/svg';
 
   /** Return a new element of tag, with className, the attributes attrs (true for one with no value, skipped when false
@@ -188,7 +187,7 @@
       if (!cart.length) return;
       const id = ++asked;
       try {
-        const response = await fetch(CHECKOUT, {
+        const response = await fetch(root.dataset.cartCheckout, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cart, fork, full, confirmed, repo: repository }),
         });

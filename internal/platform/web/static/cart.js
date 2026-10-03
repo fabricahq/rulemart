@@ -9,8 +9,11 @@
  * stylesheet hides every control marked data-needs-script. */
 (() => {
   const STORE = 'rulemart-cart';
-  const MAX_ITEMS = 100;
-  const MAX_KEY = 400;
+  // How many items a cart holds, and how long a key may be, as the header's cart link says the server bounds them.
+  const link = document.querySelector('[data-cart-link]');
+  if (!link) return;
+  const MAX_ITEMS = Number(link.dataset.cartMaxItems);
+  const MAX_KEY = Number(link.dataset.cartMaxKeyLength);
   // A key as the server's ParseCartKey reads it: a library's owner and name, then a group's ID, two parts, or a
   // rule's, three or more, each part as Code Rules spells IDs.
   const NAME = '[A-Za-z0-9_.-]+';
