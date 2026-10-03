@@ -128,8 +128,8 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
 	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{Owner: "a", Name: "b", Vetted: true}})
 
-	if len(checkout.Sources) != 0 || checkout.Commands() != "" || checkout.Prompt() != "" {
-		t.Errorf("got %d sources, commands %q, prompt %q, want none", len(checkout.Sources), checkout.Commands(), checkout.Prompt())
+	if len(checkout.sources) != 0 || checkout.Commands() != "" || checkout.Prompt() != "" {
+		t.Errorf("got %d sources, commands %q, prompt %q, want none", len(checkout.sources), checkout.Commands(), checkout.Prompt())
 	}
 }
 
@@ -152,7 +152,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 		library("solo", "a"),
 	})
 	var names []string
-	for _, source := range checkout.Sources {
+	for _, source := range checkout.sources {
 		names = append(names, source.FullName()+" "+source.Alias)
 	}
 	want := []string{
