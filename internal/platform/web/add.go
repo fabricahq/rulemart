@@ -54,6 +54,16 @@ func (s *server) addPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPrivate(w, r, http.StatusOK, addPage(s.chrome, view))
 }
 
+// legacyList redirects the listing form's old address to the add-a-library page, its repository parameter to the
+// page's url.
+func (s *server) legacyList(w http.ResponseWriter, r *http.Request) {
+	target := listHref
+	if r.URL.Query().Has("repository") {
+		target += "?" + url.Values{"url": {r.URL.Query().Get("repository")}}.Encode()
+	}
+	redirect(w, r, target)
+}
+
 // addView returns what the add-a-library page shows of the visitor's repositories, or answers the request with a
 // failure and returns false.
 func (s *server) addView(w http.ResponseWriter, r *http.Request, account accounts.Account) (addView, bool) {

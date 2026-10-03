@@ -350,6 +350,11 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// legacySignIn redirects the sign-in page's old address to its new one, keeping the query.
+func (s *server) legacySignIn(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(signInHref, r))
+}
+
 // signInAgainNotice is what the sign-in page says to a signed-in visitor who signs in again for a GitHub token.
 const signInAgainNotice = "Sign in again so Rulemart can read your repositories on GitHub."
 
@@ -372,36 +377,6 @@ func signInPurpose(back string) string {
 		return "Sign in to see your starred rules."
 	}
 	return cmp.Or(signedInPages[u.Path], signInToDashboard)
-}
-
-// legacySignIn redirects the sign-in page's old address to its new one, keeping the query.
-func (s *server) legacySignIn(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, withQuery(signInHref, r))
-}
-
-// legacyAccount redirects the account page's old address to the dashboard, whose Account section took its place.
-func (s *server) legacyAccount(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, dashboardHref)
-}
-
-// legacyList redirects the listing form's old address to the add-a-library page, its repository parameter to the
-// page's url.
-func (s *server) legacyList(w http.ResponseWriter, r *http.Request) {
-	target := listHref
-	if r.URL.Query().Has("repository") {
-		target += "?" + url.Values{"url": {r.URL.Query().Get("repository")}}.Encode()
-	}
-	redirect(w, r, target)
-}
-
-// legacyListings redirects the listings page's old address to its new one.
-func (s *server) legacyListings(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, listingsHref)
-}
-
-// legacyStarred redirects Starred rules' old address to the dashboard's tab.
-func (s *server) legacyStarred(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, starredHref)
 }
 
 // renderSignIn shows the sign-in page with status and notice, which says why the last attempt failed, if it did. It

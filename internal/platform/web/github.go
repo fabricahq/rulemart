@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
@@ -39,10 +41,6 @@ type GitHubAccounts interface {
 }
 
 const (
-	// privateHref is the page that offers to include the visitor's private projects, by installing the GitHub App, and
-	// removePrivateHref forgets the visitor's installations, with POST.
-	privateHref       = dashboardHref + "/private"
-	removePrivateHref = dashboardHref + "/github/remove"
 	// installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and
 	// setup_action: the app's setup URL.
 	installedHref = "/me/github/installed"
@@ -55,55 +53,79 @@ const (
 // even naming every repository it changed, are far smaller, and a Lambda function's request holds at most 6 MB.
 const maxWebhookBytes = 4 << 20
 
-// privateAvailable reports whether visitors can let Rulemart read their private repositories.
-func (s *server) privateAvailable() bool {
-	return s.GitHubAccounts != nil && s.GitHubAccounts.PrivateRepositories()
+// gitHubView is what a page that shows the visitor's GitHub account knows of it.
+type gitHubView struct {
+	// available is false when Rulemart can't read visitors' GitHub accounts, so pages leave them out.
+	available bool
+	// snapshot is what Rulemart last read, and readAt says when, or is empty when it never read it.
+	snapshot accounts.Snapshot
+	readAt   string
+	// failed is true when the latest read failed.
+	failed bool
+	// signInAgain is the sign-in page for signing in again, when the session keeps no token GitHub takes, or empty.
+	signInAgain string
+	// refresh is where the Refresh button posts.
+	refresh string
+	// private is true when the visitor installed the GitHub App, and privateAvailable when there's an app to install.
+	private, privateAvailable bool
+	installations             []accounts.Installation
 }
 
-// privatePage shows the signed-in visitor what installing the GitHub App lets Rulemart read, with the way to install
-// it, or once they have, the way to stop, or sends anyone else to sign in first.
-func (s *server) privatePage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r, privateHref)
-	if !ok {
-		return
+// gitHubView returns what the page back knows of the signed-in account's GitHub account, reading it when Rulemart has
+// none. It answers the request itself with a failure, and returns false, when a read fails for a reason a page
+// can't show.
+func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account accounts.Account, back string) (gitHubView, bool) {
+	if s.GitHubAccounts == nil {
+		return gitHubView{}, true
+	}
+	view := gitHubView{available: true, privateAvailable: s.privateAvailable(), refresh: refreshHref + returnQuery(back)}
+	snapshot, err := s.GitHubAccounts.Snapshot(r.Context(), account, visitorOf(r.Context()).token)
+	switch {
+	case errors.Is(err, accountsapp.ErrNoGitHubToken):
+		view.signInAgain = s.absolute(signInAgainHref(back))
+	case errors.Is(err, accountsapp.ErrGitHubRead):
+		s.logFailure(r, err)
+	case err != nil:
+		s.fail(w, r, err)
+		return gitHubView{}, false
+	}
+	view.snapshot, view.failed = snapshot, snapshot.ReadFailed
+	if !snapshot.ReadAt.IsZero() {
+		view.readAt = moment(snapshot.ReadAt, time.Now())
 	}
 	installations, err := s.GitHubAccounts.Installations(r.Context(), account.ID)
 	if err != nil {
 		s.fail(w, r, err)
-		return
+		return gitHubView{}, false
 	}
-	view := privateView{installURL: s.GitHubAccounts.InstallURL(), installed: len(installations) > 0}
-	for _, in := range installations {
-		view.settings = append(view.settings, installationSettings{account: in.Account, href: in.SettingsURL(account.Login)})
-	}
-	s.renderPrivate(w, r, http.StatusOK, privatePage(s.chrome, view))
+	view.installations, view.private = installations, len(installations) > 0
+	return view, true
 }
 
-// privateView is what the page about private projects shows.
-type privateView struct {
-	installURL string
-	installed  bool
-	// settings are where on GitHub each installation's repositories are chosen.
-	settings []installationSettings
-}
-
-// installationSettings is an installation's settings page on GitHub, for the account it's on.
-type installationSettings struct{ account, href string }
-
-// removePrivate stops reading the signed-in visitor's private repositories, and returns to the page about them, which
-// says how to uninstall the app on GitHub too.
-func (s *server) removePrivate(w http.ResponseWriter, r *http.Request) {
+// refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages
+// that show it, the dashboard by default, which says how the read went.
+func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
+	back := returnPath(r.URL.Query().Get("return"))
+	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref {
+		back = dashboardHref
+	}
 	v := visitorOf(r.Context())
 	if v.account == nil {
-		seeOther(w, r, s.absolute(signInPageHref(privateHref)))
+		seeOther(w, r, s.absolute(signInPageHref(back)))
 		return
 	}
-	if err := s.GitHubAccounts.ForgetInstallations(r.Context(), v.account.ID); err != nil {
+	_, err := s.GitHubAccounts.Refresh(r.Context(), *v.account, v.token)
+	switch {
+	case errors.Is(err, accountsapp.ErrGitHubRead):
+		s.logFailure(r, err)
+	case errors.Is(err, accountsapp.ErrNoGitHubToken):
+		seeOther(w, r, s.absolute(signInAgainHref(back)))
+		return
+	case err != nil:
 		s.fail(w, r, err)
 		return
 	}
-	setNotice(w, "private-removed")
-	seeOther(w, r, privateHref)
+	seeOther(w, r, back)
 }
 
 // installed records the installation of the GitHub App GitHub returned the signed-in visitor with, and returns to the

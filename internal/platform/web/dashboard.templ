@@ -150,52 +150,6 @@ templ librariesTab(d dashboardView) {
 	@accountSection(d.account, visitorOf(ctx).listings, d.starsAvailable)
 }
 
-// gitHubStatus says what Rulemart can see of the visitor's GitHub account, for the page whose sections follow: the
-// prototype's note on private projects, then when Rulemart last read it, with Refresh, why the last read failed, or
-// that the visitor must sign in again for Rulemart to read it. page names the page: dashboard or add.
-templ gitHubStatus(g gitHubView, page string) {
-	if g.available {
-		if page == "dashboard" && g.private {
-			<div class={ noteStyle }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
-		} else if page == "dashboard" {
-			<div class={ noteStyle }>
-				<span>Showing public repos only.</span>
-				if g.privateAvailable {
-					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>
-				}
-			</div>
-		}
-		<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint" data-github-status>
-			switch {
-				case g.signInAgain != "":
-					<span class="text-ink">Sign in again so Rulemart can read your repositories on GitHub.</span>
-					<a class={ linkButtonStyle } href={ templ.SafeURL(g.signInAgain) }>Sign in again</a>
-				case g.failed:
-					<span class="text-ink" role="status">
-						Rulemart couldn't read your repositories on GitHub just now.
-						if g.readAt != "" {
-							Showing what it read { g.readAt }.
-						}
-					</span>
-					@refreshButton(g.refresh, "Try again")
-				case g.readAt != "":
-					<span>Read from GitHub { g.readAt }.</span>
-					@refreshButton(g.refresh, "Refresh")
-			}
-			if g.snapshot.Truncated {
-				<span class="basis-full">Rulemart reads your 200 most recently pushed repositories, and yours and your organizations' hold more.</span>
-			}
-		</div>
-	}
-}
-
-// refreshButton reads the visitor's GitHub account again, labeled label.
-templ refreshButton(action, label string) {
-	<form method="post" action={ templ.SafeURL(action) }>
-		<button class={ linkButtonStyle } type="submit">{ label }</button>
-	</form>
-}
-
 // starredTab is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty
 // state, then any star that counts toward no rule, under No longer counted, each with Unstar.
 templ starredTab(d dashboardView) {

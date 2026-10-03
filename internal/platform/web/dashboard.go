@@ -4,13 +4,11 @@
 package web
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
@@ -66,79 +64,14 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	s.renderPrivate(w, r, http.StatusOK, dashboardPage(s.chrome, view))
 }
 
-// refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages
-// that show it, the dashboard by default, which says how the read went.
-func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
-	back := returnPath(r.URL.Query().Get("return"))
-	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref {
-		back = dashboardHref
-	}
-	v := visitorOf(r.Context())
-	if v.account == nil {
-		seeOther(w, r, s.absolute(signInPageHref(back)))
-		return
-	}
-	_, err := s.GitHubAccounts.Refresh(r.Context(), *v.account, v.token)
-	switch {
-	case errors.Is(err, accountsapp.ErrGitHubRead):
-		s.logFailure(r, err)
-	case errors.Is(err, accountsapp.ErrNoGitHubToken):
-		seeOther(w, r, s.absolute(signInAgainHref(back)))
-		return
-	case err != nil:
-		s.fail(w, r, err)
-		return
-	}
-	seeOther(w, r, back)
+// legacyAccount redirects the account page's old address to the dashboard, whose Account section took its place.
+func (s *server) legacyAccount(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, dashboardHref)
 }
 
-// gitHubView is what a page that shows the visitor's GitHub account knows of it.
-type gitHubView struct {
-	// available is false when Rulemart can't read visitors' GitHub accounts, so pages leave them out.
-	available bool
-	// snapshot is what Rulemart last read, and readAt says when, or is empty when it never read it.
-	snapshot accounts.Snapshot
-	readAt   string
-	// failed is true when the latest read failed.
-	failed bool
-	// signInAgain is the sign-in page for signing in again, when the session keeps no token GitHub takes, or empty.
-	signInAgain string
-	// refresh is where the Refresh button posts.
-	refresh string
-	// private is true when the visitor installed the GitHub App, and privateAvailable when there's an app to install.
-	private, privateAvailable bool
-	installations             []accounts.Installation
-}
-
-// gitHubView returns what the page back knows of the signed-in account's GitHub account, reading it when Rulemart has
-// none. It answers the request itself with a failure, and returns false, when a read fails for a reason a page
-// can't show.
-func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account accounts.Account, back string) (gitHubView, bool) {
-	if s.GitHubAccounts == nil {
-		return gitHubView{}, true
-	}
-	view := gitHubView{available: true, privateAvailable: s.privateAvailable(), refresh: refreshHref + returnQuery(back)}
-	snapshot, err := s.GitHubAccounts.Snapshot(r.Context(), account, visitorOf(r.Context()).token)
-	switch {
-	case errors.Is(err, accountsapp.ErrNoGitHubToken):
-		view.signInAgain = s.absolute(signInAgainHref(back))
-	case errors.Is(err, accountsapp.ErrGitHubRead):
-		s.logFailure(r, err)
-	case err != nil:
-		s.fail(w, r, err)
-		return gitHubView{}, false
-	}
-	view.snapshot, view.failed = snapshot, snapshot.ReadFailed
-	if !snapshot.ReadAt.IsZero() {
-		view.readAt = moment(snapshot.ReadAt, time.Now())
-	}
-	installations, err := s.GitHubAccounts.Installations(r.Context(), account.ID)
-	if err != nil {
-		s.fail(w, r, err)
-		return gitHubView{}, false
-	}
-	view.installations, view.private = installations, len(installations) > 0
-	return view, true
+// legacyStarred redirects Starred rules' old address to the dashboard's tab.
+func (s *server) legacyStarred(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, starredHref)
 }
 
 // dashboardView is what the dashboard shows.

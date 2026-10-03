@@ -88,6 +88,11 @@ func (s *server) listingsPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPrivate(w, r, http.StatusOK, listingsPage(s.chrome, newListingsView(listings, time.Now())))
 }
 
+// legacyListings redirects the listings page's old address to its new one.
+func (s *server) legacyListings(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, listingsHref)
+}
+
 // removeListingPage asks the signed-in visitor to confirm removing their listing that the listing parameter names,
 // saying what removing it does, or sends anyone else to sign in first.
 func (s *server) removeListingPage(w http.ResponseWriter, r *http.Request) {
