@@ -65,7 +65,8 @@ func dashboardTabs(d dashboardView) []tab {
 // librariesTab is My libraries: the note on private projects, how fresh the read of GitHub is, the libraries the visitor
 // and their organizations publish, the libraries their projects use, and the Account section.
 templ librariesTab(d dashboardView) {
-	@gitHubStatus(d.gitHub, "dashboard")
+	@privateProjectsNote(d.gitHub)
+	@gitHubStatus(d.gitHub)
 	<section aria-labelledby="published">
 		<h2 id="published" class={ sectionHeadStyle, "mt-6" }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
 		if len(d.owned) == 0 {
@@ -148,6 +149,23 @@ templ librariesTab(d dashboardView) {
 		</section>
 	}
 	@accountSection(d.account, visitorOf(ctx).listings, d.starsAvailable)
+}
+
+// privateProjectsNote is the prototype's note on private projects: whether the dashboard includes the visitor's
+// private projects, with the way to include or manage them.
+templ privateProjectsNote(g gitHubView) {
+	if g.available {
+		if g.private {
+			<div class={ noteStyle }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
+		} else {
+			<div class={ noteStyle }>
+				<span>Showing public repos only.</span>
+				if g.privateAvailable {
+					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>
+				}
+			</div>
+		}
+	}
 }
 
 // starredTab is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty

@@ -2,21 +2,11 @@
 
 package web
 
-// gitHubStatus says what Rulemart can see of the visitor's GitHub account, for the page whose sections follow: the
-// prototype's note on private projects, then when Rulemart last read it, with Refresh, why the last read failed, or
-// that the visitor must sign in again for Rulemart to read it. page names the page: dashboard or add.
-templ gitHubStatus(g gitHubView, page string) {
+// gitHubStatus says how fresh Rulemart's read of the visitor's GitHub account is, for the page whose sections follow:
+// when Rulemart last read it, with Refresh, that the last read failed, or that the visitor must sign in again for
+// Rulemart to read it.
+templ gitHubStatus(g gitHubView) {
 	if g.available {
-		if page == "dashboard" && g.private {
-			<div class={ noteStyle }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
-		} else if page == "dashboard" {
-			<div class={ noteStyle }>
-				<span>Showing public repos only.</span>
-				if g.privateAvailable {
-					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>
-				}
-			</div>
-		}
 		<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint" data-github-status>
 			switch {
 				case g.signInAgain != "":
