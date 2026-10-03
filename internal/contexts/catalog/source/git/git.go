@@ -238,8 +238,9 @@ func (f files) Open(path string) (domain.File, error) {
 }
 
 // List returns the paths of the files in the directory dir, which ends with /, and in the directories inside it, in
-// path order, or none when the commit has no such directory.
-func (f files) List(dir string) ([]string, error) {
+// path order, or none when the commit has no such directory. When there are more than max, it returns the first max+1
+// it finds.
+func (f files) List(dir string, max int) ([]string, error) {
 	tree, err := f.trees.get(f.root)
 	if err != nil {
 		return nil, fmt.Errorf("load tree: %v", err)
@@ -260,23 +261,27 @@ func (f files) List(dir string) ([]string, error) {
 		}
 	}
 	var paths []string
-	if err := f.walk(tree, dir, &paths); err != nil {
+	if err := f.walk(tree, dir, max, &paths); err != nil {
 		return nil, err
 	}
 	slices.Sort(paths)
 	return paths, nil
 }
 
-// walk adds the path of every file in tree, whose path is prefix, and in the trees inside it, to paths.
-func (f files) walk(tree *object.Tree, prefix string, paths *[]string) error {
+// walk adds the path of every file in tree, whose path is prefix, and in the trees inside it, to paths, until paths
+// holds more than max.
+func (f files) walk(tree *object.Tree, prefix string, max int, paths *[]string) error {
 	for _, entry := range tree.Entries {
+		if len(*paths) > max {
+			return nil
+		}
 		switch {
 		case entry.Mode == filemode.Dir:
 			inner, err := f.trees.get(entry.Hash)
 			if err != nil {
 				return fmt.Errorf("load tree: %v", err)
 			}
-			if err := f.walk(inner, prefix+entry.Name+"/", paths); err != nil {
+			if err := f.walk(inner, prefix+entry.Name+"/", max, paths); err != nil {
 				return err
 			}
 		case entry.Mode.IsFile():

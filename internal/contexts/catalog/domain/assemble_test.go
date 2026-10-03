@@ -23,7 +23,7 @@ func (f files) Open(path string) (File, error) {
 	return memoryFile(content), nil
 }
 
-func (f files) List(dir string) ([]string, error) {
+func (f files) List(dir string, max int) ([]string, error) {
 	var paths []string
 	for path := range f {
 		if strings.HasPrefix(path, dir) {
@@ -31,7 +31,7 @@ func (f files) List(dir string) ([]string, error) {
 		}
 	}
 	slices.Sort(paths)
-	return paths, nil
+	return paths[:min(len(paths), max+1)], nil
 }
 
 type memoryFile string

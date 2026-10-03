@@ -2,6 +2,7 @@ package domain
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -280,5 +281,47 @@ func TestAssembleRefusesMoreAssetsThanTheLimit(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "more than 2 assets") {
 		t.Fatalf("got %v, want a refusal past 2 assets", err)
+	}
+}
+
+// fanOut is a release's files plus a directory that holds more files than any limit, as a Git tree whose directories
+// share one subtree does. Listing it returns as many as asked for, and one more, and records the most asked for.
+type fanOut struct {
+	files
+	dir   string
+	asked *int
+}
+
+func (f fanOut) List(dir string, max int) ([]string, error) {
+	if dir != f.dir {
+		return f.files.List(dir, max)
+	}
+	*f.asked = max
+	paths := make([]string, max+1)
+	for i := range paths {
+		paths[i] = fmt.Sprintf("%s%07d.txt", dir, i)
+	}
+	return paths, nil
+}
+
+// A rule's asset directory is listed only as far as the assets the limit leaves room for, after the ones other rules
+// listed, so a directory holding more files than memory does is refused rather than listed.
+func TestAssembleListsARulesAssetsOnlyAsFarAsTheLimitAllows(t *testing.T) {
+	release := first(t)
+	f := release.Files.(files)
+	f["practices/testing/assets/check-retry-backoff/a.txt"] = "a"
+	f["practices/testing/assets/check-retry-backoff/b.txt"] = "b"
+	var asked int
+	release.Files = fanOut{files: f, dir: "techs/go/assets/return-errors/", asked: &asked}
+	few := assetLimits
+	few.Assets = 5
+
+	_, err := Assemble(repo, []ReleaseSnapshot{release}, few, markup{})
+
+	if err == nil || !strings.Contains(err.Error(), "more than 5 assets") {
+		t.Fatalf("got %v, want a refusal past 5 assets", err)
+	}
+	if asked != 3 {
+		t.Errorf("listed the directory that fans out up to %d files, want 3, what's left of the limit", asked)
 	}
 }

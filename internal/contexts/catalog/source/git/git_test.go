@@ -3,9 +3,15 @@ package git_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+
+	gogit "github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/object"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
@@ -158,7 +164,7 @@ func TestListReturnsTheFilesInADirectory(t *testing.T) {
 		"techs/go/assets/missing/":   nil,
 		"techs/go/return-errors.md/": nil,
 	} {
-		got, err := files.List(dir)
+		got, err := files.List(dir, 3)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,4 +172,100 @@ func TestListReturnsTheFilesInADirectory(t *testing.T) {
 			t.Errorf("List(%q) = %q, want %q", dir, got, want)
 		}
 	}
+}
+
+// A tree whose entries all point at one shared subtree lists a number of paths exponential in its depth from a few
+// objects, so listing must stop once it's past the most the caller takes, rather than walk them all.
+func TestListStopsPastMaxInATreeThatFansOut(t *testing.T) {
+	const width, depth, max = 1_000, 3, 10
+	lib := gittest.NewLibrary(t)
+	repo, err := gogit.PlainOpen(lib.URL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each level holds width entries of the level below: files at the bottom, then directories, so the tree under
+	// fan/ holds width^depth files.
+	hash := storeObject(t, repo, plumbing.BlobObject, []byte("x"))
+	mode := filemode.Regular
+	for range depth {
+		hash = storeTree(t, repo, fanOut(width, mode, hash))
+		mode = filemode.Dir
+	}
+	root := storeTree(t, repo, []object.TreeEntry{{Name: "fan", Mode: filemode.Dir, Hash: hash}})
+	lib.Tag("release/1", storeCommit(t, repo, root), "Library release 1.\n---\n"+firstRecord)
+	releases, err := git.Fetch(context.Background(), lib.URL(), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	paths, err := releases[0].Files.List("fan/", max)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != max+1 {
+		t.Fatalf("listed %d paths, want %d, one past the most asked for", len(paths), max+1)
+	}
+}
+
+// fanOut returns width entries of mode, in name order, each pointing at hash.
+func fanOut(width int, mode filemode.FileMode, hash plumbing.Hash) []object.TreeEntry {
+	entries := make([]object.TreeEntry, width)
+	for i := range entries {
+		entries[i] = object.TreeEntry{Name: fmt.Sprintf("e%04d", i), Mode: mode, Hash: hash}
+	}
+	return entries
+}
+
+// storeTree stores a tree of entries in repo and returns its hash.
+func storeTree(t *testing.T, repo *gogit.Repository, entries []object.TreeEntry) plumbing.Hash {
+	t.Helper()
+	encoded := repo.Storer.NewEncodedObject()
+	if err := (&object.Tree{Entries: entries}).Encode(encoded); err != nil {
+		t.Fatal(err)
+	}
+	return storeEncoded(t, repo, encoded)
+}
+
+// storeCommit stores a commit of the tree root in repo and returns it.
+func storeCommit(t *testing.T, repo *gogit.Repository, root plumbing.Hash) *object.Commit {
+	t.Helper()
+	author := object.Signature{Name: "Library Author", Email: "author@example.com", When: gittest.FirstTagged}
+	encoded := repo.Storer.NewEncodedObject()
+	commit := &object.Commit{Author: author, Committer: author, Message: "Fan out", TreeHash: root}
+	if err := commit.Encode(encoded); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := repo.CommitObject(storeEncoded(t, repo, encoded))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stored
+}
+
+// storeObject stores content as an object of type kind in repo and returns its hash.
+func storeObject(t *testing.T, repo *gogit.Repository, kind plumbing.ObjectType, content []byte) plumbing.Hash {
+	t.Helper()
+	encoded := repo.Storer.NewEncodedObject()
+	encoded.SetType(kind)
+	writer, err := encoded.Writer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return storeEncoded(t, repo, encoded)
+}
+
+func storeEncoded(t *testing.T, repo *gogit.Repository, encoded plumbing.EncodedObject) plumbing.Hash {
+	t.Helper()
+	hash, err := repo.Storer.SetEncodedObject(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return hash
 }

@@ -141,11 +141,14 @@ func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead stri
 // rule's current version, keeping their bytes within the caps in path order, and returns their paths.
 func (a *assembly) readOwnAssets(r ReleaseSnapshot, rulePath string) ([]string, error) {
 	dir := RuleAssetDir(rulePath)
-	paths, err := r.Files.List(dir)
+	// Listing stops past the assets the limit leaves room for, so a directory of more files than memory holds is
+	// refused without listing them all.
+	room := a.limits.Assets - len(a.read.assets)
+	paths, err := r.Files.List(dir, room)
 	if err != nil {
 		return nil, fmt.Errorf("list %s: %v", dir, err)
 	}
-	if len(a.read.assets)+len(paths) > a.limits.Assets {
+	if len(paths) > room {
 		return nil, a.tooManyAssets()
 	}
 	var kept int64
