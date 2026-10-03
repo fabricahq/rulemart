@@ -57,9 +57,10 @@ func (q *Queries) AdvanceInstallationGenerations(ctx context.Context, installati
 	return err
 }
 
-const claimGitHubRead = `-- name: ClaimGitHubRead :execrows
+const claimGitHubRead = `-- name: ClaimGitHubRead :one
 UPDATE accounts SET github_tried_at = $1
 WHERE id = $2 AND (github_tried_at IS NULL OR github_tried_at <= $3)
+RETURNING github_generation
 `
 
 type ClaimGitHubReadParams struct {
@@ -69,13 +70,14 @@ type ClaimGitHubReadParams struct {
 }
 
 // ClaimGitHubRead claims a read of the account's GitHub account beginning at now, unless one began after
-// tried_after. It returns 1 when it claimed the read, and 0 when it didn't.
+// tried_after, and returns the account's GitHub generation, or no row when it didn't claim the read. It locks the
+// account's row, as every change to the generation or the snapshot does, so a later statement of the same transaction
+// reads the snapshot as of the claim.
 func (q *Queries) ClaimGitHubRead(ctx context.Context, arg ClaimGitHubReadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, claimGitHubRead, arg.Now, arg.AccountID, arg.TriedAfter)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	row := q.db.QueryRow(ctx, claimGitHubRead, arg.Now, arg.AccountID, arg.TriedAfter)
+	var github_generation int64
+	err := row.Scan(&github_generation)
+	return github_generation, err
 }
 
 const deleteAccountInstallation = `-- name: DeleteAccountInstallation :exec

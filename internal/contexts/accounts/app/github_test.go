@@ -17,6 +17,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
@@ -55,11 +56,11 @@ func newGitHubSite(t *testing.T, fake *githubtest.Fake, app bool) *gitHubSite {
 	server := httptest.NewServer(fake.Handler())
 	t.Cleanup(server.Close)
 	_, connString := databasetest.New(t)
-	store := postgres.New(databasetest.AsWebRole(t, connString))
-	sessions := Sessions{Store: store, TokenKeys: FixedTokenKey{domain.NewTokenKey()}}
+	accountStore := postgres.New(databasetest.AsWebRole(t, connString))
+	sessions := Sessions{Store: accountStore, TokenKeys: FixedTokenKey{domain.NewTokenKey()}}
 	site := &gitHubSite{fake: fake, connString: connString, now: time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)}
 	api := github.NewAPI(server.URL)
-	site.accounts = GitHubAccounts{Store: store, Sessions: sessions, GitHub: api, Now: func() time.Time { return site.now }}
+	site.accounts = GitHubAccounts{Store: accountStore, Sessions: sessions, GitHub: api, Now: func() time.Time { return site.now }}
 	if app {
 		fake.AppClientID, fake.AppKey = "Iv1.app", githubtest.NewAppKey()
 		site.accounts.App = github.NewApp(github.AppConfig{
@@ -531,6 +532,59 @@ func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// hookedStore is a store that runs beforeClaim, when set, as each read claims its attempt, so a test can change the
+// account's access at exactly that moment.
+type hookedStore struct {
+	store.Store
+	beforeClaim func()
+}
+
+func (s hookedStore) ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (store.ReadClaim, error) {
+	if s.beforeClaim != nil {
+		s.beforeClaim()
+	}
+	return s.Store.ClaimRead(ctx, accountID, now, interval)
+}
+
+// Access removed just before a refresh claims its read, after the snapshot it would fall back on was kept, is never
+// undone when GitHub then fails: the failed read keeps nothing private, and returns nothing private.
+func TestAccessRemovedAsAFailingRefreshBeginsStaysRemoved(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site := newGitHubSite(t, fake, true)
+	if got, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil || len(got.Projects) != 2 {
+		t.Fatalf("installing read %+v, %v", got.Projects, err)
+	}
+	var once sync.Once
+	site.accounts.Store = hookedStore{Store: site.accounts.Store, beforeClaim: func() {
+		once.Do(func() {
+			if err := site.accounts.ForgetInstallations(ctx, site.account.ID); err != nil {
+				t.Error(err)
+			}
+		})
+	}}
+	fake.Fail = func(path string) bool { return path == "/user/orgs" }
+	site.now = site.now.Add(domain.RefreshInterval)
+
+	got, err := site.accounts.Refresh(ctx, site.account, site.session)
+
+	if !errors.Is(err, ErrGitHubRead) {
+		t.Errorf("got %v, want ErrGitHubRead", err)
+	}
+	kept, _, err := site.accounts.Store.Snapshot(ctx, site.account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for what, snapshot := range map[string]domain.Snapshot{"returned": got, "kept": kept} {
+		for _, p := range snapshot.Projects {
+			if p.Private {
+				t.Errorf("the %s snapshot shows the private %s", what, p.FullName())
+			}
+		}
 	}
 }
 

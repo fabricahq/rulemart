@@ -384,31 +384,44 @@ func generation(t *testing.T, s *Store, accountID int64) int64 {
 }
 
 // Of reads that try to begin within a minute of each other, one is claimed, until the snapshot is discarded, which lets
-// the next read begin at once.
+// the next read begin at once. Each claim returns the generation and snapshot as of the claim: the snapshot kept, or
+// none once it was discarded, with the generation after the discard.
 func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
 	ctx := context.Background()
 	s, _ := newStore(t)
 	_, account := signIn(t, s, octocat, "")
+	kept := domain.Snapshot{Organizations: []string{"octo-org"}}
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), kept); err != nil || !saved {
+		t.Fatalf("saved %v, %v", saved, err)
+	}
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	claim := func(at time.Time) bool {
+	claim := func(at time.Time) store.ReadClaim {
 		t.Helper()
-		claimed, err := s.ClaimRead(ctx, account.ID, at, time.Minute)
+		claim, err := s.ClaimRead(ctx, account.ID, at, time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return claimed
+		return claim
 	}
 
-	if !claim(now) || claim(now) || claim(now.Add(time.Minute-time.Second)) {
-		t.Error("claimed other than the first read within the minute")
+	first := claim(now)
+	if !first.Claimed || first.Generation != generation(t, s, account.ID) || !reflect.DeepEqual(first.Snapshot, kept) {
+		t.Errorf("the first claim is %+v, want the read claimed with the kept snapshot", first)
 	}
-	if !claim(now.Add(time.Minute)) {
+	if again := claim(now); again.Claimed || !reflect.DeepEqual(again.Snapshot, kept) {
+		t.Errorf("a claim at once is %+v, want the kept snapshot, unclaimed", again)
+	}
+	if claim(now.Add(time.Minute - time.Second)).Claimed {
+		t.Error("claimed a second read within the minute")
+	}
+	if !claim(now.Add(time.Minute)).Claimed {
 		t.Error("didn't claim a read a minute later")
 	}
 	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
 		t.Fatal(err)
 	}
-	if !claim(now.Add(time.Minute + time.Second)) {
-		t.Error("didn't claim a read once the snapshot was discarded")
+	discarded := claim(now.Add(time.Minute + time.Second))
+	if !discarded.Claimed || discarded.Generation != first.Generation+1 || !reflect.DeepEqual(discarded.Snapshot, domain.Snapshot{}) {
+		t.Errorf("once the snapshot was discarded, the claim is %+v, want the read claimed at the next generation without it", discarded)
 	}
 }

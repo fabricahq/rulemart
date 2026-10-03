@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres/generated/accountsdb"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
@@ -33,28 +34,45 @@ func (s *Store) Snapshot(ctx context.Context, accountID int64) (domain.Snapshot,
 	if err != nil {
 		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
 	}
-	var record snapshotRecord
-	if err := json.Unmarshal(data, &record); err != nil {
-		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: decode it: %v", accountID, err)
+	snapshot, err := decodeSnapshot(data)
+	if err != nil {
+		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
 	}
-	return record.snapshot(), true, nil
+	return snapshot, true, nil
 }
 
-// ClaimRead claims a read of the account's GitHub account beginning at now, as store.Store describes.
-func (s *Store) ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (bool, error) {
-	var claimed int64
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		var err error
-		claimed, err = accountsdb.New(pool).ClaimGitHubRead(ctx, accountsdb.ClaimGitHubReadParams{
+// ClaimRead claims a read of the account's GitHub account beginning at now, and returns its generation and snapshot as
+// of the claim, in one transaction, as store.Store describes.
+func (s *Store) ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (store.ReadClaim, error) {
+	var claim store.ReadClaim
+	var data []byte
+	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		claim, data = store.ReadClaim{}, nil
+		generation, err := q.ClaimGitHubRead(ctx, accountsdb.ClaimGitHubReadParams{
 			AccountID: accountID, Now: pgtype.Timestamptz{Time: now, Valid: true},
 			TriedAfter: pgtype.Timestamptz{Time: now.Add(-interval), Valid: true},
 		})
+		switch {
+		case err == nil:
+			claim.Claimed, claim.Generation = true, generation
+		case !errors.Is(err, pgx.ErrNoRows):
+			return err
+		}
+		data, err = q.GetSnapshot(ctx, accountID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
 		return err
 	})
 	if err != nil {
-		return false, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
+		return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
 	}
-	return claimed > 0, nil
+	if data != nil {
+		if claim.Snapshot, err = decodeSnapshot(data); err != nil {
+			return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
+		}
+	}
+	return claim, nil
 }
 
 // GitHubGeneration returns the account's GitHub generation, as store.Store describes.
@@ -242,6 +260,15 @@ type sourceRecord struct {
 type ruleRecord struct {
 	Path    string                `json:"path"`
 	Version coderules.RuleVersion `json:"version"`
+}
+
+// decodeSnapshot returns the snapshot data, a github_snapshots row, keeps.
+func decodeSnapshot(data []byte) (domain.Snapshot, error) {
+	var record snapshotRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return domain.Snapshot{}, fmt.Errorf("decode the snapshot: %v", err)
+	}
+	return record.snapshot(), nil
 }
 
 func newSnapshotRecord(s domain.Snapshot) snapshotRecord {

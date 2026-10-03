@@ -5,10 +5,13 @@
 SELECT snapshot FROM github_snapshots WHERE account_id = @account_id;
 
 -- ClaimGitHubRead claims a read of the account's GitHub account beginning at now, unless one began after
--- tried_after. It returns 1 when it claimed the read, and 0 when it didn't.
--- name: ClaimGitHubRead :execrows
+-- tried_after, and returns the account's GitHub generation, or no row when it didn't claim the read. It locks the
+-- account's row, as every change to the generation or the snapshot does, so a later statement of the same transaction
+-- reads the snapshot as of the claim.
+-- name: ClaimGitHubRead :one
 UPDATE accounts SET github_tried_at = @now
-WHERE id = @account_id AND (github_tried_at IS NULL OR github_tried_at <= @tried_after);
+WHERE id = @account_id AND (github_tried_at IS NULL OR github_tried_at <= @tried_after)
+RETURNING github_generation;
 
 -- name: GetGitHubGeneration :one
 SELECT github_generation FROM accounts WHERE id = @account_id;

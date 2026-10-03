@@ -109,48 +109,46 @@ func (g GitHubAccounts) Snapshot(ctx context.Context, account domain.Account, se
 	if err != nil || found {
 		return snapshot, err
 	}
-	return g.read(ctx, account, session, domain.Snapshot{})
+	return g.read(ctx, account, session)
 }
 
 // Refresh reads the visitor's GitHub account again, unless a read began within domain.RefreshInterval, and returns the
 // account's snapshot, failing as Snapshot does.
 func (g GitHubAccounts) Refresh(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
-	snapshot, _, err := g.Store.Snapshot(ctx, account.ID)
-	if err != nil {
-		return domain.Snapshot{}, err
-	}
-	return g.read(ctx, account, session, snapshot)
+	return g.read(ctx, account, session)
 }
 
 // read reads the visitor's GitHub account with session's token, and keeps what it found as the account's snapshot,
 // unless a read began within domain.RefreshInterval since the snapshot was last discarded, claimed before contacting
-// GitHub so that requests arriving together read it once; then it returns the snapshot kept. When
-// the read fails for a reason other than the token, it keeps previous, saying so, so pages show what an earlier read
-// found and when, and the next read waits domain.RefreshInterval. When the account's access changes while it reads,
-// such as when the visitor removes access, it reads again, at most maxReads times in all, without previous, which may
-// hold what the visitor can no longer see.
-func (g GitHubAccounts) read(ctx context.Context, account domain.Account, session domain.SessionToken, previous domain.Snapshot) (domain.Snapshot, error) {
+// GitHub so that requests arriving together read it once; then it returns the snapshot kept. When the read fails for a
+// reason other than the token, it keeps the snapshot the account had as the read was claimed, saying so, so pages show
+// what an earlier read found and when, and the next read waits domain.RefreshInterval. When the account's access
+// changes while it reads, such as when the visitor removes access, it reads again, at most maxReads times in all,
+// without that snapshot, which may hold what the visitor can no longer see.
+func (g GitHubAccounts) read(ctx context.Context, account domain.Account, session domain.SessionToken) (domain.Snapshot, error) {
 	token, err := g.Sessions.GitHubToken(ctx, session)
 	if err != nil {
-		return previous, err
+		return domain.Snapshot{}, err
 	}
-	claimed, err := g.Store.ClaimRead(ctx, account.ID, g.now(), domain.RefreshInterval)
+	claim, err := g.Store.ClaimRead(ctx, account.ID, g.now(), domain.RefreshInterval)
 	if err != nil {
-		return previous, err
+		return domain.Snapshot{}, err
 	}
-	if !claimed {
+	if !claim.Claimed {
 		// Another request read GitHub within the minute, or is reading it now: show what it kept, if it has finished.
-		snapshot, _, err := g.Store.Snapshot(ctx, account.ID)
-		return snapshot, err
+		return claim.Snapshot, nil
 	}
+	snapshot, err := g.readOnce(ctx, token, account, claim.Generation, claim.Snapshot)
 	for range maxReads - 1 {
-		snapshot, err := g.readOnce(ctx, token, account, previous)
 		if !errors.Is(err, errAccessChanged) {
 			return snapshot, err
 		}
-		previous = domain.Snapshot{}
+		generation, genErr := g.Store.GitHubGeneration(ctx, account.ID)
+		if genErr != nil {
+			return domain.Snapshot{}, genErr
+		}
+		snapshot, err = g.readOnce(ctx, token, account, generation, domain.Snapshot{})
 	}
-	snapshot, err := g.readOnce(ctx, token, account, previous)
 	if errors.Is(err, errAccessChanged) {
 		return domain.Snapshot{ReadFailed: true}, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, err)
 	}
@@ -164,14 +162,10 @@ const maxReads = 3
 // what it read may hold what the visitor can no longer see, and it kept nothing.
 var errAccessChanged = errors.New("the account's access to private repositories changed during the read")
 
-// readOnce is one attempt of read, with the visitor's GitHub token. It notes the account's GitHub generation before
-// anything else, and keeps what it read, or previous after a failure, only while the generation is unchanged; otherwise,
-// or when it forgets an installation itself, it fails with errAccessChanged.
-func (g GitHubAccounts) readOnce(ctx context.Context, token string, account domain.Account, previous domain.Snapshot) (domain.Snapshot, error) {
-	generation, err := g.Store.GitHubGeneration(ctx, account.ID)
-	if err != nil {
-		return previous, err
-	}
+// readOnce is one attempt of read, with the visitor's GitHub token, begun at the account's GitHub generation. It keeps
+// what it read, or previous, the snapshot the account had at that generation, after a failure, only while the
+// generation is unchanged; otherwise, or when it forgets an installation itself, it fails with errAccessChanged.
+func (g GitHubAccounts) readOnce(ctx context.Context, token string, account domain.Account, generation int64, previous domain.Snapshot) (domain.Snapshot, error) {
 	installations, err := g.Store.Installations(ctx, account.ID)
 	if err != nil {
 		return previous, err
@@ -429,7 +423,7 @@ func (g GitHubAccounts) Install(ctx context.Context, account domain.Account, ses
 	if err := g.Store.AddInstallation(ctx, account.ID, domain.Installation{ID: id, Account: on.Login}); err != nil {
 		return domain.Snapshot{}, err
 	}
-	return g.read(ctx, account, session, domain.Snapshot{})
+	return g.read(ctx, account, session)
 }
 
 // checkInstalledBy reports whether the visitor may read through an installation on the account on: it's their own, or

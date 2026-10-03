@@ -39,10 +39,11 @@ type Store interface {
 
 	// Snapshot returns the account's GitHub snapshot, or found false when it has none.
 	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, found bool, err error)
-	// ClaimRead claims a read of the account's GitHub account beginning at now, in one statement, unless one began
-	// within interval before now and its snapshot hasn't been discarded since. It returns whether it claimed the read,
-	// so of requests that arrive together, one reads GitHub.
-	ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (bool, error)
+	// ClaimRead claims a read of the account's GitHub account beginning at now, unless one began within interval before
+	// now and its snapshot hasn't been discarded since, so of requests that arrive together, one reads GitHub. In the
+	// same transaction it returns the account's GitHub generation and snapshot as of the claim, which no discard can
+	// come between.
+	ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (ReadClaim, error)
 	// GitHubGeneration returns how many times the account's snapshot has been discarded, such as when its access to
 	// private repositories changed. A read notes it before it reads GitHub, and saves what it found with it.
 	GitHubGeneration(ctx context.Context, accountID int64) (int64, error)
@@ -67,6 +68,19 @@ type Store interface {
 	InstallationRemoved(ctx context.Context, id int64) error
 	// InstallationChanged discards the snapshots of the accounts that read through the installation id.
 	InstallationChanged(ctx context.Context, id int64) error
+}
+
+// ReadClaim is what ClaimRead found as it claimed a read, or declined to.
+type ReadClaim struct {
+	// Claimed is whether the read is the caller's to make: false when another read began within the interval, which
+	// may still be under way.
+	Claimed bool
+	// Generation is the account's GitHub generation as the read was claimed, which the read saves what it finds with;
+	// zero when it wasn't claimed.
+	Generation int64
+	// Snapshot is the account's snapshot as of the claim, empty when it has none: what a failed read keeps, saying
+	// so, and what a request that didn't claim the read shows.
+	Snapshot domain.Snapshot
 }
 
 // ErrNotFound reports a session that doesn't exist or has expired.
