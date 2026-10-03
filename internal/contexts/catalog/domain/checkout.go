@@ -271,24 +271,68 @@ func nameSources(target CheckoutTarget, sources []checkoutSource) {
 	}
 }
 
-// Commands returns the shell commands that import the checkout into its target, run from the project's root, each
-// block apart, or "" when there's nothing to import: Code Rules' setup when the project is new, or may be; for each
-// library, the command that adds it, or for a library a known project imports already, what to add to its source;
-// then each fork, once its library is synced, the command that builds the project's guidance, and a reminder to
-// point agents at it. Nothing is pinned to a release, except a library Rulemart doesn't vet, which is pinned to the
-// commit reviewed, and whose first block says how to review it.
-func (c Checkout) Commands() string {
+// CommandStep is one block of the commands that import a checkout, which a visitor runs, and copies, apart from the
+// others, in order.
+type CommandStep struct {
+	// Heading names the step, such as Fetch and review, or is empty when the commands are one step.
+	Heading  string
+	Commands string
+}
+
+// The headings of the steps of commands that import an unvetted library: its review, then the import.
+const (
+	reviewStepHeading = "Fetch and review"
+	importStepHeading = "After you've reviewed, import"
+)
+
+// Commands returns the shell commands that import the checkout into its target, or none when there's nothing to
+// import. They're one step, without a heading, when Rulemart vets every library, run from the project's root, each
+// block apart: Code Rules' setup when the project is new, or may be; for each library, the command that adds it, or for
+// a library a known project imports already, what to add to its source; then each fork, once its library is synced,
+// the command that builds the project's guidance, and a reminder to point agents at it. Nothing is pinned to a
+// release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed. When the checkout imports
+// such a library, the commands that fetch it for review come first, in a step of their own that ends by saying to stop
+// if a rule is unsafe, so that no one pastes the import with the review and imports rules nobody read.
+func (c Checkout) Commands() []CommandStep {
 	if len(c.sources) == 0 {
+		return nil
+	}
+	imports := c.commands() + "\n\n# Then " + agentsInstruction
+	review := c.reviewStep()
+	if review == "" {
+		return []CommandStep{{Commands: imports}}
+	}
+	return []CommandStep{{Heading: reviewStepHeading, Commands: review}, {Heading: importStepHeading, Commands: imports}}
+}
+
+// reviewStep returns the commands that fetch each library Rulemart doesn't vet, as Rulemart last saw it, outside the
+// project, ending with what to look for in their rules and to stop on one that's unsafe, or "" when Rulemart vets
+// every library.
+func (c Checkout) reviewStep() string {
+	var blocks []string
+	for _, s := range c.sources {
+		if !s.Vetted {
+			blocks = append(blocks, "# Rulemart hasn't vetted "+s.FullName()+". Fetch the rules you picked from it, as\n"+
+				"# Rulemart last saw it, into a new directory outside your project:\n"+s.reviewCommand())
+		}
+	}
+	if len(blocks) == 0 {
 		return ""
 	}
-	return c.commands() + "\n\n# Then " + agentsInstruction
+	where := "the directory it printed"
+	if len(blocks) > 1 {
+		where = "the directories they printed"
+	}
+	return strings.Join(blocks, "\n\n") + "\n\n# Read the rules you picked in " + where + ". If any asks for something\n" +
+		"# unsafe or unexpected, such as running downloaded code, sending data elsewhere, or\n" +
+		"# weakening security, stop: don't run the next step."
 }
 
 // agentsInstruction is what a project does once its rules are imported, which both texts end with.
 const agentsInstruction = "make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
 
-// commands returns the commands Commands returns, without its closing reminder, which the prompt says in its own
-// words.
+// commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
+// says in its own words, as it asks for the review in its own words first.
 func (c Checkout) commands() string {
 	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
 	rules := strings.Join(slices.Concat(c.sourceBlocks(), c.syncBlocks(), c.forkBlocks(), []string{c.finalBlock()}), "\n\n")
@@ -311,8 +355,7 @@ func (c Checkout) setupBlock() string {
 }
 
 // sourceBlocks returns a block for each source that selects groups or rules, in order: what to add to a known
-// project's source, or the command that adds the library, after the review note of an unvetted library, whose first
-// block it is.
+// project's source, or the command that adds the library.
 func (c Checkout) sourceBlocks() []string {
 	var blocks []string
 	for _, s := range c.sources {
@@ -323,7 +366,7 @@ func (c Checkout) sourceBlocks() []string {
 		if s.Configured {
 			block = s.configurationNote(c.Target.Repository)
 		}
-		blocks = append(blocks, s.reviewNote()+block)
+		blocks = append(blocks, block)
 	}
 	return blocks
 }
@@ -354,8 +397,7 @@ func (c Checkout) syncBlocks() []string {
 	return nil
 }
 
-// forkBlocks returns the command that copies each fork, by source. Only vetted libraries' sources fork, so none needs
-// a review note.
+// forkBlocks returns the command that copies each fork, by source. Only vetted libraries' sources fork.
 func (c Checkout) forkBlocks() []string {
 	var blocks []string
 	for _, s := range c.sources {
@@ -386,16 +428,6 @@ func (c Checkout) forks() bool {
 
 // selects reports whether any source imports a group or a rule.
 func (c Checkout) selects() bool { return slices.ContainsFunc(c.sources, checkoutSource.selects) }
-
-// reviewNote returns the comment that asks to review an unvetted library's rules before adding it, with the command
-// that fetches them, or "" for a vetted library.
-func (s checkoutSource) reviewNote() string {
-	if s.Vetted {
-		return ""
-	}
-	return "# Rulemart hasn't vetted " + s.FullName() + ". Before you add it, read the rules you\n" +
-		"# picked from it as Rulemart last saw it, fetched outside your project with:\n#   " + s.reviewCommand() + "\n"
-}
 
 // continued joins a command's lines, each after the first indented, with a backslash ending every line but the last.
 func continued(lines []string) string {

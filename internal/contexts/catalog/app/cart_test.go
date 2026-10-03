@@ -72,6 +72,15 @@ func states(checkout views.Checkout) []string {
 	return got
 }
 
+// commandsOf returns checkout's commands, every step's, as one text.
+func commandsOf(checkout views.Checkout) string {
+	var texts []string
+	for _, step := range checkout.Commands {
+		texts = append(texts, step.Commands)
+	}
+	return strings.Join(texts, "\n\n")
+}
+
 // Checkout resolves every key, in the cart's order by library, to its state: a current rule or a group with current
 // rules is ready, a retired rule retired, what the library doesn't have missing, an item of a library Rulemart has
 // no page for gone, and an unvetted library's items unvetted until the visitor confirms them. A key that names
@@ -122,12 +131,12 @@ func TestCheckoutResolvesEachItemsState(t *testing.T) {
 	}
 	// Only the ready items are imported, and the unvetted library is named nowhere until it's confirmed.
 	for _, want := range []string{"--groups practices/testing", "--rules techs/go/return-errors"} {
-		if !strings.Contains(checkout.Commands, want) {
-			t.Errorf("the commands lack %q:\n%s", want, checkout.Commands)
+		if !strings.Contains(commandsOf(checkout), want) {
+			t.Errorf("the commands lack %q:\n%s", want, commandsOf(checkout))
 		}
 	}
 	for _, unwanted := range []string{"old-errors", "never-was", "rust", "stranger", "gone/rules"} {
-		if strings.Contains(checkout.Commands, unwanted) || strings.Contains(checkout.Prompt, unwanted) {
+		if strings.Contains(commandsOf(checkout), unwanted) || strings.Contains(checkout.Prompt, unwanted) {
 			t.Errorf("the texts name %q, which checkout leaves out", unwanted)
 		}
 	}
@@ -147,7 +156,7 @@ func TestCheckoutImportsAConfirmedUnvettedLibraryForReview(t *testing.T) {
 	if got := states(checkout); !slices.Equal(got, []string{"stranger/rules::techs/go/use-go ready"}) || !checkout.Libraries[0].Confirmed {
 		t.Errorf("got %q, confirmed %t, want the rule ready and its library confirmed", got, checkout.Libraries[0].Confirmed)
 	}
-	if !strings.Contains(checkout.Commands, "--ref "+strings.Repeat("b", 40)) || !strings.Contains(checkout.Prompt, "Rulemart hasn't vetted stranger/rules") {
+	if !strings.Contains(commandsOf(checkout), "--ref "+strings.Repeat("b", 40)) || !strings.Contains(checkout.Prompt, "Rulemart hasn't vetted stranger/rules") {
 		t.Errorf("the texts neither pin nor name the unvetted library:\n%s", checkout.Prompt)
 	}
 	if checkout.PinExample != nil {
@@ -173,9 +182,9 @@ func TestCheckoutTreatsAForkFromAnUnvettedLibraryAsSync(t *testing.T) {
 	if it := checkout.Libraries[0].Items[0]; it.Fork || it.State != views.CartItemReady {
 		t.Errorf("got %+v, want the rule ready and not forked", it)
 	}
-	if strings.Contains(checkout.Commands, "add rule") ||
-		!strings.Contains(checkout.Commands, "--ref "+strings.Repeat("b", 40)+" \\\n  --rules techs/go/use-go") {
-		t.Errorf("the commands should add the rule pinned to the reviewed commit, and fork nothing:\n%s", checkout.Commands)
+	if strings.Contains(commandsOf(checkout), "add rule") ||
+		!strings.Contains(commandsOf(checkout), "--ref "+strings.Repeat("b", 40)+" \\\n  --rules techs/go/use-go") {
+		t.Errorf("the commands should add the rule pinned to the reviewed commit, and fork nothing:\n%s", commandsOf(checkout))
 	}
 }
 
@@ -198,8 +207,8 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 	if len(lib.RestOfGroups) != 1 || lib.RestOfGroups[0].Path != "techs/go" || lib.RestOfGroupsRules != 0 || lib.RestOfGroupsAdded {
 		t.Errorf("got the offer %+v, %d more, added %t, want the Go group with none more", lib.RestOfGroups, lib.RestOfGroupsRules, lib.RestOfGroupsAdded)
 	}
-	if !lib.Items[1].Fork || !strings.Contains(checkout.Commands, "add rule techs/go/close-bodies \\\n  --from acme@1.2.0") {
-		t.Errorf("the fork isn't copied at its version:\n%s", checkout.Commands)
+	if !lib.Items[1].Fork || !strings.Contains(commandsOf(checkout), "add rule techs/go/close-bodies \\\n  --from acme@1.2.0") {
+		t.Errorf("the fork isn't copied at its version:\n%s", commandsOf(checkout))
 	}
 
 	cart.Keys = cart.Keys[:1]
@@ -219,8 +228,8 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 	if lib := checkout.Libraries[0]; !lib.RestOfGroupsAdded || lib.RestOfGroupsRules != 0 || len(lib.RestOfGroups) != 1 {
 		t.Errorf("got added %t, %d more, groups %+v, want the offer taken", lib.RestOfGroupsAdded, lib.RestOfGroupsRules, lib.RestOfGroups)
 	}
-	if !strings.Contains(checkout.Commands, "--groups techs/go") || !strings.Contains(checkout.Commands, "--reason") {
-		t.Errorf("the group isn't imported whole, with the fork's reason:\n%s", checkout.Commands)
+	if !strings.Contains(commandsOf(checkout), "--groups techs/go") || !strings.Contains(commandsOf(checkout), "--reason") {
+		t.Errorf("the group isn't imported whole, with the fork's reason:\n%s", commandsOf(checkout))
 	}
 }
 
@@ -252,9 +261,9 @@ func TestCheckoutMarksARuleItsWholeGroupBrings(t *testing.T) {
 	if want := []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}; !slices.Equal(inGroup, want) {
 		t.Errorf("got %q in their groups, want %q", inGroup, want)
 	}
-	if strings.Contains(checkout.Commands, "--rules techs/go/return-errors") ||
-		!strings.Contains(checkout.Commands, "add rule techs/go/close-bodies") {
-		t.Errorf("the group should bring return-errors, and close-bodies stay a fork:\n%s", checkout.Commands)
+	if strings.Contains(commandsOf(checkout), "--rules techs/go/return-errors") ||
+		!strings.Contains(commandsOf(checkout), "add rule techs/go/close-bodies") {
+		t.Errorf("the group should bring return-errors, and close-bodies stay a fork:\n%s", commandsOf(checkout))
 	}
 }
 
@@ -288,9 +297,9 @@ func TestCheckoutResolvesKeysThatDifferOnlyInCaseToOneItem(t *testing.T) {
 			if got := states(checkout); !slices.Equal(got, want) {
 				t.Errorf("got\n%q\nwant\n%q", got, want)
 			}
-			if strings.Count(checkout.Commands, "close-bodies") != 1 || !strings.Contains(checkout.Commands, c.want) ||
-				strings.Count(checkout.Commands, "--groups practices/testing") != 1 {
-				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, checkout.Commands)
+			if strings.Count(commandsOf(checkout), "close-bodies") != 1 || !strings.Contains(commandsOf(checkout), c.want) ||
+				strings.Count(commandsOf(checkout), "--groups practices/testing") != 1 {
+				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, commandsOf(checkout))
 			}
 		})
 	}

@@ -34,8 +34,22 @@ func assertGolden(t *testing.T, name, got string) {
 // assertCheckout compares the checkout's commands and prompt with the golden files named for it.
 func assertCheckout(t *testing.T, name string, checkout Checkout) {
 	t.Helper()
-	assertGolden(t, "checkout-"+name+".commands.txt", checkout.Commands())
+	assertGolden(t, "checkout-"+name+".commands.txt", stepsText(checkout.Commands()))
 	assertGolden(t, "checkout-"+name+".prompt.txt", checkout.Prompt())
+}
+
+// stepsText returns steps as one text, as a golden file keeps them: each step's heading, when it has one, on a line of
+// its own in brackets, then its commands, with a blank line between steps.
+func stepsText(steps []CommandStep) string {
+	var texts []string
+	for _, step := range steps {
+		text := step.Commands
+		if step.Heading != "" {
+			text = "[" + step.Heading + "]\n" + text
+		}
+		texts = append(texts, text)
+	}
+	return strings.Join(texts, "\n\n")
 }
 
 var (
@@ -82,7 +96,7 @@ func TestCheckoutSyncsAnUnvettedLibrarysForkFromTheReviewedCommit(t *testing.T) 
 		Forks:  []CheckoutRule{checkoutRule(goGroup, "use-go"), checkoutRule(testingGroup, "name-tests")},
 	}})
 
-	commands, prompt := checkout.Commands(), checkout.Prompt()
+	commands, prompt := stepsText(checkout.Commands()), checkout.Prompt()
 
 	if strings.Contains(commands, "add rule") || strings.Contains(prompt, "forked") {
 		t.Errorf("the texts fork an unvetted library's rule:\n%s\n\n%s", commands, prompt)
@@ -91,6 +105,39 @@ func TestCheckoutSyncsAnUnvettedLibrarysForkFromTheReviewedCommit(t *testing.T) 
 		"  --ref " + strings.Repeat("3", 40) + " \\\n  --groups practices/testing \\\n  --rules techs/go/use-go\n\ncode-rules project sync"
 	if !strings.Contains(commands, want) {
 		t.Errorf("got\n%s\nwant the rule synced from the reviewed commit, and the one its group brings left out:\n%s", commands, want)
+	}
+}
+
+// Commands that import an unvetted library come in two steps, so no one pastes the import with the review: first the
+// commands that fetch each unvetted library for review, which end by saying to stop if a rule is unsafe, and only then
+// the commands that import, which fetch nothing for review. Commands that import only vetted libraries are one step.
+func TestCheckoutCommandsReviewAnUnvettedLibraryInAStepBeforeTheImport(t *testing.T) {
+	vetted := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, Groups: []CheckoutGroup{goGroup}}
+	unvetted := func(owner string) CheckoutLibrary {
+		return CheckoutLibrary{Owner: owner, Name: "rules", Release: 3, Commit: strings.Repeat("3", 40), Rules: []CheckoutRule{checkoutRule(goGroup, "use-go")}}
+	}
+
+	steps := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{vetted, unvetted("stranger"), unvetted("other")}).Commands()
+
+	if len(steps) != 2 || steps[0].Heading != "Fetch and review" || steps[1].Heading != "After you've reviewed, import" {
+		t.Fatalf("got the steps\n%s\nwant Fetch and review, then the import", stepsText(steps))
+	}
+	review, imports := steps[0].Commands, steps[1].Commands
+	for _, library := range []string{"stranger", "other"} {
+		fetch := "git -C \"$d\" fetch -q --depth 1 https://github.com/" + library + "/rules.git " + strings.Repeat("3", 40)
+		if !strings.Contains(review, "\n"+`d="$(mktemp -d)" && git -C "$d" init -q && `+fetch) {
+			t.Errorf("the review doesn't fetch %s/rules as a command of its own:\n%s", library, review)
+		}
+	}
+	if !strings.HasSuffix(review, "stop: don't run the next step.") || strings.Contains(review, "code-rules") {
+		t.Errorf("the review should only fetch, and end by saying to stop on an unsafe rule:\n%s", review)
+	}
+	if strings.Contains(imports, "mktemp") || !strings.Contains(imports, "add library stranger") || !strings.Contains(imports, "add library fabrica") {
+		t.Errorf("the import should add every library and fetch nothing for review:\n%s", imports)
+	}
+
+	if steps := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{vetted}).Commands(); len(steps) != 1 || steps[0].Heading != "" {
+		t.Errorf("got the steps\n%s\nwant one without a heading for vetted libraries alone", stepsText(steps))
 	}
 }
 
@@ -139,7 +186,7 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 		Forks: []CheckoutRule{checkoutRule(goGroup, "return-errors")},
 	}})
 
-	got := checkout.Commands()
+	got := stepsText(checkout.Commands())
 
 	want := "code-rules project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ncode-rules project build\n\n" +
 		"# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
@@ -151,7 +198,7 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
 	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{Owner: "a", Name: "b", Vetted: true}})
 
-	if len(checkout.sources) != 0 || checkout.Commands() != "" || checkout.Prompt() != "" {
+	if len(checkout.sources) != 0 || checkout.Commands() != nil || checkout.Prompt() != "" {
 		t.Errorf("got %d sources, commands %q, prompt %q, want none", len(checkout.sources), checkout.Commands(), checkout.Prompt())
 	}
 }

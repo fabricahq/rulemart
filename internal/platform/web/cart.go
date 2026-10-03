@@ -61,11 +61,19 @@ type checkoutResponse struct {
 	// true when the visitor wrote one that names no GitHub repository.
 	Repository        string `json:"repository"`
 	RepositoryInvalid bool   `json:"repositoryInvalid"`
-	// Prompt and Commands import every ready item, and are empty when none is.
-	Prompt   string `json:"prompt"`
-	Commands string `json:"commands"`
+	// Prompt and Commands import every ready item, and are empty when none is. Commands are steps the Commands tab
+	// shows apart, each with its own Copy, as domain.Checkout's Commands says.
+	Prompt   string            `json:"prompt"`
+	Commands []commandStepJSON `json:"commands"`
 	// Pin is the release the Commands tab's footnote suggests pinning a library to, or nil.
 	Pin *pinJSON `json:"pin"`
+}
+
+// commandStepJSON is one step of a checkout's commands: its heading, empty when the commands are one step, and its
+// commands.
+type commandStepJSON struct {
+	Heading  string `json:"heading"`
+	Commands string `json:"commands"`
 }
 
 // pinJSON is a library's latest release, which a project could pin it to: the library, as owner/name, the release's
@@ -216,10 +224,13 @@ func checkoutTarget(repo string) (domain.CheckoutTarget, bool) {
 func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, repositoryInvalid bool, iconURL func(string) string) checkoutResponse {
 	resp := checkoutResponse{
 		Libraries: []checkoutLibraryJSON{}, Unknown: checkout.Unknown, Repository: target.Repository,
-		RepositoryInvalid: repositoryInvalid, Prompt: checkout.Prompt, Commands: checkout.Commands,
+		RepositoryInvalid: repositoryInvalid, Prompt: checkout.Prompt, Commands: []commandStepJSON{},
 	}
 	if resp.Unknown == nil {
 		resp.Unknown = []string{}
+	}
+	for _, step := range checkout.Commands {
+		resp.Commands = append(resp.Commands, commandStepJSON{Heading: step.Heading, Commands: step.Commands})
 	}
 	if pin := checkout.PinExample; pin != nil {
 		resp.Pin = &pinJSON{Library: pin.Library, Release: domain.ReleaseTag(pin.Release), Option: pin.Option()}

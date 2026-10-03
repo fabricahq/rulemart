@@ -73,8 +73,8 @@ changes:
 	commands := "code-rules project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
 		"  --groups techs/go \\\n  --rules practices/testing/verify-retries\n\ncode-rules project sync\n\n" +
 		"# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
-	if !strings.HasSuffix(answer.Commands, commands) {
-		t.Errorf("the commands end\n%s\nwant\n%s", answer.Commands, commands)
+	if got := oneStep(t, answer); !strings.HasSuffix(got, commands) {
+		t.Errorf("the commands end\n%s\nwant\n%s", got, commands)
 	}
 	if !strings.Contains(answer.Prompt, "- The whole Go group (techs/go), including rules the library adds to it later") {
 		t.Errorf("the prompt doesn't name the group:\n%s", answer.Prompt)
@@ -156,8 +156,8 @@ func TestACartOfRulesWithVeryLongTitlesChecksOutWithinAResponse(t *testing.T) {
 	for _, it := range items[1:] {
 		assertShortTitle(t, it.Title)
 	}
-	if len(items) != rules+1 || !strings.Contains(answer.Commands, "--groups techs/go") {
-		t.Errorf("got %d items and the commands\n%s\nwant the group and its %d rules, importing the group", len(items), answer.Commands, rules)
+	if commands := oneStep(t, answer); len(items) != rules+1 || !strings.Contains(commands, "--groups techs/go") {
+		t.Errorf("got %d items and the commands\n%s\nwant the group and its %d rules, importing the group", len(items), commands, rules)
 	}
 }
 

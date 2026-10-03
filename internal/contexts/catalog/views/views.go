@@ -566,8 +566,10 @@ type Checkout struct {
 	Libraries []ResolvedLibrary
 	// Unknown are the cart's keys that name no item a cart can hold, which nothing resolves.
 	Unknown []string
-	// Commands and Prompt import every item whose State is CartItemReady, and are empty when none is.
-	Commands, Prompt string
+	// Commands and Prompt import every item whose State is CartItemReady, and are empty when none is. Commands are in
+	// steps, as domain.Checkout's Commands says.
+	Commands []domain.CommandStep
+	Prompt   string
 	// PinExample is the release the Commands tab's footnote suggests pinning a library to, or nil when the commands
 	// follow no vetted library.
 	PinExample *domain.ReleasePin

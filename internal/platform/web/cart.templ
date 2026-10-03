@@ -336,7 +336,9 @@ templ cartPage(c chrome, signIn string, withGitHub, signedIn bool) {
 								<button class={ segmentStyle } type="button" aria-pressed="true" data-cart-tab="prompt">Prompt</button>
 								<button class={ segmentStyle } type="button" aria-pressed="false" data-cart-tab="commands">Commands</button>
 							</div>
-							<pre class="m-0 min-h-[120px] flex-auto overflow-auto rounded-[10px] transition-opacity duration-[160ms] border border-border bg-surface-header px-3 py-2.5 font-mono text-[11px] leading-[1.6] break-words whitespace-pre-wrap wide:max-h-[360px] max-wide:max-h-[360px]" tabindex="0" aria-label="Prompt for your agent" data-cart-preview></pre>
+							// The tab's text, which cart-page.js fills: one block, or the commands' steps, each under its heading with
+							// its own Copy, each block scrolling on its own.
+							<div class="flex min-h-0 flex-auto flex-col gap-3.5 transition-opacity duration-[160ms]" role="region" aria-label="Prompt for your agent" data-cart-preview></div>
 							// Says when the preview is out of date: while the checkout is updating, or when updating failed. Present while
 							// empty, so screen readers announce what it comes to say.
 							<p class="mt-2.5 text-[13px] text-muted empty:mt-0" role="status" data-cart-status></p>

@@ -27,5 +27,16 @@
   /** Report whether checkout waits for the answer for the cart as it is now. */
   const isPending = (checkout) => !isCurrent(checkout) && !checkout.failed;
 
-  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending };
+  /** Return the blocks the tab, prompt or commands, shows of checkout's answer, each copied apart: its heading, numbered,
+   * or '' for a tab that shows one block, and its text. The prompt is one block; the commands are a block per step,
+   * which are two when the cart holds an unvetted library: its review, then the import. No answer, or one with nothing
+   * to check out, shows none. */
+  function blocks(checkout, tab) {
+    const { answer } = checkout;
+    if (!answer) return [];
+    if (tab === 'prompt') return answer.prompt ? [{ heading: '', text: answer.prompt }] : [];
+    return answer.commands.map((step, i) => ({ heading: step.heading ? `${i + 1}. ${step.heading}` : '', text: step.commands }));
+  }
+
+  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending, blocks };
 })();

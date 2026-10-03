@@ -13,9 +13,12 @@ function loadCheckout() {
   return window.rulemartCheckout;
 }
 
-const { start, change, accept, fail, isCurrent, isPending } = loadCheckout();
-const first = { prompt: 'first prompt', commands: 'first commands' };
-const second = { prompt: 'second prompt', commands: 'second commands' };
+const { start, change, accept, fail, isCurrent, isPending, blocks: blocksIn } = loadCheckout();
+
+/** Return the blocks the tab shows of checkout, as plain values of this test's realm, which deepEqual compares. */
+const blocks = (checkout, tab) => JSON.parse(JSON.stringify(blocksIn(checkout, tab)));
+const first = { prompt: 'first prompt', commands: [{ heading: '', commands: 'first commands' }] };
+const second = { prompt: 'second prompt', commands: [{ heading: '', commands: 'second commands' }] };
 
 test('should be pending, with no answer, before the first answer arrives', () => {
   const checkout = start();
@@ -103,4 +106,38 @@ test('should be pending again, without the failure, when asked again after a fai
   assert.equal(checkout.failed, false);
   assert.equal(isPending(checkout), true);
   assert.equal(checkout.answer, first);
+});
+
+test('should show each step of the commands as its own block, numbered under its heading, when the cart holds an unvetted library', () => {
+  const answer = {
+    prompt: 'the prompt',
+    commands: [{ heading: 'Fetch and review', commands: 'the review' }, { heading: 'After you\'ve reviewed, import', commands: 'the import' }],
+  };
+
+  const shown = blocks(accept(start(), 0, answer), 'commands');
+
+  assert.deepEqual(shown, [
+    { heading: '1. Fetch and review', text: 'the review' },
+    { heading: '2. After you\'ve reviewed, import', text: 'the import' },
+  ]);
+});
+
+test('should show the commands as one block without a heading when they are one step', () => {
+  const shown = blocks(accept(start(), 0, first), 'commands');
+
+  assert.deepEqual(shown, [{ heading: '', text: 'first commands' }]);
+});
+
+test('should show the prompt as one block without a heading', () => {
+  const shown = blocks(accept(start(), 0, first), 'prompt');
+
+  assert.deepEqual(shown, [{ heading: '', text: 'first prompt' }]);
+});
+
+test('should show no block before the first answer, or when nothing in the cart can be checked out', () => {
+  const nothing = accept(start(), 0, { prompt: '', commands: [] });
+
+  assert.deepEqual(blocks(start(), 'commands'), []);
+  assert.deepEqual(blocks(nothing, 'commands'), []);
+  assert.deepEqual(blocks(nothing, 'prompt'), []);
 });

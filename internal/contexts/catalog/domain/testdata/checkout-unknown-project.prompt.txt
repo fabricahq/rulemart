@@ -33,9 +33,6 @@ code-rules project add library fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-# Rulemart hasn't vetted Stranger-HQ/Rules. Before you add it, read the rules you
-# picked from it as Rulemart last saw it, fetched outside your project with:
-#   d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https://github.com/Stranger-HQ/Rules.git 3333333333333333333333333333333333333333 && git -C "$d" checkout -q FETCH_HEAD && echo "$d"
 code-rules project add library stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \

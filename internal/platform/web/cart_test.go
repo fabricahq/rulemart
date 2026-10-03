@@ -69,7 +69,8 @@ type checkoutAnswer struct {
 	Unknown           []string
 	Repository        string
 	RepositoryInvalid bool
-	Prompt, Commands  string
+	Prompt            string
+	Commands          []struct{ Heading, Commands string }
 	Pin               *struct{ Library, Release, Option string }
 }
 
@@ -87,6 +88,16 @@ func decode(t *testing.T, resp *httptest.ResponseRecorder) checkoutAnswer {
 		t.Fatalf("decode %s: %v", resp.Body, err)
 	}
 	return answer
+}
+
+// oneStep returns the commands of answer, which imports only vetted libraries, so they're one step without a heading,
+// failing t when they aren't.
+func oneStep(t *testing.T, answer checkoutAnswer) string {
+	t.Helper()
+	if len(answer.Commands) != 1 || answer.Commands[0].Heading != "" {
+		t.Fatalf("got the commands %q, want one step without a heading", answer.Commands)
+	}
+	return answer.Commands[0].Commands
 }
 
 // The checkout answers a cart with each library and item as the catalog resolved them, with their pages, and the texts,
@@ -123,7 +134,8 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 				}},
 			},
 		},
-		Unknown: []string{"???"}, Prompt: "the prompt", Commands: "the commands",
+		Unknown: []string{"???"}, Prompt: "the prompt",
+		Commands:   []domain.CommandStep{{Heading: "Fetch and review", Commands: "the review"}, {Heading: "After you've reviewed, import", Commands: "the import"}},
 		PinExample: &domain.ReleasePin{Library: "example/rules", Release: 6},
 	}}
 	handler := newSiteWith(t, web.Options{Carts: carts})
@@ -166,7 +178,8 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 	if !gone.Gone || gone.Href != "" || gone.Items[0].State != "gone" || gone.Items[0].Href != "" {
 		t.Errorf("got the gone library %+v, want no page", gone)
 	}
-	if !slices.Equal(answer.Unknown, []string{"???"}) || answer.Prompt != "the prompt" || answer.Commands != "the commands" {
+	steps := []struct{ Heading, Commands string }{{"Fetch and review", "the review"}, {"After you've reviewed, import", "the import"}}
+	if !slices.Equal(answer.Unknown, []string{"???"}) || answer.Prompt != "the prompt" || !slices.Equal(answer.Commands, steps) {
 		t.Errorf("got unknown %q, prompt %q, commands %q", answer.Unknown, answer.Prompt, answer.Commands)
 	}
 	if answer.Pin == nil || *answer.Pin != (struct{ Library, Release, Option string }{"example/rules", "release/6", "--ref release/6"}) {
@@ -177,7 +190,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 // A checkout's answer must fit a Lambda function's response, so one that wouldn't is refused, before anything of it is
 // written, with the failure cart-page.js shows as Rulemart being unable to show the cart.
 func TestCheckoutRefusesAnAnswerTooLargeToSend(t *testing.T) {
-	carts := &fakeCarts{checkout: views.Checkout{Prompt: strings.Repeat("x", 6<<20), Commands: "the commands"}}
+	carts := &fakeCarts{checkout: views.Checkout{Prompt: strings.Repeat("x", 6<<20), Commands: []domain.CommandStep{{Commands: "the commands"}}}}
 	handler := newSiteWith(t, web.Options{Carts: carts})
 
 	resp := postCheckout(t, handler, `{"cart":["example/rules::techs/go/return-errors"]}`, nil)
@@ -190,13 +203,18 @@ func TestCheckoutRefusesAnAnswerTooLargeToSend(t *testing.T) {
 	}
 }
 
-// A repository the visitor wrote that names none is reported, and the texts name no project.
+// A repository the visitor wrote that names none is reported, and the texts name no project. With nothing to import,
+// the commands are an empty list, which cart-page.js reads as no steps.
 func TestCheckoutReportsARepositoryThatNamesNone(t *testing.T) {
 	carts := &fakeCarts{}
 	handler := newSiteWith(t, web.Options{Carts: carts})
 
-	answer := decode(t, postCheckout(t, handler, `{"cart":[],"repo":"https://gitlab.com/acme/api"}`, nil))
+	resp := postCheckout(t, handler, `{"cart":[],"repo":"https://gitlab.com/acme/api"}`, nil)
+	answer := decode(t, resp)
 
+	if !strings.Contains(resp.Body.String(), `"commands":[]`) {
+		t.Errorf("answered %s, want the commands an empty list", resp.Body)
+	}
 	if !answer.RepositoryInvalid || answer.Repository != "" || carts.target.Repository != "" {
 		t.Errorf("got invalid %t, repository %q, target %+v, want invalid and no project named", answer.RepositoryInvalid, answer.Repository, carts.target)
 	}

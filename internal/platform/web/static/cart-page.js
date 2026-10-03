@@ -87,6 +87,24 @@
     }
   }
 
+  // A block of the checkout's text, which scrolls on its own: the tab's only one, or a step of its commands, which
+  // shares the height with the other step; and the Copy of a step.
+  const blockStyle = 'm-0 overflow-auto rounded-[10px] border border-border bg-surface-header px-3 py-2.5 font-mono text-[11px] leading-[1.6] break-words whitespace-pre-wrap';
+  const onlyBlockStyle = `${blockStyle} min-h-[120px] flex-auto wide:max-h-[360px] max-wide:max-h-[360px]`;
+  const stepBlockStyle = `${blockStyle} min-h-[72px] max-h-[240px]`;
+  const stepCopyStyle = 'inline-flex min-h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-ink hover:border-ink hover:bg-paper disabled:cursor-not-allowed disabled:opacity-45';
+
+  /** Return text's lines as spans, each line that before, the lines shown last, didn't hold briefly marked as changed,
+   * or none marked when before is null. */
+  function markChanged(text, before) {
+    const spans = [];
+    text.split('\n').forEach((line, i) => {
+      if (i) spans.push('\n');
+      spans.push(h('span', before && line.trim() && !before.has(line) ? 'cart-changed' : '', {}, line || ' '));
+    });
+    return spans;
+  }
+
   const removeButton = (item) => h('button', 'grid size-7 cursor-pointer place-items-center rounded-sm text-[22px] leading-none text-muted hover:bg-surface hover:text-ink', {
     type: 'button', 'aria-label': `Remove ${item.title} from cart`, 'data-cart-drop': item.key, 'data-focus': `drop:${item.key}`,
   }, '×');
@@ -297,8 +315,9 @@
     }
 
     /** Show the tab's text, dimmed while it's out of date, with each line that wasn't there last time briefly marked,
-     * whether it's out of date, and the copy button, which copies only text that matches the cart, and footnote that
-     * go with it. */
+     * whether it's out of date, and the copy buttons, which copy only text that matches the cart, and footnote that go
+     * with it. The text is one block, with the Copy below it, or the commands' steps, which review an unvetted library
+     * before importing it, each under its heading with a Copy of its own, so no one copies the import with the review. */
     function showPreview() {
       const prompt = tab === 'prompt';
       for (const button of root.querySelectorAll('[data-cart-tab]')) button.setAttribute('aria-pressed', String(button.dataset.cartTab === tab));
@@ -309,26 +328,35 @@
       showStatus(prompt);
       const { answer } = checkout;
       const current = checkouts.isCurrent(checkout);
-      const text = answer ? (prompt ? answer.prompt : answer.commands) : '';
-      copy.disabled = !current || !text;
+      const blocks = checkouts.blocks(checkout, tab);
+      copy.disabled = !current || !blocks.length;
+      copy.hidden = blocks.length > 1;
       preview.classList.toggle('opacity-50', !!answer && !current);
       preview.setAttribute('aria-busy', String(checkouts.isPending(checkout)));
-      if (!text) {
+      if (!blocks.length) {
         const why = answer ? 'Nothing in your cart can be checked out yet. Remove what checkout leaves out, or confirm its library.'
           : checkout.failed ? '' : 'Writing your checkout…';
-        preview.replaceChildren(h('span', 'font-sans text-[13px] text-muted', {}, why));
+        preview.replaceChildren(h('pre', onlyBlockStyle, {}, h('span', 'font-sans text-[13px] text-muted', {}, why)));
         shown = { tab: null, lines: new Set() };
         return;
       }
-      const lines = text.split('\n');
+      const focused = preview.contains(document.activeElement) ? document.activeElement.dataset.focus : null;
       const before = shown.tab === tab ? shown.lines : null;
-      shown = { tab, lines: new Set(lines) };
-      const spans = [];
-      lines.forEach((line, i) => {
-        if (i) spans.push('\n');
-        spans.push(h('span', before && line.trim() && !before.has(line) ? 'cart-changed' : '', {}, line || ' '));
-      });
-      preview.replaceChildren(...spans);
+      shown = { tab, lines: new Set(blocks.flatMap(({ text }) => text.split('\n'))) };
+      preview.replaceChildren(...blocks.map(({ heading, text }, i) => {
+        const pre = h('pre', heading ? stepBlockStyle : onlyBlockStyle, { tabindex: '0', 'aria-label': heading || preview.getAttribute('aria-label') },
+          ...markChanged(text, before));
+        if (!heading) return pre;
+        return h('div', 'flex min-h-0 flex-col gap-1.5', {},
+          h('div', 'flex items-center justify-between gap-3', {},
+            h('h3', 'text-[13px] font-semibold text-ink', {}, heading),
+            h('button', stepCopyStyle, {
+              type: 'button', disabled: !current, 'data-cart-copy-step': String(i), 'data-focus': `copy:${i}`,
+              'aria-label': `Copy the commands of step ${i + 1}`,
+            }, 'Copy')),
+          pre);
+      }));
+      if (focused) preview.querySelector(`[data-focus="${CSS.escape(focused)}"]`)?.focus();
     }
 
     /** Say that the tab's text is out of date: updating, once the page has an answer to show meanwhile, or that
@@ -362,22 +390,21 @@
       $('[data-cart-footnote]').replaceChildren(...parts);
     }
 
-    /** Copy the tab's text, or select it to copy by hand when the browser refuses. */
-    async function copy() {
-      const { answer } = checkout;
-      const text = answer && checkouts.isCurrent(checkout) ? (tab === 'prompt' ? answer.prompt : answer.commands) : '';
-      if (!text) return;
+    /** Copy the tab's block at, or select it to copy by hand when the browser refuses. */
+    async function copy(at) {
+      const block = checkouts.isCurrent(checkout) ? checkouts.blocks(checkout, tab)[at] : null;
+      if (!block) return;
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(block.text);
         toast(tab === 'prompt' ? 'Prompt copied' : 'Commands copied');
       } catch {
-        window.getSelection().selectAllChildren(preview);
+        window.getSelection().selectAllChildren(preview.querySelectorAll('pre')[at]);
         toast('Select the text and copy it');
       }
     }
 
     root.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-retry]');
+      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-copy-step], [data-cart-retry]');
       if (!target) return;
       if (target.matches('[data-cart-drop]')) {
         // Focus moves to the next item's Remove, or the one before, or Clear cart.
@@ -397,7 +424,9 @@
         tab = target.dataset.cartTab;
         showPreview();
       } else if (target.matches('[data-cart-copy]')) {
-        copy();
+        copy(0);
+      } else if (target.matches('[data-cart-copy-step]')) {
+        copy(Number(target.dataset.cartCopyStep));
       } else if (target.matches('[data-cart-retry]')) {
         // The button goes once the page asks again, so focus moves to the text it updates.
         changed();

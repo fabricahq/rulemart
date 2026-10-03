@@ -96,6 +96,13 @@ The spec's Proposed decisions are built as written, except where an entry here s
   `add library` command carries `--ref <commit>`, and both texts give the command that fetches that commit outside the
   project for review first. Nothing else is pinned; the Commands tab's footnote says how to add `--ref release/<n>`,
   which is what writes `ref: release/<n>` to the configuration.
+- **Proposed: the commands of a cart holding an unvetted library come in two steps**, which the Commands tab shows
+  as two blocks, each under its heading with its own Copy: "1. Fetch and review", the command that fetches each
+  unvetted library at the reviewed commit outside the project, ending with a comment to read the rules picked from it
+  there and stop if any is unsafe, and "2. After you've reviewed, import", the rest. One block wrote the review as
+  comments right before the `add library` command, so pasting it imported rules nobody had read, where the prompt makes
+  the agent wait for approval. The prompt's commands are the import step, after its own review paragraph. A cart of
+  vetted libraries keeps one block, with the Copy below it. The prototype shows one block for every cart.
 - **Proposed: the intro says which Code Rules it needs** ("with the Code Rules CLI (0.2.0 or later)"), the oldest
   with `--rules` and `--from`, which slice 8's prompt checked for, since an older install, such as 0.1.0 from
   Homebrew, fails the commands.
