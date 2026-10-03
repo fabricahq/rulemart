@@ -299,3 +299,36 @@ func TestAssetPagesOfNoAssetAreMissing(t *testing.T) {
 		}
 	}
 }
+
+// An asset page's address that spells the library otherwise leads to the canonical address, each file's name escaped
+// once, whatever it holds, so the redirect lands on the page.
+func TestAssetPageRedirectsToItsCanonicalAddress(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("practices/testing", "Testing")
+	lib.Rule("practices/testing/test-changed-behavior", "Test the behavior you changed",
+		"See [my notes](<assets/test-changed-behavior/my notes 50%.md>) and [our notes](<../../assets/our notes 50%25.md>).")
+	lib.Write("practices/testing/assets/test-changed-behavior/my notes 50%.md", "Mine.\n")
+	lib.Write("assets/our notes 50%.md", "Ours.\n")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {practices/testing/test-changed-behavior: 1.0.0}
+changes: {practices/testing/test-changed-behavior: {change: new, summaries: [Add the rule.]}}
+`)
+	handler := ingest(t, lib)
+
+	for _, page := range []string{
+		behaviorRule + "/assets/my%20notes%2050%25.md",
+		library + "/assets/our%20notes%2050%25.md" + behaviorQuery,
+	} {
+		t.Run(page, func(t *testing.T) {
+			resp := get(t, handler, strings.Replace(page, "/example/", "/Example/", 1))
+
+			if location := resp.Header().Get("Location"); resp.Code != http.StatusMovedPermanently || location != page {
+				t.Fatalf("got %d to %q, want a redirect to %s", resp.Code, location, page)
+			}
+			if resp := get(t, handler, page); resp.Code != http.StatusOK {
+				t.Fatalf("the canonical address answered %d", resp.Code)
+			}
+		})
+	}
+}

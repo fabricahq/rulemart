@@ -88,8 +88,8 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 	}
 	lib := page.Page.Library
 	if lib.Owner != owner || lib.Name != repo {
-		target := url.URL{Path: assetPagePath(newLibraryView(lib), page.Page.Rule.Path, assetPath), RawQuery: r.URL.RawQuery}
-		redirect(w, r, target.String())
+		// assetPagePath escapes the path already, so it's written as it is rather than escaped again as a url.URL's Path.
+		redirect(w, r, withQuery(assetPagePath(newLibraryView(lib), page.Page.Rule.Path, assetPath), r))
 		return
 	}
 	rule := s.ruleViewWithoutStar(page.Page)
