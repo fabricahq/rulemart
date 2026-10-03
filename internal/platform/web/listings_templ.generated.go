@@ -955,7 +955,7 @@ func removeListingPage(c chrome, l listingView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "\">Your listings</a></p><h1 class=\"title-xl mt-2\">Remove this listing?</h1><div class=\"mt-5 rounded-card border border-border px-5 py-5\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><p class=\"leading-[1.35] font-semibold [overflow-wrap:anywhere]\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "\">Your listings</a></p><h1 class=\"title-xl mt-2.5\">Remove this listing?</h1><div class=\"mt-5 rounded-card border border-border px-5 py-5\"><div class=\"flex flex-wrap items-center gap-x-2.5 gap-y-1\"><p class=\"leading-[1.35] font-semibold [overflow-wrap:anywhere]\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
