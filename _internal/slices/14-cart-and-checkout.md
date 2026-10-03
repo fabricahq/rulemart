@@ -135,6 +135,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   group" with only Fork, which still copies it; the badge and the summary count it with the group; and its rule page
   says "<Group> group in cart" with "Remove <Group> group from cart". The prototype lists it as a second item that
   stays in sync, though the prompt leaves it out.
+- **Proposed: on a phone, a bar at the viewport's bottom adds the ticked groups.** Below the narrow breakpoint the
+  Groups tab's Add to cart box follows every group, so once any is ticked a bar says "N selected" beside Add to cart.
+  The prototype has none.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

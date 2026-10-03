@@ -217,7 +217,8 @@ templ confirmDialog(lib libraryView) {
 }
 
 // groupsCartPanel is the library page's Add to cart box beside its groups, as the prototype's: it adds the groups the
-// visitor ticks, each whole, which cart.js counts and adds.
+// visitor ticks, each whole, which cart.js counts and adds, and on a phone, a bar that does the same while any is
+// ticked.
 templ groupsCartPanel(lib libraryView) {
 	<div class="rounded-panel border border-border bg-paper p-[18px]" data-needs-script data-cart-groups data-cart-library={ lib.fullName() } data-cart-vetted={ strconv.FormatBool(lib.vetted) }>
 		@label("mb-1.5") {
@@ -231,6 +232,15 @@ templ groupsCartPanel(lib libraryView) {
 		<div class="mt-2.5 flex flex-wrap gap-2.5">
 			<button class="inline-flex cursor-pointer items-center rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted hover:border-border-strong hover:text-ink" type="button" data-cart-groups-all>Select all groups</button>
 			<button class="inline-flex cursor-pointer items-center rounded-full border border-border px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted hover:border-border-strong hover:text-ink" type="button" data-cart-groups-clear hidden>Clear</button>
+		</div>
+		// Below the narrow breakpoint the box sits after every group, far from the checkboxes, so once any is ticked a
+		// bar at the viewport's bottom says how many and adds them.
+		<div class="fixed inset-x-0 bottom-0 z-20 flex items-center justify-between gap-3 border-t border-border bg-paper px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_24px_-20px_rgb(0_0_0/.4)] narrow:hidden" data-cart-groups-bar hidden>
+			<span class="text-[14px] font-medium text-ink" data-cart-groups-count></span>
+			<button class={ cartPrimaryStyle } type="button" data-cart-groups-add>
+				@cartIcon("size-[15px] flex-none")
+				Add to cart
+			</button>
 		</div>
 	</div>
 	@confirmDialog(lib)

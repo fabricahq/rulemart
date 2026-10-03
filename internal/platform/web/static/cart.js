@@ -204,8 +204,10 @@
         ? `${count(n, 'group', 'groups')} selected. Whole groups ${updates}.`
         : 'Select whole groups to add. You can also add single rules from their pages.';
       panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
-      panel.querySelector('[data-cart-groups-add]').disabled = n === 0;
+      panel.querySelectorAll('[data-cart-groups-add]').forEach((button) => (button.disabled = n === 0));
       panel.querySelector('[data-cart-groups-clear]').hidden = n === 0;
+      panel.querySelector('[data-cart-groups-bar]').hidden = n === 0;
+      panel.querySelector('[data-cart-groups-count]').textContent = `${n} selected`;
     }
   }
 
