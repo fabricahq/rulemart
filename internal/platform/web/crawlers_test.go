@@ -48,12 +48,15 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 	}
 	for path, want := range map[string]bool{
 		"/me": true, "/account?x=1": true, "/me/listings": true, "/me?tab=stars?x=1": true, "/signin": true, "/signin?return=%2F": true,
+		"/cart": true, "/cart?x=1": true, "/me/add": true, "/me/add/run?listing=1": true, "/me/private": true,
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
 		"/": false, "/libraries": false, "/g/techs/go": false, "/browse/techs": false, "/faq": false, "/example/rules": false, "/example/rules?tab=releases": false,
 		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
-		"/signin-kit/rules": false, "/accountant/rules": false,
+		"/signin-kit/rules": false, "/accountant/rules": false, "/cartography/rules": false, "/cart/rules": false,
+		// Owners' other addresses, among them those whose logins are the site's own pages.
+		"/o/example": false, "/o/me": false, "/o/cart": false, "/o/signin": false,
 	} {
 		if got := disallows(rules, path); got != want {
 			t.Errorf("robots.txt disallows %s: %v, want %v", path, got, want)
@@ -97,8 +100,9 @@ type urlset struct {
 	} `xml:"url"`
 }
 
-// The sitemap lists the site's own pages, the groups' pages, and each vetted library and current rule, by
-// their canonical addresses on the public origin, each library and rule with when it last changed.
+// The sitemap lists the site's own pages, the groups' pages, the owners' pages, and each vetted library, its groups,
+// and its current rules, by their canonical addresses on the public origin, each library, library group, and rule with
+// when it last changed. It never lists a rule's assets' pages, which the catalog's sitemap doesn't name.
 func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	c := newBrowsingCatalog()
 	c.sitemap = views.Sitemap{
@@ -150,7 +154,9 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/example",
 		"https://rulemart.example/o/faq",
 		"https://rulemart.example/example/rules",
+		"https://rulemart.example/example/rules/practices/testing",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
+		"https://rulemart.example/example/rules/techs/go",
 		"https://rulemart.example/example/rules/techs/go/return-errors",
 		"https://rulemart.example/faq/go.rules",
 	}
@@ -160,6 +166,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	for loc, date := range map[string]string{
 		"https://rulemart.example/example/rules":                                       "2026-09-03",
 		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits": "2026-09-02",
+		"https://rulemart.example/example/rules/techs/go":                              "2026-09-03",
 		"https://rulemart.example/faq/go.rules":                                        "2026-09-04",
 		"https://rulemart.example/example":                                             "",
 		"https://rulemart.example/browse/techs":                                        "",
@@ -171,7 +178,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 }
 
 // A library whose page's address is one of the site's own pages, such as browse/techs, a browse page, or o/rules, an
-// owner's page under /o/, has no page to list, so the sitemap leaves it out; its rules' pages, under it, stay.
+// owner's page under /o/, has no page to list, so the sitemap leaves it out; its groups' and rules' pages, under it, stay.
 func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 	c := newBrowsingCatalog()
 	rule := []views.SitemapRule{{Path: "techs/go/return-errors", Updated: day(3)}}
@@ -201,11 +208,11 @@ func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 	listed = listed[slices.Index(listed, "/o/browse"):]
 	want := []string{
 		"/o/browse", "/o/g", "/o/o",
-		"/browse/Practices/techs/go/return-errors",
+		"/browse/Practices/techs/go", "/browse/Practices/techs/go/return-errors",
 		"/browse/rules",
-		"/browse/techs/techs/go/return-errors",
+		"/browse/techs/techs/go", "/browse/techs/techs/go/return-errors",
 		"/g/techs",
-		"/o/rules/techs/go/return-errors",
+		"/o/rules/techs/go", "/o/rules/techs/go/return-errors",
 	}
 	if !slices.Equal(listed, want) {
 		t.Errorf("lists\n%s\nwant\n%s", strings.Join(listed, "\n"), strings.Join(want, "\n"))

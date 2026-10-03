@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/xml"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -19,14 +20,14 @@ const (
 )
 
 // disallowed are the paths robots.txt keeps crawlers out of: a visitor's own pages and the actions that take POST,
-// signing in, listing, search, whose every query would be a page, the unvetted area, whose libraries' pages also say
+// the cart, whose page each browser fills from what it keeps, signing in, listing, search, whose every query would be a page, the unvetted area, whose libraries' pages also say
 // noindex, and comparisons, whose every pair of releases or versions would be a page. Each of these pages also asks
 // not to be indexed, for a crawler that ignores robots.txt. A rule matches any path it starts, so each one-segment
 // page is disallowed alone and with a query, by $ and ?: /me alone would also keep crawlers off /meta/rules, a
 // library's page.
 var disallowed = func() []string {
 	rules := []string{accountHref + "/", dashboardHref + "/"}
-	for _, page := range []string{accountHref, dashboardHref, signInHref, legacySignInHref, legacyListHref, searchHref, unvettedHref} {
+	for _, page := range []string{accountHref, dashboardHref, cartHref, signInHref, legacySignInHref, legacyListHref, searchHref, unvettedHref} {
 		rules = append(rules, page+"$", page+"?")
 	}
 	return append(rules, "/*from=")
@@ -46,8 +47,8 @@ func (s *server) robots(w http.ResponseWriter, r *http.Request) {
 }
 
 // newSitemapFile returns the sitemap file listing sitemap's pages on base, the site's own first, then each group's,
-// then each owner's, then each library's, unless one of the site's pages takes its address, and its rules', within
-// maxBytes, and whether it lists them all: it stops before the address that would pass maxBytes, since a Lambda
+// then each owner's, then each library's, unless one of the site's pages takes its address, and its groups' and rules',
+// each group's page before its rules, within maxBytes, and whether it lists them all: it stops before the address that would pass maxBytes, since a Lambda
 // function's response holds at most 6 MB.
 func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, bool) {
 	const open = `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`
@@ -95,7 +96,13 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 			if !libraryPageTaken(lib.Owner, lib.Name) && !add(href, lib.Updated) {
 				return false
 			}
-			for _, rule := range lib.Rules {
+			for i, rule := range lib.Rules {
+				// Rules come in path order, so a group's rules are together: its page goes before the first of them.
+				if group := path.Dir(rule.Path); i == 0 || path.Dir(lib.Rules[i-1].Path) != group {
+					if !add(libraryGroupHref(href, group), groupUpdated(lib.Rules[i:], group)) {
+						return false
+					}
+				}
 				if !add(href+"/"+rule.Path, rule.Updated) {
 					return false
 				}
@@ -105,6 +112,20 @@ func newSitemapFile(base string, sitemap views.Sitemap, maxBytes int) ([]byte, b
 	}()
 	body.WriteString(end)
 	return body.Bytes(), complete
+}
+
+// groupUpdated returns when the latest of the group's rules at the start of rules changed.
+func groupUpdated(rules []views.SitemapRule, group string) time.Time {
+	var updated time.Time
+	for _, rule := range rules {
+		if path.Dir(rule.Path) != group {
+			break
+		}
+		if rule.Updated.After(updated) {
+			updated = rule.Updated
+		}
+	}
+	return updated
 }
 
 // owners returns each owner of libraries once, in the libraries' order, spelled as the first of their libraries
@@ -127,8 +148,8 @@ type sitemapURL struct {
 }
 
 // sitemap answers GET /sitemap.xml with every page search engines may index, by its canonical address: the site's
-// own pages, each group's of a vetted library, each owner's, and each vetted library's and its current rules'. Never an
-// unvetted library, a search, or a comparison. Its addresses must be absolute, so without a public origin there's no sitemap.
+// own pages, each group's of a vetted library, each owner's, and each vetted library's and its groups' and current
+// rules'. Never an unvetted library, a search, a comparison, a rule's asset, or a visitor's own page. Its addresses must be absolute, so without a public origin there's no sitemap.
 func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 	if s.BaseURL == nil {
 		s.notFound(w, r)
