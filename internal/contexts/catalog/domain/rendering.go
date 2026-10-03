@@ -53,9 +53,10 @@ type Renderer interface {
 	// Code returns the HTML a page shows for the text of file, a text file in a library, as code, and how many bytes of
 	// allowance it used, failing as Markdown does.
 	Code(text, file string, allowance int64) (html string, used int64, err error)
-	// Links returns the distinct destinations of a Markdown body's links and images, as written, in the order they
-	// first appear, and how many bytes of allowance they used: each destination once, however many references name
-	// it. It fails as Markdown does when they would need more.
+	// Links returns the distinct destinations of a Markdown body's links and images, as a page reads them, with
+	// backslash escapes and character references resolved, in the order they first appear, and how many bytes of
+	// allowance they used: each destination once, however many references name it. It fails as Markdown does when they
+	// would need more.
 	Links(body string, allowance int64) (destinations []string, used int64, err error)
 }
 

@@ -305,6 +305,53 @@ func TestRenderResolvesAMarkdownAssetsLinksAgainstItsOwnFile(t *testing.T) {
 	}
 }
 
+// A destination's backslash escapes and character references are Markdown, not part of the path: a link resolves, and
+// leads, as the page reads it. An absolute URL still reaches the page as written, its references resolved once.
+func TestRenderResolvesEscapesInLinkDestinations(t *testing.T) {
+	source := withAssets
+	source.Assets = map[string]domain.AssetAddress{"assets/notes(v1).md": {Page: "/example/rules/assets/notes(v1).md"}}
+	for name, tc := range map[string]struct{ markdown, want string }{
+		"escaped punctuation, to an asset's page": {
+			`[notes](../../assets/notes\(v1\).md)`,
+			`href="/example/rules/assets/notes(v1).md"`,
+		},
+		"escaped punctuation, to GitHub": {
+			`[backoff](check\(v2\).md)`,
+			`href="https://github.com/example/rules/blob/release/5/practices/testing/check%28v2%29.md"`,
+		},
+		"an entity, to GitHub": {
+			"[terms](a&amp;b.md)",
+			`href="https://github.com/example/rules/blob/release/5/practices/testing/a&amp;b.md"`,
+		},
+		"numeric references, to an asset's page": {
+			"[notes](../../assets/notes&#40;v1&#x29;.md)",
+			`href="/example/rules/assets/notes(v1).md"`,
+		},
+		"escaped punctuation, in an image from GitHub": {
+			`![loop](loop\(1\).png)`,
+			`src="https://raw.githubusercontent.com/example/rules/refs/tags/release/5/practices/testing/loop%281%29.png"`,
+		},
+		"an absolute URL whose text spells an entity": {
+			"[search](https://example.com/?q=&amp;amp;)",
+			`href="https://example.com/?q=&amp;amp;"`,
+		},
+		"an absolute URL with an escaped backslash": {
+			`[path](https://example.com/a\\\(b)`,
+			`href="https://example.com/a%5C(b"`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			html, _, err := Markdown(tc.markdown, source, unlimited)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(html, tc.want) {
+				t.Fatalf("got %s, want %s", html, tc.want)
+			}
+		})
+	}
+}
+
 // A text file shows as code, highlighted in a language chroma knows by its name, and escaped otherwise.
 func TestCodeHighlightsTextFilesByTheirNames(t *testing.T) {
 	for name, tc := range map[string]struct{ file, text, want string }{
@@ -353,6 +400,40 @@ func TestLinksFindsEachDestinationOnceWithinItsAllowance(t *testing.T) {
 	}
 	if _, _, err := Links(body, used-1); !errors.Is(err, domain.ErrOverAllowance) {
 		t.Fatalf("a byte short of the allowance: got %v, want a refusal", err)
+	}
+}
+
+// Links finds destinations as a page reads them, with backslash escapes and character references resolved, so two
+// spellings of one destination are one.
+func TestLinksResolvesEscapesInDestinations(t *testing.T) {
+	body := `[a](notes\(v1\).md), [b](a&amp;b.md), [c](&#x61;.md), and [d](notes(v1).md)`
+
+	got, used, err := Links(body, unlimited)
+
+	want := []string{"notes(v1).md", "a&b.md", "a.md"}
+	if err != nil || !slices.Equal(got, want) || used != int64(len("notes(v1).md")+len("a&b.md")+len("a.md")) {
+		t.Fatalf("got %q using %d, %v; want %q", got, used, err, want)
+	}
+}
+
+// Assembly keeps a shared asset that a rule links to only through a destination that escapes its punctuation or
+// spells a character as a reference.
+func TestAssemblyFindsSharedAssetsThroughEscapedLinks(t *testing.T) {
+	release := oneRule(t, "See [notes](../../assets/notes\\(v1\\).md) and [terms](../../assets/a&amp;b.md).")
+	release.Files.(memoryFiles)["assets/notes(v1).md"] = "Notes."
+	release.Files.(memoryFiles)["assets/a&b.md"] = "Terms."
+	limits := domain.ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 20, AssetBytes: 1 << 10, RuleAssetBytes: 1 << 10, Assets: 10, AssetLinks: 10}
+
+	lib, err := domain.Assemble(assembled, []domain.ReleaseSnapshot{release}, limits, Renderer{})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := lib.Rules[0].Assets, []string{"assets/a&b.md", "assets/notes(v1).md"}; !slices.Equal(got, want) {
+		t.Fatalf("the rule lists %q, want %q", got, want)
+	}
+	if html := lib.Rules[0].HTML; !strings.Contains(html, `href="/_owner_/_name_/assets/notes%28v1%29.md"`) {
+		t.Errorf("the rule's page doesn't link the asset's page: %s", html)
 	}
 }
 

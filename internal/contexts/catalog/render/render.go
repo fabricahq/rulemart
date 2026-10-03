@@ -213,38 +213,38 @@ func Code(text, file string, allowance int64) (string, int64, error) {
 	return out.html.String(), out.spent.used, nil
 }
 
-// Links returns the distinct destinations of body's links and images, as written, in the order they first appear:
-// the links a page of it would show, including those that name a link definition, without rewriting them. It holds
-// each destination once, however many references share it, and stops with domain.ErrOverAllowance rather than hold
-// more of their bytes than allowance; holding each once also bounds how many it returns by those bytes.
+// Links returns the distinct destinations of body's links and images, as a page reads them, in the order they first
+// appear: the links a page of it would show, including those that name a link definition, without rewriting them. It
+// holds each destination once, however many references or spellings share it, and stops with
+// domain.ErrOverAllowance rather than hold more of their bytes than allowance; holding each once also bounds how many
+// it returns by those bytes.
 func Links(body string, allowance int64) (destinations []string, used int64, err error) {
 	source := []byte(body)
 	document := linkParser.Parse(text.NewReader(source))
 	spent := &spending{limit: allowance}
+	read := destinationReader{}
 	found := map[string]bool{}
 	err = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		var destination []byte
+		var destination string
 		switch node := node.(type) {
 		case *ast.Link:
-			destination = node.Destination
+			destination = read.destination(node.Destination)
 		case *ast.Image:
-			destination = node.Destination
+			destination = read.destination(node.Destination)
 		default:
 			return ast.WalkContinue, nil
 		}
-		// Looking a destination up as string(destination) copies nothing, so a reference already found costs nothing.
-		if found[string(destination)] {
+		if found[destination] {
 			return ast.WalkContinue, nil
 		}
 		if err := spent.spend(int64(len(destination))); err != nil {
 			return ast.WalkStop, err
 		}
-		text := string(destination)
-		found[text] = true
-		destinations = append(destinations, text)
+		found[destination] = true
+		destinations = append(destinations, destination)
 		return ast.WalkContinue, nil
 	})
 	if err != nil {
@@ -265,17 +265,19 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 	}
 	// References to one definition share its destination, so each distinct destination is rewritten, and paid
 	// for, once.
+	read := destinationReader{}
 	links, images := map[string][]byte{}, map[string][]byte{}
-	rewrite := func(rewritten map[string][]byte, destination []byte, to func(string) string) ([]byte, error) {
-		if url, ok := rewritten[string(destination)]; ok {
+	rewrite := func(rewritten map[string][]byte, spelling []byte, to func(string) string) ([]byte, error) {
+		destination := read.destination(spelling)
+		if url, ok := rewritten[destination]; ok {
 			return url, nil
 		}
-		url := to(string(destination))
+		url := to(destination)
 		if err := spent.spend(int64(len(url))); err != nil {
 			return nil, err
 		}
-		rewritten[string(destination)] = []byte(url)
-		return rewritten[string(destination)], nil
+		rewritten[destination] = spellDestination(url)
+		return rewritten[destination], nil
 	}
 	err := ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -296,6 +298,38 @@ func (pageTransformer) Transform(document *ast.Document, reader text.Reader, con
 	if err != nil {
 		context.Set(refusedKey, err)
 	}
+}
+
+// destinationReader reads link and image destinations as goldmark's HTML renderer does, with backslash escapes and
+// character references resolved: Markdown spells notes(v1).md as notes\(v1\).md or notes&#40;v1&#41;.md, and only
+// the path it reads names a file. It reads each spelling once, so the references that share a definition's spelling
+// cost nothing after the first.
+type destinationReader map[string]string
+
+func (r destinationReader) destination(spelling []byte) string {
+	// Looking a spelling up as string(spelling) copies nothing.
+	if destination, ok := r[string(spelling)]; ok {
+		return destination
+	}
+	// Most spellings escape nothing, and are their destination, so the two share one copy.
+	key := string(spelling)
+	destination := key
+	resolved := util.ResolveEntityNames(util.ResolveNumericReferences(util.UnescapePunctuations(spelling)))
+	if !bytes.Equal(resolved, spelling) {
+		destination = string(resolved)
+	}
+	r[key] = destination
+	return destination
+}
+
+// destinationEscaper escapes what destinationReader would resolve.
+var destinationEscaper = strings.NewReplacer(`\`, `\\`, "&", "&amp;")
+
+// spellDestination returns url spelled as a Markdown destination, which goldmark's HTML renderer reads back as url,
+// as destinationReader does: a rewritten link's own backslashes and ampersands are part of it, not escapes or
+// references to resolve again.
+func spellDestination(url string) []byte {
+	return []byte(destinationEscaper.Replace(url))
 }
 
 // ruleNodeRenderer renders the nodes Rulemart shows differently from goldmark: raw HTML as escaped text, and fenced
