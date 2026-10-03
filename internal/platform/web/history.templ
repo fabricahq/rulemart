@@ -88,6 +88,15 @@ templ releaseNotesLink(href, tag string) {
 	@githubLink(href, "Release notes", "Release notes for "+tag+" on GitHub")
 }
 
+// versionNotesLink is releaseNotesLink on a row of a rule's versions, smaller and fainter, as the prototype draws it
+// beside each row's comparison, underlined only on hover.
+templ versionNotesLink(href, tag string) {
+	<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline hover:underline-offset-3" href={ templ.SafeURL(href) } aria-label={ "Release notes for " + tag + " on GitHub" }>
+		@githubMark("size-3 flex-none")
+		Release notes
+	</a>
+}
+
 // githubLink leads to a page on GitHub, marked with GitHub's logo, its text muted beside the content it's about, and
 // named in full for a screen reader by label.
 templ githubLink(href, text, label string) {

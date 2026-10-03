@@ -532,12 +532,12 @@ templ versionList(r ruleView) {
 					<div class="grid grid-cols-[auto_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
 						<span class="max-narrow:empty:hidden narrow:min-w-[10.5rem] narrow:[&>a]:w-full">
 							if v.compareHref != "" {
-								@smallButton(v.compareHref) {
+								@smallGhostButton(v.compareHref) {
 									Compare with { v.previous }
 								}
 							}
 						</span>
-						@releaseNotesLink(v.notesURL, v.tag)
+						@versionNotesLink(v.notesURL, v.tag)
 					</div>
 				</div>
 			}

@@ -123,9 +123,20 @@ templ bigSearch(id string) {
 	</form>
 }
 
+// smallButtonBase is what a small outlined button's link looks like, whatever its border and text colors.
+const smallButtonBase = "inline-flex min-h-8 items-center justify-center gap-2 rounded-full border px-[13px] py-1 text-[13px] font-medium whitespace-nowrap no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
+
 // smallButton is a link styled as a small outlined button.
 templ smallButton(href string) {
-	<a class="inline-flex min-h-8 items-center justify-center gap-2 rounded-full border border-border-strong px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface" href={ templ.SafeURL(href) }>
+	<a class={ smallButtonBase, "border-border-strong text-ink" } href={ templ.SafeURL(href) }>
+		{ children... }
+	</a>
+}
+
+// smallGhostButton is smallButton quieter, its border and text lighter, as the prototype draws an action repeated on
+// every row of a list, such as comparing each version with the one before.
+templ smallGhostButton(href string) {
+	<a class={ smallButtonBase, "border-border text-muted hover:text-ink" } href={ templ.SafeURL(href) }>
 		{ children... }
 	</a>
 }

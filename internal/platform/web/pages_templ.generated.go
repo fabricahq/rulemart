@@ -2655,7 +2655,7 @@ func versionList(r ruleView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = smallButton(v.compareHref).Render(templ.WithChildren(ctx, templ_7745c5c3_Var117), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = smallGhostButton(v.compareHref).Render(templ.WithChildren(ctx, templ_7745c5c3_Var117), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -2664,7 +2664,7 @@ func versionList(r ruleView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = releaseNotesLink(v.notesURL, v.tag).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = versionNotesLink(v.notesURL, v.tag).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
