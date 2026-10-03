@@ -174,7 +174,7 @@ func TestGroupPageListsACanonicalGroupByTheListsSpelling(t *testing.T) {
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 	choices := domain.ListChoices{Unvetted: true, Filters: domain.RuleFilters{MinStars: 10}, Order: domain.Newest}
 
-	got, err := pages.GroupPage(context.Background(), "Techs/GO", choices, nil)
+	got, err := pages.GroupPage(context.Background(), "Techs/GO", choices, domain.MyLibraries{})
 
 	if err != nil {
 		t.Fatal(err)
@@ -196,19 +196,19 @@ func TestGroupHasAPageWhenCanonicalOrHeld(t *testing.T) {
 		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/golang/pass-context", Group: "techs/golang"}},
 	}}}, Groups: canonicalList(t)}
 
-	if got, err := empty.GroupPage(context.Background(), "practices/accessibility", domain.ListChoices{}, nil); err != nil || got.Canonical.Name != "Accessibility" {
+	if got, err := empty.GroupPage(context.Background(), "practices/accessibility", domain.ListChoices{}, domain.MyLibraries{}); err != nil || got.Canonical.Name != "Accessibility" {
 		t.Errorf("a canonical group no library holds: got %+v, %v", got, err)
 	}
-	if _, err := empty.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, nil); !errors.Is(err, app.ErrNotFound) {
+	if _, err := empty.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, domain.MyLibraries{}); !errors.Is(err, app.ErrNotFound) {
 		t.Errorf("a group no library holds: got %v, want app.ErrNotFound", err)
 	}
-	got, err := held.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, nil)
+	got, err := held.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, domain.MyLibraries{})
 	if err != nil || got.Path != "techs/golang" || got.Canonical != nil || got.Rules.Rows[0].CanonicalGroup != nil {
 		t.Errorf("a held group that isn't canonical: got %+v, %v", got, err)
 	}
 	// Its retired rules are hidden until asked for, but the page offers them.
 	retired := app.Pages{Store: &reads{ruleResults: views.RuleResults{RetiredRules: 1}}, Groups: canonicalList(t)}
-	if got, err := retired.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, nil); err != nil || got.Rules.RetiredRules != 1 {
+	if got, err := retired.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}, domain.MyLibraries{}); err != nil || got.Rules.RetiredRules != 1 {
 		t.Errorf("a group of only retired rules: got %+v, %v", got, err)
 	}
 }
@@ -223,11 +223,11 @@ func TestSearchRulesReadsThePageOfTheListItIsAskedFor(t *testing.T) {
 	pages := app.Pages{Store: r, Groups: list}
 	choices := domain.ListChoices{Filters: domain.RuleFilters{Kind: "techs"}, Order: domain.BestMatch}
 
-	got, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), choices, nil, 2)
+	got, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), choices, domain.MyLibraries{}, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pages.SearchRules(context.Background(), domain.SearchQuery{}, choices, nil, 1); err != nil {
+	if _, err := pages.SearchRules(context.Background(), domain.SearchQuery{}, choices, domain.MyLibraries{}, 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -246,15 +246,15 @@ func TestSearchRulesRunsNoQueryTooLongAndNoPageOutOfBounds(t *testing.T) {
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 
 	long := domain.ParseSearchQuery(strings.Repeat("a", domain.MaxSearchQueryLength+1))
-	if _, err := pages.SearchRules(context.Background(), long, domain.ListChoices{}, nil, 1); !errors.Is(err, app.ErrSearchQueryTooLong) {
+	if _, err := pages.SearchRules(context.Background(), long, domain.ListChoices{}, domain.MyLibraries{}, 1); !errors.Is(err, app.ErrSearchQueryTooLong) {
 		t.Errorf("a long query gave %v, want app.ErrSearchQueryTooLong", err)
 	}
 	for _, page := range []int{0, -1, app.MaxSearchPage + 1} {
-		if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, nil, page); err == nil {
+		if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, domain.MyLibraries{}, page); err == nil {
 			t.Errorf("searched page %d", page)
 		}
 	}
-	if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, nil, app.MaxSearchPage); err != nil {
+	if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, domain.MyLibraries{}, app.MaxSearchPage); err != nil {
 		t.Errorf("the last page: %v", err)
 	}
 	if len(r.lists) != 1 {

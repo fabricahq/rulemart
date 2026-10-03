@@ -241,14 +241,14 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, own)
 		return
 	}
-	choices, owners, ok := s.myLibraries(w, r, choices)
+	choices, mine, ok := s.myLibraries(w, r, choices)
 	if !ok {
 		return
 	}
 	var results views.RuleResults
 	var err error
 	if page <= app.MaxSearchPage {
-		results, err = s.catalog.SearchRules(r.Context(), query, choices, owners, page)
+		results, err = s.catalog.SearchRules(r.Context(), query, choices, mine, page)
 	}
 	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
 	if err != nil && !tooLong {

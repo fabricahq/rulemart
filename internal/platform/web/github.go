@@ -113,20 +113,20 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 	return view, true
 }
 
-// myLibraries returns choices as the visitor r comes from can make them, and the logins whose libraries their My
-// libraries keeps, the libraries their dashboard lists under "Published by you and your orgs": their own and their
-// organizations', as Rulemart last read them from GitHub. Signed out, the choices leave out My libraries, which a list
-// offers only to a signed-in visitor. It reads the visitor's GitHub account only while My libraries is on; while that
-// read fails or is under way, the owners are the visitor and any organizations an earlier read found, as the
-// dashboard's. It answers the request with a failure, and returns false, when reading the account fails otherwise.
-func (s *server) myLibraries(w http.ResponseWriter, r *http.Request, choices domain.ListChoices) (domain.ListChoices, []string, bool) {
+// myLibraries returns choices as the visitor r comes from can make them, and the libraries their My libraries keeps,
+// those their dashboard lists, as Rulemart last read their GitHub account: the libraries they and their organizations
+// publish, and those their projects use. Signed out, the choices leave out My libraries, which a list offers only to
+// a signed-in visitor. It reads the visitor's GitHub account only while My libraries is on; while that read fails or
+// is under way, it keeps the visitor's own libraries and what an earlier read found, as the dashboard does. It answers
+// the request with a failure, and returns false, when reading the account fails otherwise.
+func (s *server) myLibraries(w http.ResponseWriter, r *http.Request, choices domain.ListChoices) (domain.ListChoices, domain.MyLibraries, bool) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
 		choices.Filters.Mine = false
-		return choices, nil, true
+		return choices, domain.MyLibraries{}, true
 	}
 	if !choices.Filters.Mine {
-		return choices, nil, true
+		return choices, domain.MyLibraries{}, true
 	}
 	var snapshot accounts.Snapshot
 	if s.GitHubAccounts != nil {
@@ -137,10 +137,10 @@ func (s *server) myLibraries(w http.ResponseWriter, r *http.Request, choices dom
 			s.logFailure(r, err)
 		case err != nil && !errors.Is(err, accountsapp.ErrNoGitHubToken) && !errors.Is(err, accountsapp.ErrGitHubReading):
 			s.fail(w, r, err)
-			return domain.ListChoices{}, nil, false
+			return domain.ListChoices{}, domain.MyLibraries{}, false
 		}
 	}
-	return choices, snapshot.Owners(v.account.Login), true
+	return choices, domain.MyLibraries{Owners: snapshot.Owners(v.account.Login), Libraries: snapshot.LibraryNames()}, true
 }
 
 // refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages

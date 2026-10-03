@@ -324,9 +324,9 @@ func TestFilterSidebarOffersRetiredRulesOnlyWhenTheListHasSome(t *testing.T) {
 // the catalog reads without it, and isn't indexed, as any address with choices.
 func TestMyLibrariesIsOfferedOnlyToASignedInVisitor(t *testing.T) {
 	var chosen []domain.ListChoices
-	var owners [][]string
+	var mine []domain.MyLibraries
 	c := newBrowsingCatalog()
-	c.chosen, c.owners = &chosen, &owners
+	c.chosen, c.mine = &chosen, &mine
 	handler := newSite(t, c)
 
 	for path, rows := range map[string]string{
@@ -351,20 +351,20 @@ func TestMyLibrariesIsOfferedOnlyToASignedInVisitor(t *testing.T) {
 		}
 	}
 	for i, choices := range chosen {
-		if choices.Filters.Mine || owners[i] != nil {
-			t.Errorf("read the catalog with %+v for %q, want neither My libraries nor owners", choices, owners[i])
+		if choices.Filters.Mine || mine[i].Owners != nil || mine[i].Libraries != nil {
+			t.Errorf("read the catalog with %+v for %+v, want neither My libraries nor the visitor's", choices, mine[i])
 		}
 	}
 }
 
-// Signed in, the Libraries filter starts with My libraries, which keeps the libraries the dashboard lists under
-// "Published by you and your orgs": those whose owner is the visitor or one of their organizations. The sort tabs keep
-// it, Clear filters clears it, and the catalog reads the visitor's owners only when it's on.
+// Signed in, the Libraries filter starts with My libraries, which keeps the libraries the dashboard lists: those whose
+// owner is the visitor or one of their organizations, and those the visitor's projects use. The sort tabs keep it,
+// Clear filters clears it, and the catalog reads the visitor's libraries only when it's on.
 func TestMyLibrariesKeepsTheLibrariesOfTheVisitorAndTheirOrganizations(t *testing.T) {
 	var chosen []domain.ListChoices
-	var owners [][]string
+	var read []domain.MyLibraries
 	c := newBrowsingCatalog()
-	c.chosen, c.owners = &chosen, &owners
+	c.chosen, c.mine = &chosen, &read
 	site := newDashboardSite(t, octocatsGitHub(), c)
 
 	plain := site.get(t, "/g/techs/go")
@@ -398,9 +398,9 @@ func TestMyLibrariesKeepsTheLibrariesOfTheVisitorAndTheirOrganizations(t *testin
 	if strings.Contains(visibleText(t, search), "Wrap errors") {
 		t.Error("search's My libraries keeps a rule of other/go-rules")
 	}
-	want := []string{"octocat", "octo-org", "example"}
-	if len(owners) != 3 || owners[0] != nil || !slices.Equal(owners[1], want) || !slices.Equal(owners[2], want) {
-		t.Errorf("read the catalog for the owners %q, want none, then %q twice", owners, want)
+	want := domain.MyLibraries{Owners: []string{"octocat", "octo-org", "example"}, Libraries: []string{"example/rules"}}
+	if len(read) != 3 || read[0].Owners != nil || read[0].Libraries != nil || !equalMine(read[1], want) || !equalMine(read[2], want) {
+		t.Errorf("read the catalog for the visitor's libraries %+v, want none, then %+v twice", read, want)
 	}
 	if len(chosen) != 3 || chosen[0].Filters.Mine || !chosen[1].Filters.Mine || !chosen[2].Filters.Mine {
 		t.Errorf("read the catalog with %+v, want My libraries on the second and third", chosen)
@@ -422,5 +422,27 @@ func TestMyLibrariesOfAVisitorWithoutLibrariesKeepsNoRule(t *testing.T) {
 		if strings.Contains(visibleText(t, page), "Return errors with context") {
 			t.Errorf("%s keeps a rule the visitor's libraries don't hold", path)
 		}
+	}
+}
+
+// equalMine reports whether a and b name the same visitor's libraries, in order.
+func equalMine(a, b domain.MyLibraries) bool {
+	return slices.Equal(a.Owners, b.Owners) && slices.Equal(a.Libraries, b.Libraries)
+}
+
+// My libraries also keeps the libraries the visitor's projects use, as the dashboard's "Used in your projects" lists
+// them, so a visitor who publishes nothing sees the rules of a library one of their projects imports.
+func TestMyLibrariesKeepsTheLibrariesTheVisitorsProjectsUse(t *testing.T) {
+	snapshot := accounts.Snapshot{ReadAt: time.Now(), Projects: []accounts.Project{{
+		Repository: accounts.Repository{Owner: "octocat", Name: "api"},
+		Sources:    []accounts.Source{{Name: "go", Library: "Other/Go-Rules"}},
+	}}}
+	site := newDashboardSite(t, snapshot, newBrowsingCatalog())
+
+	page := site.get(t, "/g/techs/go?mine=1")
+
+	assertShows(t, page, "2 rules in 1 library", "Close response bodies MEDIUM other/go-rules Name packages plainly LOW other/go-rules")
+	if strings.Contains(visibleText(t, page), "Return errors with context") {
+		t.Error("My libraries keeps a rule of example/rules, which the visitor neither publishes nor uses")
 	}
 }

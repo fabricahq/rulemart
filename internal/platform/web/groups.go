@@ -17,12 +17,12 @@ type groupPageView struct {
 	// href is the page's own address, without choices, and address the address asked for, in its own spelling, whose
 	// choices may include one the visitor can't make.
 	href, address string
-	kind        groupKind
-	label       groupLabel
-	icon        groupIcon
-	description string
-	list        ruleListView
-	rows        []ruleRowView
+	kind          groupKind
+	label         groupLabel
+	icon          groupIcon
+	description   string
+	list          ruleListView
+	rows          []ruleRowView
 }
 
 // newGroupPageView returns what the page of the group at address shows of page, read with choices; offersMine offers
@@ -71,11 +71,11 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := string(kind) + "/" + r.PathValue("name")
 		asked := domain.ParseListChoices(domain.GroupListPage, r.URL.Query())
-		choices, owners, ok := s.myLibraries(w, r, asked)
+		choices, mine, ok := s.myLibraries(w, r, asked)
 		if !ok {
 			return
 		}
-		page, err := s.catalog.GroupPage(r.Context(), id, choices, owners)
+		page, err := s.catalog.GroupPage(r.Context(), id, choices, mine)
 		if errors.Is(err, app.ErrNotFound) {
 			s.notFound(w, r)
 			return

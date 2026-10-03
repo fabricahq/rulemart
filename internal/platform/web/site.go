@@ -145,12 +145,11 @@ type Catalog interface {
 	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
 	// GroupPage returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
-	// and no library holds it. owners are the logins whose libraries My libraries keeps.
-	GroupPage(ctx context.Context, id string, choices domain.ListChoices, owners []string) (views.GroupPage, error)
+	// and no library holds it. mine are the visitor's libraries, which My libraries keeps.
+	GroupPage(ctx context.Context, id string, choices domain.ListChoices, mine domain.MyLibraries) (views.GroupPage, error)
 	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
-	// query, that choices keep, owners keeping as GroupPage's do. It fails with app.ErrSearchQueryTooLong for a query
-	// it won't run.
-	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, owners []string, page int) (views.RuleResults, error)
+	// query, that choices keep, mine as GroupPage's. It fails with app.ErrSearchQueryTooLong for a query it won't run.
+	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, mine domain.MyLibraries, page int) (views.RuleResults, error)
 	// Dashboard returns what a visitor's dashboard shows of the catalog: the libraries whose owner is one of owners, and
 	// those of names, as owner/name, the libraries the visitor's projects import.
 	Dashboard(ctx context.Context, owners, names []string) (views.Dashboard, error)

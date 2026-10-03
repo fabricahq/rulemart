@@ -200,28 +200,37 @@ func TestAGroupsFiltersKeepTheRulesTheyName(t *testing.T) {
 	}
 }
 
-// My libraries keeps the rules of the libraries whose owner is one of the list's owners, without regard to case, and
-// with the other filters, those that pass them all; a visitor whose owners publish nothing in the list sees none. It
-// doesn't change what the list holds before its filters, which the sidebar counts.
-func TestMyLibrariesKeepTheRulesOfTheOwnersLibraries(t *testing.T) {
+// My libraries keeps the rules of the visitor's libraries: those whose owner is one of the list's owners, and those
+// its libraries name as owner/name, the libraries the visitor's projects use, either, without regard to case; and with
+// the other filters, those that pass them all. A visitor with neither in the list sees none. It doesn't change what the
+// list holds before its filters, which the sidebar counts.
+func TestMyLibrariesKeepTheRulesOfTheVisitorsLibraries(t *testing.T) {
 	c := newRuleLists(t)
 
 	for _, tc := range []struct {
 		name    string
 		filters domain.RuleFilters
-		owners  []string
+		mine    domain.MyLibraries
 		want    []string
 	}{
-		{"an organization", domain.RuleFilters{Mine: true}, []string{"octocat", "Zeta"}, []string{zapErrors, yieldErrors}},
-		{"the visitor and an organization", domain.RuleFilters{Mine: true}, []string{"FabricaHQ", "zeta"}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
-		{"owners who publish nothing here", domain.RuleFilters{Mine: true}, []string{"octocat", "aardvark"}, []string{}},
-		{"no owners", domain.RuleFilters{Mine: true}, nil, []string{}},
-		{"owners without my libraries", domain.RuleFilters{}, []string{"zeta"}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
-		{"and a library of another owner", domain.RuleFilters{Mine: true, Libraries: []string{"fabricahq/rules"}}, []string{"zeta"}, []string{}},
-		{"and an impact", domain.RuleFilters{Mine: true, Impact: domain.LowerImpact}, []string{"fabricahq"}, []string{nameThings}},
+		{"an organization's", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat", "Zeta"}}, []string{zapErrors, yieldErrors}},
+		{"the visitor's and an organization's", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"FabricaHQ", "zeta"}},
+			[]string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"a library a project uses", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat"}, Libraries: []string{"Zeta/Go"}},
+			[]string{zapErrors, yieldErrors}},
+		{"an owner's and a library a project uses", domain.RuleFilters{Mine: true},
+			domain.MyLibraries{Owners: []string{"fabricahq"}, Libraries: []string{"zeta/go"}}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"a library of the same owner a project uses", domain.RuleFilters{Mine: true}, domain.MyLibraries{Libraries: []string{"zeta/rules"}}, []string{}},
+		{"owners who publish nothing here", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat", "aardvark"}}, []string{}},
+		{"neither", domain.RuleFilters{Mine: true}, domain.MyLibraries{}, []string{}},
+		{"without my libraries", domain.RuleFilters{}, domain.MyLibraries{Owners: []string{"zeta"}, Libraries: []string{"zeta/go"}},
+			[]string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"and a library of another owner", domain.RuleFilters{Mine: true, Libraries: []string{"fabricahq/rules"}},
+			domain.MyLibraries{Owners: []string{"zeta"}, Libraries: []string{"zeta/go"}}, []string{}},
+		{"and an impact", domain.RuleFilters{Mine: true, Impact: domain.LowerImpact}, domain.MyLibraries{Owners: []string{"fabricahq"}}, []string{nameThings}},
 	} {
 		list := goList(tc.filters)
-		list.Owners = tc.owners
+		list.MyLibraries = tc.mine
 		got := c.listRules(t, list)
 		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != len(tc.want) {
 			t.Errorf("%s: got %q of %d, want %q", tc.name, sourceIDs(got), got.Total, tc.want)

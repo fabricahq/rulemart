@@ -37,8 +37,8 @@ const (
 type RuleFilters struct {
 	// Libraries are the libraries to keep, each as LibraryFilterValue spells it, or none to keep every library.
 	Libraries []string
-	// Mine keeps the visitor's libraries, those whose owner is one of RuleList.Owners, the visitor's own login and
-	// their organizations', as their dashboard lists them; it keeps no rule while Owners is empty.
+	// Mine keeps the visitor's libraries, RuleList.MyLibraries, as their dashboard lists them; it keeps no rule while
+	// the visitor has none.
 	Mine   bool
 	Impact ImpactBand
 	// MinStars keeps rules with at least this many stars; 0 keeps every rule.
@@ -59,9 +59,16 @@ type RuleList struct {
 	Query SearchQuery
 	// Group is the ID of the one group whose rules the list holds, matched exactly, or empty for every group.
 	Group string
-	// Owners are the logins whose libraries Filters.Mine keeps, matched without regard to case.
-	Owners []string
+	// MyLibraries are the libraries Filters.Mine keeps.
+	MyLibraries MyLibraries
 	ListChoices
+}
+
+// MyLibraries are a visitor's libraries, as their dashboard lists them: those whose owner is one of Owners, the
+// visitor's own login and their organizations', and those Libraries name as owner/name, the libraries the visitor's
+// projects use, each matched without regard to case.
+type MyLibraries struct {
+	Owners, Libraries []string
 }
 
 // HoldsRetired reports whether the list holds retired rules: when it asks for them, or searches for words.
