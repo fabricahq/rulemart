@@ -1,5 +1,5 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
-// current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
+// current version and version history, each rule's assets and the images among them, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
 // a library; starring rules; and checking out the cart a visitor's browser keeps. It reads the catalog from its page

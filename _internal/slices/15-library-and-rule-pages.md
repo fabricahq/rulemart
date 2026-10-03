@@ -67,6 +67,83 @@ The Versions tab, the comparison views, the releases tab, and the retired rule p
 - **Existing:** the Versions tab, comparisons, the releases tab, retired rule pages, impact levels, rendering at
   ingestion, and the unvetted band and robots rules.
 
+### Decided while building
+
+The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+
+- **Proposed: a rule's own assets are the files in its asset directory, `assets/<rule name>/` beside its file**, such
+  as `practices/testing/assets/test-changed-behavior/`, as Code Rules' parser defines the directory a rule's version
+  covers, read at the release that published the current version; shared assets are the library-root `assets/` files
+  the rule's text, its reading guidance, or its own Markdown files link to, and the files those shared Markdown files
+  link to in turn, as the prototype's `linkedShared` follows them, read at the latest release. A link to a shared file
+  the latest release doesn't hold stays a link to GitHub. Only current rules have assets; a retired rule's page shows
+  none, as the prototype's doesn't.
+- **Proposed: bytes are kept only for images and UTF-8 text**, which pages show; any other file, such as a binary
+  within the caps, is listed with its size and linked on GitHub, since a page can't show it and Rulemart serves no
+  file but an image. A file's type comes from its name for images (PNG, JPEG, GIF, WebP, AVIF, SVG) and Markdown, and
+  from its bytes for other text.
+- **Proposed: the caps keep bytes in path order while they fit**: a file of 256 KiB at most, while the rule's own
+  files kept come to 2 MiB at most, so a later, smaller file can still be kept after a larger one wasn't. The library's
+  shared files count as one more rule, 2 MiB together, in the order rules find them. Kept bytes and assets' HTML come
+  out of the existing content budget, and a library may list at most 10,000 assets, Code Rules' own limit on a
+  library's files, past which ingestion refuses it, as it refuses a library past its other limits.
+- **Proposed: text assets are stored as highlighted code**, rendered at ingestion with the same highlighter as rules'
+  fenced code, by the file's name, as the prototype highlights them. So rendering is now an interface, `Renderer`,
+  with Markdown, Code, and Links, rather than one function, and resolving a link moves to the domain, which finds the
+  shared files before the rule is rendered.
+- **Proposed: links to assets are written at ingestion, and a shared asset's link names its rule as pages read it.** A
+  rule's or a Markdown asset's link to a known asset leads to its page; its image loads from Rulemart when Rulemart
+  keeps the bytes, and from GitHub otherwise. A shared Markdown file is rendered once for every rule that links to it,
+  so pages add `?rule=<rule ID>` to links to shared assets' pages as they're read. A link to an asset keeps its
+  fragment and drops any query its author wrote.
+- **Proposed: other relative links lead to GitHub at the release that holds the file**: the rule's release tag for its
+  own file and asset directory, and the latest release for library-wide files, as the prototype's `ghFileUrl` and the
+  renderer already did. The spec says "at the rule's release tag", but a library-wide file isn't part of the rule's
+  version, and the newest release holds the copy a project gets.
+- **Proposed: an image's bytes are served at its page's address with `?raw=1`**, from the asset table, as the type
+  ingestion recorded, with `nosniff`, `Cache-Control: public, max-age=86400`, and a content security policy of its own,
+  `default-src 'none'; style-src 'unsafe-inline'; sandbox`, so an SVG a library wrote can't run or load anything even
+  opened on its own. A response to a signed-in visitor stays `private, no-store`, as every response to one is. The
+  asset page's Raw button leads to GitHub's raw file, as the prototype's does.
+- **Proposed: a shared asset's page without `?rule=`, or with a rule that doesn't list it, shows it with the first rule
+  in path order that does**, as the prototype's does, and every spelling names its address without `rule` as
+  canonical, so search engines index the file once.
+- **Proposed: the worker ingests again a library stored without tags.** Ingestion writes each version's tags, an empty
+  array when it lists none, and its assets in one transaction, so a version with content but no tags marks a library a
+  release before this one stored, whose assets are missing too. Tags are read from the frontmatter, text between
+  commas or an array of strings, as Code Rules' template writes them, and kept on every version's content.
+- **Proposed: "On Rulemart since" for a library stored before this release is the migration's date**, since nothing
+  recorded its first ingestion; production's libraries came days before. "Added by" links the lister's GitHub profile,
+  with `nofollow`, by the login they last signed in with, and reads "Fabrica", unlinked, for a library vetted without
+  a listing. The privacy page says a listing shows its lister's username.
+- **Proposed: the Groups tab's controls need JavaScript, as R5 decided for every cart control**, rather than a form
+  with a fallback page. The cart lives in the browser, so a page that only lists what to add, without JavaScript,
+  adds nothing. The server reads `?sel=` to render the ticked boxes, the box's count, and its button, and `cart.js`
+  keeps the address and each row's link to its group page in step as boxes change, so the selection survives a visit
+  to a group page and back, whose links carry it too. Adding the groups leaves them out of `sel`, as the prototype
+  clears it.
+- **Proposed: a library's group rows lead only to the group's page in the library**, as the prototype's, not across
+  libraries, partly reversing R4: the library group page offers "See <Group> rules from every library" for a canonical
+  group, and a rule's crumbs lead to any group across libraries. Only practices show a blurb, as the prototype.
+- **Proposed: the library's title is its repository's name**, beside its owner's avatar with the vetted check mark,
+  since Rulemart keeps no display name; its facts are the prototype's plain list, with Report this library under it.
+- **Proposed: a retired row on the All rules tab reads "Retired in release/N, replaced by <title>"** (or "renamed to
+  <ID>") in the shared row's gray, after its group's current rules, and a group whose rules are all retired shows only
+  with the option on. The option is a one-checkbox form, as the unvetted opt-in is, which `filters.js` submits.
+- **Proposed: the rule page's crumbs lead its group to the group across libraries**, as the prototype's, and drop
+  R4's separate "rules in every library" link. The About panel's Impact fact and note are gone with the prototype's
+  layout, so the head's impact label leads to Code Rules' explanation of the levels, named by what its level means,
+  where a touch or a keyboard reaches it.
+- **Proposed: "Questions or suggestions?" leads to the library's issues on GitHub** until Discuss arrives with
+  rulemart#27, rather than ending in nothing. The engage row keeps its height on every current rule's page, even
+  without a Star control, as in an unvetted library, and the Discussion tab, between Rule and Versions, renders
+  nothing yet.
+- **Proposed: "Published by" names the owner's login**, since Rulemart keeps no display name.
+- **Proposed: a library group page flags a group that isn't canonical** beside its ID in the title, as its rows do.
+- **Proposed: sizes read in bytes below 1 KB, then KB and MB of 1,024**, to one decimal place below 100.
+- **Proposed: rendered Markdown styles a level-one heading**, which a rule's body drops when it repeats the title, but
+  an asset's Markdown often opens with.
+
 ## Not in this slice
 
 - Discussion (rulemart#27), the dashboard's library totals (R7), the brand mark (R2).
@@ -76,9 +153,12 @@ The Versions tab, the comparison views, the releases tab, and the retired rule p
 - `make check` and `make check-generated` pass.
 - Ingestion tests: assets within and past the caps, shared assets found through links, a Markdown asset's links,
   a missing asset.
-- Page tests: every panel's facts, the Groups tab's selection in the address, the Add groups form, the library
+- Page tests: every panel's facts, the Groups tab's selection in the address, the Add groups box, the library
   group page and its back link, the asset pages and content types, link rewriting, Added by for listed and vetted
   libraries, the reserved Discuss places.
 - In a browser beside the prototype's library, library group, rule, and asset pages at 1280, 390, and 320 pixels,
-  light and dark.
+  light and dark. Done with both real libraries ingested, an unvetted copy of the test library listed, and an SVG and
+  a file too large to keep added to a rule: every page without sideways scroll or console errors, and the Groups tab's
+  flow with a script: ticking rows, the address and links following, a group page and back with the ticks kept, and
+  adding the groups.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.
