@@ -447,10 +447,12 @@ templ ruleContent(r ruleView) {
 			if len(r.assets) > 0 {
 				@assetsPanel(r.assets)
 			}
-			<dl class="grid gap-[7px] text-[13px]">
+			<dl class="grid grid-cols-[minmax(0,1fr)] gap-[7px] text-[13px]">
 				@libraryOwnership(r.library)
 				@kv("File") {
-					@factLink(r.fileURL, r.fileName, r.id+".md")
+					// A long name keeps one line, cut from its start, so its end, which tells rules apart, shows, and the
+					// whole path shows on hover.
+					<span class="block truncate [direction:rtl]"><a class="font-mono text-[.86em]" href={ templ.SafeURL(r.fileURL) } title={ r.id + ".md" }><bdi>{ r.fileName }</bdi></a></span>
 				}
 			</dl>
 		</aside>
