@@ -53,7 +53,9 @@ type Store interface {
 	// the order it added them, suspended ones too.
 	Installations(ctx context.Context, accountID int64) ([]domain.Installation, error)
 	// AddInstallation records that the account reads private repositories through installation, and discards its
-	// snapshot, in one transaction. Adding one it has changes nothing, and keeps the snapshot.
+	// snapshot, in one transaction. Adding one it has, as when the visitor changed which repositories it reads, keeps
+	// the snapshot, for a read that fails to fall back on, but advances the account's GitHub generation, so a read under
+	// way keeps nothing and the next read needn't wait out the minute since the last.
 	AddInstallation(ctx context.Context, accountID int64, installation domain.Installation) error
 	// RemoveInstallations forgets every installation the account reads through, and discards its snapshot, in one
 	// transaction.

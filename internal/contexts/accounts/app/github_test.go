@@ -784,9 +784,42 @@ func TestARetryAfterAccessChangedClaimsItsRead(t *testing.T) {
 	}
 }
 
-// GitHub's return from installing the app, repeated, such as by reloading it, records the installation once, reads
-// GitHub at most once a minute, and keeps the snapshot the first return read.
-func TestARepeatedInstallationCallbackKeepsItsSnapshotAndTheRefreshLimit(t *testing.T) {
+// GitHub's return from installing the app, repeated after the visitor changed which repositories it reads, reads GitHub
+// again at once, within the minute since the last read, and shows the new selection; the installation is recorded
+// once.
+func TestARepeatedInstallationCallbackShowsTheNewSelectionAtOnce(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "mona", Name: "ledger", Private: true, PushedAt: pushed.Add(-8 * time.Hour),
+		Files: map[string]string{"rule-library.yaml": "schemaVersion: 1\n"}, Tags: []string{"release/1"},
+	})
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site := newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	fake.Installations[0].Repositories = append(fake.Installations[0].Repositories, "mona/ledger")
+	got, err := site.accounts.Install(ctx, site.account, site.session, 5)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.FullName() == "mona/ledger" }) {
+		t.Errorf("the repeated return shows libraries %+v, want the newly chosen mona/ledger among them", got.Libraries)
+	}
+	if kept := site.snapshot(t); !slices.ContainsFunc(kept.Libraries, func(l domain.PublishableRepository) bool { return l.FullName() == "mona/ledger" }) {
+		t.Errorf("the kept libraries are %+v, want mona/ledger among them", kept.Libraries)
+	}
+	if installations, _ := site.accounts.Installations(ctx, site.account.ID); len(installations) != 1 {
+		t.Errorf("installations %+v, want installation 5 once", installations)
+	}
+}
+
+// A repeated return from installing the app whose read of GitHub fails keeps the snapshot the first return read, and
+// says the read failed, rather than showing nothing.
+func TestARepeatedInstallationCallbackWhoseReadFailsKeepsTheSnapshot(t *testing.T) {
 	ctx := context.Background()
 	fake := monasGitHub()
 	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
@@ -794,23 +827,18 @@ func TestARepeatedInstallationCallbackKeepsItsSnapshotAndTheRefreshLimit(t *test
 	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
 		t.Fatal(err)
 	}
-	reads := site.fake.Requests("GET /user/orgs")
 
-	for range 3 {
-		got, err := site.accounts.Install(ctx, site.account, site.session, 5)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(got.Projects) != 2 {
-			t.Errorf("a repeated return shows projects %+v, want mona/api and mona/billing", got.Projects)
-		}
-	}
+	fake.Fail = func(path string) bool { return path == "/user/orgs" }
+	got, err := site.accounts.Install(ctx, site.account, site.session, 5)
 
-	if again := site.fake.Requests("GET /user/orgs"); again != reads {
-		t.Errorf("repeated returns read GitHub %d more times, want none within the minute", again-reads)
+	if !errors.Is(err, ErrGitHubRead) {
+		t.Fatalf("got %v, want ErrGitHubRead", err)
 	}
-	if kept := site.snapshot(t); len(kept.Projects) != 2 {
-		t.Errorf("after repeated returns, the kept projects are %+v", kept.Projects)
+	if !got.ReadFailed || len(got.Projects) != 2 {
+		t.Errorf("the failed return shows %+v, want mona/api and mona/billing, saying the read failed", got)
+	}
+	if kept := site.snapshot(t); !kept.ReadFailed || len(kept.Projects) != 2 {
+		t.Errorf("after the failed return, the kept snapshot is %+v", kept)
 	}
 }
 

@@ -413,8 +413,9 @@ func (g GitHubAccounts) Installations(ctx context.Context, accountID int64) ([]d
 // Install records that the account reads private repositories through installation id, which GitHub returned the
 // visitor to Rulemart with, once GitHub confirms it's on the visitor's own account, or on an organization the visitor
 // owns, as only an owner can install an app on all of an organization's repositories. Then it reads the visitor's GitHub
-// account again, with the repositories the installation reads, as Refresh does. It fails with ErrNoApp without a GitHub
-// App, and ErrNotYourInstallation for an installation on another account, or one GitHub doesn't know.
+// account again at once, with the repositories the installation reads, even within domain.RefreshInterval of the last
+// read, since GitHub returns the visitor here after they change those repositories too. It fails with ErrNoApp without
+// a GitHub App, and ErrNotYourInstallation for an installation on another account, or one GitHub doesn't know.
 func (g GitHubAccounts) Install(ctx context.Context, account domain.Account, session domain.SessionToken, id int64) (domain.Snapshot, error) {
 	if g.App == nil {
 		return domain.Snapshot{}, ErrNoApp

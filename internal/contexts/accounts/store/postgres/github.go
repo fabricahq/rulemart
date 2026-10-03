@@ -113,15 +113,18 @@ func (s *Store) Installations(ctx context.Context, accountID int64) ([]domain.In
 	return installations, nil
 }
 
-// AddInstallation records the installation for the account and discards its snapshot, in one transaction, unless the
-// account has it.
+// AddInstallation records the installation for the account and discards its snapshot, in one transaction, or for an
+// installation the account has, advances its GitHub generation and keeps its snapshot, as store.Store describes.
 func (s *Store) AddInstallation(ctx context.Context, accountID int64, installation domain.Installation) error {
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
 		added, err := q.AddInstallation(ctx, accountsdb.AddInstallationParams{
 			AccountID: accountID, InstallationID: installation.ID, GithubAccount: installation.Account,
 		})
-		if err != nil || added == 0 {
+		if err != nil {
 			return err
+		}
+		if added == 0 {
+			return q.AdvanceGitHubGeneration(ctx, accountID)
 		}
 		return discardSnapshot(ctx, q, accountID)
 	})
