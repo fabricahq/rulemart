@@ -74,8 +74,8 @@ ORDER BY g.path, lower(v.title), r.path;
 -- from the reading guidance the version holds now, since a release that didn't render it may have changed it since.
 -- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
-       v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries
+       v.minor, v.patch, v.release, v.published_at, coalesce(v.tags, '{}')::text[] AS tags, retired.number AS retired_in,
+       retired.tagged_at AS retired_at, r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
@@ -83,7 +83,7 @@ JOIN LATERAL (
            coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
                AS when_to_read_html,
            coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
-           p.tagged_at AS published_at
+           p.tagged_at AS published_at, v.tags
     FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
@@ -168,3 +168,34 @@ WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
        AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
 GROUP BY g.path, l.id
 ORDER BY g.path, lower(l.owner), lower(l.name);
+
+-- ListRuleAssets returns the assets the rule's page lists, each with the library release its copy is from, and whether
+-- the catalog keeps its bytes, in path order.
+-- name: ListRuleAssets :many
+SELECT a.path, a.size, a.media_type, (a.content IS NOT NULL)::boolean AS kept, p.number AS release
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+JOIN library_releases p ON p.id = a.release_id
+WHERE ra.rule_id = @rule_id
+ORDER BY a.path COLLATE "C";
+
+-- GetAssetHTML returns how a page shows the library's asset at path: empty unless it's Markdown or text the catalog
+-- keeps.
+-- name: GetAssetHTML :one
+SELECT coalesce(html, '')::text AS html FROM assets WHERE library_id = @library_id AND path = @path;
+
+-- GetAssetContent returns the media type and bytes of the library's asset at path, when the catalog keeps them.
+-- name: GetAssetContent :one
+SELECT a.media_type, a.content::bytea AS content
+FROM assets a
+WHERE a.library_id = @library_id AND a.path = @path AND a.content IS NOT NULL;
+
+-- FirstRuleListingAsset returns the path of the first rule, in path order, whose page lists the library's asset at path.
+-- name: FirstRuleListingAsset :one
+SELECT r.path
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+JOIN rules r ON r.id = ra.rule_id
+WHERE a.library_id = @library_id AND a.path = @path
+ORDER BY r.path COLLATE "C"
+LIMIT 1;

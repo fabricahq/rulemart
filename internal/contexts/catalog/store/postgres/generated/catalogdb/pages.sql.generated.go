@@ -11,6 +11,71 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const firstRuleListingAsset = `-- name: FirstRuleListingAsset :one
+SELECT r.path
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+JOIN rules r ON r.id = ra.rule_id
+WHERE a.library_id = $1 AND a.path = $2
+ORDER BY r.path COLLATE "C"
+LIMIT 1
+`
+
+type FirstRuleListingAssetParams struct {
+	LibraryID int64
+	Path      string
+}
+
+// FirstRuleListingAsset returns the path of the first rule, in path order, whose page lists the library's asset at path.
+func (q *Queries) FirstRuleListingAsset(ctx context.Context, arg FirstRuleListingAssetParams) (string, error) {
+	row := q.db.QueryRow(ctx, firstRuleListingAsset, arg.LibraryID, arg.Path)
+	var path string
+	err := row.Scan(&path)
+	return path, err
+}
+
+const getAssetContent = `-- name: GetAssetContent :one
+SELECT a.media_type, a.content::bytea AS content
+FROM assets a
+WHERE a.library_id = $1 AND a.path = $2 AND a.content IS NOT NULL
+`
+
+type GetAssetContentParams struct {
+	LibraryID int64
+	Path      string
+}
+
+type GetAssetContentRow struct {
+	MediaType string
+	Content   []byte
+}
+
+// GetAssetContent returns the media type and bytes of the library's asset at path, when the catalog keeps them.
+func (q *Queries) GetAssetContent(ctx context.Context, arg GetAssetContentParams) (GetAssetContentRow, error) {
+	row := q.db.QueryRow(ctx, getAssetContent, arg.LibraryID, arg.Path)
+	var i GetAssetContentRow
+	err := row.Scan(&i.MediaType, &i.Content)
+	return i, err
+}
+
+const getAssetHTML = `-- name: GetAssetHTML :one
+SELECT coalesce(html, '')::text AS html FROM assets WHERE library_id = $1 AND path = $2
+`
+
+type GetAssetHTMLParams struct {
+	LibraryID int64
+	Path      string
+}
+
+// GetAssetHTML returns how a page shows the library's asset at path: empty unless it's Markdown or text the catalog
+// keeps.
+func (q *Queries) GetAssetHTML(ctx context.Context, arg GetAssetHTMLParams) (string, error) {
+	row := q.db.QueryRow(ctx, getAssetHTML, arg.LibraryID, arg.Path)
+	var html string
+	err := row.Scan(&html)
+	return html, err
+}
+
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
@@ -81,8 +146,8 @@ func (q *Queries) GetLibrary(ctx context.Context, arg GetLibraryParams) (GetLibr
 
 const getRule = `-- name: GetRule :one
 SELECT r.id, r.path, g.path AS group_path, v.title, v.impact, v.when_to_read, v.when_to_read_html, v.html, v.major,
-       v.minor, v.patch, v.release, v.published_at, retired.number AS retired_in, retired.tagged_at AS retired_at,
-       r.retirement_summaries
+       v.minor, v.patch, v.release, v.published_at, coalesce(v.tags, '{}')::text[] AS tags, retired.number AS retired_in,
+       retired.tagged_at AS retired_at, r.retirement_summaries
 FROM rules r
 JOIN library_groups g ON g.id = r.group_id
 JOIN LATERAL (
@@ -90,7 +155,7 @@ JOIN LATERAL (
            coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text
                AS when_to_read_html,
            coalesce(v.html, v.retired_html) AS html, v.major, v.minor, v.patch, p.number AS release,
-           p.tagged_at AS published_at
+           p.tagged_at AS published_at, v.tags
     FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
     WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
 ) v ON true
@@ -119,6 +184,7 @@ type GetRuleRow struct {
 	Patch               int32
 	Release             int32
 	PublishedAt         pgtype.Timestamptz
+	Tags                []string
 	RetiredIn           pgtype.Int4
 	RetiredAt           pgtype.Timestamptz
 	RetirementSummaries []string
@@ -145,6 +211,7 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 		&i.Patch,
 		&i.Release,
 		&i.PublishedAt,
+		&i.Tags,
 		&i.RetiredIn,
 		&i.RetiredAt,
 		&i.RetirementSummaries,
@@ -510,6 +577,51 @@ func (q *Queries) ListRetiredRules(ctx context.Context, libraryID int64) ([]List
 			&i.Major,
 			&i.Minor,
 			&i.Patch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleAssets = `-- name: ListRuleAssets :many
+SELECT a.path, a.size, a.media_type, (a.content IS NOT NULL)::boolean AS kept, p.number AS release
+FROM rule_assets ra
+JOIN assets a ON a.id = ra.asset_id
+JOIN library_releases p ON p.id = a.release_id
+WHERE ra.rule_id = $1
+ORDER BY a.path COLLATE "C"
+`
+
+type ListRuleAssetsRow struct {
+	Path      string
+	Size      int64
+	MediaType string
+	Kept      bool
+	Release   int32
+}
+
+// ListRuleAssets returns the assets the rule's page lists, each with the library release its copy is from, and whether
+// the catalog keeps its bytes, in path order.
+func (q *Queries) ListRuleAssets(ctx context.Context, ruleID int64) ([]ListRuleAssetsRow, error) {
+	rows, err := q.db.Query(ctx, listRuleAssets, ruleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleAssetsRow
+	for rows.Next() {
+		var i ListRuleAssetsRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.Size,
+			&i.MediaType,
+			&i.Kept,
+			&i.Release,
 		); err != nil {
 			return nil, err
 		}

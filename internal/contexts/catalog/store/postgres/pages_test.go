@@ -327,9 +327,9 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	want := views.Rule{
 		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
 		WhenToRead: "When changing Return errors.", WhenToReadHTML: "<p>When changing <code>Return errors</code>.</p>\n",
-		HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
+		HTML: "<p>Return errors.</p>\n", Tags: []string{}, Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
-	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {
+	if !reflect.DeepEqual(r, want) || !page.Rule.PublishedAt.Equal(day(3)) {
 		t.Errorf("rule is %+v, want %+v", page.Rule, want)
 	}
 	var versions []string
@@ -375,5 +375,55 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 				t.Fatalf("got %v, want store.ErrNotFound", err)
 			}
 		})
+	}
+}
+
+// A current rule's page reads its tags, and the assets it lists, its own first, each in path order; an asset's page
+// reads one of them with the rule's page, or the first rule's that lists it; and only a kept file's bytes are read.
+func TestRulePageReadsTagsAndAssets(t *testing.T) {
+	s, connString := newStore(t)
+	lib := goRules(1, current("techs/go/return-errors", added(1)), current("techs/go/close-what-you-open", added(1)))
+	lib.Rules[0].Versions[0].Content.Tags = []string{"errors", "wrapping"}
+	lib.Rules[0].Assets = []string{"techs/go/assets/return-errors/z.svg", "assets/glossary.md", "assets/a.md"}
+	lib.Rules[1].Assets = []string{"assets/glossary.md"}
+	lib.Assets = []domain.Asset{
+		{Path: "assets/a.md", Release: 1, Size: 9000, MediaType: "text/markdown; charset=utf-8"},
+		{Path: "assets/glossary.md", Release: 1, Size: 6, MediaType: "text/markdown; charset=utf-8", Content: []byte("Terms."), HTML: "<p>Terms.</p>"},
+		{Path: "techs/go/assets/return-errors/z.svg", Release: 1, Size: 6, MediaType: "image/svg+xml", Content: []byte("<svg/>")},
+	}
+	replace(t, s, lib)
+	reader := postgres.New(databasetest.AsWebRole(t, connString))
+	ctx := context.Background()
+
+	page, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/return-errors")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"errors", "wrapping"}; !slices.Equal(page.Rule.Tags, want) {
+		t.Errorf("tags are %q, want %q", page.Rule.Tags, want)
+	}
+	wantAssets := []views.Asset{
+		{Path: "techs/go/assets/return-errors/z.svg", Size: 6, MediaType: "image/svg+xml", Release: 1, Kept: true},
+		{Path: "assets/a.md", Size: 9000, MediaType: "text/markdown; charset=utf-8", Release: 1},
+		{Path: "assets/glossary.md", Size: 6, MediaType: "text/markdown; charset=utf-8", Release: 1, Kept: true},
+	}
+	if !reflect.DeepEqual(page.Assets, wantAssets) {
+		t.Errorf("assets are %+v, want %+v", page.Assets, wantAssets)
+	}
+
+	shared, err := reader.AssetPage(ctx, vetted, "example", "rules", "", "assets/glossary.md")
+	if err != nil || shared.Page.Rule.Path != "techs/go/close-what-you-open" || shared.HTML != "<p>Terms.</p>" {
+		t.Errorf("the shared asset's page is %+v, %v; want it with close-what-you-open, the first rule that lists it", shared, err)
+	}
+	if _, err := reader.AssetPage(ctx, vetted, "example", "rules", "techs/go/close-what-you-open", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("an asset the rule doesn't list: got %v, want ErrNotFound", err)
+	}
+	image, err := reader.AssetContent(ctx, vetted, "example", "rules", "techs/go/assets/return-errors/z.svg")
+	if err != nil || image.MediaType != "image/svg+xml" || string(image.Content) != "<svg/>" {
+		t.Errorf("the image is %+v, %v", image, err)
+	}
+	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a file kept without bytes: got %v, want ErrNotFound", err)
 	}
 }

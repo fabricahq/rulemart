@@ -114,6 +114,13 @@ type Catalog interface {
 	// with app.ErrNotFound when there's no such release either.
 	ReleasesPage(ctx context.Context, owner, name string, release int) (views.ReleasesPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+	// AssetPage returns the asset at assetPath, a path in the repository, of the current rule at rulePath in the
+	// library owner/name, with the rule's page, or of the first rule that lists it when rulePath is empty, or fails with
+	// app.ErrNotFound when there's no such library or rule, or the rule doesn't list such an asset.
+	AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error)
+	// AssetImage returns the image at assetPath in the library owner/name that Rulemart keeps, or fails with
+	// app.ErrNotFound when there's no such library or image.
+	AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetImage, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
@@ -566,8 +573,13 @@ func parseReleaseNumber(text string) (int, error) {
 
 // rule shows a rule's page, or its Versions tab when the tab parameter names it. With versions to compare in the
 // from and to parameters, the Versions tab compares them. Returning from signing in to star the rule, it prompts once
-// to star it.
+// to star it. A path under the library's shared asset directory, or a rule's, leads to an asset instead: Code Rules
+// reserves the name assets, so no rule's ID holds it.
 func (s *server) rule(w http.ResponseWriter, r *http.Request) {
+	if rulePath, assetPath, ok := requestedAsset(r); ok {
+		s.asset(w, r, rulePath, assetPath)
+		return
+	}
 	if s.withoutStarPrompt(w, r) {
 		return
 	}
@@ -594,8 +606,13 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 
 // libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
 // the cart, or the missing page when the library has no current rules in such a group. A group spelled in another
-// case redirects to the library's spelling, as a rule does.
+// case redirects to the library's spelling, as a rule does. A shared asset directly under the library's shared asset
+// directory has a path of a group's shape, whose kind is assets, and leads to the asset.
 func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
+	if rulePath, assetPath, ok := requestedAsset(r); ok {
+		s.asset(w, r, rulePath, assetPath)
+		return
+	}
 	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
 	if err != nil {
 		s.found(w, r, page.Library, "", err)
@@ -723,6 +740,9 @@ func withoutPath(text string, r *http.Request) string {
 	}
 	if repo == "" {
 		return strings.ReplaceAll(text, strconv.Quote(owner), "{owner}")
+	}
+	if _, asset, ok := requestedAsset(r); ok {
+		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+asset, "{owner}/{repo}/{asset...}")
 	}
 	if rule != "" {
 		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")

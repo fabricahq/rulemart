@@ -104,8 +104,8 @@ func TestRulePageShowsRawHTMLAsText(t *testing.T) {
 }
 
 // assertRunsNothingFromRules fails when an HTML body has an event handler, a javascript: URL, a script that isn't
-// Rulemart's own, or an image that isn't Rulemart's own or from an https host the policy allows, any of which a
-// rule's text could add.
+// Rulemart's own, or an image that isn't Rulemart's own, one of its static files or an asset it serves, or from an
+// https host the policy allows, any of which a rule's text could add.
 func assertRunsNothingFromRules(t *testing.T, body string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -124,7 +124,8 @@ func assertRunsNothingFromRules(t *testing.T, body string) {
 		if n.Data == "script" && !strings.HasPrefix(attribute(n, "src"), "/_static/") {
 			t.Errorf("a script that isn't Rulemart's own: src=%q", attribute(n, "src"))
 		}
-		if src := attribute(n, "src"); n.Data == "img" && !strings.HasPrefix(src, "https://") && !strings.HasPrefix(src, "/_static/") {
+		if src := attribute(n, "src"); n.Data == "img" && !strings.HasPrefix(src, "https://") && !strings.HasPrefix(src, "/_static/") &&
+			!(strings.HasPrefix(src, library+"/") && strings.Contains(src, "/assets/") && strings.HasSuffix(src, "?raw=1")) {
 			t.Errorf("an image from the rule: src=%q", attribute(n, "src"))
 		}
 	}

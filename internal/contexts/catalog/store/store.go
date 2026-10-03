@@ -156,6 +156,14 @@ type Reader interface {
 	// regard to case, as LibraryPage matches the library, with how every rule of the library was replaced, or
 	// ErrNotFound. The page's Rule.Path is the library's spelling.
 	RulePage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string) (views.RulePage, error)
+	// AssetPage returns the asset at assetPath, a path in the repository, of the rule at rulePath in the library
+	// owner/name, matched as RulePage matches them, with the rule's page, or of the first rule in path order that lists
+	// it when rulePath is empty. It fails with ErrNotFound when there's no such library or rule, or the rule doesn't
+	// list such an asset.
+	AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error)
+	// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name, matched as
+	// LibraryPage matches it, or ErrNotFound when there's no such library, or it keeps no bytes of such an asset.
+	AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetImage, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
 	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.
 	RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error)

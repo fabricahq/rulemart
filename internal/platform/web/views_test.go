@@ -54,3 +54,15 @@ func TestSegmentsSetApartOnlyAdjacentMarks(t *testing.T) {
 		t.Errorf("got %s, want %s", out.String(), want)
 	}
 }
+
+// A file's size reads in bytes below a KB, then to one decimal place, without a trailing .0, and whole from 100 up.
+func TestFormatSizeReadsAsPagesShowIt(t *testing.T) {
+	for bytes, want := range map[int64]string{
+		0: "0 B", 1023: "1023 B", 1024: "1 KB", 1536: "1.5 KB", 102399: "100 KB", 100 << 10: "100 KB",
+		300 << 10: "300 KB", 1<<20 - 1: "1024 KB", 1 << 20: "1 MB", 2_621_440: "2.5 MB",
+	} {
+		if got := formatSize(bytes); got != want {
+			t.Errorf("formatSize(%d) = %q, want %q", bytes, got, want)
+		}
+	}
+}

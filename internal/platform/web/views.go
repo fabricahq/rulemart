@@ -429,6 +429,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	}
 	// The group holds the rule itself while it's current, whatever the links say.
 	v.groupRules = max(page.GroupRuleCount(), 1)
+	// A shared asset's page shows it as this rule's.
+	v.html, v.whenToReadHTML = ruleContext(v.html, lib, r.Path), ruleContext(v.whenToReadHTML, lib, r.Path)
 	if !lib.vetted {
 		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
 		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)

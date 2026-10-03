@@ -158,6 +158,9 @@ type RulePage struct {
 	Library  Library
 	Rule     Rule
 	Versions []Version
+	// Assets are the files a current rule's page lists: its own, in path order, then the shared files it links to, in
+	// path order. A retired rule has none.
+	Assets []Asset
 	// Replaces are the retired rules whose retirement named this one as their replacement, in path order, and
 	// RenamedFrom is the one this rule renamed, if any, which Replaces leaves out.
 	Replaces    []RuleRef
@@ -191,7 +194,10 @@ type Rule struct {
 	// the rule is retired, so the page shows WhenToRead as text.
 	WhenToReadHTML string
 	// HTML is the current version's body; empty when the rule is retired.
-	HTML    string
+	HTML string
+	// Tags are the topics the version's frontmatter lists, in its order; empty when it lists none, or the catalog
+	// doesn't have them yet.
+	Tags    []string
 	Version coderules.RuleVersion
 	// Release is the number of the library release that published the version, tagged at PublishedAt.
 	Release     int
@@ -201,6 +207,34 @@ type Rule struct {
 	// Stars counts the accounts whose stars count toward a current rule, as RuleCard's do; it's 0 for a retired rule,
 	// whose stars count toward its replacement, and in a library that isn't vetted.
 	Stars int
+}
+
+// Asset is one of a rule's supporting files, as its page lists it.
+type Asset struct {
+	// Path is the file's path in the repository: in the rule's asset directory, or under domain.SharedAssetDir.
+	Path string
+	Size int64
+	// MediaType is what ingestion found the file to be, which domain.AssetKindOf reads.
+	MediaType string
+	// Release is the number of the library release whose commit the copy is from.
+	Release int
+	// Kept reports whether the catalog keeps the file's bytes: Rulemart serves an image it keeps, and a page shows
+	// Markdown or text it keeps.
+	Kept bool
+}
+
+// AssetPage is one of a rule's assets, with the page of the rule whose Assets list it.
+type AssetPage struct {
+	Page  RulePage
+	Asset Asset
+	// HTML is how the page shows a Markdown or text file the catalog keeps: rendered, or as code; empty otherwise.
+	HTML string
+}
+
+// AssetImage is an image the catalog keeps, as Rulemart serves it.
+type AssetImage struct {
+	MediaType string
+	Content   []byte
 }
 
 // Retirement is how a library release retired a rule.

@@ -1,0 +1,178 @@
+// A rule's assets: the page of each one, and the list of them beside a rule and its assets' pages.
+
+package web
+
+import "github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+
+// assetPage shows one of the rule r's assets, a, as the prototype's asset page: where it is, its name, what it is to the
+// rule, its content, an image, rendered Markdown, or code, as html holds it, or a link to it on GitHub when Rulemart
+// keeps none, and the list of the rule's assets, assets, with a marked.
+templ assetPage(c chrome, r ruleView, a assetView, assets []assetView, html string) {
+	@layout(c, libraryHead(head{title: a.fileName() + " · " + r.title + " · Rulemart", description: assetSummary(r, a)}, r.library)) {
+		<div class="page wrap">
+			if !r.library.vetted {
+				@unvettedWarning(false)
+			}
+			@ruleCrumbs(r) {
+				<span>›</span>
+				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.href) }>{ r.title }</a>
+			}
+			<div class="flex flex-wrap items-start justify-between gap-6">
+				<div class="min-w-0">
+					<h1 class="font-mono text-[clamp(1.3rem,2.4vw,1.6rem)] leading-[1.25] font-medium tracking-[-.03em] [overflow-wrap:anywhere]">{ a.fileName() }</h1>
+					<p class="mt-2 mb-2.5 text-[13px] text-muted">
+						if a.shared {
+							Shared file in { r.library.fullName() }, used by this rule. Not part of the rule's version; this copy is from { a.release } · { a.size }
+						} else {
+							Supporting file for this rule, part of version { r.version } · { a.size }
+						}
+					</p>
+				</div>
+				<div class="flex flex-wrap items-center gap-2.5">
+					@smallButton(a.githubURL) {
+						@githubMark("size-[15px] flex-none")
+						View on GitHub
+					}
+					@smallButton(a.rawURL) {
+						Raw
+					}
+				</div>
+			</div>
+			<div class="mt-[26px] grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
+				<div class="min-w-0">
+					switch {
+						case a.kind == domain.AssetImage && a.kept:
+							<div class="rounded-card border border-border bg-surface p-[18px]">
+								<img class="mx-auto block h-auto max-w-full rounded-[8px]" src={ a.image } alt={ a.name }/>
+							</div>
+						case html != "":
+							<div class="prose">
+								@templ.Raw(html)
+							</div>
+						default:
+							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+								Rulemart doesn't keep a copy of this file. <a href={ templ.SafeURL(a.githubURL) }>View it on GitHub</a>.
+							</div>
+					}
+					<a class="mt-[18px] inline-block text-[13px] text-muted underline-offset-4 hover:text-ink" href={ templ.SafeURL(r.href) }>← Back to { r.title }</a>
+				</div>
+				<aside class="grid content-start gap-[18px]">
+					@assetsPanel(assets)
+				</aside>
+			</div>
+		</div>
+	}
+}
+
+// assetSummary returns what an asset's page says about it to search engines.
+func assetSummary(r ruleView, a assetView) string {
+	if a.shared {
+		return a.fileName() + ": a file " + r.library.fullName() + " shares, used by the rule " + r.title + ", on Rulemart."
+	}
+	return a.fileName() + ": a supporting file of the rule " + r.title + " in " + r.library.fullName() + ", on Rulemart."
+}
+
+// ruleCrumbs is where a rule is, at the top of its pages: its library's avatar and name, then its group's icon and
+// name, which lead to the group across libraries, then what the children add.
+templ ruleCrumbs(r ruleView) {
+	<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+		@avatar(r.library.avatar, r.library.owner, avatarSM)
+		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
+		<span>›</span>
+		@groupTile(r.group, r.groupIcon, tileXS)
+		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>
+			if r.group.canonical {
+				{ r.group.name }
+			} else {
+				<span class="mono">{ r.group.id }</span>
+			}
+		</a>
+		{ children... }
+	</div>
+}
+
+// sidePanel is a panel beside a page's content, as the prototype's: a shaded header bar with its title, small and
+// uppercase, and what aside says at its end, over its body.
+templ sidePanel(title, id string, aside templ.Component) {
+	<section class="overflow-hidden rounded-panel border border-border bg-surface" aria-labelledby={ id }>
+		<div class="flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3">
+			<h2 id={ id } class={ labelStyle }>{ title }</h2>
+			if aside != nil {
+				@aside
+			}
+		</div>
+		{ children... }
+	</section>
+}
+
+// assetsPanel lists a rule's assets, as the prototype's Assets panel: its own files, then the files it shares with
+// the library, each leading to its page, with the one whose page shows the list marked.
+templ assetsPanel(assets []assetView) {
+	@sidePanel("Assets", "assets", assetCount(len(assets))) {
+		<div class="grid gap-0.5 px-2.5 pt-2.5 pb-3">
+			for _, a := range assets {
+				if !a.shared {
+					@assetRow(a)
+				}
+			}
+			if sharedAssets(assets) {
+				<p class="px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase">Shared across the library</p>
+				for _, a := range assets {
+					if a.shared {
+						@assetRow(a)
+					}
+				}
+				<p class="mx-2 mt-1 text-[12px] text-faint">Not part of this rule's version. Projects get the copy from the newest library release.</p>
+			}
+			<p class="mx-2 mt-2 text-[12px] text-faint">These files come with the rule when you add it.</p>
+		</div>
+	}
+}
+
+// assetCount is the Assets panel's count of files.
+templ assetCount(n int) {
+	<span class="text-[12px] text-faint">{ plural(n, "file", "files") }</span>
+}
+
+// sharedAssets reports whether any of assets is shared across the library.
+func sharedAssets(assets []assetView) bool {
+	for _, a := range assets {
+		if a.shared {
+			return true
+		}
+	}
+	return false
+}
+
+// assetRow is one asset in the Assets panel: its kind's icon, its name, cut short with its whole path on hover, and its
+// size.
+templ assetRow(a assetView) {
+	<a
+		class={ "grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-[9px] rounded-sm px-2 py-1.5 text-[13px] text-ink no-underline hover:bg-paper", templ.KV("bg-paper font-medium shadow-[inset_0_0_0_1px_var(--border)]", a.current) }
+		href={ templ.SafeURL(a.href) }
+		if a.current {
+			aria-current="page"
+		}
+	>
+		@assetIcon(a.kind, "size-4 text-muted")
+		<span class="truncate font-mono text-[12px]" title={ a.path }>{ a.name }</span>
+		<span class="text-[11.5px] whitespace-nowrap text-faint">{ a.size }</span>
+	</a>
+}
+
+// assetIcon is an asset's kind: a picture for an image, a page for Markdown, and braces for any other file.
+templ assetIcon(kind domain.AssetKind, class string) {
+	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+		switch kind {
+			case domain.AssetImage:
+				<rect x="3" y="4" width="18" height="16" rx="2"></rect>
+				<circle cx="9" cy="10" r="1.6"></circle>
+				<path d="m21 16-5-5-9 9"></path>
+			case domain.AssetMarkdown:
+				<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path>
+				<path d="M14 3v5h5M9 13h6M9 17h4"></path>
+			default:
+				<path d="M8 4H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1"></path>
+		}
+	</svg>
+}

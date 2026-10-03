@@ -56,6 +56,10 @@ type catalog struct {
 	// searched records each query searched, and chosen the choices of every list read, when they aren't nil.
 	searched *[]string
 	chosen   *[]domain.ListChoices
+	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
+	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>.
+	assets map[string]views.AssetPage
+	images map[string]views.AssetImage
 	// sitemap is what the sitemap lists.
 	sitemap views.Sitemap
 	// err, when set, fails every read.
@@ -155,6 +159,22 @@ func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (view
 		return page, fmt.Errorf("load rule %s/%s/%s: %w", owner, name, rulePath, app.ErrNotFound)
 	}
 	return page, c.err
+}
+
+func (c catalog) AssetPage(_ context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
+	page, ok := c.assets[strings.ToLower(owner+"/"+name)+"/"+assetPath+" rule="+rulePath]
+	if c.err == nil && !ok {
+		return page, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
+	}
+	return page, c.err
+}
+
+func (c catalog) AssetImage(_ context.Context, owner, name, assetPath string) (views.AssetImage, error) {
+	image, ok := c.images[strings.ToLower(owner+"/"+name)+"/"+assetPath]
+	if c.err == nil && !ok {
+		return image, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
+	}
+	return image, c.err
 }
 
 // ReleasesPage finds the page that holds a release after the first page's under the library's key, then
