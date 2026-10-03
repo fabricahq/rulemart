@@ -111,10 +111,16 @@ The spec's Proposed decisions are built as written, except where an entry here s
   box, so its Add <Group> group to cart has a home. The Groups tab gains a checkbox per group, beside the row's
   existing link, an In cart badge, a link to the group's page, and the Add to cart box above the facts. R6 decides
   the rows' final interaction and finishes both layouts.
-- **Proposed: the cart's page renders from the checkout's answer**: the script builds item rows with the site's
-  classes, which Tailwind now reads from `cart.js` too, and the server renders everything else, the cards, the
-  project section, and the dialogs, so only what depends on the cart is built in the browser. Each change shows at
-  once from the last answer and asks again, at most every 200 ms while typing, keeping only the latest answer.
+- **Proposed: the cart's page renders from the checkout's answer**: a second script, `cart-page.js`, loaded only on
+  `/cart`, builds item rows with the site's classes, which Tailwind now reads from it too, and the server renders
+  everything else, the cards, the project section, and the dialogs, so only what depends on the cart is built in the
+  browser. Each change shows at once from the last answer and asks again, at most every 200 ms while typing, keeping
+  only the latest answer.
+- **Proposed: `cart.js` owns the cart, and the page script changes it only through the store's API.** `cart.js`,
+  on every page, keeps the cart and paints the header and the controls that add; it exposes `window.rulemartCart`,
+  as `toast.js` exposes `window.rulemartToast`, with named operations (add, remove, fork, add the rest of the
+  groups, confirm, the repository, clear, drop unknown keys) and a copy of the state. `cart-page.js` never writes
+  `localStorage`, and redraws on the `rulemart:cart` event every change sends, from this tab or another.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

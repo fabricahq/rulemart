@@ -1644,10 +1644,10 @@ func checkIcon(class string) templ.Component {
 	})
 }
 
-// cartPage is the cart's page, as the prototype's: a shell that cart.js fills from the cart the browser keeps, which
-// it checks out at checkoutHref. An empty cart shows the empty state; a cart with items, the three numbered cards:
-// what you're adding, where it goes, and the finished prompt and commands. Without JavaScript, the page says the cart
-// needs it. signIn is where signing in starts, empty when sign-in isn't available; a signed-in visitor has no
+// cartPage is the cart's page, as the prototype's: a shell that cart-page.js fills from the cart the browser keeps,
+// which it checks out at checkoutHref. An empty cart shows the empty state; a cart with items, the three numbered
+// cards: what you're adding, where it goes, and the finished prompt and commands. Without JavaScript, the page says the
+// cart needs it. signIn is where signing in starts, empty when sign-in isn't available; a signed-in visitor has no
 // projects Rulemart knows of yet.
 func cartPage(c chrome, signIn string, withGitHub, signedIn bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -2020,7 +2020,7 @@ func cartPage(c chrome, signIn string, withGitHub, signedIn bool) templ.Componen
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Cart · Rulemart", description: "The rules you picked on Rulemart, and the prompt and commands that add them to your project.", noindex: true, section: cartHref}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var96), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Cart · Rulemart", description: "The rules you picked on Rulemart, and the prompt and commands that add them to your project.", noindex: true, section: cartHref, cartPage: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var96), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2248,7 +2248,7 @@ func checkoutStep(n, title, id string) templ.Component {
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
 // entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none. The
-// repository field names the project in the texts; cart.js keeps it and says which repository it read.
+// repository field names the project in the texts; cart.js keeps it, and cart-page.js says which repository it read.
 func projectSection(signIn string, withGitHub, signedIn bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

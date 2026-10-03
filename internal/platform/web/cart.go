@@ -1,5 +1,5 @@
-// Check out the cart a visitor's browser keeps: cart.js posts its keys and choices, and the answer resolves each
-// against the catalog and holds the prompt and commands that import it.
+// Check out the cart a visitor's browser keeps: cart-page.js posts its keys and choices, and the answer resolves
+// each against the catalog and holds the prompt and commands that import it.
 
 package web
 
@@ -35,7 +35,7 @@ const (
 // characters, twice, as the cart and its forks, and the rest of the choices.
 const maxCheckoutBytes = 4 * domain.MaxCartItems * domain.MaxCartKeyLength
 
-// checkoutRequest is what cart.js posts: the cart as the browser keeps it, in localStorage's rulemart-cart.
+// checkoutRequest is what cart-page.js posts: the cart as the browser keeps it, in localStorage's rulemart-cart.
 type checkoutRequest struct {
 	// Cart is the cart's keys, in order, as domain.CartItem's Key writes them.
 	Cart []string `json:"cart"`
@@ -49,10 +49,10 @@ type checkoutRequest struct {
 	Repo string `json:"repo"`
 }
 
-// checkoutResponse is a cart's checkout, as cart.js shows it.
+// checkoutResponse is a cart's checkout, as cart-page.js shows it.
 type checkoutResponse struct {
 	Libraries []checkoutLibraryJSON `json:"libraries"`
-	// Unknown are the cart's keys that name nothing a cart can hold, which cart.js drops.
+	// Unknown are the cart's keys that name nothing a cart can hold, which cart-page.js drops.
 	Unknown []string `json:"unknown"`
 	// Repository is the project's repository, as owner/name, which the texts name, or empty. RepositoryInvalid is
 	// true when the visitor wrote one that names no GitHub repository.
@@ -135,16 +135,16 @@ type upsellJSON struct {
 	Full   bool     `json:"full"`
 }
 
-// cartPage shows the cart's page, which cart.js fills from the cart the browser keeps. It's the same for every visitor
-// but in where the cart's rules go, which offers to sign in to anyone who isn't.
+// cartPage shows the cart's page, which cart-page.js fills from the cart the browser keeps. It's the same for every
+// visitor but in where the cart's rules go, which offers to sign in to anyone who isn't.
 func (s *server) cartPage(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	s.render(w, r, http.StatusOK, cartPage(s.chrome, v.signIn, v.withGitHub, v.account != nil))
 }
 
-// checkout answers a cart that cart.js posts, as checkoutRequest describes it, with its checkout. Another site can't
-// post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that isn't
-// such a cart, or holds more than domain.MaxCartItems keys, is refused with 400.
+// checkout answers a cart that cart-page.js posts, as checkoutRequest describes it, with its checkout. Another site
+// can't post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that
+// isn't such a cart, or holds more than domain.MaxCartItems keys, is refused with 400.
 func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
 		writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
@@ -187,8 +187,8 @@ func checkoutTarget(repo string) (domain.CheckoutTarget, bool) {
 	return target, false
 }
 
-// newCheckoutResponse describes checkout, for target, as cart.js reads it. iconURL returns where the site serves an
-// icon file.
+// newCheckoutResponse describes checkout, for target, as cart-page.js reads it. iconURL returns where the site serves
+// an icon file.
 func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, repositoryInvalid bool, iconURL func(string) string) checkoutResponse {
 	resp := checkoutResponse{
 		Libraries: []checkoutLibraryJSON{}, Unknown: checkout.Unknown, Repository: target.Repository,

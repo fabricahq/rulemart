@@ -25,8 +25,13 @@ func withAttribute(key string) func(*html.Node) bool {
 	return func(n *html.Node) bool { return hasAttribute(n, key) }
 }
 
+// loadsScript reports whether doc loads the static script named file.
+func loadsScript(doc *html.Node, file string) bool {
+	return find(doc, func(n *html.Node) bool { return n.Data == "script" && strings.HasSuffix(attribute(n, "src"), "/"+file) }) != nil
+}
+
 // Every page's header links the cart for everyone, signed in or not, and loads the script that paints its count and
-// keeps the cart, and the one that shows its toasts.
+// keeps the cart, and the one that shows its toasts, but not the cart page's own script.
 func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
@@ -38,9 +43,12 @@ func TestEveryPageLinksTheCartAndLoadsItsScript(t *testing.T) {
 			t.Errorf("%s: no link to the cart with its count", path)
 		}
 		for _, script := range []string{"cart.js", "toast.js"} {
-			if find(doc, func(n *html.Node) bool { return n.Data == "script" && strings.Contains(attribute(n, "src"), script) }) == nil {
+			if !loadsScript(doc, script) {
 				t.Errorf("%s: doesn't load %s", path, script)
 			}
+		}
+		if loadsScript(doc, "cart-page.js") {
+			t.Errorf("%s: loads the cart page's script", path)
 		}
 	}
 }
@@ -160,9 +168,9 @@ func linkOf(path string, retiredIn int) views.RuleLink {
 	return views.RuleLink{Path: path, RetiredIn: retiredIn}
 }
 
-// The cart's page is a shell cart.js fills, the same for every visitor who isn't signed in: the empty state and the
-// three cards, each hidden until the script shows the one the cart needs, and, without JavaScript, a message that the
-// cart needs it. Signed out, where the rules go offers to sign in or to enter a repository; signed in, it says
+// The cart's page is a shell cart-page.js fills, the same for every visitor who isn't signed in: the empty state and
+// the three cards, each hidden until the script shows the one the cart needs, and, without JavaScript, a message that
+// the cart needs it. Signed out, where the rules go offers to sign in or to enter a repository; signed in, it says
 // Rulemart found no projects, since it reads none yet. Search engines don't index it.
 func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 	site := newAccountsSite(t, nil)
@@ -172,6 +180,9 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 	signedIn := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/cart", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 
 	doc := parsePage(t, signedOut)
+	if !loadsScript(doc, "cart-page.js") {
+		t.Error("the page doesn't load the script that fills it")
+	}
 	for _, part := range []string{"data-cart-page", "data-cart-empty", "data-cart-full", "data-cart-libraries", "data-cart-preview", "data-cart-repo"} {
 		if find(doc, withAttribute(part)) == nil {
 			t.Errorf("the page has no %s", part)

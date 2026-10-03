@@ -30,7 +30,7 @@ func (f *fakeCarts) Checkout(_ context.Context, cart app.Cart, target domain.Che
 	return f.checkout, f.err
 }
 
-// postCheckout posts body to the checkout as cart.js does, from this site unless header says otherwise.
+// postCheckout posts body to the checkout as cart-page.js does, from this site unless header says otherwise.
 func postCheckout(t *testing.T, handler http.Handler, body string, header http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/cart/checkout.json", strings.NewReader(body))
@@ -87,8 +87,8 @@ func decode(t *testing.T, resp *httptest.ResponseRecorder) checkoutAnswer {
 	return answer
 }
 
-// The checkout answers a cart with each library and item as the catalog resolved them, with their pages, and the
-// texts, for the repository the visitor named, as cart.js shows them.
+// The checkout answers a cart with each library and item as the catalog resolved them, with their pages, and the texts,
+// for the repository the visitor named, as cart-page.js shows them.
 func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 	goGroup := views.CheckoutGroup{Path: "techs/go", Canonical: &views.CanonicalGroup{Name: "Go", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}}
 	carts := &fakeCarts{checkout: views.Checkout{
