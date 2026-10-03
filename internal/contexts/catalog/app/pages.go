@@ -134,13 +134,13 @@ func (p Pages) AssetPage(ctx context.Context, owner, name, rulePath, assetPath s
 // AssetImage returns the image at assetPath in the library owner/name, as Rulemart serves it, or ErrNotFound when
 // there's no such library, or it keeps no image there: Rulemart serves no other file, so no library can serve a page
 // from Rulemart's origin.
-func (p Pages) AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetImage, error) {
+func (p Pages) AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetContent, error) {
 	image, err := p.Store.AssetContent(ctx, p.Vetted, owner, name, assetPath)
 	if err != nil {
-		return views.AssetImage{}, err
+		return views.AssetContent{}, err
 	}
 	if domain.AssetKindOf(image.MediaType) != domain.AssetImage {
-		return views.AssetImage{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, ErrNotFound)
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, ErrNotFound)
 	}
 	return image, nil
 }

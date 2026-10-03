@@ -402,24 +402,24 @@ func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner
 
 // AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name. It fails with
 // store.ErrNotFound when there's no such library, or it keeps no bytes of such an asset.
-func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetImage, error) {
-	var image views.AssetImage
+func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetContent, error) {
+	var content views.AssetContent
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		_, id, err := library(ctx, q, vetted, owner, name)
 		if err != nil {
 			return err
 		}
 		row, err := q.GetAssetContent(ctx, catalogdb.GetAssetContentParams{LibraryID: id, Path: assetPath})
-		image = views.AssetImage{MediaType: row.MediaType, Content: row.Content}
+		content = views.AssetContent{MediaType: row.MediaType, Content: row.Content}
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return views.AssetImage{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, store.ErrNotFound)
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, store.ErrNotFound)
 	}
 	if err != nil {
-		return views.AssetImage{}, fmt.Errorf("load asset %s/%s/%s: %v", owner, name, assetPath, err)
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %v", owner, name, assetPath, err)
 	}
-	return image, nil
+	return content, nil
 }
 
 // ruleLinks reads how every rule of the library library was replaced, in path order.

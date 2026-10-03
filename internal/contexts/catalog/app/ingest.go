@@ -31,16 +31,16 @@ type Fetch func(ctx context.Context, url string, limits domain.FetchLimits) ([]d
 type List func(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error)
 
 // Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch and List, and its
-// renderer as Render, so the functions that only read pages carry neither a Git client nor a renderer.
+// renderer as Renderer, so the functions that only read pages carry neither a Git client nor a renderer.
 type Ingester struct {
 	Repositories Repositories
 	Fetch        Fetch
 	// List is needed only by Update.
 	List List
-	// Render renders rules' Markdown and their assets, as render.Renderer does.
-	Render domain.Renderer
-	Store  store.Writer
-	Limits domain.Limits
+	// Renderer renders rules' Markdown and their assets, as render.Renderer does.
+	Renderer domain.Renderer
+	Store    store.Writer
+	Limits   domain.Limits
 }
 
 // Result summarizes one ingestion.
@@ -109,7 +109,7 @@ func (in Ingester) IngestRepository(ctx context.Context, repo domain.Repository)
 	if err != nil {
 		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err), Reason: err.Error()}
 	}
-	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Render))
+	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Renderer))
 	if err != nil {
 		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err), Reason: err.Error()}
 	}

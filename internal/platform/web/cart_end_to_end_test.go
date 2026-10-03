@@ -87,7 +87,7 @@ func newCheckoutSite(t *testing.T, lib *gittest.Library) http.Handler {
 	t.Helper()
 	db, connString := databasetest.New(t)
 	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}

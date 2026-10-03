@@ -163,7 +163,7 @@ type Reader interface {
 	AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error)
 	// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name, matched as
 	// LibraryPage matches it, or ErrNotFound when there's no such library, or it keeps no bytes of such an asset.
-	AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetImage, error)
+	AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetContent, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
 	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.
 	RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error)

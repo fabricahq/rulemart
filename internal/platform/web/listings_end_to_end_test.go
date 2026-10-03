@@ -75,7 +75,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		t.Fatal(err)
 	}
 	worker := app.Ingester{
-		Repositories: repositories{lib.Repository(7)}, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Renderer{},
+		Repositories: repositories{lib.Repository(7)}, Fetch: git.Fetch, List: git.ListReleaseTags, Renderer: render.Renderer{},
 		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,
 	}
 	if check, err := worker.CheckListing(context.Background(), nil, job.Listing); err != nil || check.Outcome != app.ListingIngested {
@@ -122,7 +122,7 @@ changes: {techs/house-style/keep-it-plain: {change: new, summaries: [Add the rul
 `)
 	db, connString := databasetest.New(t)
 	ctx := context.Background()
-	ingester := app.Ingester{Repositories: repositories{lib.Repository(7)}, Fetch: git.Fetch, Render: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{lib.Repository(7)}, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(ctx, "https://github.com/example/rules"); err != nil {
 		t.Fatal(err)
 	}

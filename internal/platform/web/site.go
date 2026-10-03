@@ -120,7 +120,7 @@ type Catalog interface {
 	AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error)
 	// AssetImage returns the image at assetPath in the library owner/name that Rulemart keeps, or fails with
 	// app.ErrNotFound when there's no such library or image.
-	AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetImage, error)
+	AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetContent, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)

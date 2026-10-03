@@ -242,16 +242,19 @@ than adding history.
   library whose tags changed; listing tags uses Git.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
-  rules, with no I/O; `render` for rules' Markdown, which assembly takes as a function so the web function doesn't
-  link a Markdown renderer; `app` for ingestion and page reads; `source/git` and `source/github` for the adapters
-  that fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
-  catalog's only SQL; and `views` for what pages read. `internal/platform` holds runtime that contexts share, such
-  as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
+  rules, with no I/O; `render` for rules' Markdown and assets, which assembly takes as an interface,
+  `domain.Renderer`, so the web function doesn't link a Markdown renderer; `app` for ingestion and page reads;
+  `source/git` and `source/github` for the adapters that fetch libraries; `store` for the persistence contract, with
+  `store/postgres` as its only implementation and the catalog's only SQL; and `views` for what pages read.
+  `internal/platform` holds runtime that contexts share, such as the database, migrations, and the web server, which
+  stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
   `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
   Stars and listings live in the catalog context, since each names a library or rule, and pages read them with the
   catalog from one snapshot; so does checkout, which resolves the keys a browser's cart sends against one snapshot
   of the catalog. A context added later gets the same layout.
+- **The catalog's `GetLibrary` reads `accounts (id, github_login)` for a listed library's "Added by"**, a read across
+  bounded contexts that 00015 grants `rulemart_catalog_reader`, column by column, so the page reads it in one query.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

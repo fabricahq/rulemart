@@ -238,8 +238,8 @@ type AssetPage struct {
 	HTML string
 }
 
-// AssetImage is an image the catalog keeps, as Rulemart serves it.
-type AssetImage struct {
+// AssetContent is the media type and bytes of an asset the catalog keeps, of which Rulemart serves only images.
+type AssetContent struct {
 	MediaType string
 	Content   []byte
 }

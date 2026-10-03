@@ -43,10 +43,10 @@ func newUpdates(t *testing.T, lib *gittest.Library) *updates {
 			u.fetches++
 			return git.Fetch(ctx, url, limits)
 		},
-		List:   git.ListReleaseTags,
-		Render: render.Renderer{},
-		Store:  postgres.New(databasetest.AsWorkerRole(t, connString)),
-		Limits: domain.DefaultLimits,
+		List:     git.ListReleaseTags,
+		Renderer: render.Renderer{},
+		Store:    postgres.New(databasetest.AsWorkerRole(t, connString)),
+		Limits:   domain.DefaultLimits,
 	}
 	u.pages = app.Pages{Store: postgres.New(owner), Vetted: []domain.LibraryKey{exampleKey}}
 	return u

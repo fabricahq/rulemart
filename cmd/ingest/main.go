@@ -69,7 +69,7 @@ func run(ctx context.Context, repositoryURL string) (app.Result, error) {
 	ingester := app.Ingester{
 		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: token},
 		Fetch:        git.Fetch,
-		Render:       render.Renderer{},
+		Renderer:     render.Renderer{},
 		Limits:       domain.DefaultLimits,
 	}
 	repo, err := ingester.Resolve(ctx, repositoryURL)

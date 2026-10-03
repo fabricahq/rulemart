@@ -59,7 +59,7 @@ type catalog struct {
 	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
 	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>.
 	assets map[string]views.AssetPage
-	images map[string]views.AssetImage
+	images map[string]views.AssetContent
 	// sitemap is what the sitemap lists.
 	sitemap views.Sitemap
 	// err, when set, fails every read.
@@ -169,7 +169,7 @@ func (c catalog) AssetPage(_ context.Context, owner, name, rulePath, assetPath s
 	return page, c.err
 }
 
-func (c catalog) AssetImage(_ context.Context, owner, name, assetPath string) (views.AssetImage, error) {
+func (c catalog) AssetImage(_ context.Context, owner, name, assetPath string) (views.AssetContent, error) {
 	image, ok := c.images[strings.ToLower(owner+"/"+name)+"/"+assetPath]
 	if c.err == nil && !ok {
 		return image, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
