@@ -178,7 +178,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   the unvetted library's confirmation before the choices; adding a group from its library group page; ticking groups
   on the Groups tab and adding them; the badge count and the In cart states; and on `/cart`, Stay in sync or Fork,
   Also add the other rules, Remove, Clear cart, the repository field, the Prompt and Commands tabs, Copy, and the
-  empty state. The pages' markup, such as the no-JavaScript message, is tested in Go. Each flow's commands ran
+  empty state; and, after browser QA, an unvetted rule's card pinned to the reviewed commit, a rule its whole group
+  in the cart includes, the Groups tab's disabled in-cart groups and selected rows, its bar on a phone, a whole
+  group's "+N more", and the dialog at 320 pixels. The pages' markup, such as the no-JavaScript message, is tested in Go. Each flow's commands ran
   against the real `code-rules` CLI in a scratch repository, as slice 8 did.
 - In a browser beside the prototype's cart at 1280, 390, and 320 pixels, light and dark.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.
