@@ -14,10 +14,11 @@ import (
 type Store interface {
 	// SignIn records that identity signed in, in one transaction: it adds the identity's account, or updates its login,
 	// avatar, and name; ends the session whose token hashes to replacing, if there is one, since the browser that held
-	// it is signing in again; ends every expired session; and adds a session for the account whose token hashes to
-	// tokenHash, lasting domain.SessionLifetime, keeping gitHubToken, the session's sealed GitHub token, or none when
-	// it's nil, and keeping the account's newest domain.MaxSessions. It returns the account and when the new session
-	// expires.
+	// it is signing in again; ends every expired session; discards the account's GitHub snapshot, so the next page that
+	// shows it reads GitHub again with the new session's token; and adds a session for the account whose token hashes
+	// to tokenHash, lasting domain.SessionLifetime, keeping gitHubToken, the session's sealed GitHub token, or none
+	// when it's nil, and keeping the account's newest domain.MaxSessions. It returns the account and when the new
+	// session expires.
 	SignIn(ctx context.Context, identity domain.Identity, tokenHash, replacing, gitHubToken []byte) (domain.Account, domain.Session, error)
 	// SessionAccount returns the account signed in with the session whose token hashes to tokenHash, or ErrNotFound
 	// when there's no such session or it has expired.

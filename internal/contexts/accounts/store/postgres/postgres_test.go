@@ -285,3 +285,20 @@ func TestSessionGitHubTokenReturnsTheSealedTokenWhileTheSessionLasts(t *testing.
 		t.Errorf("after sign-out: got %v, want ErrNotFound", err)
 	}
 }
+
+// Each sign-in discards what Rulemart read of the account's GitHub account, so the next page reads it again with the
+// new session's token.
+func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	if err := s.SaveSnapshot(ctx, account.ID, domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	signIn(t, s, octocat, "")
+	var kept int
+	postgrestest.QueryRow(t, connString, "SELECT count(*) FROM github_snapshots", &kept)
+	if kept != 0 {
+		t.Errorf("%d snapshots outlived signing in again", kept)
+	}
+}
