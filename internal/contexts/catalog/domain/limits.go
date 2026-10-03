@@ -49,6 +49,10 @@ type ContentLimits struct {
 	AssetBytes, RuleAssetBytes int64
 	// Assets bounds the assets assembly lists, of every current rule and shared.
 	Assets int
+	// AssetLinks bounds the links between current rules and the assets they list, own and shared together, which are
+	// stored a row each. A rule lists every shared file it reaches, so a few shared files that many rules reach make
+	// many more links than files.
+	AssetLinks int
 }
 
 // DefaultLimits leave room for any library Code Rules publishes, which holds at most 10,000 files, while keeping an
@@ -86,5 +90,7 @@ var DefaultLimits = Limits{
 		RuleAssetBytes: 2 << 20,
 		// Code Rules publishes at most 10,000 files in a library.
 		Assets: 10_000,
+		// Room for every asset to be a rule's own, and for thousands of rules each to reach a handful of shared files.
+		AssetLinks: 50_000,
 	},
 }

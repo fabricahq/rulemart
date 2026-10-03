@@ -100,13 +100,19 @@ type assetReader struct {
 	sharedLinks map[string][]string
 	// sharedKept is how many bytes of shared files assembly keeps.
 	sharedKept int64
+	// links counts the links between rules and the assets they list, which limits.AssetLinks bounds.
+	links int
 }
 
 // readAssets reads the assets of the current rule at rulePath, whose current version release r published as body and
 // reading guidance: its own files, at r, then the shared files its text and Markdown files link to, at the latest
-// release, and the shared files those link to in turn. It returns the paths of each, in path order.
+// release, and the shared files those link to in turn. It returns the paths of each, in path order, counting each
+// toward limits.AssetLinks before it lists it.
 func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead string) (own, shared []string, err error) {
 	if own, err = a.readOwnAssets(r, rulePath); err != nil {
+		return nil, nil, err
+	}
+	if err := a.linkAssets(len(own)); err != nil {
 		return nil, nil, err
 	}
 	file := RuleFile(rulePath)
@@ -138,6 +144,9 @@ func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead stri
 			return nil, nil, err
 		}
 		if found {
+			if err := a.linkAssets(1); err != nil {
+				return nil, nil, err
+			}
 			shared = append(shared, p)
 			queue = append(queue, a.read.sharedLinks[p]...)
 		}
@@ -211,6 +220,15 @@ func (a *assembly) readSharedAsset(p string) (bool, error) {
 // tooManyAssets returns the error that refuses assets past limits.Assets.
 func (a *assembly) tooManyAssets() error {
 	return fmt.Errorf("the library's rules have more than %d assets, which ingestion won't list", a.limits.Assets)
+}
+
+// linkAssets counts n more links from a rule to assets it lists, or refuses them past limits.AssetLinks.
+func (a *assembly) linkAssets(n int) error {
+	if a.read.links+n > a.limits.AssetLinks {
+		return fmt.Errorf("the library's rules list more than %d links to assets, own and shared, which ingestion won't store", a.limits.AssetLinks)
+	}
+	a.read.links += n
+	return nil
 }
 
 // readAsset returns file, at p in library release, as an asset, with its bytes when it's an image or text within

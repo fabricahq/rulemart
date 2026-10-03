@@ -86,7 +86,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   files kept come to 2 MiB at most, so a later, smaller file can still be kept after a larger one wasn't. The library's
   shared files count as one more rule, 2 MiB together, in the order rules find them. Kept bytes and assets' HTML come
   out of the existing content budget, and a library may list at most 10,000 assets, Code Rules' own limit on a
-  library's files, past which ingestion refuses it, as it refuses a library past its other limits. Finding the shared
+  library's files, past which ingestion refuses it, as it refuses a library past its other limits. Since each rule
+  lists every shared file it reaches, its rules may list at most 50,000 links to assets, own and shared together,
+  each a row stored, past which ingestion refuses the library too. Finding the shared
   files a rule links to holds each link's destination once, however many references name it, and spends the content
   budget as rendering does, since it comes before rendering. Listing asset directories visits at most 100,000 tree
   entries over a library's releases, and descends at most 64 directories, and stops when the ingestion's deadline

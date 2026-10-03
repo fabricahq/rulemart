@@ -10,11 +10,11 @@ import (
 )
 
 // assetLimits keep at most 10 bytes of an asset, and 15 of a rule's own assets together, or of the shared ones.
-var assetLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, AssetBytes: 10, RuleAssetBytes: 15, Assets: 100}
+var assetLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, AssetBytes: 10, RuleAssetBytes: 15, Assets: 100, AssetLinks: 100}
 
 // linkLimits keep Markdown files long enough to link, at most 100 bytes of each, and 60 of a rule's or the shared
 // ones together.
-var linkLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, AssetBytes: 100, RuleAssetBytes: 60, Assets: 100}
+var linkLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, AssetBytes: 100, RuleAssetBytes: 60, Assets: 100, AssetLinks: 100}
 
 // assetRecord publishes one rule, techs/go/return-errors.
 const assetRecord = `formatVersion: 1
@@ -346,6 +346,36 @@ func TestAssembleRefusesMoreAssetsThanTheLimit(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "more than 2 assets") {
 		t.Fatalf("got %v, want a refusal past 2 assets", err)
+	}
+}
+
+// Each rule lists every shared file it reaches, so rules that reach one chain of shared files link to each of its files,
+// and a library whose rules list more links to assets than the limit, own and shared together, is refused.
+func TestAssembleRefusesMoreLinksToAssetsThanTheLimit(t *testing.T) {
+	release := first(t)
+	f := release.Files.(files)
+	for path, title := range map[string]string{
+		"practices/testing/check-retry-backoff.md": "Check retry backoff",
+		"practices/testing/verify-retry-limits.md": "Verify retry limits",
+		"techs/go/return-errors.md":                "Return errors",
+	} {
+		f[path] = rule(title, "See [the chain](../../assets/a.md).")
+	}
+	f["assets/a.md"], f["assets/b.md"], f["assets/c.md"] = "[b](b.md)", "[c](c.md)", "End."
+	f["techs/go/assets/return-errors/own.txt"] = "own"
+	budget := linkLimits
+	const links = 3*3 + 1 // three rules reach three shared files, and one rule has a file of its own
+
+	budget.AssetLinks = links
+	lib, err := Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
+	if err != nil || len(lib.Assets) != 4 {
+		t.Fatalf("at the limit: got %d assets, %v; want 4", len(lib.Assets), err)
+	}
+
+	budget.AssetLinks = links - 1
+	_, err = Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
+	if want := fmt.Sprintf("more than %d links to assets", budget.AssetLinks); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("one link past the limit: got %v, want %q", err, want)
 	}
 }
 
