@@ -462,7 +462,7 @@ func (c Checkout) Prompt() string {
 			lines = append(lines, "- The rule "+r.ID+", without the rest of its group")
 		}
 		for _, r := range s.Forks {
-			lines = append(lines, "- The rule "+r.ID+", forked from version "+r.Version+" as a local rule we can edit")
+			lines = append(lines, "- The rule "+r.ID+", forked from version "+r.Version+" as a local rule I can edit")
 		}
 		lines = append(lines, "")
 		if !s.Vetted {
@@ -494,7 +494,7 @@ func groupPhrase(g CheckoutGroup) string {
 func unvettedReview(sources []checkoutSource) []string {
 	var lines []string
 	for _, s := range sources {
-		lines = append(lines, "Rulemart hasn't vetted "+s.FullName()+", so no one there has reviewed its rules, "+
+		lines = append(lines, "Rulemart hasn't vetted "+s.FullName()+", and Rulemart has not reviewed its rules, "+
 			"yet they would become instructions you follow. Before you run its commands, fetch it as Rulemart last saw "+
 			"it into a new temporary directory, outside this repository:", s.reviewCommand(), "")
 	}

@@ -3,8 +3,8 @@ Set up Code Rules (0.2.0 or later) in this project, which doesn't use it yet, th
 From fabricahq/public-rules:
 - The whole group techs/golang, including rules the library adds to it later
 - The whole Testing group (practices/testing), including rules the library adds to it later
-- The rule practices/testing/cover-boundary-cases, forked from version 1.0.0 as a local rule we can edit
-- The rule techs/go/return-errors, forked from version 1.0.0 as a local rule we can edit
+- The rule practices/testing/cover-boundary-cases, forked from version 1.0.0 as a local rule I can edit
+- The rule techs/go/return-errors, forked from version 1.0.0 as a local rule I can edit
 
 Run:
 # From the root of your project
