@@ -48,8 +48,8 @@ than adding history.
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
   lists the site's own pages, the page of each group a vetted library holds, canonical or not, each owner's page, and
   each vetted library with its groups and current rules, by their canonical addresses on `RULEMART_BASE_URL`, in one
-  file of at most 45,000 groups and rules; without a base URL there's none. It leaves out rules' assets' pages, which
-  belong to their rule's.
+  file of at most 45,000 groups, library groups, and rules; without a base URL there's none. It leaves out rules'
+  assets' pages, which belong to their rule's.
   `/robots.txt` disallows the visitor's own pages under `/me`, the cart, sign-in, listing, search, the unvetted area,
   and comparisons, which also say `noindex`, and leaves owners' `/o/` addresses open.
   [Slice 9](slices/9-launch-readiness.md) and [slice R8](slices/17-launch-gate.md) explain the choices.

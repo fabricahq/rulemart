@@ -699,8 +699,8 @@ type Sitemap struct {
 	// Groups are the IDs of the groups that hold the libraries' current rules, each once, in ID order, canonical or
 	// not.
 	Groups []string
-	// Truncated reports that the sitemap left out groups or rules past the most it reads, after the first groups and
-	// its libraries' first rules.
+	// Truncated reports that the sitemap left out groups, library groups, or rules past the most it reads, after the
+	// first groups, its libraries' first groups, and their first rules.
 	Truncated bool
 }
 
@@ -709,8 +709,18 @@ type SitemapLibrary struct {
 	Owner, Name string
 	// Updated is when the library's latest release was tagged.
 	Updated time.Time
+	// Groups are the groups that hold its current rules, in ID order.
+	Groups []SitemapGroup
 	// Rules are its current rules, in ID order.
 	Rules []SitemapRule
+}
+
+// SitemapGroup is a group of a vetted library in the sitemap.
+type SitemapGroup struct {
+	Path string
+	// Updated is when the latest release that published the current version of one of the group's current rules was
+	// tagged.
+	Updated time.Time
 }
 
 // SitemapRule is a current rule in the sitemap.

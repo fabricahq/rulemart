@@ -108,7 +108,8 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	c.sitemap = views.Sitemap{
 		Libraries: []views.SitemapLibrary{{
 			Owner: "example", Name: "rules", Updated: day(3),
-			Rules: []views.SitemapRule{{Path: "practices/testing/verify-retry-limits", Updated: day(2)}, {Path: "techs/go/return-errors", Updated: day(3)}},
+			Groups: []views.SitemapGroup{{Path: "practices/testing", Updated: day(2)}, {Path: "techs/go", Updated: day(3)}},
+			Rules:  []views.SitemapRule{{Path: "practices/testing/verify-retry-limits", Updated: day(2)}, {Path: "techs/go/return-errors", Updated: day(3)}},
 		}, {Owner: "faq", Name: "go.rules", Updated: day(4)}},
 		Groups: []string{"practices/testing", "techs/go"},
 	}
@@ -155,8 +156,8 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/o/faq",
 		"https://rulemart.example/example/rules",
 		"https://rulemart.example/example/rules/practices/testing",
-		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
 		"https://rulemart.example/example/rules/techs/go",
+		"https://rulemart.example/example/rules/practices/testing/verify-retry-limits",
 		"https://rulemart.example/example/rules/techs/go/return-errors",
 		"https://rulemart.example/faq/go.rules",
 	}
@@ -181,13 +182,14 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 // owner's page under /o/, has no page to list, so the sitemap leaves it out; its groups' and rules' pages, under it, stay.
 func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 	c := newBrowsingCatalog()
+	group := []views.SitemapGroup{{Path: "techs/go", Updated: day(3)}}
 	rule := []views.SitemapRule{{Path: "techs/go/return-errors", Updated: day(3)}}
 	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
-		{Owner: "browse", Name: "Practices", Updated: day(3), Rules: rule},
+		{Owner: "browse", Name: "Practices", Updated: day(3), Groups: group, Rules: rule},
 		{Owner: "browse", Name: "rules", Updated: day(3)},
-		{Owner: "browse", Name: "techs", Updated: day(3), Rules: rule},
+		{Owner: "browse", Name: "techs", Updated: day(3), Groups: group, Rules: rule},
 		{Owner: "g", Name: "techs", Updated: day(3)},
-		{Owner: "o", Name: "rules", Updated: day(3), Rules: rule},
+		{Owner: "o", Name: "rules", Updated: day(3), Groups: group, Rules: rule},
 	}}
 	options := baseURL(t)
 	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -213,6 +215,47 @@ func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 		"/browse/techs/techs/go", "/browse/techs/techs/go/return-errors",
 		"/g/techs",
 		"/o/rules/techs/go", "/o/rules/techs/go/return-errors",
+	}
+	if !slices.Equal(listed, want) {
+		t.Errorf("lists\n%s\nwant\n%s", strings.Join(listed, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// A rule's ID may nest below its group's, as techs/go/errors/wrap does in techs/go, so the sitemap lists the library
+// groups the catalog names, each once with its date, never one made from a rule's ID.
+func TestSitemapListsTheLibraryGroupsTheCatalogNamesWhateverRulesIDsNest(t *testing.T) {
+	c := newBrowsingCatalog()
+	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{{
+		Owner: "example", Name: "rules", Updated: day(3),
+		Groups: []views.SitemapGroup{{Path: "techs/go", Updated: day(3)}},
+		Rules: []views.SitemapRule{
+			{Path: "techs/go/accept-interfaces", Updated: day(1)},
+			{Path: "techs/go/errors/wrap", Updated: day(3)},
+			{Path: "techs/go/return-errors", Updated: day(2)},
+		},
+	}}}
+	options := baseURL(t)
+	options.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler, err := web.New(c, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var got urlset
+	if err := xml.Unmarshal(get(t, handler, "/sitemap.xml").Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	var listed []string
+	for _, u := range got.URLs {
+		listed = append(listed, strings.TrimPrefix(u.Loc, "https://rulemart.example")+" "+u.LastMod)
+	}
+	listed = listed[slices.Index(listed, "/example/rules 2026-09-03"):]
+	want := []string{
+		"/example/rules 2026-09-03",
+		"/example/rules/techs/go 2026-09-03",
+		"/example/rules/techs/go/accept-interfaces 2026-09-01",
+		"/example/rules/techs/go/errors/wrap 2026-09-03",
+		"/example/rules/techs/go/return-errors 2026-09-02",
 	}
 	if !slices.Equal(listed, want) {
 		t.Errorf("lists\n%s\nwant\n%s", strings.Join(listed, "\n"), strings.Join(want, "\n"))
