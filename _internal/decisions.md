@@ -80,7 +80,7 @@ than adding history.
   everyone. [Realignment](realignment.md) explains the change from [slice 8](slices/8-cart-and-checkout.md), whose
   checkout safeguards stand.
 - **Adding opens a modal on the rule page** that offers just the rule or its whole group, and asks for a confirmation
-  when the library is unvetted, which the cart records with the item. Items are named by library, group, and rule
+  when the library is unvetted, which the cart records for the library. Items are named by library, group, and rule
   ID, so checkout resolves them against the catalog and says when one is retired, gone, or in a library that lost
   its vetting, and leaves it out.
 - **Checkout is a page that asks a JSON endpoint for the cart's items, each library's latest release, and the
@@ -89,7 +89,8 @@ than adding history.
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
   `code-rules project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it, and names each unvetted library so the agent reviews its
-  rules first.
+  rules first, pinned to the commit reviewed. [Slice R5](slices/14-cart-and-checkout.md) records how the commands
+  were checked against the real CLI.
 - **Signed in, checkout offers the visitor's projects**, read from their repositories' provenance files, so the
   prompt names the repository and says which libraries it already imports.
 
@@ -194,12 +195,13 @@ than adding history.
   public parsing package.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
-  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, stars, and carts.** Infrastructure owns the roles: it creates
-  each group role with SQL, as a NOLOGIN role, creates the login, and makes the login a member, because a role made
-  through Neon's API or console joins `neon_superuser`, which can read and write every table and create roles and
-  databases. Migrations own the grants: they grant each group role what each table needs, never grant to a login,
-  and never create roles, so a release can't migrate before infrastructure has, and a login can be replaced or
-  rotated without a migration. Migrations connect as the database's owner.
+  `rulemart_accounts_writer`, which writes only accounts, sessions, listings, and stars.** Carts live in browsers, so
+  checkout writes nothing. Infrastructure owns the roles: it creates each group role with SQL, as a NOLOGIN role,
+  creates the login, and makes the login a member, because a role made through Neon's API or console joins
+  `neon_superuser`, which can read and write every table and create roles and databases. Migrations own the grants:
+  they grant each group role what each table needs, never grant to a login, and never create roles, so a release can't
+  migrate before infrastructure has, and a login can be replaced or rotated without a migration. Migrations connect as
+  the database's owner.
 - **Ingestion connects as `rulemart_worker`, a login that can only write the catalog, through its membership in
   `rulemart_catalog_writer`.** The split is the web function's: infrastructure creates the NOLOGIN group role, the
   login, and the membership with SQL, and migrations grant the group exactly what ingestion writes, which never
@@ -229,8 +231,9 @@ than adding history.
   as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
   `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
-  Stars, listings, and the cart live in the catalog context, since each names a library, group, or rule, and pages
-  read them with the catalog from one snapshot. A context added later gets the same layout.
+  Stars and listings live in the catalog context, since each names a library or rule, and pages read them with the
+  catalog from one snapshot; so does checkout, which resolves the keys a browser's cart sends against one snapshot
+  of the catalog. A context added later gets the same layout.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

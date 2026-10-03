@@ -2,9 +2,9 @@
 // current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
-// a library; starring rules; and collecting rules in a cart and checking it out. It reads the catalog from its page
+// a library; starring rules; and checking out the cart a visitor's browser keeps. It reads the catalog from its page
 // reads, which app.Pages implements, accounts from accounts/app.Sessions, listings from catalog/app.Listings, stars
-// from catalog/app.Stars, and carts from catalog/app.Cart.
+// from catalog/app.Stars, and checkouts from catalog/app.Carts.
 package web
 
 import (
@@ -28,8 +28,9 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// maxPageBytes bounds a page Rulemart sends: a Lambda function's response holds at most 6 MB. Pages bound what they
-// show from a library, so only a library far past any Rulemart knows reaches it; such a page says it's too large.
+// maxPageBytes bounds a page Rulemart sends, and a cart's checkout: a Lambda function's response holds at most 6 MB.
+// Pages bound what they show from a library, so only a library far past any Rulemart knows reaches it; such a page says
+// it's too large, and such a checkout fails.
 const maxPageBytes = 5 << 20
 
 // pageCache lets CloudFront keep a page for a minute, so a new library release, or a new star, shows within a
@@ -62,8 +63,8 @@ type Options struct {
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
-	// Cart keeps signed-in visitors' carts. Nil, or without a way to sign in, leaves carts out.
-	Cart Cart
+	// Carts checks out the carts visitors' browsers keep. Nil leaves checkout out.
+	Carts Carts
 	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
 	// beacon with, and the content security policy allows. Empty leaves analytics out: no page loads another site's
 	// script. New refuses one that can't be a token.
@@ -170,8 +171,8 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 		chrome: chrome{
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
-			caretScript: assets.url("caret.js"),
-			copyScript:  assets.url("copy.js"), toastScript: assets.url("toast.js"), filtersScript: assets.url("filters.js"),
+			caretScript: assets.url("caret.js"), cartPageScript: assets.url("cart-page.js"), cartCheckoutScript: assets.url("cart-checkout.js"),
+			toastScript: assets.url("toast.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -188,8 +189,6 @@ func (s *server) handler() http.Handler {
 		mux.HandleFunc(pattern, s.withVisitor(handler))
 		s.routes[pattern] = true
 	}
-	mux.HandleFunc(staticPattern, s.assets.serve)
-	s.routes[staticPattern] = true
 	// Browsers ask for /favicon.ico wherever a page names no icon they take, such as for a file that isn't a page.
 	mux.HandleFunc(faviconPattern, s.assets.serveFavicon)
 	s.routes[faviconPattern] = true
@@ -215,6 +214,15 @@ func (s *server) handler() http.Handler {
 		handle("GET "+legacyGroupsHref+"/"+string(kind)+"/{name}", s.legacyGroup(kind))
 	}
 	handle("GET /search", s.search)
+	// One segment, which siteSections reserves from owners. The checkout under it is a POST, so every library of an
+	// owner named cart keeps its page, cart/checkout.json too.
+	handle("GET "+cartHref, s.cartPage)
+	if s.Carts != nil {
+		handle("POST "+checkoutHref, s.checkout)
+	}
+	// Under account, which is reserved whether sign-in is available or not, and GitHub has no account named account.
+	handle("GET "+legacyCartHref, s.redirectToCart)
+	handle("GET "+legacyCheckoutHref, s.redirectToCart)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
 	if s.Accounts != nil {
@@ -241,41 +249,58 @@ func (s *server) handler() http.Handler {
 			handle("POST "+starsHref, s.starRule)
 			handle("POST "+unstarHref, s.unstarRule)
 		}
-		if s.Cart != nil {
-			handle("GET "+cartHref, s.cartPage)
-			handle("POST "+cartHref, s.addToCart)
-			handle("POST "+removeFromCartHref, s.removeFromCart)
-			handle("GET "+emptyCartHref, s.emptyCartPage)
-			handle("POST "+emptyCartHref, s.emptyCart)
-			handle("GET "+confirmCartHref, s.confirmCartPage)
-			handle("GET "+checkoutHref, s.checkoutPage)
-		}
 	}
 	// An owner's page has one segment, like the site's own pages, which come first, so an owner whose login is one
 	// of theirs is at /o/{login} instead.
 	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
 	handle(ownerPattern, s.owner)
 	handle(libraryPattern, s.library)
+	handle(libraryGroupPattern, s.libraryGroup)
 	handle(rulePattern, s.rule)
 	handle(notFoundPattern, s.notFound)
-	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(withSiteSectionsInLowercase(mux))))))
+	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(
+		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))))
 }
 
-// The routes that take every path the site's own pages don't: an owner's, a library's, and a rule's pages, which
-// GitHub's spelling of their names addresses, and the missing page.
+// The routes that take every path the site's own pages don't: an owner's, a library's, a library group's, and a
+// rule's pages, which GitHub's spelling of their names addresses, and the missing page. A group's ID has two parts and
+// a rule's at least three, so a library group's page takes exactly four segments, and a rule's page the rest.
 const (
-	ownerPattern    = "GET /{owner}"
-	libraryPattern  = "GET /{owner}/{repo}"
-	rulePattern     = "GET /{owner}/{repo}/{rule...}"
-	notFoundPattern = "/"
+	ownerPattern        = "GET /{owner}"
+	libraryPattern      = "GET /{owner}/{repo}"
+	libraryGroupPattern = "GET /{owner}/{repo}/{kind}/{group}"
+	rulePattern         = "GET /{owner}/{repo}/{rule...}"
+	notFoundPattern     = "/"
 )
 
 // catchAllPatterns are the routes of the paths the site's own pages don't take.
-var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true, rulePattern: true, notFoundPattern: true}
+var catchAllPatterns = map[string]bool{
+	ownerPattern: true, libraryPattern: true, libraryGroupPattern: true, rulePattern: true, notFoundPattern: true,
+}
+
+// withStaticFiles answers a request staticPattern takes with the static files, and every other request with next, the
+// pages, recording the pattern in s.routes. The static files can't share the pages' mux: staticPattern and
+// libraryGroupPattern both match paths such as /_static/<version>/icons/go.svg, and neither matches only some of the
+// other's, so ServeMux refuses to hold both. No GitHub login holds an underscore, so no owner's pages are under
+// /_static.
+func (s *server) withStaticFiles(next http.Handler) http.Handler {
+	files := http.NewServeMux()
+	files.Handle(staticPattern, s.assets)
+	s.routes[staticPattern] = true
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handler also names staticPattern for a path it would redirect to one the pattern takes, such as
+		// /_static/missing, which stays a page's path.
+		if handler, _ := files.Handler(r); handler == http.Handler(s.assets) {
+			files.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // siteSections are the first segments of the site's own pages, which no owner's page shadows: browse, g, o, and the
-// old groups, with pages under them, and libraries, search, unvetted, list, about, privacy, faq, and feedback. With
-// signInSections, they're the logins whose owner pages are under /o/.
+// old groups, with pages under them, cart, with its checkout, a POST, and libraries, search, unvetted, list, about,
+// privacy, faq, and feedback. With signInSections, they're the logins whose owner pages are under /o/.
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
 // pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
@@ -283,7 +308,7 @@ var catchAllPatterns = map[string]bool{ownerPattern: true, libraryPattern: true,
 // GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
 // browse/rules, g/techs, groups/techs, or libraries/rules.
 var siteSections = []string{
-	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback",
+	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback", "cart",
 }
 
 // signInSections are the first segments of the routes that exist only when sign-in is available: the account pages,
@@ -316,10 +341,10 @@ func libraryPageTaken(owner, name string) bool {
 
 // withSiteSectionsInLowercase redirects a path whose first segment spells one of the site's own pages in another case,
 // such as /Groups/techs/go or /SEARCH, or whose kind does under browse, g, and groups, such as /browse/Techs, to the
-// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux routes the lowercase path to one of the site's own
-// pages: a path a catch-all takes, such as /G/rules for a library whose owner's login is G, is left to that page's own
-// redirect to GitHub's spelling, which a lowercase redirect would send back and forth. The target starts with the
-// section, so it stays on the site.
+// path siteSpelling gives, keeping the query, as a library's other spellings redirect. It redirects only when mux
+// routes the lowercase path to one of the site's own pages: a path a catch-all takes, such as /G/rules for a library
+// whose owner's login is G, is left to that page's own redirect to GitHub's spelling, which a lowercase redirect would
+// send back and forth. The target starts with the section, so it stays on the site.
 func withSiteSectionsInLowercase(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.EscapedPath()
@@ -429,9 +454,6 @@ func withQuery(target string, r *http.Request) string {
 // starting at the release the until parameter names, if any. With releases to compare in the from and to
 // parameters, the releases tab compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
 	switch tab := libraryTab(query.Get("tab")); {
@@ -444,15 +466,11 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		if !s.found(w, r, page.Library, "", err) {
 			return
 		}
-		view, err := s.libraryView(r, page.Library)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
+		view := newLibraryView(page.Library)
 		if tab != rulesTab {
 			tab = groupsTab
 		}
-		contents := s.withGroupCarts(r, &view, newLibraryContents(view, page, s.assets.iconURL))
+		contents := newLibraryContents(view, page, s.assets.iconURL)
 		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab))
 	}
 }
@@ -477,11 +495,7 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request, owner, name st
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, page.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(page.Library)
 	if release != 0 && page.Newer == 0 {
 		w.Header().Set("Cache-Control", pageCache)
 		http.Redirect(w, r, releasesHref(view), http.StatusFound)
@@ -497,11 +511,7 @@ func (s *server) releasesNotFound(w http.ResponseWriter, r *http.Request, owner,
 	if !s.found(w, r, page.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, page.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(page.Library)
 	s.render(w, r, http.StatusNotFound, releasesNotFoundPage(s.chrome, view, newReleasesView(view, page),
 		"This library has no such release to show or compare."))
 }
@@ -524,11 +534,7 @@ func (s *server) releaseComparison(w http.ResponseWriter, r *http.Request, owner
 	if !s.found(w, r, comparison.Library, "", err) {
 		return
 	}
-	view, err := s.libraryView(r, comparison.Library)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
+	view := newLibraryView(comparison.Library)
 	s.render(w, r, http.StatusOK, releaseComparisonPage(s.chrome, view, newReleaseComparisonView(view, comparison, parseDiffMode(query.Get("view")))))
 }
 
@@ -575,9 +581,6 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, page.Rule.Path, err) {
 		return
 	}
-	if s.withoutCartPrompt(w, r) {
-		return
-	}
 	if tab != versionsTab {
 		tab = contentTab
 	}
@@ -586,13 +589,28 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	item := domain.CartItem{Owner: page.Library.Owner, Name: page.Library.Name, Kind: domain.CartRule, Path: page.Rule.Path}
-	view.cart = s.newCartControl(r, page.Library.Vetted, view.retired != nil, item, "Add to cart", "the rule "+view.title)
-	view.library.cartNotice = view.cart.notice
-	if view.cart.prompt {
-		view.library.cartOffer = &view.cart
-	}
 	s.render(w, r, http.StatusOK, rulePage(s.pageChrome(view.href), view, tab))
+}
+
+// libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
+// the cart, or the missing page when the library has no current rules in such a group. A group spelled in another
+// case redirects to the library's spelling, as a rule does.
+func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
+	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
+	if err != nil {
+		s.found(w, r, page.Library, "", err)
+		return
+	}
+	view := newLibraryView(page.Library)
+	group, ok := newLibraryContents(view, page, s.assets.iconURL).group(pathInLibrary(r))
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	if !s.found(w, r, page.Library, group.label.id, nil) {
+		return
+	}
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
@@ -624,43 +642,12 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 // ruleView describes the rule on page for the page r asks for, with its star control for the visitor.
 func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error) {
 	view := newRuleView(newLibraryView(page.Library), page)
+	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
 	var err error
 	if view.star, err = s.starControl(r, view, page.Rule.Stars); err != nil {
 		return ruleView{}, err
 	}
 	return view, nil
-}
-
-// libraryView describes lib for the page r asks for, with the cart's control that adds the whole library.
-func (s *server) libraryView(r *http.Request, lib views.Library) (libraryView, error) {
-	view := newLibraryView(lib)
-	whole := domain.CartItem{Owner: lib.Owner, Name: lib.Name, Kind: domain.CartLibrary}
-	view.cart = s.newCartControl(r, lib.Vetted, false, whole, "Add library to cart", "every group of "+lib.FullName())
-	view.cartNotice = view.cart.notice
-	if view.cart.prompt {
-		view.cartOffer = &view.cart
-	}
-	return view, nil
-}
-
-// withGroupCarts gives each group of contents, a library's groups on the page r asks for, the cart's control that
-// adds it, and lib the notice one gives, if any.
-func (s *server) withGroupCarts(r *http.Request, lib *libraryView, contents libraryContents) libraryContents {
-	for _, groups := range [][]groupView{contents.techs, contents.practices} {
-		for i, g := range groups {
-			item := domain.CartItem{Owner: lib.owner, Name: lib.name, Kind: domain.CartGroup, Path: g.label.id}
-			name := g.label.id
-			if g.label.canonical {
-				name = g.label.name
-			}
-			groups[i].cart = s.newCartControl(r, lib.vetted, false, item, "Add", "the group "+name)
-			lib.cartNotice = cmp.Or(lib.cartNotice, groups[i].cart.notice)
-			if groups[i].cart.prompt {
-				lib.cartOffer = &groups[i].cart
-			}
-		}
-	}
-	return contents
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on
@@ -676,9 +663,10 @@ func (s *server) pageChrome(href string) chrome {
 	return c
 }
 
-// found reports whether a page's data loaded, for the library lib and, on a rule's page, the rule at rulePath, and is
-// at the path that GitHub's spelling of the library's owner and name, and the library's of the rule's ID, give.
-// Otherwise it answers the request itself: with a missing page, a failure, or a redirect to that path.
+// found reports whether a page's data loaded, for the library lib and, on a rule's or a library group's page, the rule
+// or group at rulePath, and is at the path that GitHub's spelling of the library's owner and name, and the library's of
+// the rule's or group's ID, give. Otherwise it answers the request itself: with a missing page, a failure, or a
+// redirect to that path.
 func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library, rulePath string, err error) bool {
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
@@ -688,7 +676,7 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 		s.fail(w, r, err)
 		return false
 	}
-	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != r.PathValue("rule") {
+	if lib.Owner != r.PathValue("owner") || lib.Name != r.PathValue("repo") || rulePath != pathInLibrary(r) {
 		canonical := url.URL{Path: libraryHref(lib.Owner, lib.Name), RawQuery: r.URL.RawQuery}
 		if rulePath != "" {
 			canonical.Path += "/" + rulePath
@@ -699,16 +687,30 @@ func (s *server) found(w http.ResponseWriter, r *http.Request, lib views.Library
 	return true
 }
 
+// pathInLibrary returns the ID of the rule or group whose page r asks for, as its path spells it, or "" for any other
+// page.
+func pathInLibrary(r *http.Request) string {
+	if kind := r.PathValue("kind"); kind != "" {
+		return kind + "/" + r.PathValue("group")
+	}
+	return r.PathValue("rule")
+}
+
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusNotFound, messagePage(s.chrome, "Not found", "Rulemart has no page here."))
 }
 
-// fail logs err with the request's route pattern and ID, and answers with a page that reveals nothing about the
-// failure.
+// fail logs err, as logFailure does, and answers with a page that reveals nothing about the failure.
 func (s *server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	s.logFailure(r, err)
+	s.unavailable(w, r)
+}
+
+// logFailure logs err, which fails r with 503, with the request's route pattern and ID, and without what r's path
+// names.
+func (s *server) logFailure(r *http.Request, err error) {
 	s.Log.ErrorContext(r.Context(), "request failed", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
 		"status", http.StatusServiceUnavailable, "error", withoutPath(err.Error(), r))
-	s.unavailable(w, r)
 }
 
 // withoutPath returns text with the owner, library, or rule that r's path names replaced by the route's wildcards.

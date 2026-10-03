@@ -62,9 +62,9 @@ func (a *assets) iconURL(file string) string {
 // immutable caches a file for a year: its path changes whenever its content does.
 const immutable = "public, max-age=31536000, immutable"
 
-// serve answers GET /_static/{version}/{file...}. A request for another version, such as from a page cached before
-// a deployment, gets this release's file, cached briefly, so the page still renders.
-func (a *assets) serve(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP answers GET /_static/{version}/{file...}. A request for another version, such as from a page cached
+// before a deployment, gets this release's file, cached briefly, so the page still renders.
+func (a *assets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("file")
 	content, err := fs.ReadFile(a.files, name)
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrInvalid) {

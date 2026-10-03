@@ -19,7 +19,6 @@ import (
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
@@ -95,22 +94,17 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onAccountPage, onListPage, onListingsPage, onStarredPage, and onCartPage are true on the account page, the page
-	// that lists a library, the listings page, Starred rules, and the cart, which the menu marks as current.
-	onAccountPage, onListPage, onListingsPage, onStarredPage, onCartPage bool
-	// listings, stars, and cart are true when visitors can list libraries, star rules, and collect rules in a cart, so
-	// the menu links the listings page, Starred rules, and the cart.
-	listings, stars, cart bool
-	// held are the items in a signed-in visitor's cart, which the header counts, and pages that offer to add an item
-	// read; cartItems counts them.
-	held      []views.HeldCartItem
-	cartItems int
+	// onAccountPage, onListPage, onListingsPage, and onStarredPage are true on the account page, the page that lists a
+	// library, the listings page, and Starred rules, which the menu marks as current.
+	onAccountPage, onListPage, onListingsPage, onStarredPage bool
+	// listings and stars are true when visitors can list libraries and star rules, so the menu links the listings
+	// page and Starred rules.
+	listings, stars bool
 	// onSignInPage is true on the sign-in page, whose header marks its Sign in link as the current page.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
-	// the cookie named, which the page clears as it renders. noticeSubject is what a notice of subjectNotices names,
-	// which the page that shows it checks again.
-	notice, noticeKey, noticeSubject string
+	// the cookie named, which the page clears as it renders.
+	notice, noticeKey string
 }
 
 // accountMenuName is what screen readers hear of the header's account menu: who is signed in.
@@ -136,9 +130,6 @@ var notices = map[string]string{
 	firstStarKey:               "You starred your first rule! 🎉 Find all your starred rules under Starred rules.",
 	// A rule's page says what follows signing in to star it, naming the rule, as its star control does.
 	starPromptKey: "You're signed in.",
-	"cart-full": "Your cart holds " + strconv.Itoa(domain.MaxCartItems) + " items, as many as it can. Remove some, or " +
-		"add a whole group, which takes the place of its rules in your cart.",
-	"cart-emptied": "You emptied your cart.",
 }
 
 // noticeLink is a phrase of a notice's text that links to a page, at href.
@@ -147,16 +138,6 @@ type noticeLink struct{ phrase, href string }
 // noticeLinks are the phrases of notices' text that link to a page, by the notice's key in notices, such as the page
 // a notice says something is on.
 var noticeLinks = map[string]noticeLink{firstStarKey: {phrase: "Starred rules", href: starredHref}}
-
-// subjectNotices are the notices that name what they're about, which their page shows itself, rather than as
-// notices' text: the cart's, which name an item, as cartNoticeSubject encodes it: one added, removed, or offered after
-// signing in to add it. The page that shows the item names it, from its own data; any other page says what
-// cartSubjectNotices gives. The item comes from the cookie, which only this site sets, never from the address, so no
-// link can make a page say it.
-var subjectNotices = map[string]func(string) bool{
-	addedToCartKey: namesCartItem, removedFromCartKey: namesCartItem, cartPromptKey: namesCartItem,
-	alreadyInCartKey: namesCartItem,
-}
 
 // hasNotice reports whether notices names key, which may say nothing.
 func hasNotice(key string) bool {
@@ -167,12 +148,6 @@ func hasNotice(key string) bool {
 // setNotice has the next page show the notice notices names by key, once.
 func setNotice(w http.ResponseWriter, key string) {
 	setCookie(w, noticeCookie, key, noticeLifetime)
-}
-
-// setSubjectNotice has the next page show the notice of subjectNotices named by key, about the library subject, as
-// owner/name, once.
-func setSubjectNotice(w http.ResponseWriter, key, subject string) {
-	setCookie(w, noticeCookie, key+":"+subject, noticeLifetime)
 }
 
 type visitorKey struct{}
@@ -211,8 +186,7 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 	back := returnPath(r.URL.RequestURI())
 	v := visitor{
 		here: back, onAccountPage: r.URL.Path == accountHref, onListPage: r.URL.Path == listHref, onListingsPage: r.URL.Path == listingsHref,
-		onStarredPage: r.URL.Path == starredHref, onCartPage: r.URL.Path == cartHref,
-		listings: s.listingAvailable(), stars: s.starsAvailable(), cart: s.cartAvailable(),
+		onStarredPage: r.URL.Path == starredHref, listings: s.listingAvailable(), stars: s.starsAvailable(),
 	}
 	if s.signInAvailable() {
 		v.signIn = s.absolute(signInPageHref(back))
@@ -220,13 +194,9 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 	}
 	if cookie, err := r.Cookie(noticeCookie); err == nil {
 		// The page that shows a notice clears it as it renders, so a redirect first leaves it for the next page.
-		key, subject, named := strings.Cut(cookie.Value, ":")
-		switch {
-		case named && subjectNotices[key] != nil && subjectNotices[key](subject):
-			v.noticeKey, v.noticeSubject, v.notice = key, subject, cartSubjectNotices[key]
-		case !named && hasNotice(key):
+		if key := cookie.Value; hasNotice(key) {
 			v.notice, v.noticeKey = notices[key], key
-		default:
+		} else {
 			clearCookie(w, noticeCookie)
 		}
 	}
@@ -242,14 +212,6 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 			default:
 				v.account, v.token = &account, token
 				v.signOut = signOutHref + returnQuery(publicPath(back))
-			}
-			if v.account != nil && v.cart {
-				// The header shows the count, so a failure to read it fails the page, as a failed session read does.
-				if v.held, err = s.Cart.Held(r.Context(), account.ID); err != nil {
-					s.fail(w, r, err)
-					return r, false
-				}
-				v.cartItems = len(v.held)
 			}
 		} else if hasCookie(r, sessionCookie) {
 			clearCookie(w, sessionCookie)
@@ -319,11 +281,8 @@ func returnPath(target string) string {
 // accountPages are the pages under /account/ that only a signed-in visitor can see, which signing in may return to,
 // and what the sign-in page says to a visitor on their way to each.
 var accountPages = map[string]string{
-	listingsHref:    "Sign in to see your listings.",
-	starredHref:     "Sign in to see your starred rules.",
-	cartHref:        "Sign in to see your cart.",
-	checkoutHref:    "Sign in to check out your cart.",
-	confirmCartHref: "Sign in to add to your cart.",
+	listingsHref: "Sign in to see your listings.",
+	starredHref:  "Sign in to see your starred rules.",
 }
 
 // publicPath returns back, a return path, or / when back is the account page or one of accountPages, which a
@@ -352,10 +311,6 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Query().Get("to") == starPurpose:
 		// The return path was refused, so the page promises no return.
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star rules.")
-	case r.URL.Query().Get("to") == cartPurpose && back != "/":
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to collect rules in your cart. You'll come back to this page.")
-	case r.URL.Query().Get("to") == cartPurpose:
-		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to collect rules in your cart.")
 	default:
 		s.renderSignIn(w, r, http.StatusOK, back, "")
 	}

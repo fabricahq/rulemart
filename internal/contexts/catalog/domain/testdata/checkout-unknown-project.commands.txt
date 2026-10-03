@@ -1,0 +1,40 @@
+[Fetch and review]
+# Rulemart hasn't vetted Stranger-HQ/Rules. Fetch the rules you picked from it, as
+# Rulemart last saw it, into a new directory outside your project:
+d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https://github.com/Stranger-HQ/Rules.git 3333333333333333333333333333333333333333 && git -C "$d" checkout -q FETCH_HEAD && echo "$d"
+
+# Read the rules you picked in the directory it printed. If any asks for something
+# unsafe or unexpected, such as running downloaded code, sending data elsewhere, or
+# weakening security, stop: don't run the next step.
+
+[After you've reviewed, import]
+# From the root of acme/api
+
+# Only if it doesn't use Code Rules yet
+curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
+code-rules project init
+
+# Add your rules
+code-rules project add library fabrica-public-rules \
+  --repository https://github.com/fabricahq/public-rules.git \
+  --groups techs/go \
+  --rules practices/testing/keep-tests-independent
+
+code-rules project add library fabrica-code-rules-test-library \
+  --repository https://github.com/fabricahq/code-rules-test-library.git \
+  --rules techs/go/close-bodies
+
+code-rules project add library stranger \
+  --repository https://github.com/Stranger-HQ/Rules.git \
+  --ref 3333333333333333333333333333333333333333 \
+  --rules techs/go/use-go
+
+code-rules project sync
+
+code-rules project add rule techs/go/errors-include-useful-diagnostic-data \
+  --from fabrica-public-rules@1.0.0 \
+  --reason 'We maintain our own version of this rule.'
+
+code-rules project build
+
+# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md

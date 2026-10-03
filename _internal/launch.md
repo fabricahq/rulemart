@@ -159,7 +159,8 @@ page, and keeps working on the new cache settings.
    now.
 2. **Ask an agent to make a Rulemart release** with Release Planner. Expect **v0.2.0**: new features, no breaking
    change for infrastructure, since the new variables are optional and the new role exists. Its notes must say it
-   adds migrations **00006 to 00012**, all expand-only:
+   adds migrations **00006 to 00014**, all expand-only but 00013 and 00014, which drop tables that no published
+   release created:
 
    | Migration | Slice | Changes | Read by v0.1.0? |
    | --- | --- | --- | --- |
@@ -170,9 +171,11 @@ page, and keeps working on the new cache settings.
    | 00010 | 6 | Adds `listings` and `listing_requests` | No |
    | 00011 | 7 | Adds `stars` | No |
    | 00012 | 8 | Adds `cart_items` | No |
+   | 00013 | R3 | Drops 00011's `stars`, refusing if it holds rows; adds `rule_stars` | No |
+   | 00014 | R5 | Drops 00012's `cart_items`, refusing if it holds rows: the cart moved to the browser | No |
 
 3. **Merge the release pull request.** Release Planner's pre-publish workflow, "Migrate the database", applies
-   00006 to 00012 to production, then tags and publishes `web.zip` and `worker.zip`. If it fails, nothing is
+   00006 to 00014 to production, then tags and publishes `web.zip` and `worker.zip`. If it fails, nothing is
    published: fix the cause, such as a missing role, and re-run the failed job. v0.1.0 keeps serving on the migrated
    schema either way.
 
@@ -248,8 +251,11 @@ In a browser, signed in with GitHub:
 3. **List a library**: at `/list`, list `fabricahq/release-planner`, which has no release tags. Within seconds,
    `/account/listings` shows it failed, saying why, which proves the web function queued its check and the worker ran
    it. Remove it.
-4. **Cart and checkout**: add a rule of fabricahq/public-rules, and a group from `/groups/techs/go`, open
-   `/account/cart`, then Check out: the prompt pins `ref: release/1`. Empty the cart, which asks first.
+4. **Cart and checkout**, which need no sign-in: on a rule page of fabricahq/public-rules, Add to cart, Just this
+   rule; on the library's Groups tab, tick Go and Add 1 group to cart. The header's badge says 2. `/cart` lists both,
+   with the Prompt and Commands tabs filled in; Fork on the rule adds a `project add rule` line, and the Commands
+   tab's footnote suggests `--ref release/<n>` without pinning anything. Copy copies the tab's text. Clear cart
+   empties it at once and shows the empty state.
 5. **Sign out**: the page says you're signed out, once.
 6. Report this library on a library page opens a GitHub issue form with the library filled in.
 7. With analytics on, the dashboard shows page views within a few minutes, and the browser console shows no

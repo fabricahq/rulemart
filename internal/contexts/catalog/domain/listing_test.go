@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 )
 
-func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T) {
+func TestParseGitHubRepositoryAcceptsTheWaysPeopleGiveARepository(t *testing.T) {
 	for _, text := range []string{
 		"fabricahq/public-rules",
 		" fabricahq/public-rules\n",
@@ -29,19 +29,21 @@ func TestParseListedRepositoryAcceptsTheWaysListersGiveARepository(t *testing.T)
 		"https://github.com/fabricahq/public-rules/blob/release/1/techs/go/_group.yaml",
 		"https://github.com/fabricahq/public-rules?tab=readme-ov-file",
 		"https://github.com/fabricahq/public-rules#readme",
+		"git@github.com:fabricahq/public-rules.git",
+		"ssh://git@github.com/fabricahq/public-rules.git",
 	} {
-		owner, name, err := ParseListedRepository(text)
+		owner, name, err := ParseGitHubRepository(text)
 		if err != nil || owner != "fabricahq" || name != "public-rules" {
 			t.Errorf("%q: got %q, %q, %v", text, owner, name, err)
 		}
 	}
-	owner, name, err := ParseListedRepository("Old-Name/rules_v2.x")
+	owner, name, err := ParseGitHubRepository("Old-Name/rules_v2.x")
 	if err != nil || owner != "Old-Name" || name != "rules_v2.x" {
 		t.Errorf("got %q, %q, %v", owner, name, err)
 	}
 }
 
-func TestParseListedRepositoryRefusesWhatIsNotAGitHubRepository(t *testing.T) {
+func TestParseGitHubRepositoryRefusesWhatIsNotAGitHubRepository(t *testing.T) {
 	for _, text := range []string{
 		"",
 		"fabricahq",
@@ -75,8 +77,10 @@ func TestParseListedRepositoryRefusesWhatIsNotAGitHubRepository(t *testing.T) {
 		"fabricahq/public rules",
 		"fabricahq/public%2Frules",
 		"../etc/passwd",
+		"git@gitlab.com:fabricahq/public-rules.git",
+		"git@github.com:fabricahq",
 	} {
-		if owner, name, err := ParseListedRepository(text); !errors.Is(err, ErrInvalidRepository) {
+		if owner, name, err := ParseGitHubRepository(text); !errors.Is(err, ErrInvalidRepository) {
 			t.Errorf("%q: got %q, %q, %v, want ErrInvalidRepository", text, owner, name, err)
 		}
 	}

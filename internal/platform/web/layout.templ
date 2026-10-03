@@ -18,10 +18,11 @@ type chrome struct {
 	touchIcon string
 	// logo and darkLogo are Rulemart's horizontal logo, drawn in ink for the light theme and in white for the dark.
 	logo, darkLogo string
-	// caretScript puts the caret at the end of a field the page focuses, and copyScript shows Copy buttons and copies,
-	// on a page that asks for each. toastScript times a notice shown as a toast, on a page that shows one.
-	// filtersScript submits a list's filters as soon as one changes, on a page that lists rules or libraries.
-	caretScript, copyScript, toastScript, filtersScript string
+	// caretScript puts the caret at the end of a field the page focuses, on a page that asks for it. toastScript shows
+	// toasts, the page's notice and a script's, and cartScript keeps the cart, on every page. filtersScript submits a
+	// list's filters as soon as one changes, on a page that lists rules or libraries. cartPageScript renders the cart's
+	// page, through the store cartScript keeps, and cartCheckoutScript keeps what that page knows of its checkout.
+	caretScript, toastScript, cartScript, filtersScript, cartPageScript, cartCheckoutScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -42,7 +43,7 @@ type head struct {
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
 	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
-	// librariesHref, or faqHref, or empty for every other page, such as a library's, a rule's, or a group's.
+	// librariesHref, faqHref, or cartHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
 	// searchPage marks the search page, whose header's search field holds query, the page's query, and whose phone
 	// header has no link to search, since the page holds its own field there.
@@ -50,40 +51,34 @@ type head struct {
 	query      string
 	// filters loads the script that submits a list's filters as soon as one changes.
 	filters bool
+	// cartPage loads the script that renders the cart's page.
+	cartPage bool
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
-	// notice is the page's own notice, which takes the place of the notice cookie's, or empty, and noticeAction what
-	// the notice offers to do, such as add an item to the cart after signing in, or nil. noticePrompts is true when
-	// the notice asks the visitor to use a control the page highlights instead, such as the star button after signing
-	// in to star.
+	// notice is the page's own notice, which takes the place of the notice cookie's, or empty. noticePrompts is true
+	// when the notice asks the visitor to use a control the page highlights, such as the star button after signing in
+	// to star.
 	notice        string
-	noticeAction  templ.Component
 	noticePrompts bool
-	// caret loads the script that puts the caret at the end of a field the page focuses, and copy the one that shows
-	// Copy buttons.
-	caret, copy bool
+	// caret loads the script that puts the caret at the end of a field the page focuses.
+	caret bool
 }
 
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
 const narrowPage = "max-w-[44rem]"
 
-// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted, with the notice its cart
-// control gives, if any.
+// libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted.
 func libraryHead(h head, lib libraryView) head {
 	h.unvetted = !lib.vetted
-	h.notice = lib.cartNotice
-	if lib.cartOffer != nil {
-		h.noticeAction = cartOffer(*lib.cartOffer)
-	}
 	return h
 }
 
 // ruleHead returns h for a page about the rule r, as libraryHead does for its library, with the notice its star
-// control gives in place of the cart's, if any.
+// control gives, if any.
 func ruleHead(h head, r ruleView) head {
 	h = libraryHead(h, r.library)
 	if r.star.notice != "" {
-		h.notice, h.noticeAction, h.noticePrompts = r.star.notice, nil, r.star.prompt
+		h.notice, h.noticePrompts = r.star.notice, r.star.prompt
 	}
 	return h
 }
@@ -115,7 +110,7 @@ func shownNotice(h head, v visitor) notice {
 		n.text, n.link = v.notice, noticeLinks[v.noticeKey]
 	}
 	switch {
-	case h.noticeAction != nil || h.noticePrompts:
+	case h.noticePrompts:
 		// It asks the visitor to act, so it stays a banner.
 	case n.link.phrase != "":
 		n.toast = toastInfo
@@ -150,13 +145,10 @@ templ noticeBanner(n notice, h head) {
 				if n.toast == toastInfo {
 					@infoIcon("mt-[3px] size-4 flex-none")
 				}
-				<span>
+				<span data-toast-text>
 					@noticeText(n.text, n.link)
 				</span>
 			</p>
-			if h.noticeAction != nil {
-				@h.noticeAction
-			}
 			if n.toast == toastInfo {
 				<button class="-my-1 -mr-2 ml-auto inline-grid size-7 flex-none cursor-pointer place-items-center rounded-full opacity-80 hover:opacity-100" type="button" aria-label="Dismiss" data-toast-close hidden>
 					@closeIcon("size-4")
@@ -197,14 +189,15 @@ templ layout(c chrome, h head) {
 			if h.caret {
 				<script src={ c.caretScript } defer></script>
 			}
-			if h.copy {
-				<script src={ c.copyScript } defer></script>
-			}
 			if h.filters {
 				<script src={ c.filtersScript } defer></script>
 			}
-			if n := shownNotice(h, visitorOf(ctx)); n.text != "" && n.toast != "" {
-				<script src={ c.toastScript } defer></script>
+			<script src={ c.toastScript } defer></script>
+			<script src={ c.cartScript } defer></script>
+			if h.cartPage {
+				// After cart.js, whose store it reads, and cart-checkout.js: deferred scripts run in order.
+				<script src={ c.cartCheckoutScript } defer></script>
+				<script src={ c.cartPageScript } defer></script>
 			}
 		</head>
 		<body class="flex min-h-screen flex-col">
@@ -216,6 +209,10 @@ templ layout(c chrome, h head) {
 			<main id="main" class="flex-1" tabindex="-1">
 				{ children... }
 			</main>
+			// The toast that toast.js shows for something a script did, such as adding to the cart.
+			<template data-toast-template>
+				@noticeBanner(notice{toast: toastStatus}, head{})
+			</template>
 			@footer()
 			if c.beacon != "" {
 				// Cloudflare's snippet goes before the body's end; it sets no cookie.
@@ -251,12 +248,12 @@ templ header(h head) {
 	<header class="sticky top-0 z-30 border-b border-border bg-paper/92 backdrop-blur-[10px]">
 		<div class="wrap flex h-[60px] items-center gap-[22px] max-narrow:gap-3 max-tiny:gap-2">
 			<div class="inline-flex items-baseline gap-2 text-[1.05rem] font-[650] tracking-[-.04em] whitespace-nowrap">
-				// A narrow phone's header has room for Rulemart's name alone.
-				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-tiny:hidden" href="https://fabricahq.com">
+				// A phone's header, with the cart beside the menu, search, and sign-in, has room for Rulemart's name alone.
+				<a class="relative inline-block pl-[21px] text-[.85em] font-normal tracking-[-.02em] text-faint no-underline hover:text-ink max-[27rem]:hidden" href="https://fabricahq.com">
 					@fabricaMark("absolute top-1/2 left-0 size-[15px] -translate-y-1/2")
 					Fabrica
 				</a>
-				<span class="font-normal text-muted max-tiny:hidden">/</span>
+				<span class="font-normal text-muted max-[27rem]:hidden">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
 			<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
@@ -275,6 +272,7 @@ templ header(h head) {
 						@searchIcon("size-5")
 					</a>
 				}
+				@cartLink(h.section == cartHref)
 				@accountControl(visitorOf(ctx))
 			</nav>
 		</div>

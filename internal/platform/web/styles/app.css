@@ -3,6 +3,7 @@
 
 @import "tailwindcss" source(none);
 @source "../*.templ";
+@source "../static/cart-page.js";
 
 /* dark: styles for the dark theme, which applies when the visitor chose dark in the footer, or chose nothing and their
    system prefers dark, as the tokens below do. */
@@ -47,6 +48,7 @@
   --warn-surface: #fff8e5; --warn-border: #d4a72c; --warn-ink: #6b4500;
   --info: #dbeafe; --on-info: #1e3a8a; --info-border: #bfdbfe;
   --vetted: #2f81f7;
+  --ok: #1a7f37; --ok-surface: #dafbe1; --scrim: rgb(0 0 0 / .35);
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -58,6 +60,7 @@
   --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
   --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
   --warn-surface: rgb(187 128 9 / .14); --warn-border: #9e6a03; --warn-ink: #e3b341;
+  --ok: #3fb950; --ok-surface: rgb(46 160 67 / .15); --scrim: rgb(0 0 0 / .6);
   color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -70,14 +73,15 @@
     --add-line: rgb(46 160 67 / .15); --add-word: rgb(46 160 67 / .4); --add-ink: #3fb950;
     --del-line: rgb(248 81 73 / .1); --del-word: rgb(248 81 73 / .4); --del-ink: #ff7b72;
     --warn-surface: rgb(187 128 9 / .14); --warn-border: #9e6a03; --warn-ink: #e3b341;
+    --ok: #3fb950; --ok-surface: rgb(46 160 67 / .15); --scrim: rgb(0 0 0 / .6);
     color-scheme: dark;
   }
 }
 
 /* Only the tokens are colors, so markup can't drift from the palette. The palette is grays, except the green and red
    that mark text a comparison adds and deletes, GitHub's diff colors, the amber of the warning on every unvetted
-   library's page, the blue of an info toast, and the prototype's blue of the check mark on a vetted library, the same in
-   both themes. */
+   library's page, the blue of an info toast, the prototype's blue of the check mark on a vetted library, the same in
+   both themes, and its green of what the cart holds. */
 @theme {
   --color-*: initial;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -109,6 +113,9 @@
   --color-warn-border: var(--warn-border);
   --color-warn-ink: var(--warn-ink);
   --color-vetted: var(--vetted);
+  --color-ok: var(--ok);
+  --color-ok-surface: var(--ok-surface);
+  --color-scrim: var(--scrim);
 }
 
 /* The prototype's layout primitives. */
@@ -306,4 +313,19 @@
   @supports selector(::details-content) {
     [data-filters-disclosure] > summary { display: none; }
   }
+}
+
+/* A line of the checkout's preview that changed, marked briefly in the cart's green, as the prototype does. */
+.cart-changed { border-radius: 3px; animation: cart-changed 1.8s ease-out; }
+@keyframes cart-changed {
+  from { background: var(--ok-surface); box-shadow: 0 0 0 2px var(--ok-surface); }
+  to { background: transparent; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cart-changed { animation: none; }
+}
+
+/* The cart lives in the browser and needs a script, so without one its controls go, rather than do nothing. */
+@media (scripting: none) {
+  [data-needs-script] { display: none !important; }
 }

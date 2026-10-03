@@ -1,0 +1,32 @@
+Add these engineering rules to acme/api with the Code Rules CLI (0.2.0 or later).
+
+From fabricahq/public-rules:
+- The whole Testing group (practices/testing), including rules the library adds to it later
+- The rule techs/go/return-errors, without the rest of its group
+- The rule practices/testing/keep-tests-independent, forked from version 1.0.0 as a local rule I can edit
+
+From fabricahq/code-rules-test-library:
+- The rule techs/go/close-bodies, forked from version 1.0.0 as a local rule I can edit
+
+Run:
+# From the root of acme/api
+
+# acme/api already imports fabricahq/public-rules as team.
+# In .code-rules/config.yaml, add to sources.team:
+#   groups:
+#     - practices/testing
+#   rules:
+#     - techs/go/return-errors
+
+code-rules project sync
+
+code-rules project add rule practices/testing/keep-tests-independent \
+  --from team@1.0.0 \
+  --reason 'We maintain our own version of this rule.'
+
+code-rules project add rule techs/go/close-bodies \
+  --from https://github.com/fabricahq/code-rules-test-library.git@1.0.0
+
+code-rules project build
+
+Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer versions only when someone runs code-rules project update and confirms.

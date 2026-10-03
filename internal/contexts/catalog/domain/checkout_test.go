@@ -31,147 +31,223 @@ func assertGolden(t *testing.T, name, got string) {
 	}
 }
 
-// item returns a cart item of acme/backend unless owner/name says otherwise.
-func item(library string, kind CartItemKind, path string) CartItem {
-	owner, name, _ := strings.Cut(library, "/")
-	return CartItem{Owner: owner, Name: name, Kind: kind, Path: path}
+// assertCheckout compares the checkout's commands and prompt with the golden files named for it.
+func assertCheckout(t *testing.T, name string, checkout Checkout) {
+	t.Helper()
+	assertGolden(t, "checkout-"+name+".commands.txt", stepsText(checkout.Commands()))
+	assertGolden(t, "checkout-"+name+".prompt.txt", checkout.Prompt())
 }
 
-// One vetted library, with a group and two rules: one in another group, and one the group imports already, which the
-// configuration leaves out.
-func TestCheckoutOfOneLibrary(t *testing.T) {
-	checkout := NewCheckout([]CheckoutLibrary{{
-		Owner: "fabricahq", Name: "public-rules", Release: 1, Vetted: true,
-		Items: []CartItem{
-			item("fabricahq/public-rules", CartRule, "techs/go/errors-include-useful-diagnostic-data"),
-			item("fabricahq/public-rules", CartGroup, "practices/testing"),
-			item("fabricahq/public-rules", CartRule, "practices/testing/keep-tests-independent"),
-			item("fabricahq/public-rules", CartRule, "techs/go/comment-non-obvious-struct-fields"),
+// stepsText returns steps as one text, as a golden file keeps them: each step's heading, when it has one, on a line of
+// its own in brackets, then its commands, with a blank line between steps.
+func stepsText(steps []CommandStep) string {
+	var texts []string
+	for _, step := range steps {
+		text := step.Commands
+		if step.Heading != "" {
+			text = "[" + step.Heading + "]\n" + text
+		}
+		texts = append(texts, text)
+	}
+	return strings.Join(texts, "\n\n")
+}
+
+var (
+	goGroup      = CheckoutGroup{ID: "techs/go", Name: "Go"}
+	testingGroup = CheckoutGroup{ID: "practices/testing", Name: "Testing"}
+)
+
+// checkoutRule returns a rule of group at version 1.0.0, named by its slug.
+func checkoutRule(group CheckoutGroup, slug string) CheckoutRule {
+	return CheckoutRule{ID: group.ID + "/" + slug, Group: group, Version: "1.0.0"}
+}
+
+// Two vetted libraries of one owner, whose aliases would collide, and an unvetted one, for a project Rulemart knows
+// nothing of: a whole group with a fork of one of its rules, which needs a reason, single rules, one of them in the
+// whole group and so left out, and the unvetted library pinned to the commit Rulemart saw and named for review.
+func TestCheckoutForAProjectRulemartDoesNotKnow(t *testing.T) {
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown, Repository: "acme/api"}, []CheckoutLibrary{
+		{
+			Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
+			Groups: []CheckoutGroup{goGroup},
+			Rules:  []CheckoutRule{checkoutRule(testingGroup, "keep-tests-independent"), checkoutRule(goGroup, "return-errors")},
+			Forks:  []CheckoutRule{checkoutRule(goGroup, "errors-include-useful-diagnostic-data")},
 		},
+		{
+			Owner: "fabricahq", Name: "code-rules-test-library", Vetted: true, Release: 6,
+			Rules: []CheckoutRule{checkoutRule(goGroup, "close-bodies")},
+		},
+		{
+			Owner: "Stranger-HQ", Name: "Rules", Release: 3, Commit: strings.Repeat("3", 40),
+			Rules: []CheckoutRule{checkoutRule(goGroup, "use-go")},
+		},
+	})
+
+	assertCheckout(t, "unknown-project", checkout)
+}
+
+// An unvetted library's rule is never forked, even when the visitor chose to: a fork copies from the release a tag
+// names, which its publisher could move after review, so it stays a rule synced from the source pinned to the
+// reviewed commit, and the texts never copy it.
+func TestCheckoutSyncsAnUnvettedLibrarysForkFromTheReviewedCommit(t *testing.T) {
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{
+		Owner: "stranger", Name: "rules", Release: 3, Commit: strings.Repeat("3", 40),
+		Groups: []CheckoutGroup{testingGroup},
+		Forks:  []CheckoutRule{checkoutRule(goGroup, "use-go"), checkoutRule(testingGroup, "name-tests")},
 	}})
 
-	assertGolden(t, "checkout-one-library.config.yaml", checkout.Config())
-	assertGolden(t, "checkout-one-library.prompt.md", checkout.Prompt())
+	commands, prompt := stepsText(checkout.Commands()), checkout.Prompt()
+
+	if strings.Contains(commands, "add rule") || strings.Contains(prompt, "forked") {
+		t.Errorf("the texts fork an unvetted library's rule:\n%s\n\n%s", commands, prompt)
+	}
+	want := "code-rules project add library stranger \\\n  --repository https://github.com/stranger/rules.git \\\n" +
+		"  --ref " + strings.Repeat("3", 40) + " \\\n  --groups practices/testing \\\n  --rules techs/go/use-go\n\ncode-rules project sync"
+	if !strings.Contains(commands, want) {
+		t.Errorf("got\n%s\nwant the rule synced from the reviewed commit, and the one its group brings left out:\n%s", commands, want)
+	}
 }
 
-// Two libraries, one whole and one by a group and a rule, and a third that Rulemart doesn't vet, which the prompt
-// names and asks the agent to review.
-func TestCheckoutOfSeveralLibrariesNamesTheUnvettedOne(t *testing.T) {
-	checkout := NewCheckout([]CheckoutLibrary{
+// Commands that import an unvetted library come in two steps, so no one pastes the import with the review: first the
+// commands that fetch each unvetted library for review, which end by saying to stop if a rule is unsafe, and only then
+// the commands that import, which fetch nothing for review. Commands that import only vetted libraries are one step.
+func TestCheckoutCommandsReviewAnUnvettedLibraryInAStepBeforeTheImport(t *testing.T) {
+	vetted := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, Groups: []CheckoutGroup{goGroup}}
+	unvetted := func(owner string) CheckoutLibrary {
+		return CheckoutLibrary{Owner: owner, Name: "rules", Release: 3, Commit: strings.Repeat("3", 40), Rules: []CheckoutRule{checkoutRule(goGroup, "use-go")}}
+	}
+
+	steps := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{vetted, unvetted("stranger"), unvetted("other")}).Commands()
+
+	if len(steps) != 2 || steps[0].Heading != "Fetch and review" || steps[1].Heading != "After you've reviewed, import" {
+		t.Fatalf("got the steps\n%s\nwant Fetch and review, then the import", stepsText(steps))
+	}
+	review, imports := steps[0].Commands, steps[1].Commands
+	for _, library := range []string{"stranger", "other"} {
+		fetch := "git -C \"$d\" fetch -q --depth 1 https://github.com/" + library + "/rules.git " + strings.Repeat("3", 40)
+		if !strings.Contains(review, "\n"+`d="$(mktemp -d)" && git -C "$d" init -q && `+fetch) {
+			t.Errorf("the review doesn't fetch %s/rules as a command of its own:\n%s", library, review)
+		}
+	}
+	if !strings.HasSuffix(review, "stop: don't run the next step.") || strings.Contains(review, "code-rules") {
+		t.Errorf("the review should only fetch, and end by saying to stop on an unsafe rule:\n%s", review)
+	}
+	if strings.Contains(imports, "mktemp") || !strings.Contains(imports, "add library stranger") || !strings.Contains(imports, "add library fabrica") {
+		t.Errorf("the import should add every library and fetch nothing for review:\n%s", imports)
+	}
+
+	if steps := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{vetted}).Commands(); len(steps) != 1 || steps[0].Heading != "" {
+		t.Errorf("got the steps\n%s\nwant one without a heading for vetted libraries alone", stepsText(steps))
+	}
+}
+
+// A new project, with no repository named: also adding the other rules of a rule's group imports the group whole, so a
+// fork of one of its rules needs a reason, and a group that isn't canonical is named by its ID.
+func TestCheckoutForANewProjectAddsTheRestOfTheGroups(t *testing.T) {
+	golang := CheckoutGroup{ID: "techs/golang", Name: "techs/golang"}
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectNew}, []CheckoutLibrary{{
+		Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, RestOfGroups: true,
+		Groups: []CheckoutGroup{golang},
+		Rules:  []CheckoutRule{checkoutRule(testingGroup, "keep-tests-independent"), checkoutRule(testingGroup, "name-tests")},
+		Forks:  []CheckoutRule{checkoutRule(testingGroup, "cover-boundary-cases"), checkoutRule(goGroup, "return-errors")},
+	}})
+
+	assertCheckout(t, "new-project", checkout)
+}
+
+// A known project that imports one library already under its own name: its groups and rules go in that source's
+// configuration, a fork copies from it after a sync, and a library with only a fork copies from its address, then
+// the guidance is built.
+func TestCheckoutForAKnownProjectAddsToItsSources(t *testing.T) {
+	target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Sources: map[string]string{
+		"fabricahq/public-rules": "team", "other/lib": "fabrica",
+	}}
+	checkout := NewCheckout(target, []CheckoutLibrary{
 		{
-			Owner: "fabricahq", Name: "public-rules", Release: 1, Vetted: true,
-			Items: []CartItem{
-				item("fabricahq/public-rules", CartGroup, "practices/testing"),
-				item("fabricahq/public-rules", CartRule, "techs/go/errors-include-useful-diagnostic-data"),
-			},
+			Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
+			Groups: []CheckoutGroup{testingGroup},
+			Rules:  []CheckoutRule{checkoutRule(goGroup, "return-errors")},
+			Forks:  []CheckoutRule{checkoutRule(testingGroup, "keep-tests-independent")},
 		},
 		{
-			Owner: "fabricahq", Name: "code-rules-test-library",
-			Release: 6, Vetted: true,
-			Items: []CartItem{
-				item("fabricahq/code-rules-test-library", CartRule, "techs/go/close-bodies"),
-				item("fabricahq/code-rules-test-library", CartLibrary, ""),
-			},
-		},
-		{
-			Owner: "stranger", Name: "Rules", Release: 3, Commit: "3333333333333333333333333333333333333333",
-			Items: []CartItem{item("stranger/Rules", CartRule, "techs/go/use-go")},
+			Owner: "fabricahq", Name: "code-rules-test-library", Vetted: true, Release: 6,
+			Forks: []CheckoutRule{checkoutRule(goGroup, "close-bodies")},
 		},
 	})
 
-	assertGolden(t, "checkout-several-libraries.config.yaml", checkout.Config())
-	assertGolden(t, "checkout-several-libraries.prompt.md", checkout.Prompt())
+	assertCheckout(t, "known-project", checkout)
 }
 
-// Each library gets a source name Code Rules accepts, from its repository's name, or its owner's when the repository
-// is an organization's .code-rules or has no letters or digits. A name that would start with a digit, or be local,
-// which Code Rules reserves, and names several libraries would share, get their owner's too, and a number when even
-// that matches.
+// Forks alone, from a library the project doesn't import, copy from its address and need no sync: the build after
+// them makes the guidance, which agents then read.
+func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{
+		Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
+		Forks: []CheckoutRule{checkoutRule(goGroup, "return-errors")},
+	}})
+
+	got := stepsText(checkout.Commands())
+
+	want := "code-rules project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ncode-rules project build\n\n" +
+		"# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
+	if !strings.HasSuffix(got, want) || strings.Contains(got, "project sync") {
+		t.Errorf("got\n%s\nwant it to end with\n%s\nand never sync", got, want)
+	}
+}
+
+func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{Owner: "a", Name: "b", Vetted: true}})
+
+	if len(checkout.sources) != 0 || checkout.Commands() != nil || checkout.Prompt() != "" {
+		t.Errorf("got %d sources, commands %q, prompt %q, want none", len(checkout.sources), checkout.Commands(), checkout.Prompt())
+	}
+}
+
+// Each library gets an alias Code Rules accepts, its owner's name without a trailing hq, distinct from every other
+// source and from the known project's own: libraries of one owner add their repository's name, and a name Code Rules
+// can't take starts with library-.
 func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	library := func(owner, name string) CheckoutLibrary {
-		return CheckoutLibrary{Owner: owner, Name: name, Release: 1, Vetted: true, Items: []CartItem{item(owner+"/"+name, CartLibrary, "")}}
+		return CheckoutLibrary{Owner: owner, Name: name, Vetted: true, Release: 1, Groups: []CheckoutGroup{goGroup}}
 	}
-	checkout := NewCheckout([]CheckoutLibrary{
-		library("acme", "rules"),
-		library("Beta", "Rules"),
-		library("acme", ".code-rules"),
-		library("Zeta_Corp", "Go.Rules"),
-		library("x", "2fa"),
-		library("y", "local"),
-		library("a-b", "c"),
-		library("a", "b-c"),
-		library("q", "_"),
-		library("y", "c"),
-		library("z", "b-c"),
-		library("local", ".code-rules"),
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectKnown, Sources: map[string]string{"x/y": "taken"}}, []CheckoutLibrary{
+		library("fabricahq", "public-rules"),
+		library("FabricaHQ", "Code.Rules"),
+		library("Acme-Corp", "rules"),
+		library("2fa", "rules"),
+		library("local", "rules"),
+		library("hq", ".code-rules"),
+		library("taken", "rules"),
+		library("x", "y"),
+		library("solo", "a"),
 	})
 	var names []string
-	for _, source := range checkout.Sources {
-		names = append(names, source.Library.FullName()+" "+source.Name)
+	for _, source := range checkout.sources {
+		names = append(names, source.FullName()+" "+source.Alias)
 	}
 	want := []string{
-		"a/b-c a-b-c", "a-b/c a-b-c-2", "acme/.code-rules acme", "acme/rules acme-rules", "Beta/Rules beta-rules",
-		"local/.code-rules library-local", "q/_ q", "x/2fa x-2fa", "y/c y-c", "y/local y-local", "z/b-c z-b-c", "Zeta_Corp/Go.Rules go-rules",
+		"fabricahq/public-rules fabrica-public-rules", "FabricaHQ/Code.Rules fabrica-code-rules", "Acme-Corp/rules acme-corp",
+		"2fa/rules library-2fa", "local/rules library-local", "hq/.code-rules library", "taken/rules taken-rules",
+		"x/y taken", "solo/a solo",
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("got sources\n%q\nwant\n%q", names, want)
 	}
 }
 
-// The configuration names a library's Git address on GitHub, as GitHub spells its owner and name now.
-func TestCheckoutNamesTheLibrarysGitHubAddress(t *testing.T) {
-	lib := CheckoutLibrary{Owner: "Acme", Name: "backend.rules"}
-	if got, want := lib.Repository(), "https://github.com/Acme/backend.rules.git"; got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
+// The Commands tab's footnote names the latest release of the first vetted library a project would follow, one it
+// imports groups or rules from; an unvetted library is pinned already, and a library only forked from isn't followed.
+func TestCheckoutPinExampleIsTheFirstVettedLibraryItImportsFrom(t *testing.T) {
+	forked := CheckoutLibrary{Owner: "fabricahq", Name: "forked", Vetted: true, Release: 2, Forks: []CheckoutRule{checkoutRule(goGroup, "a")}}
+	unvetted := CheckoutLibrary{Owner: "stranger", Name: "rules", Release: 3, Rules: []CheckoutRule{checkoutRule(goGroup, "b")}}
+	followed := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 6, Groups: []CheckoutGroup{testingGroup}}
 
-// A cart with nothing to check out has no sources, and no prompt.
-func TestAnEmptyCheckoutHasNothingToSay(t *testing.T) {
-	checkout := NewCheckout(nil)
-	if len(checkout.Sources) != 0 || checkout.Config() != "" || checkout.Prompt() != "" {
-		t.Errorf("got %+v, config %q, prompt %q", checkout.Sources, checkout.Config(), checkout.Prompt())
-	}
-}
+	pin, ok := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{forked, unvetted, followed}).PinExample()
 
-// Two repositories with the same name, of different owners, each get their owner's name too, in owner order.
-func TestCheckoutNamesSameNamedRepositoriesByOwner(t *testing.T) {
-	library := func(owner string) CheckoutLibrary {
-		return CheckoutLibrary{Owner: owner, Name: "engineering-rules", Release: 1, Vetted: true, Items: []CartItem{item(owner+"/engineering-rules", CartLibrary, "")}}
+	if !ok || pin != (ReleasePin{Library: "fabricahq/public-rules", Release: 6}) || pin.Option() != "--ref release/6" {
+		t.Errorf("got %+v, %t, option %q, want fabricahq/public-rules at release 6", pin, ok, pin.Option())
 	}
-	checkout := NewCheckout([]CheckoutLibrary{library("zeta"), library("Acme")})
-	var names []string
-	for _, source := range checkout.Sources {
-		names = append(names, source.Name)
-	}
-	if want := []string{"acme-engineering-rules", "zeta-engineering-rules"}; !slices.Equal(names, want) {
-		t.Errorf("got %q, want %q", names, want)
-	}
-	if config := checkout.Config(); strings.Count(config, "repository: https://github.com/") != 2 {
-		t.Errorf("the configuration doesn't import both:\n%s", config)
-	}
-}
-
-// An unvetted library is fetched for review, and imported, by the commit its release's tag named when Rulemart
-// ingested it, so a moved tag, or a branch of the same name, can't swap what the visitor approves; without a commit ID,
-// the tag by its full name.
-func TestCheckoutPinsAnUnvettedLibraryToTheReviewedCommit(t *testing.T) {
-	lib := CheckoutLibrary{Owner: "stranger", Name: "rules", Release: 3, Commit: "3333333333333333333333333333333333333333",
-		Items: []CartItem{item("stranger/rules", CartLibrary, "")}}
-	source := NewCheckout([]CheckoutLibrary{lib}).Sources[0]
-	if got, want := source.ref(), `"3333333333333333333333333333333333333333" # release/3`; got != want {
-		t.Errorf("ref %q, want %q", got, want)
-	}
-	if got := source.ReviewCommand(); !strings.Contains(got, "fetch -q --depth 1 https://github.com/stranger/rules.git 3333333333333333333333333333333333333333 ") {
-		t.Errorf("the review fetches %q", got)
-	}
-	lib.Commit = ""
-	source = NewCheckout([]CheckoutLibrary{lib}).Sources[0]
-	if got := source.ReviewCommand(); !strings.Contains(got, " refs/tags/release/3 ") || source.ref() != "release/3" {
-		t.Errorf("without a commit: review %q, ref %q", got, source.ref())
-	}
-	lib.Vetted, lib.Commit = true, "3333333333333333333333333333333333333333"
-	if got := NewCheckout([]CheckoutLibrary{lib}).Sources[0].ref(); got != "release/3" {
-		t.Errorf("a vetted library's ref is %q, want its tag", got)
+	if pin, ok := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{forked, unvetted}).PinExample(); ok {
+		t.Errorf("got %+v, want none without a vetted library it imports from", pin)
 	}
 }

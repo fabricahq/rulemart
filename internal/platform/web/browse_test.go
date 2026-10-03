@@ -386,13 +386,13 @@ func TestHeaderMenuOpensTheSectionsAndMarksTheCurrentOne(t *testing.T) {
 }
 
 // Tabbing through the header reaches the Menu button after the header's links, which it stands in for, and before
-// the search icon and the account control, which keep their places at the header's end; the open menu's links come
-// right after its button.
+// the search icon, the cart, and the account control, which keep their places at the header's end; the open menu's
+// links come right after its button.
 func TestHeaderMenuComesBetweenTheLinksAndTheSearchIconInFocusOrder(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 	sections := []string{"Techs", "Practices", "Libraries", "FAQ"}
-	start := slices.Concat([]string{"Fabrica", "Rulemart home", "Search rules"}, sections, []string{"Menu"}, sections, []string{"Search rules"})
+	start := slices.Concat([]string{"Fabrica", "Rulemart home", "Search rules"}, sections, []string{"Menu"}, sections, []string{"Search rules", "Cart"})
 
 	for name, test := range map[string]struct {
 		cookies []*http.Cookie

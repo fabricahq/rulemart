@@ -71,7 +71,8 @@ func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 	}
 }
 
-// Without a token, pages load no analytics, and the policy allows no other site's script and no connection at all.
+// Without a token, pages load no analytics, and the policy allows no other site's script, and connections only to
+// Rulemart, which the cart's checkout makes.
 func TestPagesLoadNoAnalyticsWithoutAToken(t *testing.T) {
 	resp := get(t, newSiteWith(t, web.Options{}), "/")
 
@@ -82,8 +83,8 @@ func TestPagesLoadNoAnalyticsWithoutAToken(t *testing.T) {
 	if got := directives["script-src"]; !slices.Equal(got, []string{"'self'"}) {
 		t.Errorf("script-src allows %q, want only 'self'", got)
 	}
-	if got, ok := directives["connect-src"]; ok {
-		t.Errorf("connect-src allows %q, want no directive, so default-src 'none' applies", got)
+	if got := directives["connect-src"]; !slices.Equal(got, []string{"'self'"}) {
+		t.Errorf("connect-src allows %q, want only 'self'", got)
 	}
 }
 
@@ -116,7 +117,7 @@ func TestPagesLoadCloudflareAnalyticsWithAToken(t *testing.T) {
 		if got := directives["script-src"]; !slices.Equal(got, []string{"'self'", "https://static.cloudflareinsights.com"}) {
 			t.Errorf("%s: script-src allows %q", path, got)
 		}
-		if got := directives["connect-src"]; !slices.Equal(got, []string{"https://cloudflareinsights.com"}) {
+		if got := directives["connect-src"]; !slices.Equal(got, []string{"'self'", "https://cloudflareinsights.com"}) {
 			t.Errorf("%s: connect-src allows %q", path, got)
 		}
 	}
@@ -134,7 +135,7 @@ func TestSignInPolicyKeepsAnalyticsSources(t *testing.T) {
 	if got := directives["form-action"]; !slices.Equal(got, []string{"'self'", "https://github.com/login/oauth/authorize"}) {
 		t.Errorf("form-action allows %q", got)
 	}
-	if got := directives["connect-src"]; !slices.Equal(got, []string{"https://cloudflareinsights.com"}) {
+	if got := directives["connect-src"]; !slices.Equal(got, []string{"'self'", "https://cloudflareinsights.com"}) {
 		t.Errorf("connect-src allows %q", got)
 	}
 }

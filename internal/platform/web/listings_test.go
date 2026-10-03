@@ -268,7 +268,7 @@ type fakeListings struct {
 }
 
 func (f *fakeListings) Check(_ context.Context, _ int64, text string) (app.Repository, error) {
-	owner, name, err := domain.ParseListedRepository(text)
+	owner, name, err := domain.ParseGitHubRepository(text)
 	if err != nil {
 		return app.Repository{}, err
 	}

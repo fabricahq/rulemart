@@ -2,126 +2,357 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// fakeCartStore returns its libraries as the account's cart, and records the vetted libraries each read passes. Its
-// other methods aren't called.
-type fakeCartStore struct {
-	cartStore
+// cartStore answers CartLibraries with libraries, the catalog as checkout reads it, whichever items it's asked for,
+// and counts the reads.
+type cartStore struct {
 	libraries []views.CartLibrary
-	vetted    []domain.LibraryKey
+	reads     int
 }
 
-// cartStore is store.Cart, embedded under another name, since a field named Cart would hide the method.
-type cartStore = store.Cart
-
-func (f *fakeCartStore) Cart(_ context.Context, vetted []domain.LibraryKey, _ int64) ([]views.CartLibrary, error) {
-	f.vetted = vetted
-	return f.libraries, nil
+func (s *cartStore) CartLibraries(_ context.Context, _ []domain.LibraryKey, _ []domain.CartItem) ([]views.CartLibrary, error) {
+	s.reads++
+	return s.libraries, nil
 }
 
-// cartItem returns a cart item of library, owner/name, read as the store reads it.
-func cartItem(library views.LibraryRef, kind domain.CartItemKind, path string, adjust func(*views.CartItem)) views.CartItem {
-	it := views.CartItem{Item: domain.CartItem{Owner: library.Owner, Name: library.Name, Kind: kind, Path: path}}
-	adjust(&it)
-	return it
+// cartRule returns a current rule at path, titled by its last part, at version 1.2.0.
+func cartRule(path string) views.CartRule {
+	parts := strings.Split(path, "/")
+	return views.CartRule{Path: path, Group: parts[0] + "/" + parts[1], Title: parts[len(parts)-1], Version: coderules.RuleVersion{Major: 1, Minor: 2}}
 }
 
-// A cart's items say whether checkout imports each, or why it leaves it out, and checkout imports each library's
-// importable items, pinned to its latest release.
-func TestTheCartSaysWhatCheckoutImportsAndWhy(t *testing.T) {
-	acme := views.LibraryRef{Owner: "acme", Name: "backend"}
-	beta := views.LibraryRef{Owner: "Beta", Name: "rules"}
-	stranger := views.LibraryRef{Owner: "stranger", Name: "rules"}
-	gone := views.LibraryRef{Owner: "gone", Name: "rules"}
-	none := func(*views.CartItem) {}
-	fake := &fakeCartStore{libraries: []views.CartLibrary{
-		{Library: acme, Vetted: true, LatestRelease: 4, Items: []views.CartItem{
-			cartItem(acme, domain.CartGroup, "techs/go", func(it *views.CartItem) { it.Group, it.Rules = "techs/go", 3 }),
-			cartItem(acme, domain.CartGroup, "techs/golang", func(it *views.CartItem) { it.Group = "techs/golang" }),
-			cartItem(acme, domain.CartRule, "practices/testing/cover-edges", func(it *views.CartItem) { it.Group = "practices/testing" }),
-			cartItem(acme, domain.CartRule, "practices/testing/retry-forever", func(it *views.CartItem) {
-				it.Group, it.RetiredIn = "practices/testing", 3
-			}),
-			cartItem(acme, domain.CartRule, "techs/go/return-errors", func(it *views.CartItem) { it.Group = "techs/go" }),
-			cartItem(acme, domain.CartRule, "techs/golang/pass-context", func(it *views.CartItem) { it.Group = "techs/golang" }),
-			cartItem(acme, domain.CartRule, "techs/go/vanished", none),
-		}},
-		// Beta/rules lost its vetting, and a listing names it.
-		{Library: beta, Listed: true, LatestRelease: 2, Items: []views.CartItem{
-			cartItem(beta, domain.CartRule, "techs/go/name-packages", func(it *views.CartItem) { it.Group = "techs/go" }),
-		}},
-		{Library: stranger, Listed: true, LatestRelease: 1, Items: []views.CartItem{
-			cartItem(stranger, domain.CartLibrary, "", func(it *views.CartItem) { it.Rules, it.Confirmed = 2, true }),
-		}},
-		{Library: gone, LatestRelease: 7, Items: []views.CartItem{
-			cartItem(gone, domain.CartRule, "techs/go/gone", func(it *views.CartItem) { it.Group, it.Confirmed = "techs/go", true }),
-		}},
+// newCarts returns Carts over a catalog of acme/rules, vetted, with three Go rules, one retired, and two testing
+// rules, and stranger/rules, listed but not vetted, with one Go rule and one retired Rust rule.
+func newCarts(t *testing.T) (app.Carts, *cartStore) {
+	t.Helper()
+	retired := cartRule("techs/go/old-errors")
+	retired.RetiredIn = 2
+	retiredRust := cartRule("techs/rust/old-rust")
+	retiredRust.RetiredIn = 1
+	s := &cartStore{libraries: []views.CartLibrary{
+		{
+			Library: views.LibraryRef{Owner: "acme", Name: "rules", OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1"},
+			Vetted:  true, LatestRelease: 3, LatestCommit: strings.Repeat("a", 40),
+			Rules: []views.CartRule{
+				cartRule("practices/testing/name-tests"), cartRule("practices/testing/keep-tests-independent"),
+				cartRule("techs/go/close-bodies"), retired, cartRule("techs/go/return-errors"),
+			},
+		},
+		{
+			Library: views.LibraryRef{Owner: "stranger", Name: "rules"}, LatestRelease: 1, LatestCommit: strings.Repeat("b", 40),
+			Rules: []views.CartRule{cartRule("techs/go/use-go"), retiredRust},
+		},
 	}}
-	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{{ID: "techs/go", Name: "Go"}}, nil)
+	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{{ID: "techs/go", Name: "Go"}, {ID: "practices/testing", Name: "Testing"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vetted := []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "1"}}
-	cart, err := app.Cart{Store: fake, Vetted: vetted, Groups: groups}.Contents(context.Background(), 1)
-	if err != nil {
-		t.Fatal(err)
-	}
+	return app.Carts{Store: s, Groups: groups}, s
+}
 
-	if !slices.Equal(fake.vetted, vetted) {
-		t.Errorf("read the cart with vetted %v, want the release's", fake.vetted)
-	}
-	var states []string
-	for _, lib := range cart.Libraries {
+// states returns each item of checkout as its key and state.
+func states(checkout views.Checkout) []string {
+	var got []string
+	for _, lib := range checkout.Libraries {
 		for _, it := range lib.Items {
-			state := it.Item.FullName() + " " + it.Item.Path + " " + string(it.State)
-			if it.State == views.CartItemCovered {
-				state += " by " + it.CoveredBy.Path
-			}
-			if it.CanonicalGroup != nil {
-				state += " in " + it.CanonicalGroup.Name
-			}
-			states = append(states, state)
+			got = append(got, it.Key+" "+string(it.State))
 		}
+	}
+	return got
+}
+
+// commandsOf returns checkout's commands, every step's, as one text.
+func commandsOf(checkout views.Checkout) string {
+	var texts []string
+	for _, step := range checkout.Commands {
+		texts = append(texts, step.Commands)
+	}
+	return strings.Join(texts, "\n\n")
+}
+
+// Checkout resolves every key, in the cart's order by library, to its state: a current rule or a group with current
+// rules is ready, a retired rule retired, what the library doesn't have missing, an item of a library Rulemart has
+// no page for gone, and an unvetted library's items unvetted until the visitor confirms them. A key that names
+// nothing is unknown, and a repeated key counts once.
+func TestCheckoutResolvesEachItemsState(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{Keys: []string{
+		"acme/rules::techs/go/return-errors",
+		"stranger/rules::techs/go/use-go",
+		"group::acme/rules::practices/testing",
+		"acme/rules::techs/go/old-errors",
+		"acme/rules::techs/go/never-was",
+		"group::acme/rules::techs/rust",
+		"gone/rules::techs/go/x",
+		"not a key",
+		"acme/rules::techs/go/return-errors",
+	}}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
 	}
 	want := []string{
-		"acme/backend techs/go ready in Go",
-		"acme/backend techs/golang missing",
-		"acme/backend practices/testing/cover-edges ready",
-		"acme/backend practices/testing/retry-forever retired",
-		"acme/backend techs/go/return-errors covered by techs/go in Go",
-		// Its group has no current rules, which doesn't change the rule's own state.
-		"acme/backend techs/golang/pass-context ready",
-		"acme/backend techs/go/vanished missing",
-		"Beta/rules techs/go/name-packages unconfirmed in Go",
-		"stranger/rules  ready",
-		"gone/rules techs/go/gone gone in Go",
+		"acme/rules::techs/go/return-errors ready",
+		"group::acme/rules::practices/testing ready",
+		"acme/rules::techs/go/old-errors retired",
+		"acme/rules::techs/go/never-was missing",
+		"group::acme/rules::techs/rust missing",
+		"stranger/rules::techs/go/use-go unvetted",
+		"gone/rules::techs/go/x gone",
 	}
-	if !slices.Equal(states, want) {
-		t.Errorf("got states\n%q\nwant\n%q", states, want)
+	if got := states(checkout); !slices.Equal(got, want) {
+		t.Errorf("got\n%q\nwant\n%q", got, want)
+	}
+	if !slices.Equal(checkout.Unknown, []string{"not a key"}) {
+		t.Errorf("got unknown %q, want the one key that names nothing", checkout.Unknown)
+	}
+	if lib := checkout.Libraries[2]; !lib.Gone || lib.Library.FullName() != "gone/rules" {
+		t.Errorf("got %+v, want gone/rules gone", lib)
+	}
+	if pin := checkout.PinExample; pin == nil || *pin != (domain.ReleasePin{Library: "acme/rules", Release: 3}) {
+		t.Errorf("got the pin example %+v, want acme/rules at its latest release", pin)
+	}
+	group := checkout.Libraries[0].Items[1]
+	if group.Group.Canonical == nil || group.Group.Canonical.Name != "Testing" || len(group.Rules) != 2 {
+		t.Errorf("got %+v, want the Testing group with its two rules", group)
+	}
+	// Only the ready items are imported, and the unvetted library is named nowhere until it's confirmed.
+	for _, want := range []string{"--groups practices/testing", "--rules techs/go/return-errors"} {
+		if !strings.Contains(commandsOf(checkout), want) {
+			t.Errorf("the commands lack %q:\n%s", want, commandsOf(checkout))
+		}
+	}
+	for _, unwanted := range []string{"old-errors", "never-was", "rust", "stranger", "gone/rules"} {
+		if strings.Contains(commandsOf(checkout), unwanted) || strings.Contains(checkout.Prompt, unwanted) {
+			t.Errorf("the texts name %q, which checkout leaves out", unwanted)
+		}
+	}
+}
+
+// An unvetted library the visitor confirmed, in any case, is imported, named for review, and pinned to the commit
+// Rulemart saw.
+func TestCheckoutImportsAConfirmedUnvettedLibraryForReview(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{Keys: []string{"stranger/rules::techs/go/use-go"}, Confirmed: map[string]bool{"Stranger/Rules": true}}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := states(checkout); !slices.Equal(got, []string{"stranger/rules::techs/go/use-go ready"}) || !checkout.Libraries[0].Confirmed {
+		t.Errorf("got %q, confirmed %t, want the rule ready and its library confirmed", got, checkout.Libraries[0].Confirmed)
+	}
+	if !strings.Contains(commandsOf(checkout), "--ref "+strings.Repeat("b", 40)) || !strings.Contains(checkout.Prompt, "Rulemart hasn't vetted stranger/rules") {
+		t.Errorf("the texts neither pin nor name the unvetted library:\n%s", checkout.Prompt)
+	}
+	if checkout.PinExample != nil {
+		t.Errorf("got the pin example %+v for a library pinned to its commit already", checkout.PinExample)
+	}
+}
+
+// A confirmed unvetted library's rule the visitor chose to fork stays in sync with the reviewed commit instead, since
+// a fork would copy the release a tag names: the item isn't a fork, and the commands add it pinned, copying nothing.
+func TestCheckoutTreatsAForkFromAnUnvettedLibraryAsSync(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{
+		Keys:      []string{"stranger/rules::techs/go/use-go"},
+		Forks:     map[string]bool{"stranger/rules::techs/go/use-go": true},
+		Confirmed: map[string]bool{"stranger/rules": true},
 	}
 
-	var sources []string
-	for _, s := range cart.Checkout.Sources {
-		sources = append(sources, s.Name+" "+s.Library.FullName()+" "+domain.ReleaseTag(s.Library.Release))
-		if s.Library.FullName() == "acme/backend" {
-			if !slices.Equal(s.Groups, []string{"techs/go"}) || !slices.Equal(s.Rules, []string{"practices/testing/cover-edges", "techs/golang/pass-context"}) {
-				t.Errorf("acme imports groups %q and rules %q", s.Groups, s.Rules)
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := checkout.Libraries[0].Items[0]; it.Fork || it.State != views.CartItemReady {
+		t.Errorf("got %+v, want the rule ready and not forked", it)
+	}
+	if strings.Contains(commandsOf(checkout), "add rule") ||
+		!strings.Contains(commandsOf(checkout), "--ref "+strings.Repeat("b", 40)+" \\\n  --rules techs/go/use-go") {
+		t.Errorf("the commands should add the rule pinned to the reviewed commit, and fork nothing:\n%s", commandsOf(checkout))
+	}
+}
+
+// A forked rule is copied at its version, and the offer to add the rest of a picked rule's group counts the group's
+// current rules the cart doesn't hold: not the retired one, the picked one, or the forked one. Taking the offer
+// imports the group whole, so the fork in it gives a reason, and the count goes to 0.
+func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{
+		Keys:  []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"},
+		Forks: map[string]bool{"acme/rules::techs/go/close-bodies": true},
+	}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib := checkout.Libraries[0]
+	if len(lib.RestOfGroups) != 1 || lib.RestOfGroups[0].Path != "techs/go" || lib.RestOfGroupsRules != 0 || lib.RestOfGroupsAdded {
+		t.Errorf("got the offer %+v, %d more, added %t, want the Go group with none more", lib.RestOfGroups, lib.RestOfGroupsRules, lib.RestOfGroupsAdded)
+	}
+	if !lib.Items[1].Fork || !strings.Contains(commandsOf(checkout), "add rule techs/go/close-bodies \\\n  --from acme@1.2.0") {
+		t.Errorf("the fork isn't copied at its version:\n%s", commandsOf(checkout))
+	}
+
+	cart.Keys = cart.Keys[:1]
+	checkout, err = carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lib := checkout.Libraries[0]; lib.RestOfGroupsRules != 1 {
+		t.Errorf("got %d more, want close-bodies, the group's one other current rule", lib.RestOfGroupsRules)
+	}
+
+	cart.Keys, cart.RestOfGroups = []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}, map[string]bool{"acme/rules": true}
+	checkout, err = carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lib := checkout.Libraries[0]; !lib.RestOfGroupsAdded || lib.RestOfGroupsRules != 0 || len(lib.RestOfGroups) != 1 {
+		t.Errorf("got added %t, %d more, groups %+v, want the offer taken", lib.RestOfGroupsAdded, lib.RestOfGroupsRules, lib.RestOfGroups)
+	}
+	if !strings.Contains(commandsOf(checkout), "--groups techs/go") || !strings.Contains(commandsOf(checkout), "--reason") {
+		t.Errorf("the group isn't imported whole, with the fork's reason:\n%s", commandsOf(checkout))
+	}
+}
+
+// A rule whose whole group the cart holds too is in that group, so checkout imports it with the group, and only a
+// fork of it on its own; a rule of another group isn't, nor is one whose group the cart holds but can't import.
+func TestCheckoutMarksARuleItsWholeGroupBrings(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{
+		Keys: []string{
+			"acme/rules::techs/go/return-errors", "group::acme/rules::techs/go", "acme/rules::techs/go/close-bodies",
+			"acme/rules::practices/testing/name-tests", "stranger/rules::techs/go/use-go", "group::stranger/rules::techs/go",
+		},
+		Forks: map[string]bool{"acme/rules::techs/go/close-bodies": true},
+	}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inGroup []string
+	for _, lib := range checkout.Libraries {
+		for _, it := range lib.Items {
+			if it.InGroup {
+				inGroup = append(inGroup, it.Key)
 			}
 		}
 	}
-	if want := []string{"backend acme/backend release/4", "rules stranger/rules release/1"}; !slices.Equal(sources, want) {
-		t.Errorf("checkout imports %q, want %q", sources, want)
+	if want := []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}; !slices.Equal(inGroup, want) {
+		t.Errorf("got %q in their groups, want %q", inGroup, want)
 	}
-	if cart.Items() != 10 {
-		t.Errorf("counted %d items, want 10", cart.Items())
+	if strings.Contains(commandsOf(checkout), "--rules techs/go/return-errors") ||
+		!strings.Contains(commandsOf(checkout), "add rule techs/go/close-bodies") {
+		t.Errorf("the group should bring return-errors, and close-bodies stay a fork:\n%s", commandsOf(checkout))
+	}
+}
+
+// Keys that spell one rule or group in different cases resolve to it once, as pages find it without regard to case:
+// one item, named by the first key, whose choice stands, and one command, never a second copy of the same import.
+func TestCheckoutResolvesKeysThatDifferOnlyInCaseToOneItem(t *testing.T) {
+	carts, _ := newCarts(t)
+	for _, c := range []struct {
+		name  string
+		forks map[string]bool
+		want  string
+	}{
+		{"both forked", map[string]bool{"acme/rules::techs/go/close-bodies": true, "ACME/Rules::techs/go/Close-Bodies": true}, "add rule techs/go/close-bodies"},
+		{"the first synced", map[string]bool{"ACME/Rules::techs/go/Close-Bodies": true}, "--rules techs/go/close-bodies"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			cart := app.Cart{
+				Keys: []string{
+					"acme/rules::techs/go/close-bodies", "group::acme/rules::practices/testing",
+					"ACME/Rules::techs/go/Close-Bodies", "group::Acme/rules::Practices/Testing",
+				},
+				Forks: c.forks,
+			}
+
+			checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"acme/rules::techs/go/close-bodies ready", "group::acme/rules::practices/testing ready"}
+			if got := states(checkout); !slices.Equal(got, want) {
+				t.Errorf("got\n%q\nwant\n%q", got, want)
+			}
+			if strings.Count(commandsOf(checkout), "close-bodies") != 1 || !strings.Contains(commandsOf(checkout), c.want) ||
+				strings.Count(commandsOf(checkout), "--groups practices/testing") != 1 {
+				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, commandsOf(checkout))
+			}
+		})
+	}
+}
+
+// An unvetted library's item that checkout couldn't import even once confirmed says why, whether the visitor confirmed
+// the library or not: a retired rule is retired, and what the library doesn't have, or has no current rules of, is
+// missing, rather than unvetted, which would promise that confirming includes it.
+func TestCheckoutSaysWhyAnUnvettedLibrarysItemIsLeftOutBeforeAskingToConfirm(t *testing.T) {
+	carts, _ := newCarts(t)
+	keys := []string{
+		"stranger/rules::techs/rust/old-rust", "group::stranger/rules::techs/rust", "stranger/rules::techs/go/never-was",
+		"stranger/rules::techs/go/use-go",
+	}
+	for _, c := range []struct {
+		name      string
+		confirmed map[string]bool
+		ready     string
+	}{
+		{"unconfirmed", nil, "unvetted"},
+		{"confirmed", map[string]bool{"stranger/rules": true}, "ready"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			checkout, err := carts.Checkout(context.Background(), app.Cart{Keys: keys, Confirmed: c.confirmed}, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{
+				"stranger/rules::techs/rust/old-rust retired", "group::stranger/rules::techs/rust missing",
+				"stranger/rules::techs/go/never-was missing", "stranger/rules::techs/go/use-go " + c.ready,
+			}
+			if got := states(checkout); !slices.Equal(got, want) {
+				t.Errorf("got\n%q\nwant\n%q", got, want)
+			}
+		})
+	}
+}
+
+// A cart holds at most domain.MaxCartItems keys: one more is refused without reading the catalog.
+func TestCheckoutRefusesACartOfMoreThanTheMostItems(t *testing.T) {
+	carts, s := newCarts(t)
+	keys := make([]string, domain.MaxCartItems)
+	for i := range keys {
+		keys[i] = "acme/rules::techs/go/r" + strconv.Itoa(i)
+	}
+
+	if _, err := carts.Checkout(context.Background(), app.Cart{Keys: keys}, domain.CheckoutTarget{Mode: domain.ProjectUnknown}); err != nil {
+		t.Fatalf("a full cart: %v", err)
+	}
+	_, err := carts.Checkout(context.Background(), app.Cart{Keys: append(keys, "acme/rules::techs/go/one-more")}, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if !errors.Is(err, app.ErrCartTooLarge) || s.reads != 1 {
+		t.Errorf("got %v after %d reads, want app.ErrCartTooLarge without reading", err, s.reads)
 	}
 }

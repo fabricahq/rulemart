@@ -41,12 +41,6 @@ type libraryView struct {
 	latestTag, latestHref, updated string
 	// groups counts the groups that hold current rules, rules the current rules, and releases the releases.
 	groups, rules, releases int
-	// cart is the control that adds every group of the library to the cart, and cartNotice what the page says after
-	// adding, or signing in to add, the library or one of its items the page shows.
-	cart       cartControl
-	cartNotice string
-	// cartOffer is the control the page offers, in its notice, to add after signing in, or nil.
-	cartOffer *cartControl
 }
 
 // fullName returns the library's repository as owner/name.
@@ -158,8 +152,6 @@ type groupView struct {
 	// library's own rules.
 	acrossHref string
 	rules      []ruleRowView
-	// cart is the control that adds the group to the cart, which server.withGroupCarts fills in.
-	cart cartControl
 }
 
 // groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
@@ -247,7 +239,7 @@ type ruleRowView struct {
 // list that includes such libraries.
 func newRuleRow(lib libraryRefView, unvetted bool, r views.RuleCard) ruleRowView {
 	return ruleRowView{
-		href: lib.href + "/" + r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
+		href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
 		unvetted: unvetted,
 	}
 }
@@ -309,7 +301,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	}
 	for _, r := range page.Retired {
 		result.retired = append(result.retired, retiredRuleCard{
-			href: ruleHref(lib, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
+			href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
 			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: newRuleLinks(lib, r.Replacements),
 			renamed: r.Renamed,
 		})
@@ -329,6 +321,16 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 // all returns every group, technologies first.
 func (c libraryContents) all() []groupView {
 	return append(append([]groupView{}, c.techs...), c.practices...)
+}
+
+// group returns the group whose ID is id, matched without regard to case, and whether there is one.
+func (c libraryContents) group(id string) (groupView, bool) {
+	all := c.all()
+	i := slices.IndexFunc(all, func(g groupView) bool { return strings.EqualFold(g.label.id, id) })
+	if i < 0 {
+		return groupView{}, false
+	}
+	return all[i], true
 }
 
 // ruleView is what a rule's page shows.
@@ -355,10 +357,12 @@ type ruleView struct {
 	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
 	replaces    []replacedRule
 	renamedFrom *replacedRule
-	// cart is the control that adds a current rule to the cart, and star its star control, which the rule's page
-	// fills in.
-	cart cartControl
+	// star is the rule's star control, which the rule's page fills in.
 	star starView
+	// groupIcon is the icon of the rule's group, which the page fills in, and groupRules counts the group's current
+	// rules, this one included, which the cart's dialog offers whole.
+	groupIcon  groupIcon
+	groupRules int
 }
 
 // retiredView is how a library release retired a rule.
@@ -399,7 +403,7 @@ func (r ruleView) summary() string {
 func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
-		library: lib, href: ruleHref(lib, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
+		library: lib, href: ruleHref(lib.href, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
 		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
@@ -423,6 +427,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	if n := len(page.Versions); n > 1 {
 		v.compareHref = ruleComparisonHref(lib, r.Path, page.Versions[n-1].Version, page.Versions[0].Version, diffWords)
 	}
+	// The group holds the rule itself while it's current, whatever the links say.
+	v.groupRules = max(page.GroupRuleCount(), 1)
 	if !lib.vetted {
 		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
 		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
@@ -454,6 +460,12 @@ func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
 }
 
+// libraryGroupHref is the path of the page of the group id of the library whose page is library.
+func libraryGroupHref(library, id string) string {
+	kind, name, _ := strings.Cut(id, "/")
+	return library + "/" + url.PathEscape(kind) + "/" + url.PathEscape(name)
+}
+
 // groupAnchor is the fragment of a group's section on the All rules tab.
 func groupAnchor(groupID string) string {
 	return "group-" + strings.ReplaceAll(groupID, "/", "-")
@@ -470,6 +482,14 @@ func plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return strconv.Itoa(n) + " " + many
+}
+
+// pluralWord returns one or many by n, without the number.
+func pluralWord(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // impactLevelsDocs is Code Rules' explanation of impact levels.

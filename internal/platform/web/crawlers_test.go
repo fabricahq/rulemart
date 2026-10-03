@@ -47,7 +47,7 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		}
 	}
 	for path, want := range map[string]bool{
-		"/account": true, "/account?x=1": true, "/account/cart": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
+		"/account": true, "/account?x=1": true, "/account/listings": true, "/account/stars?x=1": true, "/sign-in": true, "/sign-in?return=%2F": true,
 		"/list": true, "/list?repository=a%2Fb": true, "/search": true, "/search?q=retry": true, "/unvetted": true,
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.

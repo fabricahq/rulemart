@@ -85,10 +85,10 @@ var ErrInvalidRepository = errors.New("not a GitHub repository")
 var (
 	// gitHubOwner matches what GitHub allows in a user or organization's name: letters, digits, and hyphens, at most
 	// 39, neither starting nor ending with a hyphen. GitHub also refuses two hyphens in a row, which
-	// ParseListedRepository checks apart.
+	// ParseGitHubRepository checks apart.
 	gitHubOwner = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$`)
 	// gitHubRepository matches what GitHub allows in a repository's name. GitHub also refuses . and .., and a name
-	// that ends in .git, which ParseListedRepository checks apart.
+	// that ends in .git, which ParseGitHubRepository checks apart.
 	gitHubRepository = regexp.MustCompile(`^[A-Za-z0-9._-]{1,100}$`)
 )
 
@@ -101,20 +101,21 @@ var reservedOwners = map[string]bool{
 	"settings": true, "signup": true, "sponsors": true, "topics": true, "trending": true,
 }
 
-// repositoryAddresses are what may come before owner/name when a lister gives a repository's address, compared
-// without regard to case.
+// repositoryAddresses are what may come before owner/name when someone gives a repository's address, compared without
+// regard to case: its page, or how Git clones it over SSH.
 var repositoryAddresses = []string{
 	"https://github.com/", "https://www.github.com/", "http://github.com/", "http://www.github.com/",
-	"github.com/", "www.github.com/",
+	"github.com/", "www.github.com/", "git@github.com:", "ssh://git@github.com/",
 }
 
-// ParseListedRepository returns the owner and name of the GitHub repository text names, as a lister may give it:
-// owner/name, or its address, such as https://github.com/owner/name, github.com/owner/name, or the address of a
-// page inside it, such as .../tree/main, whose query and fragment it ignores. Either may end with a slash, and with
+// ParseGitHubRepository returns the owner and name of the GitHub repository text names, as a lister, or a visitor
+// naming their project at checkout, may give it: owner/name, or its address, such as https://github.com/owner/name,
+// github.com/owner/name, git@github.com:owner/name.git, or the address of a page inside it, such as .../tree/main,
+// whose query and fragment it ignores. Either may end with a slash, and with
 // .git in any case, as a clone URL does: GitHub refuses a repository name that ends in .git, so one .git is never part
 // of a name. It fails with ErrInvalidRepository for anything else, such as another host, a name GitHub wouldn't
 // allow, or one of GitHub's own pages, such as settings/profile.
-func ParseListedRepository(text string) (owner, name string, err error) {
+func ParseGitHubRepository(text string) (owner, name string, err error) {
 	text = strings.TrimSpace(text)
 	path := text
 	for _, prefix := range repositoryAddresses {

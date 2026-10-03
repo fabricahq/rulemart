@@ -1,0 +1,24 @@
+# From the root of your project
+
+# Set up Code Rules
+curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
+code-rules project init
+
+# Add your rules
+code-rules project add library fabrica \
+  --repository https://github.com/fabricahq/public-rules.git \
+  --groups techs/golang \
+  --groups practices/testing
+
+code-rules project sync
+
+code-rules project add rule practices/testing/cover-boundary-cases \
+  --from fabrica@1.0.0 \
+  --reason 'We maintain our own version of this rule.'
+
+code-rules project add rule techs/go/return-errors \
+  --from fabrica@1.0.0
+
+code-rules project build
+
+# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md

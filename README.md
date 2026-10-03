@@ -44,19 +44,22 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 ## Quick start
 
-You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex. The agent
-installs [Code Rules](https://code-rules.fabricahq.com/start-here/install/) 0.2.0 or later, after asking you, if
-it's missing.
+You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex, or a
+terminal to run them yourself. The prompt installs [Code Rules](https://code-rules.fabricahq.com/start-here/install/)
+0.2.0 or later if the project doesn't use it yet.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
    **Techs** and **Practices**.
 2. Open a rule to read it, its versions, and what changed between them. Its library's page shows the library's
    groups, every rule, and its releases.
-3. Sign in with GitHub, and add what you want to your cart: a single rule, a group of rules, or a whole library.
-4. Open the cart and check out. Copy the prompt it gives you.
-5. Paste the prompt into your coding agent, in your project's repository. The agent sets up Code Rules, adds each
-   library to `.code-rules/config.yaml` pinned to the release you saw, runs `code-rules project sync` and
-   `code-rules project check`, and points your agent instructions, such as `AGENTS.md`, at the rules.
+3. Add what you want to your cart, which needs no account: a single rule, or a rule's whole group. Picking the
+   groups on a library's page adds several at once.
+4. Open the cart. Choose for each rule whether it stays in sync with its library or is forked into your project,
+   and enter your project's GitHub repository if you like, so the prompt names it.
+5. Copy the prompt into your coding agent, in your project's repository, or copy the commands and run them yourself.
+   They set up Code Rules if the project needs it, add each library with `code-rules project add library`, fork
+   rules with `code-rules project add rule --from`, and sync. The prompt also points your agent instructions, such as
+   `AGENTS.md`, at the rules.
 
 Your project now has `.code-rules/generated/RULES.md`, the index your agent reads before it works, listing the rules
 you picked. [Code Rules' guide](https://code-rules.fabricahq.com) covers what comes next: adding your own rules,

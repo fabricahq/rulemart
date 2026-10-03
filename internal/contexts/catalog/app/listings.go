@@ -121,7 +121,7 @@ func (l Listings) queue(ctx context.Context, id int64) error {
 
 // parseRepository returns the GitHub repository text names, or fails with ErrInvalidRepository.
 func parseRepository(text string) (Repository, error) {
-	owner, name, err := domain.ParseListedRepository(text)
+	owner, name, err := domain.ParseGitHubRepository(text)
 	if err != nil {
 		return Repository{}, err
 	}
