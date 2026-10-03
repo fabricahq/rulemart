@@ -70,7 +70,7 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 // that show it, the dashboard by default, which says how the read went.
 func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
-	if !signedInPage(strings.SplitN(back, "?", 2)[0]) && !strings.HasPrefix(back, cartHref) {
+	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref {
 		back = dashboardHref
 	}
 	v := visitorOf(r.Context())

@@ -141,7 +141,7 @@ templ pickRow(p pickView) {
 				</a>
 			default:
 				<form method="post" action={ templ.SafeURL(p.action) }>
-					<button class={ smallPrimaryStyle } type="submit" aria-label={ "Add " + p.fullName }>Add this library</button>
+					<button class={ smallPrimaryStyle } type="submit" aria-label={ "Add this library: " + p.fullName }>Add this library</button>
 				</form>
 		}
 	</div>
