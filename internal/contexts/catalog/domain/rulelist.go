@@ -37,7 +37,10 @@ const (
 type RuleFilters struct {
 	// Libraries are the libraries to keep, each as LibraryFilterValue spells it, or none to keep every library.
 	Libraries []string
-	Impact    ImpactBand
+	// Mine keeps the visitor's libraries, those whose owner is one of RuleList.Owners, the visitor's own login and
+	// their organizations', as their dashboard lists them; it keeps no rule while Owners is empty.
+	Mine   bool
+	Impact ImpactBand
 	// MinStars keeps rules with at least this many stars; 0 keeps every rule.
 	MinStars int
 	// Kind keeps the rules of one kind of group, techs or practices, or of both when empty.
@@ -46,7 +49,7 @@ type RuleFilters struct {
 
 // IsZero reports whether the filters keep every rule.
 func (f RuleFilters) IsZero() bool {
-	return len(f.Libraries) == 0 && f.Impact == AnyImpact && f.MinStars == 0 && f.Kind == ""
+	return len(f.Libraries) == 0 && !f.Mine && f.Impact == AnyImpact && f.MinStars == 0 && f.Kind == ""
 }
 
 // RuleList says which rules a list across libraries holds, before and after its filters, and in what order: a group's
@@ -56,6 +59,8 @@ type RuleList struct {
 	Query SearchQuery
 	// Group is the ID of the one group whose rules the list holds, matched exactly, or empty for every group.
 	Group string
+	// Owners are the logins whose libraries Filters.Mine keeps, matched without regard to case.
+	Owners []string
 	ListChoices
 }
 
@@ -70,8 +75,8 @@ func LibraryFilterValue(owner, name string) string { return strings.ToLower(owne
 type ListPage int
 
 const (
-	// GroupListPage is a group's page: its libraries, impact, stars, retired rules, unvetted libraries, and Most
-	// starred or Newest.
+	// GroupListPage is a group's page: its libraries, the visitor's libraries, impact, stars, retired rules, unvetted
+	// libraries, and Most starred or Newest.
 	GroupListPage ListPage = iota
 	// SearchListPage is search: a group's choices, plus the kind of group, and Best match, Most starred, or Newest. It
 	// offers retired rules only while it lists every rule, since a search for words always finds them.
@@ -118,6 +123,7 @@ type ListChoices struct {
 // page's own address holds them only as Values writes them.
 const (
 	LibrariesParam = "libs"
+	MineParam      = "mine"
 	ImpactParam    = "impact"
 	StarsParam     = "stars"
 	KindParam      = "kind"
@@ -154,6 +160,7 @@ func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
 		}
 	}
 	choices.Filters.Libraries = libraryFilters(values[LibrariesParam])
+	choices.Filters.Mine = has(values[MineParam], "1")
 	choices.Filters.Impact = ImpactBand(oneOf(values[ImpactParam], string(HighImpact), string(LowerImpact)))
 	for _, n := range StarThresholds {
 		if has(values[StarsParam], strconv.Itoa(n)) {
@@ -185,6 +192,9 @@ func (c ListChoices) Values(page ListPage) url.Values {
 	}
 	if len(c.Filters.Libraries) > 0 {
 		values.Set(LibrariesParam, strings.Join(c.Filters.Libraries, ","))
+	}
+	if c.Filters.Mine {
+		values.Set(MineParam, "1")
 	}
 	if c.Filters.Impact != AnyImpact {
 		values.Set(ImpactParam, string(c.Filters.Impact))

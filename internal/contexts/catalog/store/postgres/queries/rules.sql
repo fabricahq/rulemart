@@ -37,9 +37,9 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 --
 -- Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
 -- they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
--- or of every library when it's empty; of the impact band impact, high for CRITICAL and HIGH and medium for the rest,
--- or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
--- both when it's empty.
+-- or of every library when it's empty; with mine, of the libraries whose owner is one of owners, in lowercase; of the
+-- impact band impact, high for CRITICAL and HIGH and medium for the rest, or of any when it's empty; with at least
+-- min_stars stars; and of the kind of group kind, techs or practices, or of both when it's empty.
 --
 -- Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
 -- rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
@@ -188,6 +188,7 @@ facets AS (
 filtered AS (
     SELECT b.*, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality(@libraries::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY (@libraries::text[]))
+      AND (NOT @mine::boolean OR lower(b.owner) = ANY (@owners::text[]))
       AND (@impact::text = '' OR (@impact::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
       AND b.stars >= @min_stars::integer
       AND (@kind::text = '' OR b.group_path LIKE @kind::text || '/%')

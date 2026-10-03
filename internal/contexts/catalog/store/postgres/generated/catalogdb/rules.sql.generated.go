@@ -197,24 +197,25 @@ facets AS (
 filtered AS (
     SELECT b.id, b.missing, b.score, b.text_rank, b.retired, b.vetted, b.library_id, b.owner, b.name, b.owner_avatar_url, b.path, b.group_path, b.title, b.impact, b.major, b.minor, b.patch, b.stars, b.first_published_at, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality($15::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY ($15::text[]))
-      AND ($16::text = '' OR ($16::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
-      AND b.stars >= $17::integer
-      AND ($18::text = '' OR b.group_path LIKE $18::text || '/%')
+      AND (NOT $16::boolean OR lower(b.owner) = ANY ($17::text[]))
+      AND ($18::text = '' OR ($18::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
+      AND b.stars >= $19::integer
+      AND ($20::text = '' OR b.group_path LIKE $20::text || '/%')
 ),
 positioned AS (
     SELECT f.id, f.missing, f.score, f.text_rank, f.retired, f.vetted, f.library_id, f.owner, f.name, f.owner_avatar_url, f.path, f.group_path, f.title, f.impact, f.major, f.minor, f.patch, f.stars, f.first_published_at, f.tier, row_number() OVER (
                ORDER BY f.tier,
                         cardinality(f.missing) > 0,
-                        CASE $19::text
+                        CASE $21::text
                             WHEN 'best' THEN f.score
                             WHEN 'stars' THEN f.stars::float
                             WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
                         END DESC,
                         f.vetted DESC,
-                        CASE WHEN $19::text = 'best' THEN f.text_rank END DESC,
+                        CASE WHEN $21::text = 'best' THEN f.text_rank END DESC,
                         f.stars DESC,
                         lower(f.owner) = lower($14::text) DESC,
-                        CASE WHEN $19::text = 'best' THEN lower(coalesce(f.title, '')) END,
+                        CASE WHEN $21::text = 'best' THEN lower(coalesce(f.title, '')) END,
                         lower(f.owner), lower(f.name), lower(coalesce(f.title, '')), f.path
            ) AS position
     FROM filtered f
@@ -225,7 +226,7 @@ grouped AS (
     FROM positioned p
 ),
 page AS (
-    SELECT id, missing, score, text_rank, retired, vetted, library_id, owner, name, owner_avatar_url, path, group_path, title, impact, major, minor, patch, stars, first_published_at, tier, position, group_position, group_rules FROM grouped gr ORDER BY gr.group_position, gr.position LIMIT $21 OFFSET $20
+    SELECT id, missing, score, text_rank, retired, vetted, library_id, owner, name, owner_avatar_url, path, group_path, title, impact, major, minor, patch, stars, first_published_at, tier, position, group_position, group_rules FROM grouped gr ORDER BY gr.group_position, gr.position LIMIT $23 OFFSET $22
 )
 SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, pg.path, pg.group_path,
        coalesce(pg.title, '')::text AS title, coalesce(pg.impact, '')::text AS impact, pg.major, pg.minor, pg.patch,
@@ -255,6 +256,8 @@ type ListRulesParams struct {
 	IncludeRetired         bool
 	FirstOwner             string
 	Libraries              []string
+	Mine                   bool
+	Owners                 []string
 	Impact                 string
 	MinStars               int32
 	Kind                   string
@@ -315,9 +318,9 @@ type ListRulesRow struct {
 //
 // Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
 // they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
-// or of every library when it's empty; of the impact band impact, high for CRITICAL and HIGH and medium for the rest,
-// or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
-// both when it's empty.
+// or of every library when it's empty; with mine, of the libraries whose owner is one of owners, in lowercase; of the
+// impact band impact, high for CRITICAL and HIGH and medium for the rest, or of any when it's empty; with at least
+// min_stars stars; and of the kind of group kind, techs or practices, or of both when it's empty.
 //
 // Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
 // rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
@@ -350,6 +353,8 @@ func (q *Queries) ListRules(ctx context.Context, arg ListRulesParams) ([]ListRul
 		arg.IncludeRetired,
 		arg.FirstOwner,
 		arg.Libraries,
+		arg.Mine,
+		arg.Owners,
 		arg.Impact,
 		arg.MinStars,
 		arg.Kind,

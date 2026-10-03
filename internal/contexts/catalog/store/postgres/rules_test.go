@@ -200,6 +200,38 @@ func TestAGroupsFiltersKeepTheRulesTheyName(t *testing.T) {
 	}
 }
 
+// My libraries keeps the rules of the libraries whose owner is one of the list's owners, without regard to case, and
+// with the other filters, those that pass them all; a visitor whose owners publish nothing in the list sees none. It
+// doesn't change what the list holds before its filters, which the sidebar counts.
+func TestMyLibrariesKeepTheRulesOfTheOwnersLibraries(t *testing.T) {
+	c := newRuleLists(t)
+
+	for _, tc := range []struct {
+		name    string
+		filters domain.RuleFilters
+		owners  []string
+		want    []string
+	}{
+		{"an organization", domain.RuleFilters{Mine: true}, []string{"octocat", "Zeta"}, []string{zapErrors, yieldErrors}},
+		{"the visitor and an organization", domain.RuleFilters{Mine: true}, []string{"FabricaHQ", "zeta"}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"owners who publish nothing here", domain.RuleFilters{Mine: true}, []string{"octocat", "aardvark"}, []string{}},
+		{"no owners", domain.RuleFilters{Mine: true}, nil, []string{}},
+		{"owners without my libraries", domain.RuleFilters{}, []string{"zeta"}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"and a library of another owner", domain.RuleFilters{Mine: true, Libraries: []string{"fabricahq/rules"}}, []string{"zeta"}, []string{}},
+		{"and an impact", domain.RuleFilters{Mine: true, Impact: domain.LowerImpact}, []string{"fabricahq"}, []string{nameThings}},
+	} {
+		list := goList(tc.filters)
+		list.Owners = tc.owners
+		got := c.listRules(t, list)
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != len(tc.want) {
+			t.Errorf("%s: got %q of %d, want %q", tc.name, sourceIDs(got), got.Total, tc.want)
+		}
+		if got.Unfiltered != 4 || len(got.UnfilteredLibraries) != 2 {
+			t.Errorf("%s: got %d unfiltered from %+v, want 4 from 2 libraries", tc.name, got.Unfiltered, got.UnfilteredLibraries)
+		}
+	}
+}
+
 // Nothing of a listed library is read unless the list asks for unvetted libraries; then its rules join the list,
 // unvetted and without stars, after the vetted rules they tie with, and the sidebar counts it.
 func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {

@@ -52,6 +52,12 @@ func TestListChoicesReadAndWriteTheirAddress(t *testing.T) {
 			Filters: domain.RuleFilters{Kind: "practices"}, Order: domain.BestMatch}, "kind=practices"},
 		{"both kinds keep every rule", domain.SearchListPage, "kind=techs&kind=practices", domain.ListChoices{Order: domain.BestMatch}, ""},
 		{"a group's page has no kind", domain.GroupListPage, "kind=techs", domain.ListChoices{Order: domain.MostStarred}, ""},
+		{"my libraries", domain.GroupListPage, "mine=1", domain.ListChoices{
+			Filters: domain.RuleFilters{Mine: true}, Order: domain.MostStarred}, "mine=1"},
+		{"my libraries in search", domain.SearchListPage, "mine=1", domain.ListChoices{
+			Filters: domain.RuleFilters{Mine: true}, Order: domain.BestMatch}, "mine=1"},
+		{"my libraries other than 1", domain.GroupListPage, "mine=yes", domain.ListChoices{Order: domain.MostStarred}, ""},
+		{"a library list has no my libraries", domain.LibraryListPage, "mine=1", domain.ListChoices{}, ""},
 		{"newest", domain.GroupListPage, "sort=new", domain.ListChoices{Order: domain.Newest}, "sort=new"},
 		{"most starred, a group's default", domain.GroupListPage, "sort=stars", domain.ListChoices{Order: domain.MostStarred}, ""},
 		{"most starred in search", domain.SearchListPage, "sort=stars", domain.ListChoices{Order: domain.MostStarred}, "sort=stars"},
@@ -60,11 +66,11 @@ func TestListChoicesReadAndWriteTheirAddress(t *testing.T) {
 		{"retired rules", domain.GroupListPage, "retired=1", domain.ListChoices{Retired: true, Order: domain.MostStarred}, "retired=1"},
 		{"retired rules on search for every rule", domain.SearchListPage, "retired=1", domain.ListChoices{Retired: true, Order: domain.BestMatch}, "retired=1"},
 		{"search for words always finds retired rules", domain.SearchListPage, "q=errors&retired=1", domain.ListChoices{Order: domain.BestMatch}, ""},
-		{"every choice, in any order", domain.SearchListPage, "unvetted=1&sort=new&kind=techs&stars=100&impact=high&libs=zeta/go",
+		{"every choice, in any order", domain.SearchListPage, "unvetted=1&sort=new&kind=techs&stars=100&impact=high&libs=zeta/go&mine=1",
 			domain.ListChoices{Unvetted: true, Filters: domain.RuleFilters{
-				Libraries: []string{"zeta/go"}, Impact: domain.HighImpact, MinStars: 100, Kind: "techs",
+				Libraries: []string{"zeta/go"}, Mine: true, Impact: domain.HighImpact, MinStars: 100, Kind: "techs",
 			}, Order: domain.Newest},
-			"impact=high&kind=techs&libs=zeta%2Fgo&sort=new&stars=100&unvetted=1"},
+			"impact=high&kind=techs&libs=zeta%2Fgo&mine=1&sort=new&stars=100&unvetted=1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			values, err := url.ParseQuery(tc.query)
