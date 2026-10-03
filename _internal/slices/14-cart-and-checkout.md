@@ -146,9 +146,12 @@ The spec's Proposed decisions are built as written, except where an entry here s
   forks, full groups, several libraries, and an unvetted library.
 - Endpoint tests: resolution of every item state, unknown keys, the 100-item cap, cross-origin refused, unvetted
   without confirmation, a library gone, the texts.
-- Browser tests (Playwright or chrome-devtools-axi driven from a test script, as the repository allows) of the
-  script: add a rule and a group, badge count, In cart states, the modal's two choices and the unvetted
-  confirmation, remove, clear, fork, full, project field, tab switch, copy, the empty state, and the no-JavaScript
-  message. Each flow's commands run against the real `code-rules` CLI in a scratch repository, as slice 8 did.
+- The repository has no browser test harness, so the scripts' flows were checked by hand in Chrome with
+  chrome-devtools-axi, with no console errors: adding a rule, and its whole group, from the rule page's dialog;
+  the unvetted library's confirmation before the choices; adding a group from its library group page; ticking groups
+  on the Groups tab and adding them; the badge count and the In cart states; and on `/cart`, Stay in sync or Fork,
+  Also add the other rules, Remove, Clear cart, the repository field, the Prompt and Commands tabs, Copy, and the
+  empty state. The pages' markup, such as the no-JavaScript message, is tested in Go. Each flow's commands ran
+  against the real `code-rules` CLI in a scratch repository, as slice 8 did.
 - In a browser beside the prototype's cart at 1280, 390, and 320 pixels, light and dark.
 - Then the verification [realignment.md](../realignment.md) sets for every slice.
