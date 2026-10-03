@@ -271,3 +271,9 @@ func canonicalGroup(groups domain.CanonicalGroups, path string) *views.Canonical
 		File: g.Icon.File, Monochrome: g.Icon.Monochrome, Narrow: g.Icon.Narrow, LightTile: g.Icon.LightTile,
 	}}
 }
+
+// Dashboard returns what a visitor's dashboard shows of the catalog: the libraries, vetted or listed, whose owner is one
+// of owners, the visitor and their organizations, and those of names, the libraries their projects import, as owner/name.
+func (p Pages) Dashboard(ctx context.Context, owners, names []string) (views.Dashboard, error) {
+	return p.Store.Dashboard(ctx, p.Vetted, owners, names)
+}

@@ -81,6 +81,12 @@ type Stars interface {
 	// leaves each rule's CanonicalGroup nil. A star that counts toward no such rule, such as one on a rule retired
 	// without a replacement, or in a library that lost its vetting, isn't listed.
 	AccountStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.StarredRule, error)
+	// UncountedStars returns the account's stars that AccountStars doesn't list, since they count toward no current rule
+	// of a vetted library, most recently starred first.
+	UncountedStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.UncountedStar, error)
+	// RemoveStar removes the account's star on the rule at rulePath in the library owner/name, current or retired,
+	// vetted or not, both matched without regard to case, or fails with ErrNotFound when the account has no such star.
+	RemoveStar(ctx context.Context, accountID int64, owner, name, rulePath string) error
 }
 
 // Carts reads what checkout resolves a browser's cart against, as the web function does, writing nothing.
@@ -192,6 +198,10 @@ type Reader interface {
 	// those the list holds before them by library, and its group's retired rules, whichever rules the page holds. It
 	// leaves each row's CanonicalGroup nil.
 	Rules(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, list domain.RuleList, limit, skip int) (views.RuleResults, error)
+	// Dashboard returns, from one state of the catalog, the libraries vetted holds or a listing names whose owner is one
+	// of owners, and those whose owner/name is one of names, all matched without regard to case, as views.Dashboard
+	// describes them.
+	Dashboard(ctx context.Context, vetted []domain.LibraryKey, owners, names []string) (views.Dashboard, error)
 	// Sitemap returns the vetted libraries, their current rules, and the groups that hold them, at most maxEntries
 	// groups and rules in all: the first groups in ID order, then the first rules in owner, name, and ID order, from
 	// one state of the catalog.

@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -36,13 +37,25 @@ func (s Stars) Star(ctx context.Context, accountID int64, library, rulePath stri
 }
 
 // Unstar removes every star of the account's that counts toward the rule Star finds, and does nothing when it has
-// none. It fails with ErrNotFound as Star does.
+// none. For a rule Star doesn't find, such as one retired since, or of a library that lost its vetting, it removes the
+// account's own star on that rule, which counts toward no rule, so the visitor can let it go. It fails with ErrNotFound
+// when it finds neither the rule nor such a star.
 func (s Stars) Unstar(ctx context.Context, accountID int64, library, rulePath string) error {
 	owner, name, err := parseRuleAddress(library, rulePath)
 	if err != nil {
 		return err
 	}
-	return s.Store.Unstar(ctx, s.Vetted, accountID, owner, name, rulePath)
+	err = s.Store.Unstar(ctx, s.Vetted, accountID, owner, name, rulePath)
+	if errors.Is(err, ErrNotFound) {
+		return s.Store.RemoveStar(ctx, accountID, owner, name, rulePath)
+	}
+	return err
+}
+
+// UncountedStars returns the account's stars that count toward no current rule of a vetted library, which AccountStars
+// leaves out, most recently starred first.
+func (s Stars) UncountedStars(ctx context.Context, accountID int64) ([]views.UncountedStar, error) {
+	return s.Store.UncountedStars(ctx, s.Vetted, accountID)
 }
 
 // Starred reports whether one of the account's stars counts toward the current rule at rulePath in the library

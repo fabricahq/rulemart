@@ -719,3 +719,43 @@ type SitemapRule struct {
 	// Updated is when the release that published the rule's current version was tagged.
 	Updated time.Time
 }
+
+// Dashboard is what a visitor's dashboard reads of the catalog: the libraries they and their organizations publish, and
+// the libraries their projects import, with their rules as they stand.
+type Dashboard struct {
+	// Owned are ordered by owner and name, without regard to case.
+	Owned []OwnedLibrary
+	// Imported are the libraries Rulemart has of those the projects name, ordered as Owned.
+	Imported []ImportedLibrary
+}
+
+// OwnedLibrary is a library a visitor or one of their organizations publishes, vetted or listed.
+type OwnedLibrary struct {
+	Library LibraryRef
+	Vetted  bool
+	// Rules counts its current rules, and Stars the stars they count, 0 for a library that isn't vetted.
+	Rules, Stars int
+	// AddedAt is when its listing was made, or without one, when it was first ingested.
+	AddedAt time.Time
+}
+
+// ImportedLibrary is a library a visitor's project imports, vetted or listed, with its rules as they stand now.
+type ImportedLibrary struct {
+	Library LibraryRef
+	Vetted  bool
+	Rules   domain.RuleStates
+}
+
+// UncountedStar is a star of an account's that counts toward no current rule of a vetted library, which its Starred
+// rules list apart, so it can remove it.
+type UncountedStar struct {
+	Library LibraryRef
+	// Vetted is false for a library Rulemart doesn't vet now, and Listed true when a listing names it.
+	Vetted, Listed bool
+	// Path is the starred rule's ID, and Title its newest version's title, or empty when the catalog has none.
+	Path, Title string
+	// Retired marks a rule a library release retired, and ReplacedBy names its replacement, or is empty.
+	Retired    bool
+	ReplacedBy string
+	StarredAt  time.Time
+}
