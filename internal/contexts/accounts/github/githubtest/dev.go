@@ -2,12 +2,23 @@
 
 package githubtest
 
-import "time"
+import (
+	"time"
+
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+)
 
 // DevToken returns the GitHub token a local build's test user login signs in with, which DevFake knows.
 func DevToken(login string) string { return "gho_dev_" + login }
 
-// Dev logins and IDs, as a local build's dev sign-in names its test users.
+// DevUsers returns who a local build's dev sign-in can sign in as, the users DevFake knows. Their IDs are far past
+// GitHub's, their logins have an underscore, which no personal GitHub account's can, and they have no avatar, so they
+// show their initial.
+func DevUsers() []domain.Identity {
+	return []domain.Identity{{GitHubUserID: devUserID, Login: devUser}, {GitHubUserID: devUser2ID, Login: devUser2}}
+}
+
+// The test users' logins and IDs, which DevUsers returns.
 const (
 	devUser    = "test_user"
 	devUserID  = 9_000_000_001
@@ -38,7 +49,7 @@ func DevFake(installedURL string) *Fake {
 			{Owner: "fabricahq", Name: "rules-experimental", PushedAt: day(1), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/1"}},
 			{
 				Owner: devUser, Name: "api-server", PushedAt: day(2),
-				Files: map[string]string{ProvenancePath: Provenance(
+				Files: map[string]string{domain.ProvenancePath: Provenance(
 					ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1, Groups: []string{"techs/go", "practices/testing"},
 						Rules: map[string]string{"techs/go/errors-include-useful-diagnostic-data": "1.0.0", "practices/testing/keep-tests-independent": "1.0.0"}},
 					ProvenanceSource{Name: "test-library", Repository: testLibrary, Release: 3, Groups: []string{"techs/go"},
@@ -47,7 +58,7 @@ func DevFake(installedURL string) *Fake {
 			},
 			{
 				Owner: devUser, Name: "site", PushedAt: day(4),
-				Files: map[string]string{ProvenancePath: Provenance(ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1,
+				Files: map[string]string{domain.ProvenancePath: Provenance(ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1,
 					Groups: []string{"practices/testing"}, Rules: map[string]string{"practices/testing/keep-tests-independent": "1.0.0"}})},
 			},
 			{Owner: devUser, Name: "notes", PushedAt: day(9), Files: map[string]string{"README.md": "Notes"}},
@@ -59,7 +70,7 @@ func DevFake(installedURL string) *Fake {
 			{Owner: devUser, Name: "team-rules", Private: true, PushedAt: day(5), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{
 				Owner: devUser, Name: "billing-service", Private: true, PushedAt: day(6),
-				Files: map[string]string{ProvenancePath: Provenance(ProvenanceSource{Name: "testing", Repository: testLibrary, Release: 5,
+				Files: map[string]string{domain.ProvenancePath: Provenance(ProvenanceSource{Name: "testing", Repository: testLibrary, Release: 5,
 					Groups: []string{"practices/testing"}, Rules: map[string]string{"practices/testing/verify-retry-limits": "2.1.0"}})},
 			},
 		},
@@ -73,6 +84,3 @@ func DevFake(installedURL string) *Fake {
 		InstallAs:    DevInstallation,
 	}
 }
-
-// ProvenancePath is where a project keeps its provenance file.
-const ProvenancePath = ".code-rules/generated/provenance.json"

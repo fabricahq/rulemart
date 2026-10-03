@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 
-	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 )
 
@@ -21,12 +20,8 @@ const DevSignIn = true
 // return in the return parameter. GitHub has no account named account, so it can't hide a library's page.
 const devSignInPattern = "POST " + accountHref + "/dev-sign-in"
 
-// testUsers are who a local build can sign in as. Their IDs are far past GitHub's, their logins have an underscore,
-// which no personal GitHub account's can, and they have no avatar, so they show their initial.
-var testUsers = []accounts.Identity{
-	{GitHubUserID: 9_000_000_001, Login: "test_user"},
-	{GitHubUserID: 9_000_000_002, Login: "test_user_2"},
-}
+// testUsers are who a local build can sign in as: the users its fake GitHub knows.
+var testUsers = githubtest.DevUsers()
 
 // isTestUser reports whether the GitHub user ID gitHubUserID is a test user's.
 func isTestUser(gitHubUserID int64) bool {

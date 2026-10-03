@@ -98,13 +98,13 @@ func monasGitHub() *githubtest.Fake {
 		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona", Organizations: []githubtest.Membership{{Organization: "octo-org", Role: "member"}}}},
 		Repositories: []githubtest.Repository{
 			{Owner: "mona", Name: "rules", PushedAt: pushed, Files: manifest, Tags: []string{"release/1", "release/12", "release/3", "v1.0"}},
-			{Owner: "mona", Name: "api", PushedAt: pushed.Add(-time.Hour), Files: map[string]string{githubtest.ProvenancePath: provenance}},
+			{Owner: "mona", Name: "api", PushedAt: pushed.Add(-time.Hour), Files: map[string]string{domain.ProvenancePath: provenance}},
 			{Owner: "mona", Name: "draft-rules", PushedAt: pushed.Add(-2 * time.Hour), Files: manifest},
-			{Owner: "mona", Name: "broken", PushedAt: pushed.Add(-3 * time.Hour), Files: map[string]string{githubtest.ProvenancePath: "{not json"}},
+			{Owner: "mona", Name: "broken", PushedAt: pushed.Add(-3 * time.Hour), Files: map[string]string{domain.ProvenancePath: "{not json"}},
 			{Owner: "mona", Name: "notes", PushedAt: pushed.Add(-4 * time.Hour), Files: map[string]string{"README.md": "notes"}},
 			{Owner: "mona", Name: "empty", PushedAt: pushed.Add(-5 * time.Hour)},
 			{Owner: "octo-org", Name: "Org-Rules", PushedAt: pushed.Add(-6 * time.Hour), Files: manifest, Tags: []string{"release/2"}},
-			{Owner: "mona", Name: "billing", Private: true, PushedAt: pushed.Add(-7 * time.Hour), Files: map[string]string{githubtest.ProvenancePath: provenance}},
+			{Owner: "mona", Name: "billing", Private: true, PushedAt: pushed.Add(-7 * time.Hour), Files: map[string]string{domain.ProvenancePath: provenance}},
 		},
 	}
 }
