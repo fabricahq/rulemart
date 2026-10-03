@@ -110,7 +110,7 @@ func TestCheckoutForAKnownProjectAddsToItsSources(t *testing.T) {
 }
 
 // Forks alone, from a library the project doesn't import, copy from its address and need no sync: the build after
-// them makes the guidance.
+// them makes the guidance, which agents then read.
 func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{
 		Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
@@ -119,7 +119,8 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 
 	got := checkout.Commands()
 
-	want := "code-rules project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ncode-rules project build"
+	want := "code-rules project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ncode-rules project build\n\n" +
+		"# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
 	if !strings.HasSuffix(got, want) || strings.Contains(got, "project sync") {
 		t.Errorf("got\n%s\nwant it to end with\n%s\nand never sync", got, want)
 	}

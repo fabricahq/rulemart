@@ -268,13 +268,22 @@ func nameSources(target CheckoutTarget, sources []checkoutSource) {
 // Commands returns the shell commands that import the checkout into its target, run from the project's root, each
 // block apart, or "" when there's nothing to import: Code Rules' setup when the project is new, or may be; for each
 // library, the command that adds it, or for a library a known project imports already, what to add to its source;
-// then each fork, once its library is synced, and the command that builds the project's guidance. Nothing is pinned
-// to a release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed, and whose first block
-// says how to review it.
+// then each fork, once its library is synced, the command that builds the project's guidance, and a reminder to
+// point agents at it. Nothing is pinned to a release, except a library Rulemart doesn't vet, which is pinned to the
+// commit reviewed, and whose first block says how to review it.
 func (c Checkout) Commands() string {
 	if len(c.sources) == 0 {
 		return ""
 	}
+	return c.commands() + "\n\n# Then " + agentsInstruction
+}
+
+// agentsInstruction is what a project does once its rules are imported, which both texts end with.
+const agentsInstruction = "make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
+
+// commands returns the commands Commands returns, without its closing reminder, which the prompt says in its own
+// words.
+func (c Checkout) commands() string {
 	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
 	rules := strings.Join(slices.Concat(c.sourceBlocks(), c.syncBlocks(), c.forkBlocks(), []string{c.finalBlock()}), "\n\n")
 	if setup := c.setupBlock(); setup != "" {
@@ -463,9 +472,9 @@ func (c Checkout) Prompt() string {
 	if len(unvetted) > 0 {
 		lines = append(lines, unvettedReview(unvetted)...)
 	}
-	lines = append(lines, "Run:", c.Commands(), "",
-		"Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer "+
-			"versions only when someone runs code-rules project update and confirms.")
+	lines = append(lines, "Run:", c.commands(), "",
+		"Then "+agentsInstruction+". The rules move to newer versions only when someone runs code-rules project update "+
+			"and confirms.")
 	return strings.Join(lines, "\n")
 }
 

@@ -29,3 +29,5 @@ code-rules project add rule techs/go/errors-include-useful-diagnostic-data \
   --reason 'We maintain our own version of this rule.'
 
 code-rules project build
+
+# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md

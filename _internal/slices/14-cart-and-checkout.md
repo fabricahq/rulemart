@@ -138,6 +138,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: on a phone, a bar at the viewport's bottom adds the ticked groups.** Below the narrow breakpoint the
   Groups tab's Add to cart box follows every group, so once any is ticked a bar says "N selected" beside Add to cart.
   The prototype has none.
+- **Proposed: the commands end with `# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md`**,
+  the instruction the prompt closes with, from one constant, so the Commands tab reminds a visitor running them by
+  hand. The prototype's commands end at the sync.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.
