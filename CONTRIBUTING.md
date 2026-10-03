@@ -35,7 +35,10 @@ sign-in, that build also serves a fake GitHub in memory,
 the two libraries below, so `/me/add` lists them, and two projects import them at older rule versions, so they have
 updates waiting. The fake lists only public libraries real GitHub has, since the worker reads real GitHub. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
 and a private project. Nothing runs the worker locally, so a library added at `/me/add` stays in progress on
-`/me/add/run` until you run `make worker`, in another terminal, which checks it once; after three minutes the page says
+`/me/add/run` until you run `make worker`, in another terminal, which checks it once, against the same database when
+`make web-dev` uses the local `rulemart` one; for another, give `make worker` that database too, such as
+`LOCAL_WORKER_DATABASE_URL='postgres://rulemart_worker:rulemart-worker-local@127.0.0.1:55432/rulemart_dev?sslmode=disable' make worker`.
+After three minutes the page says
 the check is taking longer than usual, as it does when a deployed check's job is late. Each session seals its GitHub token with a key the build makes at start, so
 after a restart the dashboard asks you to sign in again before it reads the fake again.
 Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
