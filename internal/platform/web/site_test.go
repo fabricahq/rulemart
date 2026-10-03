@@ -1056,6 +1056,16 @@ func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
 	}
 }
 
+// The Assets panel's note speaks of one file as one.
+func TestAssetsPanelSpeaksOfOneFileAsOne(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Assets = []views.Asset{{Path: "techs/go/assets/return-errors/notes.txt", Size: 12, MediaType: "text/plain; charset=utf-8", Release: 3, Kept: true}}
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	assertShows(t, get(t, newSite(t, c), errorsRule).Body.String(), "Assets 1 file notes.txt 12 B This file comes with the rule when you add it.")
+}
+
 // A rule's About panel and a row's library mark name the publisher one way: Fabrica for a library of Fabrica's, and
 // the owner's login for any other.
 func TestPagesNameAFabricaLibrarysPublisherFabrica(t *testing.T) {

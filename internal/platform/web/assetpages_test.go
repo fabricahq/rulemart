@@ -206,7 +206,7 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 			"Why it works Read the glossary", "← Back to Test the behavior you changed",
 		}, `href="` + glossaryPage + behaviorQuery + `"`},
 		casesPage: {[]string{"cases.json Supporting file for this rule, part of version 1.0.0 · 19 B"}, `<pre><code class="language-json">`},
-		loopPage:  {[]string{"loop.svg Supporting file"}, `<img class="mx-auto block h-auto max-w-full rounded-[8px]" src="` + loopPage + `?raw=1" alt="loop.svg">`},
+		loopPage:  {[]string{"loop.svg Supporting file"}, `<img class="mx-auto block h-auto max-w-full rounded-[8px]" src="` + loopPage + `?raw=1" alt="Test the behavior you changed: loop.svg">`},
 		bigPage: {
 			[]string{"big.png Supporting file for this rule, part of version 1.0.0 · 300 KB", "Rulemart doesn't keep a copy of this file. View it on GitHub"},
 			`href="https://github.com/example/rules/blob/release/1/practices/testing/assets/test-changed-behavior/big.png"`,

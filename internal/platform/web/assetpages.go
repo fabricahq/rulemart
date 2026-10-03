@@ -170,6 +170,27 @@ func newAssetViews(r ruleView, assets []views.Asset) []assetView {
 	return list
 }
 
+// assetIconKind is which icon the list of a rule's assets marks an asset with.
+type assetIconKind int
+
+const (
+	codeIcon assetIconKind = iota
+	imageIcon
+	documentIcon
+)
+
+// icon returns the asset's icon: a picture for an image, a page for Markdown or plain text, such as notes.txt, and
+// braces for code or any other file.
+func (a assetView) icon() assetIconKind {
+	switch {
+	case a.kind == domain.AssetImage:
+		return imageIcon
+	case a.kind == domain.AssetMarkdown, a.kind == domain.AssetText && strings.EqualFold(path.Ext(a.path), ".txt"):
+		return documentIcon
+	}
+	return codeIcon
+}
+
 // fileName returns the asset's name without its directories.
 func (a assetView) fileName() string { return path.Base(a.path) }
 

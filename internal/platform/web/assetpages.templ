@@ -43,7 +43,7 @@ templ assetPage(c chrome, r ruleView, a assetView, assets []assetView, html stri
 					switch {
 						case a.kind == domain.AssetImage && a.kept:
 							<div class="rounded-card border border-border bg-surface p-[18px]">
-								<img class="mx-auto block h-auto max-w-full rounded-[8px]" src={ a.image } alt={ a.name }/>
+								<img class="mx-auto block h-auto max-w-full rounded-[8px]" src={ a.image } alt={ r.title + ": " + a.name }/>
 							</div>
 						case html != "":
 							<div class="prose">
@@ -91,7 +91,13 @@ templ assetsPanel(assets []assetView) {
 				}
 				<p class="mx-2 mt-1 text-[12px] text-faint">Not part of this rule's version. Projects get the copy from the newest library release.</p>
 			}
-			<p class="mx-2 mt-2 text-[12px] text-faint">These files come with the rule when you add it.</p>
+			<p class="mx-2 mt-2 text-[12px] text-faint">
+				if len(assets) == 1 {
+					This file comes with the rule when you add it.
+				} else {
+					These files come with the rule when you add it.
+				}
+			</p>
 		</div>
 	}
 }
@@ -121,21 +127,21 @@ templ assetRow(a assetView) {
 			aria-current="page"
 		}
 	>
-		@assetIcon(a.kind, "size-4 text-muted")
+		@assetIcon(a.icon(), "size-4 text-muted")
 		<span class="truncate font-mono text-[12px]" title={ a.path }>{ a.name }</span>
 		<span class="text-[11.5px] whitespace-nowrap text-faint">{ a.size }</span>
 	</a>
 }
 
-// assetIcon is an asset's kind: a picture for an image, a page for Markdown, and braces for any other file.
-templ assetIcon(kind domain.AssetKind, class string) {
+// assetIcon is an asset's kind: a picture for an image, a page for a document, and braces for any other file.
+templ assetIcon(icon assetIconKind, class string) {
 	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		switch kind {
-			case domain.AssetImage:
+		switch icon {
+			case imageIcon:
 				<rect x="3" y="4" width="18" height="16" rx="2"></rect>
 				<circle cx="9" cy="10" r="1.6"></circle>
 				<path d="m21 16-5-5-9 9"></path>
-			case domain.AssetMarkdown:
+			case documentIcon:
 				<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path>
 				<path d="M14 3v5h5M9 13h6M9 17h4"></path>
 			default:
