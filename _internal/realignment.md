@@ -97,11 +97,16 @@ Differences on every page:
   configured, so a local `make web-dev` build shows "Sign in" and its test users' box instead.
 - **Proposed: dates are absolute**, such as "1 Oct 2026", where the prototype writes "3 days ago". Pages are cached and
   the same for everyone, so a date never goes stale and needs no script.
+- **Toasts** show at the viewport's bottom right, and the first star adds an info toast that links to Starred rules,
+  as slice R3 decided.
+- **Discuss** and the Discussion tabs wait for [rulemart#27](https://github.com/fabricahq/rulemart/issues/27).
+- **Search relevance.** The site ranks real rules with Postgres full-text search, as slice R4 built it, so the order of
+  equally good matches can differ from the prototype's hand-tuned mock.
 
 | Prototype route | Site | Status |
 | --- | --- | --- |
 | `#/` home | `/` | Match, except the hero opens with Rulemart's logo, as R2 decided, and lists show vetted libraries |
-| `#/browse/techs`, `#/browse/practices` | `/browse/techs`, `/browse/practices` | Match, except rows show no group ID, as R1 decided, and the Include unvetted libraries control, as the vetting decision says |
+| `#/browse/techs`, `#/browse/practices` | `/browse/techs`, `/browse/practices` | Match, except rows show no group ID, as R1 decided, and the Include unvetted libraries control, as the vetting decision says. "View other technology groups (N) →" shows, as the prototype's does, only while a library declares a group that isn't canonical, which neither real library does |
 | `#/browse/{kind}/other` | `/browse/{kind}/other` | Match, with the opt-in control |
 | `#/libraries` | `/libraries` | Match, except it lists vetted libraries, titled "Libraries Rulemart has vetted", with the opt-in control |
 | `#/{owner}` | `/{owner}`, `/o/{login}` | Match, except it shows the login and avatar only: the display name, kind, verified domain, and bio wait for a slice that stores them, as R1's doc proposes |
@@ -109,15 +114,15 @@ Differences on every page:
 | `#/feedback` | `/feedback` | Match, plus "Something broken on Rulemart", as R1 decided; a specific rule's feedback goes to the library's repository until rulemart#27 |
 | Header and footer | Every page | Match, except as listed above |
 | Brand mark, favicons | Every page | Different, as R2 decided |
-| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, and a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records |
-| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided |
-| `#/cart` | `/cart` | Match |
+| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records, and on a phone the sidebar folds into a Filters disclosure, as R4 decided. The count under the title counts current rules only, even while retired ones show |
+| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided, with the phone's Filters disclosure, as on group pages, and the ranking named above |
+| `#/cart` | `/cart` | Match, with the vetted check on each vetted library's avatar. The list of items isn't a live region: screen readers hear a change through its toast or the control that made it |
 | Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects |
-| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice |
-| Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form and each release's Compare link from slice 4 |
-| `#/{owner}/{repo}/{kind}/{group}` | The same | Match |
-| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile |
-| Versions tab and compare view | `?tab=versions`, `&from=&to=` | Match, with the Compare button, which submits the form without a script, from slice 4, and each version row's comparison buttons as wide as each other |
+| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice. The All rules tab lists every rule on one page, as the prototype's does |
+| Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form, which compares as soon as a release is chosen, and each release's Compare link from slice 4; each card links its "GitHub Release page" |
+| `#/{owner}/{repo}/{kind}/{group}` | The same | Match; the Whole group box keeps the library's `owner/name` on one line |
+| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile. Star, signed out, opens the "Sign in to star rules" dialog; without a script it goes to sign-in. The Assets panel puts "These files come with the rule" under the rule's own files and the release note under the shared ones, so neither speaks for the other's |
+| Versions tab and compare view | `?tab=versions`, `&from=&to=` | Match: a choice compares at once, and the line reads "N files changed between release/x and release/y, limited to this rule's file", since the site compares the rule's file, not its assets. The Compare button shows only without a script, and each version row's comparison buttons are as wide as each other |
 | Retired rule page | The same address | Match, plus the last version's text, from slice 4 |
 | Asset pages | `/{owner}/{repo}/.../assets/{file}` | Match |
 | Discussion tabs, Discuss modal | None | Deferred, rulemart#27 |
@@ -125,7 +130,7 @@ Differences on every page:
 | `#/me`, `#/me?tab=stars` | `/me`, `/me?tab=stars` | Match, plus when GitHub was read, with Refresh, a New tag on a library that came to Rulemart in the last day, and the Account section, as slice R7's doc records |
 | `#/me/add`, `#/me/add/run` | `/me/add`, `/me/add/run` | Match, plus when GitHub was read, with Refresh |
 | `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
-| About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8 |
+| About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8. About and Privacy take FAQ's layout, under an About label. `make web-dev` names its loopback address as the base URL, so the sitemap answers locally too |
 
 ## Record: how the realignment was done
 
