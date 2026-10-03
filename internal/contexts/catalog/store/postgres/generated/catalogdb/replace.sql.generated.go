@@ -62,26 +62,22 @@ func (q *Queries) DeleteReleasesExcept(ctx context.Context, arg DeleteReleasesEx
 	return result.RowsAffected(), nil
 }
 
-const deleteRuleAssetsExcept = `-- name: DeleteRuleAssetsExcept :execrows
+const deleteRuleAssets = `-- name: DeleteRuleAssets :execrows
 DELETE FROM rule_assets ra
-WHERE ra.library_id = $1
-  AND (ra.rule_id, ra.asset_id) NOT IN (
-      SELECT r.rule_id, a.asset_id
-      FROM unnest($2::bigint[]) WITH ORDINALITY AS r (rule_id, n)
-      JOIN unnest($3::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
-  )
+USING unnest($1::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+JOIN unnest($2::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+WHERE ra.library_id = $3 AND ra.rule_id = r.rule_id AND ra.asset_id = a.asset_id
 `
 
-type DeleteRuleAssetsExceptParams struct {
-	LibraryID int64
+type DeleteRuleAssetsParams struct {
 	RuleIds   []int64
 	AssetIds  []int64
+	LibraryID int64
 }
 
-// DeleteRuleAssetsExcept deletes which assets the library's rules list, except the pairs of a rule and an asset that
-// rule_ids and asset_ids hold at the same positions.
-func (q *Queries) DeleteRuleAssetsExcept(ctx context.Context, arg DeleteRuleAssetsExceptParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteRuleAssetsExcept, arg.LibraryID, arg.RuleIds, arg.AssetIds)
+// DeleteRuleAssets deletes that the rules rule_ids list the assets asset_ids, at the same positions.
+func (q *Queries) DeleteRuleAssets(ctx context.Context, arg DeleteRuleAssetsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRuleAssets, arg.RuleIds, arg.AssetIds, arg.LibraryID)
 	if err != nil {
 		return 0, err
 	}
@@ -300,6 +296,35 @@ func (q *Queries) ListReleaseIDs(ctx context.Context, libraryID int64) ([]ListRe
 	for rows.Next() {
 		var i ListReleaseIDsRow
 		if err := rows.Scan(&i.ID, &i.Number); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleAssetLinks = `-- name: ListRuleAssetLinks :many
+SELECT rule_id, asset_id FROM rule_assets WHERE library_id = $1
+`
+
+type ListRuleAssetLinksRow struct {
+	RuleID  int64
+	AssetID int64
+}
+
+func (q *Queries) ListRuleAssetLinks(ctx context.Context, libraryID int64) ([]ListRuleAssetLinksRow, error) {
+	rows, err := q.db.Query(ctx, listRuleAssetLinks, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRuleAssetLinksRow
+	for rows.Next() {
+		var i ListRuleAssetLinksRow
+		if err := rows.Scan(&i.RuleID, &i.AssetID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

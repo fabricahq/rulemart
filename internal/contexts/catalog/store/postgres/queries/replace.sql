@@ -103,16 +103,15 @@ WHERE (assets.release_id, assets.size, assets.media_type, assets.content, assets
 -- name: ListAssetIDs :many
 SELECT id, path FROM assets WHERE library_id = @library_id;
 
--- DeleteRuleAssetsExcept deletes which assets the library's rules list, except the pairs of a rule and an asset that
--- rule_ids and asset_ids hold at the same positions.
--- name: DeleteRuleAssetsExcept :execrows
+-- name: ListRuleAssetLinks :many
+SELECT rule_id, asset_id FROM rule_assets WHERE library_id = @library_id;
+
+-- DeleteRuleAssets deletes that the rules rule_ids list the assets asset_ids, at the same positions.
+-- name: DeleteRuleAssets :execrows
 DELETE FROM rule_assets ra
-WHERE ra.library_id = @library_id
-  AND (ra.rule_id, ra.asset_id) NOT IN (
-      SELECT r.rule_id, a.asset_id
-      FROM unnest(@rule_ids::bigint[]) WITH ORDINALITY AS r (rule_id, n)
-      JOIN unnest(@asset_ids::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
-  );
+USING unnest(@rule_ids::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+JOIN unnest(@asset_ids::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+WHERE ra.library_id = @library_id AND ra.rule_id = r.rule_id AND ra.asset_id = a.asset_id;
 
 -- InsertRuleAssets records that the rules rule_ids list the assets asset_ids, at the same positions, unless they do.
 -- name: InsertRuleAssets :execrows

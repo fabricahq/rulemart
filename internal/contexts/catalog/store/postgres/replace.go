@@ -5,6 +5,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -293,20 +294,68 @@ func (w *writer) writeAssets(lib domain.Library) {
 	for _, row := range rows {
 		assets[row.Path] = row.ID
 	}
-	var ruleIDs, assetIDs []int64
-	for _, r := range lib.Rules {
-		for _, path := range r.Assets {
-			ruleIDs, assetIDs = append(ruleIDs, w.rules[r.Path]), append(assetIDs, assets[path])
-		}
-	}
-	pairs := catalogdb.DeleteRuleAssetsExceptParams{LibraryID: w.library, RuleIds: ruleIDs, AssetIds: assetIDs}
-	w.exec("delete stale rule assets", func() (int64, error) { return w.q.DeleteRuleAssetsExcept(w.ctx, pairs) })
-	w.exec("insert rule assets", func() (int64, error) {
-		return w.q.InsertRuleAssets(w.ctx, catalogdb.InsertRuleAssetsParams(pairs))
-	})
+	w.writeRuleAssets(lib.Rules, assets)
 	w.exec("delete stale assets", func() (int64, error) {
 		return w.q.DeleteAssetsExcept(w.ctx, catalogdb.DeleteAssetsExceptParams{LibraryID: w.library, Paths: paths})
 	})
+}
+
+// ruleAssetsBatch is how many links between rules and assets one statement writes or deletes, so a library's links,
+// however many, never make one statement's arrays large.
+const ruleAssetsBatch = 1_000
+
+// writeRuleAssets records which assets, by their ids in assets, each of rules lists, and deletes the stored links
+// they no longer list, in batches of ruleAssetsBatch. It writes only the links that differ, so unchanged rules write
+// nothing.
+func (w *writer) writeRuleAssets(rules []domain.Rule, assets map[string]int64) {
+	if w.err != nil {
+		return
+	}
+	stored, err := w.q.ListRuleAssetLinks(w.ctx, w.library)
+	if err != nil {
+		w.err = fmt.Errorf("read rule assets: %v", err)
+		return
+	}
+	type link struct{ rule, asset int64 }
+	have := make(map[link]bool, len(stored))
+	for _, row := range stored {
+		have[link{row.RuleID, row.AssetID}] = true
+	}
+	// Links are written in the order rules list them, and deleted in the order they were read.
+	listed := map[link]bool{}
+	var missing, stale []link
+	for _, r := range rules {
+		for _, path := range r.Assets {
+			l := link{w.rules[r.Path], assets[path]}
+			if !listed[l] && !have[l] {
+				missing = append(missing, l)
+			}
+			listed[l] = true
+		}
+	}
+	for _, row := range stored {
+		if l := (link{row.RuleID, row.AssetID}); !listed[l] {
+			stale = append(stale, l)
+		}
+	}
+	ids := func(links []link) (rules, assets []int64) {
+		for _, l := range links {
+			rules, assets = append(rules, l.rule), append(assets, l.asset)
+		}
+		return rules, assets
+	}
+	for batch := range slices.Chunk(stale, ruleAssetsBatch) {
+		ruleIDs, assetIDs := ids(batch)
+		w.exec("delete stale rule assets", func() (int64, error) {
+			return w.q.DeleteRuleAssets(w.ctx, catalogdb.DeleteRuleAssetsParams{LibraryID: w.library, RuleIds: ruleIDs, AssetIds: assetIDs})
+		})
+	}
+	for batch := range slices.Chunk(missing, ruleAssetsBatch) {
+		ruleIDs, assetIDs := ids(batch)
+		w.exec("insert rule assets", func() (int64, error) {
+			return w.q.InsertRuleAssets(w.ctx, catalogdb.InsertRuleAssetsParams{LibraryID: w.library, RuleIds: ruleIDs, AssetIds: assetIDs})
+		})
+	}
 }
 
 // presentList stores a list, as an empty array when it has nothing, never as NULL.
