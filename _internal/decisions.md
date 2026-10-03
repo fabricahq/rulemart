@@ -304,8 +304,11 @@ than adding history.
   write itself. Infrastructure turns it on if abuse appears.
 - **Pages name their address on `RULEMART_BASE_URL` as canonical.** CloudFront's own `cloudfront.net` domain serves
   the same pages, so each page links its address on the public origin, without a tab's query string, and search
-  engines index that one. Infrastructure sets the variable; unset, as in local development, pages name none, and a
-  value that isn't a bare https origin stops the web function at start.
+  engines index that one. Infrastructure sets the variable. Unset, the production build names none, so it has no
+  sitemap, while the dev build, which `make web-dev` runs, names the address it serves at when that's a loopback one,
+  such as `http://127.0.0.1:8080`, so the sitemap and the social card work locally, as CONTRIBUTING.md says. A value that
+  isn't a bare origin stops the web function at start: https, or http only on a loopback host, such as localhost or
+  127.0.0.1, with no path, query, or fragment.
 - **Releases are published by [Release Planner](https://release-planner.fabricahq.com)**, and merging a release
   pull request approves one. Nothing else tags or publishes a release.
 - **Migrations are the application's concern, and run after a release is approved and before it's published**, as
