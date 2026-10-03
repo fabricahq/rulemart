@@ -1,7 +1,7 @@
 /** @fileoverview The cart, which lives in the visitor's browser, as the prototype's does, so it needs no account and
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
- * forks; full, the libraries whose picked rules' groups they add whole; project and repo, where checkout's texts go;
+ * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; project and repo, where checkout's texts go;
  * and confirmed, the unvetted libraries they confirmed adding from. It paints the header's count and each page's cart
  * controls from the data attributes the page renders, opens the dialogs that add, and toasts what changed. The cart's
  * page, which cart-page.js renders, reads and changes the cart only through window.rulemartCart, and learns of each
@@ -30,7 +30,7 @@
   /** Return the plural of word for n, with n: 1 rule, 2 rules. */
   const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-  const fresh = () => ({ cart: [], fork: {}, full: {}, project: null, repo: '', confirmed: {} });
+  const fresh = () => ({ cart: [], fork: {}, restOfGroups: {}, project: null, repo: '', confirmed: {} });
 
   /** Return the names of value, an object of flags, that are on, at most MAX_ITEMS of them, as an object of flags. */
   function flags(value) {
@@ -56,7 +56,7 @@
     if (!stored || typeof stored !== 'object') return state;
     if (Array.isArray(stored.cart)) state.cart = [...new Set(stored.cart.filter(validKey))].slice(0, MAX_ITEMS);
     state.fork = Object.fromEntries(Object.keys(flags(stored.fork)).filter((key) => state.cart.includes(key)).map((key) => [key, true]));
-    state.full = flags(stored.full);
+    state.restOfGroups = flags(stored.restOfGroups);
     state.confirmed = flags(stored.confirmed);
     if (typeof stored.project === 'string') state.project = stored.project.slice(0, MAX_KEY);
     if (typeof stored.repo === 'string') state.repo = stored.repo.slice(0, 500);
@@ -106,9 +106,9 @@
   }
 
   /** Turn adding the rest of the groups of library's picked rules on or off. */
-  function setFull(library, on) {
-    if (on) state.full[library] = true;
-    else delete state.full[library];
+  function setRestOfGroups(library, on) {
+    if (on) state.restOfGroups[library] = true;
+    else delete state.restOfGroups[library];
     save();
   }
 
@@ -124,11 +124,11 @@
     save();
   }
 
-  /** Empty the cart, with its forks and choices of whole groups, keeping the repository and the libraries confirmed. */
+  /** Empty the cart, with its forks and choices to add the rest of groups, keeping the repository and the libraries confirmed. */
   function clear() {
     state.cart = [];
     state.fork = {};
-    state.full = {};
+    state.restOfGroups = {};
     save();
   }
 
@@ -293,13 +293,13 @@
   // The cart's store, which the cart's page, cart-page.js, changes the cart through, and the rulemart:cart event, which
   // every change sends once the page's controls show it.
   window.rulemartCart = {
-    /** Return a copy of the cart: cart, fork, full, repo, and confirmed, as localStorage keeps them. */
+    /** Return a copy of the cart: cart, fork, restOfGroups, repo, and confirmed, as localStorage keeps them. */
     state: () => structuredClone(state),
     inCart,
     add,
     remove,
     setFork,
-    setFull,
+    setRestOfGroups,
     confirm,
     setRepo,
     clear,

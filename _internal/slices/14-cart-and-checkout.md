@@ -121,6 +121,8 @@ The spec's Proposed decisions are built as written, except where an entry here s
   as `toast.js` exposes `window.rulemartToast`, with named operations (add, remove, fork, add the rest of the
   groups, confirm, the repository, clear, drop unknown keys) and a copy of the state. `cart-page.js` never writes
   `localStorage`, and redraws on the `rulemart:cart` event every change sends, from this tab or another.
+- **Proposed: the "also add the rest of the groups" choice is `restOfGroups` throughout**, in the cart's state, the
+  checkout's request and answer, and the code, rather than the prototype's `full`, which read as a full cart.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

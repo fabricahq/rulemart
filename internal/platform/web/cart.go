@@ -39,12 +39,12 @@ const maxCheckoutBytes = 4 * domain.MaxCartItems * domain.MaxCartKeyLength
 type checkoutRequest struct {
 	// Cart is the cart's keys, in order, as domain.CartItem's Key writes them.
 	Cart []string `json:"cart"`
-	// Fork marks the keys of the rules the visitor forks. Full marks the libraries, as owner/name, whose rules' groups
-	// the visitor adds whole, and Confirmed the libraries the visitor confirmed adding from though Rulemart doesn't vet
-	// them.
-	Fork      map[string]bool `json:"fork"`
-	Full      map[string]bool `json:"full"`
-	Confirmed map[string]bool `json:"confirmed"`
+	// Fork marks the keys of the rules the visitor forks. RestOfGroups marks the libraries, as owner/name, whose rules'
+	// groups the visitor adds the rest of, and Confirmed the libraries the visitor confirmed adding from though Rulemart
+	// doesn't vet them.
+	Fork         map[string]bool `json:"fork"`
+	RestOfGroups map[string]bool `json:"restOfGroups"`
+	Confirmed    map[string]bool `json:"confirmed"`
 	// Repo is what the visitor wrote as their project's repository, which may name none.
 	Repo string `json:"repo"`
 }
@@ -88,8 +88,8 @@ type checkoutLibraryJSON struct {
 	Vetted    bool               `json:"vetted"`
 	Confirmed bool               `json:"confirmed"`
 	Items     []checkoutItemJSON `json:"items"`
-	// Upsell offers to add the rest of the groups of the library's rules that stay in sync, or is nil.
-	Upsell *upsellJSON `json:"upsell"`
+	// RestOfGroups offers to add the rest of the groups of the library's rules that stay in sync, or is nil.
+	RestOfGroups *restOfGroupsJSON `json:"restOfGroups"`
 }
 
 // checkoutItemJSON is one item of a cart.
@@ -136,11 +136,11 @@ type ruleLinkJSON struct {
 	Href  string `json:"href"`
 }
 
-// upsellJSON offers to add the other rules of Groups, by name, Extra of them, or says the visitor did when Full.
-type upsellJSON struct {
+// restOfGroupsJSON offers to add the other rules of Groups, by name, Rules of them, or says the visitor did when Added.
+type restOfGroupsJSON struct {
 	Groups []string `json:"groups"`
-	Extra  int      `json:"extra"`
-	Full   bool     `json:"full"`
+	Rules  int      `json:"rules"`
+	Added  bool     `json:"added"`
 }
 
 // cartPage shows the cart's page, which cart-page.js fills from the cart the browser keeps. It's the same for every
@@ -165,7 +165,7 @@ func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target, repositoryInvalid := checkoutTarget(req.Repo)
-	checkout, err := s.Carts.Checkout(r.Context(), app.Cart{Keys: req.Cart, Forks: req.Fork, Full: req.Full, Confirmed: req.Confirmed}, target)
+	checkout, err := s.Carts.Checkout(r.Context(), app.Cart{Keys: req.Cart, Forks: req.Fork, RestOfGroups: req.RestOfGroups, Confirmed: req.Confirmed}, target)
 	switch {
 	case errors.Is(err, app.ErrCartTooLarge):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "the cart holds more items than it may"})
@@ -220,12 +220,12 @@ func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, 
 		for _, it := range lib.Items {
 			l.Items = append(l.Items, newCheckoutItemJSON(it, href, lib.Gone, iconURL))
 		}
-		if lib.Extra > 0 || (lib.Full && len(lib.UpsellGroups) > 0) {
-			upsell := &upsellJSON{Extra: lib.Extra, Full: lib.Full}
-			for _, g := range lib.UpsellGroups {
-				upsell.Groups = append(upsell.Groups, newGroupLabel(g.Path, g.Canonical).display())
+		if lib.RestOfGroupsRules > 0 || (lib.RestOfGroupsAdded && len(lib.RestOfGroups) > 0) {
+			rest := &restOfGroupsJSON{Rules: lib.RestOfGroupsRules, Added: lib.RestOfGroupsAdded}
+			for _, g := range lib.RestOfGroups {
+				rest.Groups = append(rest.Groups, newGroupLabel(g.Path, g.Canonical).display())
 			}
-			l.Upsell = upsell
+			l.RestOfGroups = rest
 		}
 		resp.Libraries = append(resp.Libraries, l)
 	}
@@ -233,7 +233,7 @@ func newCheckoutResponse(checkout views.Checkout, target domain.CheckoutTarget, 
 }
 
 // newCheckoutItemJSON describes it, an item of the library whose page is libraryHref, which is gone or not.
-func newCheckoutItemJSON(it views.CheckoutItem, libraryHref string, gone bool, iconURL func(string) string) checkoutItemJSON {
+func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, iconURL func(string) string) checkoutItemJSON {
 	label := newGroupLabel(it.Group.Path, it.Group.Canonical)
 	item := checkoutItemJSON{
 		Key: it.Key, Kind: string(it.Item.Kind), State: string(it.State), ID: it.Item.Path,

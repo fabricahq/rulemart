@@ -77,7 +77,7 @@ func TestCheckoutForAProjectRulemartDoesNotKnow(t *testing.T) {
 func TestCheckoutForANewProjectAddsTheRestOfTheGroups(t *testing.T) {
 	golang := CheckoutGroup{ID: "techs/golang", Name: "techs/golang"}
 	checkout := NewCheckout(CheckoutTarget{Mode: ProjectNew}, []CheckoutLibrary{{
-		Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, Full: true,
+		Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, RestOfGroups: true,
 		Groups: []CheckoutGroup{golang},
 		Rules:  []CheckoutRule{checkoutRule(testingGroup, "keep-tests-independent"), checkoutRule(testingGroup, "name-tests")},
 		Forks:  []CheckoutRule{checkoutRule(testingGroup, "cover-boundary-cases"), checkoutRule(goGroup, "return-errors")},

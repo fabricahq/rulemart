@@ -76,8 +76,8 @@ type CheckoutLibrary struct {
 	// Forks the ones the visitor forks.
 	Groups       []CheckoutGroup
 	Rules, Forks []CheckoutRule
-	// Full imports the groups of Rules whole instead: the visitor asked to add the other rules of their groups too.
-	Full bool
+	// RestOfGroups imports the groups of Rules whole instead: the visitor asked to add the rest of their groups too.
+	RestOfGroups bool
 }
 
 // Checkout is what a cart's checkout imports into its target: one Code Rules source per library.
@@ -192,7 +192,7 @@ func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 		for _, r := range lib.Rules {
 			switch {
 			case slices.ContainsFunc(whole, func(g CheckoutGroup) bool { return g.ID == r.Group.ID }):
-			case lib.Full:
+			case lib.RestOfGroups:
 				if !source.importsGroup(r.Group.ID) {
 					source.Groups = append(source.Groups, r.Group)
 				}

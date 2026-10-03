@@ -59,10 +59,10 @@ type checkoutAnswer struct {
 			}
 			Rules []struct{ Title, Href string }
 		}
-		Upsell *struct {
+		RestOfGroups *struct {
 			Groups []string
-			Extra  int
-			Full   bool
+			Rules  int
+			Added  bool
 		}
 	}
 	Unknown           []string
@@ -91,20 +91,20 @@ func decode(t *testing.T, resp *httptest.ResponseRecorder) checkoutAnswer {
 // The checkout answers a cart with each library and item as the catalog resolved them, with their pages, and the texts,
 // for the repository the visitor named, as cart-page.js shows them.
 func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
-	goGroup := views.CheckoutGroup{Path: "techs/go", Canonical: &views.CanonicalGroup{Name: "Go", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}}
+	goGroup := views.ResolvedGroup{Path: "techs/go", Canonical: &views.CanonicalGroup{Name: "Go", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}}
 	carts := &fakeCarts{checkout: views.Checkout{
-		Libraries: []views.CheckoutLibrary{
+		Libraries: []views.ResolvedLibrary{
 			{
 				Library: views.LibraryRef{Owner: "example", Name: "rules", OwnerAvatarURL: "https://avatars.githubusercontent.com/u/7"},
-				Vetted:  true, LatestRelease: 6, UpsellGroups: []views.CheckoutGroup{goGroup}, Extra: 3,
-				Items: []views.CheckoutItem{
+				Vetted:  true, LatestRelease: 6, RestOfGroups: []views.ResolvedGroup{goGroup}, RestOfGroupsRules: 3,
+				Items: []views.ResolvedItem{
 					{
 						Key: "example/rules::techs/go/return-errors", State: views.CartItemReady, Group: goGroup, Title: "Return errors",
 						Item:    domain.CartItem{Owner: "example", Name: "rules", Kind: domain.CartRule, Path: "techs/go/return-errors"},
 						Version: coderules.RuleVersion{Major: 1, Minor: 2}, Fork: true,
 					},
 					{
-						Key: "group::example/rules::techs/golang", State: views.CartItemReady, Group: views.CheckoutGroup{Path: "techs/golang"},
+						Key: "group::example/rules::techs/golang", State: views.CartItemReady, Group: views.ResolvedGroup{Path: "techs/golang"},
 						Item:  domain.CartItem{Owner: "example", Name: "rules", Kind: domain.CartGroup, Path: "techs/golang"},
 						Rules: []views.CartRule{{Path: "techs/golang/pass-context", Title: "Pass context first"}},
 					},
@@ -116,7 +116,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 			},
 			{
 				Library: views.LibraryRef{Owner: "gone", Name: "rules"}, Gone: true,
-				Items: []views.CheckoutItem{{
+				Items: []views.ResolvedItem{{
 					Key: "gone/rules::techs/go/x", State: views.CartItemGone, Group: goGroup,
 					Item: domain.CartItem{Owner: "gone", Name: "rules", Kind: domain.CartRule, Path: "techs/go/x"},
 				}},
@@ -128,14 +128,15 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 	handler := newSiteWith(t, web.Options{Carts: carts})
 
 	resp := postCheckout(t, handler, `{"cart":["example/rules::techs/go/return-errors"],"fork":{"example/rules::techs/go/return-errors":true},
-		"full":{"example/rules":false},"confirmed":{"stranger/rules":true},"repo":"https://github.com/acme/api/tree/main"}`, nil)
+		"restOfGroups":{"example/rules":true},"confirmed":{"stranger/rules":true},"repo":"https://github.com/acme/api/tree/main"}`, nil)
 
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d: %s", resp.Code, resp.Body)
 	}
 	answer := decode(t, resp)
 	if carts.cart == nil || !slices.Equal(carts.cart.Keys, []string{"example/rules::techs/go/return-errors"}) ||
-		!carts.cart.Forks["example/rules::techs/go/return-errors"] || !carts.cart.Confirmed["stranger/rules"] {
+		!carts.cart.Forks["example/rules::techs/go/return-errors"] || !carts.cart.RestOfGroups["example/rules"] ||
+		!carts.cart.Confirmed["stranger/rules"] {
 		t.Errorf("checked out %+v, want the cart posted", carts.cart)
 	}
 	if carts.target.Mode != domain.ProjectUnknown || carts.target.Repository != "acme/api" || answer.Repository != "acme/api" {
@@ -143,7 +144,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 	}
 	lib := answer.Libraries[0]
 	if lib.FullName != "example/rules" || lib.Href != "/example/rules" || !lib.Vetted ||
-		lib.Upsell == nil || !slices.Equal(lib.Upsell.Groups, []string{"Go"}) || lib.Upsell.Extra != 3 {
+		lib.RestOfGroups == nil || !slices.Equal(lib.RestOfGroups.Groups, []string{"Go"}) || lib.RestOfGroups.Rules != 3 {
 		t.Errorf("got the library %+v", lib)
 	}
 	rule, group, retired := lib.Items[0], lib.Items[1], lib.Items[2]

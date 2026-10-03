@@ -545,7 +545,7 @@ type CartRule struct {
 // Checkout is a browser's cart resolved against the catalog, and the texts that import what it can.
 type Checkout struct {
 	// Libraries are in the order the cart first names an item of each, with the cart's items from it.
-	Libraries []CheckoutLibrary
+	Libraries []ResolvedLibrary
 	// Unknown are the cart's keys that name no item a cart can hold, which nothing resolves.
 	Unknown []string
 	// Commands and Prompt import every item whose State is CartItemReady, and are empty when none is.
@@ -555,8 +555,8 @@ type Checkout struct {
 	PinExample *domain.ReleasePin
 }
 
-// CheckoutLibrary is a library a cart names, with the cart's items from it.
-type CheckoutLibrary struct {
+// ResolvedLibrary is a library a cart names, with the cart's items from it.
+type ResolvedLibrary struct {
 	// Library is spelled as the code host spells it now, or as the cart does for a library that's Gone, which has no
 	// avatar, release, or pages: the catalog has no library by that name that's vetted or listed.
 	Library LibraryRef
@@ -565,32 +565,32 @@ type CheckoutLibrary struct {
 	// items anyway, without which checkout leaves them out.
 	Vetted, Confirmed bool
 	LatestRelease     int
-	Items             []CheckoutItem
-	// UpsellGroups are the groups of the library's rules that stay in sync, other than groups the cart holds whole,
-	// and Extra counts their current rules the cart doesn't hold, which Full, the visitor's choice, imports too, so
-	// Extra is 0 then.
-	UpsellGroups []CheckoutGroup
-	Extra        int
-	Full         bool
+	Items             []ResolvedItem
+	// RestOfGroups are the groups of the library's rules that stay in sync, other than groups the cart holds whole,
+	// whose other rules the visitor can add too. RestOfGroupsAdded is the visitor's choice to add them, and
+	// RestOfGroupsRules counts their current rules the cart doesn't hold, 0 once they're added.
+	RestOfGroups      []ResolvedGroup
+	RestOfGroupsRules int
+	RestOfGroupsAdded bool
 }
 
-// CheckoutGroup is a group as checkout names it.
-type CheckoutGroup struct {
+// ResolvedGroup is a group as checkout names it.
+type ResolvedGroup struct {
 	// Path is the group's ID, as the library spells it. Canonical is nil when it isn't on Code Rules' canonical group
 	// list.
 	Path      string
 	Canonical *CanonicalGroup
 }
 
-// CheckoutItem is one item of a cart, as checkout resolved it.
-type CheckoutItem struct {
+// ResolvedItem is one item of a cart, as checkout resolved it.
+type ResolvedItem struct {
 	// Key is the item's key, as the cart sent it, and Item what it names, with its library as the cart spells it and
 	// its path as the library does, when it has the item.
 	Key   string
 	Item  domain.CartItem
 	State CartItemState
 	// Group is the item's group, a rule's or a group's own, as the library spells it.
-	Group CheckoutGroup
+	Group ResolvedGroup
 	// Title, Version, and RetiredIn are a rule's, as CartRule's are; they're zero for a group, and for a rule the
 	// library doesn't have.
 	Title     string

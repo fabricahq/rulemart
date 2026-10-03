@@ -32,10 +32,10 @@ type Cart struct {
 	Keys []string
 	// Forks are the keys of the rules the visitor forks rather than keep in sync.
 	Forks map[string]bool
-	// Full and Confirmed name libraries, as owner/name, matched without regard to case: Full those whose rules'
-	// groups the visitor imports whole, and Confirmed those the visitor confirmed adding from though Rulemart doesn't
-	// vet them.
-	Full, Confirmed map[string]bool
+	// RestOfGroups and Confirmed name libraries, as owner/name, matched without regard to case: RestOfGroups those
+	// whose rules' groups the visitor adds the rest of, importing them whole, and Confirmed those the visitor confirmed
+	// adding from though Rulemart doesn't vet them.
+	RestOfGroups, Confirmed map[string]bool
 }
 
 // Checkout resolves cart against the catalog, and returns each item's state with the texts that import every ready
@@ -130,24 +130,24 @@ func hasName(names map[string]bool, fullName string) bool {
 
 // resolve returns one library's items, each named by the key at the same index, as the catalog has them in lib, or
 // as gone when lib is nil, with the visitor's choices in cart, and the offer to import the rest of their rules' groups.
-func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLibrary, cart Cart) views.CheckoutLibrary {
-	resolved := views.CheckoutLibrary{Library: views.LibraryRef{Owner: items[0].Owner, Name: items[0].Name}, Gone: lib == nil}
+func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLibrary, cart Cart) views.ResolvedLibrary {
+	resolved := views.ResolvedLibrary{Library: views.LibraryRef{Owner: items[0].Owner, Name: items[0].Name}, Gone: lib == nil}
 	if lib != nil {
 		resolved.Library, resolved.Vetted, resolved.LatestRelease = lib.Library, lib.Vetted, lib.LatestRelease
 		resolved.Confirmed = !lib.Vetted && hasName(cart.Confirmed, lib.Library.FullName())
-		resolved.Full = hasName(cart.Full, lib.Library.FullName())
+		resolved.RestOfGroupsAdded = hasName(cart.RestOfGroups, lib.Library.FullName())
 	}
 	for i, item := range items {
 		resolved.Items = append(resolved.Items, c.resolveItem(item, keys[i], lib, resolved.Confirmed, cart.Forks[keys[i]]))
 	}
-	resolved.UpsellGroups, resolved.Extra = upsell(resolved, lib)
+	resolved.RestOfGroups, resolved.RestOfGroupsRules = restOfGroups(resolved, lib)
 	return resolved
 }
 
 // resolveItem returns item, named by key, of the library lib, resolved: gone, unvetted unless confirmed, missing,
 // retired, or ready, in that order of precedence. fork is the visitor's choice for a rule.
-func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibrary, confirmed, fork bool) views.CheckoutItem {
-	it := views.CheckoutItem{Key: key, Item: item, State: views.CartItemReady, Group: c.group(item.Group())}
+func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibrary, confirmed, fork bool) views.ResolvedItem {
+	it := views.ResolvedItem{Key: key, Item: item, State: views.CartItemReady, Group: c.group(item.Group())}
 	if lib == nil {
 		it.State = views.CartItemGone
 		return it
@@ -199,14 +199,14 @@ func findCartRule(rules []views.CartRule, path string) (views.CartRule, bool) {
 }
 
 // group returns the group path as checkout names it, with its place on the canonical group list, if any.
-func (c Carts) group(path string) views.CheckoutGroup {
-	return views.CheckoutGroup{Path: path, Canonical: canonicalGroup(c.Groups, path)}
+func (c Carts) group(path string) views.ResolvedGroup {
+	return views.ResolvedGroup{Path: path, Canonical: canonicalGroup(c.Groups, path)}
 }
 
-// upsell returns the groups of the library's ready rules that stay in sync, other than groups the cart holds whole,
-// in the cart's order, and how many of their current rules in lib the cart doesn't hold, or 0 when the visitor imports
-// them already.
-func upsell(resolved views.CheckoutLibrary, lib *views.CartLibrary) ([]views.CheckoutGroup, int) {
+// restOfGroups returns the groups of the library's ready rules that stay in sync, other than groups the cart holds
+// whole, in the cart's order, and how many of their current rules in lib the cart doesn't hold, or 0 when the visitor
+// imports them already.
+func restOfGroups(resolved views.ResolvedLibrary, lib *views.CartLibrary) ([]views.ResolvedGroup, int) {
 	whole, held := map[string]bool{}, map[string]bool{}
 	for _, it := range resolved.Items {
 		if it.State != views.CartItemReady {
@@ -218,33 +218,33 @@ func upsell(resolved views.CheckoutLibrary, lib *views.CartLibrary) ([]views.Che
 			held[strings.ToLower(it.Item.Path)] = true
 		}
 	}
-	var groups []views.CheckoutGroup
+	var groups []views.ResolvedGroup
 	for _, it := range resolved.Items {
 		path := strings.ToLower(it.Group.Path)
 		if it.State == views.CartItemReady && it.Item.Kind == domain.CartRule && !it.Fork && !whole[path] &&
-			!slices.ContainsFunc(groups, func(g views.CheckoutGroup) bool { return strings.EqualFold(g.Path, path) }) {
+			!slices.ContainsFunc(groups, func(g views.ResolvedGroup) bool { return strings.EqualFold(g.Path, path) }) {
 			groups = append(groups, it.Group)
 		}
 	}
-	if resolved.Full || lib == nil {
+	if resolved.RestOfGroupsAdded || lib == nil {
 		return groups, 0
 	}
-	extra := 0
+	others := 0
 	for _, r := range lib.Rules {
-		inGroup := slices.ContainsFunc(groups, func(g views.CheckoutGroup) bool { return strings.EqualFold(g.Path, r.Group) })
+		inGroup := slices.ContainsFunc(groups, func(g views.ResolvedGroup) bool { return strings.EqualFold(g.Path, r.Group) })
 		if inGroup && r.RetiredIn == 0 && !held[strings.ToLower(r.Path)] {
-			extra++
+			others++
 		}
 	}
-	return groups, extra
+	return groups, others
 }
 
 // importsOf returns what checkout imports of resolved, the library lib as the cart holds it: its ready items, with the
 // visitor's choices.
-func importsOf(resolved views.CheckoutLibrary, lib *views.CartLibrary) domain.CheckoutLibrary {
+func importsOf(resolved views.ResolvedLibrary, lib *views.CartLibrary) domain.CheckoutLibrary {
 	imports := domain.CheckoutLibrary{
 		Owner: resolved.Library.Owner, Name: resolved.Library.Name, Vetted: resolved.Vetted, Release: resolved.LatestRelease,
-		Full: resolved.Full,
+		RestOfGroups: resolved.RestOfGroupsAdded,
 	}
 	if lib != nil {
 		imports.Commit = lib.LatestCommit

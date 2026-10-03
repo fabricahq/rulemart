@@ -169,8 +169,8 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	lib := checkout.Libraries[0]
-	if len(lib.UpsellGroups) != 1 || lib.UpsellGroups[0].Path != "techs/go" || lib.Extra != 0 || lib.Full {
-		t.Errorf("got the offer %+v, %d more, full %t, want the Go group with none more", lib.UpsellGroups, lib.Extra, lib.Full)
+	if len(lib.RestOfGroups) != 1 || lib.RestOfGroups[0].Path != "techs/go" || lib.RestOfGroupsRules != 0 || lib.RestOfGroupsAdded {
+		t.Errorf("got the offer %+v, %d more, added %t, want the Go group with none more", lib.RestOfGroups, lib.RestOfGroupsRules, lib.RestOfGroupsAdded)
 	}
 	if !lib.Items[1].Fork || !strings.Contains(checkout.Commands, "add rule techs/go/close-bodies \\\n  --from acme@1.2.0") {
 		t.Errorf("the fork isn't copied at its version:\n%s", checkout.Commands)
@@ -181,17 +181,17 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lib := checkout.Libraries[0]; lib.Extra != 1 {
-		t.Errorf("got %d more, want close-bodies, the group's one other current rule", lib.Extra)
+	if lib := checkout.Libraries[0]; lib.RestOfGroupsRules != 1 {
+		t.Errorf("got %d more, want close-bodies, the group's one other current rule", lib.RestOfGroupsRules)
 	}
 
-	cart.Keys, cart.Full = []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}, map[string]bool{"acme/rules": true}
+	cart.Keys, cart.RestOfGroups = []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}, map[string]bool{"acme/rules": true}
 	checkout, err = carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lib := checkout.Libraries[0]; !lib.Full || lib.Extra != 0 || len(lib.UpsellGroups) != 1 {
-		t.Errorf("got full %t, %d more, groups %+v, want the offer taken", lib.Full, lib.Extra, lib.UpsellGroups)
+	if lib := checkout.Libraries[0]; !lib.RestOfGroupsAdded || lib.RestOfGroupsRules != 0 || len(lib.RestOfGroups) != 1 {
+		t.Errorf("got added %t, %d more, groups %+v, want the offer taken", lib.RestOfGroupsAdded, lib.RestOfGroupsRules, lib.RestOfGroups)
 	}
 	if !strings.Contains(checkout.Commands, "--groups techs/go") || !strings.Contains(checkout.Commands, "--reason") {
 		t.Errorf("the group isn't imported whole, with the fork's reason:\n%s", checkout.Commands)

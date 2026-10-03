@@ -150,10 +150,11 @@
     }
     parts.push(h('ul', 'divide-y divide-border-subtle overflow-hidden rounded-card border border-border bg-paper', {},
       ...items.map((item) => (item.kind === 'group' ? groupRow(item) : ruleRow(item)))));
-    if (lib.upsell) {
+    const rest = lib.restOfGroups;
+    if (rest) {
       parts.push(h('label', 'mt-2.5 flex cursor-pointer items-center gap-2 text-[13px] text-muted', {},
-        h('input', 'size-4 accent-(--ink)', { type: 'checkbox', checked: lib.upsell.full, 'data-cart-full': lib.fullName, 'data-focus': `full:${lib.fullName}` }),
-        `Also add the other ${listed(lib.upsell.groups)} rules${lib.upsell.full ? '' : ` (${lib.upsell.extra} more)`}`));
+        h('input', 'size-4 accent-(--ink)', { type: 'checkbox', checked: rest.added, 'data-cart-rest-of-groups': lib.fullName, 'data-focus': `rest:${lib.fullName}` }),
+        `Also add the other ${listed(rest.groups)} rules${rest.added ? '' : ` (${rest.rules} more)`}`));
     }
     return h('div', 'mb-[26px] last:mb-3.5', {}, ...parts);
   }
@@ -183,13 +184,13 @@
 
     /** Ask Rulemart to resolve the cart and write its texts, keeping only the latest answer. */
     async function checkout() {
-      const { cart, fork, full, confirmed, repo: repository } = store.state();
+      const { cart, fork, restOfGroups, confirmed, repo: repository } = store.state();
       if (!cart.length) return;
       const id = ++asked;
       try {
         const response = await fetch(root.dataset.cartCheckout, {
           method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cart, fork, full, confirmed, repo: repository }),
+          body: JSON.stringify({ cart, fork, restOfGroups, confirmed, repo: repository }),
         });
         if (!response.ok) throw new Error(`checkout answered ${response.status}`);
         const body = await response.json();
@@ -325,8 +326,8 @@
       const target = event.target;
       if (target.matches('[data-cart-mode]')) {
         store.setFork(target.dataset.cartMode, target.value === 'fork');
-      } else if (target.matches('[data-cart-full]')) {
-        store.setFull(target.dataset.cartFull, target.checked);
+      } else if (target.matches('[data-cart-rest-of-groups]')) {
+        store.setRestOfGroups(target.dataset.cartRestOfGroups, target.checked);
       }
     });
     repo.addEventListener('input', () => store.setRepo(repo.value));
