@@ -23,6 +23,8 @@ type ruleListView struct {
 	path    string
 	params  url.Values
 	choices domain.ListChoices
+	// offersMine is true for a signed-in visitor, whom the sidebar offers My libraries.
+	offersMine bool
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
 	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, current
 	// the current ones among them, currentLibraries the libraries those come from, and retiredRules the retired rules
@@ -44,9 +46,9 @@ type libraryFilterView struct {
 	rules int
 }
 
-func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, results views.RuleResults) ruleListView {
+func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, offersMine bool, results views.RuleResults) ruleListView {
 	v := ruleListView{
-		page: page, path: path, params: params, choices: choices, total: results.Total, complete: results.Complete,
+		page: page, path: path, params: params, choices: choices, offersMine: offersMine, total: results.Total, complete: results.Complete,
 		libraries: results.Libraries, unfiltered: results.Unfiltered, current: results.UnfilteredCurrent,
 		currentLibraries: results.UnfilteredCurrentLibraries, retiredRules: results.RetiredRules,
 	}
@@ -77,12 +79,12 @@ func addressOf(path string, choices, params url.Values) string {
 	return path + "?" + choices.Encode()
 }
 
-// chosen counts the sidebar's choices that are on: each library, the impact, the stars, the kind, and retired rules and
-// unvetted libraries, which the sidebar's disclosure counts on a phone.
+// chosen counts the sidebar's choices that are on: each library, My libraries, the impact, the stars, the kind, and
+// retired rules and unvetted libraries, which the sidebar's disclosure counts on a phone.
 func (v ruleListView) chosen() int {
 	n := len(v.choices.Filters.Libraries)
 	for _, on := range []bool{
-		v.choices.Filters.Impact != domain.AnyImpact, v.choices.Filters.MinStars > 0, v.choices.Filters.Kind != "",
+		v.choices.Filters.Mine, v.choices.Filters.Impact != domain.AnyImpact, v.choices.Filters.MinStars > 0, v.choices.Filters.Kind != "",
 		v.choices.Retired, v.choices.Unvetted,
 	} {
 		if on {

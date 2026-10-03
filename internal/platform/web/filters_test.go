@@ -5,9 +5,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/net/html"
 
+	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
@@ -152,7 +154,8 @@ func TestListFormsShowOnlyTheAddresssChoicesAfterHistoryNavigation(t *testing.T)
 // equalChoices reports whether a and b are the same choices.
 func equalChoices(a, b domain.ListChoices) bool {
 	return a.Unvetted == b.Unvetted && a.Retired == b.Retired && a.Order == b.Order && a.Filters.Impact == b.Filters.Impact &&
-		a.Filters.MinStars == b.Filters.MinStars && a.Filters.Kind == b.Filters.Kind && slices.Equal(a.Filters.Libraries, b.Filters.Libraries)
+		a.Filters.MinStars == b.Filters.MinStars && a.Filters.Kind == b.Filters.Kind && a.Filters.Mine == b.Filters.Mine &&
+		slices.Equal(a.Filters.Libraries, b.Filters.Libraries)
 }
 
 // A list's address has one spelling, and any other, such as a form submitted without a script, redirects to it in one
@@ -313,6 +316,111 @@ func TestFilterSidebarOffersRetiredRulesOnlyWhenTheListHasSome(t *testing.T) {
 		_, _, fields := filterFields(t, get(t, handler, path).Body.String())
 		if got := slices.Contains(fieldNames(fields), "retired=1"); got != want {
 			t.Errorf("%s: offers retired rules %t, want %t", path, got, want)
+		}
+	}
+}
+
+// Signed out, the Libraries filter has no My libraries, and an address that asks for it shows the whole list, which
+// the catalog reads without it, and isn't indexed, as any address with choices.
+func TestMyLibrariesIsOfferedOnlyToASignedInVisitor(t *testing.T) {
+	var chosen []domain.ListChoices
+	var owners [][]string
+	c := newBrowsingCatalog()
+	c.chosen, c.owners = &chosen, &owners
+	handler := newSite(t, c)
+
+	for path, rows := range map[string]string{
+		"/g/techs/go?mine=1":      "Return errors with context HIGH example/rules 3 3 stars Close response bodies MEDIUM other/go-rules",
+		"/search?mine=1&q=errors": "techs/golang not canonical 1 Wrap errors MEDIUM other/go-rules",
+		"/search?mine=1":          "Return errors with context HIGH example/rules 3 3 stars Close response bodies MEDIUM other/go-rules",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.Code)
+		}
+		page := resp.Body.String()
+		assertShows(t, page, "Filters Libraries example/ rules 1 other/ go-rules", rows)
+		if _, _, fields := filterFields(t, page); slices.Contains(fieldNames(fields), "mine=1") {
+			t.Errorf("%s offers My libraries signed out", path)
+		}
+		if strings.Contains(visibleText(t, page), "Clear filters") {
+			t.Errorf("%s clears filters it doesn't show", path)
+		}
+		if content, _ := robots(t, page); content != "noindex" {
+			t.Errorf("%s: robots %q, want noindex", path, content)
+		}
+	}
+	for i, choices := range chosen {
+		if choices.Filters.Mine || owners[i] != nil {
+			t.Errorf("read the catalog with %+v for %q, want neither My libraries nor owners", choices, owners[i])
+		}
+	}
+}
+
+// Signed in, the Libraries filter starts with My libraries, which keeps the libraries the dashboard lists under
+// "Published by you and your orgs": those whose owner is the visitor or one of their organizations. The sort tabs keep
+// it, Clear filters clears it, and the catalog reads the visitor's owners only when it's on.
+func TestMyLibrariesKeepsTheLibrariesOfTheVisitorAndTheirOrganizations(t *testing.T) {
+	var chosen []domain.ListChoices
+	var owners [][]string
+	c := newBrowsingCatalog()
+	c.chosen, c.owners = &chosen, &owners
+	site := newDashboardSite(t, octocatsGitHub(), c)
+
+	plain := site.get(t, "/g/techs/go")
+	mine := site.get(t, "/g/techs/go?mine=1")
+	search := site.get(t, "/search?mine=1&q=errors")
+
+	_, _, fields := filterFields(t, plain)
+	if names := fieldNames(fields); len(names) < 2 || names[0] != "mine=1" || names[1] != "libs=example/rules" {
+		t.Errorf("the form's fields are %q, want My libraries before the libraries", names)
+	}
+	if got := checkedFields(fields); !slices.Equal(got, []string{"stars="}) {
+		t.Errorf("without the choice, %q are on, want only any stars", got)
+	}
+	assertShows(t, plain, "Libraries My libraries example/ rules 1 other/ go-rules 2 Impact", "3 rules in 2 libraries")
+	_, _, fields = filterFields(t, mine)
+	if got := checkedFields(fields); !slices.Equal(got, []string{"mine=1", "stars="}) {
+		t.Errorf("with the choice, %q are on, want My libraries and any stars", got)
+	}
+	assertShows(t, mine, "Filters · 1", "Libraries My libraries example/ rules 1 other/ go-rules 2 Impact",
+		"1 rule in 1 library", "Return errors with context HIGH example/rules")
+	if strings.Contains(visibleText(t, mine), "Close response bodies") {
+		t.Error("My libraries keeps a rule of other/go-rules, which neither octocat nor their organizations own")
+	}
+	if got := links(t, mine, "Clear filters"); !slices.Equal(got, []string{"/g/techs/go"}) {
+		t.Errorf("Clear filters leads to %q", got)
+	}
+	if got := links(t, mine, "Newest"); !slices.Equal(got, []string{"/g/techs/go?mine=1&sort=new"}) {
+		t.Errorf("Newest leads to %q", got)
+	}
+	assertShows(t, search, "Libraries My libraries", "1 rule in 1 library", "Return errors with context")
+	if strings.Contains(visibleText(t, search), "Wrap errors") {
+		t.Error("search's My libraries keeps a rule of other/go-rules")
+	}
+	want := []string{"octocat", "octo-org", "example"}
+	if len(owners) != 3 || owners[0] != nil || !slices.Equal(owners[1], want) || !slices.Equal(owners[2], want) {
+		t.Errorf("read the catalog for the owners %q, want none, then %q twice", owners, want)
+	}
+	if len(chosen) != 3 || chosen[0].Filters.Mine || !chosen[1].Filters.Mine || !chosen[2].Filters.Mine {
+		t.Errorf("read the catalog with %+v, want My libraries on the second and third", chosen)
+	}
+}
+
+// A visitor whose account and organizations publish no library still has My libraries, which then keeps no rule and
+// says so as any filter does.
+func TestMyLibrariesOfAVisitorWithoutLibrariesKeepsNoRule(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now()}, newBrowsingCatalog())
+
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		page := site.get(t, path)
+
+		if _, _, fields := filterFields(t, page); !slices.Contains(checkedFields(fields), "mine=1") {
+			t.Errorf("%s doesn't show My libraries on", path)
+		}
+		assertShows(t, page, "No rules match these filters. Clear filters")
+		if strings.Contains(visibleText(t, page), "Return errors with context") {
+			t.Errorf("%s keeps a rule the visitor's libraries don't hold", path)
 		}
 	}
 }

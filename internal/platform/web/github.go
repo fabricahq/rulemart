@@ -1,5 +1,6 @@
-// What a signed-in visitor's GitHub account holds, which the dashboard, the add-a-library picker, and checkout's
-// project picker show; the GitHub App's return to Rulemart after a visitor installs it; and its webhook.
+// What a signed-in visitor's GitHub account holds, which the dashboard, the add-a-library picker, checkout's project
+// picker, and the lists' My libraries show; the GitHub App's return to Rulemart after a visitor installs it; and its
+// webhook.
 
 package web
 
@@ -14,6 +15,7 @@ import (
 
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // GitHubAccounts reads what signed-in visitors' GitHub accounts hold, and the GitHub App that reads their private
@@ -109,6 +111,36 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 	}
 	view.installations, view.private = installations, len(installations) > 0
 	return view, true
+}
+
+// myLibraries returns choices as the visitor r comes from can make them, and the logins whose libraries their My
+// libraries keeps, the libraries their dashboard lists under "Published by you and your orgs": their own and their
+// organizations', as Rulemart last read them from GitHub. Signed out, the choices leave out My libraries, which a list
+// offers only to a signed-in visitor. It reads the visitor's GitHub account only while My libraries is on; while that
+// read fails or is under way, the owners are the visitor and any organizations an earlier read found, as the
+// dashboard's. It answers the request with a failure, and returns false, when reading the account fails otherwise.
+func (s *server) myLibraries(w http.ResponseWriter, r *http.Request, choices domain.ListChoices) (domain.ListChoices, []string, bool) {
+	v := visitorOf(r.Context())
+	if v.account == nil {
+		choices.Filters.Mine = false
+		return choices, nil, true
+	}
+	if !choices.Filters.Mine {
+		return choices, nil, true
+	}
+	var snapshot accounts.Snapshot
+	if s.GitHubAccounts != nil {
+		var err error
+		snapshot, err = s.GitHubAccounts.Snapshot(r.Context(), *v.account, v.token)
+		switch {
+		case errors.Is(err, accountsapp.ErrGitHubRead):
+			s.logFailure(r, err)
+		case err != nil && !errors.Is(err, accountsapp.ErrNoGitHubToken) && !errors.Is(err, accountsapp.ErrGitHubReading):
+			s.fail(w, r, err)
+			return domain.ListChoices{}, nil, false
+		}
+	}
+	return choices, snapshot.Owners(v.account.Login), true
 }
 
 // refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages

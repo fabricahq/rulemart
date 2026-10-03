@@ -242,7 +242,7 @@ func TestListedRetiredRulesNameTheirLastReplacement(t *testing.T) {
 		row("practices/testing/verify-retry-limits", nil),
 	}}}
 
-	got, err := app.Pages{Store: r, Groups: canonicalList(t)}.SearchRules(context.Background(), domain.ParseSearchQuery("retry"), domain.ListChoices{}, 1)
+	got, err := app.Pages{Store: r, Groups: canonicalList(t)}.SearchRules(context.Background(), domain.ParseSearchQuery("retry"), domain.ListChoices{}, nil, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

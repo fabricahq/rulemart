@@ -56,9 +56,11 @@ type catalog struct {
 	// results are keyed by the query that finds them, empty for every rule, followed for pages after the first by
 	// " page " and the page's number; any other query or page finds nothing, whatever the choices.
 	results map[string]views.RuleResults
-	// searched records each query searched, and chosen the choices of every list read, when they aren't nil.
+	// searched records each query searched, chosen the choices of every list read, and owners the owners whose
+	// libraries My libraries keeps in each, when they aren't nil.
 	searched *[]string
 	chosen   *[]domain.ListChoices
+	owners   *[][]string
 	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
 	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>, and spell
 	// their library's owner and name as the library does.
@@ -127,21 +129,49 @@ func (c catalog) Dashboard(_ context.Context, owners, names []string) (views.Das
 	return d, c.err
 }
 
-// Group matches id without regard to case, and records the choices.
-func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
-	if c.chosen != nil {
-		*c.chosen = append(*c.chosen, choices)
-	}
+// Group matches id without regard to case, records the choices and owners, and keeps only the owners' rules for My
+// libraries.
+func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices, owners []string) (views.GroupPage, error) {
+	c.record(choices, owners)
 	page, ok := c.groups[strings.ToLower(id)]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load group: %w", app.ErrNotFound)
 	}
+	page.Rules = keepMine(page.Rules, choices, owners)
 	return page, c.err
 }
 
-// SearchRules answers as app.Pages does for a long query, app.ErrSearchQueryTooLong, and records the query and the
-// choices.
-func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error) {
+// record records the choices and owners of a list read, as chosen and owners ask.
+func (c catalog) record(choices domain.ListChoices, owners []string) {
+	if c.chosen != nil {
+		*c.chosen = append(*c.chosen, choices)
+	}
+	if c.owners != nil {
+		*c.owners = append(*c.owners, owners)
+	}
+}
+
+// keepMine returns results with only the rows of the libraries owners publish, counted, when choices keep My libraries,
+// as the store's filter does; otherwise results as they are.
+func keepMine(results views.RuleResults, choices domain.ListChoices, owners []string) views.RuleResults {
+	if !choices.Filters.Mine {
+		return results
+	}
+	var rows []views.RuleRow
+	libraries := map[string]bool{}
+	for _, r := range results.Rows {
+		if slices.ContainsFunc(owners, func(o string) bool { return strings.EqualFold(o, r.Library.Owner) }) {
+			rows = append(rows, r)
+			libraries[strings.ToLower(r.Library.FullName())] = true
+		}
+	}
+	results.Rows, results.Total, results.Complete, results.Libraries = rows, len(rows), len(rows), len(libraries)
+	return results
+}
+
+// SearchRules answers as app.Pages does for a long query, app.ErrSearchQueryTooLong, records the query, the choices,
+// and the owners, and keeps only the owners' rules for My libraries.
+func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choices domain.ListChoices, owners []string, page int) (views.RuleResults, error) {
 	if c.err != nil {
 		return views.RuleResults{}, c.err
 	}
@@ -151,13 +181,11 @@ func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choice
 	if c.searched != nil {
 		*c.searched = append(*c.searched, query.String())
 	}
-	if c.chosen != nil {
-		*c.chosen = append(*c.chosen, choices)
-	}
+	c.record(choices, owners)
 	if page > 1 {
-		return c.results[fmt.Sprintf("%s page %d", query, page)], nil
+		return keepMine(c.results[fmt.Sprintf("%s page %d", query, page)], choices, owners), nil
 	}
-	return c.results[query.String()], nil
+	return keepMine(c.results[query.String()], choices, owners), nil
 }
 
 func (c catalog) LibraryPage(_ context.Context, owner, name string) (views.LibraryPage, error) {

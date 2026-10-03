@@ -48,10 +48,15 @@ templ filterForm(v ruleListView) {
 		for _, p := range v.formParams() {
 			<input type="hidden" name={ p.name } value={ p.value }/>
 		}
-		// Each library shows its owner's avatar and its repository's name, its owner said on hover and to screen readers,
-		// in stronger type while it's ticked.
-		if len(v.libraryFilters) > 0 {
+		// My libraries comes first, for a signed-in visitor. Each library shows its owner's avatar and its repository's
+		// name, its owner said on hover and to screen readers. Each row is in stronger type while it's ticked.
+		if len(v.libraryFilters) > 0 || v.choices.Filters.Mine {
 			@filterGroup("Libraries", "") {
+				if v.offersMine {
+					<label class={ filterLabel, templ.KV("font-medium text-ink", v.choices.Filters.Mine) }>
+						<input class={ filterInput } type="checkbox" name={ domain.MineParam } value="1" checked?={ v.choices.Filters.Mine }/> My libraries
+					</label>
+				}
 				for _, l := range v.libraryFilters {
 					<label class={ filterLabel, templ.KV("font-medium text-ink", l.checked) }>
 						<input class={ filterInput } type="checkbox" name={ domain.LibrariesParam } value={ l.value } checked?={ l.checked }/>
