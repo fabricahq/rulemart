@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -19,7 +20,10 @@ import (
 )
 
 // limits leave room for every test repository.
-var limits = domain.FetchLimits{Tags: 10, TagBytes: 1 << 20, PackBytes: 128 << 20, Objects: 1_000, ObjectBytes: 32 << 20, TotalBytes: 128 << 20}
+var limits = domain.FetchLimits{
+	Tags: 10, TagBytes: 1 << 20, PackBytes: 128 << 20, Objects: 1_000, ObjectBytes: 32 << 20, TotalBytes: 128 << 20,
+	ListedEntries: 10_000, ListDepth: 8,
+}
 
 const firstRecord = `formatVersion: 1
 release: 1
@@ -205,6 +209,89 @@ func TestListStopsPastMaxInATreeThatFansOut(t *testing.T) {
 	}
 	if len(paths) != max+1 {
 		t.Fatalf("listed %d paths, want %d, one past the most asked for", len(paths), max+1)
+	}
+}
+
+// A tree whose directories share one subtree holding no file, only directories or submodules, reaches a number of
+// entries exponential in its depth from a few objects, and listing finds no file past which to stop, so it must stop
+// past the entries it visits instead, and refuse the directory, rather than walk them all.
+func TestListRefusesATreeThatFansOutWithoutFiles(t *testing.T) {
+	const width, depth = 2, 60
+	for name, bottom := range map[string]func(*gogit.Repository) plumbing.Hash{
+		"empty directories": func(repo *gogit.Repository) plumbing.Hash { return storeTree(t, repo, nil) },
+		"submodules": func(repo *gogit.Repository) plumbing.Hash {
+			return storeTree(t, repo, fanOut(width, filemode.Submodule, plumbing.NewHash(strings.Repeat("ab", 20))))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			lib := gittest.NewLibrary(t)
+			repo, err := gogit.PlainOpen(lib.URL())
+			if err != nil {
+				t.Fatal(err)
+			}
+			hash := bottom(repo)
+			for range depth {
+				hash = storeTree(t, repo, fanOut(width, filemode.Dir, hash))
+			}
+			root := storeTree(t, repo, []object.TreeEntry{{Name: "fan", Mode: filemode.Dir, Hash: hash}})
+			lib.Tag("release/1", storeCommit(t, repo, root), "Library release 1.\n---\n"+firstRecord)
+			deep := limits
+			deep.ListDepth = depth + 1 // only the entries visited stop it
+			releases, err := git.Fetch(context.Background(), lib.URL(), deep)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			listed := make(chan error, 1)
+			go func() {
+				_, err := releases[0].Files.List("fan/", 10)
+				listed <- err
+			}()
+
+			select {
+			case err := <-listed:
+				if err == nil || !strings.Contains(err.Error(), "entries") {
+					t.Fatalf("got %v, want a refusal past the entries listing visits", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("still listing a tree of directories after 10 seconds")
+			}
+		})
+	}
+}
+
+// A directory nested deeper than listing descends is refused, though it holds few entries.
+func TestListRefusesADirectoryNestedDeeperThanItsLimit(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Write("shallow/"+strings.Repeat("d/", limits.ListDepth)+"a.md", "# A\n")
+	lib.Write("deep/"+strings.Repeat("d/", limits.ListDepth+1)+"a.md", "# A\n")
+	lib.Release(1, firstRecord)
+	releases, err := git.Fetch(context.Background(), lib.URL(), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if paths, err := releases[0].Files.List("shallow/", 10); err != nil || len(paths) != 1 {
+		t.Fatalf("at the limit: got %q, %v; want the one file", paths, err)
+	}
+	if _, err := releases[0].Files.List("deep/", 10); err == nil || !strings.Contains(err.Error(), "directories deep") {
+		t.Fatalf("past the limit: got %v, want a refusal", err)
+	}
+}
+
+// Listing stops once the fetch's context ends, since assembly lists files within the same ingestion.
+func TestListStopsOnceTheFetchsContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	releases, err := git.Fetch(ctx, twoReleases(t).URL(), limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cancel()
+	_, err = releases[0].Files.List("techs/", 10)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("got %v, want the context's end", err)
 	}
 }
 

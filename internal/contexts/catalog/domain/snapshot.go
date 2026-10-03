@@ -39,7 +39,8 @@ type Files interface {
 	// List returns the paths of the files in the directory dir, a path that ends with /, and in the directories inside
 	// it, in path order, or none when there's no such directory. When there are more than max, it stops once it has
 	// found max+1 and returns those, so a tree whose directories share one subtree, whose paths grow exponentially
-	// with its depth from a few objects, can't make it hold them all.
+	// with its depth from a few objects, can't make it hold them all. Such a subtree may hold no files to stop at, so a
+	// source also refuses a directory past the entries it will visit, as git's does past FetchLimits.ListedEntries.
 	List(dir string, max int) ([]string, error)
 }
 

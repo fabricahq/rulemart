@@ -88,7 +88,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
   out of the existing content budget, and a library may list at most 10,000 assets, Code Rules' own limit on a
   library's files, past which ingestion refuses it, as it refuses a library past its other limits. Finding the shared
   files a rule links to holds each link's destination once, however many references name it, and spends the content
-  budget as rendering does, since it comes before rendering.
+  budget as rendering does, since it comes before rendering. Listing asset directories visits at most 100,000 tree
+  entries over a library's releases, and descends at most 64 directories, and stops when the ingestion's deadline
+  passes, since directories that share a subtree without files reach exponentially many entries from a few objects.
 - **Proposed: text assets are stored as highlighted code**, rendered at ingestion with the same highlighter as rules'
   fenced code, by the file's name, as the prototype highlights them. So rendering is now an interface, `Renderer`,
   with Markdown, Code, and Links, rather than one function, and resolving a link moves to the domain, which finds the

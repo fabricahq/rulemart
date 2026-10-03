@@ -117,6 +117,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 	}
 	var releases []domain.ReleaseSnapshot
 	shared := &trees{storer: repo.Storer, decoded: map[plumbing.Hash]*object.Tree{}}
+	listed := &listing{ctx: ctx, entries: limits.ListedEntries, depth: limits.ListDepth}
 	err = refs.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
 		if _, err := coderules.ParseReleaseTag(name); err != nil {
@@ -126,7 +127,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		r, err := readRelease(repo, shared, name, ref.Hash(), limits)
+		r, err := readRelease(repo, shared, listed, name, ref.Hash(), limits)
 		if err != nil {
 			return fmt.Errorf("read %s: %v", name, err)
 		}
@@ -143,8 +144,9 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 	return releases, nil
 }
 
-// readRelease reads the annotated tag object hash, which the tag named name points to.
-func readRelease(repo *gogit.Repository, shared *trees, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
+// readRelease reads the annotated tag object hash, which the tag named name points to. Its files decode trees through
+// shared, and list within listed, which every release of the fetch shares.
+func readRelease(repo *gogit.Repository, shared *trees, listed *listing, name string, hash plumbing.Hash, limits domain.FetchLimits) (domain.ReleaseSnapshot, error) {
 	encoded, err := repo.Storer.EncodedObject(plumbing.AnyObject, hash)
 	if err != nil {
 		return domain.ReleaseSnapshot{}, fmt.Errorf("load tag object: %v", err)
@@ -177,7 +179,7 @@ func readRelease(repo *gogit.Repository, shared *trees, name string, hash plumbi
 	return domain.ReleaseSnapshot{
 		Number: record.Release, Tag: name, TagID: hash.String(), TaggedAt: tag.Tagger.When, CommitID: commit.Hash.String(),
 		Record: record,
-		Files:  files{root: commit.TreeHash, trees: shared},
+		Files:  files{root: commit.TreeHash, trees: shared, listing: listed},
 	}, nil
 }
 
@@ -198,8 +200,9 @@ func readObject(encoded plumbing.EncodedObject) ([]byte, error) {
 // files reads a tagged commit's files from the fetched objects in memory.
 type files struct {
 	// root is the commit's tree.
-	root  plumbing.Hash
-	trees *trees
+	root    plumbing.Hash
+	trees   *trees
+	listing *listing
 }
 
 // Open returns the file at path in the commit, or domain.ErrFileMissing when there's none.
@@ -239,7 +242,7 @@ func (f files) Open(path string) (domain.File, error) {
 
 // List returns the paths of the files in the directory dir, which ends with /, and in the directories inside it, in
 // path order, or none when the commit has no such directory. When there are more than max, it returns the first max+1
-// it finds.
+// it finds. It fails once the fetch's context ends, and past the listing's bounds.
 func (f files) List(dir string, max int) ([]string, error) {
 	tree, err := f.trees.get(f.root)
 	if err != nil {
@@ -261,19 +264,26 @@ func (f files) List(dir string, max int) ([]string, error) {
 		}
 	}
 	var paths []string
-	if err := f.walk(tree, dir, max, &paths); err != nil {
+	if err := f.walk(tree, dir, 0, max, &paths); err != nil {
 		return nil, err
 	}
 	slices.Sort(paths)
 	return paths, nil
 }
 
-// walk adds the path of every file in tree, whose path is prefix, and in the trees inside it, to paths, until paths
-// holds more than max.
-func (f files) walk(tree *object.Tree, prefix string, max int, paths *[]string) error {
+// walk adds the path of every file in tree, whose path is prefix, depth directories below the one listed, and in the
+// trees inside it, to paths, until paths holds more than max. Each entry it visits counts toward the listing's bounds,
+// whatever it is, so a subtree without files can't keep it walking.
+func (f files) walk(tree *object.Tree, prefix string, depth, max int, paths *[]string) error {
+	if depth > f.listing.depth {
+		return fmt.Errorf("%s is more than %d directories deep, which ingestion won't list", prefix, f.listing.depth)
+	}
 	for _, entry := range tree.Entries {
 		if len(*paths) > max {
 			return nil
+		}
+		if err := f.listing.visit(); err != nil {
+			return err
 		}
 		switch {
 		case entry.Mode == filemode.Dir:
@@ -281,12 +291,33 @@ func (f files) walk(tree *object.Tree, prefix string, max int, paths *[]string) 
 			if err != nil {
 				return fmt.Errorf("load tree: %v", err)
 			}
-			if err := f.walk(inner, prefix+entry.Name+"/", max, paths); err != nil {
+			if err := f.walk(inner, prefix+entry.Name+"/", depth+1, max, paths); err != nil {
 				return err
 			}
 		case entry.Mode.IsFile():
 			*paths = append(*paths, prefix+entry.Name)
 		}
+	}
+	return nil
+}
+
+// listing bounds the listings of one fetch's files, which assembly makes after the fetch, within the same ingestion:
+// they stop once the fetch's context ends, and fail once they've visited more tree entries together than entries, or
+// one descends more directories than depth. It isn't safe for concurrent use.
+type listing struct {
+	ctx            context.Context
+	entries, depth int
+	// visited counts the entries every listing has visited.
+	visited int
+}
+
+// visit counts one more entry visited, or fails when the context has ended or the entry is past the bound.
+func (l *listing) visit() error {
+	if err := l.ctx.Err(); err != nil {
+		return err
+	}
+	if l.visited++; l.visited > l.entries {
+		return fmt.Errorf("listing the releases' files visits more than %d entries, which ingestion won't walk", l.entries)
 	}
 	return nil
 }

@@ -9,7 +9,8 @@ type Limits struct {
 	Content ContentLimits
 }
 
-// FetchLimits bound what fetching a library's release tags may hold in memory.
+// FetchLimits bound what fetching a library's release tags may hold in memory, and how far listing the files it
+// fetched may walk.
 type FetchLimits struct {
 	// RefsBytes bounds the list of references the repository advertises, which listing and fetching read first:
 	// every branch and tag, not only the release tags.
@@ -24,6 +25,11 @@ type FetchLimits struct {
 	Objects int
 	// ObjectBytes bounds one object, inflated, and TotalBytes all of them together.
 	ObjectBytes, TotalBytes int64
+	// ListedEntries bounds the tree entries, of files, directories, or anything else, that listing the fetched
+	// releases' directories visits, every listing together, and ListDepth how many directories one listing descends.
+	// Directories that share one subtree reach a number of entries exponential in their depth from a few objects, so
+	// listing can't stop only once it has found enough files: a subtree may hold none.
+	ListedEntries, ListDepth int
 }
 
 // ContentLimits bound what assembling a library reads and holds.
@@ -63,6 +69,11 @@ var DefaultLimits = Limits{
 		// One object, and all of them together, inflated.
 		ObjectBytes: 32 << 20,
 		TotalBytes:  256 << 20,
+		// Assembly lists each current rule's asset directory once, so a library's listings visit each of its at most
+		// 10,000 asset files, and the directories that hold them, about once.
+		ListedEntries: 100_000,
+		// Far deeper than an asset directory nests, while one listing's recursion stays shallow.
+		ListDepth: 64,
 	},
 	Content: ContentLimits{
 		// Each rule, group, or manifest file read.
