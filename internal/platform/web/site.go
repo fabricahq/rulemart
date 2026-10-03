@@ -63,6 +63,9 @@ type Options struct {
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
 	Stars Stars
+	// GitHubAccounts reads what signed-in visitors' GitHub accounts hold. Nil, or without a way to sign in, leaves the
+	// dashboard's libraries, projects, and private repositories out.
+	GitHubAccounts GitHubAccounts
 	// Carts checks out the carts visitors' browsers keep. Nil leaves checkout out.
 	Carts Carts
 	// AnalyticsToken is the site token of a Cloudflare Web Analytics site, which every page then loads Cloudflare's
@@ -135,6 +138,9 @@ type Catalog interface {
 	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
 	// query, that choices keep. It fails with app.ErrSearchQueryTooLong for a query it won't run.
 	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error)
+	// Dashboard returns what a visitor's dashboard shows of the catalog: the libraries whose owner is one of owners, and
+	// those of names, as owner/name, the libraries the visitor's projects import.
+	Dashboard(ctx context.Context, owners, names []string) (views.Dashboard, error)
 	// Sitemap returns the vetted libraries, with their current rules, and the groups that hold them, canonical or not.
 	Sitemap(ctx context.Context) (views.Sitemap, error)
 }
@@ -182,7 +188,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"), cartPageScript: assets.url("cart-page.js"), cartCheckoutScript: assets.url("cart-checkout.js"),
-			toastScript: assets.url("toast.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
@@ -236,25 +242,42 @@ func (s *server) handler() http.Handler {
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
 	if s.Accounts != nil {
-		// Single segments can't hide a library's page, and GitHub has no account named account.
+		// One segment each, reserved from owners, and pages under /me, which take only the pages of libraries an owner
+		// named me publishes, as libraryPageTaken says. GitHub has no account named account.
 		handle("GET "+signInHref, s.signInPage)
 		handle("POST "+signInHref, s.startSignIn)
+		handle("GET "+legacySignInHref, s.legacySignIn)
 		handle("GET "+gitHubCallbackHref, s.gitHubCallback)
 		handle("POST "+signOutHref, s.signOut)
-		handle("GET "+accountHref, s.accountPage)
+		handle("GET "+dashboardHref, s.dashboard)
+		handle("GET "+legacyAccountHref, s.legacyAccount)
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
+		if s.GitHubAccounts != nil {
+			handle("POST "+refreshHref, s.refresh)
+		}
 		if s.Listings != nil {
-			handle("GET "+listHref, s.listPage)
+			handle("GET "+listHref, s.addPage)
 			handle("POST "+listHref, s.createListing)
+			handle("GET "+runHref, s.runPage)
+			handle("GET "+legacyListHref, s.legacyList)
 			handle("GET "+listingsHref, s.listingsPage)
+			handle("GET "+legacyListingsHref, s.legacyListings)
 			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)
 			handle("POST "+retryListingHref, s.retryListing)
 		}
+		if s.privateAvailable() {
+			handle("GET "+privateHref, s.privatePage)
+			handle("POST "+removePrivateHref, s.removePrivate)
+			handle("GET "+installedHref, s.installed)
+			// GitHub's deliveries aren't a visitor's: no session, no page.
+			mux.HandleFunc("POST "+webhookHref, s.webhook)
+			s.routes["POST "+webhookHref] = true
+		}
 		if s.Stars != nil {
-			handle("GET "+starredHref, s.starredPage)
+			handle("GET "+legacyStarredHref, s.legacyStarred)
 			// Reserved as signInSections lists, so an owner named stars would have their page under /o/.
 			handle("POST "+starsHref, s.starRule)
 			handle("POST "+unstarHref, s.unstarRule)
@@ -318,14 +341,15 @@ func (s *server) withStaticFiles(next http.Handler) http.Handler {
 // GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
 // browse/rules, g/techs, groups/techs, or libraries/rules.
 var siteSections = []string{
-	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "list", "about", "privacy", "faq", "feedback", "cart",
+	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "about", "privacy", "faq", "feedback", "cart",
 }
 
 // signInSections are the first segments of the routes that exist only when sign-in is available: the account pages,
 // signing in and out, and starring rules. They're reserved like siteSections whether sign-in is available or not.
 var signInSections = []string{
 	strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(signInHref, "/"), strings.TrimPrefix(signOutHref, "/"),
-	strings.TrimPrefix(starsHref, "/"),
+	strings.TrimPrefix(legacySignInHref, "/"), strings.TrimPrefix(starsHref, "/"), strings.TrimPrefix(dashboardHref, "/"),
+	strings.TrimPrefix(legacyListHref, "/"),
 }
 
 // reservedOwner reports whether login, in any case, is the first segment of one of the site's own pages, so its
@@ -336,11 +360,13 @@ func reservedOwner(login string) bool {
 }
 
 // libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in
-// any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The account
-// pages take account/{name} too, and starring takes stars/remove, but GitHub has no account named account.
+// any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The visitor's
+// pages take me/{name}, as an owner named me's libraries' pages, GitHub's callback takes account/{name}, though GitHub
+// has no account named account, and starring takes stars/remove.
 func libraryPageTaken(owner, name string) bool {
 	switch strings.ToLower(owner) {
-	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(starsHref, "/"):
+	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(starsHref, "/"),
+		strings.TrimPrefix(dashboardHref, "/"):
 		return true
 	case strings.Trim(browsePrefix, "/"):
 		_, kind := parseGroupKind(name)

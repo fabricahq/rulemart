@@ -43,7 +43,7 @@ func FromEnv(ctx context.Context, getenv func(string) string, name string) (*Sec
 	case value != "" && parameterName != "":
 		return nil, fmt.Errorf("set %s or %s_PARAMETER, not both", name, name)
 	case value != "":
-		return &Secret{value: value}, nil
+		return FromValue(value), nil
 	case parameterName != "":
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
@@ -53,6 +53,11 @@ func FromEnv(ctx context.Context, getenv func(string) string, name string) (*Sec
 	default:
 		return nil, nil
 	}
+}
+
+// FromValue returns the secret value, given directly, as a local build's.
+func FromValue(value string) *Secret {
+	return &Secret{value: value}
 }
 
 // FromParameter returns the secret in the SSM parameter name, which parameters reads.

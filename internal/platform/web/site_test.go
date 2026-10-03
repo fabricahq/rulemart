@@ -34,6 +34,9 @@ const (
 // catalog serves the pages' reads from memory, matching libraries without regard to case as the store does.
 type catalog struct {
 	libraries []views.LibraryCard
+	// dashboard holds every library a dashboard could show: Dashboard answers those of the owners and names it's asked
+	// for.
+	dashboard views.Dashboard
 	// unvetted are the libraries listings name that aren't vetted.
 	unvetted []views.LibraryCard
 	// pages and releases are keyed by lowercase owner/name, and rules by lowercase owner/name, then /<rule path>. A
@@ -106,6 +109,23 @@ func (c catalog) OwnerPage(_ context.Context, login string) (views.OwnerPage, er
 }
 
 func (c catalog) Sitemap(context.Context) (views.Sitemap, error) { return c.sitemap, c.err }
+
+// Dashboard answers the libraries of c.dashboard whose owner is one of owners, and those of names, without regard to
+// case.
+func (c catalog) Dashboard(_ context.Context, owners, names []string) (views.Dashboard, error) {
+	var d views.Dashboard
+	for _, o := range c.dashboard.Owned {
+		if slices.ContainsFunc(owners, func(owner string) bool { return strings.EqualFold(owner, o.Library.Owner) }) {
+			d.Owned = append(d.Owned, o)
+		}
+	}
+	for _, l := range c.dashboard.Imported {
+		if slices.ContainsFunc(names, func(name string) bool { return strings.EqualFold(name, l.Library.FullName()) }) {
+			d.Imported = append(d.Imported, l)
+		}
+	}
+	return d, c.err
+}
 
 // Group matches id without regard to case, and records the choices.
 func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {

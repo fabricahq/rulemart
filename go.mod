@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-lambda-go v1.55.1
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
 	github.com/github/go-spdx/v2 v2.7.0
@@ -18,6 +19,7 @@ require (
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/net v0.58.0
+	golang.org/x/sync v0.23.0
 )
 
 require (
@@ -43,7 +45,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.10.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.43.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.1 // indirect
@@ -137,7 +138,6 @@ require (
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260824195058-e88cd73687aa // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect

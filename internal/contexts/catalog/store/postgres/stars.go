@@ -143,3 +143,48 @@ func ruleStars(ctx context.Context, q *catalogdb.Queries, ids []int64) (map[int6
 	}
 	return stars, nil
 }
+
+// UncountedStars returns the account's stars that count toward no current rule of a vetted library, as store.Stars
+// describes.
+func (s *Store) UncountedStars(ctx context.Context, vetted []domain.LibraryKey, accountID int64) ([]views.UncountedStar, error) {
+	var stars []views.UncountedStar
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		rows, err := catalogdb.New(pool).ListUncountedRuleStars(ctx, catalogdb.ListUncountedRuleStarsParams{
+			AccountID: accountID, MaxReplacements: domain.MaxReplacements, Vetted: vettedKeys(vetted),
+		})
+		if err != nil {
+			return err
+		}
+		stars = make([]views.UncountedStar, len(rows))
+		for i, row := range rows {
+			stars[i] = views.UncountedStar{
+				Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted, Listed: row.Listed,
+				Path: row.Path, Title: row.Title, Retired: row.Retired, ReplacedBy: row.ReplacedBy, StarredAt: row.StarredAt.Time,
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load uncounted stars accountID=%d: %v", accountID, err)
+	}
+	return stars, nil
+}
+
+// RemoveStar removes the account's star on the rule, as store.Stars describes, in one statement.
+func (s *Store) RemoveStar(ctx context.Context, accountID int64, owner, name, rulePath string) error {
+	var removed int64
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		var err error
+		removed, err = catalogdb.New(pool).RemoveRuleStar(ctx, catalogdb.RemoveRuleStarParams{
+			AccountID: accountID, Host: domain.GitHub, Owner: owner, Name: name, Path: rulePath,
+		})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("remove star rule=%q accountID=%d: %v", owner+"/"+name+"/"+rulePath, accountID, err)
+	}
+	if removed == 0 {
+		return fmt.Errorf("remove star rule=%q accountID=%d: %w", owner+"/"+name+"/"+rulePath, accountID, store.ErrNotFound)
+	}
+	return nil
+}

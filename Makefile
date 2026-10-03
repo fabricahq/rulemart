@@ -160,7 +160,7 @@ web:
 	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run ./cmd/web
 
 # Serves the pages as make web does, built with the dev sign-in, so a browser can sign in as a test user without
-# GitHub. Only this local build has it.
+# GitHub. Only this local build has it. Nothing checks a library added locally until make worker runs.
 web-dev:
 	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run -tags $(DEV_TAG) ./cmd/web
 

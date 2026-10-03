@@ -28,11 +28,35 @@ make web
 ```
 
 To try signed-in pages, run `make web-dev` instead of `make web`: it builds the site with the `rulemartdev` tag, whose
-sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub.
+sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub. Without GitHub
+sign-in, that build also serves a fake GitHub in memory,
+[githubtest's `DevFake`](internal/contexts/accounts/github/githubtest/dev.go), so the dashboard at
+<http://127.0.0.1:8080/me> has something to show: `test_user` belongs to the fabricahq organization, which publishes
+the two libraries below, so `/me/add` lists them, and two projects import them at older rule versions, so they have
+updates waiting. The fake lists only public libraries real GitHub has, since the worker reads real GitHub. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
+and a private project. Nothing runs the worker locally, so a library added at `/me/add` stays in progress on
+`/me/add/run` until you run `make worker`, in another terminal, which checks it once, against the same database when
+`make web-dev` uses the local `rulemart` one; for another, give `make worker` that database too, such as
+`LOCAL_WORKER_DATABASE_URL='postgres://rulemart_worker:rulemart-worker-local@127.0.0.1:55432/rulemart_dev?sslmode=disable' make worker`.
+After three minutes the page says
+the check is taking longer than usual, as it does when a deployed check's job is late. Each session seals its GitHub token with a key the build makes at start, so
+after a restart the dashboard asks you to sign in again before it reads the fake again.
 Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
 sign in with GitHub itself, create an OAuth app whose callback URL is `http://127.0.0.1/account/github/callback`, and
-run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> make web`. Rulemart's cookies are `Secure`,
-which Chrome accepts from `http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
+run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> TOKEN_KEY=$(openssl rand -base64 32) make web`:
+each session keeps the visitor's GitHub token sealed with `TOKEN_KEY`, so a new key signs every browser's GitHub
+token out of reach until it signs in again. The dashboard then reads your own GitHub account. To read private
+repositories too, through a GitHub App of your own whose setup URL is `http://127.0.0.1:8080/me/github/installed`, add
+`GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY="$(cat <its .pem>)"`, and
+`GITHUB_APP_WEBHOOK_SECRET`; set all five or none. Its webhook, at `/account/github/webhook`, needs a public address,
+such as a tunnel, so locally an uninstalled app is forgotten at the next read instead.
+
+Deployed, each secret comes from an SSM SecureString that the variable of the same name with `_PARAMETER` names, as
+[cmd/web](cmd/web/main.go) documents: `GITHUB_CLIENT_SECRET_PARAMETER` names `/rulemart/prod/github-client-secret`,
+`TOKEN_KEY_PARAMETER` `/rulemart/prod/token-key`, 32 random bytes in base64, `GITHUB_APP_PRIVATE_KEY_PARAMETER`
+`/rulemart/prod/github-app-key`, and `GITHUB_APP_WEBHOOK_SECRET_PARAMETER` `/rulemart/prod/github-app-webhook-secret`.
+`GITHUB_CLIENT_ID`, `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, and `GITHUB_APP_SLUG` aren't secret. Rulemart's cookies are `Secure`, which Chrome accepts from
+`http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
 
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
 to show: `/browse/techs` and a group such as `/g/techs/go` across both, and `/search?q=retry`. The test library has
@@ -52,7 +76,7 @@ the local database. `make ingest` and `make worker` read either one. `make migra
 refuses a pooled `DATABASE_URL`, and from `DATABASE_URL_PARAMETER` it reads Neon's pooled connection string, as the
 functions do, and derives the direct one. `make web` connects with `LOCAL_WEB_DATABASE_URL` as `rulemart_web`. Each
 login may only do what its group roles' grants allow, as the deployed functions do: `rulemart_web` reads the
-catalog and writes accounts, sessions, listings, and stars, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
+catalog and writes accounts, sessions, GitHub snapshots and installations, listings, and stars, and `rulemart_worker` writes the catalog and records listings' checks. Each starts from `LOCAL_DB_HOST` and `LOCAL_DB_PORT`, as does
 `RULEMART_TEST_DATABASE_URL`, the server where tests create their databases.
 
 Pages name no canonical address locally, so there's no sitemap and no social card; to see them, run
@@ -63,7 +87,7 @@ Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/abo
 
 Pages show the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID, and on their own pages, under a warning, the ones a listing names. To see another library locally,
-list it: sign in with `make web-dev`, list its repository at <http://127.0.0.1:8080/list>, and run `make worker`,
+list it: sign in with `make web-dev`, add its repository at <http://127.0.0.1:8080/me/add>, and run `make worker`,
 which checks the listing, since locally nothing sends its job at once. Or ingest it and add it to `vetted.yaml`, as
 a vetting pull request would. To remove an abusive listing, delete its row as the database's owner:
 `DELETE FROM listings WHERE id = <id>`.
@@ -154,13 +178,18 @@ web Lambda -> SQS, one job per new listing
   - `store` is the persistence contract, and `store/postgres` implements it, with every catalog query in `queries`
     and sqlc's output in `generated/catalogdb`.
   - `views` holds the plain values pages read.
-- `internal/contexts/accounts` owns accounts and sessions, in the same layout: `domain` holds identities, accounts,
-  and session tokens; `app` signs visitors in and out; `github` signs them in with GitHub's OAuth app; and `store`
-  and `store/postgres` keep accounts and sessions, with sqlc's output in `generated/accountsdb`.
+- `internal/contexts/accounts` owns accounts and sessions, and what Rulemart reads of each visitor's GitHub account,
+  in the same layout: `domain` holds identities, accounts, session tokens, the key that seals each session's GitHub
+  token, the GitHub snapshot, and the parser of a project's provenance file; `app` signs visitors in and out, reads
+  their GitHub accounts into snapshots, and records the GitHub App's installations; `github` signs them in with
+  GitHub's OAuth app, reads GitHub's REST API, acts as the GitHub App, and checks its webhook's deliveries, and
+  `github/githubtest` fakes that API for tests and the local build; and `store` and `store/postgres` keep all of it,
+  with sqlc's output in `generated/accountsdb`.
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
   `RULEMART_BASE_URL`, robots.txt and the sitemap, the about and privacy pages, the security headers and optional
-  analytics, sign-in, sign-out, the account page, listing, stars, rules' assets' pages and the images Rulemart serves,
+  analytics, sign-in, sign-out, the dashboard, adding a library and following its check, the GitHub App's install
+  return and webhook, listings, stars, rules' assets' pages and the images Rulemart serves,
   and the cart's page, its script, and its checkout, `queue` sends to the jobs queue, `secret`
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
@@ -189,7 +218,8 @@ go tool goose -dir db/migrations -s create add_libraries sql
   a unique constraint. Ingestion upserts on the natural keys, so a row keeps its id for as long as it exists.
 - Grant `rulemart_catalog_reader` what the web function needs from each new table, usually `SELECT` on what the
   pages read, and nothing on tables the pages don't read. Grant `rulemart_catalog_writer` what ingestion writes,
-  and `rulemart_accounts_writer` what signing in and out, listing, and starring write, and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
+  and `rulemart_accounts_writer` what signing in and out, reading visitors' GitHub accounts, listing, and starring
+  write, and nothing more. Never grant to `rulemart_web`, `rulemart_worker`, or another login role: infrastructure owns
   the logins and their memberships, and migrations own the grants, so a login can be replaced or rotated without a
   migration. The site's tests read as `rulemart_web` and ingest as `rulemart_worker`, through their memberships, so
   a missing grant fails them.

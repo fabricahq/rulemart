@@ -128,7 +128,11 @@ page, and keeps working on the new cache settings.
       `/rulemart/prod/github-client-secret` with a placeholder, which the function treats as unset.
    2. `terragrunt --working-dir .terragrunt-stack/worker_github_token run apply` creates
       `/rulemart/prod/worker-github-token` with a placeholder.
-   3. Neither value passes through OpenTofu or a shell's history:
+   3. From slice R7, the units the dashboard needs create, each with a placeholder: `/rulemart/prod/token-key`, the
+      key that seals each session's GitHub token, which GitHub sign-in refuses to start without;
+      `/rulemart/prod/github-app-key`, the GitHub App "Rulemart by Fabrica"'s private key; and
+      `/rulemart/prod/github-app-webhook-secret`, its webhook's secret.
+   4. None of the values passes through OpenTofu or a shell's history:
 
       ```sh
       # the OAuth app's client secret, on the clipboard
@@ -137,7 +141,24 @@ page, and keeps working on the new cache settings.
       # optionally, the worker's token, on the clipboard
       aws ssm put-parameter --profile rulemart --region us-west-2 --overwrite --type SecureString \
         --name /rulemart/prod/worker-github-token --value "$(pbpaste)"
+      # the token key: 32 random bytes in base64, never shown
+      aws ssm put-parameter --profile rulemart --region us-west-2 --overwrite --type SecureString \
+        --name /rulemart/prod/token-key --value "$(openssl rand -base64 32)"
+      # the GitHub App's private key, the .pem file GitHub gave
+      aws ssm put-parameter --profile rulemart --region us-west-2 --overwrite --type SecureString \
+        --name /rulemart/prod/github-app-key --value "file://$HOME/Downloads/rulemart-by-fabrica.private-key.pem"
+      # the app's webhook secret, the value set in the app's settings, on the clipboard
+      aws ssm put-parameter --profile rulemart --region us-west-2 --overwrite --type SecureString \
+        --name /rulemart/prod/github-app-webhook-secret --value "$(pbpaste)"
       ```
+
+      Replacing `/rulemart/prod/token-key` later leaves every session's token sealed under the old key: each visitor
+      is asked to sign in again before the dashboard reads GitHub. Warm web instances keep the key they read, and
+      seal new sessions' tokens with it, until something makes them read it again: an instance that can't open a
+      token reads the parameter once more, but one that only seals never does. So after replacing the parameter,
+      also make every instance start fresh, so all of them seal with the new key: any update to the web function's
+      configuration, such as `aws lambda update-function-configuration` changing its description, replaces its
+      instances. Sessions sealed under the old key ask for sign-in again. Nothing else breaks.
 
 5. **CloudFront**: `terragrunt --working-dir .terragrunt-stack/cdn run plan`, then `apply`. Expect the default
    behavior's allowed methods to become all seven, its cache policy's cookies a whitelist of
@@ -196,7 +217,9 @@ page, and keeps working on the new cache settings.
    - `rulemart_release`: `tag = "v0.2.0"`, and `web_sha256` and `worker_sha256` from `SHA256SUMS`;
    - `github_oauth.client_id`: the OAuth app's client ID;
    - optionally `web_analytics.site_token`: the Cloudflare token;
-   - optionally `worker_github_token.token_set = true`, once its parameter holds the token.
+   - optionally `worker_github_token.token_set = true`, once its parameter holds the token;
+   - from slice R7, the GitHub App's `app_id`, `client_id`, and `slug` (`rulemart-by-fabrica`), once its two
+     parameters hold their values; `/rulemart/prod/token-key` must hold its key before `github_oauth.client_id` is set.
 
    Merge it, then from `main`:
 
@@ -208,8 +231,10 @@ page, and keeps working on the new cache settings.
    terragrunt --working-dir .terragrunt-stack/worker_lambda run apply
    ```
 
-   `web_lambda`'s plan shows the new code, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET_PARAMETER`, `QUEUE_URL`, and
-   `CLOUDFLARE_WEB_ANALYTICS_TOKEN` if set, a second `ssm:GetParameter` and an `sqs:SendMessage` statement, and three
+   `web_lambda`'s plan shows the new code, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET_PARAMETER`, `TOKEN_KEY_PARAMETER`,
+   `QUEUE_URL`, `CLOUDFLARE_WEB_ANALYTICS_TOKEN` if set, and from slice R7 `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`,
+   `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY_PARAMETER`, and `GITHUB_APP_WEBHOOK_SECRET_PARAMETER`, with
+   `ssm:GetParameter` on each parameter, a second `ssm:GetParameter` and an `sqs:SendMessage` statement, and three
    metric filters and alarms: `rulemart-web-sign-in-failed`, `-listing-not-queued`, and `-sitemap-truncated`.
    `worker_lambda`'s shows the new code, and `GITHUB_TOKEN_PARAMETER` if `token_set`. Either order works: the schema
    is already migrated.

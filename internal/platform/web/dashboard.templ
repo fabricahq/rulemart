@@ -1,0 +1,209 @@
+// The dashboard's page: the visitor's head, the My libraries and Starred rules tabs, and the Account section.
+
+package web
+
+import "strconv"
+
+// The dashboard's pieces, as the prototype draws them: a dashed note, a section's small uppercase head with its count,
+// a row of a section's list, a chip, and a small button.
+const (
+	noteStyle       = "flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
+	sectionHeadStyle = "flex justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase"
+	listRowStyle    = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
+	chipOnStyle     = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
+	quietChipStyle       = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
+	linkButtonStyle = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
+)
+
+// dashboardPage is the signed-in visitor's dashboard, as the prototype's: their avatar, name, login, and organizations,
+// then the My libraries tab, or the Starred rules tab.
+templ dashboardPage(c chrome, d dashboardView) {
+	@layout(c, head{title: "Dashboard · Rulemart", noindex: true}) {
+		<div class="page wrap">
+			<div class="flex items-center gap-4">
+				@avatar(d.account.avatar, d.account.login, avatarLG)
+				<div class="min-w-0">
+					@label("mb-2.5") {
+						Dashboard
+					}
+					<h1 class="title-xl [overflow-wrap:anywhere]">{ nameOrLogin(d.account) }</h1>
+					<p class="text-[13px] text-faint [overflow-wrap:anywhere]">
+						{ "@" + d.account.login }
+						if d.orgs() != "" {
+							· member of { d.orgs() }
+						}
+					</p>
+				</div>
+			</div>
+			@tabs(dashboardTabs(d))
+			if d.stars {
+				@starredTab(d)
+			} else {
+				@librariesTab(d)
+			}
+		</div>
+	}
+}
+
+// nameOrLogin is what the dashboard calls the visitor: their GitHub name, or their login.
+func nameOrLogin(a accountView) string {
+	if a.name != "" {
+		return a.name
+	}
+	return a.login
+}
+
+// dashboardTabs are the dashboard's tabs: My libraries, and Starred rules, with its count, where visitors can star.
+func dashboardTabs(d dashboardView) []tab {
+	tabs := []tab{{name: "My libraries", href: dashboardHref, count: -1, on: !d.stars}}
+	if d.starsAvailable {
+		tabs = append(tabs, tab{name: "Starred rules", href: starredHref, count: d.starCount, on: d.stars})
+	}
+	return tabs
+}
+
+// librariesTab is My libraries: the note on private projects, how fresh the read of GitHub is, the libraries the visitor
+// and their organizations publish, the libraries their projects use, and the Account section.
+templ librariesTab(d dashboardView) {
+	@privateProjectsNote(d.gitHub)
+	@gitHubStatus(d.gitHub)
+	<section aria-labelledby="published">
+		<h2 id="published" class={ sectionHeadStyle, "mt-6" }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
+		if len(d.owned) == 0 {
+			<p class="py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
+		}
+		for _, o := range d.owned {
+			<div class={ listRowStyle }>
+				<div class="min-w-0">
+					<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
+						<a class="no-underline hover:underline" href={ templ.SafeURL(o.href) }
+							if !o.vetted {
+								rel="nofollow"
+							}
+						>{ o.name }</a>
+						if o.isNew {
+							<span class={ chipOnStyle }>New</span>
+						}
+						if !o.vetted {
+							@unvettedBadge()
+						}
+					</p>
+					<p class="mt-0.5 text-[12.5px] text-faint"><span class="mono">@breakable(o.owner + "/" + o.name)</span> · { plural(o.rules, "rule", "rules") }</p>
+				</div>
+				<span class="text-[13px] text-muted tabular-nums" title={ starCountText(o.stars) }>
+					<span aria-hidden="true">★ { formatCount(o.stars) }</span>
+					<span class="sr-only">{ starCountText(o.stars) } in all</span>
+				</span>
+			</div>
+		}
+		if visitorOf(ctx).listings {
+			<div class="mt-3"><a class={ signInButtonStyle } href={ templ.SafeURL(listHref) }>+ Add a library</a></div>
+		}
+	</section>
+	if d.gitHub.available {
+		<section aria-labelledby="used">
+			<h2 id="used" class={ sectionHeadStyle, "mt-[30px]" }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
+			if len(d.used) == 0 {
+				<p class="py-[13px] text-[13.5px] text-muted">
+					if d.gitHub.reading {
+						Rulemart is reading your projects.
+					} else if d.gitHub.readAt == "" {
+						Rulemart hasn't read your projects yet.
+					} else {
+						None of your projects imports a library that's on Rulemart.
+					}
+				</p>
+			}
+			for _, u := range d.used {
+				<div class={ listRowStyle }>
+					<div class="min-w-0">
+						<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
+							<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
+								if !u.vetted {
+									rel="nofollow"
+								}
+							>{ u.name }</a>
+							if !u.vetted {
+								@unvettedBadge()
+							}
+						</p>
+						<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
+							for i, p := range u.projects {
+								if i > 0 {
+									{ " · " }
+								}
+								{ p.repository }
+								if p.private {
+									{ " (private)" }
+								}
+								if p.updates > 0 {
+									{ " · " }<b class="font-medium text-ink">{ plural(p.updates, "rule update", "rule updates") }</b>
+								} else {
+									{ " · up to date" }
+								}
+							}
+						</p>
+					</div>
+					<span class="text-[13px] text-muted">{ plural(len(u.projects), "project", "projects") }</span>
+				</div>
+			}
+			<p class="mt-3 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
+		</section>
+	}
+	@accountSection(d.account, visitorOf(ctx).listings, d.starsAvailable)
+}
+
+// privateProjectsNote is the prototype's note on private projects: whether the dashboard includes the visitor's
+// private projects, with the way to include or manage them.
+templ privateProjectsNote(g gitHubView) {
+	if g.available {
+		if g.private {
+			<div class={ noteStyle }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
+		} else {
+			<div class={ noteStyle }>
+				<span>Showing public repos only.</span>
+				if g.privateAvailable {
+					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>
+				}
+			</div>
+		}
+	}
+}
+
+// starredTab is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty
+// state, then any star that counts toward no rule, under No longer counted, each with Unstar.
+templ starredTab(d dashboardView) {
+	if len(d.starred) == 0 {
+		<div class="rounded-card border border-dashed border-border-strong px-[22px] py-[22px] text-center text-[14px] text-muted">You haven't starred any rules yet. Star a rule from its page.</div>
+	} else {
+		<h2 class="sr-only">Your starred rules</h2>
+		@ruleRows() {
+			for _, r := range d.starred {
+				@ruleRow(r)
+			}
+		}
+	}
+	if len(d.uncounted) > 0 {
+		<section class="mt-9" aria-labelledby="uncounted">
+			<h2 id="uncounted" class={ sectionHeadStyle }><span>No longer counted</span><span>{ strconv.Itoa(len(d.uncounted)) }</span></h2>
+			<p class="mt-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
+			for _, u := range d.uncounted {
+				<div class={ listRowStyle }>
+					<div class="min-w-0">
+						<p class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">
+							if u.href != "" {
+								<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) } rel="nofollow">{ u.title }</a>
+							} else {
+								{ u.title }
+							}
+						</p>
+						<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]"><span class="mono">{ u.library } · { u.path }</span> · { u.why }</p>
+					</div>
+					<form method="post" action={ templ.SafeURL(u.unstar) }>
+						<button class={ smallActionStyle } type="submit" aria-label={ "Unstar " + u.title }>Unstar</button>
+					</form>
+				</div>
+			}
+		</section>
+	}
+}

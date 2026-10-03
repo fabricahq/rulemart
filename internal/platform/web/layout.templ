@@ -23,6 +23,8 @@ type chrome struct {
 	// list's filters as soon as one changes, on a page that lists rules or libraries. cartPageScript renders the cart's
 	// page, through the store cartScript keeps, and cartCheckoutScript keeps what that page knows of its checkout.
 	caretScript, toastScript, cartScript, filtersScript, cartPageScript, cartCheckoutScript string
+	// pollScript fetches a page that follows something happening elsewhere every two seconds, on a page that asks.
+	pollScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -42,6 +44,8 @@ type head struct {
 	// unvetted marks a page about a library that isn't vetted, which asks search engines neither to index it nor to
 	// follow its links, and names no canonical address, so listing a repository can't borrow Rulemart's reputation.
 	unvetted bool
+	// library is the full name of the library the page is about, or empty for a page about no library.
+	library string
 	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
 	// librariesHref, faqHref, or cartHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
@@ -62,6 +66,10 @@ type head struct {
 	noticePrompts bool
 	// caret loads the script that puts the caret at the end of a field the page focuses.
 	caret bool
+	// polling marks a page that follows something happening elsewhere, such as a library being added: it loads the
+	// script that fetches the page again every two seconds and shows what changed, or without scripts, reloads itself
+	// as often.
+	polling bool
 }
 
 // narrowPage is the width of a page about the visitor's own account: signing in aside, its pages and listing.
@@ -69,7 +77,7 @@ const narrowPage = "max-w-[44rem]"
 
 // libraryHead returns h for a page about lib: an unvetted page when lib isn't vetted.
 func libraryHead(h head, lib libraryView) head {
-	h.unvetted = !lib.vetted
+	h.unvetted, h.library = !lib.vetted, lib.fullName()
 	return h
 }
 
@@ -108,6 +116,9 @@ func shownNotice(h head, v visitor) notice {
 	n := notice{text: h.notice}
 	if n.text == "" {
 		n.text, n.link = v.notice, noticeLinks[v.noticeKey]
+	}
+	if n.text == v.notice && v.noticeKey == alreadyListedKey && h.library != "" {
+		n.text = h.library + " is already on Rulemart"
 	}
 	switch {
 	case h.noticePrompts:
@@ -194,6 +205,10 @@ templ layout(c chrome, h head) {
 			}
 			<script src={ c.toastScript } defer></script>
 			<script src={ c.cartScript } defer></script>
+			if h.polling {
+				<script src={ c.pollScript } defer></script>
+				<noscript><meta http-equiv="refresh" content="2"/></noscript>
+			}
 			if h.cartPage {
 				// After cart.js, whose store it reads, and cart-checkout.js: deferred scripts run in order.
 				<script src={ c.cartCheckoutScript } defer></script>

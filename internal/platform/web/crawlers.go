@@ -22,11 +22,11 @@ const (
 // signing in, listing, search, whose every query would be a page, the unvetted area, whose libraries' pages also say
 // noindex, and comparisons, whose every pair of releases or versions would be a page. Each of these pages also asks
 // not to be indexed, for a crawler that ignores robots.txt. A rule matches any path it starts, so each one-segment
-// page is disallowed alone and with a query, by $ and ?: /list alone would also keep crawlers off /listr/rules, a
+// page is disallowed alone and with a query, by $ and ?: /me alone would also keep crawlers off /meta/rules, a
 // library's page.
 var disallowed = func() []string {
-	rules := []string{accountHref + "/"}
-	for _, page := range []string{accountHref, signInHref, listHref, searchHref, unvettedHref} {
+	rules := []string{accountHref + "/", dashboardHref + "/"}
+	for _, page := range []string{accountHref, dashboardHref, signInHref, legacySignInHref, legacyListHref, searchHref, unvettedHref} {
 		rules = append(rules, page+"$", page+"?")
 	}
 	return append(rules, "/*from=")

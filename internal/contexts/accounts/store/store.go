@@ -5,22 +5,29 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
 
 // Store keeps accounts and their sessions. It finds a session by its token's hash, never the token.
 type Store interface {
-	// SignIn records that identity signed in, in one transaction: it adds the identity's account, or updates its login
-	// and avatar; ends the session whose token hashes to replacing, if there is one, since the browser that held it
-	// is signing in again; ends every expired session; and adds a session for the account whose token hashes to
-	// tokenHash, lasting domain.SessionLifetime, keeping the account's newest domain.MaxSessions. It returns the
-	// account and when the new session expires.
-	SignIn(ctx context.Context, identity domain.Identity, tokenHash, replacing []byte) (domain.Account, domain.Session, error)
+	// SignIn records that identity signed in, in one transaction: it adds the identity's account, or updates its login,
+	// avatar, and name; ends the session whose token hashes to replacing, if there is one, since the browser that held
+	// it is signing in again; ends every expired session; discards the account's GitHub snapshot, so the next page that
+	// shows it reads GitHub again with the new session's token; and adds a session for the account whose token hashes
+	// to tokenHash, lasting domain.SessionLifetime, keeping gitHubToken, the session's sealed GitHub token, or none
+	// when it's nil, and keeping the account's newest domain.MaxSessions. It returns the account and when the new
+	// session expires.
+	SignIn(ctx context.Context, identity domain.Identity, tokenHash, replacing, gitHubToken []byte) (domain.Account, domain.Session, error)
 	// SessionAccount returns the account signed in with the session whose token hashes to tokenHash, or ErrNotFound
 	// when there's no such session or it has expired.
 	SessionAccount(ctx context.Context, tokenHash []byte) (domain.Account, error)
-	// EndSession ends the session whose token hashes to tokenHash. Ending one that doesn't exist does nothing.
+	// SessionGitHubToken returns the sealed GitHub token of the session whose token hashes to tokenHash, or nil when it
+	// keeps none, or fails with ErrNotFound when there's no such session or it has expired.
+	SessionGitHubToken(ctx context.Context, tokenHash []byte) ([]byte, error)
+	// EndSession ends the session whose token hashes to tokenHash, and deletes its GitHub token with it. Ending one that
+	// doesn't exist does nothing.
 	EndSession(ctx context.Context, tokenHash []byte) error
 	// EndSessions ends every session of the account signed in with the session whose token hashes to tokenHash, or
 	// fails with ErrNotFound when that session has ended or expired. It reads the account and ends its sessions in one
@@ -29,6 +36,57 @@ type Store interface {
 	// DeleteAccount deletes the account signed in with the session whose token hashes to tokenHash, which ends its
 	// sessions, or fails with ErrNotFound when that session has ended or expired, in one statement as EndSessions.
 	DeleteAccount(ctx context.Context, tokenHash []byte) error
+
+	// Snapshot returns the account's GitHub snapshot, or found false when it has none.
+	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, found bool, err error)
+	// ClaimRead claims a read of the account's GitHub account beginning at now, unless one began within interval before
+	// now and its snapshot hasn't been discarded since, so of requests that arrive together, one reads GitHub. In the
+	// same transaction it returns the account's GitHub generation, how many times its snapshot has been discarded, such
+	// as when its access to private repositories changed, and its snapshot, as of the claim, which no discard can come
+	// between. A read saves what it found with that generation.
+	ClaimRead(ctx context.Context, accountID int64, now time.Time, interval time.Duration) (ReadClaim, error)
+	// SaveSnapshot keeps snapshot as the account's, replacing the one it had, unless the account's GitHub generation is
+	// no longer generation: its snapshot was discarded since the read began, and the read may hold what the account can
+	// no longer see. It returns whether it kept the snapshot.
+	SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot) (bool, error)
+	// Installations returns the installations of the GitHub App the account reads private repositories through, in
+	// the order it added them, suspended ones too.
+	Installations(ctx context.Context, accountID int64) ([]domain.Installation, error)
+	// AddInstallation records that the account reads private repositories through installation, and discards its
+	// snapshot, in one transaction. Adding one it has, as when the visitor changed which repositories it reads, keeps
+	// the snapshot, for a read that fails to fall back on, but advances the account's GitHub generation, so a read under
+	// way keeps nothing and the next read needn't wait out the minute since the last.
+	AddInstallation(ctx context.Context, accountID int64, installation domain.Installation) error
+	// RemoveInstallations forgets every installation the account reads through, and discards its snapshot, in one
+	// transaction.
+	RemoveInstallations(ctx context.Context, accountID int64) error
+	// RemoveInstallation forgets that the account reads through the installation id, and discards its snapshot, in one
+	// transaction. Other accounts that read through it keep it.
+	RemoveInstallation(ctx context.Context, accountID, id int64) error
+	// InstallationRemoved forgets the installation id for every account, and discards their snapshots, in one
+	// transaction.
+	InstallationRemoved(ctx context.Context, id int64) error
+	// InstallationChanged discards the snapshots of the accounts that read through the installation id.
+	InstallationChanged(ctx context.Context, id int64) error
+	// InstallationSuspended records whether the installation id is suspended for every account that reads through it,
+	// and discards their snapshots, in one transaction.
+	InstallationSuspended(ctx context.Context, id int64, suspended bool) error
+}
+
+// ReadClaim is what ClaimRead found as it claimed a read, or declined to.
+type ReadClaim struct {
+	// Claimed is whether the read is the caller's to make: false when another read began within the interval, which
+	// may still be under way.
+	Claimed bool
+	// Generation is the account's GitHub generation as the read was claimed, which the read saves what it finds with;
+	// zero when it wasn't claimed.
+	Generation int64
+	// Snapshot is the account's snapshot as of the claim, empty when it has none: what a failed read keeps, saying
+	// so, and what a request that didn't claim the read shows.
+	Snapshot domain.Snapshot
+	// Found is whether the account had a snapshot as of the claim, so Snapshot is a read's and not empty for want of
+	// one.
+	Found bool
 }
 
 // ErrNotFound reports a session that doesn't exist or has expired.

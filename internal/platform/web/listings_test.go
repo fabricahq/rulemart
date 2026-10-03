@@ -236,17 +236,17 @@ func TestLinksInAnUnvettedRuleAreMarkedAsItsAuthors(t *testing.T) {
 
 // A refusal marks the field invalid, describes it with the refusal, and takes the focus, so it's read first, with the
 // caret at the end of what the visitor typed, which caret.js puts there.
-func TestListPageFocusesTheFieldARefusalDescribes(t *testing.T) {
+func TestAddPageFocusesTheFieldARefusalDescribes(t *testing.T) {
 	site := newListingSite(t)
 
-	page := body(t, site.signedInGet(t, "/list?repository=example"))
+	page := body(t, site.signedInGet(t, "/me/add?url=example"))
 
-	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="repository-problem"`, "autofocus", `role="alert"`, "/caret.js"} {
+	for _, want := range []string{`aria-invalid="true"`, `aria-describedby="library-url-problem"`, "autofocus", `role="alert"`, "/caret.js"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page has no %s", want)
 		}
 	}
-	if page := body(t, site.signedInGet(t, "/list?repository=example%2Fnew")); strings.Contains(page, `aria-invalid="true"`) || strings.Contains(page, " autofocus") || strings.Contains(page, "/caret.js") {
+	if page := body(t, site.signedInGet(t, "/me/add?url=example%2Fnew")); strings.Contains(page, `aria-invalid="true"`) || strings.Contains(page, " autofocus") || strings.Contains(page, "/caret.js") {
 		t.Error("the page marks a repository it accepted invalid")
 	}
 }
@@ -362,50 +362,55 @@ func (s listingSite) signedInPost(t *testing.T, target string) *http.Response {
 	return send(t, s.handler, request{method: http.MethodPost, target: target, cookies: []*http.Cookie{s.session}})
 }
 
-// A visitor who isn't signed in is asked to sign in, and comes back to the form with what they typed.
-func TestListPageAsksAVisitorToSignInFirst(t *testing.T) {
+// A visitor who isn't signed in is asked to sign in, and comes back to the page with what they typed; the listing
+// form's old address leads there too.
+func TestAddPageAsksAVisitorToSignInFirst(t *testing.T) {
 	site := newListingSite(t)
 
 	for target, back := range map[string]string{
-		"/list":                          "/list",
-		"/list?repository=example%2Fnew": "/list?repository=example%2Fnew",
+		"/me/add":                   "/me/add",
+		"/me/add?url=example%2Fnew": "/me/add?url=example%2Fnew",
 	} {
-		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: target}))
-		want := "/sign-in?" + url.Values{"return": {back}}.Encode()
-		if got := links(t, page, "Sign in to list a library"); !slices.Equal(got, []string{want}) {
-			t.Errorf("%s: the sign-in link leads to %q, want %q", target, got, want)
-		}
-		if strings.Contains(page, `name="repository"`) {
-			t.Errorf("%s shows the form to a visitor who isn't signed in", target)
+		resp := send(t, site.handler, request{method: http.MethodGet, target: target})
+		want := "/signin?" + url.Values{"return": {back}}.Encode()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
+			t.Errorf("%s answered %d to %q, want %q", target, resp.StatusCode, resp.Header.Get("Location"), want)
 		}
 	}
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/list?repository=example%2Fnew"})
-	want := "/sign-in?" + url.Values{"return": {"/list?repository=example%2Fnew"}}.Encode()
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=%2Fme%2Fadd"}))
+	assertShows(t, page, "Sign in to add a library.")
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/add?repository=example%2Fnew"})
+	want := "/signin?" + url.Values{"return": {"/me/add?url=example%2Fnew"}}.Encode()
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
-		t.Fatalf("listing signed out answered %d to %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), want)
+		t.Fatalf("adding signed out answered %d to %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), want)
 	}
 	if len(site.listings.listed) != 0 {
 		t.Fatalf("listed %q for a visitor who isn't signed in", site.listings.listed)
 	}
+	legacy := send(t, site.handler, request{method: http.MethodGet, target: "/list?repository=example%2Fnew"})
+	if legacy.StatusCode != http.StatusMovedPermanently || legacy.Header.Get("Location") != "/me/add?url=example%2Fnew" {
+		t.Errorf("the old listing form answered %d to %q", legacy.StatusCode, legacy.Header.Get("Location"))
+	}
 }
 
-// The form checks what the visitor typed, then offers to list the repository it names, with its input in the List
-// button's action, since a POST can't have a body.
-func TestListPageConfirmsARepositoryBeforeListingIt(t *testing.T) {
+// The form checks the address the visitor wrote, then offers to add the repository it names, with it in Add this
+// library's action, since a POST can't have a body.
+func TestAddPageConfirmsARepositoryBeforeAddingIt(t *testing.T) {
 	site := newListingSite(t)
 
-	page := body(t, site.signedInGet(t, "/list"))
-	if !strings.Contains(page, `name="repository"`) || strings.Contains(page, "List this library?") {
-		t.Fatal("the form doesn't ask for a repository, or confirms one before it's given")
+	page := body(t, site.signedInGet(t, "/me/add"))
+	if !strings.Contains(page, `name="url"`) || slices.Contains(formActions(t, page), "/me/add?repository=example%2Fnew") {
+		t.Fatal("the form doesn't ask for an address, or offers a repository before it's given")
 	}
-	resp := site.signedInGet(t, "/list?repository="+url.QueryEscape("https://github.com/example/new.git"))
+	assertShows(t, page, "Add a library", "Or add any public library by URL", "Anyone can add a public library. It will show that you added it.")
+	resp := site.signedInGet(t, "/me/add?url="+url.QueryEscape("https://github.com/example/new.git"))
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page = body(t, resp)
-	assertShows(t, page, "List this library? example/new", "Its pages say it hasn't been vetted")
-	if got := formActions(t, page); !slices.Contains(got, "/list?repository=example%2Fnew") {
-		t.Fatalf("the page's forms post to %q, want /list?repository=example%%2Fnew", got)
+	assertShows(t, page, "example/new Public library on GitHub")
+	if got := formActions(t, page); !slices.Contains(got, "/me/add?repository=example%2Fnew") {
+		t.Fatalf("the page's forms post to %q, want /me/add?repository=example%%2Fnew", got)
 	}
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
@@ -440,70 +445,93 @@ func formActions(t *testing.T, body string) []string {
 	return actions
 }
 
-// Each reason a repository can't be listed says what to do, and links the library already there, with nofollow when
-// it isn't vetted; the List button shows only for a repository that may be listed.
-func TestListPageSaysWhyARepositoryCantBeListed(t *testing.T) {
+// Each reason a repository can't be added says what to do, in the prototype's words, and links the library already
+// there, with nofollow when it isn't vetted, or the visitor's own check of it; Add this library shows only for a
+// repository that may be added.
+func TestAddPageSaysWhyARepositoryCantBeAdded(t *testing.T) {
 	for name, test := range map[string]struct {
 		repository string
 		refusal    error
 		want       string
-		link       []string
+		href       string
+		rel        []string
 	}{
-		"not a repository": {"example", nil, "Give a GitHub repository as owner/name", nil},
-		"vetted": {"example/rules", &app.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
-			"Rulemart has vetted this library already. See example/rules", []string{""}},
-		"listed": {"stranger/rules", &app.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
-			"Someone listed this repository already. See stranger/rules", []string{"nofollow"}},
-		"listed by the visitor": {"stranger/rules", &app.ListingConflict{Own: true, Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
-			"You listed this repository already. See stranger/rules Your listings", []string{"nofollow"}},
-		"listed by the visitor, not checked yet": {"someone/new", &app.ListingConflict{Own: true}, "You listed this repository already. Your listings", nil},
-		"listed by someone else a moment ago": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now()},
-			"Someone listed this repository a moment ago, and Rulemart is checking it.", nil},
-		"listed by someone else, checked for long": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now().Add(-10 * time.Minute)},
-			"Someone listed this repository, and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour.", nil},
+		"not a repository": {"example", nil, "Enter a GitHub repository URL, like https://github.com/owner/repo.", "", nil},
+		"added by the visitor": {"stranger/rules", &app.ListingConflict{Own: true, Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
+			"You added stranger/rules already. See how it went", "/me/add/run?repo=stranger%2Frules", []string{""}},
+		"added by the visitor, not checked yet": {"someone/new", &app.ListingConflict{Own: true},
+			"You added someone/new already. See how it went", "/me/add/run?repo=someone%2Fnew", []string{""}},
+		"added by someone else a moment ago": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now()},
+			"Someone added someone/new a moment ago, and Rulemart is checking it.", "", nil},
+		"added by someone else, checked for long": {"someone/new", &app.ListingConflict{Checking: true, RequestedAt: time.Now().Add(-10 * time.Minute)},
+			"Someone added someone/new, and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour.", "", nil},
 		"at the account's limit": {"someone/new", app.ErrAccountListingLimit,
-			"You have 5 listings Rulemart hasn't vetted, as many as an account may. Remove one, such as one that failed, to list another. Your listings", nil},
-		"full":      {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new listings right now.", nil},
-		"too often": {"someone/new", app.ErrListingTooOften, "You've listed or retried 20 times in the last day", nil},
-		"busy":      {"someone/new", app.ErrListingsBusy, "Rulemart is checking many listings right now. Try again in an hour.", nil},
+			"You have 5 libraries Rulemart hasn't vetted, as many as an account may add. Remove one, such as one that failed, to add another. Your listings",
+			"/me/listings", []string{""}},
+		"full":      {"someone/new", app.ErrListingsFull, "Rulemart isn't taking new libraries right now.", "", nil},
+		"too often": {"someone/new", app.ErrListingTooOften, "You've listed or retried 20 times in the last day", "", nil},
+		"busy":      {"someone/new", app.ErrListingsBusy, "Rulemart is checking many listings right now. Try again in an hour.", "", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			site := newListingSite(t)
 			site.listings.refusal = test.refusal
 
-			page := body(t, site.signedInGet(t, "/list?repository="+url.QueryEscape(test.repository)))
+			page := body(t, site.signedInGet(t, "/me/add?url="+url.QueryEscape(test.repository)))
 
 			assertShows(t, page, test.want)
-			if slices.Contains(formActions(t, page), "/list?repository="+url.QueryEscape(test.repository)) {
-				t.Error("the page offers to list a repository it refused")
+			if slices.Contains(formActions(t, page), "/me/add?repository="+url.QueryEscape(test.repository)) {
+				t.Error("the page offers to add a repository it refused")
 			}
-			if test.link != nil {
-				href := "/" + strings.SplitN(test.repository, "/", 2)[0] + "/" + strings.SplitN(test.repository, "/", 2)[1]
-				if got := rels(t, page, href); !slices.Equal(got, test.link) {
-					t.Errorf("links %s with rel %q, want %q", href, got, test.link)
+			if test.href != "" {
+				if got := rels(t, page, test.href); !slices.Equal(got, test.rel) {
+					t.Errorf("links %s with rel %q, want %q", test.href, got, test.rel)
 				}
 			}
 
-			resp := site.signedInPost(t, "/list?repository="+url.QueryEscape(test.repository))
+			resp := site.signedInPost(t, "/me/add?repository="+url.QueryEscape(test.repository))
 			if resp.StatusCode != http.StatusConflict || len(site.listings.listed) != 0 {
-				t.Fatalf("listing answered %d and listed %q, want 409 and nothing listed", resp.StatusCode, site.listings.listed)
+				t.Fatalf("adding answered %d and listed %q, want 409 and nothing listed", resp.StatusCode, site.listings.listed)
 			}
 			assertShows(t, body(t, resp), test.want)
 		})
 	}
 }
 
-// Listing lists the repository for the signed-in visitor and shows their listings, saying so once.
-func TestListingListsTheRepositoryAndShowsTheListings(t *testing.T) {
+// A repository Rulemart has already leads to its library's page, which says so in a status toast, as the prototype's
+// form does.
+func TestAddingALibraryRulemartHasLeadsToItsPage(t *testing.T) {
+	for name, conflict := range map[string]*app.ListingConflict{
+		"vetted": {Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
+		"listed": {Library: views.LibraryRef{Owner: "example", Name: "rules"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newListingSite(t)
+			site.listings.refusal = conflict
+
+			for _, resp := range []*http.Response{site.signedInGet(t, "/me/add?url=Example%2FRules"), site.signedInPost(t, "/me/add?repository=Example%2FRules")} {
+				if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/example/rules" {
+					t.Fatalf("answered %d to %q, want the library's page", resp.StatusCode, resp.Header.Get("Location"))
+				}
+				page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/example/rules", cookies: []*http.Cookie{cookie(resp, noticeCookie)}}))
+				if got, kind := toastText(t, page), noticeToast(t, page); got != "example/rules is already on Rulemart" || kind != "status" {
+					t.Errorf("the library's page toasts %q as a %q toast, want a status toast", got, kind)
+				}
+			}
+			if len(site.listings.listed) != 0 {
+				t.Errorf("listed %q", site.listings.listed)
+			}
+		})
+	}
+}
+
+// Adding lists the repository for the signed-in visitor and follows its check.
+func TestAddingListsTheRepositoryAndFollowsItsCheck(t *testing.T) {
 	site := newListingSite(t)
 
-	resp := site.signedInPost(t, "/list?repository=example%2Fnew")
+	resp := site.signedInPost(t, "/me/add?repository=example%2Fnew")
 
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/account/listings" {
-		t.Fatalf("answered %d to %q, want a redirect to /account/listings", resp.StatusCode, resp.Header.Get("Location"))
-	}
-	if notice := cookie(resp, noticeCookie); notice == nil || notice.Value != "listed" {
-		t.Fatalf("set the notice %v, want listed", notice)
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me/add/run?repo=example%2Fnew" {
+		t.Fatalf("answered %d to %q, want a redirect to the check", resp.StatusCode, resp.Header.Get("Location"))
 	}
 	if !slices.Equal(site.listings.listed, []string{"1 example/new"}) {
 		t.Fatalf("listed %q", site.listings.listed)
@@ -514,11 +542,11 @@ func TestListingListsTheRepositoryAndShowsTheListings(t *testing.T) {
 }
 
 // A listing whose check couldn't be queued still stands, for the hourly poll, and the failure is logged.
-func TestListingStandsWhenItsCheckWasntQueued(t *testing.T) {
+func TestAddingStandsWhenItsCheckWasntQueued(t *testing.T) {
 	site := newListingSite(t)
 	site.listings.notQueued = true
 
-	resp := site.signedInPost(t, "/list?repository=example%2Fnew")
+	resp := site.signedInPost(t, "/me/add?repository=example%2Fnew")
 
 	if resp.StatusCode != http.StatusSeeOther || len(site.listings.listed) != 1 {
 		t.Fatalf("answered %d and listed %q", resp.StatusCode, site.listings.listed)
@@ -532,7 +560,7 @@ func TestListingStandsWhenItsCheckWasntQueued(t *testing.T) {
 func TestListingRefusesARequestAnotherSiteStarted(t *testing.T) {
 	site := newListingSite(t)
 
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/list?repository=example%2Fnew",
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/add?repository=example%2Fnew",
 		cookies: []*http.Cookie{site.session}, header: http.Header{"Sec-Fetch-Site": {"cross-site"}}})
 
 	if resp.StatusCode != http.StatusForbidden || len(site.listings.listed) != 0 {
@@ -560,14 +588,14 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	site := newListingSite(t)
 	listingsFor(site, time.Now().Add(-time.Minute))
 
-	resp := site.signedInGet(t, "/account/listings")
+	resp := site.signedInGet(t, "/me/listings")
 
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page := body(t, resp)
 	assertShows(t, page,
-		"Your listings List a library Each listing takes one of your 5 places until Rulemart vets its library, failed ones too. You're using 3.",
+		"Your listings Add a library Each listing takes one of your 5 places until Rulemart vets its library, failed ones too. You're using 3.",
 		"someone/new Checking Listed", "Rulemart is checking the repository on GitHub It usually takes a few seconds. You asked 1 minute ago. Refresh status",
 		"someone/broken Failed Listed 3 Sep 2026 Rulemart couldn't list it The repository has no release/<number> tags "+
 			"Until it lists, another account can list this repository, which replaces your listing.",
@@ -587,10 +615,10 @@ func TestListingsPageShowsEachListingsState(t *testing.T) {
 	if got := rels(t, page, "https://github.com/stranger/rules"); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("links the listed library on GitHub with rel %q, want nofollow", got)
 	}
-	if actions := formActions(t, page); !slices.Equal(actions, []string{"/sign-out", "/account/listings/retry?listing=3"}) {
+	if actions := formActions(t, page); !slices.Equal(actions, []string{"/signout", "/me/listings/retry?listing=3"}) {
 		t.Errorf("the page's forms post to %q, want signing out, and only a retry of the failed listing", actions)
 	}
-	if got := links(t, page, "Remove"); len(got) != 4 || got[0] != "/account/listings/remove?listing=4" {
+	if got := links(t, page, "Remove"); len(got) != 4 || got[0] != "/me/listings/remove?listing=4" {
 		t.Errorf("the Remove links lead to %q, want each listing's confirmation", got)
 	}
 }
@@ -600,23 +628,23 @@ func TestListingsPageSaysWhenACheckIsTakingLonger(t *testing.T) {
 	site := newListingSite(t)
 	listingsFor(site, time.Now().Add(-5*time.Minute))
 
-	assertShows(t, body(t, site.signedInGet(t, "/account/listings")),
+	assertShows(t, body(t, site.signedInGet(t, "/me/listings")),
 		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Refresh status")
 }
 
 func TestListingsPageSaysWhenThereAreNone(t *testing.T) {
 	site := newListingSite(t)
 
-	assertShows(t, body(t, site.signedInGet(t, "/account/listings")), "You haven't listed a library.")
+	assertShows(t, body(t, site.signedInGet(t, "/me/listings")), "You haven't added a library.")
 }
 
 // The listings page is the visitor's own: anyone else signs in first, and comes back to it.
 func TestListingsPageAsksAVisitorToSignInFirst(t *testing.T) {
 	site := newListingSite(t)
 
-	resp := send(t, site.handler, request{method: http.MethodGet, target: "/account/listings"})
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me/listings"})
 
-	want := "/sign-in?" + url.Values{"return": {"/account/listings"}}.Encode()
+	want := "/signin?" + url.Values{"return": {"/me/listings"}}.Encode()
 	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
 		t.Fatalf("answered %d to %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), want)
 	}
@@ -634,20 +662,20 @@ func TestRemovingAListingAsksFirstAndSaysWhatItDoes(t *testing.T) {
 		"3": "Rulemart forgets it, and it stops taking one of your places.",
 		"4": "Rulemart stops checking it, so its library won't show on Rulemart",
 	} {
-		resp := site.signedInGet(t, "/account/listings/remove?listing="+id)
+		resp := site.signedInGet(t, "/me/listings/remove?listing="+id)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("listing %s: got %d", id, resp.StatusCode)
 		}
 		page := body(t, resp)
 		assertShows(t, page, "Remove this listing?", want)
-		if got := formActions(t, page); !slices.Contains(got, "/account/listings/remove?listing="+id) {
+		if got := formActions(t, page); !slices.Contains(got, "/me/listings/remove?listing="+id) {
 			t.Errorf("listing %s: the page's forms post to %q", id, got)
 		}
 	}
 	if len(site.listings.removed) != 0 {
 		t.Fatalf("asking removed %v", site.listings.removed)
 	}
-	for _, target := range []string{"/account/listings/remove?listing=99", "/account/listings/remove?listing=x"} {
+	for _, target := range []string{"/me/listings/remove?listing=99", "/me/listings/remove?listing=x"} {
 		if resp := site.signedInGet(t, target); resp.StatusCode != http.StatusNotFound {
 			t.Errorf("%s answered %d, want 404", target, resp.StatusCode)
 		}
@@ -661,26 +689,33 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	listingsFor(site, time.Now())
 
 	for _, test := range []struct{ target, notice string }{
-		{"/account/listings/remove?listing=2", "listing-removed-listed"},
-		{"/account/listings/remove?listing=1", "listing-removed-vetted"},
-		{"/account/listings/remove?listing=4", "listing-removed-checking"},
-		{"/account/listings/remove?listing=3", "listing-removed"},
-		{"/account/listings/retry?listing=3", "listing-retried"},
-		{"/account/listings/retry?listing=4", "listing-not-failed"},
+		{"/me/listings/remove?listing=2", "listing-removed-listed"},
+		{"/me/listings/remove?listing=1", "listing-removed-vetted"},
+		{"/me/listings/remove?listing=4", "listing-removed-checking"},
+		{"/me/listings/remove?listing=3", "listing-removed"},
+		{"/me/listings/retry?listing=3", "listing-retried"},
+		{"/me/listings/retry?listing=4", "listing-not-failed"},
 	} {
 		resp := site.signedInPost(t, test.target)
-		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/account/listings" {
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me/listings" {
 			t.Fatalf("%s answered %d to %q", test.target, resp.StatusCode, resp.Header.Get("Location"))
 		}
 		if got := cookie(resp, noticeCookie); got == nil || got.Value != test.notice {
 			t.Errorf("%s set the notice %v, want %s", test.target, got, test.notice)
 		}
 	}
+	// Only the run page is a page to return to other than the listings page.
+	for _, back := range []string{"/browse/techs", "https://evil.example/me/add/run", "/me/add/run/x"} {
+		resp := site.signedInPost(t, "/me/listings/retry?"+url.Values{"listing": {"4"}, "return": {back}}.Encode())
+		if got := resp.Header.Get("Location"); got != "/me/listings" {
+			t.Errorf("retrying with the return %q returned to %q, want /me/listings", back, got)
+		}
+	}
 	if !slices.Equal(site.listings.removed, []int64{2, 1, 4, 3}) || !slices.Equal(site.listings.retried, []int64{3}) {
 		t.Fatalf("removed %v and retried %v", site.listings.removed, site.listings.retried)
 	}
 	for _, target := range []string{
-		"/account/listings/remove?listing=99", "/account/listings/remove?listing=x", "/account/listings/remove",
+		"/me/listings/remove?listing=99", "/me/listings/remove?listing=x", "/me/listings/remove",
 	} {
 		resp := site.signedInPost(t, target)
 		if resp.StatusCode != http.StatusNotFound {
@@ -688,9 +723,9 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 		}
 		assertShows(t, body(t, resp), "You have no such listing. It may have been removed already. Your listings")
 	}
-	for _, target := range []string{"/account/listings/remove?listing=3", "/account/listings/retry?listing=3"} {
+	for _, target := range []string{"/me/listings/remove?listing=3", "/me/listings/retry?listing=3"} {
 		signedOut := send(t, site.handler, request{method: http.MethodPost, target: target})
-		want := "/sign-in?" + url.Values{"return": {"/account/listings"}}.Encode()
+		want := "/signin?" + url.Values{"return": {"/me/listings"}}.Encode()
 		if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != want {
 			t.Errorf("%s signed out answered %d to %q, want sign-in", target, signedOut.StatusCode, signedOut.Header.Get("Location"))
 		}
@@ -700,15 +735,18 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	}
 }
 
-// The account menu leads to the visitor's listings, and the libraries page to listing one, only where listing is
-// available.
+// The account menu leads to adding a library, the dashboard to the visitor's listings, and the libraries page to adding
+// one, only where listing is available.
 func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	site := newListingSite(t)
 	page := body(t, site.signedInGet(t, "/libraries"))
-	if got := links(t, page, "Your listings"); !slices.Equal(got, []string{"/account/listings"}) {
-		t.Errorf("the menu links your listings at %q", got)
+	if got := links(t, page, "Add a library"); !slices.Equal(got, []string{"/me/add"}) {
+		t.Errorf("the menu links adding a library at %q", got)
 	}
-	if got := links(t, page, "list a public library"); !slices.Equal(got, []string{"/list"}) {
+	if got := links(t, body(t, site.signedInGet(t, "/me")), "Your listings"); !slices.Equal(got, []string{"/me/listings"}) {
+		t.Errorf("the dashboard links your listings at %q", got)
+	}
+	if got := links(t, page, "list a public library"); !slices.Equal(got, []string{"/me/add"}) {
 		t.Errorf("the libraries page links listing at %q", got)
 	}
 
@@ -716,20 +754,20 @@ func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	token := without.accounts.signedIn(t, accounts.Identity{GitHubUserID: 2, Login: "hubot"})
 	page = body(t, send(t, without.handler, request{method: http.MethodGet, target: "/libraries",
 		cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
-	if strings.Contains(page, "Your listings") || len(links(t, page, "list a public library")) > 0 {
+	if strings.Contains(page, "Add a library") || len(links(t, page, "list a public library")) > 0 {
 		t.Error("a site without listings offers them")
 	}
-	if resp := send(t, without.handler, request{method: http.MethodGet, target: "/list"}); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("/list answered %d without listings, want 404", resp.StatusCode)
+	if resp := send(t, without.handler, request{method: http.MethodGet, target: "/me/add"}); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("/me/add answered %d without listings, want 404", resp.StatusCode)
 	}
 }
 
 // A failure to read listings fails the page, as any read does.
-func TestListPageFailsWhenListingsCantBeRead(t *testing.T) {
+func TestAddPageFailsWhenListingsCantBeRead(t *testing.T) {
 	site := newListingSite(t)
 	site.listings.refusal = errors.New("connection refused")
 
-	if resp := site.signedInGet(t, "/list?repository=example%2Fnew"); resp.StatusCode != http.StatusServiceUnavailable {
+	if resp := site.signedInGet(t, "/me/add?url=example%2Fnew"); resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("got %d, want 503", resp.StatusCode)
 	}
 }
@@ -754,7 +792,7 @@ func TestRetryingSaysWhenAVisitorAskedTooOften(t *testing.T) {
 	listingsFor(site, time.Now())
 	site.listings.retryRefusal = fmt.Errorf("retry listing id=3: %w", app.ErrListingTooOften)
 
-	resp := site.signedInPost(t, "/account/listings/retry?listing=3")
+	resp := site.signedInPost(t, "/me/listings/retry?listing=3")
 
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("answered %d, want 429", resp.StatusCode)

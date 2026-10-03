@@ -82,7 +82,11 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 		}
 		assertShows(t, resp.body, "GitHub user ID", "__Host-rulemart-session", "30 days", "IP address", "180 days",
 			"Delete your account", "6 hours", "Amazon Web Services", "Neon",
-			"A library's page shows the username you last signed in with as who added it, and when, while your listing stands.")
+			"A library's page shows the username you last signed in with as who added it, and when, while your listing stands.",
+			"the organizations you belong to", "keeps the token GitHub gives Rulemart, encrypted", "Signing out deletes the token",
+			"at most 200 of them", ".code-rules/generated/provenance.json", "the versions of their rules it holds",
+			"Private repositories' names and projects show only to you", "until you delete your account",
+			"what it read of your GitHub account, and its record of the GitHub App's installations")
 	}
 	assertShows(t, without.Body.String(), "Rulemart uses no analytics service.")
 	if strings.Contains(visibleText(t, without.Body.String()), "Cloudflare Web Analytics") {
@@ -123,7 +127,7 @@ func TestLibraryPagesLeadToAReportAboutTheLibrary(t *testing.T) {
 func TestSignInPageLeadsToPrivacy(t *testing.T) {
 	site := newAccountsSite(t, nil)
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"}))
 
 	if got := links(t, page, "How Rulemart treats your data"); !slices.Equal(got, []string{"/privacy"}) {
 		t.Errorf("leads to %q", got)

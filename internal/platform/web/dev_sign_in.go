@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 
-	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 )
 
 // DevSignIn reports whether this build lets visitors sign in as a test user. Only a rulemartdev build does.
@@ -20,12 +20,8 @@ const DevSignIn = true
 // return in the return parameter. GitHub has no account named account, so it can't hide a library's page.
 const devSignInPattern = "POST " + accountHref + "/dev-sign-in"
 
-// testUsers are who a local build can sign in as. Their IDs are far past GitHub's, their logins have an underscore,
-// which no personal GitHub account's can, and they have no avatar, so they show their initial.
-var testUsers = []accounts.Identity{
-	{GitHubUserID: 9_000_000_001, Login: "test_user"},
-	{GitHubUserID: 9_000_000_002, Login: "test_user_2"},
-}
+// testUsers are who a local build can sign in as: the users its fake GitHub knows.
+var testUsers = githubtest.DevUsers()
 
 // isTestUser reports whether the GitHub user ID gitHubUserID is a test user's.
 func isTestUser(gitHubUserID int64) bool {
@@ -43,12 +39,12 @@ func (s *server) registerDevSignIn(handle func(pattern string, handler http.Hand
 }
 
 // devSignIn signs the visitor in as the test user the as parameter names, as GitHub's callback signs in a GitHub
-// user, and returns them to the return parameter.
+// user, with the token the local build's fake GitHub knows them by, and returns them to the return parameter.
 func (s *server) devSignIn(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	for _, user := range testUsers {
 		if user.Login == query.Get("as") {
-			s.signIn(w, r, user, returnPath(query.Get("return")))
+			s.signIn(w, r, user, githubtest.DevToken(user.Login), signInReturn(query.Get("return")))
 			return
 		}
 	}

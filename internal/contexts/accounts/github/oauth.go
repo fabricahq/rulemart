@@ -1,7 +1,5 @@
-// Package github signs visitors in with a GitHub OAuth app: it sends them to GitHub to authorize Rulemart, then
-// exchanges the code GitHub returns for a token, reads who they are with it, and discards it. It asks for no scopes,
-// so the token can read only what's public, and Rulemart needs nothing more than the user's ID, login, and avatar.
-// The flow uses PKCE, so a code that leaks on its way back is worthless without the verifier the browser kept.
+// Sign visitors in with the GitHub OAuth app, and read who they are.
+
 package github
 
 import (
@@ -22,6 +20,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
 
+// Scope is what sign-in asks GitHub for: the organizations a visitor belongs to, including memberships they keep
+// private. With it, the token reads what's public, and the visitor's organizations, and nothing private else.
+const Scope = "read:org"
+
 // GitHub's OAuth endpoints and API, which a test replaces.
 const (
 	authorizeURL = "https://github.com/login/oauth/authorize"
@@ -29,8 +31,8 @@ const (
 	userURL      = "https://api.github.com/user"
 )
 
-// requestTimeout bounds each request to GitHub, so a stalled one fails the sign-in well within the web function's
-// timeout.
+// requestTimeout bounds each request to GitHub, at sign-in and in every read of a visitor's GitHub account, so a
+// stalled one fails well within the web function's timeout.
 const requestTimeout = 5 * time.Second
 
 // maxResponseBytes bounds what Rulemart reads of each response. GitHub's are under a few KiB.
@@ -66,11 +68,12 @@ func New(clientID string, secret Secret) *Client {
 
 // AuthorizationURL returns the GitHub page that asks the visitor to authorize Rulemart, and then sends them to
 // redirectURI with a code and state. challenge is the PKCE challenge of the verifier the browser keeps. The URL asks
-// for no scopes.
+// for Scope.
 func (c *Client) AuthorizationURL(state, challenge, redirectURI string) string {
 	query := url.Values{
 		"client_id":             {c.clientID},
 		"redirect_uri":          {redirectURI},
+		"scope":                 {Scope},
 		"state":                 {state},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
@@ -79,17 +82,18 @@ func (c *Client) AuthorizationURL(state, challenge, redirectURI string) string {
 }
 
 // Identify exchanges the code GitHub sent to redirectURI, with the PKCE verifier whose challenge AuthorizationURL
-// sent, for a token, and returns the user it signs in. Errors never include the code, the verifier, or the token.
-func (c *Client) Identify(ctx context.Context, code, verifier, redirectURI string) (domain.Identity, error) {
+// sent, for a token, and returns the user it signs in, with the token, which reads what Scope allows. Errors never
+// include the code, the verifier, or the token.
+func (c *Client) Identify(ctx context.Context, code, verifier, redirectURI string) (domain.Identity, string, error) {
 	token, err := c.exchange(ctx, code, verifier, redirectURI)
 	if err != nil {
-		return domain.Identity{}, fmt.Errorf("sign in with GitHub: exchange the code: %w", err)
+		return domain.Identity{}, "", fmt.Errorf("sign in with GitHub: exchange the code: %w", err)
 	}
 	identity, err := c.user(ctx, token)
 	if err != nil {
-		return domain.Identity{}, fmt.Errorf("sign in with GitHub: read the user: %v", err)
+		return domain.Identity{}, "", fmt.Errorf("sign in with GitHub: read the user: %v", err)
 	}
-	return identity, nil
+	return identity, token, nil
 }
 
 // exchange trades code for an access token.
@@ -128,8 +132,8 @@ func (c *Client) exchange(ctx context.Context, code, verifier, redirectURI strin
 		return "", errors.New("GitHub refused the callback URL: redirect_uri_mismatch")
 	case response.Error != "":
 		return "", fmt.Errorf("%w: %s", ErrCodeRefused, safeCode(response.Error))
-	case response.AccessToken == "":
-		return "", errors.New("GitHub returned no token")
+	case response.AccessToken == "" || len(response.AccessToken) > domain.MaxGitHubTokenLength:
+		return "", errors.New("GitHub returned no token Rulemart can keep")
 	}
 	return response.AccessToken, nil
 }
@@ -140,18 +144,22 @@ func (c *Client) user(ctx context.Context, token string) (domain.Identity, error
 	if err != nil {
 		return domain.Identity{}, err
 	}
-	request.Header.Set("Authorization", "Bearer "+token)
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	setHeaders(request, token, "")
 	var user struct {
 		ID        int64  `json:"id"`
 		Login     string `json:"login"`
 		AvatarURL string `json:"avatar_url"`
+		// Name is null when the user set none.
+		Name *string `json:"name"`
 	}
 	if err := c.do(request, &user); err != nil {
 		return domain.Identity{}, err
 	}
-	return domain.NewIdentity(user.ID, user.Login, user.AvatarURL)
+	identity, err := domain.NewIdentity(user.ID, user.Login, user.AvatarURL)
+	if err != nil || user.Name == nil {
+		return identity, err
+	}
+	return identity.WithName(*user.Name), nil
 }
 
 // do sends request and decodes its JSON response into v, failing on any status but 200.

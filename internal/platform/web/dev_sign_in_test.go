@@ -15,7 +15,7 @@ import (
 func TestALocalBuildSignsInAsATestUser(t *testing.T) {
 	site := newAccountsSite(t, func(o *web.Options) { o.GitHub = nil })
 
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/sign-in?return=%2Fbrowse%2Ftechs"}))
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=%2Fbrowse%2Ftechs"}))
 	resp := send(t, site.handler, request{method: http.MethodPost, target: "/account/dev-sign-in?as=test_user&return=%2Fbrowse%2Ftechs"})
 
 	assertShows(t, page, "Local build", "Sign in as test_user", "Sign in as test_user_2")
@@ -25,14 +25,14 @@ func TestALocalBuildSignsInAsATestUser(t *testing.T) {
 	session := cookie(resp, sessionCookie)
 	assertCookieAttributes(t, session, 30*24*60*60)
 	signedIn := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{session}}))
-	assertShows(t, signedIn, "Signed in as test_user")
+	assertShows(t, signedIn, "Signed in as @test_user")
 	// Only the GitHub button signs in with GitHub, so the header's link shows no GitHub mark without it.
 	if signInLinkHasMark(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs"}))) {
 		t.Error("without GitHub, the Sign in link shows GitHub's mark")
 	}
-	// A test user is no GitHub user: the account page says so, and links no GitHub profile.
-	account := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/account", cookies: []*http.Cookie{session}}))
-	assertShows(t, account, "Local test user")
+	// A test user is no GitHub user: the dashboard's Account section says so, and links no GitHub profile.
+	account := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{session}}))
+	assertShows(t, account, "Username test_user (local test user)")
 	if strings.Contains(account, "github.com/test_user") || strings.Contains(visibleText(t, account), "Signed in with GitHub") {
 		t.Error("the account page presents a test user as a GitHub user")
 	}

@@ -1,0 +1,41 @@
+// What a page that shows the visitor's GitHub account says of it.
+
+package web
+
+// gitHubStatus says how fresh Rulemart's read of the visitor's GitHub account is, for the page whose sections follow:
+// when Rulemart last read it, with Refresh, that the last read failed, that it's making the first read now, or that
+// the visitor must sign in again for Rulemart to read it.
+templ gitHubStatus(g gitHubView) {
+	if g.available {
+		<div class="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-faint" data-github-status>
+			switch {
+				case g.signInAgain != "":
+					<span class="text-ink">Sign in again so Rulemart can read your repositories on GitHub.</span>
+					<a class={ linkButtonStyle } href={ templ.SafeURL(g.signInAgain) }>Sign in again</a>
+				case g.failed:
+					<span class="text-ink" role="status">
+						Rulemart couldn't read your repositories on GitHub just now.
+						if g.readAt != "" {
+							Showing what it read { g.readAt }.
+						}
+					</span>
+					@refreshButton(g.refresh, "Try again")
+				case g.reading:
+					<span class="text-ink" role="status">Rulemart is reading your repositories on GitHub. This page will update in a moment.</span>
+				case g.readAt != "":
+					<span>Read from GitHub { g.readAt }.</span>
+					@refreshButton(g.refresh, "Refresh")
+			}
+			if g.snapshot.Truncated {
+				<span class="basis-full">Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.</span>
+			}
+		</div>
+	}
+}
+
+// refreshButton reads the visitor's GitHub account again, labeled label.
+templ refreshButton(action, label string) {
+	<form method="post" action={ templ.SafeURL(action) }>
+		<button class={ linkButtonStyle } type="submit">{ label }</button>
+	</form>
+}

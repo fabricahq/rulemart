@@ -14,10 +14,14 @@ import (
 // devSignInRoute is the dev sign-in's route pattern, which only a binary that has the dev sign-in holds.
 const devSignInRoute = "POST /account/dev-sign-in"
 
-// The release builds the web function as lambda-build.toml says, and its binary must not hold the dev sign-in: a
-// binary that did would let anyone sign in as a test user. This builds the web function with the release's own
-// command line, and with the rulemartdev tag added, and checks that only the second holds the dev sign-in's route,
-// so the check would see it if the release build had it.
+// githubtestPackage is the fake GitHub's package path, which the names of its functions hold, even in a binary built
+// with -s -w, so only a binary that has the fake holds it.
+const githubtestPackage = "accounts/github/githubtest"
+
+// The release builds the web function as lambda-build.toml says, and its binary must not hold the dev sign-in or the
+// fake GitHub: a binary that did would let anyone sign in as a test user. This builds the web function with the
+// release's own command line, and with the rulemartdev tag added, and checks that only the second holds the dev
+// sign-in's route and the fake's package, so the check would see them if the release build had them.
 func TestTheReleaseBuildOfTheWebFunctionHasNoDevSignIn(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the web function twice")
@@ -35,6 +39,12 @@ func TestTheReleaseBuildOfTheWebFunctionHasNoDevSignIn(t *testing.T) {
 	}
 	if !bytes.Contains(dev, []byte(devSignInRoute)) {
 		t.Error("a rulemartdev build doesn't hold the dev sign-in's route, so this check can't see it")
+	}
+	if bytes.Contains(release, []byte(githubtestPackage)) {
+		t.Error("the release build of the web function holds the fake GitHub")
+	}
+	if !bytes.Contains(dev, []byte(githubtestPackage)) {
+		t.Error("a rulemartdev build doesn't hold the fake GitHub's package, so this check can't see it")
 	}
 }
 

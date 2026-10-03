@@ -9,12 +9,15 @@ import (
 )
 
 type Account struct {
-	ID           int64
-	GithubUserID int64
-	GithubLogin  string
-	AvatarUrl    string
-	CreatedAt    pgtype.Timestamptz
-	SignedInAt   pgtype.Timestamptz
+	ID               int64
+	GithubUserID     int64
+	GithubLogin      string
+	AvatarUrl        string
+	CreatedAt        pgtype.Timestamptz
+	SignedInAt       pgtype.Timestamptz
+	GithubName       string
+	GithubGeneration int64
+	GithubTriedAt    pgtype.Timestamptz
 }
 
 type Asset struct {
@@ -26,6 +29,19 @@ type Asset struct {
 	MediaType string
 	Content   []byte
 	Html      pgtype.Text
+}
+
+type GithubInstallation struct {
+	AccountID      int64
+	InstallationID int64
+	GithubAccount  string
+	Suspended      bool
+	CreatedAt      pgtype.Timestamptz
+}
+
+type GithubSnapshot struct {
+	AccountID int64
+	Snapshot  []byte
 }
 
 type HelloMessage struct {
@@ -135,9 +151,10 @@ type RuleVersion struct {
 }
 
 type Session struct {
-	ID        int64
-	TokenHash []byte
-	AccountID int64
-	CreatedAt pgtype.Timestamptz
-	ExpiresAt pgtype.Timestamptz
+	ID          int64
+	TokenHash   []byte
+	AccountID   int64
+	CreatedAt   pgtype.Timestamptz
+	ExpiresAt   pgtype.Timestamptz
+	GithubToken []byte
 }

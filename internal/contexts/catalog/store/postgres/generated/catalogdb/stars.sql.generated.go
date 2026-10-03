@@ -191,6 +191,123 @@ func (q *Queries) ListAccountRuleStars(ctx context.Context, arg ListAccountRuleS
 	return items, nil
 }
 
+const listUncountedRuleStars = `-- name: ListUncountedRuleStars :many
+WITH RECURSIVE heirs AS (
+    SELECT s.rule_id AS starred_id, r.id, r.library_id, r.replaced_by, r.retired_in_release_id, 0 AS steps
+    FROM rule_stars s JOIN rules r ON r.id = s.rule_id
+    WHERE s.account_id = $2::bigint
+    UNION ALL
+    SELECT h.starred_id, n.id, n.library_id, n.replaced_by, n.retired_in_release_id, h.steps + 1
+    FROM heirs h JOIN rules n ON n.library_id = h.library_id AND n.path = h.replaced_by
+    WHERE h.retired_in_release_id IS NOT NULL AND h.steps < $3::integer
+),
+counted AS (
+    SELECT DISTINCT h.starred_id
+    FROM heirs h JOIN libraries l ON l.id = h.library_id
+    WHERE h.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id = ANY ($1::text[])
+)
+SELECT l.owner, l.name, l.owner_avatar_url,
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
+       EXISTS (SELECT 1 FROM listings ls WHERE ls.host = l.host AND ls.host_repository_id = l.host_repository_id)::boolean AS listed,
+       r.path, (r.retired_in_release_id IS NOT NULL)::boolean AS retired, coalesce(r.replaced_by, '')::text AS replaced_by,
+       coalesce((
+           SELECT v.title FROM rule_versions v WHERE v.rule_id = r.id AND v.title IS NOT NULL
+           ORDER BY v.major DESC, v.minor DESC, v.patch DESC LIMIT 1
+       ), '')::text AS title,
+       s.created_at::timestamptz AS starred_at
+FROM rule_stars s
+JOIN rules r ON r.id = s.rule_id
+JOIN libraries l ON l.id = r.library_id
+WHERE s.account_id = $2::bigint AND s.rule_id NOT IN (SELECT starred_id FROM counted)
+ORDER BY s.created_at DESC, lower(l.owner), lower(l.name), r.path
+`
+
+type ListUncountedRuleStarsParams struct {
+	Vetted          []string
+	AccountID       int64
+	MaxReplacements int32
+}
+
+type ListUncountedRuleStarsRow struct {
+	Owner          string
+	Name           string
+	OwnerAvatarUrl string
+	Vetted         bool
+	Listed         bool
+	Path           string
+	Retired        bool
+	ReplacedBy     string
+	Title          string
+	StarredAt      pgtype.Timestamptz
+}
+
+// ListUncountedRuleStars returns the account's stars that count toward no current rule of a library vetted holds, most
+// recently starred first: a star on a rule retired without a replacement, or whose chain of replacements passes
+// max_replacements, or on a rule of a library that isn't vetted now. Each comes with its rule's library, whether vetted
+// holds it and whether a listing names it, its ID, its newest version's title, empty when the catalog has none, and
+// whether it's retired, with its replacement.
+func (q *Queries) ListUncountedRuleStars(ctx context.Context, arg ListUncountedRuleStarsParams) ([]ListUncountedRuleStarsRow, error) {
+	rows, err := q.db.Query(ctx, listUncountedRuleStars, arg.Vetted, arg.AccountID, arg.MaxReplacements)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUncountedRuleStarsRow
+	for rows.Next() {
+		var i ListUncountedRuleStarsRow
+		if err := rows.Scan(
+			&i.Owner,
+			&i.Name,
+			&i.OwnerAvatarUrl,
+			&i.Vetted,
+			&i.Listed,
+			&i.Path,
+			&i.Retired,
+			&i.ReplacedBy,
+			&i.Title,
+			&i.StarredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeRuleStar = `-- name: RemoveRuleStar :execrows
+DELETE FROM rule_stars s
+USING rules r, libraries l
+WHERE s.rule_id = r.id AND r.library_id = l.id AND s.account_id = $1::bigint
+  AND l.host = $2 AND lower(l.owner) = lower($3) AND lower(l.name) = lower($4) AND lower(r.path) = lower($5)
+`
+
+type RemoveRuleStarParams struct {
+	AccountID int64
+	Host      string
+	Owner     string
+	Name      string
+	Path      string
+}
+
+// RemoveRuleStar removes the account's star on the rule at path in the library owner/name, current or retired, vetted
+// or not, both matched without regard to case, and returns how many it removed.
+func (q *Queries) RemoveRuleStar(ctx context.Context, arg RemoveRuleStarParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeRuleStar,
+		arg.AccountID,
+		arg.Host,
+		arg.Owner,
+		arg.Name,
+		arg.Path,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const starRule = `-- name: StarRule :one
 
 WITH target AS (

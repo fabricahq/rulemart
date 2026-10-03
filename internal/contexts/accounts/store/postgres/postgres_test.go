@@ -3,11 +3,14 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
@@ -30,7 +33,7 @@ func signIn(t *testing.T, s *Store, identity domain.Identity, replacing domain.S
 	if replacing != "" {
 		replacingHash = replacing.Hash()
 	}
-	account, session, err := s.SignIn(context.Background(), identity, token.Hash(), replacingHash)
+	account, session, err := s.SignIn(context.Background(), identity, token.Hash(), replacingHash, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,5 +247,180 @@ func TestSignInStoresAnEnterpriseManagedUsersLogin(t *testing.T) {
 	_, account := signIn(t, s, domain.Identity{GitHubUserID: 3, Login: "octocat_acme"}, "")
 	if account.Login != "octocat_acme" {
 		t.Errorf("stored %+v", account)
+	}
+}
+
+// The header shows the name a visitor's GitHub profile shows, so each sign-in keeps the name GitHub reports then, and
+// clears it when they removed it.
+func TestSignInKeepsTheNameGitHubReportsAtEachSignIn(t *testing.T) {
+	s, _ := newStore(t)
+	token, _ := signIn(t, s, octocat.WithName("The Octocat"), "")
+	if account, _ := sessionAccount(t, s, token); account.Name != "The Octocat" {
+		t.Errorf("the account's name is %q", account.Name)
+	}
+	token, _ = signIn(t, s, octocat, token)
+	if account, _ := sessionAccount(t, s, token); account.Name != "" {
+		t.Errorf("after the name was removed on GitHub, the account's name is %q", account.Name)
+	}
+}
+
+// The session's sealed token comes back as stored, a session without one has none, and once the session ends, so does
+// its token.
+func TestSessionGitHubTokenReturnsTheSealedTokenWhileTheSessionLasts(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	token := domain.NewSessionToken()
+	sealed := []byte("a sealed token of at least twenty-nine bytes")
+	if _, _, err := s.SignIn(ctx, octocat, token.Hash(), nil, sealed); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.SessionGitHubToken(ctx, token.Hash()); err != nil || string(got) != string(sealed) {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	without, _ := signIn(t, s, octocat, "")
+	if got, err := s.SessionGitHubToken(ctx, without.Hash()); err != nil || got != nil {
+		t.Errorf("a session without a token: got %q, %v; want nil", got, err)
+	}
+	if err := s.EndSession(ctx, token.Hash()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionGitHubToken(ctx, token.Hash()); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("after sign-out: got %v, want ErrNotFound", err)
+	}
+}
+
+// Each sign-in discards what Rulemart read of the account's GitHub account, so the next page reads it again with the
+// new session's token.
+func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}); err != nil || !saved {
+		t.Fatalf("saved %v, %v", saved, err)
+	}
+	signIn(t, s, octocat, "")
+	var kept int
+	postgrestest.QueryRow(t, connString, "SELECT count(*) FROM github_snapshots", &kept)
+	if kept != 0 {
+		t.Errorf("%d snapshots outlived signing in again", kept)
+	}
+}
+
+// A snapshot reads back as it was saved, with when its contents were read and whether the latest read failed.
+func TestSnapshotReadsBackAsSaved(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	if _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
+		t.Fatalf("before any read: found %v, %v", found, err)
+	}
+	version, err := coderules.ParseRuleVersion("1.2.0", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Postgres keeps microseconds.
+	readAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	saved := domain.Snapshot{
+		ReadAt:        readAt,
+		Organizations: []string{"octo-org"},
+		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3}},
+		Projects: []domain.Project{{
+			Repository: domain.Repository{Owner: "octocat", Name: "app", Private: true},
+			Sources: []domain.Source{{
+				Name: "octo", Library: "octo-org/rules", Release: 3, Groups: []string{"techs/go"},
+				Rules: []domain.PinnedRule{{Path: "techs/go/return-errors", Version: version}},
+			}},
+		}},
+		Truncated:  true,
+		ReadFailed: true,
+	}
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
+		t.Fatalf("saved %v, %v", ok, err)
+	}
+	got, found, err := s.Snapshot(ctx, account.ID)
+	if err != nil || !found {
+		t.Fatalf("after saving: found %v, %v", found, err)
+	}
+	if !got.ReadAt.Equal(readAt) {
+		t.Errorf("read at %v, want %v", got.ReadAt, readAt)
+	}
+	got.ReadAt = saved.ReadAt
+	if !reflect.DeepEqual(got, saved) {
+		t.Errorf("read back\n%+v\nwant\n%+v", got, saved)
+	}
+}
+
+// A read keeps what it found only while the account's GitHub generation is the one it noted when it began: once
+// access changes, which discards the snapshot, the read's save keeps nothing.
+func TestASnapshotIsKeptOnlyAtTheGenerationItsReadBeganAt(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	began := generation(t, connString, account.ID)
+	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	saved, err := s.SaveSnapshot(ctx, account.ID, began, domain.Snapshot{Organizations: []string{"octo-org"}})
+
+	if err != nil || saved {
+		t.Fatalf("saved %v, %v, want nothing kept", saved, err)
+	}
+	if _, found, _ := s.Snapshot(ctx, account.ID); found {
+		t.Error("kept a snapshot read before access changed")
+	}
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), domain.Snapshot{}); err != nil || !saved {
+		t.Errorf("at the current generation, saved %v, %v", saved, err)
+	}
+}
+
+// generation returns the account's GitHub generation, which a read's claim returns.
+func generation(t *testing.T, connString string, accountID int64) int64 {
+	t.Helper()
+	var generation int64
+	postgrestest.QueryRow(t, connString, fmt.Sprintf("SELECT github_generation FROM accounts WHERE id = %d", accountID), &generation)
+	return generation
+}
+
+// Of reads that try to begin within a minute of each other, one is claimed, until the snapshot is discarded, which lets
+// the next read begin at once. Each claim returns the generation and snapshot as of the claim: the snapshot kept, or
+// none once it was discarded, with the generation after the discard.
+func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	kept := domain.Snapshot{Organizations: []string{"octo-org"}}
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), kept); err != nil || !saved {
+		t.Fatalf("saved %v, %v", saved, err)
+	}
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	claim := func(at time.Time) store.ReadClaim {
+		t.Helper()
+		claim, err := s.ClaimRead(ctx, account.ID, at, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return claim
+	}
+
+	first := claim(now)
+	if !first.Claimed || first.Generation != generation(t, connString, account.ID) || !reflect.DeepEqual(first.Snapshot, kept) {
+		t.Errorf("the first claim is %+v, want the read claimed with the kept snapshot", first)
+	}
+	if again := claim(now); again.Claimed || !reflect.DeepEqual(again.Snapshot, kept) {
+		t.Errorf("a claim at once is %+v, want the kept snapshot, unclaimed", again)
+	}
+	if claim(now.Add(time.Minute - time.Second)).Claimed {
+		t.Error("claimed a second read within the minute")
+	}
+	if !claim(now.Add(time.Minute)).Claimed {
+		t.Error("didn't claim a read a minute later")
+	}
+	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
+		t.Fatal(err)
+	}
+	discarded := claim(now.Add(time.Minute + time.Second))
+	if !discarded.Claimed || discarded.Generation != first.Generation+1 || !reflect.DeepEqual(discarded.Snapshot, domain.Snapshot{}) {
+		t.Errorf("once the snapshot was discarded, the claim is %+v, want the read claimed at the next generation without it", discarded)
 	}
 }

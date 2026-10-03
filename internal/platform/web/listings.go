@@ -32,17 +32,16 @@ type Listings interface {
 }
 
 const (
-	// listHref is the listing form, which takes the repository in its repository parameter. POST to it lists the
-	// repository. One segment can't hide a library's page.
-	listHref = "/list"
 	// unvettedHref lists the unvetted libraries. /libraries/unvetted could hide a library: GitHub has an account
 	// named libraries.
 	unvettedHref = "/unvetted"
 	// listingsHref is the signed-in visitor's listings, and removeListingHref and retryListingHref act on the one its
 	// listing parameter names, with POST.
-	listingsHref      = accountHref + "/listings"
+	listingsHref      = dashboardHref + "/listings"
 	removeListingHref = listingsHref + "/remove"
 	retryListingHref  = listingsHref + "/retry"
+	// legacyListingsHref is the listings page's old address, which redirects.
+	legacyListingsHref = accountHref + "/listings"
 )
 
 // checkingLonger is how long after a listing is added or retried its check is taking longer than usual: once queued,
@@ -65,97 +64,6 @@ func (s *server) unvetted(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, unvettedPage(s.chrome, newLibraryCards(libraries, false), s.listingAvailable()))
 }
 
-// listPage shows the listing form, and with a repository in the repository parameter, whether the visitor may list it
-// and, if they may, a button that lists it. A visitor who isn't signed in is asked to sign in first.
-func (s *server) listPage(w http.ResponseWriter, r *http.Request) {
-	text := r.URL.Query().Get("repository")
-	view := listView{repository: text}
-	v := visitorOf(r.Context())
-	switch {
-	case v.account == nil:
-		view.signIn = s.absolute(signInPageHref(returnPath(r.URL.RequestURI())))
-	case r.URL.Query().Has("repository"):
-		repo, err := s.Listings.Check(r.Context(), v.account.ID, text)
-		if !s.explainRefusal(w, r, &view, err) {
-			return
-		}
-		if err == nil {
-			view.confirm = repo.FullName()
-			view.action = listHref + "?" + url.Values{"repository": {repo.FullName()}}.Encode()
-		}
-	}
-	s.render(w, r, http.StatusOK, listPage(s.chrome, view))
-}
-
-// createListing lists the repository the repository parameter names for the signed-in visitor, and shows their
-// listings, where the new one is being checked. A visitor who isn't signed in is sent to sign in and return to the
-// form.
-func (s *server) createListing(w http.ResponseWriter, r *http.Request) {
-	text := r.URL.Query().Get("repository")
-	v := visitorOf(r.Context())
-	if v.account == nil {
-		seeOther(w, r, s.absolute(signInPageHref(listHref+"?"+url.Values{"repository": {text}}.Encode())))
-		return
-	}
-	id, err := s.Listings.List(r.Context(), v.account.ID, text)
-	if errors.Is(err, app.ErrNotQueued) {
-		// The listing stands, and the hourly poll checks it.
-		s.Log.WarnContext(r.Context(), "listing not queued", "route", s.route(r), "requestID", s.requestID(r),
-			"listingID", id, "error", err.Error())
-		err = nil
-	}
-	if err != nil {
-		view := listView{repository: text}
-		if s.explainRefusal(w, r, &view, err) {
-			s.renderPrivate(w, r, http.StatusConflict, listPage(s.chrome, view))
-		}
-		return
-	}
-	s.Log.InfoContext(r.Context(), "listed library", "route", s.route(r), "requestID", s.requestID(r),
-		"accountID", v.account.ID, "listingID", id)
-	setNotice(w, "listed")
-	seeOther(w, r, listingsHref)
-}
-
-// explainRefusal sets view's problem to why the visitor can't list the repository, by err, and reports whether the
-// page can go on. It answers the request itself with a failure, and returns false, when err isn't a refusal.
-func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *listView, err error) bool {
-	var conflict *app.ListingConflict
-	switch {
-	case err == nil:
-	case errors.Is(err, app.ErrInvalidRepository):
-		view.problem = "Give a GitHub repository as owner/name, or its address, such as https://github.com/owner/name."
-	case errors.As(err, &conflict) && conflict.Vetted:
-		view.problem = "Rulemart has vetted this library already."
-		view.existing = existingLibrary(conflict.Library, false)
-	case errors.As(err, &conflict) && conflict.Own:
-		view.problem = "You listed this repository already."
-		view.existing = existingLibrary(conflict.Library, true)
-		view.yourListings = true
-	case errors.As(err, &conflict) && conflict.Checking && time.Since(conflict.RequestedAt) > checkingLonger:
-		view.problem = "Someone listed this repository, and Rulemart's check of it is taking longer than usual. " +
-			"Rulemart checks it again within the hour."
-	case errors.As(err, &conflict) && conflict.Checking:
-		view.problem = "Someone listed this repository a moment ago, and Rulemart is checking it. If it's a Code Rules " +
-			"library, it shows with the unvetted libraries within a minute."
-	case errors.As(err, &conflict):
-		view.problem = "Someone listed this repository already."
-		view.existing = existingLibrary(conflict.Library, true)
-	case errors.Is(err, app.ErrAccountListingLimit):
-		view.problem = "You have " + strconv.Itoa(domain.MaxAccountListings) + " listings Rulemart hasn't vetted, as " +
-			"many as an account may. Remove one, such as one that failed, to list another."
-		view.yourListings = true
-	case errors.Is(err, app.ErrListingsFull):
-		view.problem = "Rulemart isn't taking new listings right now. Try again later."
-	case errors.Is(err, app.ErrListingTooOften), errors.Is(err, app.ErrListingsBusy):
-		view.problem = tooOften(err)
-	default:
-		s.fail(w, r, err)
-		return false
-	}
-	return true
-}
-
 // tooOften says why a visitor can't ask for another check now, by err, app.ErrListingTooOften or
 // app.ErrListingsBusy.
 func tooOften(err error) string {
@@ -164,15 +72,6 @@ func tooOften(err error) string {
 			" times in the last day, as often as an account may. Try again tomorrow."
 	}
 	return "Rulemart is checking many listings right now. Try again in an hour."
-}
-
-// existingLibrary returns the library already in the catalog under the name a visitor tried to list, or nil when the
-// catalog doesn't store it yet.
-func existingLibrary(lib views.LibraryRef, unvetted bool) *libraryCard {
-	if lib.Owner == "" {
-		return nil
-	}
-	return &libraryCard{href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, vetted: !unvetted}
 }
 
 // listingsPage shows the signed-in visitor's listings, or sends anyone else to sign in first.
@@ -187,6 +86,11 @@ func (s *server) listingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderPrivate(w, r, http.StatusOK, listingsPage(s.chrome, newListingsView(listings, time.Now())))
+}
+
+// legacyListings redirects the listings page's old address to its new one.
+func (s *server) legacyListings(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, listingsHref)
 }
 
 // removeListingPage asks the signed-in visitor to confirm removing their listing that the listing parameter names,
@@ -244,7 +148,8 @@ var removedNotices = map[domain.ListingState]string{
 }
 
 // retryListing asks the worker to check the signed-in visitor's failed listing that the listing parameter names
-// again, and returns to their listings, where it's being checked.
+// again, and returns to their listings, where it's being checked, or to the run page the return parameter names, which
+// follows the check.
 func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 	notice := "listing-retried"
 	s.changeListing(w, r, &notice, func(ctx context.Context, accountID, id int64) error {
@@ -263,8 +168,18 @@ func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listingReturn returns where a change to a listing returns to: the run page target names, as returnPath checks it,
+// or else the listings page.
+func listingReturn(target string) string {
+	back := returnPath(target)
+	if u, err := url.Parse(back); err == nil && u.Path == runHref {
+		return back
+	}
+	return listingsHref
+}
+
 // changeListing applies change to the signed-in visitor's listing that the listing parameter names, and returns to
-// their listings with the notice notices names by *notice, which change may replace. A visitor who isn't signed in
+// their listings, or the run page listingReturn allows, with the notice notices names by *notice, which change may replace. A visitor who isn't signed in
 // is sent to sign in and return to their listings, and a listing they don't have is missing.
 func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *string, change func(ctx context.Context, accountID, id int64) error) {
 	v := visitorOf(r.Context())
@@ -293,24 +208,7 @@ func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *s
 		return
 	}
 	setNotice(w, *notice)
-	seeOther(w, r, listingsHref)
-}
-
-// listView is what the listing form shows.
-type listView struct {
-	// signIn is where to sign in and return to the form, for a visitor who isn't signed in, or empty.
-	signIn string
-	// repository is what the visitor typed, which the form shows again.
-	repository string
-	// confirm is the repository the visitor may list, as owner/name, and action where its List button posts, or
-	// empty before a repository passes its checks.
-	confirm, action string
-	// problem says why the visitor can't list the repository, or is empty.
-	problem string
-	// existing is the library already in the catalog under that name, which the problem links, or nil.
-	existing *libraryCard
-	// yourListings is true when the problem is the visitor's own listings, which it links.
-	yourListings bool
+	seeOther(w, r, listingReturn(r.URL.Query().Get("return")))
 }
 
 // listingsView is what the listings page shows.
