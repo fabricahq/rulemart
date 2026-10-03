@@ -219,6 +219,9 @@ func (s *server) handler() http.Handler {
 	if s.Carts != nil {
 		handle("POST "+checkoutHref, s.checkout)
 	}
+	// Under account, which is reserved whether sign-in is available or not, and GitHub has no account named account.
+	handle("GET "+legacyCartHref, s.redirectToCart)
+	handle("GET "+legacyCheckoutHref, s.redirectToCart)
 	// One segment can't hide a library's page.
 	handle("GET "+unvettedHref, s.unvetted)
 	if s.Accounts != nil {

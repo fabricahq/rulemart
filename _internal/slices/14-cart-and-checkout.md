@@ -66,7 +66,8 @@ storage goes. [realignment.md](../realignment.md) records the decision.
   checkout leaves them out, as slice 8 did; the script shows the state the endpoint reports.
 - **Proposed: migration 00014 drops `cart_items`**, which was never released, with the same guard 00013 uses: it
   refuses if the table holds rows. The cart store, app, and web routes under `/account/cart` are removed, with
-  their tests; the checkout text builders move to the new endpoint.
+  their tests; the checkout text builders move to the new endpoint. The old pages' addresses, `/account/cart` and
+  `/account/cart/checkout`, redirect permanently to `/cart`, as the realignment's old addresses do.
 - **Proposed: the header's badge counts items**, so a whole group counts as one, as the prototype.
 - **Proposed: `cart.js` is the site's one feature script**, in `static/`, plain and framework-free, loaded on every
   page with `defer`, under the existing content security policy (no inline script). The modal uses `<dialog>`.

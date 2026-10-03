@@ -29,6 +29,9 @@ const (
 	// checkoutHref answers a POST of a cart, as checkoutRequest describes it, with its checkout, as checkoutResponse
 	// does.
 	checkoutHref = cartHref + "/checkout.json"
+	// legacyCartHref and legacyCheckoutHref are the signed-in cart's old page and checkout, which redirect to cartHref.
+	legacyCartHref     = accountHref + "/cart"
+	legacyCheckoutHref = legacyCartHref + "/checkout"
 )
 
 // maxCheckoutBytes bounds a checkout's request: room for domain.MaxCartItems keys of domain.MaxCartKeyLength
@@ -149,6 +152,11 @@ type restOfGroupsJSON struct {
 func (s *server) cartPage(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	s.render(w, r, http.StatusOK, cartPage(s.chrome, v.signIn, v.withGitHub, v.account != nil))
+}
+
+// redirectToCart redirects the signed-in cart's old addresses to the cart's page, keeping the query.
+func (s *server) redirectToCart(w http.ResponseWriter, r *http.Request) {
+	redirect(w, r, withQuery(cartHref, r))
 }
 
 // checkout answers a cart that cart-page.js posts, as checkoutRequest describes it, with its checkout. Another site

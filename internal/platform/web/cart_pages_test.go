@@ -223,6 +223,27 @@ func linkOf(path string, retiredIn int) views.RuleLink {
 	return views.RuleLink{Path: path, RetiredIn: retiredIn}
 }
 
+// The signed-in cart's old addresses, its page and its checkout, redirect permanently to the cart's page, keeping the
+// query, whether sign-in is available or not.
+func TestOldCartAddressesRedirectToTheCart(t *testing.T) {
+	for name, handler := range map[string]http.Handler{
+		"without sign-in": newSite(t, newCatalog()),
+		"with sign-in":    newAccountsSite(t, nil).handler,
+	} {
+		for path, location := range map[string]string{
+			"/account/cart":          "/cart",
+			"/account/cart/checkout": "/cart",
+			"/account/cart?ref=x":    "/cart?ref=x",
+			"/Account/cart":          "/account/cart",
+		} {
+			resp := get(t, handler, path)
+			if resp.Code != http.StatusMovedPermanently || resp.Header().Get("Location") != location {
+				t.Errorf("%s: %s: got %d to %q, want 301 to %q", name, path, resp.Code, resp.Header().Get("Location"), location)
+			}
+		}
+	}
+}
+
 // The cart's page is a shell cart-page.js fills, the same for every visitor who isn't signed in: the empty state and
 // the three cards, each hidden until the script shows the one the cart needs, and, without JavaScript, a message that
 // the cart needs it. Signed out, where the rules go offers to sign in or to enter a repository; signed in, it says
