@@ -369,11 +369,13 @@ templ checkoutStep(n, title, id string) {
 }
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
-// entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none. The
-// repository field names the project in the texts; cart.js keeps it, and cart-page.js says which repository it read.
+// entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none, what it
+// looks for, and to enter one. The repository field names the project in the texts; cart.js keeps it, and cart-page.js
+// says which repository it read.
 templ projectSection(signIn string, withGitHub, signedIn bool) {
 	if signedIn {
-		<p class="-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted">We didn't find any of your projects using Code Rules.</p>
+		<p class="-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted">We didn't find any of your projects using Code Rules: repositories with <code>.code-rules/generated/provenance.json</code>. Enter the project below, and the prompt names it.</p>
+		<b class="mb-2.5 block text-[13px] font-semibold">Enter your project</b>
 	} else if signIn != "" {
 		<div class="flex flex-wrap items-center justify-between gap-4">
 			<div>

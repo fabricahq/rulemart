@@ -141,6 +141,9 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: the commands end with `# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md`**,
   the instruction the prompt closes with, from one constant, so the Commands tab reminds a visitor running them by
   hand. The prototype's commands end at the sync.
+- **Proposed: signed in, Where it goes says what counts as a project and keeps "Enter your project"**: "We didn't
+  find any of your projects using Code Rules: repositories with `.code-rules/generated/provenance.json`", then the
+  heading and the field, which names the project. R7 replaces the sentence with the picker.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.

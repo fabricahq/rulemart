@@ -2111,8 +2111,9 @@ func checkoutStep(n, title, id string) templ.Component {
 }
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
-// entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none. The
-// repository field names the project in the texts; cart.js keeps it, and cart-page.js says which repository it read.
+// entering one; signed in, the visitor's projects, which Rulemart doesn't read yet, so it says it found none, what it
+// looks for, and to enter one. The repository field names the project in the texts; cart.js keeps it, and cart-page.js
+// says which repository it read.
 func projectSection(signIn string, withGitHub, signedIn bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -2135,7 +2136,7 @@ func projectSection(signIn string, withGitHub, signedIn bool) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if signedIn {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 150, "<p class=\"-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted\">We didn't find any of your projects using Code Rules.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 150, "<p class=\"-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted\">We didn't find any of your projects using Code Rules: repositories with <code>.code-rules/generated/provenance.json</code>. Enter the project below, and the prompt names it.</p><b class=\"mb-2.5 block text-[13px] font-semibold\">Enter your project</b> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2169,7 +2170,7 @@ func projectSection(signIn string, withGitHub, signedIn bool) templ.Component {
 			var templ_7745c5c3_Var127 templ.SafeURL
 			templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(signIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 383, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 385, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 			if templ_7745c5c3_Err != nil {

@@ -241,7 +241,8 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 			t.Errorf("the page lacks %q", want)
 		}
 	}
-	if strings.Contains(signedIn, "Pick from your projects") || !strings.Contains(signedIn, "We didn't find any of your projects using Code Rules.") {
-		t.Error("signed in, the page offers to sign in, or doesn't say it found no projects")
+	signedInText := strings.Join(strings.Fields(signedIn), " ")
+	if strings.Contains(signedInText, "Pick from your projects") || !strings.Contains(signedInText, "We didn't find any of your projects using Code Rules: repositories with <code>.code-rules/generated/provenance.json</code>. Enter the project below, and the prompt names it.</p><b class=\"mb-2.5 block text-[13px] font-semibold\">Enter your project</b>") {
+		t.Error("signed in, the page offers to sign in, or doesn't say it found no projects, what counts as one, and to enter it")
 	}
 }
