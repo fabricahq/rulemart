@@ -306,8 +306,8 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 }
 
 // The private projects page shows the prototype's permissions and promises, then Continue to GitHub, which leads to
-// the app's install page; once installed, Done, and Remove access, which forgets the installation and says how to
-// uninstall the app on GitHub too.
+// the app's install page; once installed, Done, and Remove access, which forgets the installation and returns to the
+// dashboard saying so, in a status toast, as the prototype's disconnect does.
 func TestThePrivateProjectsPageOffersTheAppOrItsRemoval(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
@@ -325,11 +325,13 @@ func TestThePrivateProjectsPageOffersTheAppOrItsRemoval(t *testing.T) {
 		t.Errorf("the installation's settings are at %q", got)
 	}
 	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/github/remove", cookies: []*http.Cookie{site.session}})
-	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me/private" || len(site.gitHub.installations[1]) != 0 {
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me" || len(site.gitHub.installations[1]) != 0 {
 		t.Fatalf("removing answered %d to %q, leaving %v", resp.StatusCode, resp.Header.Get("Location"), site.gitHub.installations[1])
 	}
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me/private", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
-		"Rulemart no longer reads your private repos. To remove the app from GitHub too, uninstall it in your GitHub settings .")
+	dashboard := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
+	if got, kind := toastText(t, dashboard), noticeToast(t, dashboard); got != "Private repo access removed" || kind != "status" {
+		t.Errorf("the dashboard toasts %q as a %q toast, want a status toast", got, kind)
+	}
 }
 
 // Checkout's Where it goes offers a signed-in visitor their projects, each saying what it uses, private ones marked,

@@ -46,8 +46,9 @@ type privateView struct {
 // installationSettings is an installation's settings page on GitHub, for the account it's on.
 type installationSettings struct{ account, href string }
 
-// removePrivate stops reading the signed-in visitor's private repositories, and returns to the page about them, which
-// says how to uninstall the app on GitHub too.
+// removePrivate stops reading the signed-in visitor's private repositories, and returns to the dashboard, saying so,
+// as the prototype's disconnect does. The page about them said, beside the button, how to uninstall the app on GitHub
+// too.
 func (s *server) removePrivate(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
@@ -59,5 +60,5 @@ func (s *server) removePrivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setNotice(w, "private-removed")
-	seeOther(w, r, privateHref)
+	seeOther(w, r, dashboardHref)
 }

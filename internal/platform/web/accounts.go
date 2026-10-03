@@ -129,7 +129,7 @@ var notices = map[string]string{
 	signedInKey:                "You're signed in.",
 	"signed-out":               "You're signed out.",
 	"private-added":            "Rulemart can now see the private repos you selected.",
-	"private-removed":          "Rulemart no longer reads your private repos. To remove the app from GitHub too, uninstall it in your GitHub settings.",
+	"private-removed":          "Private repo access removed",
 	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
 	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
@@ -156,8 +156,7 @@ type noticeLink struct{ phrase, href string }
 // noticeLinks are the phrases of notices' text that link to a page, by the notice's key in notices, such as the page
 // a notice says something is on.
 var noticeLinks = map[string]noticeLink{
-	firstStarKey:      {phrase: "Starred rules", href: starredHref},
-	"private-removed": {phrase: "your GitHub settings", href: "https://github.com/settings/installations"},
+	firstStarKey: {phrase: "Starred rules", href: starredHref},
 }
 
 // hasNotice reports whether notices names key, which may say nothing.

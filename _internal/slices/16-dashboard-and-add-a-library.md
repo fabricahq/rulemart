@@ -132,9 +132,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
   204. A new installation is recorded when GitHub returns its installer to Rulemart, the one moment Rulemart knows
   which account it's for. A read that finds an installation GitHub no longer knows forgets it too, for a missed
   delivery.
-- **Proposed: Remove access forgets the installations and says how to uninstall the app on GitHub.** Redirecting a POST
-  to GitHub's settings breaks `form-action 'self'`, so the button forgets them and returns to `/me/private`, whose
-  notice links GitHub's installations settings; the installed page links each installation's own settings.
+- **Proposed: Remove access forgets the installations, and the page says how to uninstall the app on GitHub.**
+  Redirecting a POST to GitHub's settings breaks `form-action 'self'`, so the button forgets them and returns to `/me`
+  with the prototype's toast "Private repo access removed"; the Manage view beside the button links each
+  installation's settings on GitHub, where the visitor uninstalls it.
 - **Proposed: an account keeps its GitHub profile's name**, refreshed at each sign-in, for the menu and the dashboard's
   head, as the prototype shows "Josh Padnick" above "@josh-padnick". Control and formatting characters are dropped.
   Without a name, both show the login.
