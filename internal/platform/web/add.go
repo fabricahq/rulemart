@@ -378,26 +378,37 @@ func (v runView) following() bool { return !v.done() && v.state != domain.Listin
 
 // runStep is one line of the checklist, which ticks once it's done, spins while it's running, and says why it failed.
 type runStep struct {
-	text                  string
+	parts                 []runPart
 	done, running, failed bool
 }
+
+// runPart is a run of a step's text, in stronger type when it names what the check found, as the prototype's does.
+type runPart struct {
+	text   string
+	strong bool
+}
+
+// plain and strong return a step's text as one part, in ordinary and in stronger type.
+func plain(text string) runPart  { return runPart{text: text} }
+func strong(text string) runPart { return runPart{text: text, strong: true} }
 
 // steps returns the checklist, as the prototype words it: what the check found, once it found it.
 func (v runView) steps() []runStep {
 	steps := []runStep{
-		{text: "Looking for rule-library.yaml in " + v.fullName},
-		{text: "Read the latest library release · its rules at their published versions"},
-		{text: "Groups and rules indexed"},
-		{text: "Watching for new library releases"},
+		{parts: []runPart{plain("Looking for "), strong("rule-library.yaml"), plain(" in " + v.fullName)}},
+		{parts: []runPart{plain("Read the latest library release · its rules at their published versions")}},
+		{parts: []runPart{plain("Groups and rules indexed")}},
+		{parts: []runPart{plain("Watching for new library releases")}},
 	}
 	switch {
 	case v.library != nil:
 		lib := v.library
-		steps[0].text = "Found rule-library.yaml in " + v.fullName
-		steps[1].text = "Read library release " + domain.ReleaseTag(lib.LatestRelease) + " · " + plural(lib.Rules, "rule", "rules") + " at their published versions"
-		steps[2].text = plural(lib.Groups, "group", "groups") + ", " + plural(lib.Rules, "rule", "rules") + " indexed"
+		rules := plural(lib.Rules, "rule", "rules")
+		steps[0].parts = []runPart{plain("Found "), strong("rule-library.yaml"), plain(" in " + v.fullName)}
+		steps[1].parts = []runPart{plain("Read library release "), strong(domain.ReleaseTag(lib.LatestRelease)), plain(" · " + rules + " at their published versions")}
+		steps[2].parts = []runPart{strong(plural(lib.Groups, "group", "groups")), plain(", "), strong(rules), plain(" indexed")}
 		if lib.LicenseExpression != "" {
-			steps[2].text += " · license " + lib.LicenseExpression
+			steps[2].parts = append(steps[2].parts, plain(" · license "), strong(lib.LicenseExpression))
 		}
 		for i := range steps {
 			steps[i].done = true
