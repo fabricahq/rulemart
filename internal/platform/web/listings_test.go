@@ -457,10 +457,6 @@ func TestAddPageSaysWhyARepositoryCantBeAdded(t *testing.T) {
 		rel        []string
 	}{
 		"not a repository": {"example", nil, "Enter a GitHub repository URL, like https://github.com/owner/repo.", "", nil},
-		"vetted": {"example/rules", &app.ListingConflict{Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
-			"example/rules is already on Rulemart. View library page", "/example/rules", []string{""}},
-		"listed": {"stranger/rules", &app.ListingConflict{Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
-			"stranger/rules is already on Rulemart. View library page", "/stranger/rules", []string{"nofollow"}},
 		"added by the visitor": {"stranger/rules", &app.ListingConflict{Own: true, Library: views.LibraryRef{Owner: "stranger", Name: "rules"}},
 			"You added stranger/rules already. See how it went", "/me/add/run?repo=stranger%2Frules", []string{""}},
 		"added by the visitor, not checked yet": {"someone/new", &app.ListingConflict{Own: true},
@@ -497,6 +493,33 @@ func TestAddPageSaysWhyARepositoryCantBeAdded(t *testing.T) {
 				t.Fatalf("adding answered %d and listed %q, want 409 and nothing listed", resp.StatusCode, site.listings.listed)
 			}
 			assertShows(t, body(t, resp), test.want)
+		})
+	}
+}
+
+// A repository Rulemart has already leads to its library's page, which says so in a status toast, as the prototype's
+// form does.
+func TestAddingALibraryRulemartHasLeadsToItsPage(t *testing.T) {
+	for name, conflict := range map[string]*app.ListingConflict{
+		"vetted": {Vetted: true, Library: views.LibraryRef{Owner: "example", Name: "rules"}},
+		"listed": {Library: views.LibraryRef{Owner: "example", Name: "rules"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newListingSite(t)
+			site.listings.refusal = conflict
+
+			for _, resp := range []*http.Response{site.signedInGet(t, "/me/add?url=Example%2FRules"), site.signedInPost(t, "/me/add?repository=Example%2FRules")} {
+				if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/example/rules" {
+					t.Fatalf("answered %d to %q, want the library's page", resp.StatusCode, resp.Header.Get("Location"))
+				}
+				page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/example/rules", cookies: []*http.Cookie{cookie(resp, noticeCookie)}}))
+				if got, kind := toastText(t, page), noticeToast(t, page); got != "example/rules is already on Rulemart" || kind != "status" {
+					t.Errorf("the library's page toasts %q as a %q toast, want a status toast", got, kind)
+				}
+			}
+			if len(site.listings.listed) != 0 {
+				t.Errorf("listed %q", site.listings.listed)
+			}
 		})
 	}
 }

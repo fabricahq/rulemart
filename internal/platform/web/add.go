@@ -119,8 +119,8 @@ func (s *server) createListing(w http.ResponseWriter, r *http.Request) {
 }
 
 // explainRefusal sets view's problem to why the visitor can't add repo, by err, in the prototype's words, and reports
-// whether the page can go on. It answers the request itself with a failure, and returns false, when err isn't a
-// refusal.
+// whether the page can go on. It answers the request itself, and returns false, with the page of a library Rulemart
+// has already, or with a failure when err isn't a refusal.
 func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *addView, repo app.Repository, err error) bool {
 	var conflict *app.ListingConflict
 	name := repo.FullName()
@@ -142,12 +142,13 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *ad
 		view.problem = "Someone added " + name + ", and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour."
 	case errors.As(err, &conflict) && conflict.Checking:
 		view.problem = "Someone added " + name + " a moment ago, and Rulemart is checking it."
+	case errors.As(err, &conflict) && conflict.Library.Owner != "":
+		// As the prototype's form does: the library's page, which says Rulemart has it.
+		setNotice(w, alreadyListedKey)
+		seeOther(w, r, libraryHref(conflict.Library.Owner, conflict.Library.Name))
+		return false
 	case errors.As(err, &conflict):
-		view.problem = listedName(conflict.Library, name) + " is already on Rulemart."
-		if conflict.Library.Owner != "" {
-			view.problemLink = libraryHref(conflict.Library.Owner, conflict.Library.Name)
-			view.problemLinkText, view.problemNofollow = "View library page", !conflict.Vetted
-		}
+		view.problem = name + " is already on Rulemart."
 	case errors.Is(err, app.ErrAccountListingLimit):
 		view.problem = "You have " + strconv.Itoa(domain.MaxAccountListings) + " libraries Rulemart hasn't vetted, as many as an account may add. Remove one, such as one that failed, to add another."
 		view.problemLink, view.problemLinkText = listingsHref, "Your listings"
@@ -185,9 +186,8 @@ type addView struct {
 	// confirm is the repository the form's address names, which the visitor may add, or nil.
 	confirm *pickView
 	// problem says why the visitor can't add the address, or is empty; problemLink leads somewhere that explains,
-	// labeled problemLinkText, nofollow when it's an unvetted library's page.
+	// labeled problemLinkText.
 	problem, problemLink, problemLinkText string
-	problemNofollow                       bool
 }
 
 // privatePick reports whether fullName is one of the picks that are private.

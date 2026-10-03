@@ -126,7 +126,9 @@ func accountMenuName(v visitor) string {
 // it did itself, such as starring a rule, whose button then reads Starred, though the page still knows what happened.
 var notices = map[string]string{
 	// The page names who signed in, as visit fills it in.
-	signedInKey:                "You're signed in.",
+	signedInKey: "You're signed in.",
+	// A library's page names itself, as shownNotice fills it in.
+	alreadyListedKey:           "That library is already on Rulemart",
 	"signed-out":               "You're signed out.",
 	"private-added":            "Rulemart can now see the private repos you selected.",
 	"private-removed":          "Private repo access removed",
@@ -147,8 +149,12 @@ var notices = map[string]string{
 	starPromptKey: "You're signed in.",
 }
 
-// signedInKey is the notice a sign-in leaves for the page it returns to, which names who signed in.
-const signedInKey = "signed-in"
+const (
+	// signedInKey is the notice a sign-in leaves for the page it returns to, which names who signed in.
+	signedInKey = "signed-in"
+	// alreadyListedKey is the notice for a library's page that a visitor reached by adding it, which Rulemart has.
+	alreadyListedKey = "already-listed"
+)
 
 // noticeLink is a phrase of a notice's text that links to a page, at href.
 type noticeLink struct{ phrase, href string }

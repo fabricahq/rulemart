@@ -84,12 +84,7 @@ templ addPage(c chrome, v addView) {
 					<p id="library-url-problem" class="mt-2.5 border-l-2 border-ink pl-2.5 text-[13px] text-ink" role="alert">
 						{ v.problem }
 						if v.problemLink != "" {
-							<a
-								href={ templ.SafeURL(v.problemLink) }
-								if v.problemNofollow {
-									rel="nofollow"
-								}
-							>{ v.problemLinkText }</a>
+							<a href={ templ.SafeURL(v.problemLink) }>{ v.problemLinkText }</a>
 						}
 					</p>
 				} else {
