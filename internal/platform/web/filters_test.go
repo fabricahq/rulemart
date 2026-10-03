@@ -282,7 +282,9 @@ func TestFilterSidebarNamesLibrariesByRepository(t *testing.T) {
 	for n := range form.Descendants() {
 		if n.Type == html.ElementNode && n.Data == "label" && find(n, func(c *html.Node) bool { return attribute(c, "name") == "libs" }) != nil {
 			names = append(names, nodeText(n))
-			if named := find(n, func(c *html.Node) bool { return c.Data == "span" && attribute(c, "title") != "" && attribute(c, "title") != "Vetted by Rulemart" }); named != nil {
+			if named := find(n, func(c *html.Node) bool {
+				return c.Data == "span" && attribute(c, "title") != "" && attribute(c, "title") != "Vetted by Rulemart"
+			}); named != nil {
 				titles = append(titles, attribute(named, "title"))
 			}
 		}
