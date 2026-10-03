@@ -123,6 +123,20 @@ func TestTheDashboardShowsTheVisitorsLibrariesAndProjects(t *testing.T) {
 	}
 }
 
+// New marks a library that came to Rulemart within the last day, and only such a library.
+func TestTheDashboardMarksALibraryNewOnlyWithinADayOfItsListing(t *testing.T) {
+	c := newCatalog()
+	c.dashboard = views.Dashboard{Owned: []views.OwnedLibrary{
+		{Library: views.LibraryRef{Owner: "octo-org", Name: "fresh"}, Rules: 1, AddedAt: time.Now().Add(-23 * time.Hour)},
+		{Library: views.LibraryRef{Owner: "octo-org", Name: "stale"}, Rules: 1, AddedAt: time.Now().Add(-25 * time.Hour)},
+	}}
+	site := newDashboardSite(t, octocatsGitHub(), c)
+
+	page := site.get(t, "/me")
+
+	assertShows(t, page, "fresh New Unvetted octo-org/fresh", "stale Unvetted octo-org/stale")
+}
+
 // A visitor in no organization, with no projects and nothing published, sees each section say so.
 func TestTheDashboardSaysWhenTheVisitorHasNothingYet(t *testing.T) {
 	site := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now()}, newCatalog())
