@@ -1,6 +1,7 @@
 package github
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -14,30 +15,38 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 )
 
-// GitHub answers 404, or 403, for a repository the token can't see, which a read skips; but a 403 for a rate limit, a
-// 401, or a 5xx fails the read, so a snapshot never takes a refusal for an empty account. No error holds the token.
+// GitHub answers 404, or 403, for a repository the token can't see, which a read skips; but a 403 or 429 for a rate
+// limit, a 401, or a 5xx fails the read, so a snapshot never takes a refusal for an empty account. A secondary rate
+// limit's 403 may carry neither rate limit header, only its message. No error holds the token.
 func TestAPITellsWhatATokenCantSeeFromAFailure(t *testing.T) {
 	for name, tc := range map[string]struct {
-		status  int
-		header  map[string]string
+		status int
+		header map[string]string
+		// message is the response's message, or empty for one that repeats the request's Authorization header.
+		message string
 		found   bool
 		wantErr error
 		failed  bool
 	}{
-		"not found":               {status: 404},
-		"forbidden":               {status: 403},
-		"rate limited":            {status: 403, header: map[string]string{"X-RateLimit-Remaining": "0"}, failed: true},
-		"secondary rate limit":    {status: 403, header: map[string]string{"Retry-After": "60"}, failed: true},
-		"too many requests":       {status: 429, failed: true},
-		"a revoked authorization": {status: 401, wantErr: domain.ErrGitHubTokenRefused, failed: true},
-		"GitHub failing":          {status: 502, failed: true},
+		"not found":            {status: 404},
+		"forbidden":            {status: 403},
+		"rate limited":         {status: 403, header: map[string]string{"X-RateLimit-Remaining": "0"}, failed: true},
+		"secondary rate limit": {status: 403, header: map[string]string{"Retry-After": "60"}, failed: true},
+		"too many requests":    {status: 429, failed: true},
+		"a secondary rate limit's message alone": {status: 403, failed: true,
+			message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again."},
+		"a primary rate limit's message alone": {status: 403, failed: true, message: "API rate limit exceeded for user ID 1."},
+		"an installation's refusal":            {status: 403, message: "Resource not accessible by integration"},
+		"a revoked authorization":              {status: 401, wantErr: domain.ErrGitHubTokenRefused, failed: true},
+		"GitHub failing":                       {status: 502, failed: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				for k, v := range tc.header {
 					w.Header().Set(k, v)
 				}
-				http.Error(w, `{"message":"`+r.Header.Get("Authorization")+`"}`, tc.status)
+				message := cmp.Or(tc.message, r.Header.Get("Authorization"))
+				http.Error(w, `{"message":"`+message+`"}`, tc.status)
 			}))
 			defer server.Close()
 			_, found, err := NewAPI(server.URL).File(context.Background(), "gho_secret", domain.Repository{Owner: "o", Name: "r"}, "x", 100)

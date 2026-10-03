@@ -186,7 +186,8 @@ func (a *API) OrganizationRole(ctx context.Context, token, org string) (string, 
 // get reads path from the API with token, at most maxBytes of it, and decodes its JSON into v, or, when v is a
 // *[]byte, keeps its bytes. accept is the media type to ask for, or empty for GitHub's JSON. It returns found false for
 // 404, and 403 that isn't a rate limit's, both of which GitHub answers for a repository or file the token can't see; it
-// fails with domain.ErrGitHubTokenRefused for 401. Errors never include the token or the response's text.
+// fails for a rate limit, so a read never takes a throttled repository for one it can't see, and with
+// domain.ErrGitHubTokenRefused for 401. Errors never include the token or the response's text.
 func (a *API) get(ctx context.Context, token, path, accept string, maxBytes int, v any) (bool, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+path, nil)
 	if err != nil {
@@ -206,8 +207,9 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	switch {
 	case response.StatusCode == http.StatusUnauthorized:
 		return false, domain.ErrGitHubTokenRefused
-	case response.StatusCode == http.StatusNotFound,
-		response.StatusCode == http.StatusForbidden && !rateLimited(response):
+	case rateLimited(response):
+		return false, fmt.Errorf("GitHub answered %s: rate limited", response.Status)
+	case response.StatusCode == http.StatusNotFound, response.StatusCode == http.StatusForbidden:
 		return false, nil
 	case response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated:
 		return false, fmt.Errorf("GitHub answered %s", response.Status)
@@ -229,10 +231,24 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	return true, nil
 }
 
-// rateLimited reports whether GitHub's 403 says the token made too many requests, as its primary rate limit's
-// remaining count of 0 or a secondary limit's Retry-After does, rather than that it can't see what it asked for.
+// maxRateLimitMessageBytes bounds what rateLimited reads of a 403's body: GitHub's error messages are under a KiB.
+const maxRateLimitMessageBytes = 4 << 10
+
+// rateLimited reports whether GitHub's response says the token made too many requests, rather than that it can't see
+// what it asked for: a 429, or a 403 with its primary rate limit's remaining count of 0, a secondary limit's
+// Retry-After, or a message about a rate limit, which a secondary limit may send without either header. It reads a
+// 403's body, and takes one it can't read for a rate limit's, so a read fails rather than skip what it couldn't tell.
 func rateLimited(response *http.Response) bool {
-	return response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != ""
+	switch {
+	case response.StatusCode == http.StatusTooManyRequests:
+		return true
+	case response.StatusCode != http.StatusForbidden:
+		return false
+	case response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != "":
+		return true
+	}
+	message, err := io.ReadAll(io.LimitReader(response.Body, maxRateLimitMessageBytes))
+	return err != nil || strings.Contains(strings.ToLower(string(message)), "rate limit")
 }
 
 // setHeaders asks GitHub for accept, or its JSON, from API version 2022-11-28, authorized by token, if any.
