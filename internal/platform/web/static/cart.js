@@ -421,11 +421,13 @@
     dropUnknown,
   };
 
-  // Another tab's change to the cart shows here too.
+  // Another tab's change to the cart shows here too, and a group it added leaves the address and the group links, as
+  // at startup.
   window.addEventListener('storage', (event) => {
     if (event.key !== STORE && event.key !== null) return;
     state = load();
     paint();
+    document.querySelectorAll('[data-cart-groups]').forEach(keepSelection);
   });
 
   // Crossing the phone breakpoint shows or hides the bars' height.
