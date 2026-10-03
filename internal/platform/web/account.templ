@@ -85,9 +85,9 @@ templ menuLink(href, name string, current bool) {
 	>{ name }</a>
 }
 
-// menuItemStyle is a link or button in a menu, as the prototype's: tall enough to tap. Its focus ring is drawn inside
-// it, clear of the menu's border and of the line under the menu's heading.
-const menuItemStyle = "flex min-h-10 w-full items-center rounded-lg px-2.5 text-left text-[13.5px] text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2"
+// menuItemStyle is a link or button in a menu, as the prototype's: padded 7 by 10 pixels, a 36-pixel row. Its focus
+// ring is drawn inside it, clear of the menu's border and of the line under the menu's heading.
+const menuItemStyle = "flex w-full items-center rounded-lg px-2.5 py-[7px] text-left text-[13.5px] text-ink transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:-outline-offset-2"
 
 // primaryButtonStyle is a page's main action, filled in the primary color.
 const primaryButtonStyle = "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-full bg-primary px-5 text-[15px] font-medium text-on-primary transition-opacity hover:opacity-85"
