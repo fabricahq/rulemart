@@ -51,7 +51,7 @@ type checkoutAnswer struct {
 		Gone, Vetted, Confirmed bool
 		Items                   []struct {
 			Key, Kind, State, ID, Title, Href, Version, RetiredIn string
-			Fork                                                  bool
+			Fork, InGroup                                         bool
 			Group                                                 struct {
 				ID, Name  string
 				Canonical bool
@@ -101,7 +101,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 					{
 						Key: "example/rules::techs/go/return-errors", State: views.CartItemReady, Group: goGroup, Title: "Return errors",
 						Item:    domain.CartItem{Owner: "example", Name: "rules", Kind: domain.CartRule, Path: "techs/go/return-errors"},
-						Version: coderules.RuleVersion{Major: 1, Minor: 2}, Fork: true,
+						Version: coderules.RuleVersion{Major: 1, Minor: 2}, Fork: true, InGroup: true,
 					},
 					{
 						Key: "group::example/rules::techs/golang", State: views.CartItemReady, Group: views.ResolvedGroup{Path: "techs/golang"},
@@ -148,7 +148,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 		t.Errorf("got the library %+v", lib)
 	}
 	rule, group, retired := lib.Items[0], lib.Items[1], lib.Items[2]
-	if rule.Kind != "rule" || rule.State != "ready" || rule.Title != "Return errors" || rule.Version != "1.2.0" || !rule.Fork ||
+	if rule.Kind != "rule" || rule.State != "ready" || rule.Title != "Return errors" || rule.Version != "1.2.0" || !rule.Fork || !rule.InGroup ||
 		rule.Href != "/example/rules/techs/go/return-errors" || rule.Group.Name != "Go" || rule.Group.Icon == nil ||
 		!strings.Contains(rule.Group.Icon.Src, "go-original") {
 		t.Errorf("got the rule %+v", rule)

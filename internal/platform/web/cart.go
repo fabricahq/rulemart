@@ -105,10 +105,11 @@ type checkoutItemJSON struct {
 	Title string    `json:"title"`
 	Href  string    `json:"href"`
 	Group groupJSON `json:"group"`
-	// Version is a rule's newest version, Fork whether the visitor forks it, and RetiredIn the tag of the release
-	// that retired it, if one did.
+	// Version is a rule's newest version, Fork whether the visitor forks it, InGroup whether the cart holds its group
+	// whole, which brings it, and RetiredIn the tag of the release that retired it, if one did.
 	Version   string `json:"version,omitempty"`
 	Fork      bool   `json:"fork,omitempty"`
+	InGroup   bool   `json:"inGroup,omitempty"`
 	RetiredIn string `json:"retiredIn,omitempty"`
 	// Rules are the current rules a whole group brings.
 	Rules []ruleLinkJSON `json:"rules,omitempty"`
@@ -236,7 +237,7 @@ func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, i
 	label := newGroupLabel(it.Group.Path, it.Group.Canonical)
 	item := checkoutItemJSON{
 		Key: it.Key, Kind: string(it.Item.Kind), State: string(it.State), ID: it.Item.Path,
-		Group: groupJSON{ID: label.id, Name: label.display(), Canonical: label.canonical}, Fork: it.Fork,
+		Group: groupJSON{ID: label.id, Name: label.display(), Canonical: label.canonical}, Fork: it.Fork, InGroup: it.InGroup,
 	}
 	if icon := newGroupIcon(it.Group.Canonical, iconURL); icon.src != "" {
 		item.Group.Icon = &iconJSON{Src: icon.src, Monochrome: icon.monochrome, Narrow: icon.narrow, LightTile: icon.lightTile}

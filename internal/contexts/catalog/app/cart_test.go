@@ -198,6 +198,40 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 	}
 }
 
+// A rule whose whole group the cart holds too is in that group, so checkout imports it with the group, and only a
+// fork of it on its own; a rule of another group isn't, nor is one whose group the cart holds but can't import.
+func TestCheckoutMarksARuleItsWholeGroupBrings(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{
+		Keys: []string{
+			"acme/rules::techs/go/return-errors", "group::acme/rules::techs/go", "acme/rules::techs/go/close-bodies",
+			"acme/rules::practices/testing/name-tests", "stranger/rules::techs/go/use-go", "group::stranger/rules::techs/go",
+		},
+		Forks: map[string]bool{"acme/rules::techs/go/close-bodies": true},
+	}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inGroup []string
+	for _, lib := range checkout.Libraries {
+		for _, it := range lib.Items {
+			if it.InGroup {
+				inGroup = append(inGroup, it.Key)
+			}
+		}
+	}
+	if want := []string{"acme/rules::techs/go/return-errors", "acme/rules::techs/go/close-bodies"}; !slices.Equal(inGroup, want) {
+		t.Errorf("got %q in their groups, want %q", inGroup, want)
+	}
+	if strings.Contains(checkout.Commands, "--rules techs/go/return-errors") ||
+		!strings.Contains(checkout.Commands, "add rule techs/go/close-bodies") {
+		t.Errorf("the group should bring return-errors, and close-bodies stay a fork:\n%s", checkout.Commands)
+	}
+}
+
 // A cart holds at most domain.MaxCartItems keys: one more is refused without reading the catalog.
 func TestCheckoutRefusesACartOfMoreThanTheMostItems(t *testing.T) {
 	carts, s := newCarts(t)

@@ -140,6 +140,7 @@ func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLi
 	for i, item := range items {
 		resolved.Items = append(resolved.Items, c.resolveItem(item, keys[i], lib, resolved.Confirmed, cart.Forks[keys[i]]))
 	}
+	markRulesInGroups(resolved.Items)
 	resolved.RestOfGroups, resolved.RestOfGroupsRules = restOfGroups(resolved, lib)
 	return resolved
 }
@@ -178,6 +179,19 @@ func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibr
 		it.State = views.CartItemUnvetted
 	}
 	return it
+}
+
+// markRulesInGroups marks each ready rule of items whose group items hold whole, ready, as InGroup.
+func markRulesInGroups(items []views.ResolvedItem) {
+	whole := map[string]bool{}
+	for _, it := range items {
+		if it.State == views.CartItemReady && it.Item.Kind == domain.CartGroup {
+			whole[strings.ToLower(it.Item.Path)] = true
+		}
+	}
+	for i, it := range items {
+		items[i].InGroup = it.State == views.CartItemReady && it.Item.Kind == domain.CartRule && whole[strings.ToLower(it.Group.Path)]
+	}
 }
 
 // findCartRule returns the rule of rules at path, matched without regard to case, preferring the rule spelled exactly

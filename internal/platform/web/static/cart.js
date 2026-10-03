@@ -72,6 +72,16 @@
   }
 
   const inCart = (key) => !!key && state.cart.includes(key);
+
+  /** Return the key of the whole group of the rule key names, or '' for a group's key. */
+  function groupKeyOf(key) {
+    if (key.startsWith('group::')) return '';
+    const [library, path] = key.split('::');
+    return `group::${library}::${path.split('/').slice(0, 2).join('/')}`;
+  }
+
+  /** Return how many items the cart holds, a rule whose whole group it holds too counting with the group. */
+  const itemCount = () => state.cart.filter((key) => !inCart(groupKeyOf(key))).length;
   const toast = (text) => window.rulemartToast?.(text);
 
   /** Add keys the cart doesn't hold, in order, while it has room, and return how many it added, saying so when the
@@ -142,9 +152,10 @@
     window.dispatchEvent(new CustomEvent('rulemart:cart'));
   }
 
-  /** Paint the header's cart link: the count of items, a whole group counting once, in a badge, and in its name. */
+  /** Paint the header's cart link: the count of items, a whole group counting once, with the rules of it the cart
+   * holds too, in a badge, and in its name. */
   function paintCount() {
-    const n = state.cart.length;
+    const n = itemCount();
     for (const link of document.querySelectorAll('[data-cart-link]')) {
       link.setAttribute('aria-label', n ? `Cart, ${count(n, 'item', 'items')}` : 'Cart');
       const badge = link.querySelector('[data-cart-count]');
@@ -154,11 +165,12 @@
   }
 
   /** Paint each control that adds a rule or a group: Add, or once the cart holds its item, or a rule's whole group,
-   * In cart, Checkout, and Remove, which names the group when it's the group the cart holds. */
+   * In cart, Checkout, and Remove, which names the group when the cart holds the rule's group, which brings the rule
+   * whether the cart holds the rule too or not. */
   function paintControls() {
     for (const control of document.querySelectorAll('[data-cart-control]')) {
       const { cartRule: rule, cartGroup: group, cartGroupName: groupName } = control.dataset;
-      const held = inCart(rule) ? rule : inCart(group) ? group : '';
+      const held = inCart(group) ? group : inCart(rule) ? rule : '';
       const asGroup = !!rule && held === group;
       control.querySelector('[data-cart-open], [data-cart-add-group]').hidden = !!held;
       const box = control.querySelector('[data-cart-held]');

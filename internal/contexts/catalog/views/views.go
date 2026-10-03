@@ -609,8 +609,9 @@ type ResolvedItem struct {
 	Title     string
 	Version   coderules.RuleVersion
 	RetiredIn int
-	// Fork is true for a rule the visitor forks rather than keep in sync.
-	Fork bool
+	// Fork is true for a rule the visitor forks rather than keep in sync. InGroup is true for a ready rule whose group
+	// the cart holds whole, ready too, which brings the rule, so checkout imports it only as a fork.
+	Fork, InGroup bool
 	// Rules are a whole group's current rules, which it brings.
 	Rules []CartRule
 }

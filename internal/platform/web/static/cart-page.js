@@ -99,8 +99,8 @@
           'Fork')));
   }
 
-  /** Return a rule's row: its icon, title, group and version, Stay in sync or Fork, or for a rule of an unvetted
-   * library, which stays at the commit reviewed, only Fork, and Remove. */
+  /** Return a rule's row: its icon, title, group and version, Stay in sync or Fork, or only Fork for a rule its whole
+   * group in the cart brings, or of an unvetted library, which stays at the commit reviewed, and Remove. */
   function ruleRow(item) {
     const note = leftOutNote(item);
     const title = item.href ? h('a', 'block leading-[1.35] font-semibold text-ink no-underline hover:underline', { href: item.href }, item.title)
@@ -108,7 +108,9 @@
     const meta = note ? [note, item.state === 'retired' && item.href ? h('a', 'text-muted', { href: item.href }, 'See what replaced it') : null]
       : [`Rule in ${item.group.name}`, ' · ', item.version];
     let mode = h('span');
-    if (item.state === 'ready' && item.pinned) {
+    if (item.state === 'ready' && item.inGroup) {
+      mode = forkOnly(item, `Included in the ${item.group.name} group`);
+    } else if (item.state === 'ready' && item.pinned) {
       mode = forkOnly(item, 'Pinned to the reviewed commit');
     } else if (item.state === 'ready') {
       const name = `mode-${item.key}`;
@@ -230,8 +232,9 @@
         .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted })) }))
         .filter(({ items }) => items.length);
       const items = libraries.flatMap(({ items: held }) => held);
-      const rules = items.filter((item) => item.kind === 'rule').length;
-      const groups = items.length - rules;
+      // A rule its whole group brings counts with the group.
+      const rules = items.filter((item) => item.kind === 'rule' && !item.inGroup).length;
+      const groups = items.filter((item) => item.kind === 'group').length;
       $('[data-cart-summary]').textContent = answer
         ? `${rules ? count(rules, 'rule', 'rules') : ''}${rules && groups ? ' and ' : ''}${groups ? count(groups, 'whole group', 'whole groups') : ''} from ${count(libraries.length, 'library', 'libraries')}`
         : '';

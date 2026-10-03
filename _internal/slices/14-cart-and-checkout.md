@@ -131,6 +131,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: a group the cart holds shows ticked and disabled on the Groups tab**, so Select all groups, the count,
   the button, and the toast cover only the groups the box would add. The prototype lets the visitor tick it again
   and counts it.
+- **Proposed: a rule whose whole group the cart holds is included in it.** Its card reads "Included in the <Group>
+  group" with only Fork, which still copies it; the badge and the summary count it with the group; and its rule page
+  says "<Group> group in cart" with "Remove <Group> group from cart". The prototype lists it as a second item that
+  stays in sync, though the prompt leaves it out.
 - **Proposed: a key the browser holds that names nothing is dropped**, on load when it isn't well formed, and when
   the checkout lists it as unknown; an item whose rule is retired or missing, or whose library left, stays and says
   so, with Remove.
