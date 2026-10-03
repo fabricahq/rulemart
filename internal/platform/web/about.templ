@@ -21,10 +21,11 @@ templ aboutPage(c chrome, canList bool) {
 				</p>
 				<h2 id="vetting">What vetting means</h2>
 				<p>
-					Rules are instructions a coding agent follows, so Rulemart shows a library across the site, in its lists,
-					groups, and search, only once Fabrica has vetted it. Vetting is a reviewed change to
-					<a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's repository, so the file's
-					history shows when each library was vetted, and why.
+					Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries
+					Fabrica has vetted, each marked with a check, until you choose Include unvetted libraries beside the list.
+					That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting
+					is a reviewed change to <a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's
+					repository, so the file's history shows when each library was vetted, and why.
 				</p>
 				<p>
 					Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica
@@ -35,9 +36,10 @@ templ aboutPage(c chrome, canList bool) {
 				<p>
 					Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica
 					vets it, a listed library appears under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>,
-					and in the lists, groups, and search only for a visitor who includes unvetted libraries, tagged Unvetted. Every
-					page of it warns that it hasn't been vetted, search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review
-					its rules and wait for your approval before adding it, pinned to the commit it reviewed.
+					and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of
+					it says "This library has not been vetted. Be sure to review these rules carefully.", search engines are asked
+					not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding
+					agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.
 				</p>
 				<h2 id="get-vetted">Get a library vetted</h2>
 				<ol>

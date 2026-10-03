@@ -43,8 +43,8 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says what Rulemart is, what vetting means, and how a library gets vetted, and has an address of its
-// own for search engines.
+// The about page says what Rulemart is, what vetting means, as the opt-in every list offers, and how a library gets
+// vetted, and has an address of its own for search engines.
 func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
 
@@ -55,7 +55,8 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About Rulemart", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem")
+		"Report a problem", "until you choose Include unvetted libraries beside the list",
+		"This library has not been vetted. Be sure to review these rules carefully.")
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
 	}

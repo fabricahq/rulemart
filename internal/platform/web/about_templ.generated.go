@@ -89,14 +89,14 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">on GitHub</a>. Browsing needs no account. Every hour, Rulemart checks each library for a new release.</p><h2 id=\"vetting\">What vetting means</h2><p>Rules are instructions a coding agent follows, so Rulemart shows a library across the site, in its lists, groups, and search, only once Fabrica has vetted it. Vetting is a reviewed change to <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">on GitHub</a>. Browsing needs no account. Every hour, Rulemart checks each library for a new release.</p><h2 id=\"vetting\">What vetting means</h2><p>Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries Fabrica has vetted, each marked with a check, until you choose Include unvetted libraries beside the list. That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting is a reviewed change to <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var7 templ.SafeURL
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vettedFileURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 26, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 27, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -109,20 +109,20 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			var templ_7745c5c3_Var8 templ.SafeURL
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 37, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 38, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, and in the lists, groups, and search only for a visitor who includes unvetted libraries, tagged Unvetted. Every page of it warns that it hasn't been vetted, search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of it says \"This library has not been vetted. Be sure to review these rules carefully.\", search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 templ.SafeURL
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(codeRulesLibrariesURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 46, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 48, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -140,7 +140,7 @@ func aboutPage(c chrome, canList bool) templ.Component {
 				var templ_7745c5c3_Var10 templ.SafeURL
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 50, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 52, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			var templ_7745c5c3_Var11 templ.SafeURL
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(askToVetURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 56, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 58, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -176,7 +176,7 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			var templ_7745c5c3_Var12 templ.SafeURL
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(reportFormsURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 63, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 65, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -189,7 +189,7 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			var templ_7745c5c3_Var13 templ.SafeURL
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privacyHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 67, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 69, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -299,7 +299,7 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 			var templ_7745c5c3_Var18 templ.SafeURL
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 179, Col: 85}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 181, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
