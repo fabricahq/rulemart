@@ -253,8 +253,12 @@
     const control = target.closest('[data-cart-control]');
     const opened = pending;
     if (target.matches('[data-cart-open]')) {
-      // A rule page's dialog: for an unvetted library, the warning first, then the choices.
-      openDialog(control, control.dataset.cartVetted === 'false' ? 'confirm' : 'choose', () => showStep('choose'));
+      // A rule page's dialog: for an unvetted library, the warning first, then the choices, the first of them focused,
+      // since the button that confirmed is gone.
+      openDialog(control, control.dataset.cartVetted === 'false' ? 'confirm' : 'choose', () => {
+        showStep('choose');
+        dialog.querySelector('[data-cart-pick]').focus();
+      });
     } else if (target.matches('[data-cart-confirm]')) {
       confirm(opened.library);
       opened.then();
