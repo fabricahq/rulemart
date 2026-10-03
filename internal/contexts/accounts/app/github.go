@@ -126,9 +126,40 @@ func (g GitHubAccounts) Refresh(ctx context.Context, account domain.Account, ses
 
 // read reads the visitor's GitHub account with session's token, and keeps what it found as the account's snapshot. When
 // the read fails for a reason other than the token, it keeps previous, saying so, so pages show what an earlier read
-// found and when, and the next read waits domain.RefreshInterval.
+// found and when, and the next read waits domain.RefreshInterval. When the account's access changes while it reads,
+// such as when the visitor removes access, it reads again, at most maxReads times in all, without previous, which may
+// hold what the visitor can no longer see.
 func (g GitHubAccounts) read(ctx context.Context, account domain.Account, session domain.SessionToken, previous domain.Snapshot) (domain.Snapshot, error) {
 	token, err := g.Sessions.GitHubToken(ctx, session)
+	if err != nil {
+		return previous, err
+	}
+	for range maxReads - 1 {
+		snapshot, err := g.readOnce(ctx, token, account, previous)
+		if !errors.Is(err, errAccessChanged) {
+			return snapshot, err
+		}
+		previous = domain.Snapshot{}
+	}
+	snapshot, err := g.readOnce(ctx, token, account, previous)
+	if errors.Is(err, errAccessChanged) {
+		return domain.Snapshot{ReadFailed: true}, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, err)
+	}
+	return snapshot, err
+}
+
+// maxReads bounds how many times read reads GitHub while the account's access keeps changing.
+const maxReads = 3
+
+// errAccessChanged reports that the account's access to private repositories changed while a read was under way, so
+// what it read may hold what the visitor can no longer see, and it kept nothing.
+var errAccessChanged = errors.New("the account's access to private repositories changed during the read")
+
+// readOnce is one attempt of read, with the visitor's GitHub token. It notes the account's GitHub generation before
+// anything else, and keeps what it read, or previous after a failure, only while the generation is unchanged; otherwise,
+// or when it forgets an installation itself, it fails with errAccessChanged.
+func (g GitHubAccounts) readOnce(ctx context.Context, token string, account domain.Account, previous domain.Snapshot) (domain.Snapshot, error) {
+	generation, err := g.Store.GitHubGeneration(ctx, account.ID)
 	if err != nil {
 		return previous, err
 	}
@@ -137,63 +168,71 @@ func (g GitHubAccounts) read(ctx context.Context, account domain.Account, sessio
 		return previous, err
 	}
 	now := g.now()
-	installations, revoked, err := g.stillPermitted(ctx, token, account, installations)
-	if revoked {
-		// The store discarded the snapshot, whose private parts came through an installation the visitor may no longer
-		// read through, so a failed read keeps none of it.
-		previous = domain.Snapshot{}
-	}
+	installations, err = g.stillPermitted(ctx, token, account, installations)
 	var snapshot domain.Snapshot
 	if err == nil {
 		snapshot, err = g.scan(ctx, token, account.Login, installations)
+	}
+	if errors.Is(err, errAccessChanged) {
+		return domain.Snapshot{}, err
 	}
 	if errors.Is(err, domain.ErrGitHubTokenRefused) {
 		return previous, ErrNoGitHubToken
 	}
 	if err != nil {
 		previous.ReadFailed = true
-		if saveErr := g.Store.SaveSnapshot(ctx, account.ID, previous, now); saveErr != nil {
+		saved, saveErr := g.Store.SaveSnapshot(ctx, account.ID, generation, previous, now)
+		if saveErr != nil {
 			return previous, saveErr
+		}
+		if !saved {
+			return domain.Snapshot{}, errAccessChanged
 		}
 		return previous, fmt.Errorf("read GitHub accountID=%d: %w: %v", account.ID, ErrGitHubRead, err)
 	}
 	snapshot.ReadAt = now
-	if err := g.Store.SaveSnapshot(ctx, account.ID, snapshot, now); err != nil {
+	saved, err := g.Store.SaveSnapshot(ctx, account.ID, generation, snapshot, now)
+	if err != nil {
 		return previous, err
+	}
+	if !saved {
+		return domain.Snapshot{}, errAccessChanged
 	}
 	return snapshot, nil
 }
 
-// stillPermitted returns the installations the visitor may still read through, checking with their own token that
-// they still own each organization one is on, as Install checked when they added it: a former owner, demoted or gone
-// from the organization, is no longer permitted, so the installation is forgotten for their account, with its snapshot,
-// and revoked is true.
-func (g GitHubAccounts) stillPermitted(ctx context.Context, token string, account domain.Account, installations []domain.Installation) (permitted []domain.Installation, revoked bool, err error) {
+// stillPermitted returns installations, checking with the visitor's own token that they still own each organization one
+// is on, as Install checked when they added it. A former owner, demoted or gone from the organization, is no longer
+// permitted, so the installation is forgotten for their account, with its snapshot, and it fails with
+// errAccessChanged.
+func (g GitHubAccounts) stillPermitted(ctx context.Context, token string, account domain.Account, installations []domain.Installation) ([]domain.Installation, error) {
+	revoked := false
 	for _, installation := range installations {
 		if g.App == nil || strings.EqualFold(installation.Account, account.Login) {
-			permitted = append(permitted, installation)
 			continue
 		}
 		role, err := g.GitHub.OrganizationRole(ctx, token, installation.Account)
 		if err != nil {
-			return nil, revoked, err
+			return nil, err
 		}
 		if role == "admin" {
-			permitted = append(permitted, installation)
 			continue
 		}
 		if err := g.Store.RemoveInstallation(ctx, account.ID, installation.ID); err != nil {
-			return nil, revoked, err
+			return nil, err
 		}
 		revoked = true
 	}
-	return permitted, revoked, nil
+	if revoked {
+		return nil, errAccessChanged
+	}
+	return installations, nil
 }
 
 // scan reads what the snapshot holds: login's organizations, then the public repositories of login and each
 // organization, and the private repositories each installation reads, the domain.MaxRepositories most recently pushed of
 // them, and in each, whether it publishes a library and whether it's a project. An installation GitHub no longer knows
-// is forgotten, and the scan goes on without it.
+// is forgotten, and the scan fails with errAccessChanged.
 func (g GitHubAccounts) scan(ctx context.Context, token, login string, installations []domain.Installation) (domain.Snapshot, error) {
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
@@ -281,11 +320,15 @@ func (g GitHubAccounts) candidates(ctx context.Context, token, login string, org
 }
 
 // installationRepositories returns the private repositories installation reads, each marked with it, and the token that
-// reads them. An installation GitHub no longer knows is forgotten, and reads none.
+// reads them. An installation GitHub no longer knows is forgotten, and the read fails with errAccessChanged, to read
+// again without it.
 func (g GitHubAccounts) installationRepositories(ctx context.Context, installation domain.Installation) ([]domain.GitHubRepository, string, error) {
 	token, err := g.App.InstallationToken(ctx, installation.ID)
 	if errors.Is(err, domain.ErrNoSuchInstallation) {
-		return nil, "", g.Store.InstallationRemoved(ctx, installation.ID)
+		if err := g.Store.InstallationRemoved(ctx, installation.ID); err != nil {
+			return nil, "", err
+		}
+		return nil, "", errAccessChanged
 	}
 	if err != nil {
 		return nil, "", err

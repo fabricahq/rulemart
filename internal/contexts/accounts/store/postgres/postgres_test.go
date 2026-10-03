@@ -294,8 +294,8 @@ func TestSignInDiscardsTheAccountsGitHubSnapshot(t *testing.T) {
 	ctx := context.Background()
 	s, connString := newStore(t)
 	_, account := signIn(t, s, octocat, "")
-	if err := s.SaveSnapshot(ctx, account.ID, domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now()); err != nil {
-		t.Fatal(err)
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now()); err != nil || !saved {
+		t.Fatalf("saved %v, %v", saved, err)
 	}
 	signIn(t, s, octocat, "")
 	var kept int
@@ -335,8 +335,8 @@ func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 		Truncated:  true,
 		ReadFailed: true,
 	}
-	if err := s.SaveSnapshot(ctx, account.ID, saved, triedAt); err != nil {
-		t.Fatal(err)
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), saved, triedAt); err != nil || !ok {
+		t.Fatalf("saved %v, %v", ok, err)
 	}
 	got, gotTriedAt, found, err := s.Snapshot(ctx, account.ID)
 	if err != nil || !found {
@@ -349,4 +349,38 @@ func TestSnapshotReadsBackAsSavedWithWhenRulemartLastTried(t *testing.T) {
 	if !reflect.DeepEqual(got, saved) {
 		t.Errorf("read back\n%+v\nwant\n%+v", got, saved)
 	}
+}
+
+// A read keeps what it found only while the account's GitHub generation is the one it noted when it began: once
+// access changes, which discards the snapshot, the read's save keeps nothing.
+func TestASnapshotIsKeptOnlyAtTheGenerationItsReadBeganAt(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	began := generation(t, s, account.ID)
+	if err := s.RemoveInstallations(ctx, account.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	saved, err := s.SaveSnapshot(ctx, account.ID, began, domain.Snapshot{Organizations: []string{"octo-org"}}, time.Now())
+
+	if err != nil || saved {
+		t.Fatalf("saved %v, %v, want nothing kept", saved, err)
+	}
+	if _, _, found, _ := s.Snapshot(ctx, account.ID); found {
+		t.Error("kept a snapshot read before access changed")
+	}
+	if saved, err := s.SaveSnapshot(ctx, account.ID, generation(t, s, account.ID), domain.Snapshot{}, time.Now()); err != nil || !saved {
+		t.Errorf("at the current generation, saved %v, %v", saved, err)
+	}
+}
+
+// generation returns the account's GitHub generation, which a read notes before reading GitHub.
+func generation(t *testing.T, s *Store, accountID int64) int64 {
+	t.Helper()
+	generation, err := s.GitHubGeneration(context.Background(), accountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return generation
 }

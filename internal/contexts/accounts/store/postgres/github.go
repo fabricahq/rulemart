@@ -40,21 +40,38 @@ func (s *Store) Snapshot(ctx context.Context, accountID int64) (domain.Snapshot,
 	return record.snapshot(), row.TriedAt.Time, true, nil
 }
 
-// SaveSnapshot keeps snapshot as the account's, as store.Store describes.
-func (s *Store) SaveSnapshot(ctx context.Context, accountID int64, snapshot domain.Snapshot, triedAt time.Time) error {
-	data, err := json.Marshal(newSnapshotRecord(snapshot))
-	if err != nil {
-		return fmt.Errorf("save GitHub snapshot accountID=%d: encode it: %v", accountID, err)
-	}
-	err = s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		return accountsdb.New(pool).SaveSnapshot(ctx, accountsdb.SaveSnapshotParams{
-			AccountID: accountID, TriedAt: pgtype.Timestamptz{Time: triedAt, Valid: true}, Snapshot: data,
-		})
+// GitHubGeneration returns the account's GitHub generation, as store.Store describes.
+func (s *Store) GitHubGeneration(ctx context.Context, accountID int64) (int64, error) {
+	var generation int64
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		var err error
+		generation, err = accountsdb.New(pool).GetGitHubGeneration(ctx, accountID)
+		return err
 	})
 	if err != nil {
-		return fmt.Errorf("save GitHub snapshot accountID=%d: %v", accountID, err)
+		return 0, fmt.Errorf("read GitHub generation accountID=%d: %v", accountID, err)
 	}
-	return nil
+	return generation, nil
+}
+
+// SaveSnapshot keeps snapshot as the account's while its GitHub generation is still generation, as store.Store
+// describes.
+func (s *Store) SaveSnapshot(ctx context.Context, accountID, generation int64, snapshot domain.Snapshot, triedAt time.Time) (bool, error) {
+	data, err := json.Marshal(newSnapshotRecord(snapshot))
+	if err != nil {
+		return false, fmt.Errorf("save GitHub snapshot accountID=%d: encode it: %v", accountID, err)
+	}
+	var saved int64
+	err = s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		saved, err = q.SaveSnapshot(ctx, accountsdb.SaveSnapshotParams{
+			AccountID: accountID, Generation: generation, TriedAt: pgtype.Timestamptz{Time: triedAt, Valid: true}, Snapshot: data,
+		})
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("save GitHub snapshot accountID=%d: %v", accountID, err)
+	}
+	return saved > 0, nil
 }
 
 // Installations returns the installations the account reads private repositories through, as store.Store describes.
@@ -83,7 +100,7 @@ func (s *Store) AddInstallation(ctx context.Context, accountID int64, installati
 		}); err != nil {
 			return err
 		}
-		return q.DeleteSnapshot(ctx, accountID)
+		return discardSnapshot(ctx, q, accountID)
 	})
 	if err != nil {
 		return fmt.Errorf("add GitHub installation accountID=%d installationID=%d: %v", accountID, installation.ID, err)
@@ -97,7 +114,7 @@ func (s *Store) RemoveInstallations(ctx context.Context, accountID int64) error 
 		if err := q.DeleteAccountInstallations(ctx, accountID); err != nil {
 			return err
 		}
-		return q.DeleteSnapshot(ctx, accountID)
+		return discardSnapshot(ctx, q, accountID)
 	})
 	if err != nil {
 		return fmt.Errorf("remove GitHub installations accountID=%d: %v", accountID, err)
@@ -111,7 +128,7 @@ func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) err
 		if err := q.DeleteAccountInstallation(ctx, accountsdb.DeleteAccountInstallationParams{AccountID: accountID, InstallationID: id}); err != nil {
 			return err
 		}
-		return q.DeleteSnapshot(ctx, accountID)
+		return discardSnapshot(ctx, q, accountID)
 	})
 	if err != nil {
 		return fmt.Errorf("remove GitHub installation accountID=%d installationID=%d: %v", accountID, id, err)
@@ -119,10 +136,13 @@ func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) err
 	return nil
 }
 
-// InstallationRemoved forgets the installation for every account and discards their snapshots, in one statement.
+// InstallationRemoved forgets the installation for every account and discards their snapshots, in one transaction.
 func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := accountsdb.New(pool).DeleteInstallation(ctx, id)
+	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
+			return err
+		}
+		_, err := q.DeleteInstallation(ctx, id)
 		return err
 	})
 	if err != nil {
@@ -131,16 +151,28 @@ func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	return nil
 }
 
-// InstallationChanged discards the snapshots of the accounts that read through the installation.
+// InstallationChanged discards the snapshots of the accounts that read through the installation, in one transaction.
 func (s *Store) InstallationChanged(ctx context.Context, id int64) error {
-	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
-		_, err := accountsdb.New(pool).DiscardInstallationSnapshots(ctx, id)
+	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
+			return err
+		}
+		_, err := q.DiscardInstallationSnapshots(ctx, id)
 		return err
 	})
 	if err != nil {
 		return fmt.Errorf("discard snapshots of GitHub installation installationID=%d: %v", id, err)
 	}
 	return nil
+}
+
+// discardSnapshot discards the account's snapshot within a transaction, after advancing its GitHub generation, so a
+// read under way that saves later keeps nothing, and one whose save locked the account's row first is deleted here.
+func discardSnapshot(ctx context.Context, q *accountsdb.Queries, accountID int64) error {
+	if err := q.AdvanceGitHubGeneration(ctx, accountID); err != nil {
+		return err
+	}
+	return q.DeleteSnapshot(ctx, accountID)
 }
 
 // inTransaction runs work in one transaction, committed when work returns nil. It's safe to repeat after a failed

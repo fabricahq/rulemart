@@ -4,14 +4,31 @@
 -- name: GetSnapshot :one
 SELECT tried_at, snapshot FROM github_snapshots WHERE account_id = @account_id;
 
--- SaveSnapshot keeps snapshot as the account's, tried at tried_at, replacing the one it had.
--- name: SaveSnapshot :exec
+-- name: GetGitHubGeneration :one
+SELECT github_generation FROM accounts WHERE id = @account_id;
+
+-- SaveSnapshot keeps snapshot as the account's, tried at tried_at, replacing the one it had, unless the account's
+-- GitHub generation is no longer generation. It locks the account's row, so a change to the generation waits for it, or
+-- it for the change, and then sees the change. It returns 1 when it kept the snapshot, and 0 when it didn't.
+-- name: SaveSnapshot :execrows
 INSERT INTO github_snapshots (account_id, tried_at, snapshot)
-VALUES (@account_id, @tried_at, @snapshot)
+SELECT id, @tried_at, @snapshot FROM accounts WHERE id = @account_id AND github_generation = @generation
+FOR UPDATE
 ON CONFLICT (account_id) DO UPDATE SET tried_at = EXCLUDED.tried_at, snapshot = EXCLUDED.snapshot;
+
+-- AdvanceGitHubGeneration notes a change to the account's access, which a read under way mustn't undo. Run it before
+-- discarding the snapshot, in the same transaction, so a save that waited for it sees it.
+-- name: AdvanceGitHubGeneration :exec
+UPDATE accounts SET github_generation = github_generation + 1 WHERE id = @account_id;
 
 -- name: DeleteSnapshot :exec
 DELETE FROM github_snapshots WHERE account_id = @account_id;
+
+-- AdvanceInstallationGenerations notes a change to the access of every account that reads through the installation,
+-- as AdvanceGitHubGeneration does.
+-- name: AdvanceInstallationGenerations :exec
+UPDATE accounts SET github_generation = github_generation + 1
+WHERE id IN (SELECT account_id FROM github_installations WHERE installation_id = @installation_id);
 
 -- name: ListInstallations :many
 SELECT installation_id, github_account FROM github_installations

@@ -54,7 +54,7 @@ func (s *Store) SignIn(ctx context.Context, identity domain.Identity, tokenHash,
 				return fmt.Errorf("end expired sessions: %v", err)
 			}
 			// The next page that shows the visitor's GitHub account reads it again, with this sign-in's token.
-			if err := q.DeleteSnapshot(ctx, account.ID); err != nil {
+			if err := discardSnapshot(ctx, q, account.ID); err != nil {
 				return fmt.Errorf("discard the GitHub snapshot: %v", err)
 			}
 			expires, err := q.CreateSession(ctx, accountsdb.CreateSessionParams{

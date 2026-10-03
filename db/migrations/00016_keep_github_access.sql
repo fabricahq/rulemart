@@ -21,6 +21,13 @@ ALTER TABLE accounts ADD COLUMN github_name text NOT NULL DEFAULT '' CHECK (leng
 -- build's test user's.
 ALTER TABLE sessions ADD COLUMN github_token bytea CHECK (length(github_token) BETWEEN 29 AND 1024);
 
+-- How many times the account's access to private repositories has changed, or its snapshot was discarded for another
+-- reason: installing the app, removing access, GitHub's webhook, and signing in each add one. A read notes it before
+-- reading GitHub and keeps what it found only if it hasn't changed since, so a read that overlaps a removal can't bring
+-- back what the removal discarded. A change adds one before it discards the snapshot, in the same transaction, so a
+-- read's save that locks the account's row first is discarded after it.
+ALTER TABLE accounts ADD COLUMN github_generation bigint NOT NULL DEFAULT 0;
+
 CREATE TABLE github_snapshots (
     account_id bigint PRIMARY KEY REFERENCES accounts ON DELETE CASCADE,
     -- When Rulemart last tried to read the account, whether or not the read succeeded, which keeps a refresh to once a

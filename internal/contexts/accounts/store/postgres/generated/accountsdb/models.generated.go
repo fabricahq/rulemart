@@ -9,13 +9,14 @@ import (
 )
 
 type Account struct {
-	ID           int64
-	GithubUserID int64
-	GithubLogin  string
-	AvatarUrl    string
-	CreatedAt    pgtype.Timestamptz
-	SignedInAt   pgtype.Timestamptz
-	GithubName   string
+	ID               int64
+	GithubUserID     int64
+	GithubLogin      string
+	AvatarUrl        string
+	CreatedAt        pgtype.Timestamptz
+	SignedInAt       pgtype.Timestamptz
+	GithubName       string
+	GithubGeneration int64
 }
 
 type Asset struct {

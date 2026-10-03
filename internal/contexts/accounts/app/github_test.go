@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -474,6 +475,60 @@ func TestAFormerOrganizationOwnerNoLongerReadsItsPrivateRepositories(t *testing.
 			}
 			if installations, _ := site.accounts.Installations(ctx, site.account.ID); len(installations) != 0 {
 				t.Errorf("still reads through %+v", installations)
+			}
+		})
+	}
+}
+
+// Access removed while a read is under way, by the visitor's "Remove access" or GitHub's webhook, is never undone by
+// that read: whether it succeeds or fails, neither what it returns nor what it keeps names a private repository.
+func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {
+	for name, tc := range map[string]struct {
+		remove func(*gitHubSite) error
+		fail   bool
+	}{
+		"Remove access during a read that succeeds": {
+			remove: func(s *gitHubSite) error { return s.accounts.ForgetInstallations(context.Background(), s.account.ID) },
+		},
+		"the webhook's removal during a read that fails": {
+			remove: func(s *gitHubSite) error { return s.accounts.Store.InstallationRemoved(context.Background(), 5) },
+			fail:   true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			fake := monasGitHub()
+			fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+			site := newGitHubSite(t, fake, true)
+			if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+				t.Fatal(err)
+			}
+			var once sync.Once
+			fake.Fail = func(path string) bool {
+				if !strings.Contains(path, "/repos/mona/billing/contents") {
+					return false
+				}
+				once.Do(func() {
+					if err := tc.remove(site); err != nil {
+						t.Error(err)
+					}
+				})
+				return tc.fail
+			}
+			site.now = site.now.Add(domain.RefreshInterval)
+
+			got, _ := site.accounts.Refresh(ctx, site.account, site.session)
+
+			kept, _, _, err := site.accounts.Store.Snapshot(ctx, site.account.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for what, snapshot := range map[string]domain.Snapshot{"returned": got, "kept": kept} {
+				for _, p := range snapshot.Projects {
+					if p.Private {
+						t.Errorf("the %s snapshot shows the private %s", what, p.FullName())
+					}
+				}
 			}
 		})
 	}
