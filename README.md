@@ -55,11 +55,16 @@ terminal to run them yourself. The prompt installs [Code Rules](https://code-rul
 3. Add what you want to your cart, which needs no account: a single rule, or a rule's whole group. Picking the
    groups on a library's page adds several at once.
 4. Open the cart. Choose for each rule whether it stays in sync with its library or is forked into your project,
-   and enter your project's GitHub repository if you like, so the prompt names it.
+   and enter your project's GitHub repository if you like, so the prompt names it. Signed in, pick one of your
+   projects instead, each listed with the libraries it uses.
 5. Copy the prompt into your coding agent, in your project's repository, or copy the commands and run them yourself.
    They set up Code Rules if the project needs it, add each library with `code-rules project add library`, fork
    rules with `code-rules project add rule --from`, and sync. The prompt also points your agent instructions, such as
    `AGENTS.md`, at the rules.
+
+Checkout pins nothing by default: the rules you keep in sync move to newer versions only when your project runs
+`code-rules project update`, which previews each change first. To hold a library at one release instead, the Commands
+tab's footnote says how to add `--ref release/<number>` to its `add library` command.
 
 Your project now has `.code-rules/generated/RULES.md`, the index your agent reads before it works, listing the rules
 you picked. [Code Rules' guide](https://code-rules.fabricahq.com) covers what comes next: adding your own rules,
@@ -71,12 +76,12 @@ Anyone can list a public Code Rules library on Rulemart.
 
 1. Release your library with Code Rules, which tags each release, as
    [Code Rules' guide to libraries](https://code-rules.fabricahq.com/concepts/libraries/) explains.
-2. Choose **List your library** on Rulemart's home page, sign in with GitHub, and enter the repository as
-   `owner/name`.
-3. Rulemart reads the library's release tags, usually within seconds, and shows its pages under **Unvetted
-   libraries**, with a warning. **Your listings** shows how that went, and Rulemart checks for new releases every
-   hour from then on.
-4. To show the library across the site, in its lists, groups, and search,
+2. Choose **List your library** on Rulemart's home page and sign in with GitHub. Pick the library from the
+   repositories you and your organizations own, or enter any public library's GitHub URL.
+3. Rulemart reads the library's release tags, usually within seconds, while a checklist shows its progress, then
+   shows its pages under **Unvetted libraries**, with a warning. Rulemart checks for new releases every hour from then
+   on.
+4. To show the library in lists, groups, and search by default,
    [ask Fabrica to vet it](https://github.com/fabricahq/rulemart/issues/new?template=ask-to-vet-a-library.yml).
 
 ## How it works
@@ -86,16 +91,18 @@ release and reads what changed, so each rule's version history matches what Code
 
 Fabrica vets the libraries Rulemart shows by default. Vetting is a reviewed change to
 [catalog/vetted.yaml](catalog/vetted.yaml), so its history shows when each library was vetted, and why. A listed
-library that isn't vetted appears only under Unvetted libraries: every page warns that it hasn't been vetted, search
+library that isn't vetted appears under Unvetted libraries, and in lists, groups, and search only for a visitor who
+chooses **Include unvetted libraries**, tagged Unvetted. Every page of it warns that it hasn't been vetted, search
 engines are asked not to index it, and adding its rules to the cart takes a second confirmation. Checkout then has
-your agent review its rules and wait for your approval before adding them.
+your agent review its rules and wait for your approval before adding them, pinned to the commit it reviewed.
 
 ## Learn more
 
 - [Code Rules documentation](https://code-rules.fabricahq.com): rules, groups, libraries, and the `code-rules`
   command.
 - [_internal/decisions.md](_internal/decisions.md): the decisions that shape Rulemart.
-- [_internal/realignment.md](_internal/realignment.md): the plan that brings the site to its intended design.
+- [_internal/realignment.md](_internal/realignment.md): the plan that brought the site to its intended design, and
+  how to check it still matches.
 
 ## Contributing
 
