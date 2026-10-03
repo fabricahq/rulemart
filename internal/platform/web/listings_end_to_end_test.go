@@ -72,7 +72,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	run := body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
 	assertShows(t, run, "Adding example/rules", "In progress: Looking for rule-library.yaml in example/rules")
 	if !strings.Contains(run, "data-polling") || !strings.Contains(run, `http-equiv="refresh"`) {
-		t.Error("the check's page doesn't follow the check")
+		t.Errorf("the check's page doesn't follow the check: %s", visibleText(t, run))
 	}
 
 	job, err := jobs.Parse(queue.bodies[0])
