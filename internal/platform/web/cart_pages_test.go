@@ -115,19 +115,21 @@ func TestARetiredRuleOffersNothingToAdd(t *testing.T) {
 	}
 }
 
-// A library's Groups tab picks groups for the Add to cart box beside them, each by its key, and leads to each
-// group's page; the other tabs have no box.
+// A library's Groups tab picks groups for the Add to cart box beside them, each by its key, naming the library whose
+// box takes it, and leads to each group's page; the other tabs have no box.
 func TestALibrarysGroupsOfferThemToTheCart(t *testing.T) {
 	handler := newSite(t, newCatalog())
 
 	doc := parsePage(t, get(t, handler, library).Body.String())
 
-	if find(doc, withAttribute("data-cart-groups")) == nil {
+	panel := find(doc, withAttribute("data-cart-groups"))
+	if panel == nil {
 		t.Fatal("no Add to cart box")
 	}
 	for _, key := range []string{"group::example/rules::practices/testing", "group::example/rules::techs/go"} {
-		if find(doc, func(n *html.Node) bool { return attribute(n, "data-cart-pick-group") == key }) == nil {
-			t.Errorf("no checkbox picks %s", key)
+		pick := find(doc, func(n *html.Node) bool { return attribute(n, "data-cart-pick-group") == key })
+		if pick == nil || attribute(pick, "data-cart-library") != attribute(panel, "data-cart-library") {
+			t.Errorf("no checkbox picks %s for the box of %s", key, attribute(panel, "data-cart-library"))
 		}
 	}
 	if find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == library+"/techs/go" }) == nil {

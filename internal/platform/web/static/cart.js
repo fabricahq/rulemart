@@ -174,42 +174,51 @@
     }
   }
 
-  /** Paint the library page's Add to cart box from the groups ticked: how many, and its button's label. */
+  /** Return the Groups tab's checkboxes that pick groups for panel, its Add to cart box: those of panel's library. */
+  const picksOf = (panel) => [...document.querySelectorAll(`[data-cart-pick-group][data-cart-library="${CSS.escape(panel.dataset.cartLibrary)}"]`)];
+
+  /** Paint each Add to cart box of the library page from the groups ticked for it: how many, and its button's label. */
   function paintGroups() {
-    const panel = document.querySelector('[data-cart-groups]');
-    if (!panel) return;
-    const n = document.querySelectorAll('[data-cart-pick-group]:checked').length;
-    panel.querySelector('[data-cart-groups-text]').textContent = n
-      ? `${count(n, 'group', 'groups')} selected. Whole groups stay in sync with ${panel.dataset.cartLibrary}.`
-      : 'Select whole groups to add. You can also add single rules from their pages.';
-    panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
-    panel.querySelector('[data-cart-groups-add]').disabled = n === 0;
-    panel.querySelector('[data-cart-groups-clear]').hidden = n === 0;
+    for (const panel of document.querySelectorAll('[data-cart-groups]')) {
+      const n = picksOf(panel).filter((box) => box.checked).length;
+      panel.querySelector('[data-cart-groups-text]').textContent = n
+        ? `${count(n, 'group', 'groups')} selected. Whole groups stay in sync with ${panel.dataset.cartLibrary}.`
+        : 'Select whole groups to add. You can also add single rules from their pages.';
+      panel.querySelector('[data-cart-groups-label]').textContent = n ? `Add ${count(n, 'group', 'groups')} to cart` : 'Add groups to cart';
+      panel.querySelector('[data-cart-groups-add]').disabled = n === 0;
+      panel.querySelector('[data-cart-groups-clear]').hidden = n === 0;
+    }
   }
 
   const dialog = document.querySelector('dialog[data-cart-dialog]');
-  // What a confirmation from an unvetted library goes on to do: show the dialog's choices, or add what the visitor
-  // asked to.
-  let afterConfirming = null;
+  // What the open dialog acts on: opener, the control or Add to cart box that opened it, whose item its choices add,
+  // opener's library, which confirming records, and then, what confirming goes on to do: show the dialog's choices, or
+  // add what the visitor asked to. Null while the dialog is closed.
+  let pending = null;
 
   /** Show the dialog's step, confirm or choose, and hide the other. */
   function showStep(step) {
     for (const part of dialog.querySelectorAll('[data-cart-step]')) part.hidden = part.dataset.cartStep !== step;
   }
 
-  /** Run then, after the visitor confirms adding from library when the control that asks, of data, says it isn't
-   * vetted; at once otherwise. */
-  function confirmed(data, then) {
-    if (data.cartVetted !== 'false' || !dialog) {
+  /** Open the dialog at step for opener, which confirming, then, goes on from. */
+  function openDialog(opener, step, then) {
+    pending = { opener, library: opener.dataset.cartLibrary, then };
+    showStep(step);
+    dialog.showModal();
+  }
+
+  /** Run then, after the visitor confirms adding from opener's library when opener, the control that asks, says it
+   * isn't vetted; at once otherwise. */
+  function confirmed(opener, then) {
+    if (opener.dataset.cartVetted !== 'false' || !dialog) {
       then();
       return;
     }
-    afterConfirming = () => {
+    openDialog(opener, 'confirm', () => {
       dialog.close();
       then();
-    };
-    showStep('confirm');
-    dialog.showModal();
+    });
   }
 
   /** Focus the Checkout link of control, once it shows the cart holds its item. */
@@ -220,26 +229,25 @@
       '[data-cart-open], [data-cart-pick], [data-cart-confirm], [data-cart-close], [data-cart-remove], [data-cart-add-group], [data-cart-groups-add], [data-cart-groups-all], [data-cart-groups-clear]',
     );
     if (!target) return;
-    const control = target.closest('[data-cart-control]') || document.querySelector('[data-cart-control]');
+    const control = target.closest('[data-cart-control]');
+    const opened = pending;
     if (target.matches('[data-cart-open]')) {
       // A rule page's dialog: for an unvetted library, the warning first, then the choices.
-      afterConfirming = () => showStep('choose');
-      showStep(control.dataset.cartVetted === 'false' ? 'confirm' : 'choose');
-      dialog.showModal();
+      openDialog(control, control.dataset.cartVetted === 'false' ? 'confirm' : 'choose', () => showStep('choose'));
     } else if (target.matches('[data-cart-confirm]')) {
-      const data = (document.querySelector('[data-cart-control]') || document.querySelector('[data-cart-groups]')).dataset;
-      confirm(data.cartLibrary);
-      afterConfirming?.();
+      confirm(opened.library);
+      opened.then();
     } else if (target.matches('[data-cart-close]')) {
       dialog.close();
     } else if (target.matches('[data-cart-pick]')) {
       dialog.close();
-      if (add([target.dataset.cartPick === 'group' ? control.dataset.cartGroup : control.dataset.cartRule])) {
+      const { opener } = opened;
+      if (add([target.dataset.cartPick === 'group' ? opener.dataset.cartGroup : opener.dataset.cartRule])) {
         toast('Added to cart');
-        focusCheckout(control);
+        focusCheckout(opener);
       }
     } else if (target.matches('[data-cart-add-group]')) {
-      confirmed(control.dataset, () => {
+      confirmed(control, () => {
         if (add([control.dataset.cartGroup])) {
           toast('Added to cart');
           focusCheckout(control);
@@ -251,8 +259,8 @@
       control.querySelector('[data-cart-open], [data-cart-add-group]')?.focus();
     } else if (target.matches('[data-cart-groups-add]')) {
       const panel = target.closest('[data-cart-groups]');
-      const picked = [...document.querySelectorAll('[data-cart-pick-group]:checked')];
-      confirmed(panel.dataset, () => {
+      const picked = picksOf(panel).filter((box) => box.checked);
+      confirmed(panel, () => {
         const added = add(picked.map((box) => box.dataset.cartPickGroup));
         picked.forEach((box) => (box.checked = false));
         paintGroups();
@@ -260,7 +268,7 @@
       });
     } else if (target.matches('[data-cart-groups-all], [data-cart-groups-clear]')) {
       const on = target.matches('[data-cart-groups-all]');
-      document.querySelectorAll('[data-cart-pick-group]').forEach((box) => (box.checked = on));
+      picksOf(target.closest('[data-cart-groups]')).forEach((box) => (box.checked = on));
       paintGroups();
     }
   });
@@ -268,6 +276,8 @@
   document.addEventListener('change', (event) => {
     if (event.target.matches('[data-cart-pick-group]')) paintGroups();
   });
+
+  dialog?.addEventListener('close', () => (pending = null));
 
   // A click on the dialog's backdrop, outside its box, closes it, as the prototype's scrim does.
   dialog?.addEventListener('click', (event) => {

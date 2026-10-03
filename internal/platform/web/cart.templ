@@ -186,10 +186,9 @@ templ groupsCartPanel(lib libraryView) {
 	@confirmDialog(lib)
 }
 
-// groupPick is a group row's checkbox, which ticks the group for groupsCartPanel to add, and the In cart badge cart.js
-// shows once the cart holds the group.
+// groupPick is a group row's checkbox, which ticks the group for the groupsCartPanel of its library to add.
 templ groupPick(lib libraryView, g groupView) {
-	<input class="relative z-10 size-4 cursor-pointer accent-(--ink)" type="checkbox" data-needs-script data-cart-pick-group={ cartKey(lib, domain.CartGroup, g.label.id) } aria-label={ "Select " + g.label.display() }/>
+	<input class="relative z-10 size-4 cursor-pointer accent-(--ink)" type="checkbox" data-needs-script data-cart-pick-group={ cartKey(lib, domain.CartGroup, g.label.id) } data-cart-library={ lib.fullName() } aria-label={ "Select " + g.label.display() }/>
 }
 
 // groupHeldBadge is a group row's In cart badge, which cart.js shows once the cart holds the group.
