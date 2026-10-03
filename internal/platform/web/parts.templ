@@ -358,10 +358,12 @@ templ ruleRow(r ruleRowView) {
 				</p>
 			}
 			// The stars stay on the first line, beside the library, whose name wraps on a narrow screen; the mark and the
-			// stars sit in the middle of that line.
+			// stars sit in the middle of that line, in boxes of its height, whatever type size an avatar's initial has.
 			<div class={ "mt-1.5 flex items-start gap-x-[14px] text-[13px]", templ.KV("text-muted", !r.retired), templ.KV("text-faint", r.retired) }>
-				<span class={ "flex min-w-0 items-start gap-[7px] [&>:first-child]:mt-[calc((1.65em-18px)/2)]", templ.KV("[&>:first-child]:opacity-75", r.retired) }>
-					@libraryMark(r.library)
+				<span class="flex min-w-0 items-start gap-[7px]">
+					<span class={ "flex h-[1.65em] flex-none items-center", templ.KV("opacity-75", r.retired) }>
+						@libraryMark(r.library)
+					</span>
 					<span class="min-w-0 [overflow-wrap:anywhere]">
 						{ r.library.fullName() }
 						if r.group != nil {
