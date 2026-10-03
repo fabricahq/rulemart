@@ -173,7 +173,8 @@ templ groupList(kind string, lib libraryView, groups []groupView, selection grou
 						<p class="text-[13px] text-muted max-narrow:col-start-2 max-narrow:col-end-[-1] max-narrow:row-start-2 max-narrow:empty:hidden">
 							{ g.shownBlurb() }
 						</p>
-						<span class="inline-flex items-center gap-2 text-[12.5px] whitespace-nowrap text-faint max-narrow:col-start-3 max-narrow:row-start-1">
+						// On a phone the In cart chip goes under the rule count, so the group's ID keeps the width it needs.
+						<span class="inline-flex items-center gap-2 text-[12.5px] whitespace-nowrap text-faint max-narrow:col-start-3 max-narrow:row-start-1 max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1">
 							@groupHeldBadge(lib, g)
 							<a class="text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id) + selection.query()) } data-sel-link={ libraryGroupHref(lib.href, g.label.id) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
 						</span>
