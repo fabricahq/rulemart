@@ -117,15 +117,9 @@ func (s *server) assetImage(w http.ResponseWriter, r *http.Request, owner, repo,
 		s.fail(w, r, err)
 		return
 	}
-	header := w.Header()
-	header.Set("Content-Type", image.MediaType)
-	header.Set("Content-Length", strconv.Itoa(len(image.Content)))
-	header.Set("Content-Security-Policy", assetPolicy)
-	header.Set("Cache-Control", assetCache)
-	w.WriteHeader(http.StatusOK)
-	if r.Method != http.MethodHead {
-		_, _ = w.Write(image.Content)
-	}
+	w.Header().Set("Content-Security-Policy", assetPolicy)
+	w.Header().Set("Content-Length", strconv.Itoa(len(image.Content)))
+	writeFile(w, r, image.MediaType, assetCache, image.Content)
 }
 
 // assetPagePath returns the path of the page of the asset at assetPath, of the rule at rulePath in lib, without the
