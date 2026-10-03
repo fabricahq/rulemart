@@ -227,11 +227,12 @@ type ruleRowView struct {
 	// of one group's rules or under its group's heading.
 	group *groupLabel
 	// retired marks a retired rule, which the row draws grayed out, with the Retired chip, and replacedBy names the last
-	// of the rules that replaced it, by title, or is empty when none did. renamed reports that the replacement is the
-	// same rule under a new ID, so replacedBy names it by ID instead, the one thing that tells the two apart.
-	retired    bool
-	replacedBy string
-	renamed    bool
+	// of the rules that replaced it, by title, beside its ID, replacementID, or is empty when none did. renamed reports
+	// that the replacement is the same rule under a new ID, so replacedBy names it by ID alone, the one thing that tells
+	// the two apart, and replacementID is empty.
+	retired                   bool
+	replacedBy, replacementID string
+	renamed                   bool
 	// retiredIn is the tag of the library release that retired the rule, in a list of one library's rules, or empty.
 	retiredIn string
 	// missing holds the words of a search, as the visitor wrote them, that the rule doesn't hold.
@@ -257,18 +258,21 @@ func newListedRuleRow(r views.RuleRow) ruleRowView {
 	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
 	row.retired, row.missing = r.Retired, r.Missing
 	if r.Replacement != nil {
-		row.replacedBy, row.renamed = replacementName(*r.Replacement, r.Renamed), r.Renamed
+		row.replaced(*r.Replacement, r.Renamed)
 	}
 	return row
 }
 
-// replacementName returns how a retired rule's row names ref, the last rule that replaced it: by ID when renamed
-// reports that it's the same rule under a new ID, the one thing that tells the two apart, and otherwise by title.
-func replacementName(ref views.RuleRef, renamed bool) string {
+// replaced names ref, the last rule that replaced the row's retired rule: by ID when renamed reports that it's the same
+// rule under a new ID, the one thing that tells the two apart, and otherwise by title, beside its ID, as the
+// prototype's retired rows name it.
+func (r *ruleRowView) replaced(ref views.RuleRef, renamed bool) {
+	r.renamed = renamed
 	if renamed {
-		return ref.Path
+		r.replacedBy = ref.Path
+		return
 	}
-	return titleOrID(ref.Title, ref.Path)
+	r.replacedBy, r.replacementID = titleOrID(ref.Title, ref.Path), ref.Path
 }
 
 // libraryContents is a library's groups, split by kind, in path order, each with its current rules and its retired
@@ -327,7 +331,7 @@ func newRetiredRuleRow(ref libraryRefView, r views.RetiredRuleCard) ruleRowView 
 	row := newRuleRow(ref, false, views.RuleCard{Path: r.Path, Group: r.Group, Title: r.Title, Impact: r.Impact})
 	row.retired, row.retiredIn = true, domain.ReleaseTag(r.RetiredIn)
 	if n := len(r.Replacements); n > 0 {
-		row.replacedBy, row.renamed = replacementName(r.Replacements[n-1], r.Renamed), r.Renamed
+		row.replaced(r.Replacements[n-1], r.Renamed)
 	}
 	return row
 }

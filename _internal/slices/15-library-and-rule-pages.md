@@ -132,9 +132,11 @@ The spec's Proposed decisions are built as written, except where an entry here s
   group, and a rule's crumbs lead to any group across libraries. Only practices show a blurb, as the prototype.
 - **Proposed: the library's title is its repository's name**, beside its owner's avatar with the vetted check mark,
   since Rulemart keeps no display name; its facts are the prototype's plain list, with Report this library under it.
-- **Proposed: a retired row on the All rules tab reads "Retired in release/N, replaced by <title>"** (or "renamed to
-  <ID>") in the shared row's gray, after its group's current rules, and a group whose rules are all retired shows only
-  with the option on. The option is a one-checkbox form, as the unvetted opt-in is, which `filters.js` submits.
+- **Proposed: a retired row on the All rules tab reads "Retired in release/N, replaced by <title> <ID>"** (or
+  "renamed to <ID>") in the shared row's gray, after its group's current rules, and a group whose rules are all retired
+  shows only with the option on; every list's retired rows name a replacement by title and ID alike, as the prototype's
+  name it by ID. The option is a one-checkbox form, as the unvetted opt-in is, which `filters.js` submits, with a
+  checkbox the size of the group rows'.
 - **Proposed: the rule page's crumbs lead its group to the group across libraries**, as the prototype's, and drop
   R4's separate "rules in every library" link. The About panel's Impact fact and note are gone with the prototype's
   layout, so the head's impact label leads to Code Rules' explanation of the levels, named by what its level means,

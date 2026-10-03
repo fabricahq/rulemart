@@ -339,6 +339,11 @@ templ ruleRow(r ruleRowView) {
 						</span>
 					} else if r.replacedBy != "" {
 						{ retiredReplacementWord(r.retiredIn, "Replaced by", "replaced by") } <span class="text-muted">{ r.replacedBy }</span>
+						if r.replacementID != "" && r.replacementID != r.replacedBy {
+							{ " " }<span class="mono">
+								@breakable(r.replacementID)
+							</span>
+						}
 					}
 				</p>
 			}

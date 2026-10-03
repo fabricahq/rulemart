@@ -498,7 +498,7 @@ func TestAllRulesTabShowsRetiredRulesInPlaceWhenAsked(t *testing.T) {
 	}
 	assertShows(t, shown,
 		"practices/legacy not canonical Old habit LOW Retired Retired in release/2 example/rules",
-		"Testing practices/testing Verify retry limits HIGH example/rules Check retry backoff HIGH Retired Retired in release/3 , replaced by Verify retry limits example/rules")
+		"Testing practices/testing Verify retry limits HIGH example/rules Check retry backoff HIGH Retired Retired in release/3 , replaced by Verify retry limits practices/testing/verify-retry-limits example/rules")
 	if strings.Count(shown, "data-retired") != 2 || !strings.Contains(shown, `name="retired" value="1" checked`) {
 		t.Error("the retired rules aren't marked, or the control doesn't show it's on")
 	}

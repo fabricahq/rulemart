@@ -187,7 +187,7 @@ func TestRuleRowsMarkRetiredUnvettedAndFabricasRules(t *testing.T) {
 	assertShows(t, get(t, newSite(t, c), "/g/techs/golang?retired=1").Body.String(),
 		"Close response bodies MEDIUM Retired Renamed to techs/go/close-bodies-early other/go-rules")
 	assertShows(t, body,
-		"Close response bodies MEDIUM Retired Replaced by Close everything other/go-rules",
+		"Close response bodies MEDIUM Retired Replaced by Close everything techs/go/close-everything other/go-rules",
 		"Name packages plainly LOW Unvetted S stranger/rules",
 	)
 	doc, err := html.Parse(strings.NewReader(body))
