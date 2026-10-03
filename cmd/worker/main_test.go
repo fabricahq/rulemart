@@ -189,7 +189,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	_, connString := databasetest.New(t)
 	ingester := app.Ingester{
-		Repositories: repositories{lib.Repository(42)}, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Rule,
+		Repositories: repositories{lib.Repository(42)}, Fetch: git.Fetch, List: git.ListReleaseTags, Renderer: render.Renderer{},
 		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,
 	}
 	w := &worker{updater: ingester, vetted: []domain.LibraryKey{first}, log: slog.New(slog.NewTextHandler(io.Discard, nil))}
@@ -311,7 +311,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (1, 'lister', '') RETURNING id
 	) INSERT INTO listings (account_id, host, owner, name) SELECT id, 'github', 'example', 'rules' FROM lister`)
 	ingester := app.Ingester{
-		Repositories: repositories{lib.Repository(44)}, Fetch: git.Fetch, List: git.ListReleaseTags, Render: render.Rule,
+		Repositories: repositories{lib.Repository(44)}, Fetch: git.Fetch, List: git.ListReleaseTags, Renderer: render.Renderer{},
 		Store: postgres.New(databasetest.AsWorkerRole(t, connString)), Limits: domain.DefaultLimits,
 	}
 	w := &worker{updater: ingester, listings: ingester, vetted: nil, log: slog.New(slog.NewTextHandler(io.Discard, nil))}

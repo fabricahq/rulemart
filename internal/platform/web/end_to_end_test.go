@@ -56,7 +56,7 @@ func ingest(t *testing.T, lib *gittest.Library) http.Handler {
 	t.Helper()
 	db, connString := databasetest.New(t)
 	repo := lib.Repository(7)
-	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repositories{repo}, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	if _, err := ingester.Ingest(context.Background(), "https://github.com/"+repo.FullName()); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestPagesShowAnIngestedLibrary(t *testing.T) {
 
 	for path, want := range map[string]string{
 		"/":                          "example/rules · 1 rule",
-		library:                      "Technologies · 1 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule ›",
+		library:                      "Technologies · 1 Go techs/go 1 rule ›",
 		library + "?tab=rules":       "Return errors HIGH example/rules",
 		errorsRule:                   "Wrap every returned error.",
 		errorsRule + "?tab=versions": "1.0.0 Latest release/1 1 Sep 2026 Add the rule.",
@@ -104,8 +104,8 @@ func TestRulePageShowsRawHTMLAsText(t *testing.T) {
 }
 
 // assertRunsNothingFromRules fails when an HTML body has an event handler, a javascript: URL, a script that isn't
-// Rulemart's own, or an image that isn't Rulemart's own or from an https host the policy allows, any of which a
-// rule's text could add.
+// Rulemart's own, or an image that isn't Rulemart's own, one of its static files or an asset it serves, or from an
+// https host the policy allows, any of which a rule's text could add.
 func assertRunsNothingFromRules(t *testing.T, body string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
@@ -124,7 +124,8 @@ func assertRunsNothingFromRules(t *testing.T, body string) {
 		if n.Data == "script" && !strings.HasPrefix(attribute(n, "src"), "/_static/") {
 			t.Errorf("a script that isn't Rulemart's own: src=%q", attribute(n, "src"))
 		}
-		if src := attribute(n, "src"); n.Data == "img" && !strings.HasPrefix(src, "https://") && !strings.HasPrefix(src, "/_static/") {
+		if src := attribute(n, "src"); n.Data == "img" && !strings.HasPrefix(src, "https://") && !strings.HasPrefix(src, "/_static/") &&
+			!(strings.HasPrefix(src, library+"/") && strings.Contains(src, "/assets/") && strings.HasSuffix(src, "?raw=1")) {
 			t.Errorf("an image from the rule: src=%q", attribute(n, "src"))
 		}
 	}
@@ -188,7 +189,7 @@ changes:
 	handler := ingest(t, lib)
 
 	for path, want := range map[string][]string{
-		library:                {"Technologies · 2 Go techs/go The Go programming language and its standard tooling. Go rules in every library › 1 rule › techs/golang not canonical Go rules. techs/golang rules in every library › 1 rule ›"},
+		library:                {"Technologies · 2 Go techs/go 1 rule › techs/golang not canonical 1 rule ›"},
 		library + "?tab=rules": {"Go techs/go Return errors", "techs/golang not canonical Pass context first"},
 		errorsRule:             {"rules › Go techs/go"},
 		library + "/techs/golang/pass-context-first": {"rules › techs/golang not canonical"},
@@ -248,7 +249,7 @@ changes: {techs/go/close-bodies: {change: new, summaries: [Add the rule.]}}
 	acmeRepo.Owner, acmeRepo.Name = "acme", "go-rules"
 	repos := byName{"example/rules": exampleRepo, "acme/go-rules": acmeRepo}
 	db, connString := databasetest.New(t)
-	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Repositories: repos, Fetch: git.Fetch, Renderer: render.Renderer{}, Store: postgres.New(db), Limits: domain.DefaultLimits}
 	for name := range repos {
 		if _, err := ingester.Ingest(context.Background(), "https://github.com/"+name); err != nil {
 			t.Fatal(err)

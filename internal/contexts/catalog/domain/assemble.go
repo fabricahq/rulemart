@@ -1,4 +1,5 @@
-// Assemble a library from its release snapshots: its history, license, groups, and each current rule's content.
+// Assemble a library from its release snapshots: its history, license, groups, each current rule's content, and its
+// assets.
 
 package domain
 
@@ -14,11 +15,11 @@ import (
 
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
 // number order. It checks that their records form one history, then reads rule-library.yaml at the latest
-// release, each group's _group.yaml at the latest release that has it, and each rule's file at the release that
-// published each of its versions, rendering each rule's newest version with render: a current rule's body and
-// reading guidance, and a retired rule's last body. Errors name the
-// release and file at fault.
-func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits, render Render) (Library, error) {
+// release, each group's _group.yaml at the latest release that has it, each rule's file at the release that
+// published each of its versions, and each current rule's assets, rendering with renderer each rule's newest version,
+// a current rule's body and reading guidance and a retired rule's last body, and the Markdown and text among the
+// assets. Errors name the release and file at fault.
+func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits, renderer Renderer) (Library, error) {
 	if len(releases) == 0 {
 		return Library{}, errors.New("the library has no releases")
 	}
@@ -30,7 +31,10 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 	if err != nil {
 		return Library{}, err
 	}
-	a := assembly{repo: repo, releases: releases, limits: limits, renderBody: render, budget: contentBudget{limit: limits.ContentBytes}}
+	a := assembly{
+		repo: repo, releases: releases, limits: limits, renderer: renderer, budget: contentBudget{limit: limits.ContentBytes},
+		read: assetReader{assets: map[string]*Asset{}, missing: map[string]bool{}, sharedLinks: map[string][]string{}},
+	}
 	lib := Library{Repository: repo}
 	for _, r := range releases {
 		lib.Releases = append(lib.Releases, r.release())
@@ -55,6 +59,10 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 		}
 		lib.Groups = append(lib.Groups, g)
 	}
+	if err := a.renderSharedAssets(); err != nil {
+		return Library{}, fmt.Errorf("%s: %v", a.releases[len(a.releases)-1].Tag, err)
+	}
+	lib.Assets = a.libraryAssets()
 	return lib, nil
 }
 
@@ -63,9 +71,10 @@ type assembly struct {
 	repo     Repository
 	releases []ReleaseSnapshot
 	limits   ContentLimits
-	// renderBody renders a current rule's Markdown body.
-	renderBody Render
-	budget     contentBudget
+	// renderer renders rules' Markdown, and their assets' Markdown and code.
+	renderer Renderer
+	budget   contentBudget
+	read     assetReader
 }
 
 // contentBudget is what's left of ContentLimits.ContentBytes as assembly reads and renders.
@@ -151,7 +160,8 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that
-// published the version. It renders the newest version's body, and while the rule is current, its reading guidance.
+// published the version. It renders the newest version's body, and while the rule is current, its reading guidance,
+// and reads its assets.
 func (a *assembly) readRule(history Rule) (Rule, error) {
 	path := RuleFile(history.Path)
 	group, err := coderules.GroupFromPath(path, path)
@@ -167,16 +177,20 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 		if err != nil {
 			return Rule{}, fmt.Errorf("%s: %v", published.Tag, err)
 		}
+		tags := ruleTags(parsed.Document)
+		if err := a.budget.spend(int64(len(strings.Join(tags, "")))); err != nil {
+			return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
+		}
 		r.Versions[i].Content = Content{
 			Title: strings.TrimSpace(parsed.Title), Impact: string(parsed.Impact),
 			ImpactDescription: strings.TrimSpace(parsed.ImpactDescription), WhenToRead: strings.TrimSpace(parsed.WhenToRead),
-			Markdown: parsed.Document,
+			Tags: tags, Markdown: parsed.Document,
 		}
 		if i < len(r.Versions)-1 {
 			continue
 		}
-		if r.HTML, r.WhenToReadHTML, err = a.renderRule(published, path, parsed, r.IsCurrent()); err != nil {
-			return Rule{}, fmt.Errorf("%s: %s: %v", published.Tag, path, err)
+		if r, err = a.renderRule(r, published, parsed); err != nil {
+			return Rule{}, fmt.Errorf("%s: %v", published.Tag, err)
 		}
 	}
 	return r, nil
@@ -200,43 +214,74 @@ func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, 
 	return parsed, nil
 }
 
-// renderRule renders the body of parsed, the rule file at path in release r, for the rule's page, and with guidance,
-// its reading guidance too.
-func (a *assembly) renderRule(r ReleaseSnapshot, path string, parsed coderules.Rule, guidance bool) (html, whenToReadHTML string, err error) {
-	document, err := coderules.SplitDocument(parsed.Document, path)
+// renderRule returns r with its newest version, parsed, the rule's file at release published, rendered for the rule's
+// page: its body, and while the rule is current, its reading guidance, and its assets, which it reads first, so links
+// to them lead to their pages.
+func (a *assembly) renderRule(r Rule, published ReleaseSnapshot, parsed coderules.Rule) (Rule, error) {
+	file := RuleFile(r.Path)
+	document, err := coderules.SplitDocument(parsed.Document, file)
 	if err != nil {
-		return "", "", err
+		return Rule{}, err
 	}
-	page := RulePage{
-		Repository: a.repo.FullName(), Path: path, Title: parsed.Title,
-		Tag: r.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
+	whenToRead := strings.TrimSpace(parsed.WhenToRead)
+	source := MarkdownSource{
+		Repository: LibraryPlaceholder, File: file, Rule: r.Path, Title: parsed.Title,
+		Tag: published.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
 	}
-	if html, err = a.render(document.Body, page); err != nil {
-		return "", "", err
+	if r.IsCurrent() {
+		own, shared, err := a.readAssets(published, r.Path, document.Body, whenToRead)
+		if err != nil {
+			return Rule{}, err
+		}
+		r.Assets = append(own, shared...)
+		source.Assets = a.addresses(r.Path, r.Assets)
+		// A shared file is rendered once, with the shared files, since a page of its own shows it to every rule.
+		if err := a.renderAssets(own, source); err != nil {
+			return Rule{}, err
+		}
 	}
-	if !guidance {
-		return html, "", nil
+	if r.HTML, err = a.render(document.Body, source); err != nil {
+		return Rule{}, fmt.Errorf("%s: %v", file, err)
+	}
+	if !r.IsCurrent() {
+		return r, nil
 	}
 	// The reading guidance is Markdown too, whose links resolve against the rule's file as the body's do.
-	if whenToReadHTML, err = a.render(strings.TrimSpace(parsed.WhenToRead), page); err != nil {
-		return "", "", fmt.Errorf("reading guidance: %v", err)
+	if r.WhenToReadHTML, err = a.render(whenToRead, source); err != nil {
+		return Rule{}, fmt.Errorf("%s: reading guidance: %v", file, err)
 	}
-	return html, whenToReadHTML, nil
+	return r, nil
 }
 
-// render renders a rule's body within what's left of the budget, and spends what it used.
-func (a *assembly) render(body string, page RulePage) (string, error) {
-	html, used, err := a.renderBody(body, page, a.budget.remaining())
-	if errors.Is(err, ErrOverAllowance) {
-		return "", a.budget.exceeded()
-	}
-	if err != nil {
-		return "", err
-	}
-	if err := a.budget.spend(used); err != nil {
+// render renders Markdown from source within what's left of the budget, and spends what it used.
+func (a *assembly) render(body string, source MarkdownSource) (string, error) {
+	return a.spendRendering(a.renderer.Markdown(body, source, a.budget.remaining()))
+}
+
+// renderCode renders the text of file as code within what's left of the budget, and spends what it used.
+func (a *assembly) renderCode(text, file string) (string, error) {
+	return a.spendRendering(a.renderer.Code(text, file, a.budget.remaining()))
+}
+
+// spendRendering spends what a render used from the budget, and returns its HTML, or its error, as spendAllowance
+// does.
+func (a *assembly) spendRendering(html string, used int64, err error) (string, error) {
+	if err := a.spendAllowance(used, err); err != nil {
 		return "", err
 	}
 	return html, nil
+}
+
+// spendAllowance spends what the renderer used of the allowance it had, what's left of the budget, or returns its
+// error, as the budget's refusal when it would have passed the allowance.
+func (a *assembly) spendAllowance(used int64, err error) error {
+	if errors.Is(err, ErrOverAllowance) {
+		return a.budget.exceeded()
+	}
+	if err != nil {
+		return err
+	}
+	return a.budget.spend(used)
 }
 
 // readGroup reads the _group.yaml of the group at path, spending budget on it. A group with a current rule has one

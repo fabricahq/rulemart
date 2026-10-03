@@ -21,6 +21,9 @@ func TestCheckpointIsCurrentOnlyWhenTheListedTagsMatchWhatWasStored(t *testing.T
 		"versions stored without content": {Checkpoint{CloneURL: stored.CloneURL, Tags: stored.Tags, MissingContent: true}, ReleaseTags{1: "aaa", 2: "bbb"}, false},
 		"a reading guidance without HTML": {Checkpoint{CloneURL: stored.CloneURL, Tags: stored.Tags, Unrendered: true},
 			ReleaseTags{1: "aaa", 2: "bbb"}, false},
+		// A release before assets were read stored versions without their tags, and no assets.
+		"versions stored without tags or assets": {Checkpoint{CloneURL: stored.CloneURL, Tags: stored.Tags, MissingAssets: true},
+			ReleaseTags{1: "aaa", 2: "bbb"}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := tc.checkpoint.Current(tc.listed); got != tc.want {

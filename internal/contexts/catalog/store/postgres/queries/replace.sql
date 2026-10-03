@@ -74,27 +74,61 @@ DELETE FROM rule_versions WHERE id = @id;
 -- from, which is when_to_read whenever this release writes both.
 -- name: UpsertVersion :execrows
 INSERT INTO rule_versions (library_id, rule_id, release_id, major, minor, patch, change, summaries,
-                           title, impact, impact_description, when_to_read, markdown, html,
+                           title, impact, impact_description, when_to_read, tags, markdown, html,
                            when_to_read_html, rendered_when_to_read, retired_html)
 VALUES (@library_id, @rule_id, @release_id, @major, @minor, @patch, @change, @summaries,
-        @title, @impact, @impact_description, @when_to_read, @markdown, @html,
+        @title, @impact, @impact_description, @when_to_read, @tags, @markdown, @html,
         @when_to_read_html, @rendered_when_to_read, @retired_html)
 ON CONFLICT (rule_id, major, minor, patch) DO UPDATE SET
     release_id = excluded.release_id, change = excluded.change, summaries = excluded.summaries, title = excluded.title, impact = excluded.impact,
-    impact_description = excluded.impact_description, when_to_read = excluded.when_to_read,
+    impact_description = excluded.impact_description, when_to_read = excluded.when_to_read, tags = excluded.tags,
     markdown = excluded.markdown, html = excluded.html, when_to_read_html = excluded.when_to_read_html,
     rendered_when_to_read = excluded.rendered_when_to_read, retired_html = excluded.retired_html
 WHERE (rule_versions.release_id, rule_versions.change, rule_versions.summaries, rule_versions.title, rule_versions.impact,
-       rule_versions.impact_description, rule_versions.when_to_read, rule_versions.markdown, rule_versions.html,
-       rule_versions.when_to_read_html, rule_versions.rendered_when_to_read, rule_versions.retired_html)
+       rule_versions.impact_description, rule_versions.when_to_read, rule_versions.tags, rule_versions.markdown,
+       rule_versions.html, rule_versions.when_to_read_html, rule_versions.rendered_when_to_read, rule_versions.retired_html)
     IS DISTINCT FROM (excluded.release_id, excluded.change, excluded.summaries, excluded.title, excluded.impact,
-       excluded.impact_description, excluded.when_to_read, excluded.markdown, excluded.html,
+       excluded.impact_description, excluded.when_to_read, excluded.tags, excluded.markdown, excluded.html,
        excluded.when_to_read_html, excluded.rendered_when_to_read, excluded.retired_html);
+
+-- name: UpsertAsset :execrows
+INSERT INTO assets (library_id, path, release_id, size, media_type, content, html)
+VALUES (@library_id, @path, @release_id, @size, @media_type, @content, @html)
+ON CONFLICT (library_id, path) DO UPDATE SET
+    release_id = excluded.release_id, size = excluded.size, media_type = excluded.media_type, content = excluded.content,
+    html = excluded.html
+WHERE (assets.release_id, assets.size, assets.media_type, assets.content, assets.html)
+    IS DISTINCT FROM (excluded.release_id, excluded.size, excluded.media_type, excluded.content, excluded.html);
+
+-- name: ListAssetIDs :many
+SELECT id, path FROM assets WHERE library_id = @library_id;
+
+-- name: ListRuleAssetLinks :many
+SELECT rule_id, asset_id FROM rule_assets WHERE library_id = @library_id;
+
+-- DeleteRuleAssets deletes that the rules rule_ids list the assets asset_ids, at the same positions.
+-- name: DeleteRuleAssets :execrows
+DELETE FROM rule_assets ra
+USING unnest(@rule_ids::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+JOIN unnest(@asset_ids::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+WHERE ra.library_id = @library_id AND ra.rule_id = r.rule_id AND ra.asset_id = a.asset_id;
+
+-- InsertRuleAssets records that the rules rule_ids list the assets asset_ids, at the same positions, unless they do.
+-- name: InsertRuleAssets :execrows
+INSERT INTO rule_assets (library_id, rule_id, asset_id)
+SELECT @library_id, r.rule_id, a.asset_id
+FROM unnest(@rule_ids::bigint[]) WITH ORDINALITY AS r (rule_id, n)
+JOIN unnest(@asset_ids::bigint[]) WITH ORDINALITY AS a (asset_id, n) ON a.n = r.n
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteAssetsExcept :execrows
+DELETE FROM assets WHERE library_id = @library_id AND NOT (path = ANY (@paths::text[]));
 
 -- name: GetCheckpoint :many
 -- One row per stored release of the library, or one row with a NULL number when it has none, each saying whether a
 -- release that stored content only on current versions left any version without it, or a retired rule's last version
--- without its body's HTML, and whether a current version's reading guidance lacks the HTML rendered from it.
+-- without its body's HTML, whether a current version's reading guidance lacks the HTML rendered from it, and whether a
+-- release that read neither tags nor assets left a version with content without its tags.
 SELECT l.clone_url, r.number, r.tag_object_id,
        (EXISTS (SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NULL) OR EXISTS (
            SELECT FROM rules retired
@@ -107,7 +141,10 @@ SELECT l.clone_url, r.number, r.tag_object_id,
        EXISTS (
            SELECT FROM rule_versions v
            WHERE v.library_id = l.id AND v.html IS NOT NULL AND v.rendered_when_to_read IS DISTINCT FROM v.when_to_read
-       ) AS unrendered
+       ) AS unrendered,
+       EXISTS (
+           SELECT FROM rule_versions v WHERE v.library_id = l.id AND v.markdown IS NOT NULL AND v.tags IS NULL
+       ) AS missing_assets
 FROM libraries l
 LEFT JOIN library_releases r ON r.library_id = l.id
 WHERE l.host = @host AND l.host_repository_id = @host_repository_id;

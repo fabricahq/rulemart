@@ -15,6 +15,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
 
 // day returns noon UTC on day n of September 2026.
@@ -283,7 +284,11 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
 		t.Errorf("latest release tagged at %s, want %s", page.Library.LatestTaggedAt, day(3))
 	}
-	page.Library.LatestTaggedAt = day(3)
+	// Without a listing, the library came to Rulemart when it was first ingested, a moment ago.
+	if since := time.Since(page.Library.AddedAt); since < 0 || since > time.Minute {
+		t.Errorf("the library came to Rulemart at %s, want when it was ingested", page.Library.AddedAt)
+	}
+	page.Library.LatestTaggedAt, page.Library.AddedAt = day(3), time.Time{}
 	if page.Library != wantLibrary {
 		t.Errorf("library is %+v, want %+v", page.Library, wantLibrary)
 	}
@@ -302,9 +307,9 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		t.Errorf("rules are %+v, want %+v", page.Rules, wantRules)
 	}
 	wantRetired := []views.RetiredRuleCard{
-		{Path: "practices/legacy/old-habit", Title: "Old habit", LastVersion: v(1, 0, 0), RetiredIn: 3},
-		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", LastVersion: v(1, 0, 0), RetiredIn: 3,
-			ReplacedBy: "practices/testing/verify-retry-limits"},
+		{Path: "practices/legacy/old-habit", Group: "practices/legacy", Title: "Old habit", Impact: "HIGH", LastVersion: v(1, 0, 0), RetiredIn: 3},
+		{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", Title: "Check retry backoff", Impact: "HIGH",
+			LastVersion: v(1, 0, 0), RetiredIn: 3, ReplacedBy: "practices/testing/verify-retry-limits"},
 	}
 	if !reflect.DeepEqual(page.Retired, wantRetired) {
 		t.Errorf("retired rules are %+v, want %+v", page.Retired, wantRetired)
@@ -327,9 +332,9 @@ func TestRulePageReadsTheCurrentVersionAndEveryVersionNewestFirst(t *testing.T) 
 	want := views.Rule{
 		Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors", Impact: "HIGH",
 		WhenToRead: "When changing Return errors.", WhenToReadHTML: "<p>When changing <code>Return errors</code>.</p>\n",
-		HTML: "<p>Return errors.</p>\n", Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
+		HTML: "<p>Return errors.</p>\n", Tags: []string{}, Version: v(2, 0, 0), Release: 3, PublishedAt: day(3),
 	}
-	if r != want || !page.Rule.PublishedAt.Equal(day(3)) {
+	if !reflect.DeepEqual(r, want) || !page.Rule.PublishedAt.Equal(day(3)) {
 		t.Errorf("rule is %+v, want %+v", page.Rule, want)
 	}
 	var versions []string
@@ -375,5 +380,97 @@ func TestReadsDontFindWhatPagesDontShow(t *testing.T) {
 				t.Fatalf("got %v, want store.ErrNotFound", err)
 			}
 		})
+	}
+}
+
+// A current rule's page reads its tags, and the assets it lists, its own first, each in path order; an asset's page
+// reads one of them with the rule's page, or the first rule's that lists it; and only a kept file's bytes are read.
+func TestRulePageReadsTagsAndAssets(t *testing.T) {
+	s, connString := newStore(t)
+	lib := goRules(1, current("techs/go/return-errors", added(1)), current("techs/go/close-what-you-open", added(1)))
+	lib.Rules[0].Versions[0].Content.Tags = []string{"errors", "wrapping"}
+	lib.Rules[0].Assets = []string{"techs/go/assets/return-errors/z.svg", "assets/glossary.md", "assets/a.md"}
+	lib.Rules[1].Assets = []string{"assets/glossary.md"}
+	lib.Assets = []domain.Asset{
+		{Path: "assets/a.md", Release: 1, Size: 9000, MediaType: "text/markdown; charset=utf-8"},
+		{Path: "assets/glossary.md", Release: 1, Size: 6, MediaType: "text/markdown; charset=utf-8", Content: []byte("Terms."), HTML: "<p>Terms.</p>"},
+		{Path: "techs/go/assets/return-errors/z.svg", Release: 1, Size: 6, MediaType: "image/svg+xml", Content: []byte("<svg/>")},
+	}
+	replace(t, s, lib)
+	reader := postgres.New(databasetest.AsWebRole(t, connString))
+	ctx := context.Background()
+
+	page, err := reader.RulePage(ctx, vetted, "example", "rules", "techs/go/return-errors")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"errors", "wrapping"}; !slices.Equal(page.Rule.Tags, want) {
+		t.Errorf("tags are %q, want %q", page.Rule.Tags, want)
+	}
+	wantAssets := []views.Asset{
+		{Path: "techs/go/assets/return-errors/z.svg", Size: 6, MediaType: "image/svg+xml", Release: 1, Kept: true},
+		{Path: "assets/a.md", Size: 9000, MediaType: "text/markdown; charset=utf-8", Release: 1},
+		{Path: "assets/glossary.md", Size: 6, MediaType: "text/markdown; charset=utf-8", Release: 1, Kept: true},
+	}
+	if !reflect.DeepEqual(page.Assets, wantAssets) {
+		t.Errorf("assets are %+v, want %+v", page.Assets, wantAssets)
+	}
+
+	shared, err := reader.AssetPage(ctx, vetted, "example", "rules", "", "assets/glossary.md")
+	if err != nil || shared.Page.Rule.Path != "techs/go/close-what-you-open" || shared.HTML != "<p>Terms.</p>" {
+		t.Errorf("the shared asset's page is %+v, %v; want it with close-what-you-open, the first rule that lists it", shared, err)
+	}
+	if _, err := reader.AssetPage(ctx, vetted, "example", "rules", "techs/go/close-what-you-open", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("an asset the rule doesn't list: got %v, want ErrNotFound", err)
+	}
+	image, err := reader.AssetContent(ctx, vetted, "example", "rules", "techs/go/return-errors", "techs/go/assets/return-errors/z.svg")
+	if err != nil || image.MediaType != "image/svg+xml" || string(image.Content) != "<svg/>" {
+		t.Errorf("the image is %+v, %v", image, err)
+	}
+	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", "", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a file kept without bytes: got %v, want ErrNotFound", err)
+	}
+	// A rule's own asset's path may spell the rule in another case, as its address does, but not the file's name.
+	const otherCase, otherCaseAsset = "Techs/Go/Return-Errors", "Techs/Go/assets/Return-Errors/z.svg"
+	own, err := reader.AssetPage(ctx, vetted, "example", "rules", otherCase, otherCaseAsset)
+	if err != nil || own.Page.Rule.Path != "techs/go/return-errors" || own.Asset.Path != "techs/go/assets/return-errors/z.svg" {
+		t.Errorf("the own asset's page, its rule in another case, is %+v, %v; want the library's spelling", own.Asset, err)
+	}
+	image, err = reader.AssetContent(ctx, vetted, "example", "rules", otherCase, otherCaseAsset)
+	if err != nil || image.Rule != "techs/go/return-errors" || image.Path != "techs/go/assets/return-errors/z.svg" {
+		t.Errorf("the image, its rule in another case, is %+v, %v; want the library's spelling", image, err)
+	}
+	image, err = reader.AssetContent(ctx, vetted, "Example", "Rules", "techs/go/return-errors", "techs/go/assets/return-errors/z.svg")
+	if err != nil || image.Owner != "example" || image.Name != "rules" {
+		t.Errorf("the image, its library in another case, is from %s/%s, %v; want the library's spelling", image.Owner, image.Name, err)
+	}
+	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", otherCase, "Techs/Go/assets/Return-Errors/Z.svg"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a file's name in another case: got %v, want ErrNotFound", err)
+	}
+}
+
+// A listed library names who listed it, by the login the listing's account signed in with last, and came to Rulemart
+// when it was listed, vetted since or not; one vetted without a listing names no one.
+func TestLibraryPageNamesWhoListedTheLibrary(t *testing.T) {
+	db, connString := databasetest.New(t)
+	if _, err := postgres.New(db).ReplaceLibrary(context.Background(), unvetted()); err != nil {
+		t.Fatal(err)
+	}
+	listedAt := time.Date(2026, 9, 20, 8, 0, 0, 0, time.UTC)
+	postgrestest.Exec(t, connString, `WITH account AS (
+		INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (99, 'Lister', '') RETURNING id
+	) INSERT INTO listings (account_id, host, owner, name, host_repository_id, created_at)
+	SELECT id, 'github', 'stranger', 'unvetted-rules', '8', $1 FROM account`, listedAt)
+	reader := postgres.New(databasetest.AsWebRole(t, connString))
+
+	for name, vettedNow := range map[string][]domain.LibraryKey{"unvetted": nil, "vetted since": {{Host: domain.GitHub, RepositoryID: "8"}}} {
+		page, err := reader.LibraryPage(context.Background(), vettedNow, "stranger", "unvetted-rules")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Library.AddedBy != "Lister" || !page.Library.AddedAt.Equal(listedAt) {
+			t.Errorf("%s: added by %q at %s, want Lister at %s", name, page.Library.AddedBy, page.Library.AddedAt, listedAt)
+		}
 	}
 }

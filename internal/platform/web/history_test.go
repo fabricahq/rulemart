@@ -124,7 +124,7 @@ func TestReleasesTabListsWhatEachReleaseChanged(t *testing.T) {
 			"Verify retry limits practices/testing/verify-retry-limits 1.0.0 → 1.1.0 Count timeouts as attempts. "+
 			"This library release also updates shared files, such as group descriptions or shared assets.",
 		// A first release adds every rule, and its notes don't repeat "Add the rule." for each.
-		"release/1 1 Sep 2026 Release notes Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 About",
+		"release/1 1 Sep 2026 Release notes Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner example",
 	)
 	if strings.Index(page, `id="release-3"`) > strings.Index(page, `id="release-2"`) {
 		t.Error("release/2 comes before release/3")
@@ -207,7 +207,7 @@ func TestReleasesAnswerNotFoundWithinTheLibrary(t *testing.T) {
 			if resp.Code != http.StatusNotFound {
 				t.Fatalf("got %d", resp.Code)
 			}
-			assertShows(t, resp.Body.String(), "example / rules", "Library releases , 3", "Compare",
+			assertShows(t, resp.Body.String(), "rules Vetted by Rulemart Example rules for tests.", "Library releases , 3", "Compare",
 				"Not found This library has no such release to show or compare. See all of this library's releases")
 			if !strings.Contains(resp.Body.String(), `<meta name="robots" content="noindex">`) {
 				t.Error("the page is indexed")
@@ -471,19 +471,37 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 		"https://github.com/example/rules/blob/release/2/practices/testing/check-retry-backoff.md")
 }
 
-func TestAllRulesTabListsRetiredRules(t *testing.T) {
+// The All rules tab offers a library's retired rules, off by default, and shows them in place, after their group's
+// current rules, grayed out, with the release that retired them and the last of their replacements; a group whose rules
+// are all retired shows only then, and there's no section of retired rules apart.
+func TestAllRulesTabShowsRetiredRulesInPlaceWhenAsked(t *testing.T) {
 	c := newCatalog()
 	lib := c.pages["example/rules"]
-	lib.Retired = []views.RetiredRuleCard{{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff",
-		LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retries", Replacements: []views.RuleRef{
-			{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 4},
-			{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"},
-		}}}
+	lib.Retired = []views.RetiredRuleCard{
+		{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", CanonicalGroup: testingGroup,
+			Title: "Check retry backoff", Impact: "HIGH", LastVersion: v100, RetiredIn: 3, ReplacedBy: "practices/testing/verify-retries",
+			Replacements: []views.RuleRef{
+				{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 4},
+				{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"},
+			}},
+		{Path: "practices/legacy/old-habit", Group: "practices/legacy", Title: "Old habit", Impact: "LOW", LastVersion: v100, RetiredIn: 2},
+	}
 	c.pages["example/rules"] = lib
+	handler := newSite(t, c)
 
-	page := get(t, newSite(t, c), library+"?tab=rules").Body.String()
+	hidden := get(t, handler, library+"?tab=rules").Body.String()
+	shown := get(t, handler, library+"?tab=rules&retired=1").Body.String()
 
-	assertShows(t, page, "Retired Check retry backoff practices/testing/check-retry-backoff · last version 1.0.0 · retired in release/3 · replaced by practices/testing/verify-retries , itself replaced by practices/testing/verify-retry-limits ›")
+	assertShows(t, hidden, "Show retired rules Go techs/go Return errors with context HIGH example/rules Testing practices/testing Verify retry limits HIGH example/rules")
+	if text := visibleText(t, hidden); strings.Contains(text, "Check retry backoff") || strings.Contains(text, "practices/legacy") {
+		t.Errorf("the tab shows retired rules without being asked:\n%s", text)
+	}
+	assertShows(t, shown,
+		"practices/legacy not canonical Old habit LOW Retired Retired in release/2 example/rules",
+		"Testing practices/testing Verify retry limits HIGH example/rules Check retry backoff HIGH Retired Retired in release/3 , replaced by Verify retry limits practices/testing/verify-retry-limits example/rules")
+	if strings.Count(shown, "data-retired") != 2 || !strings.Contains(shown, `name="retired" value="1" checked`) {
+		t.Error("the retired rules aren't marked, or the control doesn't show it's on")
+	}
 }
 
 // A comparison's releases or versions come from its URL, so one that isn't a release number or version, or that the
@@ -552,9 +570,9 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 	c.rules["example/rules/techs/go/return-errors"] = page
 	lib := c.pages["example/rules"]
 	lib.Retired = []views.RetiredRuleCard{
-		{Path: "techs/go/wrap-errors", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors", Renamed: true,
-			Replacements: []views.RuleRef{{Path: "techs/go/return-errors", Title: "Return errors"}}},
-		{Path: "practices/testing/a-old", Title: "A old", LastVersion: v100, RetiredIn: 2},
+		{Path: "techs/go/wrap-errors", Group: "techs/go", Title: "Wrap errors", LastVersion: v100, RetiredIn: 3, ReplacedBy: "techs/go/return-errors",
+			Renamed: true, Replacements: []views.RuleRef{{Path: "techs/go/return-errors", Title: "Return errors"}}},
+		{Path: "practices/testing/a-old", Group: "practices/testing", Title: "A old", LastVersion: v100, RetiredIn: 2},
 	}
 	c.pages["example/rules"] = lib
 	handler := newSite(t, c)
@@ -563,9 +581,10 @@ func TestRulePagesNameRenamesAndReplacements(t *testing.T) {
 		assertShows(t, get(t, handler, errorsRule+tab).Body.String(),
 			"Renamed from techs/go/wrap-errors in release/3 .", "Replaces Old errors techs/go/old-errors , retired in release/2 .")
 	}
-	// Retired rules are in the order current ones are: technologies first.
-	assertShows(t, get(t, handler, library+"?tab=rules").Body.String(),
-		"Retired Wrap errors techs/go/wrap-errors · last version 1.0.0 · retired in release/3 · renamed to techs/go/return-errors › A old")
+	// Retired rules are in their groups, technologies first, each after the current ones.
+	assertShows(t, get(t, handler, library+"?tab=rules&retired=1").Body.String(),
+		"Return errors with context HIGH example/rules Wrap errors Retired Retired in release/3 , renamed to techs/go/return-errors example/rules "+
+			"Testing practices/testing Verify retry limits HIGH example/rules A old Retired Retired in release/2")
 }
 
 // A comparison names the releases in its range that changed shared files, and offers words or lines only for a diff.

@@ -144,7 +144,7 @@ func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVer
 		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: token},
 		Fetch:        git.Fetch,
 		List:         git.ListReleaseTags,
-		Render:       render.Rule,
+		Renderer:     render.Renderer{},
 		Store:        postgres.New(source.Open(schemaVersion)),
 		Limits:       domain.DefaultLimits,
 	}

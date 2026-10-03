@@ -4,7 +4,7 @@
 // Ingest builds the catalog from a Code Rules library's release/<number> tags: it looks the library's repository
 // up on its code host, fetches the release tags, assembles the library they publish, and replaces what the catalog
 // stores about it in one transaction: its releases, groups, rules, and every rule version, with the current
-// version's content rendered for the web.
+// version's content rendered for the web, and each current rule's assets.
 package app
 
 import (
@@ -31,16 +31,16 @@ type Fetch func(ctx context.Context, url string, limits domain.FetchLimits) ([]d
 type List func(ctx context.Context, url string, limits domain.FetchLimits) (domain.ReleaseTags, error)
 
 // Ingester ingests libraries into the catalog. It takes its source of release snapshots as Fetch and List, and its
-// Markdown renderer as Render, so the functions that only read pages carry neither a Git client nor a renderer.
+// renderer as Renderer, so the functions that only read pages carry neither a Git client nor a renderer.
 type Ingester struct {
 	Repositories Repositories
 	Fetch        Fetch
 	// List is needed only by Update.
 	List List
-	// Render renders a current rule's Markdown body, as render.Rule does.
-	Render domain.Render
-	Store  store.Writer
-	Limits domain.Limits
+	// Renderer renders rules' Markdown and their assets, as render.Renderer does.
+	Renderer domain.Renderer
+	Store    store.Writer
+	Limits   domain.Limits
 }
 
 // Result summarizes one ingestion.
@@ -75,14 +75,29 @@ func (in Ingester) Resolve(ctx context.Context, repositoryURL string) (domain.Re
 }
 
 // untilDone returns render, refusing to render once ctx ends. Rendering is most of an ingestion's work, so a job past
-// its deadline stops between rules rather than running on until its function is stopped.
-func untilDone(ctx context.Context, render domain.Render) domain.Render {
-	return func(body string, page domain.RulePage, allowance int64) (string, int64, error) {
-		if err := ctx.Err(); err != nil {
-			return "", 0, err
-		}
-		return render(body, page, allowance)
+// its deadline stops between files rather than running on until its function is stopped.
+func untilDone(ctx context.Context, render domain.Renderer) domain.Renderer {
+	return renderUntilDone{ctx: ctx, Renderer: render}
+}
+
+// renderUntilDone renders with Renderer until ctx ends.
+type renderUntilDone struct {
+	ctx context.Context
+	domain.Renderer
+}
+
+func (r renderUntilDone) Markdown(body string, source domain.MarkdownSource, allowance int64) (string, int64, error) {
+	if err := r.ctx.Err(); err != nil {
+		return "", 0, err
 	}
+	return r.Renderer.Markdown(body, source, allowance)
+}
+
+func (r renderUntilDone) Code(text, file string, allowance int64) (string, int64, error) {
+	if err := r.ctx.Err(); err != nil {
+		return "", 0, err
+	}
+	return r.Renderer.Code(text, file, allowance)
 }
 
 // IngestRepository makes the catalog's rows for the library in repo match its release tags. It writes nothing when
@@ -94,7 +109,7 @@ func (in Ingester) IngestRepository(ctx context.Context, repo domain.Repository)
 	if err != nil {
 		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err), Reason: err.Error()}
 	}
-	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Render))
+	lib, err := domain.Assemble(repo, releases, in.Limits.Content, untilDone(ctx, in.Renderer))
 	if err != nil {
 		return Result{}, &LibraryError{Err: fmt.Errorf("ingest repository=%q: %v", repo.FullName(), err), Reason: err.Error()}
 	}

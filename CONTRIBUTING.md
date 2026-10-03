@@ -37,7 +37,8 @@ which Chrome accepts from `http://127.0.0.1`, as it would from no other plain-HT
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
 to show: `/browse/techs` and a group such as `/g/techs/go` across both, and `/search?q=retry`. The test library has
 six releases to compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of
-them, and a rule's Versions tab compares two of its versions. Run `make ingest` again
+them, and a rule's Versions tab compares two of its versions. Its `techs/go/use-contexts` rule has assets of its own
+and shared ones, such as `/fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go`. Run `make ingest` again
 to bring a library up to date, or `make worker` to update every vetted one. To keep the local `rulemart` database for
 other work, point the commands at another database on the same server, such as
 `LOCAL_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart_dev?sslmode=disable' make migrate`, after
@@ -78,8 +79,8 @@ one transaction; running it again on unchanged tags changes nothing. It fetches 
 memory, and refuses a library that passes any of the limits that
 [internal/contexts/catalog/domain/limits.go](internal/contexts/catalog/domain/limits.go) documents: the
 references the repository advertises, release tags, the size of a tag, of the fetched packfile, of each object
-and of all of them, the number of objects, the size of each file it reads, and the content it holds until the
-library is stored. It ingests any public library, vetted or not, so use it to backfill one.
+and of all of them, the number of objects, the size of each file it reads, the content it holds until the
+library is stored, and the rules' assets it lists and the bytes it keeps of them. It ingests any public library, vetted or not, so use it to backfill one.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the worker's connection string,
 `/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses records with
@@ -88,7 +89,8 @@ released with a Code Rules version that writes the same record format.
 
 `make worker` runs what the deployed worker does every hour, once: for each library `catalog/vetted.yaml`
 lists, and each listing to check, it lists the release tags without fetching them, and ingests the library when they
-aren't the ones the catalog stored, or when a release before every rule version kept its content stored it. A new
+aren't the ones the catalog stored, or when a release before every rule version kept its content, or before rules'
+assets and tags were stored, stored it. A new
 listing is looked up on GitHub first, and a listing whose repository fails records why, for its lister. A queue in
 memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
 
@@ -135,12 +137,14 @@ web Lambda -> SQS, one job per new listing
 - `internal/contexts/catalog` owns the catalog, organized by layer within the context, as
   [_internal/decisions.md](_internal/decisions.md) explains:
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
-    snapshots within the content budget, addresses such as tags and GitHub URLs, every ingestion limit, and the
+    snapshots within the content budget, addresses such as tags and GitHub URLs, where a rule's links and images
+    lead, every ingestion limit, and the
     cart's keys and the Code Rules commands and prompt its checkout writes, whose golden files are in
     `domain/testdata`; run `go test ./internal/contexts/catalog/domain -update` after changing them, and review the
     diff.
-  - `render` renders rules' Markdown with Rulemart's link rules, within a byte allowance. Assembly takes it as a
-    function, so only ingestion links goldmark and chroma, and the web function doesn't.
+  - `render` renders rules' and their assets' Markdown, with links where the domain says, and their text files as
+    highlighted code, within a byte allowance. Assembly takes it as an interface, so only ingestion links goldmark
+    and chroma, and the web function doesn't.
   - `app` holds the operations: `Ingester` ingests a library, updates one whose release tags changed, or checks a
     listing; `Listings` lists libraries for accounts; `Stars` stars rules; `Carts` checks out the carts browsers keep;
     and `Pages` reads what the pages show.
@@ -156,7 +160,8 @@ web Lambda -> SQS, one job per new listing
 - `internal/platform` holds shared runtime: `database` owns the connection to Neon, `database/migrate` the
   migrations, `web` the HTTP server, templates, and static files, with the canonical address each page names from
   `RULEMART_BASE_URL`, robots.txt and the sitemap, the about and privacy pages, the security headers and optional
-  analytics, sign-in, sign-out, the account page, listing, stars, and the cart's page, its script, and its checkout, `queue` sends to the jobs queue, `secret`
+  analytics, sign-in, sign-out, the account page, listing, stars, rules' assets' pages and the images Rulemart serves,
+  and the cart's page, its script, and its checkout, `queue` sends to the jobs queue, `secret`
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/coderules` is the vendored copy of Code Rules' parser, and `internal/lib/textdiff` compares two

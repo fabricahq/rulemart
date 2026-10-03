@@ -81,7 +81,8 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			t.Fatalf("answered %d", resp.code)
 		}
 		assertShows(t, resp.body, "GitHub user ID", "__Host-rulemart-session", "30 days", "IP address", "180 days",
-			"Delete your account", "6 hours", "Amazon Web Services", "Neon")
+			"Delete your account", "6 hours", "Amazon Web Services", "Neon",
+			"A library's page shows the username you last signed in with as who added it, and when, while your listing stands.")
 	}
 	assertShows(t, without.Body.String(), "Rulemart uses no analytics service.")
 	if strings.Contains(visibleText(t, without.Body.String()), "Cloudflare Web Analytics") {

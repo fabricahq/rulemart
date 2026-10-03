@@ -43,10 +43,10 @@ func newUpdates(t *testing.T, lib *gittest.Library) *updates {
 			u.fetches++
 			return git.Fetch(ctx, url, limits)
 		},
-		List:   git.ListReleaseTags,
-		Render: render.Rule,
-		Store:  postgres.New(databasetest.AsWorkerRole(t, connString)),
-		Limits: domain.DefaultLimits,
+		List:     git.ListReleaseTags,
+		Renderer: render.Renderer{},
+		Store:    postgres.New(databasetest.AsWorkerRole(t, connString)),
+		Limits:   domain.DefaultLimits,
 	}
 	u.pages = app.Pages{Store: postgres.New(owner), Vetted: []domain.LibraryKey{exampleKey}}
 	return u
@@ -198,7 +198,7 @@ func TestUpdateIngestsALibraryStoredWithoutItsVersionsContentOnce(t *testing.T) 
 		t.Fatal(err)
 	}
 	postgrestest.Exec(t, u.connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL,
-		when_to_read = NULL, markdown = NULL, retired_html = NULL WHERE html IS NULL`)
+		when_to_read = NULL, markdown = NULL, tags = NULL, retired_html = NULL WHERE html IS NULL`)
 
 	first, err := u.update(t)
 	if err != nil {
@@ -211,6 +211,31 @@ func TestUpdateIngestsALibraryStoredWithoutItsVersionsContentOnce(t *testing.T) 
 
 	if !first.Ingested || first.Result.Changed == 0 || second.Ingested {
 		t.Fatalf("updated %+v, then %+v; want one ingestion that stores the content, then none", first, second)
+	}
+}
+
+// A release before assets were read stored versions without their tags, and the library without its assets, so the
+// first update after it ingests the library again, which stores both, and the next one stops at the check.
+func TestUpdateIngestsALibraryStoredWithoutItsAssetsOnce(t *testing.T) {
+	lib := firstRelease(t)
+	laterReleases(t, lib)
+	u := newUpdates(t, lib)
+	if _, err := u.update(t); err != nil {
+		t.Fatal(err)
+	}
+	postgrestest.Exec(t, u.connString, `UPDATE rule_versions SET tags = NULL`)
+
+	first, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := u.update(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !first.Ingested || first.Result.Changed == 0 || second.Ingested {
+		t.Fatalf("updated %+v, then %+v; want one ingestion that stores the tags and assets, then none", first, second)
 	}
 }
 

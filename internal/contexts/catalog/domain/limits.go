@@ -9,7 +9,8 @@ type Limits struct {
 	Content ContentLimits
 }
 
-// FetchLimits bound what fetching a library's release tags may hold in memory.
+// FetchLimits bound what fetching a library's release tags may hold in memory, and how far listing the files it
+// fetched may walk.
 type FetchLimits struct {
 	// RefsBytes bounds the list of references the repository advertises, which listing and fetching read first:
 	// every branch and tag, not only the release tags.
@@ -24,6 +25,11 @@ type FetchLimits struct {
 	Objects int
 	// ObjectBytes bounds one object, inflated, and TotalBytes all of them together.
 	ObjectBytes, TotalBytes int64
+	// ListedEntries bounds the tree entries, of files, directories, or anything else, that listing the fetched
+	// releases' directories visits, every listing together, and ListDepth how many directories one listing descends.
+	// Directories that share one subtree reach a number of entries exponential in their depth from a few objects, so
+	// listing can't stop only once it has found enough files: a subtree may hold none.
+	ListedEntries, ListDepth int
 }
 
 // ContentLimits bound what assembling a library reads and holds.
@@ -31,11 +37,22 @@ type ContentLimits struct {
 	// FileBytes bounds each rule, group, or manifest file assembly reads.
 	FileBytes int64
 	// ContentBytes bounds the content assembly holds until the library is stored: every current rule's Markdown,
-	// its title, impact description, and reading guidance, its HTML and the links rendering rewrites, and every
-	// group's metadata file. A release's files share storage however many paths have the same content, so what a
-	// source fetches can't bound this: a small release can list thousands of rules or groups that share one large
-	// file.
+	// its title, impact description, reading guidance, and tags, its HTML and the links rendering rewrites, the links
+	// it finds to shared assets, each destination once however many references name it, the bytes and HTML of the
+	// assets it keeps, and every group's metadata file. A release's files share storage however many
+	// paths have the same content, so what a source fetches can't bound this: a small release can list thousands of
+	// rules or groups that share one large file.
 	ContentBytes int64
+	// AssetBytes bounds the bytes assembly keeps of one asset, and RuleAssetBytes those of one current rule's own
+	// assets together, and of the library's shared assets together. An asset past either is listed with its size,
+	// and pages link it on GitHub.
+	AssetBytes, RuleAssetBytes int64
+	// Assets bounds the assets assembly lists, of every current rule and shared.
+	Assets int
+	// AssetLinks bounds the links between current rules and the assets they list, own and shared together, which are
+	// stored a row each. A rule lists every shared file it reaches, so a few shared files that many rules reach make
+	// many more links than files.
+	AssetLinks int
 }
 
 // DefaultLimits leave room for any library Code Rules publishes, which holds at most 10,000 files, while keeping an
@@ -56,12 +73,24 @@ var DefaultLimits = Limits{
 		// One object, and all of them together, inflated.
 		ObjectBytes: 32 << 20,
 		TotalBytes:  256 << 20,
+		// Assembly lists each current rule's asset directory once, so a library's listings visit each of its at most
+		// 10,000 asset files, and the directories that hold them, about once.
+		ListedEntries: 100_000,
+		// Far deeper than an asset directory nests, while one listing's recursion stays shallow.
+		ListDepth: 64,
 	},
 	Content: ContentLimits{
 		// Each rule, group, or manifest file read.
 		FileBytes: 1 << 20,
-		// Every current rule's Markdown, metadata, and HTML, and every group's metadata: tens of thousands of long
-		// rules.
+		// Every current rule's Markdown, metadata, and HTML, its assets, and every group's metadata: tens of thousands
+		// of long rules.
 		ContentBytes: 256 << 20,
+		// Room for diagrams, examples, and notes, while a page about a rule stays quick to load.
+		AssetBytes:     256 << 10,
+		RuleAssetBytes: 2 << 20,
+		// Code Rules publishes at most 10,000 files in a library.
+		Assets: 10_000,
+		// Room for every asset to be a rule's own, and for thousands of rules each to reach a handful of shared files.
+		AssetLinks: 50_000,
 	},
 }

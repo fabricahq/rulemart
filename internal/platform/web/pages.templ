@@ -3,7 +3,11 @@
 
 package web
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
 
 // librariesPage lists every vetted library, and the unvetted ones too when unvetted is true, under a lede that says
 // anyone can list a public library, leading to listing one when canList is true, and where the unvetted ones are, and
@@ -56,30 +60,47 @@ const (
 	releasesTab libraryTab = "releases"
 )
 
-// libraryPage shows a library's groups, or with rulesTab its rules by group, beside its facts.
-templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab) {
-	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, current, true) {
+// libraryPage shows a library's groups, with selection ticked, beside the box that adds them to the cart, or with
+// rulesTab its rules by group, with its retired rules in place when retired is true, beside its facts.
+templ libraryPage(c chrome, lib libraryView, contents libraryContents, current libraryTab, selection groupSelection, retired bool) {
+	@libraryFrame(c, head{title: lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), filters: current == rulesTab}, lib, current, libraryAside(lib, current, selection)) {
 		if current == rulesTab {
-			@allRules(contents)
+			@allRules(lib, contents, retired)
 		} else {
-			@groupList("Technologies", lib, contents.techs)
-			@groupList("Practices", lib, contents.practices)
+			@groupList("Technologies", lib, ofKind(contents.current(), techsKind), selection)
+			@groupList("Practices", lib, ofKind(contents.current(), practicesKind), selection)
 		}
 	}
 }
 
-// libraryFrame is every page about a library: its name, its tabs with current on, and the
-// tab's content, beside the library's facts when withFacts, under the warning when the library isn't vetted.
-templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFacts bool) {
+// libraryAside is what a library's page shows beside its tab: on the Groups tab, the box that adds the ticked groups,
+// selection, to the cart, then the library's facts.
+templ libraryAside(lib libraryView, current libraryTab, selection groupSelection) {
+	if current == groupsTab {
+		@groupsCartPanel(lib, selection)
+	}
+	@libraryFacts(lib)
+}
+
+// libraryFrame is every page about a library, as the prototype's library page: its owner's large avatar, with the
+// check mark when it's vetted, its name, description, and a link to GitHub, its tabs with current on, and the tab's
+// content, beside aside, unless it's nil, under the warning when the library isn't vetted. Discussion's tab will
+// follow Library releases, with rulemart#27.
+templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, aside templ.Component) {
 	@layout(c, libraryHead(h, lib)) {
 		<div class="page wrap">
 			if !lib.vetted {
 				@unvettedWarning(false)
 			}
 			<div class="grid grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-[18px] max-narrow:grid-cols-[56px_minmax(0,1fr)]">
-				@avatar(lib.avatar, lib.owner, avatarLG)
-				<div>
-					<h1 class="title-xl"><span class="text-faint">{ lib.owner } /</span> <span class="inline-block">{ lib.name }</span></h1>
+				@libraryAvatar(lib.avatar, lib.owner, avatarLG, lib.vetted)
+				<div class="min-w-0">
+					<h1 class="title-xl flex flex-wrap items-center gap-2.5">
+						{ lib.name }
+						if lib.vetted {
+							<span class="sr-only">{ vettedTitle }</span>
+						}
+					</h1>
 					if lib.description != "" {
 						<p class="mt-1.5 mb-2.5 text-muted">{ lib.description }</p>
 					}
@@ -96,16 +117,13 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 				{name: "All rules", href: lib.href + "?tab=rules", count: lib.rules, on: current == rulesTab},
 				{name: "Library releases", href: releasesHref(lib), count: lib.releases, on: current == releasesTab},
 			})
-			if withFacts {
+			if aside != nil {
 				<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
 					<div class="min-w-0">
 						{ children... }
 					</div>
 					<aside class="grid content-start gap-[18px]">
-						if current == groupsTab {
-							@groupsCartPanel(lib)
-						}
-						@libraryFacts(lib)
+						@aside
 					</aside>
 				</div>
 			} else {
@@ -115,11 +133,11 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 	}
 }
 
-// groupList lists one kind of group, each leading to its rules on the All rules tab, to its page in the library, and a
-// canonical group also to its page across libraries, with a checkbox that picks it for the cart, which shades the row
-// and marks its edge while ticked, as the prototype's selected rows. The row's main link covers the row, and the other
-// links and the checkbox sit above it.
-templ groupList(kind string, lib libraryView, groups []groupView) {
+// groupList lists one kind of group, as the prototype's Groups tab: each row a label that ticks the group, with
+// selection's ticked, for the Add to cart box of its library, which shades the row and marks its edge while ticked,
+// showing the group's icon, name, and ID, or its ID flagged as not canonical, a practice's blurb, the In cart badge
+// once the cart holds it, and its rules, leading to its page in the library with the selection.
+templ groupList(kind string, lib libraryView, groups []groupView, selection groupSelection) {
 	if len(groups) > 0 {
 		@labelHeading("mt-[22px] mb-2 first:mt-0") {
 			{ kind } · { strconv.Itoa(len(groups)) }
@@ -127,69 +145,71 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		@rowList() {
 			for _, g := range groups {
 				@rowItem() {
-					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[[data-cart-pick-group]:checked:enabled]:bg-surface has-[[data-cart-pick-group]:checked:enabled]:shadow-[inset_3px_0_var(--ink)] has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
-						<div class="flex min-w-0 items-center gap-3">
-							@groupPick(lib, g)
+					<label class="grid cursor-pointer grid-cols-[20px_minmax(150px,220px)_minmax(0,1fr)_auto] items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[[data-cart-pick-group]:disabled]:cursor-default has-[[data-cart-pick-group]:checked:enabled]:bg-surface has-[[data-cart-pick-group]:checked:enabled]:shadow-[inset_3px_0_var(--ink)] max-narrow:grid-cols-[20px_minmax(0,1fr)_auto]">
+						<span class="grid place-items-center">
+							@groupPick(lib, g, selection.has(g.label.id))
+						</span>
+						<span class="flex min-w-0 items-center gap-2.5">
 							@groupTile(g.label, g.icon, tileMD)
-							<div class="min-w-0">
-								<a class="row-link block text-[14px] leading-[22px] font-semibold text-ink no-underline after:absolute after:inset-0 focus-visible:outline-none" href={ templ.SafeURL(lib.href + "?tab=rules#" + g.anchor) }>
+							<span class="min-w-0">
+								<b class="block text-[14px] leading-[1.65] font-semibold">
 									if g.label.canonical {
 										{ g.label.name }
 									} else {
 										@breakable(g.label.id)
 									}
-								</a>
-								if g.label.canonical {
-									<span class="block font-mono text-[12px] leading-[20px] text-faint">
-										@breakable(g.label.id)
-									</span>
-								} else {
-									<span class="block leading-[20px]">
+								</b>
+								<span class="block">
+									if g.label.canonical {
+										<span class="font-mono text-[12px] text-faint">
+											@breakable(g.label.id)
+										</span>
+									} else {
 										@notCanonical(flagMD)
-									</span>
-								}
-							</div>
-						</div>
-						<div class="text-[13px] text-muted max-narrow:col-span-full max-narrow:row-start-2 max-narrow:pl-10 max-narrow:empty:hidden max-narrow:[@media(scripting:enabled)]:pl-[68px]">
-							if g.blurb != "" {
-								<p>{ g.blurb }</p>
-							}
-							<a class="relative z-10 mt-0.5 inline-block text-[12.5px] text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(g.acrossHref) }>{ g.label.display() } rules in every library ›</a>
-						</div>
-						<span class="flex items-center gap-2 text-[12.5px] whitespace-nowrap text-muted max-narrow:col-start-2 max-narrow:row-start-1">
-							@groupHeldBadge(lib, g)
-							<a class="relative z-10 text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id)) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+									}
+								</span>
+							</span>
 						</span>
-					</div>
+						<p class="text-[13px] text-muted max-narrow:col-start-2 max-narrow:col-end-[-1] max-narrow:row-start-2 max-narrow:empty:hidden">
+							{ g.shownBlurb() }
+						</p>
+						// On a phone the In cart chip goes under the rule count, so the group's ID keeps the width it needs.
+						<span class="inline-flex items-center gap-2 text-[12.5px] whitespace-nowrap text-faint max-narrow:col-start-3 max-narrow:row-start-1 max-narrow:flex-col-reverse max-narrow:items-end max-narrow:gap-1">
+							@groupHeldBadge(lib, g)
+							<a class="text-muted no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(libraryGroupHref(lib.href, g.label.id) + selection.query()) } data-sel-link={ libraryGroupHref(lib.href, g.label.id) }>{ plural(len(g.rules), "rule", "rules") } ›</a>
+						</span>
+					</label>
 				}
 			}
 		}
 	}
 }
 
-// libraryGroupPage shows one group of a library, as the prototype's library group page: its rules, and the Whole
-// group box that adds the group to the cart. Slice R6 finishes its layout.
-templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
+// libraryGroupPage shows one group of a library, as the prototype's library group page: where it is, its icon and
+// name, its rules, the way back to the library's groups, and the Whole group box that adds the group to the cart.
+// selection is the groups the library's Groups tab ticks, which its links back carry.
+templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSelection) {
 	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)) {
 		<div class="page wrap">
 			if !lib.vetted {
 				@unvettedWarning(false)
 			}
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@avatar(lib.avatar, lib.owner, avatarSM)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(lib.href) }>{ lib.fullName() }</a>
+				@libraryCrumb(lib, lib.href+selection.query())
 				<span>›</span>
 				<span class="mono">{ g.label.id }</span>
 			</div>
-			<h1 class="title-xl flex items-center gap-[14px]">
+			<h1 class="title-xl flex flex-wrap items-center gap-[14px]">
 				@groupTile(g.label, g.icon, tileTitle)
 				{ g.label.display() }
+				if !g.label.canonical {
+					@notCanonical(flagMD)
+				}
 			</h1>
 			<p class="mt-2 mb-6 text-muted">
 				{ plural(len(g.rules), "rule", "rules") } in { lib.fullName() }
-				// Technologies' names say what they are; only practices show what belongs in them, as the prototype.
-				if g.blurb != "" && kindOf(g.label.id) == practicesKind {
-					· { g.blurb }
+				if blurb := g.shownBlurb(); blurb != "" {
+					{ "· " + blurb }
 				}
 			</p>
 			<div class="grid grid-cols-[minmax(0,1fr)_300px] gap-9 max-wide:grid-cols-1">
@@ -199,14 +219,17 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
 							@ruleRow(r)
 						}
 					}
-					<a class="mt-[14px] inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href) }>← Back to all groups in { lib.fullName() }</a>
+					<a class="mt-6 inline-block text-[13px] text-muted hover:text-ink" href={ templ.SafeURL(lib.href + selection.query()) }>← Back to all groups in { lib.fullName() }</a>
 				</div>
 				<aside class="grid content-start">
 					<div class="rounded-panel border border-border bg-paper p-[18px] wide:sticky wide:top-[84px]">
 						@label("mb-1.5") {
 							Whole group
 						}
-						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span class="whitespace-nowrap">{ lib.fullName() }.</span>{ " " }@groupUpdates(lib)</p>
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span>
+							// The name wraps after its slash rather than leave "from" alone at a line's end.
+							@breakable(lib.fullName() + ".")
+						</span>{ " " }@groupUpdates(lib)</p>
 						@groupCartControl(lib, g)
 						if g.label.canonical {
 							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
@@ -219,59 +242,39 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView) {
 	}
 }
 
-// allRules lists every current rule under its group.
-templ allRules(contents libraryContents) {
+// allRules lists every current rule under its group, as the prototype's All rules tab, and when retired is true, each
+// group's retired rules after its current ones, grayed out, with the control that shows them when the library has any,
+// a one-checkbox form as the unvetted opt-in is.
+templ allRules(lib libraryView, contents libraryContents, retired bool) {
+	if contents.hasRetired || retired {
+		<div class="mb-4">
+			@optInForm(lib.href, domain.RetiredParam, "Show retired rules", retired) {
+				<input type="hidden" name="tab" value={ string(rulesTab) }/>
+			}
+		</div>
+	}
 	for _, g := range contents.all() {
-		<div class="mt-8 mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-0.5 pb-[7px] first:mt-0">
-			<h2 class="flex scroll-mt-20 items-center gap-2 text-[11px] tracking-[.1em] text-faint uppercase" id={ g.anchor }>
-				@groupTile(g.label, g.icon, tileXS)
+		if len(g.rules) > 0 || (retired && len(g.retired) > 0) {
+			<h2 class="mt-[30px] flex scroll-mt-20 flex-wrap items-center gap-x-1.5 gap-y-1 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase first-of-type:mt-0" id={ g.anchor }>
 				if g.label.canonical {
-					<span>{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span></span>
+					{ g.label.name } <span class="mono tracking-normal normal-case">{ g.label.id }</span>
 				} else {
 					<span class="mono tracking-normal normal-case">{ g.label.id }</span>
 					@notCanonical(flagSM)
 				}
 			</h2>
-		</div>
-		@ruleRows() {
-			for _, r := range g.rules {
-				@ruleRow(r)
-			}
-		}
-	}
-	if len(contents.retired) > 0 {
-		<h2 class="mt-8 mb-3 border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase" id="retired">Retired</h2>
-		@rowList() {
-			for _, r := range contents.retired {
-				@rowItem() {
-					@retiredRuleRow(r)
+			@ruleRows() {
+				for _, r := range g.rules {
+					@ruleRow(r)
 				}
-			}
-		}
-	}
-}
-
-// retiredRuleRow is a retired rule in the All rules tab, leading to its page.
-templ retiredRuleRow(r retiredRuleCard) {
-	<a class="group grid grid-cols-[minmax(0,1fr)_14px] items-center gap-[18px] px-[18px] py-3 text-ink no-underline transition-colors duration-[120ms] hover:bg-surface focus-visible:outline-offset-[-3px]" href={ templ.SafeURL(r.href) }>
-		<div class="min-w-0">
-			<div class="text-[14px] leading-[1.35] font-semibold">{ r.title }</div>
-			<div class="mt-0.5 text-[12.5px] text-muted">
-				<span class="mono text-faint">
-					@breakable(r.id)
-				</span> · last version <span class="mono">{ r.lastVersion }</span> · retired in <span class="mono">{ r.retiredTag }</span>
-				if len(r.replacedBy) > 0 {
-					·
-					for _, step := range rowChainSteps(r.replacedBy, r.renamed) {
-						{ step.prefix }<span class="mono">
-							@breakable(step.id)
-						</span>
+				if retired {
+					for _, r := range g.retired {
+						@ruleRow(r)
 					}
 				}
-			</div>
-		</div>
-		<span class="text-[12.5px] text-muted" aria-hidden="true">›</span>
-	</a>
+			}
+		}
+	}
 }
 
 // ruleTab names a tab of a rule's page.
@@ -305,34 +308,32 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 			if !r.library.vetted {
 				@unvettedWarning(false)
 			}
-			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
-				@avatar(r.library.avatar, r.library.owner, avatarSM)
-				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.library.href) }>{ r.library.name }</a>
-				<span>›</span>
+			@ruleCrumbs(r) {
 				if r.group.canonical {
-					<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.name }</a>
 					<span class="mono">{ r.group.id }</span>
 				} else {
-					<a class="mono text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.groupHref) }>{ r.group.id }</a>
 					@notCanonical(flagSM)
 				}
-				<a class="ml-auto text-muted no-underline hover:text-ink hover:underline max-narrow:ml-0 max-narrow:basis-full" href={ templ.SafeURL(r.acrossHref) }>{ r.group.display() } rules in every library ›</a>
-			</div>
-			<div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-				<div>
+			}
+			<div class="flex flex-wrap items-start justify-between gap-6">
+				<div class="min-w-0">
 					<h1 class="title-xl max-w-[44rem]">{ r.title }</h1>
 					<div class="mt-2.5 flex flex-wrap items-center gap-x-[14px] gap-y-1.5 text-[13px] text-muted">
 						if r.retired != nil {
 							<span class="rounded-full border border-border-strong px-2.5 text-[12px] font-medium text-ink">Retired</span>
 							<span>Last version <span class="mono">{ r.version }</span></span>
 						} else {
-							@impact(r.impact)
+							@impactLink(r.impact)
 							<span class="mono" title="Latest version">{ r.version }</span>
+							for _, t := range r.tags {
+								<a class="text-faint no-underline underline-offset-3 hover:text-ink hover:underline" href={ templ.SafeURL(t.href) } title="Search this tag">#{ t.text }</a>
+							}
 						}
 					</div>
-					if r.star.shown {
-						// The prototype's engage row, which will hold Discuss beside Star too.
-						<div class="mt-[14px] flex flex-wrap items-center gap-2">
+					if r.retired == nil && r.star.shown {
+						// The prototype's engage row: Star, then Discuss, which comes with rulemart#27. Without a Star control, as
+						// in an unvetted library, it holds nothing yet, so it goes rather than leave a gap.
+						<div class="mt-[14px] flex min-h-8 flex-wrap items-center gap-2" data-engage>
 							@starControl(r.star)
 						</div>
 					}
@@ -341,6 +342,7 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 					@ruleCartControl(r)
 				}
 			</div>
+			// Discussion's tab comes between Rule and Versions with rulemart#27.
 			if r.retired == nil {
 				@tabs([]tab{
 					{name: "Rule", href: r.href, count: -1, on: current == contentTab},
@@ -354,6 +356,30 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 	}
 }
 
+// ruleCrumbs is where a rule is, at the top of its pages: its library's avatar and name, then its group's icon and
+// name, which lead to the group across libraries, then what the children add.
+templ ruleCrumbs(r ruleView) {
+	<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
+		@libraryCrumb(r.library, r.library.href)
+		<span>›</span>
+		@groupTile(r.group, r.groupIcon, tileXS)
+		<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(r.acrossHref) }>
+			if r.group.canonical {
+				{ r.group.name }
+			} else {
+				<span class="mono">{ r.group.id }</span>
+			}
+		</a>
+		{ children... }
+	</div>
+}
+
+// libraryCrumb is a library at the start of a page's crumbs: its owner's avatar, with the check mark when Rulemart vets
+// it, and its name, leading to href, its page.
+templ libraryCrumb(lib libraryView, href string) {
+	@libraryAvatar(lib.avatar, lib.owner, avatarSM, lib.vetted)
+	<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(href) }>{ lib.name }</a>
+}
 
 // retiredRule says when and why a library release retired a rule, and what replaced it, then shows its last
 // version's text and lists its versions.
@@ -403,10 +429,12 @@ templ replacesNotes(r ruleView) {
 	}
 }
 
+// ruleContent is a current rule's Rule tab, as the prototype's: what it replaced, when to apply it and its text, and
+// beside them, the About panel, its assets, when it has any, and its facts.
 templ ruleContent(r ruleView) {
 	@replacesNotes(r)
 	<div class="grid grid-cols-[minmax(0,1fr)_280px] gap-9 max-wide:grid-cols-1">
-		<div class="prose">
+		<div class="prose min-w-0">
 			<div class="when-to-apply mb-5 border-l-2 border-border-strong py-0.5 pl-[14px] text-[14px] text-muted">
 				<b class="mb-0.5 block text-[11px] font-semibold tracking-[.1em] text-ink uppercase">When to apply</b>
 				if r.whenToReadHTML != "" {
@@ -418,35 +446,43 @@ templ ruleContent(r ruleView) {
 			@templ.Raw(r.html)
 		</div>
 		<aside class="grid content-start gap-[18px]">
-			@aboutPanel(impactNote(r.impact)) {
-				@fact("Library") {
-					<a class="inline-flex items-start gap-1.5 text-right" href={ templ.SafeURL(r.library.href) }>
-						<span class="mt-0.5 inline-flex">
-							@avatar(r.library.avatar, r.library.owner, avatarXS)
-						</span>
-						<span class="min-w-0 underline underline-offset-4">
-							@breakable(r.library.owner + "/" + r.library.name)
-						</span>
-					</a>
-				}
-				@fact("Repository") {
-					@factLink(r.library.githubURL, r.library.name, "github.com/"+r.library.owner+"/"+r.library.name)
-				}
-				@fact("License") {
-					@license(r.library)
-				}
-				@fact("File") {
-					@factLink(r.fileURL, r.fileName, r.id+".md")
-				}
-				@fact("Updated") {
-					{ r.updated }
-				}
-				@fact("Impact") {
-					@impact(r.impact)
-				}
+			@ruleAbout(r)
+			if len(r.assets) > 0 {
+				@assetsPanel(r.assets)
 			}
+			<dl class="grid grid-cols-[minmax(0,1fr)] gap-[7px] text-[13px]">
+				@libraryOwnership(r.library)
+				@kv("File") {
+					// A long name keeps one line, cut from its start, so its end, which tells rules apart, shows, and the
+					// whole path shows on hover.
+					<span class="block truncate [direction:rtl]"><a class="font-mono text-[.86em]" href={ templ.SafeURL(r.fileURL) } title={ r.id + ".md" }><bdi>{ r.fileName }</bdi></a></span>
+				}
+			</dl>
 		</aside>
 	</div>
+}
+
+// ruleAbout is a rule's About panel, as the prototype's: who publishes it, how fresh it is, and where to ask about it,
+// which leads to its library's issues on GitHub until Discuss comes with rulemart#27.
+templ ruleAbout(r ruleView) {
+	@sidePanel("About", "about", nil) {
+		<div class="grid gap-[14px] px-[18px] py-4">
+			<a class="group flex items-center gap-2.5 text-ink no-underline" href={ templ.SafeURL(r.library.href) }>
+				@libraryAvatar(r.library.avatar, r.library.owner, avatarMD, r.library.vetted)
+				<span class="grid min-w-0 gap-px">
+					<span class="text-[14px] font-medium underline-offset-3 group-hover:underline [overflow-wrap:anywhere]">{ r.library.name }</span>
+					<span class="text-[12px] text-faint">Published by { publisher(r.library.owner) }</span>
+				</span>
+			</a>
+			<div class="flex justify-between gap-3 border-t border-border pt-3 text-[13px]">
+				<span class="text-muted">Updated</span>
+				<span>{ r.updated }</span>
+			</div>
+			<div class="border-t border-border pt-3">
+				<p class="text-[13px] text-muted">Questions or suggestions? <a class="whitespace-nowrap" href={ templ.SafeURL(r.library.githubURL + "/issues") }>Ask on GitHub</a></p>
+			</div>
+		</div>
+	}
 }
 
 // versions lists every version of a rule, newest first, with what it replaced and a way to compare its versions.

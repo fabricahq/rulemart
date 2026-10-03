@@ -166,7 +166,9 @@
 }
 
 @layer components {
-  /* A rule's rendered Markdown, which has no classes of its own. */
+  /* A rule's rendered Markdown, which has no classes of its own. A rule's leading heading repeats its title, which
+     rendering drops, but an asset's Markdown often opens with one. */
+  .prose h1 { font-size: 1.6rem; letter-spacing: -.04em; line-height: 1.25; margin: 28px 0 12px; }
   .prose h2 { font-size: 1.3rem; letter-spacing: -.035em; margin: 26px 0 10px; }
   .prose h3 { font-size: 1.05rem; letter-spacing: -.025em; margin: 22px 0 8px; font-weight: 600; }
   .prose h4, .prose h5 { font-size: 15px; margin: 18px 0 6px; font-weight: 600; }

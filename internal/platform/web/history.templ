@@ -13,7 +13,7 @@ import (
 // releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
 // describe it, with links to newer and older pages.
 templ releasesPage(c chrome, lib libraryView, v releasesView) {
-	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, true) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, libraryFacts(lib)) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
 			if len(v.from) > 1 {
@@ -229,7 +229,7 @@ templ modeLink(name, href string, on bool) {
 
 // releaseComparisonPage is what changed in a library between two releases, and the changed rules' text.
 templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) {
-	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, false) {
+	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
 		@compareBar(v.backHref, "All library releases", len(v.diffs) > 0, diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(lib.href, "releases", v.fromOptions, v.toOptions, diffMode(v.mode), "Older library release", "Newer library release")
 		}
@@ -307,7 +307,7 @@ templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
 // releasesNotFoundPage is a library's Library releases tab that says it can't show the releases a link asked for, with
 // the means to choose two releases to compare.
 templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message string) {
-	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, false) {
+	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
 		@compareBar(releasesHref(lib), "All library releases", false, diffWords, "", "") {
 			if len(v.from) > 1 {
 				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")

@@ -56,6 +56,11 @@ type catalog struct {
 	// searched records each query searched, and chosen the choices of every list read, when they aren't nil.
 	searched *[]string
 	chosen   *[]domain.ListChoices
+	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
+	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>, and spell
+	// their library's owner and name as the library does.
+	assets map[string]views.AssetPage
+	images map[string]views.AssetContent
 	// sitemap is what the sitemap lists.
 	sitemap views.Sitemap
 	// err, when set, fails every read.
@@ -157,6 +162,24 @@ func (c catalog) RulePage(_ context.Context, owner, name, rulePath string) (view
 	return page, c.err
 }
 
+func (c catalog) AssetPage(_ context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
+	page, ok := c.assets[strings.ToLower(owner+"/"+name)+"/"+assetPath+" rule="+rulePath]
+	if c.err == nil && !ok {
+		return page, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
+	}
+	return page, c.err
+}
+
+// AssetImage finds an image by its path as the library spells it.
+func (c catalog) AssetImage(_ context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
+	image, ok := c.images[strings.ToLower(owner+"/"+name)+"/"+assetPath]
+	image.Rule, image.Path = rulePath, assetPath
+	if c.err == nil && !ok {
+		return image, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
+	}
+	return image, c.err
+}
+
 // ReleasesPage finds the page that holds a release after the first page's under the library's key, then
 // " release=<n>"; any other release of the library finds the first page, as app.Pages does.
 func (c catalog) ReleasesPage(_ context.Context, owner, name string, release int) (views.ReleasesPage, error) {
@@ -202,7 +225,7 @@ func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) 
 var exampleRules = views.Library{
 	Vetted: true, Owner: "example", Name: "rules", Description: "Example rules for tests.",
 	OwnerAvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", LicenseExpression: "MIT", LicenseFile: "LICENSE",
-	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
+	LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2, AddedAt: day(1),
 }
 
 // goGroup and testingGroup are how the canonical group list shows techs/go and practices/testing.
@@ -342,11 +365,13 @@ func TestLibraryPageShowsGroupsAndLatestRelease(t *testing.T) {
 		t.Fatalf("got %d", resp.Code)
 	}
 	assertShows(t, resp.Body.String(),
-		"example / rules Example rules for tests.",
+		"rules Vetted by Rulemart Example rules for tests. View on GitHub",
 		"Groups , 2", "All rules , 2", "Library releases , 3",
-		"Technologies · 1 Go techs/go The Go language. Go rules in every library › 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
-		"License MIT", "Latest library release release/3", "Updated 3 Sep 2026",
+		// Technologies' names say what they are, so only practices show what belongs in them.
+		"Technologies · 1 Go techs/go 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
+		"Owner example Repository rules License MIT Latest library release release/3 Updated 3 Sep 2026 "+
+			"On Rulemart since 1 Sep 2026 Added by Fabrica Rules harmful, misleading, or not what they claim? Report this library",
 	)
 	if !strings.Contains(resp.Body.String(), `href="/example/rules?tab=releases#release-3"`) {
 		t.Fatal("the latest release doesn't link to it on the Library releases tab")
@@ -387,14 +412,15 @@ func TestRulePageShowsTheCurrentVersion(t *testing.T) {
 	}
 }
 
-// An impact label explains itself on hover, which touch and keyboards can't reach, so a rule's page also says what
-// its level means, and links the levels' explanation.
+// An impact label explains itself on hover, which touch and keyboards can't reach, so a rule's head leads it to the
+// levels' explanation, and names it to screen readers by what its level means.
 func TestRulePageSaysWhatItsImpactMeans(t *testing.T) {
 	page := get(t, newSite(t, newCatalog()), errorsRule).Body.String()
 
-	assertShows(t, page, "Impact HIGH High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels")
-	if got := links(t, page, "Impact levels"); len(got) != 1 || !strings.HasPrefix(got[0], "https://code-rules.fabricahq.com/") {
-		t.Errorf("Impact levels links %q", got)
+	impact := find(parsePage(t, page), func(n *html.Node) bool { return n.Data == "a" && strings.Contains(nodeText(n), "HIGH") })
+	if impact == nil || !strings.HasPrefix(attribute(impact, "href"), "https://code-rules.fabricahq.com/") ||
+		attribute(impact, "aria-label") != "High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels." {
+		t.Errorf("the impact is %+v, want a link to the levels named by what HIGH means", impact)
 	}
 }
 
@@ -822,12 +848,13 @@ func TestLibraryPageShowsCanonicalGroupsByNameAndOtherGroupsByIDFlagged(t *testi
 	assertShows(t, page,
 		// A canonical group is described by the canonical list, as the groups page describes it, and any other group by
 		// its library.
-		"Technologies · 3 Go techs/go The Go language. Go rules in every library › 1 rule ›",
-		"techs/golang not canonical More Go rules. techs/golang rules in every library › 1 rule ›",
-		"Goose techs/goose Goose rules in every library › 1 rule ›",
-		"Practices · 1 Testing practices/testing What to test and how. Testing rules in every library › 1 rule ›",
+		"Technologies · 3 Go techs/go 1 rule ›",
+		"techs/golang not canonical 1 rule ›",
+		"Goose techs/goose 1 rule ›",
+		"Practices · 1 Testing practices/testing What to test and how. 1 rule ›",
 	)
-	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") {
+	if text := visibleText(t, page); strings.Contains(text, "When testing.") || strings.Contains(text, "When writing Go.") ||
+		strings.Contains(text, "More Go rules.") {
 		t.Error("the page shows a group's reading guidance")
 	}
 	assertFlagsExplainThemselves(t, page, 1)
@@ -864,28 +891,57 @@ func TestRulePageNamesItsGroupAsTheLibraryPageDoes(t *testing.T) {
 	canonical := get(t, handler, returnErrorsGo).Body.String()
 	other := get(t, handler, passContext).Body.String()
 
-	assertShows(t, canonical, "mixed › Go techs/go Go rules in every library ›")
+	assertShows(t, canonical, "mixed › Go techs/go")
 	assertFlagsExplainThemselves(t, canonical, 0)
-	assertShows(t, other, "mixed › techs/golang not canonical techs/golang rules in every library ›")
+	assertShows(t, other, "mixed › techs/golang not canonical")
 	assertFlagsExplainThemselves(t, other, 1)
-	// Every group's rules in every library that holds it are a page of their own.
-	if got := links(t, canonical, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go"}) {
+	// The crumbs' group leads to its rules in every library that holds it, which are a page of their own.
+	if got := linksTo(t, canonical, groupPrefix); !slices.Equal(got, []string{"/g/techs/go"}) {
 		t.Errorf("the rule page links %q across libraries", got)
 	}
-	if got := links(t, other, "rules in every library"); !slices.Equal(got, []string{"/g/techs/golang"}) {
+	if got := linksTo(t, other, groupPrefix); !slices.Equal(got, []string{"/g/techs/golang"}) {
 		t.Errorf("a group that isn't canonical links %q across libraries", got)
 	}
 }
 
-// A library's groups lead to their rules in the library, and to their page across libraries, canonical or not.
-func TestLibraryPageLinksGroupsAcrossLibraries(t *testing.T) {
-	page := get(t, newSite(t, newMixedCatalog()), mixed).Body.String()
+// A library's groups each lead to their page in the library, carrying the groups the address ticks, which the page
+// ticks, counts, and offers to add, leaving out an ID the library doesn't have.
+func TestLibraryPageCarriesItsTickedGroups(t *testing.T) {
+	handler := newSite(t, newMixedCatalog())
 
-	if got := links(t, page, "rules in every library"); !slices.Equal(got, []string{"/g/techs/go", "/g/techs/golang", "/g/techs/goose", "/g/practices/testing"}) {
-		t.Errorf("the groups link %q across libraries", got)
+	plain := get(t, handler, mixed).Body.String()
+	ticked := get(t, handler, mixed+"?sel=TECHS/GO,techs/nothing&sel=practices/testing").Body.String()
+
+	if got := links(t, plain, "1 rule"); !slices.Equal(got, []string{mixed + "/techs/go", mixed + "/techs/golang", mixed + "/techs/goose", mixed + "/practices/testing"}) {
+		t.Errorf("the groups lead to %q", got)
 	}
-	if got := links(t, page, "techs/golang"); !slices.Equal(got, []string{mixed + "?tab=rules#group-techs-golang", "/g/techs/golang"}) {
-		t.Errorf("techs/golang links %q", got)
+	assertShows(t, plain, "Add to cart Select whole groups to add. You can also add single rules from their pages. Add groups to cart Select all groups")
+	sel := "?sel=techs/go,practices/testing"
+	if got := links(t, ticked, "1 rule"); !slices.Equal(got, []string{mixed + "/techs/go" + sel, mixed + "/techs/golang" + sel, mixed + "/techs/goose" + sel, mixed + "/practices/testing" + sel}) {
+		t.Errorf("the groups lead to %q, without the ticked groups", got)
+	}
+	assertShows(t, ticked, "2 groups selected. Whole groups stay in sync with example/mixed. Add 2 groups to cart Select all groups Clear")
+	if checked := regexp.MustCompile(`data-cart-group-id="([^"]+)"[^>]* checked`).FindAllStringSubmatch(ticked, -1); len(checked) != 2 ||
+		checked[0][1] != "techs/go" || checked[1][1] != "practices/testing" {
+		t.Errorf("the ticked boxes are %q", checked)
+	}
+	if strings.Contains(ticked, "data-cart-groups-add disabled") || !strings.Contains(plain, "data-cart-groups-add disabled") {
+		t.Error("the Add button isn't disabled exactly when nothing is ticked")
+	}
+}
+
+// A library that came to Rulemart through a listing names who listed it, on their GitHub profile.
+func TestLibraryPageNamesWhoListedIt(t *testing.T) {
+	c := newCatalog()
+	lib := c.pages["example/rules"]
+	lib.Library.AddedBy, lib.Library.AddedAt = "lister", day(2)
+	c.pages["example/rules"] = lib
+
+	page := get(t, newSite(t, c), library).Body.String()
+
+	assertShows(t, page, "On Rulemart since 2 Sep 2026 Added by @lister")
+	if got := links(t, page, "@lister"); !slices.Equal(got, []string{"https://github.com/lister"}) {
+		t.Errorf("Added by links %q", got)
 	}
 }
 
@@ -960,5 +1016,87 @@ func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want stri
 		t.Errorf("%s redirects in a circle through %s", target, location)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Errorf("%s leads to a %d, want the page", target, resp.StatusCode)
+	}
+}
+
+// A rule's head links each of its tags to a search for it, and its Rule tab's panels say who publishes it, how fresh it
+// is, where to ask about it, its assets when it has any, and its facts, as the prototype's.
+func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Rule.Tags = []string{"errors", "error wrapping"}
+	page.Assets = []views.Asset{
+		{Path: "techs/go/assets/return-errors/loop.svg", Size: 2458, MediaType: "image/svg+xml", Release: 3, Kept: true},
+		{Path: "assets/glossary.md", Size: 1600, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+	}
+	c.rules["example/rules/techs/go/return-errors"] = page
+	handler := newSite(t, c)
+
+	withAssets := get(t, handler, errorsRule).Body.String()
+	without := get(t, handler, retryRule).Body.String()
+
+	assertShows(t, withAssets,
+		"Return errors with context HIGH 2.0.0 #errors #error wrapping",
+		"About rules Published by example Updated 3 Sep 2026 Questions or suggestions? Ask on GitHub "+
+			"Assets 2 files loop.svg 2.4 KB Shared across the library glossary.md 1.6 KB "+
+			"Not part of this rule's version. Projects get the copy from the newest library release. "+
+			"These files come with the rule when you add it. "+
+			"Owner example Repository rules License MIT File return-errors.md",
+	)
+	for text, want := range map[string]string{
+		"#errors":         "/search?q=errors",
+		"#error wrapping": "/search?q=error+wrapping",
+		"Ask on GitHub":   "https://github.com/example/rules/issues",
+		"loop.svg":        errorsRule + "/assets/loop.svg",
+		"glossary.md":     library + "/assets/glossary.md?rule=techs/go/return-errors",
+	} {
+		if got := links(t, withAssets, text); !slices.Equal(got, []string{want}) {
+			t.Errorf("%s leads to %q, want %s", text, got, want)
+		}
+	}
+	if strings.Contains(visibleText(t, without), "Assets") {
+		t.Error("a rule without assets shows the Assets panel")
+	}
+}
+
+// The Assets panel's note speaks of one file as one.
+func TestAssetsPanelSpeaksOfOneFileAsOne(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Assets = []views.Asset{{Path: "techs/go/assets/return-errors/notes.txt", Size: 12, MediaType: "text/plain; charset=utf-8", Release: 3, Kept: true}}
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	assertShows(t, get(t, newSite(t, c), errorsRule).Body.String(), "Assets 1 file notes.txt 12 B This file comes with the rule when you add it.")
+}
+
+// A rule's About panel and a row's library mark name the publisher one way: Fabrica for a library of Fabrica's, and
+// the owner's login for any other.
+func TestPagesNameAFabricaLibrarysPublisherFabrica(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Library.Owner = "fabricahq"
+	c.rules["fabricahq/rules/techs/go/return-errors"] = page
+	handler := newSite(t, c)
+
+	assertShows(t, get(t, handler, "/fabricahq/rules/techs/go/return-errors").Body.String(), "Published by Fabrica Updated")
+	assertShows(t, get(t, handler, errorsRule).Body.String(), "Published by example Updated")
+}
+
+// Discuss and the Discussion tab come with rulemart#27, so a rule's page shows neither yet, and its engage row goes
+// when it has nothing to show, such as in a library Rulemart doesn't vet, where no one can star a rule, rather than
+// leave a gap under the rule's title.
+func TestRulePageShowsNoDiscussionYetNorAnEmptyEngageRow(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Library.Vetted = false
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	body := get(t, newSite(t, c), errorsRule).Body.String()
+
+	if text := visibleText(t, body); strings.Contains(text, "Discuss") || !strings.Contains(text, "Rule Versions , 2") {
+		t.Errorf("the page shows Discuss, or tabs other than Rule and Versions:\n%s", text)
+	}
+	if engage := find(parsePage(t, body), withAttribute("data-engage")); engage != nil {
+		t.Errorf("the page shows an engage row with nothing in it: %q", nodeText(engage))
 	}
 }

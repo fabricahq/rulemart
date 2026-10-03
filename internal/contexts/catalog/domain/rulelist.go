@@ -164,10 +164,14 @@ func ParseListChoices(page ListPage, values map[string][]string) ListChoices {
 		choices.Filters.Kind = oneOf(values[KindParam], "techs", "practices")
 	}
 	if page.OffersRetired() && (page != SearchListPage || ParseSearchQuery(url.Values(values).Get(QueryParam)).IsZero()) {
-		choices.Retired = has(values[RetiredParam], "1")
+		choices.Retired = RetiredChosen(values)
 	}
 	return choices
 }
+
+// RetiredChosen reports whether values, an address's query, chooses to show retired rules, wherever a page offers
+// them: on a list of rules, or a library's All rules tab.
+func RetiredChosen(values map[string][]string) bool { return has(values[RetiredParam], "1") }
 
 // Values writes the choices as the page's address holds them: each in its parameter, leaving out every default, so
 // the page's own address names none, and the libraries joined with commas.

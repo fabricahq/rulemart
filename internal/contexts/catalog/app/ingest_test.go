@@ -232,7 +232,7 @@ func newCatalog(t *testing.T) (app.Ingester, app.Pages) {
 	t.Helper()
 	db, _ := databasetest.New(t)
 	store := postgres.New(db)
-	ingester := app.Ingester{Fetch: git.Fetch, Render: render.Rule, Store: store, Limits: domain.DefaultLimits}
+	ingester := app.Ingester{Fetch: git.Fetch, Renderer: render.Renderer{}, Store: store, Limits: domain.DefaultLimits}
 	return ingester, app.Pages{Store: store, Vetted: []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "42"}}}
 }
 
@@ -270,11 +270,7 @@ func TestIngestStopsRenderingWhenItsContextEnds(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rendered := 0
-	ingester.Render = func(body string, page domain.RulePage, allowance int64) (string, int64, error) {
-		rendered++
-		cancel()
-		return render.Rule(body, page, allowance)
-	}
+	ingester.Renderer = cancellingRenderer{rendered: &rendered, cancel: cancel}
 	ingester.Repositories = repositories{lib.Repository(42)}
 
 	_, err := ingester.IngestRepository(ctx, lib.Repository(42))
@@ -288,4 +284,17 @@ func TestIngestStopsRenderingWhenItsContextEnds(t *testing.T) {
 	if _, err := pages.LibraryPage(context.Background(), "example", "rules"); !errors.Is(err, app.ErrNotFound) {
 		t.Fatalf("a stopped ingestion stored the library: %v", err)
 	}
+}
+
+// cancellingRenderer renders as render.Renderer does, ending a context after each Markdown body, and counts them.
+type cancellingRenderer struct {
+	render.Renderer
+	rendered *int
+	cancel   context.CancelFunc
+}
+
+func (r cancellingRenderer) Markdown(body string, source domain.MarkdownSource, allowance int64) (string, int64, error) {
+	*r.rendered++
+	r.cancel()
+	return r.Renderer.Markdown(body, source, allowance)
 }

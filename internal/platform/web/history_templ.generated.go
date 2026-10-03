@@ -135,7 +135,7 @@ func releasesPage(c chrome, lib libraryView, v releasesView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, true).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, libraryFacts(lib)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1603,7 +1603,7 @@ func releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) t
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var70), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil).Render(templ.WithChildren(ctx, templ_7745c5c3_Var70), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1897,7 +1897,7 @@ func releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message str
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var90), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil).Render(templ.WithChildren(ctx, templ_7745c5c3_Var90), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

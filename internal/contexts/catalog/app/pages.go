@@ -77,8 +77,8 @@ func (p Pages) UnvettedLibraries(ctx context.Context) ([]views.LibraryCard, erro
 }
 
 // LibraryPage returns the library owner/name, vetted or listed, matched without regard to case, with its groups,
-// current rules, and retired rules, each with its chain of replacements to now and whether it was renamed, or
-// ErrNotFound.
+// current rules, and retired rules, each with its group as pages show it, its chain of replacements to now, and
+// whether every step of it was a rename, or ErrNotFound.
 func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.LibraryPage, error) {
 	page, err := p.Store.LibraryPage(ctx, p.Vetted, owner, name)
 	if err != nil {
@@ -89,7 +89,9 @@ func (p Pages) LibraryPage(ctx context.Context, owner, name string) (views.Libra
 	}
 	links := newRuleLinks(page.Links)
 	for i, r := range page.Retired {
-		page.Retired[i].Replacements, page.Retired[i].Renamed = links.replacements(r.Path), links.renamed(r.Path)
+		retired := &page.Retired[i]
+		retired.CanonicalGroup = p.canonical(r.Group)
+		retired.Replacements, retired.Renamed = links.replacements(r.Path), links.renamedThroughout(r.Path)
 	}
 	return page, nil
 }
@@ -101,13 +103,48 @@ func (p Pages) RulePage(ctx context.Context, owner, name, rulePath string) (view
 	if err != nil {
 		return views.RulePage{}, err
 	}
+	p.followLinks(&page)
+	return page, nil
+}
+
+// followLinks names page's group as pages do, and follows its rule's links: while it's retired, its chain of
+// replacements to now, and the rules it replaced or renamed.
+func (p Pages) followLinks(page *views.RulePage) {
 	page.Rule.CanonicalGroup = p.canonical(page.Rule.Group)
 	links := newRuleLinks(page.Links)
 	if retirement := page.Rule.Retirement; retirement != nil {
 		retirement.Replacements, retirement.Renamed = links.replacements(page.Rule.Path), links.renamed(page.Rule.Path)
 	}
 	page.RenamedFrom, page.Replaces = links.replaced(page.Rule.Path)
+}
+
+// AssetPage returns the asset at assetPath, a path in the repository, of the current rule at rulePath in the library
+// owner/name, with the rule's page as RulePage returns it, or of the first rule in path order that lists the asset
+// when rulePath is empty. A rule's own asset's path may spell the rule's asset directory as rulePath spells the rule;
+// the page's paths are the library's spelling. It fails with ErrNotFound when there's no such library or rule, or the
+// rule doesn't list such an asset.
+func (p Pages) AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
+	page, err := p.Store.AssetPage(ctx, p.Vetted, owner, name, rulePath, assetPath)
+	if err != nil {
+		return views.AssetPage{}, err
+	}
+	p.followLinks(&page.Page)
 	return page, nil
+}
+
+// AssetImage returns the image at assetPath in the library owner/name, one of the own assets of the rule at rulePath
+// or a shared one when rulePath is empty, as the store's AssetContent matches them, as Rulemart serves it, or
+// ErrNotFound when there's no such library or rule, or it keeps no image there: Rulemart serves no other file, so no
+// library can serve a page from Rulemart's origin.
+func (p Pages) AssetImage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
+	image, err := p.Store.AssetContent(ctx, p.Vetted, owner, name, rulePath, assetPath)
+	if err != nil {
+		return views.AssetContent{}, err
+	}
+	if domain.AssetKindOf(image.MediaType) != domain.AssetImage {
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, ErrNotFound)
+	}
+	return image, nil
 }
 
 // GroupIndex returns every group that holds current rules in a vetted library, and with unvetted, in a library a

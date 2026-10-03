@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -202,7 +204,7 @@ func (s *Store) LibraryPage(ctx context.Context, vetted []domain.LibraryKey, own
 		page = views.LibraryPage{Library: lib, Links: links}
 		for _, r := range retired {
 			page.Retired = append(page.Retired, views.RetiredRuleCard{
-				Path: r.Path, Title: r.Title.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
+				Path: r.Path, Group: r.GroupPath, Title: r.Title.String, Impact: r.Impact.String, LastVersion: version(r.Major, r.Minor, r.Patch), RetiredIn: int(r.RetiredIn),
 				ReplacedBy: r.ReplacedBy.String,
 			})
 		}
@@ -294,6 +296,11 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	if err != nil {
 		return views.RulePage{}, nil, err
 	}
+	return libraryRulePage(ctx, q, lib, id, rulePath)
+}
+
+// libraryRulePage reads the rule at rulePath in lib, whose catalog id is id, as rulePage does.
+func libraryRulePage(ctx context.Context, q *catalogdb.Queries, lib views.Library, id int64, rulePath string) (views.RulePage, []storedText, error) {
 	r, err := q.GetRule(ctx, catalogdb.GetRuleParams{LibraryID: id, Path: rulePath})
 	if err != nil {
 		return views.RulePage{}, nil, err
@@ -308,7 +315,7 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 	}
 	page := views.RulePage{Library: lib, Rule: views.Rule{
 		Path: r.Path, Group: r.GroupPath, Title: r.Title.String, Impact: r.Impact.String,
-		WhenToRead: r.WhenToRead.String, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html.String,
+		WhenToRead: r.WhenToRead.String, WhenToReadHTML: r.WhenToReadHtml, HTML: r.Html.String, Tags: r.Tags,
 		Version: version(r.Major, r.Minor, r.Patch),
 		Release: int(r.Release), PublishedAt: r.PublishedAt.Time,
 	}, Links: links}
@@ -320,6 +327,9 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 			return views.RulePage{}, nil, err
 		}
 		page.Rule.Stars = stars[r.ID]
+		if page.Assets, err = ruleAssets(ctx, q, r.ID, r.Path); err != nil {
+			return views.RulePage{}, nil, err
+		}
 	}
 	stored := make([]storedText, len(versions))
 	for i, v := range versions {
@@ -330,6 +340,112 @@ func rulePage(ctx context.Context, q *catalogdb.Queries, vetted []domain.Library
 		stored[i] = storedText{id: v.ID, release: int(v.Release), present: v.HasMarkdown, bytes: int64(v.MarkdownBytes)}
 	}
 	return page, stored, nil
+}
+
+// ruleAssets reads the assets the page of the rule at rulePath, whose ID is id, lists: its own, then the shared ones,
+// each in path order.
+func ruleAssets(ctx context.Context, q *catalogdb.Queries, id int64, rulePath string) ([]views.Asset, error) {
+	rows, err := q.ListRuleAssets(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	var own, shared []views.Asset
+	for _, row := range rows {
+		asset := views.Asset{Path: row.Path, Size: row.Size, MediaType: row.MediaType, Release: int(row.Release), Kept: row.Kept}
+		if strings.HasPrefix(row.Path, domain.RuleAssetDir(rulePath)) {
+			own = append(own, asset)
+		} else {
+			shared = append(shared, asset)
+		}
+	}
+	return append(own, shared...), nil
+}
+
+// AssetPage returns the asset at assetPath of the rule at rulePath in the library owner/name, with the rule's page, or
+// of the first rule in path order that lists it when rulePath is empty, and how many rules list it. A rule's own
+// asset's path may spell the rule's asset directory as rulePath spells the rule; the page's paths are the library's
+// spelling. It fails with store.ErrNotFound when there's no such library or rule, or the rule doesn't list such an
+// asset.
+func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
+	var page views.AssetPage
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		lib, id, err := library(ctx, q, vetted, owner, name)
+		if err != nil {
+			return err
+		}
+		if rulePath == "" {
+			if rulePath, err = q.FirstRuleListingAsset(ctx, catalogdb.FirstRuleListingAssetParams{LibraryID: id, Path: assetPath}); err != nil {
+				return err
+			}
+		}
+		rule, _, err := libraryRulePage(ctx, q, lib, id, rulePath)
+		if err != nil {
+			return err
+		}
+		assetPath = assetSpelledAsRule(assetPath, rulePath, rule.Rule.Path)
+		i := slices.IndexFunc(rule.Assets, func(a views.Asset) bool { return a.Path == assetPath })
+		if i < 0 {
+			return pgx.ErrNoRows
+		}
+		html, err := q.GetAssetHTML(ctx, catalogdb.GetAssetHTMLParams{LibraryID: id, Path: assetPath})
+		if err != nil {
+			return err
+		}
+		rules, err := q.CountRulesListingAsset(ctx, catalogdb.CountRulesListingAssetParams{LibraryID: id, Path: assetPath})
+		if err != nil {
+			return err
+		}
+		page = views.AssetPage{Page: rule, Asset: rule.Assets[i], HTML: html, Rules: int(rules)}
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return views.AssetPage{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, store.ErrNotFound)
+	}
+	if err != nil {
+		return views.AssetPage{}, fmt.Errorf("load asset %s/%s/%s: %v", owner, name, assetPath, err)
+	}
+	return page, nil
+}
+
+// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name: one of the own
+// assets of the rule at rulePath, whose asset directory assetPath may spell as rulePath spells the rule, or a shared
+// one when rulePath is empty. It fails with store.ErrNotFound when there's no such library or rule, or it keeps no
+// bytes of such an asset.
+func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
+	var content views.AssetContent
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		lib, id, err := library(ctx, q, vetted, owner, name)
+		if err != nil {
+			return err
+		}
+		content.Owner, content.Name, content.Path = lib.Owner, lib.Name, assetPath
+		if rulePath != "" {
+			if content.Rule, err = q.GetRulePath(ctx, catalogdb.GetRulePathParams{LibraryID: id, Path: rulePath}); err != nil {
+				return err
+			}
+			content.Path = assetSpelledAsRule(assetPath, rulePath, content.Rule)
+		}
+		row, err := q.GetAssetContent(ctx, catalogdb.GetAssetContentParams{LibraryID: id, Path: content.Path})
+		content.MediaType, content.Content = row.MediaType, row.Content
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, store.ErrNotFound)
+	}
+	if err != nil {
+		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %v", owner, name, assetPath, err)
+	}
+	return content, nil
+}
+
+// assetSpelledAsRule returns assetPath, with the asset directory of the rule that requested spells, when assetPath is
+// in it, spelled as spelling spells the rule instead. A rule's ID matches without regard to case, but a file's name
+// doesn't, so the rest of the path stays as it is.
+func assetSpelledAsRule(assetPath, requested, spelling string) string {
+	if file, own := strings.CutPrefix(assetPath, domain.RuleAssetDir(requested)); own {
+		return domain.RuleAssetDir(spelling) + file
+	}
+	return assetPath
 }
 
 // ruleLinks reads how every rule of the library library was replaced, in path order.
@@ -507,7 +623,7 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
 		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
-		Groups: int(row.GroupCount), Rules: int(row.RuleCount),
+		Groups: int(row.GroupCount), Rules: int(row.RuleCount), AddedBy: row.AddedBy, AddedAt: row.AddedAt.Time,
 	}, row.ID, nil
 }
 

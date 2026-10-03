@@ -58,6 +58,11 @@ type Library struct {
 	LatestTaggedAt time.Time
 	// Groups counts the groups that hold current rules, and Rules the current rules.
 	Groups, Rules int
+	// AddedBy is the login of the account whose listing named the library, as it last signed in, or empty for a
+	// library vetted without one. AddedAt is when that listing was made, or without one, when the library was first
+	// ingested.
+	AddedBy string
+	AddedAt time.Time
 }
 
 // FullName returns the library's repository as owner/name.
@@ -76,19 +81,21 @@ type LibraryPage struct {
 
 // RetiredRuleCard is a retired rule in a library's list of rules.
 type RetiredRuleCard struct {
-	// Path is the rule's ID.
-	Path string
-	// Title is its last version's, or empty when the catalog doesn't have it yet.
-	Title       string
-	LastVersion coderules.RuleVersion
+	// Path is the rule's ID, and Group its group's path.
+	Path, Group string
+	// CanonicalGroup is nil when Group isn't on Code Rules' canonical group list.
+	CanonicalGroup *CanonicalGroup
+	// Title and Impact are its last version's, or empty when the catalog doesn't have them yet.
+	Title, Impact string
+	LastVersion   coderules.RuleVersion
 	// RetiredIn is the number of the library release that retired the rule.
 	RetiredIn int
 	// ReplacedBy is the ID of the rule that replaced it, or empty when its retirement named none.
 	ReplacedBy string
 	// Replacements are that rule, then while it's retired, the rule that replaced it, and so on, to a rule current now.
 	Replacements []RuleRef
-	// Renamed reports that the replacement is the same rule under a new ID: added by the release that retired this
-	// one, under its title.
+	// Renamed reports that every replacement in the chain is the same rule under a new ID: added by the release that
+	// retired the one before, under its title.
 	Renamed bool
 }
 
@@ -158,6 +165,9 @@ type RulePage struct {
 	Library  Library
 	Rule     Rule
 	Versions []Version
+	// Assets are the files a current rule's page lists: its own, in path order, then the shared files it links to, in
+	// path order. A retired rule has none.
+	Assets []Asset
 	// Replaces are the retired rules whose retirement named this one as their replacement, in path order, and
 	// RenamedFrom is the one this rule renamed, if any, which Replaces leaves out.
 	Replaces    []RuleRef
@@ -191,7 +201,10 @@ type Rule struct {
 	// the rule is retired, so the page shows WhenToRead as text.
 	WhenToReadHTML string
 	// HTML is the current version's body; empty when the rule is retired.
-	HTML    string
+	HTML string
+	// Tags are the topics the version's frontmatter lists, in its order; empty when it lists none, or the catalog
+	// doesn't have them yet.
+	Tags    []string
 	Version coderules.RuleVersion
 	// Release is the number of the library release that published the version, tagged at PublishedAt.
 	Release     int
@@ -201,6 +214,42 @@ type Rule struct {
 	// Stars counts the accounts whose stars count toward a current rule, as RuleCard's do; it's 0 for a retired rule,
 	// whose stars count toward its replacement, and in a library that isn't vetted.
 	Stars int
+}
+
+// Asset is one of a rule's supporting files, as its page lists it.
+type Asset struct {
+	// Path is the file's path in the repository: in the rule's asset directory, or under domain.SharedAssetDir.
+	Path string
+	Size int64
+	// MediaType is what ingestion found the file to be, which domain.AssetKindOf reads.
+	MediaType string
+	// Release is the number of the library release whose commit the copy is from.
+	Release int
+	// Kept reports whether the catalog keeps the file's bytes: Rulemart serves an image it keeps, and a page shows
+	// Markdown or text it keeps.
+	Kept bool
+}
+
+// AssetPage is one of a rule's assets, with the page of the rule whose Assets list it.
+type AssetPage struct {
+	Page  RulePage
+	Asset Asset
+	// HTML is how the page shows a Markdown or text file the catalog keeps: rendered, or as code; empty otherwise.
+	HTML string
+	// Rules counts the library's rules that list the asset, Page's rule among them: more than one only for a shared
+	// asset.
+	Rules int
+}
+
+// AssetContent is the media type and bytes of an asset the catalog keeps, of which Rulemart serves only images.
+type AssetContent struct {
+	// Owner and Name are the library's spelling of its repository, as the code host spells it now.
+	Owner, Name string
+	// Rule is the library's spelling of the rule whose own asset it is, or empty for a shared asset, and Path the
+	// asset's path in the repository, which spells the rule's asset directory as Rule does.
+	Rule, Path string
+	MediaType  string
+	Content    []byte
 }
 
 // Retirement is how a library release retired a rule.

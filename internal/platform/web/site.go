@@ -1,5 +1,5 @@
 // Package web serves Rulemart's pages: the vetted libraries, each library's groups, rules, and releases, each rule's
-// current version and version history, comparisons of two releases or two rule versions, the groups across libraries by
+// current version and version history, each rule's assets and the images among them, comparisons of two releases or two rule versions, the groups across libraries by
 // kind, each canonical group's rules in every library, search, the FAQ, and feedback; the unvetted libraries, whose
 // pages warn that they aren't vetted; signing in with GitHub, signing out, and the signed-in visitor's account; listing
 // a library; starring rules; and checking out the cart a visitor's browser keeps. It reads the catalog from its page
@@ -114,6 +114,16 @@ type Catalog interface {
 	// with app.ErrNotFound when there's no such release either.
 	ReleasesPage(ctx context.Context, owner, name string, release int) (views.ReleasesPage, error)
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
+	// AssetPage returns the asset at assetPath, a path in the repository, of the current rule at rulePath in the
+	// library owner/name, with the rule's page, or of the first rule that lists it when rulePath is empty, or fails with
+	// app.ErrNotFound when there's no such library or rule, or the rule doesn't list such an asset. A rule's own asset's
+	// path may spell the rule's asset directory as rulePath spells the rule; the page's paths are the library's spelling.
+	AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error)
+	// AssetImage returns the image at assetPath in the library owner/name that Rulemart keeps, one of the own assets of
+	// the rule at rulePath, matched as RulePage matches it, or a shared one when rulePath is empty, or fails with
+	// app.ErrNotFound when there's no such library, rule, or image. A rule's own asset's path may spell the rule's asset
+	// directory as rulePath spells the rule; the image's Rule and Path are the library's spelling.
+	AssetImage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
@@ -255,8 +265,8 @@ func (s *server) handler() http.Handler {
 	handle("GET "+ownerAliasPrefix+"{login}", s.ownerAlias)
 	handle(ownerPattern, s.owner)
 	handle(libraryPattern, s.library)
-	handle(libraryGroupPattern, s.libraryGroup)
-	handle(rulePattern, s.rule)
+	handle(libraryGroupPattern, s.orAsset(s.libraryGroup))
+	handle(rulePattern, s.orAsset(s.rule))
 	handle(notFoundPattern, s.notFound)
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(
 		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))))
@@ -450,9 +460,10 @@ func withQuery(target string, r *http.Request) string {
 	return target
 }
 
-// library shows a library's tab that the tab parameter names: its groups by default, its rules, or its releases,
-// starting at the release the until parameter names, if any. With releases to compare in the from and to
-// parameters, the releases tab compares them.
+// library shows a library's tab that the tab parameter names: its groups by default, with the ones the sel parameter
+// ticks, its rules, with its retired rules in place when the retired parameter is 1, or its releases, starting at the
+// release the until parameter names, if any. With releases to compare in the from and to parameters, the releases tab
+// compares them.
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	owner, name := r.PathValue("owner"), r.PathValue("repo")
@@ -471,7 +482,9 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 			tab = groupsTab
 		}
 		contents := newLibraryContents(view, page, s.assets.iconURL)
-		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab))
+		selection := newGroupSelection(query, contents.current())
+		retired := tab == rulesTab && domain.RetiredChosen(query)
+		s.render(w, r, http.StatusOK, libraryPage(s.pageChrome(view.href), view, contents, tab, selection, retired))
 	}
 }
 
@@ -593,8 +606,9 @@ func (s *server) rule(w http.ResponseWriter, r *http.Request) {
 }
 
 // libraryGroup shows one group of a library, whose ID the kind and group wildcards hold, with the box that adds it to
-// the cart, or the missing page when the library has no current rules in such a group. A group spelled in another
-// case redirects to the library's spelling, as a rule does.
+// the cart, and its links back carrying the groups the sel parameter ticks, or the missing page when the library has
+// no current rules in such a group. A group spelled in another case redirects to the library's spelling, as a rule
+// does.
 func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 	page, err := s.catalog.LibraryPage(r.Context(), r.PathValue("owner"), r.PathValue("repo"))
 	if err != nil {
@@ -602,7 +616,8 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := newLibraryView(page.Library)
-	group, ok := newLibraryContents(view, page, s.assets.iconURL).group(pathInLibrary(r))
+	contents := newLibraryContents(view, page, s.assets.iconURL)
+	group, ok := contents.group(pathInLibrary(r))
 	if !ok {
 		s.notFound(w, r)
 		return
@@ -610,7 +625,8 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 	if !s.found(w, r, page.Library, group.label.id, nil) {
 		return
 	}
-	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group))
+	selection := newGroupSelection(r.URL.Query(), contents.current())
+	s.render(w, r, http.StatusOK, libraryGroupPage(s.pageChrome(libraryGroupHref(view.href, group.label.id)), view, group, selection))
 }
 
 // ruleComparison compares the rule's versions that the from and to parameters name. Like a comparison of releases, it
@@ -641,13 +657,20 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 
 // ruleView describes the rule on page for the page r asks for, with its star control for the visitor.
 func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error) {
-	view := newRuleView(newLibraryView(page.Library), page)
-	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
+	view := s.ruleViewWithoutStar(page)
 	var err error
 	if view.star, err = s.starControl(r, view, page.Rule.Stars); err != nil {
 		return ruleView{}, err
 	}
 	return view, nil
+}
+
+// ruleViewWithoutStar describes the rule on page, with its group's icon, for a page that shows no star control, such as
+// an asset's.
+func (s *server) ruleViewWithoutStar(page views.RulePage) ruleView {
+	view := newRuleView(newLibraryView(page.Library), page)
+	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
+	return view
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on
@@ -723,6 +746,9 @@ func withoutPath(text string, r *http.Request) string {
 	}
 	if repo == "" {
 		return strings.ReplaceAll(text, strconv.Quote(owner), "{owner}")
+	}
+	if _, asset, ok := requestedAsset(r); ok {
+		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+asset, "{owner}/{repo}/{asset...}")
 	}
 	if rule != "" {
 		text = strings.ReplaceAll(text, owner+"/"+repo+"/"+rule, "{owner}/{repo}/{rule...}")

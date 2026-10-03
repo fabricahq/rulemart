@@ -342,3 +342,84 @@ func lines(t *testing.T, connString, sql string) []string {
 	}
 	return values
 }
+
+// Ingestion stores each asset once, with which current rules list it, and replacing the library with itself changes
+// nothing; an asset or a rule's listing that the library no longer has goes.
+func TestReplaceLibraryStoresAssetsAndTheRulesThatListThem(t *testing.T) {
+	s, connString := newStore(t)
+	lib := goRules(2, current("techs/go/return-errors", added(1)), current("techs/go/close-what-you-open", added(2)))
+	lib.Rules[0].Assets = []string{"techs/go/assets/return-errors/loop.svg", "assets/glossary.md"}
+	lib.Rules[1].Assets = []string{"assets/glossary.md"}
+	lib.Assets = []domain.Asset{
+		{Path: "assets/glossary.md", Release: 2, Size: 6, MediaType: "text/markdown; charset=utf-8", Content: []byte("Terms."), HTML: "<p>Terms.</p>"},
+		{Path: "techs/go/assets/return-errors/loop.svg", Release: 1, Size: 9000, MediaType: "image/svg+xml"},
+	}
+	stored := func() []string {
+		return lines(t, connString, `SELECT a.path || ' release/' || p.number || ' ' || a.size || ' ' || a.media_type || ' ' ||
+			coalesce(convert_from(a.content, 'UTF8'), '-') || ' ' || coalesce(a.html, '-') || ' ' ||
+			coalesce((SELECT string_agg(r.path, ',' ORDER BY r.path) FROM rule_assets ra JOIN rules r ON r.id = ra.rule_id
+			          WHERE ra.asset_id = a.id), '-')
+			FROM assets a JOIN library_releases p ON p.id = a.release_id ORDER BY a.path`)
+	}
+
+	replace(t, s, lib)
+
+	want := []string{
+		"assets/glossary.md release/2 6 text/markdown; charset=utf-8 Terms. <p>Terms.</p> techs/go/close-what-you-open,techs/go/return-errors",
+		"techs/go/assets/return-errors/loop.svg release/1 9000 image/svg+xml - - techs/go/return-errors",
+	}
+	if got := stored(); !slices.Equal(got, want) {
+		t.Fatalf("stored %q, want %q", got, want)
+	}
+	if changed := replace(t, s, lib); changed != 0 {
+		t.Fatalf("replacing the library with itself changed %d rows", changed)
+	}
+
+	lib.Rules[0].Assets = []string{"assets/glossary.md"}
+	lib.Assets = lib.Assets[:1]
+	replace(t, s, lib)
+
+	want = []string{"assets/glossary.md release/2 6 text/markdown; charset=utf-8 Terms. <p>Terms.</p> techs/go/close-what-you-open,techs/go/return-errors"}
+	if got := stored(); !slices.Equal(got, want) {
+		t.Fatalf("after removing the rule's own asset, stored %q, want %q", got, want)
+	}
+}
+
+// A library whose rules list more links to assets than one statement writes stores every one, replacing it with
+// itself changes nothing, and replacing it with fewer links deletes the rest, however many.
+func TestReplaceLibraryStoresEveryLinkToAnAssetInBatches(t *testing.T) {
+	s, connString := newStore(t)
+	const rules, assets = 100, 51 // 5,100 links, more than one statement writes
+	lib := goRules(1)
+	var paths []string
+	for i := range assets {
+		path := fmt.Sprintf("assets/%02d.md", i)
+		paths = append(paths, path)
+		lib.Assets = append(lib.Assets, domain.Asset{Path: path, Release: 1, Size: 1, MediaType: "text/markdown; charset=utf-8"})
+	}
+	for i := range rules {
+		r := current(fmt.Sprintf("techs/go/rule-%03d", i), added(1))
+		r.Assets = paths
+		lib.Rules = append(lib.Rules, r)
+	}
+	links := func() []string { return lines(t, connString, "SELECT count(*) FROM rule_assets") }
+
+	replace(t, s, lib)
+
+	if got := links(); !slices.Equal(got, []string{"5100"}) {
+		t.Fatalf("stored %s links, want 5100", got)
+	}
+	if changed := replace(t, s, lib); changed != 0 {
+		t.Fatalf("replacing the library with itself changed %d rows", changed)
+	}
+
+	for i := range lib.Rules {
+		lib.Rules[i].Assets = paths[:1]
+	}
+	if changed := replace(t, s, lib); changed != 5000 {
+		t.Errorf("dropping 5,000 links changed %d rows", changed)
+	}
+	if got := links(); !slices.Equal(got, []string{"100"}) {
+		t.Fatalf("after dropping links, stored %s, want 100", got)
+	}
+}

@@ -111,7 +111,7 @@ func TestRuleComparisonFindsAVersionStoredWithoutItsText(t *testing.T) {
 	s, connString := newStore(t)
 	replace(t, s, exampleRules)
 	lines(t, connString, `UPDATE rule_versions SET title = NULL, impact = NULL, impact_description = NULL, when_to_read = NULL,
-		markdown = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
+		markdown = NULL, tags = NULL, retired_html = NULL WHERE html IS NULL RETURNING id::text`)
 
 	comparison, err := s.RuleComparison(context.Background(), vetted, "example", "rules", "techs/go/return-errors", v(1, 0, 0), v(2, 0, 0), 1<<20)
 

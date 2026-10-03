@@ -14,7 +14,9 @@ than adding history.
   a vetted one takes none. The cap bounds the unvetted area, the worker's hourly checks, and what someone with many
   GitHub accounts can add. Ingestion's size and memory limits apply to every library, and nothing runs a library's
   files.
-- **A listing records who listed it, and the library's About panel says "Added by" and "On Rulemart since".** The lister can remove it at any time, after a page that
+- **A listing records who listed it, and the library's facts say "Added by" and "On Rulemart since"**: the login the
+  lister last signed in with, linked to their GitHub profile, and when they listed it; a library vetted without a
+  listing reads "Fabrica" and the date it was first ingested. The lister can remove it at any time, after a page that
   says what removing does, which hides the library again. A listing that failed before its library ever ingested
   doesn't reserve the repository: another account listing it replaces it. Deleting an account removes its listings, so a deleted account's listings can't fill the cap.
 - **An account lists or retries at most 20 times a day, and every account together at most 100 times an hour**,
@@ -144,8 +146,8 @@ than adding history.
 
 ## Releases and comparison
 
-- **Every rule version keeps the file its release published**, with its title, impact, and reading guidance, so pages
-  can compare any two versions and name a retired rule. Only a current rule's current version keeps the HTML its page
+- **Every rule version keeps the file its release published**, with its title, impact, reading guidance, and tags, so
+  pages can compare any two versions, name a retired rule, and link a rule's tags to search. Only a current rule's current version keeps the HTML its page
   shows. The worker ingests again a library stored before this, so production fills in older versions by itself.
 - **A library's releases are built from their stored release records**, laid out as Code Rules' generated release
   notes are, rather than from the tags' Markdown notes, which a library could fill with text Rulemart can't check.
@@ -159,6 +161,22 @@ than adding history.
 - **A retired rule has a page**: its retirement, its chain of replacements to a current rule, its last text, and its
   versions. A rename, which Code Rules records as a retirement and a new rule under the same title, shows as one.
   Retired rules appear in search, labeled Retired with their replacement, below current rules that match as well.
+
+## Rule pages and assets
+
+- **A current rule's assets are stored at ingestion**: the files in its asset directory, `assets/<rule name>/` beside
+  its file, at the release that published its current version, and the library-root `assets/` files its text or
+  Markdown files link to, at the latest release. Ingestion keeps the bytes of images and text within 256 KiB a file
+  and 2 MiB a rule, the shared files counting as one more rule, out of the content budget, renders Markdown with raw
+  HTML escaped and text as highlighted code, and lists any other file with its size, linked on GitHub. A rule's links
+  to its assets lead to their pages, and its images load from Rulemart. [Slice R6](slices/15-library-and-rule-pages.md)
+  explains the choices.
+- **Rulemart serves only images from a library, from its own origin**, at an asset's page address with `?raw=1`, as
+  the type ingestion recorded, with `nosniff`, cached a day, under a content security policy that loads and runs
+  nothing in a sandbox, so no library can serve a page, or a script, from Rulemart.
+- **A library's pages and a rule's follow the prototype's**: the Groups tab's ticked groups live in `?sel=`, so they
+  survive a visit to a group's page and back; All rules shows retired rules in place, grayed, when asked; and
+  Discussion's tab and Discuss keep their places, rendering nothing, until rulemart#27.
 
 ## Accounts and sign-in
 
@@ -224,16 +242,19 @@ than adding history.
   library whose tags changed; listing tags uses Git.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
-  rules, with no I/O; `render` for rules' Markdown, which assembly takes as a function so the web function doesn't
-  link a Markdown renderer; `app` for ingestion and page reads; `source/git` and `source/github` for the adapters
-  that fetch libraries; `store` for the persistence contract, with `store/postgres` as its only implementation and the
-  catalog's only SQL; and `views` for what pages read. `internal/platform` holds runtime that contexts share, such
-  as the database, migrations, and the web server, which stays in platform as greenfield's transports do.
+  rules, with no I/O; `render` for rules' Markdown and assets, which assembly takes as an interface,
+  `domain.Renderer`, so the web function doesn't link a Markdown renderer; `app` for ingestion and page reads;
+  `source/git` and `source/github` for the adapters that fetch libraries; `store` for the persistence contract, with
+  `store/postgres` as its only implementation and the catalog's only SQL; and `views` for what pages read.
+  `internal/platform` holds runtime that contexts share, such as the database, migrations, and the web server, which
+  stays in platform as greenfield's transports do.
   `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
   `internal/contexts/accounts` owns accounts and sessions with the same layout, plus `github` for the OAuth app.
   Stars and listings live in the catalog context, since each names a library or rule, and pages read them with the
   catalog from one snapshot; so does checkout, which resolves the keys a browser's cart sends against one snapshot
   of the catalog. A context added later gets the same layout.
+- **The catalog's `GetLibrary` reads `accounts (id, github_login)` for a listed library's "Added by"**, a read across
+  bounded contexts that 00015 grants `rulemart_catalog_reader`, column by column, so the page reads it in one query.
 - **Build in thin vertical slices**, each deployed and checked end to end.
 - **Page URLs, such as `/{owner}/{repo}`, assume one code host, GitHub.** The routing decision for a second host is
   host-qualified URLs, such as `/gitlab/{group}/{repo}`, with GitHub keeping the short form. Libraries are stored by

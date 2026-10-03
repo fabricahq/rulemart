@@ -21,14 +21,18 @@ type Checkpoint struct {
 	// Unrendered reports a current rule version whose reading guidance has no HTML rendered from it, because a
 	// release that didn't render it stored the guidance.
 	Unrendered bool
+	// MissingAssets reports a stored version without its tags: a release that read neither tags nor assets stored
+	// it, so the library's assets are missing too.
+	MissingAssets bool
 }
 
 // Current reports whether listed, the release tags the library's repository lists now, are exactly the ones the
 // catalog stored: the same numbers, each pointing to the same tag object. Ingesting the library again would then
 // read the same releases. It's false when the checkpoint lacks the clone URL, a tag ID, a version's content, or the
-// HTML of a reading guidance, so a library a release before these were recorded stored is ingested again.
+// HTML of a reading guidance, or its assets, so a library a release before these were recorded stored is ingested
+// again.
 func (c Checkpoint) Current(listed ReleaseTags) bool {
-	if c.CloneURL == "" || c.MissingContent || c.Unrendered || len(listed) == 0 {
+	if c.CloneURL == "" || c.MissingContent || c.Unrendered || c.MissingAssets || len(listed) == 0 {
 		return false
 	}
 	return maps.EqualFunc(c.Tags, listed, func(stored, listed string) bool { return stored != "" && stored == listed })

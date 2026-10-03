@@ -3,9 +3,9 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"io"
+	"maps"
 	"net/url"
 	"path"
 	"regexp"
@@ -41,6 +41,9 @@ type libraryView struct {
 	latestTag, latestHref, updated string
 	// groups counts the groups that hold current rules, rules the current rules, and releases the releases.
 	groups, rules, releases int
+	// addedBy is the login of the account whose listing named the library, or empty for a library Rulemart vetted
+	// without one, and addedOn when the library came to Rulemart.
+	addedBy, addedOn string
 }
 
 // fullName returns the library's repository as owner/name.
@@ -101,7 +104,7 @@ func newLibraryView(lib views.Library) libraryView {
 		avatar: lib.OwnerAvatarURL, githubURL: domain.RepositoryURL(lib.FullName()),
 		latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
 		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
-		groups: lib.Groups, rules: lib.Rules, releases: lib.LatestRelease,
+		groups: lib.Groups, rules: lib.Rules, releases: lib.LatestRelease, addedBy: lib.AddedBy, addedOn: date(lib.AddedAt),
 	}
 	v.latestHref = releaseHref(v, lib.LatestRelease)
 	if lib.Vetted {
@@ -151,7 +154,9 @@ type groupView struct {
 	// acrossHref is the group's page across libraries, including unvetted ones when the library is one, so it lists the
 	// library's own rules.
 	acrossHref string
-	rules      []ruleRowView
+	// rules are the group's current rules, in title order, and retired its retired rules, in title order, which the
+	// All rules tab shows after them when asked to.
+	rules, retired []ruleRowView
 }
 
 // groupLabel is how pages name a group: a canonical group by the canonical list's name, and any other group by its
@@ -222,11 +227,14 @@ type ruleRowView struct {
 	// of one group's rules or under its group's heading.
 	group *groupLabel
 	// retired marks a retired rule, which the row draws grayed out, with the Retired chip, and replacedBy names the last
-	// of the rules that replaced it, by title, or is empty when none did. renamed reports that the replacement is the
-	// same rule under a new ID, so replacedBy names it by ID instead, the one thing that tells the two apart.
-	retired    bool
-	replacedBy string
-	renamed    bool
+	// of the rules that replaced it, by title, beside its ID, replacementID, or is empty when none did. renamed reports
+	// that the replacement is the same rule under a new ID, so replacedBy names it by ID alone, the one thing that tells
+	// the two apart, and replacementID is empty.
+	retired                   bool
+	replacedBy, replacementID string
+	renamed                   bool
+	// retiredIn is the tag of the library release that retired the rule, in a list of one library's rules, or empty.
+	retiredIn string
 	// missing holds the words of a search, as the visitor wrote them, that the rule doesn't hold.
 	missing []string
 	// marks holds the words of a search, in lowercase, that the row marks in its title, or none outside search.
@@ -250,45 +258,60 @@ func newListedRuleRow(r views.RuleRow) ruleRowView {
 	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
 	row.retired, row.missing = r.Retired, r.Missing
 	if r.Replacement != nil {
-		row.replacedBy = titleOrID(r.Replacement.Title, r.Replacement.Path)
-		if r.Renamed {
-			row.replacedBy, row.renamed = r.Replacement.Path, true
-		}
+		row.replaced(*r.Replacement, r.Renamed)
 	}
 	return row
 }
 
-// libraryContents is a library's groups, split by kind, each with its rules in title order, and its retired rules.
+// replaced names ref, the last rule that replaced the row's retired rule: by ID when renamed reports that it's the same
+// rule under a new ID, the one thing that tells the two apart, and otherwise by title, beside its ID, as the
+// prototype's retired rows name it.
+func (r *ruleRowView) replaced(ref views.RuleRef, renamed bool) {
+	r.renamed = renamed
+	if renamed {
+		r.replacedBy = ref.Path
+		return
+	}
+	r.replacedBy, r.replacementID = titleOrID(ref.Title, ref.Path), ref.Path
+}
+
+// libraryContents is a library's groups, split by kind, in path order, each with its current rules and its retired
+// rules, each in title order. A group whose rules are all retired is among them, without current rules.
 type libraryContents struct {
 	techs, practices []groupView
-	retired          []retiredRuleCard
+	// hasRetired reports whether the library has retired rules.
+	hasRetired bool
 }
 
-// retiredRuleCard is a retired rule's row on the All rules tab.
-type retiredRuleCard struct {
-	href, title, id, lastVersion string
-	// retiredTag is the release that retired the rule, which retiredHref shows.
-	retiredTag, retiredHref string
-	// replacedBy is the rule that replaced it, then the rule that replaced that one, and so on, and renamed reports that
-	// the first is the same rule under a new ID.
-	replacedBy []ruleLink
-	renamed    bool
-}
-
-// newLibraryContents groups the page's rules under its groups, keeping both orders. iconURL returns where the site
-// serves an icon file.
+// newLibraryContents groups the page's rules under their groups. iconURL returns where the site serves an icon file.
 func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
-	byGroup := map[string][]ruleRowView{}
 	ref := libraryRefView{href: lib.href, owner: lib.owner, name: lib.name, avatar: lib.avatar}
+	current, retired := map[string][]ruleRowView{}, map[string][]ruleRowView{}
 	for _, r := range page.Rules {
-		byGroup[r.Group] = append(byGroup[r.Group], newRuleRow(ref, false, r))
+		current[r.Group] = append(current[r.Group], newRuleRow(ref, false, r))
 	}
-	var result libraryContents
+	// A group whose rules are all retired has no row of its own, so its retired rules name it, as the canonical list
+	// shows it.
+	retiredGroups := map[string]views.Group{}
+	for _, r := range page.Retired {
+		retired[r.Group] = append(retired[r.Group], newRetiredRuleRow(ref, r))
+		retiredGroups[r.Group] = views.Group{Path: r.Group, Canonical: r.CanonicalGroup}
+	}
+	groups := slices.Clone(page.Groups)
 	for _, g := range page.Groups {
+		delete(retiredGroups, g.Path)
+	}
+	groups = append(groups, slices.Collect(maps.Values(retiredGroups))...)
+	slices.SortFunc(groups, func(a, b views.Group) int { return strings.Compare(a.Path, b.Path) })
+	result := libraryContents{hasRetired: len(page.Retired) > 0}
+	for _, g := range groups {
 		view := groupView{
 			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
-			rules: byGroup[g.Path], acrossHref: withUnvetted(groupHref(g.Path), !lib.vetted),
+			rules: current[g.Path], retired: retired[g.Path], acrossHref: withUnvetted(groupHref(g.Path), !lib.vetted),
 		}
+		slices.SortStableFunc(view.retired, func(a, b ruleRowView) int {
+			return strings.Compare(strings.ToLower(a.title), strings.ToLower(b.title))
+		})
 		view.blurb = g.Description
 		if g.Canonical != nil {
 			view.blurb = g.Canonical.Description
@@ -299,23 +322,105 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 			result.techs = append(result.techs, view)
 		}
 	}
-	for _, r := range page.Retired {
-		result.retired = append(result.retired, retiredRuleCard{
-			href: ruleHref(lib.href, r.Path), title: titleOrID(r.Title, r.Path), id: r.Path, lastVersion: r.LastVersion.String(),
-			retiredTag: domain.ReleaseTag(r.RetiredIn), retiredHref: releaseHref(lib, r.RetiredIn), replacedBy: newRuleLinks(lib, r.Replacements),
-			renamed: r.Renamed,
-		})
-	}
-	// Retired rules are in the order the current ones are: technologies first, by group, then by title.
-	slices.SortStableFunc(result.retired, func(a, b retiredRuleCard) int {
-		return cmp.Or(
-			cmp.Compare(kindOf(a.id).order(), kindOf(b.id).order()),
-			strings.Compare(path.Dir(a.id), path.Dir(b.id)),
-			strings.Compare(strings.ToLower(a.title), strings.ToLower(b.title)),
-			strings.Compare(a.id, b.id),
-		)
-	})
 	return result
+}
+
+// newRetiredRuleRow describes r, a retired rule of the library ref, as a row on the All rules tab:
+// grayed out, with the release that retired it and the last of the rules that replaced it.
+func newRetiredRuleRow(ref libraryRefView, r views.RetiredRuleCard) ruleRowView {
+	row := newRuleRow(ref, false, views.RuleCard{Path: r.Path, Group: r.Group, Title: r.Title, Impact: r.Impact})
+	row.retired, row.retiredIn = true, domain.ReleaseTag(r.RetiredIn)
+	if n := len(r.Replacements); n > 0 {
+		row.replaced(r.Replacements[n-1], r.Renamed)
+	}
+	return row
+}
+
+// shownBlurb returns the blurb a library's pages show for the group: a practice's, or nothing for a technology, whose
+// name says what it is, as the prototype shows them.
+func (g groupView) shownBlurb() string {
+	if kindOf(g.label.id) != practicesKind {
+		return ""
+	}
+	return g.blurb
+}
+
+// retiredReplacementWord returns how a retired rule's row words its replacement: as first when it starts the line, and
+// as after when it follows the release that retired the rule, retiredIn.
+func retiredReplacementWord(retiredIn, first, after string) string {
+	if retiredIn == "" {
+		return first
+	}
+	return after
+}
+
+// retiredSeparator returns what separates the release that retired a row's rule from its replacement, when it names
+// one.
+func retiredSeparator(r ruleRowView) string {
+	if r.replacedBy == "" {
+		return ""
+	}
+	return ", "
+}
+
+// selectionParam carries the groups ticked on a library's Groups tab, by ID, joined by commas, so the ticks outlive a
+// visit to a group's page and back.
+const selectionParam = "sel"
+
+// groupSelection is the groups ticked on a library's Groups tab, by ID, in the tab's order.
+type groupSelection []string
+
+// newGroupSelection reads the groups query ticks, among groups, by their IDs, matched without regard to case, in the
+// order the tab lists them. A value may join several by commas, and the parameter may repeat; anything else is left
+// out.
+func newGroupSelection(query url.Values, groups []groupView) groupSelection {
+	ticked := map[string]bool{}
+	for _, value := range query[selectionParam] {
+		for id := range strings.SplitSeq(value, ",") {
+			ticked[strings.ToLower(id)] = true
+		}
+	}
+	var selection groupSelection
+	for _, g := range groups {
+		if ticked[strings.ToLower(g.label.id)] {
+			selection = append(selection, g.label.id)
+		}
+	}
+	return selection
+}
+
+// has reports whether the group id is ticked.
+func (s groupSelection) has(id string) bool { return slices.Contains(s, id) }
+
+// query returns the selection as a query string, ?sel=techs/go,practices/testing, or empty when nothing is ticked.
+// Group IDs hold only lowercase letters, digits, hyphens, and one slash, which a query holds as they are.
+func (s groupSelection) query() string {
+	if len(s) == 0 {
+		return ""
+	}
+	return "?" + selectionParam + "=" + strings.Join(s, ",")
+}
+
+// current returns the groups that hold current rules, technologies first, which the Groups tab lists.
+func (c libraryContents) current() []groupView {
+	var groups []groupView
+	for _, g := range c.all() {
+		if len(g.rules) > 0 {
+			groups = append(groups, g)
+		}
+	}
+	return groups
+}
+
+// ofKind returns the groups of kind among groups.
+func ofKind(groups []groupView, kind groupKind) []groupView {
+	var matching []groupView
+	for _, g := range groups {
+		if kindOf(g.label.id) == kind {
+			matching = append(matching, g)
+		}
+	}
+	return matching
 }
 
 // all returns every group, technologies first.
@@ -323,9 +428,10 @@ func (c libraryContents) all() []groupView {
 	return append(append([]groupView{}, c.techs...), c.practices...)
 }
 
-// group returns the group whose ID is id, matched without regard to case, and whether there is one.
+// group returns the group whose ID is id, matched without regard to case, that holds current rules, and whether there
+// is one.
 func (c libraryContents) group(id string) (groupView, bool) {
-	all := c.all()
+	all := c.current()
 	i := slices.IndexFunc(all, func(g groupView) bool { return strings.EqualFold(g.label.id, id) })
 	if i < 0 {
 		return groupView{}, false
@@ -342,9 +448,9 @@ type ruleView struct {
 	// holds no HTML for it, so the page shows the text.
 	whenToRead, whenToReadHTML string
 	group                      groupLabel
-	// groupHref is the group's section on the library's All rules tab, and acrossHref the group's page across
-	// libraries, including unvetted ones when the library is one, so it lists the rule.
-	groupHref, acrossHref string
+	// acrossHref is the group's page across libraries, including unvetted ones when the library is one, so it lists
+	// the rule.
+	acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
 	// fileURL is the rule's file on GitHub, at the release that published the current version.
@@ -357,12 +463,30 @@ type ruleView struct {
 	// replaces are the retired rules this one replaced, and renamedFrom the one it renamed, or nil.
 	replaces    []replacedRule
 	renamedFrom *replacedRule
+	// tags are the topics the current version lists, each leading to a search for it.
+	tags []tagView
+	// assets are the rule's own files, then the shared files it links to, which its Rule tab lists.
+	assets []assetView
 	// star is the rule's star control, which the rule's page fills in.
 	star starView
 	// groupIcon is the icon of the rule's group, which the page fills in, and groupRules counts the group's current
 	// rules, this one included, which the cart's dialog offers whole.
 	groupIcon  groupIcon
 	groupRules int
+}
+
+// tagView is one of a rule's tags, which leads to a search for it.
+type tagView struct {
+	text, href string
+}
+
+// newTagViews describes tags, each leading to search.
+func newTagViews(tags []string) []tagView {
+	views := make([]tagView, len(tags))
+	for i, tag := range tags {
+		views[i] = tagView{text: tag, href: searchHref + "?" + url.Values{domain.QueryParam: {tag}}.Encode()}
+	}
+	return views
 }
 
 // retiredView is how a library release retired a rule.
@@ -404,9 +528,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
 		library: lib, href: ruleHref(lib.href, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
-		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
-		html:  r.HTML,
-		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
+		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML),
+		group:      newGroupLabel(r.Group, r.CanonicalGroup),
 		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
@@ -429,10 +552,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	}
 	// The group holds the rule itself while it's current, whatever the links say.
 	v.groupRules = max(page.GroupRuleCount(), 1)
-	if !lib.vetted {
-		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
-		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
-	}
+	v.tags, v.assets = newTagViews(r.Tags), newAssetViews(v, page.Assets)
+	v.html, v.whenToReadHTML = pageHTML(r.HTML, lib, r.Path), pageHTML(r.WhenToReadHTML, lib, r.Path)
 	if retirement := r.Retirement; retirement != nil {
 		v.retired = &retiredView{
 			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
@@ -585,6 +706,28 @@ const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercas
 
 // linkTag matches the start of a link's tag.
 var linkTag = regexp.MustCompile(`<a\s`)
+
+// pageHTML returns stored, HTML that ingestion's renderer wrote for the rule at rulePath in lib or one of its assets,
+// as a page of lib shows it: with its links within the library leading within lib, each link to a shared asset's page
+// naming the rule, and when lib isn't vetted, every link marked as its author's.
+func pageHTML(stored string, lib libraryView, rulePath string) string {
+	html := domain.LinksForLibrary(stored, lib.fullName())
+	// A shared asset's page shows it as this rule's.
+	html = ruleContext(html, lib, rulePath)
+	if !lib.vetted {
+		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
+		html = untrustedLinks(html)
+	}
+	return html
+}
+
+// ruleContext returns rendered, HTML ingestion's renderer wrote for the rule at rulePath in lib, with each link to a
+// shared asset's page naming the rule, so that page shows the asset as the rule's. The renderer escapes every < in
+// text and writes each link's href itself, so only its links match.
+func ruleContext(rendered string, lib libraryView, rulePath string) string {
+	shared := regexp.MustCompile(`href="(` + regexp.QuoteMeta(lib.href+"/"+domain.SharedAssetDir) + `[^"#?]*)(#[^"]*)?"`)
+	return shared.ReplaceAllString(rendered, `href="$1?`+ruleParam+`=`+ruleQuery(rulePath)+`$2"`)
+}
 
 // untrustedLinks returns rendered, HTML that ingestion's renderer wrote, with every link marked rel="nofollow ugc", as
 // links an unvetted library's author wrote. The renderer escapes every < in text and writes no rel, so only its link
