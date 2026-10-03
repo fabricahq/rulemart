@@ -66,8 +66,8 @@ templ unvettedPage(c chrome, libraries []libraryCard, canList bool) {
 // pageActionStyle is a page's action beside its heading, outlined, as tall as a touch target.
 const pageActionStyle = "inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-border-strong px-4 text-[14px] font-medium whitespace-nowrap text-ink no-underline transition-colors duration-[160ms] hover:border-ink hover:bg-surface"
 
-// inputStyle is a text field, outlined in the color of deletion while its value is invalid.
-const inputStyle = "h-11 w-full min-w-0 rounded-[10px] border border-border-strong bg-paper px-3.5 text-[15px] text-ink placeholder:text-faint hover:border-ink focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none aria-invalid:border-del-ink aria-invalid:focus-visible:shadow-[0_0_0_1px_var(--del-ink)]"
+// inputStyle is a text field, as the prototype's .input, outlined in the color of deletion while its value is invalid.
+const inputStyle = "h-11 w-full min-w-0 rounded-[10px] border border-border-strong bg-paper px-3 text-[14px] text-ink placeholder:text-faint hover:border-ink focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none aria-invalid:border-del-ink aria-invalid:focus-visible:shadow-[0_0_0_1px_var(--del-ink)]"
 
 // listingsPage shows a signed-in visitor's listings, newest first, each with its state, and ways to look at it, try a
 // failed one again, or remove one. A listing being checked says when it was asked for, and offers to check again, by

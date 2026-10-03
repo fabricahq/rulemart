@@ -57,10 +57,11 @@ templ addPage(c chrome, v addView) {
 			</div>
 			<form class="mt-7" method="get" action={ templ.SafeURL(listHref) }>
 				<label class={ labelStyle, "mb-2 block" } for="library-url">Or add any public library by URL</label>
-				<div class="flex items-start gap-2.5">
+				// Below the tiny breakpoint, the field takes the row and Add goes under it, so the placeholder reads whole.
+				<div class="flex items-start gap-2.5 max-tiny:flex-wrap">
 					<input
 						id="library-url"
-						class={ inputStyle, "text-[14px]" }
+						class={ inputStyle }
 						type="text"
 						name="url"
 						value={ v.address }
