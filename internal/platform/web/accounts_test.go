@@ -351,6 +351,46 @@ func TestSignInWithGitHubSignsTheVisitorInAndReturnsThemWhereTheyStarted(t *test
 	}
 }
 
+// Signing in from no page in particular, such as the sign-in page opened directly, lands on the dashboard, and every
+// sign-in says who is signed in, once, as a status toast, as the prototype's does.
+func TestSignInWithNoReturnPathLandsOnTheDashboardSayingWhoSignedIn(t *testing.T) {
+	site := newAccountsSite(t, nil)
+
+	signInPage := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"}))
+	flow, location := startSignIn(t, site, "")
+	resp := callback(t, site, url.Values{"code": {authorizedCode}, "state": {location.Query().Get("state")}}, flow)
+
+	if !strings.Contains(signInPage, `action="/signin?return=%2Fme"`) {
+		t.Error("the sign-in page opened directly doesn't return to the dashboard")
+	}
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me" {
+		t.Fatalf("answered %d to %q, want /me", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	notice := cookie(resp, noticeCookie)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs", cookies: []*http.Cookie{cookie(resp, sessionCookie), notice}}))
+	if got := toastText(t, page); got != "Signed in as @octocat" {
+		t.Errorf("the page after signing in toasts %q", got)
+	}
+	if kind := noticeToast(t, page); kind != "status" {
+		t.Errorf("the notice is a %q toast, want a status toast", kind)
+	}
+}
+
+// toastText returns the text of the notice page shows as a toast where scripts run, or empty.
+func toastText(t *testing.T, page string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && hasAttribute(n, "data-toast-text") && !inTemplate(n) {
+			return nodeText(n)
+		}
+	}
+	return ""
+}
+
 // A session planted in the browser before sign-in, say by someone who could set its cookies, ends at sign-in: the
 // browser gets a new token, and the old one signs no one in.
 func TestSignInReplacesTheSessionTheBrowserHeld(t *testing.T) {
@@ -493,7 +533,6 @@ func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 		"/search?q=retry&page=2":          "/search?q=retry&page=2",
 		"/example/rules?tab=releases":     "/example/rules?tab=releases",
 		"/browse/techs#techs":             "/browse/techs",
-		"":                                "/",
 		"https://evil.example/":           "/",
 		"//evil.example/":                 "/",
 		"///evil.example/":                "/",

@@ -125,6 +125,8 @@ func accountMenuName(v visitor) string {
 // notices are what a notice cookie may name, by key, and what each says: nothing for an action whose page shows what
 // it did itself, such as starring a rule, whose button then reads Starred, though the page still knows what happened.
 var notices = map[string]string{
+	// The page names who signed in, as visit fills it in.
+	signedInKey:                "You're signed in.",
 	"signed-out":               "You're signed out.",
 	"private-added":            "Rulemart can now see the private repos you selected.",
 	"private-removed":          "Rulemart no longer reads your private repos. To remove the app from GitHub too, uninstall it in your GitHub settings.",
@@ -144,6 +146,9 @@ var notices = map[string]string{
 	// A rule's page says what follows signing in to star it, naming the rule, as its star control does.
 	starPromptKey: "You're signed in.",
 }
+
+// signedInKey is the notice a sign-in leaves for the page it returns to, which names who signed in.
+const signedInKey = "signed-in"
 
 // noticeLink is a phrase of a notice's text that links to a page, at href.
 type noticeLink struct{ phrase, href string }
@@ -228,6 +233,9 @@ func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, b
 				return r, false
 			default:
 				v.account, v.token = &account, token
+				if v.noticeKey == signedInKey {
+					v.notice = "Signed in as @" + account.Login
+				}
 				v.signOut = signOutHref + returnQuery(publicPath(back))
 			}
 		} else if hasCookie(r, sessionCookie) {
@@ -296,6 +304,15 @@ func returnPath(target string) string {
 	return u.String()
 }
 
+// signInReturn returns where signing in returns to: target, as returnPath checks it, or the dashboard when there's
+// none, as when the sign-in page is opened directly, as the prototype's does.
+func signInReturn(target string) string {
+	if target == "" {
+		return dashboardHref
+	}
+	return returnPath(target)
+}
+
 // meActions are the addresses under /me that take POST, which signing in never returns to.
 var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true}
 
@@ -329,7 +346,7 @@ func publicPath(back string) string {
 // signInPage shows the sign-in page, or returns a signed-in visitor where the return parameter says. Its to parameter
 // may say why the visitor is signing in, such as starPurpose, which the page says.
 func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
-	back := returnPath(r.URL.Query().Get("return"))
+	back := signInReturn(r.URL.Query().Get("return"))
 	switch {
 	case visitorOf(r.Context()).account != nil && r.URL.Query().Get("again") == "1" && s.signInAvailable():
 		// A signed-in visitor whose session keeps no GitHub token Rulemart can use signs in again for one.
@@ -408,7 +425,7 @@ func (s *server) startSignIn(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	back := returnPath(r.URL.Query().Get("return"))
+	back := signInReturn(r.URL.Query().Get("return"))
 	flow := signInFlow{state: github.NewState(), verifier: github.NewVerifier(), back: back}
 	setCookie(w, signInCookie, flow.encode(), signInLifetime)
 	seeOther(w, r, s.GitHub.AuthorizationURL(flow.state, github.Challenge(flow.verifier), s.callbackURL(r)))
@@ -479,6 +496,7 @@ func (s *server) signIn(w http.ResponseWriter, r *http.Request, identity account
 		return
 	}
 	setCookie(w, sessionCookie, string(session.Token), accounts.SessionLifetime)
+	setNotice(w, signedInKey)
 	s.Log.InfoContext(r.Context(), "signed in", "route", s.route(r), "requestID", s.requestID(r), "accountID", account.ID)
 	seeOther(w, r, back)
 }
