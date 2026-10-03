@@ -107,6 +107,77 @@ func newCatalog(t *testing.T) *postgres.Store {
 	return postgres.New(databasetest.AsWebRole(t, connString))
 }
 
+// rule returns a current rule at path, in the group its path names, with one version and the given content.
+func rule(path, title, whenToRead, body string) domain.Rule {
+	c := content(title, v(1, 0, 0))
+	c.WhenToRead = whenToRead
+	c.Markdown = "---\ntitle: " + title + "\n---\n\n" + body + "\n"
+	group := path[:strings.LastIndex(path, "/")]
+	return domain.Rule{Path: path, Group: group, HTML: "<p>" + title + ".</p>\n", WhenToReadHTML: "<p>" + whenToRead + "</p>\n", Versions: []domain.Version{
+		{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}, Content: c},
+	}}
+}
+
+// newLibrary returns a library of one release, holding groups and rules, at GitHub repository id, owner/name.
+func newLibrary(id, owner, name string, groups []domain.Group, rules ...domain.Rule) domain.Library {
+	return domain.Library{
+		Repository: domain.Repository{Host: domain.GitHub, ID: id, Owner: owner, Name: name, Description: "Rules by " + owner + ".",
+			OwnerAvatarURL: "https://avatars.githubusercontent.com/u/" + id + "?v=4"},
+		Releases: []domain.Release{{Number: 1, CommitID: strings.Repeat("1", 40), TaggedAt: day(1)}},
+		Groups:   groups,
+		Rules:    rules,
+	}
+}
+
+var (
+	goGroup      = domain.Group{Path: "techs/go", Name: "Go", Description: "Go rules.", WhenToRead: "When writing Go."}
+	testingGroup = domain.Group{Path: "practices/testing", Name: "Testing", Description: "Testing rules.", WhenToRead: "When testing."}
+	// golangGroup isn't canonical. Its library declares a name that pages and search never use.
+	golangGroup = domain.Group{Path: "techs/golang", Name: "Zebra", Description: "More Go rules.", WhenToRead: "When writing Go."}
+)
+
+// The two vetted libraries are acme/backend and Beta/rules: case-insensitively acme sorts first, though byte order
+// would put Beta first. stranger/rules isn't vetted.
+var (
+	acme = newLibrary("21", "acme", "backend", []domain.Group{testingGroup, goGroup, golangGroup},
+		rule("practices/testing/verify-retry-limits", "Verify retry limits", "When code calls a service.", "Stop after a fixed number of attempts."),
+		rule("practices/testing/cover-boundary-cases", "Cover boundary cases", "When a retry policy changes.", "Test the first and last attempts."),
+		rule("techs/go/return-errors", "Return errors with context", "When a function fails.", "Wrap each error with what failed."),
+		rule("techs/golang/pass-context-first", "Pass context first", "When a function takes a context.", "Put it first."),
+		// Retired: it keeps its group in the catalog, but no page or search shows it.
+		domain.Rule{Path: "practices/testing/retry-forever", Group: "practices/testing", RetiredIn: 1,
+			RetirementSummaries: []string{"Drop it."},
+			Versions:            []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
+	)
+	beta = newLibrary("22", "Beta", "rules", []domain.Group{goGroup},
+		rule("techs/go/name-packages-plainly", "Name packages plainly", "When adding a package.", "Avoid a name that needs a retry to read."),
+	)
+	stranger = newLibrary("23", "stranger", "rules", []domain.Group{testingGroup, goGroup},
+		rule("practices/testing/retry-everything", "Retry everything", "When anything fails.", "Retry it."),
+		rule("techs/go/use-go", "Use Go", "When writing Go.", "Write Go."),
+	)
+	vettedBoth = []domain.LibraryKey{{Host: domain.GitHub, RepositoryID: "21"}, {Host: domain.GitHub, RepositoryID: "22"}}
+	// canonicalGroups is the part of the canonical list these tests use. techs/golang isn't on it.
+	canonicalGroups = []domain.CanonicalGroup{
+		{ID: "practices/testing", Name: "Testing"},
+		{ID: "techs/go", Name: "Go"},
+	}
+)
+
+// newLibraries stores acme, beta, and stranger in a new database, and returns a Store that reads it as the web
+// function's role.
+func newLibraries(t *testing.T) *postgres.Store {
+	t.Helper()
+	db, connString := databasetest.New(t)
+	writer := postgres.New(db)
+	for _, lib := range []domain.Library{acme, beta, stranger} {
+		if _, err := writer.ReplaceLibrary(context.Background(), lib); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return postgres.New(databasetest.AsWebRole(t, connString))
+}
+
 func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	reader := newCatalog(t)
 
@@ -115,14 +186,35 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	ref := views.LibraryRef{Owner: "example", Name: "rules", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL}
-	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Rules: 1}, {Path: "techs/go", Library: ref, Rules: 1}}
+	wantGroups := []views.LibraryGroup{{Path: "practices/testing", Library: ref, Vetted: true, Rules: 1}, {Path: "techs/go", Library: ref, Vetted: true, Rules: 1}}
 	if !slices.Equal(groups, wantGroups) {
 		t.Fatalf("got groups %+v, want %+v", groups, wantGroups)
+	}
+}
+
+func TestGroupsListEachVettedLibrarysGroupsWithCurrentRules(t *testing.T) {
+	reader := newLibraries(t)
+
+	got, err := reader.Groups(context.Background(), vettedBoth, false)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	acmeRef := views.LibraryRef{Owner: "acme", Name: "backend", OwnerAvatarURL: acme.Repository.OwnerAvatarURL}
+	betaRef := views.LibraryRef{Owner: "Beta", Name: "rules", OwnerAvatarURL: beta.Repository.OwnerAvatarURL}
+	want := []views.LibraryGroup{
+		{Path: "practices/testing", Library: acmeRef, Vetted: true, Rules: 2},
+		{Path: "techs/go", Library: acmeRef, Vetted: true, Rules: 1},
+		{Path: "techs/go", Library: betaRef, Vetted: true, Rules: 1},
+		{Path: "techs/golang", Library: acmeRef, Vetted: true, Rules: 1},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 
@@ -130,12 +222,12 @@ func TestHomePageListsOnlyVettedLibrariesAndTheirGroups(t *testing.T) {
 func TestLibrariesListsOnlyVettedLibraries(t *testing.T) {
 	reader := newCatalog(t)
 
-	got, err := reader.Libraries(context.Background(), vetted)
+	got, err := reader.Libraries(context.Background(), vetted, false)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}}
+	want := []views.LibraryCard{{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
@@ -147,7 +239,7 @@ func TestOwnerLibrariesListsOnlyTheOwnersVettedLibraries(t *testing.T) {
 	reader := newCatalog(t)
 
 	for login, want := range map[string][]views.LibraryCard{
-		"EXAMPLE":  {{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2}},
+		"EXAMPLE":  {{Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL, Rules: 2, Vetted: true}},
 		"stranger": nil,
 		"nobody":   nil,
 	} {

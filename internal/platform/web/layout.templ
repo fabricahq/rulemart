@@ -20,7 +20,8 @@ type chrome struct {
 	logo, darkLogo string
 	// caretScript puts the caret at the end of a field the page focuses, and copyScript shows Copy buttons and copies,
 	// on a page that asks for each. toastScript times a notice shown as a toast, on a page that shows one.
-	caretScript, copyScript, toastScript string
+	// filtersScript submits a list's filters as soon as one changes, on a page that lists rules or libraries.
+	caretScript, copyScript, toastScript, filtersScript string
 	// canonical is the page's absolute address on Options.BaseURL, or empty when there's no base URL or the page,
 	// such as a missing one, has no address of its own.
 	canonical string
@@ -43,8 +44,12 @@ type head struct {
 	// section is the header's link the page is: a kind's browse page, which its other-groups page counts as,
 	// librariesHref, or faqHref, or empty for every other page, such as a library's, a rule's, or a group's.
 	section string
-	// searchPage leaves the header's search field out, keeping its space, since the page holds its own.
+	// searchPage marks the search page, whose header's search field holds query, the page's query, and whose phone
+	// header has no link to search, since the page holds its own field there.
 	searchPage bool
+	query      string
+	// filters loads the script that submits a list's filters as soon as one changes.
+	filters bool
 	// narrow lays a notice out as wide as narrowPage, for a page of that width.
 	narrow bool
 	// notice is the page's own notice, which takes the place of the notice cookie's, or empty, and noticeAction what
@@ -195,6 +200,9 @@ templ layout(c chrome, h head) {
 			if h.copy {
 				<script src={ c.copyScript } defer></script>
 			}
+			if h.filters {
+				<script src={ c.filtersScript } defer></script>
+			}
 			if n := shownNotice(h, visitorOf(ctx)); n.text != "" && n.toast != "" {
 				<script src={ c.toastScript } defer></script>
 			}
@@ -251,13 +259,11 @@ templ header(h head) {
 				<span class="font-normal text-muted max-tiny:hidden">/</span>
 				<a class="text-ink no-underline" href="/" aria-label="Rulemart home">Rulemart</a>
 			</div>
-			if !h.searchPage {
-				<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
-					<label class="sr-only" for="header-search">Search rules</label>
-					@searchIcon("pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint")
-					<input id="header-search" class="w-full rounded-full border border-border bg-surface py-[7px] pr-[14px] pl-[34px] text-[13.5px] leading-[1.65] text-ink placeholder:text-faint hover:border-border-strong focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
-				</form>
-			}
+			<form class="relative max-w-[360px] flex-1 max-narrow:hidden" action={ templ.SafeURL(searchHref) } method="get" role="search">
+				<label class="sr-only" for="header-search">Search rules</label>
+				@searchIcon("pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-faint")
+				<input id="header-search" class="w-full rounded-full border border-border bg-surface py-[7px] pr-[14px] pl-[34px] text-[13.5px] leading-[1.65] text-ink placeholder:text-faint hover:border-border-strong focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none" type="search" name="q" value={ h.query } placeholder="Search rules" maxlength={ strconv.Itoa(domain.MaxSearchQueryLength) } autocomplete="off"/>
+			</form>
 			// The nav is the sections menu's frame, so the menu's right edge is the content edge, as the account menu's is.
 			<nav class="relative ml-auto flex items-center gap-5 text-[14px] max-narrow:gap-1 max-tiny:gap-0" aria-label="Rulemart">
 				for _, l := range headerLinks {

@@ -102,20 +102,20 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">catalog/vetted.yaml</a> in Rulemart's repository, so the file's history shows when each library was vetted, and why.</p><p>Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica chose to show the library, not that it checked every rule: read the rules you adopt, as you would any code you add to your project.</p><h2 id=\"unvetted\">Unvetted libraries</h2><p>Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a listed library appears only under <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">catalog/vetted.yaml</a> in Rulemart's repository, so the file's history shows when each library was vetted, and why.</p><p>Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica chose to show the library, not that it checked every rule: read the rules you adopt, as you would any code you add to your project.</p><h2 id=\"unvetted\">Unvetted libraries</h2><p>Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a listed library appears under <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 templ.SafeURL
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 37, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 37, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, every page of it warns that it hasn't been vetted, search engines are asked not to index it, search leaves it out, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, and in the lists, groups, and search only for a visitor who includes unvetted libraries, tagged Unvetted. Every page of it warns that it hasn't been vetted, search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -104,9 +104,9 @@ templ starIcon(class string, filled bool) {
 	</svg>
 }
 
-// starredPage shows the rules a signed-in visitor's stars count toward, most recently starred first, as rule results,
+// starredPage shows the rules a signed-in visitor's stars count toward, most recently starred first, as rule rows,
 // each saying which retired rule the visitor starred in its place, if any.
-templ starredPage(c chrome, starred []ruleResultView) {
+templ starredPage(c chrome, starred []ruleRowView) {
 	@layout(c, head{title: "Starred rules · Rulemart", noindex: true}) {
 		// As wide as search's results, which list rules the same way.
 		<div class="page wrap max-w-[52rem]">
@@ -126,13 +126,11 @@ templ starredPage(c chrome, starred []ruleResultView) {
 				</div>
 			} else {
 				<h2 class="sr-only">Your starred rules</h2>
-				<ol class="grid gap-2.5">
+				@ruleRows() {
 					for _, r := range starred {
-						<li>
-							@ruleResult(r)
-						</li>
+						@ruleRow(r)
 					}
-				</ol>
+				}
 			}
 		</div>
 	}

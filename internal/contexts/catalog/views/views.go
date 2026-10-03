@@ -1,6 +1,6 @@
 // Package views holds what the catalog's pages read: the vetted libraries, an owner's libraries, a library with its
 // groups and rules, its releases and what changed between two of them, a rule with its versions and what changed
-// between two of them, the groups across libraries, one group's rules in every library, search results, the sitemap,
+// between two of them, the groups across libraries, lists of rules across libraries, a group's or a search's, the sitemap,
 // and an account's listings, starred rules, and cart. They're plain values, read from one state of the catalog,
 // with nothing of how it's stored.
 package views
@@ -26,6 +26,9 @@ type LibraryCard struct {
 	OwnerAvatarURL string
 	// Rules counts the library's current rules.
 	Rules int
+	// Vetted is false for a library that's only listed, which a list includes only when the visitor asks for unvetted
+	// libraries.
+	Vetted bool
 }
 
 // OwnerPage is an owner's page: the vetted libraries they publish.
@@ -313,11 +316,13 @@ type LibraryRef struct {
 // FullName returns the library's repository as owner/name.
 func (l LibraryRef) FullName() string { return l.Owner + "/" + l.Name }
 
-// LibraryGroup is a group as one vetted library holds it.
+// LibraryGroup is a group as one library holds it.
 type LibraryGroup struct {
 	// Path is the group's ID, such as techs/go.
 	Path    string
 	Library LibraryRef
+	// Vetted is false for a library that's only listed.
+	Vetted bool
 	// Rules counts the library's current rules in the group.
 	Rules int
 }
@@ -338,44 +343,70 @@ type GroupSummary struct {
 	Rules int
 	// Libraries hold the group, in owner and name order. A group that isn't canonical has exactly one.
 	Libraries []LibraryRef
+	// Vetted is false when only listed libraries hold the group, in an index that includes them.
+	Vetted bool
 }
 
-// GroupPage is a canonical group's current rules in every vetted library that holds it.
+// GroupPage is a group's page: the group, and its rules across libraries.
 type GroupPage struct {
 	// Path is the group's ID, such as techs/go.
-	Path      string
-	Canonical CanonicalGroup
-	// Libraries hold the group's rules, in owner and name order; it's empty when no vetted library has the group.
-	Libraries []GroupLibrary
+	Path string
+	// Canonical is nil when Path isn't on Code Rules' canonical group list.
+	Canonical *CanonicalGroup
+	Rules     RuleResults
 }
 
-// GroupLibrary is one library's current rules in a group, in title order.
-type GroupLibrary struct {
-	Library LibraryRef
-	Rules   []RuleCard
-}
-
-// SearchResults are one page of the current rules of vetted libraries that match a search, best first.
-type SearchResults struct {
-	Results []SearchResult
-	// Total counts every rule that matched, and Complete those of them that hold every term the search finds.
-	Total, Complete int
+// RuleResults are one page of a list of rules across libraries, a group's or a search's, as domain.RuleList describes
+// it.
+type RuleResults struct {
+	// Rows are the page's rules, in the list's order, each group's together.
+	Rows []RuleRow
+	// Total counts the rules that pass the list's filters, Complete those of them that hold every word a search finds,
+	// and Libraries the libraries they come from.
+	Total, Complete, Libraries int
+	// Unfiltered counts the rules the list holds before its filters, and UnfilteredLibraries the libraries they come
+	// from, Fabrica's first, then by owner and name, each with how many of them it holds.
+	Unfiltered          int
+	UnfilteredLibraries []LibraryCount
+	// RetiredRules counts the retired rules of the list's group, or of every group, in its libraries, whether or not
+	// the list holds them, so a page offers to show them only when there are some.
+	RetiredRules int
 	// NoWords reports a search with no word to find, which matches nothing: only words to leave out, or only words
 	// search ignores, such as "the", or punctuation.
 	NoWords bool
 }
 
-// SearchResult is a rule that matched a search, with its library.
-type SearchResult struct {
+// LibraryCount is a library in a list of rules, with how many of the list's rules, before its filters, it holds.
+type LibraryCount struct {
 	Library LibraryRef
-	Rule    RuleCard
+	// Vetted is false for a library that's only listed.
+	Vetted bool
+	Rules  int
+}
+
+// RuleRow is a rule in a list of rules across libraries.
+type RuleRow struct {
+	Library LibraryRef
+	// Vetted is false for a rule of a library that's only listed.
+	Vetted bool
+	// Rule is the rule's newest version; its Stars are 0 for a retired rule, or one of a library that isn't vetted.
+	Rule RuleCard
 	// CanonicalGroup is nil when Rule.Group isn't on Code Rules' canonical group list.
 	CanonicalGroup *CanonicalGroup
-	// WhenToReadHTML is WhenToRead rendered as Markdown, or empty, as Rule's is.
-	WhenToRead, WhenToReadHTML string
-	// Missing holds the terms to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
+	// Retired marks a rule a library release retired. Replacement is the last rule of its chain of replacements to now,
+	// the one current now unless the chain ends at a rule retired without one, or nil when its retirement named none;
+	// Renamed reports that each step of the chain renamed the rule, so Replacement is the same rule under a new ID.
+	Retired     bool
+	Replacement *RuleRef
+	Renamed     bool
+	// Links are how every rule of a retired rule's library was replaced, which the store reads for app.Pages to follow
+	// to its Replacement; they're nil for a current rule.
+	Links []RuleLink
+	// Missing holds the words to find, as the visitor wrote them, that the rule doesn't hold; it's empty when the rule
 	// holds every one.
 	Missing []string
+	// GroupRules counts the rules of the rule's group that pass the list's filters, on this page and others.
+	GroupRules int
 }
 
 // ReleasesPage is one page of a library's releases, newest first, each with what it published.
@@ -574,7 +605,8 @@ type Sitemap struct {
 	// Groups are the IDs of the groups that hold the libraries' current rules, each once, in ID order, canonical or
 	// not.
 	Groups []string
-	// Truncated reports that the sitemap left out rules past the most it reads, after its libraries' first rules.
+	// Truncated reports that the sitemap left out groups or rules past the most it reads, after the first groups and
+	// its libraries' first rules.
 	Truncated bool
 }
 

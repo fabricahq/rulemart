@@ -163,8 +163,9 @@ var ErrListingsBusy = errors.New("Rulemart took as many listings this hour as it
 // library a listing names, and say whether it's vetted. Every current rule a read returns carries its stars, counted as
 // Stars describes, from the same state.
 type Reader interface {
-	// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
-	Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
+	// Libraries returns the vetted libraries, and with unvetted, the libraries listings name too, ordered by owner and
+	// name without regard to case, each saying whether it's vetted.
+	Libraries(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryCard, error)
 	// UnvettedLibraries returns the libraries listings name that vetted doesn't hold, ordered as Libraries orders them.
 	UnvettedLibraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error)
 	// OwnerLibraries returns the vetted libraries whose owner is login, matched without regard to case, ordered as
@@ -189,23 +190,24 @@ type Reader interface {
 	// that pick chooses from it, keyed by the pair's key, read from the same snapshot: in pick's order, each pair read
 	// only when both are stored and hold, with the pairs before it, at most maxBytes.
 	ReleaseComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name string, pick func(views.LibraryHistory) []views.VersionPair, maxBytes int64) (views.LibraryHistory, map[string]views.ComparedText, error)
-	// Groups returns each group that holds current rules in a vetted library, once for each library that holds it,
-	// in path order and then the library's owner and name, without regard to case.
-	Groups(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryGroup, error)
-	// GroupRules returns the current rules of the group at path in each vetted library that holds it, by library in
-	// owner and name order, and each library's in title order. It's empty when no vetted library holds the group.
-	GroupRules(ctx context.Context, vetted []domain.LibraryKey, path string) ([]views.GroupLibrary, error)
-	// Search returns one page of the vetted libraries' current rules that match query, best first: at most limit of
-	// them, which must be at least 1, after the best skip, with how many matched in all. A rule matches when it holds
-	// at least one of the query's terms to find and none of those to leave out, by its title, reading guidance,
-	// impact description, body, library name, and group's name: the name groups gives a canonical group, and the name
-	// part of any group's ID. A term that joins words with -, /, or : also matches the rule's ID, its group's, and its
-	// library's owner and name. Rules that hold more of the terms, in more telling places, come first. It leaves each
-	// result's CanonicalGroup nil.
-	Search(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error)
-	// Sitemap returns the vetted libraries, at most maxRules of their current rules, the first in owner, name, and ID
-	// order, and the groups that hold them, from one state of the catalog.
-	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRules int) (views.Sitemap, error)
+	// Groups returns each group that holds current rules in a vetted library, and with unvetted, in a library a listing
+	// names too, once for each library that holds it, in path order and then the library's owner and name, without
+	// regard to case.
+	Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error)
+	// Rules returns one page of the list of rules list describes, after its filters and in its order: at most limit
+	// rules, which must be at least 1, after the first skip. Its libraries are the vetted ones, and with list.Unvetted,
+	// the ones listings name too. A list with a query holds the rules that match it, current and retired; one without
+	// holds every current rule, and with list.Retired, every retired one too. Every order puts the current rules that
+	// hold every word to find first, then the other current rules, then the retired rules, and each group's rules in a
+	// tier together, in the order of the group's first. Each rule's stars are counted as Stars counts them; a retired
+	// rule's, or one of a library that isn't vetted, are 0. The results also count the rules that pass the filters,
+	// those the list holds before them by library, and its group's retired rules, whichever rules the page holds. It
+	// leaves each row's CanonicalGroup nil.
+	Rules(ctx context.Context, vetted []domain.LibraryKey, groups []domain.CanonicalGroup, list domain.RuleList, limit, skip int) (views.RuleResults, error)
+	// Sitemap returns the vetted libraries, their current rules, and the groups that hold them, at most maxEntries
+	// groups and rules in all: the first groups in ID order, then the first rules in owner, name, and ID order, from
+	// one state of the catalog.
+	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxEntries int) (views.Sitemap, error)
 }
 
 // ErrNotFound reports a library, rule, or rule version that isn't in the catalog, a library that's neither vetted nor

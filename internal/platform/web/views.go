@@ -125,17 +125,21 @@ func newLibraryView(lib views.Library) libraryView {
 type libraryCard struct {
 	href, owner, name, description, avatar string
 	rules                                  int
-	// unvetted marks a library that's only listed, whose link carries nofollow.
-	unvetted bool
+	// vetted marks a library the release vets, which shows the check mark; any other is only listed, and its link
+	// carries nofollow.
+	vetted bool
+	// tagged marks an unvetted library in a list that holds vetted ones too, which shows the Unvetted chip.
+	tagged bool
 }
 
-// newLibraryCards describes libraries, which are unvetted when unvetted is true.
-func newLibraryCards(libraries []views.LibraryCard, unvetted bool) []libraryCard {
+// newLibraryCards describes libraries, tagging each unvetted one when tagUnvetted is true, for a list that mixes them
+// with vetted ones.
+func newLibraryCards(libraries []views.LibraryCard, tagUnvetted bool) []libraryCard {
 	cards := make([]libraryCard, len(libraries))
 	for i, lib := range libraries {
 		cards[i] = libraryCard{
 			href: libraryHref(lib.Owner, lib.Name), owner: lib.Owner, name: lib.Name, description: lib.Description,
-			avatar: lib.OwnerAvatarURL, rules: lib.Rules, unvetted: unvetted,
+			avatar: lib.OwnerAvatarURL, rules: lib.Rules, vetted: lib.Vetted, tagged: tagUnvetted && !lib.Vetted,
 		}
 	}
 	return cards
@@ -150,9 +154,10 @@ type groupView struct {
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
-	// acrossHref is a canonical group's page across libraries, and empty for any other group.
+	// acrossHref is the group's page across libraries, including unvetted ones when the library is one, so it lists the
+	// library's own rules.
 	acrossHref string
-	rules      []ruleCard
+	rules      []ruleRowView
 	// cart is the control that adds the group to the cart, which server.withGroupCarts fills in.
 	cart cartControl
 }
@@ -171,6 +176,14 @@ func newGroupLabel(id string, canonical *views.CanonicalGroup) groupLabel {
 		return groupLabel{id: id}
 	}
 	return groupLabel{id: id, name: canonical.Name, canonical: true}
+}
+
+// display returns how text names the group: a canonical group by its name, and any other by its ID.
+func (l groupLabel) display() string {
+	if l.canonical {
+		return l.name
+	}
+	return l.id
 }
 
 // initial returns the first letter of a canonical group's name, which stands in for an icon it doesn't have.
@@ -204,39 +217,53 @@ func newGroupIcon(canonical *views.CanonicalGroup, iconURL func(file string) str
 	return groupIcon{src: iconURL(icon.File), monochrome: icon.Monochrome, narrow: icon.Narrow, lightTile: icon.LightTile}
 }
 
-// ruleCard is a current rule's entry in a list of rules.
-type ruleCard struct {
-	href, id, title, impact, version string
-	// stars counts the accounts whose stars count toward the rule.
-	stars int
-}
-
-// ruleResultView is a rule in a list of rules across libraries, such as one that matched a search, or one the visitor
-// starred.
-type ruleResultView struct {
-	rule       ruleCard
-	whenToRead string
-	// sourceID is the rule's source-qualified ID, owner/name:rule ID, Code Rules' source:rule form with the library's
-	// repository as its source.
-	sourceID string
-	library  libraryRefView
-	group    groupLabel
-	icon     groupIcon
-	// missing holds the words to find, as the visitor wrote them, that the rule doesn't hold.
+// ruleRowView is a rule in a list of rules, as every list on the site shows one, the prototype's ruleResult: its
+// title and impact, its library, and its stars.
+type ruleRowView struct {
+	href, title, impact string
+	stars               int
+	library             libraryRefView
+	// unvetted marks a rule of a library that's only listed, in a list that includes such libraries: its row shows the
+	// Unvetted chip, and its link carries nofollow.
+	unvetted bool
+	// group names the rule's group in a list that shows it, such as the visitor's starred rules, and is nil in a list
+	// of one group's rules or under its group's heading.
+	group *groupLabel
+	// retired marks a retired rule, which the row draws grayed out, with the Retired chip, and replacedBy names the last
+	// of the rules that replaced it, by title, or is empty when none did. renamed reports that the replacement is the
+	// same rule under a new ID, so replacedBy names it by ID instead, the one thing that tells the two apart.
+	retired    bool
+	replacedBy string
+	renamed    bool
+	// missing holds the words of a search, as the visitor wrote them, that the rule doesn't hold.
 	missing []string
+	// marks holds the words of a search, in lowercase, that the row marks in its title, or none outside search.
+	marks []string
 	// starredAs is the ID of the retired rule the visitor starred, which this one replaced, or empty.
 	starredAs string
 }
 
-// newRuleResult describes rule, a rule of lib, as a rule result with what every list of results shows, and leaves the
-// fields only one list shows to that list. canonical is the rule's canonical group, or nil when its group isn't
-// canonical, and iconURL returns where the site serves an icon file.
-func newRuleResult(lib views.LibraryRef, rule views.RuleCard, canonical *views.CanonicalGroup, iconURL func(file string) string) ruleResultView {
-	ref := newLibraryRefView(lib)
-	return ruleResultView{
-		rule: newRuleCard(ref.href, rule), sourceID: ref.fullName() + ":" + rule.Path, library: ref,
-		group: newGroupLabel(rule.Group, canonical), icon: newGroupIcon(canonical, iconURL),
+// newRuleRow describes r, a rule of lib, as a row; unvetted is true for a rule of a library that's only listed, in a
+// list that includes such libraries.
+func newRuleRow(lib libraryRefView, unvetted bool, r views.RuleCard) ruleRowView {
+	return ruleRowView{
+		href: lib.href + "/" + r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact, stars: r.Stars, library: lib,
+		unvetted: unvetted,
 	}
+}
+
+// newListedRuleRow describes r, a row of a list of rules across libraries, with its retirement, naming the last of its
+// replacements, and the words of a search it lacks.
+func newListedRuleRow(r views.RuleRow) ruleRowView {
+	row := newRuleRow(newLibraryRefView(r.Library), !r.Vetted, r.Rule)
+	row.retired, row.missing = r.Retired, r.Missing
+	if r.Replacement != nil {
+		row.replacedBy = titleOrID(r.Replacement.Title, r.Replacement.Path)
+		if r.Renamed {
+			row.replacedBy, row.renamed = r.Replacement.Path, true
+		}
+	}
+	return row
 }
 
 // libraryContents is a library's groups, split by kind, each with its rules in title order, and its retired rules.
@@ -259,15 +286,16 @@ type retiredRuleCard struct {
 // newLibraryContents groups the page's rules under its groups, keeping both orders. iconURL returns where the site
 // serves an icon file.
 func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(file string) string) libraryContents {
-	byGroup := map[string][]ruleCard{}
+	byGroup := map[string][]ruleRowView{}
+	ref := libraryRefView{href: lib.href, owner: lib.owner, name: lib.name, avatar: lib.avatar}
 	for _, r := range page.Rules {
-		byGroup[r.Group] = append(byGroup[r.Group], newRuleCard(lib.href, r))
+		byGroup[r.Group] = append(byGroup[r.Group], newRuleRow(ref, false, r))
 	}
 	var result libraryContents
 	for _, g := range page.Groups {
 		view := groupView{
 			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
-			rules: byGroup[g.Path], acrossHref: acrossHref(g.Path, g.Canonical),
+			rules: byGroup[g.Path], acrossHref: withUnvetted(groupHref(g.Path), !lib.vetted),
 		}
 		view.blurb = g.Description
 		if g.Canonical != nil {
@@ -312,8 +340,8 @@ type ruleView struct {
 	// holds no HTML for it, so the page shows the text.
 	whenToRead, whenToReadHTML string
 	group                      groupLabel
-	// groupHref is the group's section on the library's All rules tab, and acrossHref a canonical group's page
-	// across libraries, empty for any other group.
+	// groupHref is the group's section on the library's All rules tab, and acrossHref the group's page across
+	// libraries, including unvetted ones when the library is one, so it lists the rule.
 	groupHref, acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
@@ -375,7 +403,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
 		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
-		acrossHref: acrossHref(r.Group, r.CanonicalGroup),
+		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}
@@ -424,14 +452,6 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 // libraryHref is the path of a library's page.
 func libraryHref(owner, name string) string {
 	return "/" + url.PathEscape(owner) + "/" + url.PathEscape(name)
-}
-
-// acrossHref is the page of the group at path across libraries when it's canonical, and empty otherwise.
-func acrossHref(path string, canonical *views.CanonicalGroup) string {
-	if canonical == nil {
-		return ""
-	}
-	return groupHref(path)
 }
 
 // groupAnchor is the fragment of a group's section on the All rules tab.

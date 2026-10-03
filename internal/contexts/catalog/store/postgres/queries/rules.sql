@@ -1,0 +1,228 @@
+-- Lists of rules across libraries: a group's rules, every rule, or a search's matches, which the store's Rules reads.
+
+-- CountSearchableTerms counts the terms that hold a word search looks for, rather than only stop words, such as
+-- "the", or punctuation.
+-- name: CountSearchableTerms :one
+SELECT count(*) FROM unnest(@terms::text[]) AS t(query)
+WHERE numnode(websearch_to_tsquery('english', t.query)) > 0;
+
+-- ListCountedRuleIDs returns the IDs of the current rules of the libraries vetted holds, in the group at group_path,
+-- or in every group when it's empty: the rules whose stars ListRules counts, since a rule of a library that isn't
+-- vetted, or a retired rule, has none.
+-- name: ListCountedRuleIDs :many
+SELECT r.id
+FROM rules r
+JOIN libraries l ON l.id = r.library_id
+JOIN library_groups g ON g.id = r.group_id
+WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
+  AND (@group_path::text = '' OR g.path = @group_path::text);
+
+-- ListRules returns one page of a list of rules across libraries: a group's rules, every rule, or a search's matches,
+-- as domain.RuleList describes them, after its filters, in its order, skipping skip of them and returning at most
+-- max_results. A library is in the list when vetted holds it, or, with include_unvetted, when a listing names it. The
+-- list holds the current rules of the group at group_path, or of every group when it's empty, and their retired rules
+-- too with include_retired, each by its newest version. With match_all, it holds every one of them; otherwise those
+-- that hold at least one of the find terms and none of the exclude terms. Each term is in websearch_to_tsquery's
+-- syntax, which accepts any text, and a term of only stop words, such as "the", is ignored.
+--
+-- A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
+-- the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
+-- but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
+-- with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
+-- source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID. Each term
+-- scores by the best place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact
+-- description 0.5, and anywhere else, the body or the library's name, 0.1. A rule's score is its terms' average,
+-- scaled by the square of the share of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so
+-- "Verify retry limits" outranks a longer title for retry.
+--
+-- Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
+-- they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
+-- or of every library when it's empty; of the impact band impact, high for CRITICAL and HIGH and medium for the rest,
+-- or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
+-- both when it's empty.
+--
+-- Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
+-- rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
+-- by when the release that first published each rule was tagged, newest first. A rule of a library vetted doesn't hold
+-- comes after the vetted ones it ties with; then rules fall to best's ts_rank, stars, the libraries first_owner owns,
+-- best's title, owner, name, title, and rule ID, so the order is stable. Then each group's rules in a tier come
+-- together, in the order of each group's first rule.
+--
+-- Each row of a rule also says how many rules of its group in its tier pass the filters. Every row, the same on each,
+-- summarizes the list: how many rules pass the filters, how many of those hold every find term, and in how many
+-- libraries; how many rules it holds before its filters, and the libraries those come from, in step, first_owner's
+-- first and then by owner and name, each with whether vetted holds it and how many of the rules it holds; and how many
+-- retired rules the group at group_path, or every group, holds in the list's libraries, whether or not the list holds
+-- them. A page without rules is one row of only the summary, whose rule's columns are null, so the summary never
+-- depends on the rows: a group of only retired rules, hidden, still counts them.
+-- name: ListRules :many
+WITH find_terms AS (
+    SELECT i AS ordinal, (@find_terms::text[])[i] AS query, (@find_identifier_terms::text[])[i] AS identifier_query
+    FROM generate_subscripts(@find_terms::text[], 1) AS i
+),
+find AS (
+    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
+           tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
+    FROM find_terms t
+    WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
+),
+exclude_terms AS (
+    SELECT (@exclude_terms::text[])[i] AS query, (@exclude_identifier_terms::text[])[i] AS identifier_query
+    FROM generate_subscripts(@exclude_terms::text[], 1) AS i
+),
+exclude AS (
+    SELECT websearch_to_tsquery('english', t.query) AS query,
+           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
+    FROM exclude_terms t
+    WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
+),
+search AS (
+    SELECT websearch_to_tsquery('english', array_to_string(@find_terms::text[], ' or ')) AS any_query,
+           (SELECT count(*) FROM find)::float AS terms
+),
+stars AS (
+    SELECT (@star_rule_ids::bigint[])[i] AS rule_id, (@star_counts::integer[])[i] AS stars
+    FROM generate_subscripts(@star_rule_ids::bigint[], 1) AS i
+),
+documents AS (
+    SELECT r.id, newest.id AS version_id, (r.retired_in_release_id IS NOT NULL)::boolean AS retired,
+           (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
+           -- A list without a query matches nothing, so it builds no documents to match.
+           CASE WHEN NOT @match_all::boolean
+               THEN newest.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D')
+           END AS text,
+           CASE WHEN NOT @match_all::boolean THEN ts_filter(newest.search_document, '{a}') END AS title,
+           CASE WHEN NOT @match_all::boolean
+               THEN to_tsvector('english', coalesce((@canonical_names::text[])[array_position(@canonical_ids::text[], g.path)], '')
+                   || ' ' || split_part(g.path, '/', 2))
+           END AS group_names,
+           CASE WHEN NOT @match_all::boolean
+               THEN to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   '))
+           END AS identifiers
+    FROM rules r
+    JOIN library_groups g ON g.id = r.group_id
+    JOIN libraries l ON l.id = r.library_id
+    JOIN LATERAL (
+        SELECT v.id, v.search_document FROM rule_versions v JOIN library_releases p ON p.id = v.release_id
+        WHERE v.rule_id = r.id ORDER BY p.number DESC LIMIT 1
+    ) newest ON true
+    WHERE (@group_path::text = '' OR g.path = @group_path::text)
+      AND (
+          l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
+          OR (@include_unvetted::boolean
+              AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
+      )
+),
+places AS (
+    SELECT d.id, f.ordinal, f.lexemes,
+           CASE WHEN d.title @@ f.query THEN 1.0
+                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
+                WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
+                WHEN d.text @@ f.query THEN 0.1
+           END AS score
+    FROM documents d
+    CROSS JOIN find f
+),
+scored AS (
+    SELECT d.id, d.text || setweight(d.group_names, 'B') AS document,
+           array(SELECT p.ordinal FROM places p WHERE p.id = d.id AND p.score IS NULL ORDER BY p.ordinal)::int[] AS missing,
+           (SELECT coalesce(sum(p.score), 0) FROM places p WHERE p.id = d.id) AS term_score,
+           (SELECT count(*) FILTER (WHERE w.lexeme IN (
+                       SELECT unnest(p.lexemes) FROM places p WHERE p.id = d.id AND p.score = 1.0
+                   ))::float / greatest(count(*), 1)
+            FROM unnest(d.title) w) AS title_share
+    FROM documents d
+    WHERE NOT EXISTS (
+        SELECT 1 FROM exclude e
+        WHERE d.text @@ e.query OR d.group_names @@ e.query
+           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
+    )
+),
+ranked AS (
+    SELECT s.id, s.missing,
+           CASE WHEN search.terms = 0 THEN 0
+                ELSE power((search.terms - cardinality(s.missing)) / search.terms, 2) * s.term_score / search.terms
+                    + 0.25 * s.title_share
+           END::float AS score,
+           CASE WHEN search.terms = 0 THEN 0 ELSE ts_rank(s.document, search.any_query) END::float AS text_rank
+    FROM scored s
+    CROSS JOIN search
+    WHERE @match_all::boolean OR (search.terms > 0 AND cardinality(s.missing) < search.terms)
+),
+base AS (
+    SELECT rk.id, rk.missing, rk.score, rk.text_rank, d.retired, d.vetted, l.id AS library_id, l.owner, l.name,
+           l.owner_avatar_url, r.path, g.path AS group_path, v.title, v.impact, v.major, v.minor,
+           v.patch, coalesce(st.stars, 0) AS stars, first.tagged_at AS first_published_at
+    FROM ranked rk
+    JOIN documents d ON d.id = rk.id
+    JOIN rule_versions v ON v.id = d.version_id
+    JOIN rules r ON r.id = rk.id
+    JOIN library_groups g ON g.id = r.group_id
+    JOIN libraries l ON l.id = r.library_id
+    LEFT JOIN stars st ON st.rule_id = rk.id
+    JOIN LATERAL (
+        SELECT p.tagged_at FROM rule_versions f JOIN library_releases p ON p.id = f.release_id
+        WHERE f.rule_id = r.id ORDER BY p.number LIMIT 1
+    ) first ON true
+    WHERE NOT d.retired OR @include_retired::boolean
+),
+library_counts AS (
+    SELECT b.owner, b.name, b.owner_avatar_url, b.vetted, count(*) AS rules,
+           row_number() OVER (ORDER BY lower(b.owner) = lower(@first_owner::text) DESC, lower(b.owner), lower(b.name))
+               AS position
+    FROM base b
+    GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
+),
+facets AS (
+    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
+           coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
+           coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
+           coalesce(array_agg(c.owner_avatar_url ORDER BY c.position), '{}')::text[] AS library_avatar_urls,
+           coalesce(array_agg(c.vetted ORDER BY c.position), '{}')::boolean[] AS library_vetted,
+           coalesce(array_agg(c.rules ORDER BY c.position), '{}')::bigint[] AS library_rules
+    FROM library_counts c
+),
+filtered AS (
+    SELECT b.*, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
+    WHERE (cardinality(@libraries::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY (@libraries::text[]))
+      AND (@impact::text = '' OR (@impact::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
+      AND b.stars >= @min_stars::integer
+      AND (@kind::text = '' OR b.group_path LIKE @kind::text || '/%')
+),
+positioned AS (
+    SELECT f.*, row_number() OVER (
+               ORDER BY f.tier,
+                        cardinality(f.missing) > 0,
+                        CASE @order_by::text
+                            WHEN 'best' THEN f.score
+                            WHEN 'stars' THEN f.stars::float
+                            WHEN 'new' THEN extract(epoch FROM f.first_published_at)::float
+                        END DESC,
+                        f.vetted DESC,
+                        CASE WHEN @order_by::text = 'best' THEN f.text_rank END DESC,
+                        f.stars DESC,
+                        lower(f.owner) = lower(@first_owner::text) DESC,
+                        CASE WHEN @order_by::text = 'best' THEN lower(coalesce(f.title, '')) END,
+                        lower(f.owner), lower(f.name), lower(coalesce(f.title, '')), f.path
+           ) AS position
+    FROM filtered f
+),
+grouped AS (
+    SELECT p.*, min(p.position) OVER (PARTITION BY p.tier, p.group_path) AS group_position,
+           count(*) OVER (PARTITION BY p.tier, p.group_path) AS group_rules
+    FROM positioned p
+),
+page AS (
+    SELECT * FROM grouped gr ORDER BY gr.group_position, gr.position LIMIT @max_results OFFSET @skip
+)
+SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, pg.path, pg.group_path,
+       coalesce(pg.title, '')::text AS title, coalesce(pg.impact, '')::text AS impact, pg.major, pg.minor, pg.patch,
+       pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
+       (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
+       (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
+       facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.library_vetted, facets.library_rules
+FROM facets
+LEFT JOIN page pg ON true
+ORDER BY pg.group_position, pg.position;

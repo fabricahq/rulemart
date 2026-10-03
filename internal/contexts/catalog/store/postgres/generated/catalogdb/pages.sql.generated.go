@@ -11,20 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countSearchableTerms = `-- name: CountSearchableTerms :one
-SELECT count(*) FROM unnest($1::text[]) AS t(query)
-WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
-`
-
-// CountSearchableTerms counts the terms that hold a word search looks for, rather than only stop words, such as
-// "the", or punctuation.
-func (q *Queries) CountSearchableTerms(ctx context.Context, terms []string) (int64, error) {
-	row := q.db.QueryRow(ctx, countSearchableTerms, terms)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getLibrary = `-- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
@@ -215,68 +201,6 @@ func (q *Queries) ListCurrentRules(ctx context.Context, libraryID int64) ([]List
 	return items, nil
 }
 
-const listGroupRules = `-- name: ListGroupRules :many
-SELECT l.owner, l.name, l.owner_avatar_url, r.id, r.path, v.title::text AS title, v.impact::text AS impact,
-       v.major, v.minor, v.patch
-FROM library_groups g
-JOIN libraries l ON l.id = g.library_id
-JOIN rules r ON r.group_id = g.id
-JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
-WHERE g.path = $1 AND l.host || ':' || l.host_repository_id = ANY ($2::text[])
-ORDER BY lower(l.owner), lower(l.name), lower(v.title), r.path
-`
-
-type ListGroupRulesParams struct {
-	Path   string
-	Vetted []string
-}
-
-type ListGroupRulesRow struct {
-	Owner          string
-	Name           string
-	OwnerAvatarUrl string
-	ID             int64
-	Path           string
-	Title          string
-	Impact         string
-	Major          int32
-	Minor          int32
-	Patch          int32
-}
-
-// ListGroupRules returns the current rules of the group at path in every vetted library that has it, in the library's
-// owner and name order, then title order.
-func (q *Queries) ListGroupRules(ctx context.Context, arg ListGroupRulesParams) ([]ListGroupRulesRow, error) {
-	rows, err := q.db.Query(ctx, listGroupRules, arg.Path, arg.Vetted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListGroupRulesRow
-	for rows.Next() {
-		var i ListGroupRulesRow
-		if err := rows.Scan(
-			&i.Owner,
-			&i.Name,
-			&i.OwnerAvatarUrl,
-			&i.ID,
-			&i.Path,
-			&i.Title,
-			&i.Impact,
-			&i.Major,
-			&i.Minor,
-			&i.Patch,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listGroups = `-- name: ListGroups :many
 SELECT g.path, g.description, g.when_to_read, current.rule_count
 FROM library_groups g
@@ -323,11 +247,19 @@ func (q *Queries) ListGroups(ctx context.Context, libraryID int64) ([]ListGroups
 
 const listLibraries = `-- name: ListLibraries :many
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url,
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted,
        (SELECT count(*) FROM rules r WHERE r.library_id = l.id AND r.retired_in_release_id IS NULL) AS rule_count
 FROM libraries l
 WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
+   OR ($2::boolean
+       AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
 ORDER BY lower(l.owner), lower(l.name)
 `
+
+type ListLibrariesParams struct {
+	Vetted          []string
+	IncludeUnvetted bool
+}
 
 type ListLibrariesRow struct {
 	ID             int64
@@ -335,12 +267,14 @@ type ListLibrariesRow struct {
 	Name           string
 	Description    string
 	OwnerAvatarUrl string
+	Vetted         bool
 	RuleCount      int64
 }
 
-// ListLibraries returns the libraries vetted holds, each with how many current rules it holds.
-func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLibrariesRow, error) {
-	rows, err := q.db.Query(ctx, listLibraries, vetted)
+// ListLibraries returns the libraries vetted holds, and with include_unvetted, the ones a listing names too, each
+// with whether vetted holds it and how many current rules it holds.
+func (q *Queries) ListLibraries(ctx context.Context, arg ListLibrariesParams) ([]ListLibrariesRow, error) {
+	rows, err := q.db.Query(ctx, listLibraries, arg.Vetted, arg.IncludeUnvetted)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +288,64 @@ func (q *Queries) ListLibraries(ctx context.Context, vetted []string) ([]ListLib
 			&i.Name,
 			&i.Description,
 			&i.OwnerAvatarUrl,
+			&i.Vetted,
+			&i.RuleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLibraryGroups = `-- name: ListLibraryGroups :many
+SELECT g.path, l.owner, l.name, l.owner_avatar_url,
+       (l.host || ':' || l.host_repository_id = ANY ($1::text[]))::boolean AS vetted, count(*) AS rule_count
+FROM library_groups g
+JOIN libraries l ON l.id = g.library_id
+JOIN rules r ON r.group_id = g.id AND r.retired_in_release_id IS NULL
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
+   OR ($2::boolean
+       AND EXISTS (SELECT 1 FROM listings s WHERE s.host = l.host AND s.host_repository_id = l.host_repository_id))
+GROUP BY g.path, l.id
+ORDER BY g.path, lower(l.owner), lower(l.name)
+`
+
+type ListLibraryGroupsParams struct {
+	Vetted          []string
+	IncludeUnvetted bool
+}
+
+type ListLibraryGroupsRow struct {
+	Path           string
+	Owner          string
+	Name           string
+	OwnerAvatarUrl string
+	Vetted         bool
+	RuleCount      int64
+}
+
+// ListLibraryGroups returns each group that holds current rules in a library vetted holds, or with include_unvetted,
+// in one a listing names too, with the library, whether vetted holds it, and how many of its current rules the group
+// holds, in group path order and then the library's owner and name.
+func (q *Queries) ListLibraryGroups(ctx context.Context, arg ListLibraryGroupsParams) ([]ListLibraryGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listLibraryGroups, arg.Vetted, arg.IncludeUnvetted)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLibraryGroupsRow
+	for rows.Next() {
+		var i ListLibraryGroupsRow
+		if err := rows.Scan(
+			&i.Path,
+			&i.Owner,
+			&i.Name,
+			&i.OwnerAvatarUrl,
+			&i.Vetted,
 			&i.RuleCount,
 		); err != nil {
 			return nil, err
@@ -744,234 +736,6 @@ func (q *Queries) ListVersions(ctx context.Context, ruleID int64) ([]ListVersion
 			&i.PublishedAt,
 			&i.HasMarkdown,
 			&i.MarkdownBytes,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listVettedGroups = `-- name: ListVettedGroups :many
-SELECT g.path, l.owner, l.name, l.owner_avatar_url, count(*) AS rule_count
-FROM library_groups g
-JOIN libraries l ON l.id = g.library_id
-JOIN rules r ON r.group_id = g.id AND r.retired_in_release_id IS NULL
-WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
-GROUP BY g.path, l.id
-ORDER BY g.path, lower(l.owner), lower(l.name)
-`
-
-type ListVettedGroupsRow struct {
-	Path           string
-	Owner          string
-	Name           string
-	OwnerAvatarUrl string
-	RuleCount      int64
-}
-
-// ListVettedGroups returns each group that holds current rules in a vetted library, with the library and how many of
-// its current rules the group holds, in group path order and then the library's owner and name.
-func (q *Queries) ListVettedGroups(ctx context.Context, vetted []string) ([]ListVettedGroupsRow, error) {
-	rows, err := q.db.Query(ctx, listVettedGroups, vetted)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListVettedGroupsRow
-	for rows.Next() {
-		var i ListVettedGroupsRow
-		if err := rows.Scan(
-			&i.Path,
-			&i.Owner,
-			&i.Name,
-			&i.OwnerAvatarUrl,
-			&i.RuleCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchRules = `-- name: SearchRules :many
-WITH find_terms AS (
-    SELECT i AS ordinal, ($3::text[])[i] AS query, ($4::text[])[i] AS identifier_query
-    FROM generate_subscripts($3::text[], 1) AS i
-),
-find AS (
-    SELECT t.ordinal, websearch_to_tsquery('english', t.query) AS query,
-           websearch_to_tsquery('english', t.identifier_query) AS identifier_query,
-           tsvector_to_array(to_tsvector('english', t.query)) AS lexemes
-    FROM find_terms t
-    WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
-),
-exclude_terms AS (
-    SELECT ($5::text[])[i] AS query, ($6::text[])[i] AS identifier_query
-    FROM generate_subscripts($5::text[], 1) AS i
-),
-exclude AS (
-    SELECT websearch_to_tsquery('english', t.query) AS query,
-           websearch_to_tsquery('english', t.identifier_query) AS identifier_query
-    FROM exclude_terms t
-    WHERE numnode(websearch_to_tsquery('english', t.query)) > 0
-),
-search AS (
-    SELECT websearch_to_tsquery('english', array_to_string($3::text[], ' or ')) AS any_query,
-           (SELECT count(*) FROM find)::float AS terms
-),
-documents AS (
-    SELECT v.id,
-           v.search_document || setweight(to_tsvector('english', l.owner || ' ' || l.name), 'D') AS text,
-           ts_filter(v.search_document, '{a}') AS title,
-           to_tsvector('english', coalesce(($7::text[])[array_position($8::text[], g.path)], '')
-               || ' ' || split_part(g.path, '/', 2)) AS group_names,
-           to_tsvector('english', translate(l.owner || ' ' || l.name || ' ' || r.path, '/-:', '   ')) AS identifiers
-    FROM rule_versions v
-    JOIN rules r ON r.id = v.rule_id
-    JOIN library_groups g ON g.id = r.group_id
-    JOIN libraries l ON l.id = r.library_id
-    WHERE v.html IS NOT NULL AND l.host || ':' || l.host_repository_id = ANY ($9::text[])
-),
-places AS (
-    SELECT d.id, f.ordinal, f.lexemes,
-           CASE WHEN d.title @@ f.query THEN 1.0
-                WHEN d.group_names @@ f.query OR (numnode(f.identifier_query) > 0 AND d.identifiers @@ f.identifier_query) THEN 0.8
-                WHEN ts_filter(d.text, '{b}') @@ f.query THEN 0.5
-                WHEN d.text @@ f.query THEN 0.1
-           END AS score
-    FROM documents d
-    CROSS JOIN find f
-),
-scored AS (
-    SELECT d.id, d.text || setweight(d.group_names, 'B') AS document,
-           array(SELECT p.ordinal FROM places p WHERE p.id = d.id AND p.score IS NULL ORDER BY p.ordinal)::int[] AS missing,
-           (SELECT coalesce(sum(p.score), 0) FROM places p WHERE p.id = d.id) AS term_score,
-           (SELECT count(*) FILTER (WHERE w.lexeme IN (
-                       SELECT unnest(p.lexemes) FROM places p WHERE p.id = d.id AND p.score = 1.0
-                   ))::float / greatest(count(*), 1)
-            FROM unnest(d.title) w) AS title_share
-    FROM documents d
-    WHERE NOT EXISTS (
-        SELECT 1 FROM exclude e
-        WHERE d.text @@ e.query OR d.group_names @@ e.query
-           OR (numnode(e.identifier_query) > 0 AND d.identifiers @@ e.identifier_query)
-    )
-),
-ranked AS (
-    SELECT s.id, s.missing,
-           power((search.terms - cardinality(s.missing)) / search.terms, 2) * s.term_score / search.terms
-               + 0.25 * s.title_share AS score,
-           ts_rank(s.document, search.any_query) AS text_rank
-    FROM scored s
-    CROSS JOIN search
-    WHERE cardinality(s.missing) < search.terms
-)
-SELECT l.owner, l.name, l.owner_avatar_url, r.id, r.path, g.path AS group_path, v.title::text AS title,
-       v.impact::text AS impact, v.when_to_read::text AS when_to_read,
-       coalesce(CASE WHEN v.rendered_when_to_read = v.when_to_read THEN v.when_to_read_html END, '')::text AS when_to_read_html,
-       v.major, v.minor, v.patch, ranked.missing, count(*) OVER () AS total,
-       count(*) FILTER (WHERE cardinality(ranked.missing) = 0) OVER () AS complete
-FROM ranked
-JOIN rule_versions v ON v.id = ranked.id
-JOIN rules r ON r.id = v.rule_id
-JOIN library_groups g ON g.id = r.group_id
-JOIN libraries l ON l.id = r.library_id
-ORDER BY cardinality(ranked.missing) > 0, ranked.score DESC, ranked.text_rank DESC, lower(v.title), lower(l.owner), lower(l.name), r.path
-LIMIT $2 OFFSET $1
-`
-
-type SearchRulesParams struct {
-	Skip                   int32
-	MaxResults             int32
-	FindTerms              []string
-	FindIdentifierTerms    []string
-	ExcludeTerms           []string
-	ExcludeIdentifierTerms []string
-	CanonicalNames         []string
-	CanonicalIds           []string
-	Vetted                 []string
-}
-
-type SearchRulesRow struct {
-	Owner          string
-	Name           string
-	OwnerAvatarUrl string
-	ID             int64
-	Path           string
-	GroupPath      string
-	Title          string
-	Impact         string
-	WhenToRead     string
-	WhenToReadHtml string
-	Major          int32
-	Minor          int32
-	Patch          int32
-	Missing        []int32
-	Total          int64
-	Complete       int64
-}
-
-// SearchRules returns the vetted libraries' current rules that hold at least one of the find terms and none of the
-// exclude terms, best first, skipping skip of them and returning at most max_results, each with how many matched in
-// all and how many of those hold every find term, and with its reading guidance's HTML as GetRule returns it. Each term is in websearch_to_tsquery's syntax, which accepts any
-// text, and a term of only stop words, such as "the", is ignored.
-//
-// A term matches a rule by its text, its library's owner and name, or its group's names: a canonical group's name on
-// the list, whose IDs and names canonical_ids and canonical_names hold in step, and the name part of any group's ID,
-// but never what its library calls the group. A term's identifier query, the term's alternatives that joined words
-// with -, /, or :, such as keep tests independent from keep-tests-independent, also matches the words of the rule's
-// source-qualified ID, owner/name:rule-ID, whose rule ID starts with its group's; an empty one matches no ID.
-//
-// Rules that hold every term come first, then those that hold some, each by score. Each term scores by the best
-// place it matches: the title 1, the group or the IDs 0.8, the reading guidance or impact description 0.5, and anywhere
-// else, the body or the library's name, 0.1. A rule's score is its terms' average, scaled by the square of the share
-// of terms it holds. A title made mostly of the terms it matches adds up to 0.25, so "Verify retry limits" outranks a
-// longer title for retry. Equal scores fall back to ts_rank, then title, the library's owner and name, and rule ID, so
-// the order is stable.
-func (q *Queries) SearchRules(ctx context.Context, arg SearchRulesParams) ([]SearchRulesRow, error) {
-	rows, err := q.db.Query(ctx, searchRules,
-		arg.Skip,
-		arg.MaxResults,
-		arg.FindTerms,
-		arg.FindIdentifierTerms,
-		arg.ExcludeTerms,
-		arg.ExcludeIdentifierTerms,
-		arg.CanonicalNames,
-		arg.CanonicalIds,
-		arg.Vetted,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SearchRulesRow
-	for rows.Next() {
-		var i SearchRulesRow
-		if err := rows.Scan(
-			&i.Owner,
-			&i.Name,
-			&i.OwnerAvatarUrl,
-			&i.ID,
-			&i.Path,
-			&i.GroupPath,
-			&i.Title,
-			&i.Impact,
-			&i.WhenToRead,
-			&i.WhenToReadHtml,
-			&i.Major,
-			&i.Minor,
-			&i.Patch,
-			&i.Missing,
-			&i.Total,
-			&i.Complete,
 		); err != nil {
 			return nil, err
 		}

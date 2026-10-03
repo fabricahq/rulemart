@@ -292,7 +292,7 @@ func faqPage(c chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" rel=\"nofollow\">unvetted libraries</a>, with a warning. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" rel=\"nofollow\">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses Include unvetted libraries. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

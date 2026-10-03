@@ -46,6 +46,7 @@
   --add-line: #e6ffec; --add-word: #abf2bc; --add-ink: #116329; --del-line: #ffebe9; --del-word: #ffcecb; --del-ink: #a40e26;
   --warn-surface: #fff8e5; --warn-border: #d4a72c; --warn-ink: #6b4500;
   --info: #dbeafe; --on-info: #1e3a8a; --info-border: #bfdbfe;
+  --vetted: #2f81f7;
   color-scheme: light;
 }
 :root[data-theme='dark'] {
@@ -75,7 +76,8 @@
 
 /* Only the tokens are colors, so markup can't drift from the palette. The palette is grays, except the green and red
    that mark text a comparison adds and deletes, GitHub's diff colors, the amber of the warning on every unvetted
-   library's page, and the blue of an info toast. */
+   library's page, the blue of an info toast, and the prototype's blue of the check mark on a vetted library, the same in
+   both themes. */
 @theme {
   --color-*: initial;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -106,6 +108,7 @@
   --color-warn-surface: var(--warn-surface);
   --color-warn-border: var(--warn-border);
   --color-warn-ink: var(--warn-ink);
+  --color-vetted: var(--vetted);
 }
 
 /* The prototype's layout primitives. */
@@ -142,6 +145,8 @@
   a { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
   code, .font-mono { font-family: var(--font-mono); }
   code { font-size: .86em; }
+  /* A search's words in a result's title, the prototype's quiet highlight. */
+  mark { background: color-mix(in srgb, var(--ink) 16%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   /* A control the page focused after a click wears a quiet ring until the visitor presses a key, see pageFocus, or
      none when the star button's prompt rings it already. */
@@ -292,3 +297,13 @@
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes toast-fade-in { from { opacity: 0; } }
 @keyframes toast-out { to { opacity: 0; visibility: hidden; } }
+
+/* The filter sidebar folds into a disclosure only below the narrow breakpoint. From it up, its form shows whether the
+   disclosure is open or not, and its summary hides, where the browser can style a disclosure's content; filters.js
+   opens the disclosure in a browser that can't. */
+@media (width >= 45rem) {
+  [data-filters-disclosure]::details-content { content-visibility: visible; display: contents; }
+  @supports selector(::details-content) {
+    [data-filters-disclosure] > summary { display: none; }
+  }
+}

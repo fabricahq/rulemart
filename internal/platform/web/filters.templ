@@ -1,0 +1,185 @@
+// The pieces of a page that lists rules across libraries: the filter sidebar, the results head with its sort tabs, and
+// the empty state; and the opt-in to unvetted libraries that every list of libraries or groups carries.
+
+package web
+
+import (
+	"strconv"
+
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+)
+
+// listLayout is the prototype's search layout: the filter sidebar beside the results, or above them below the wide
+// breakpoint.
+templ listLayout() {
+	<div class="grid grid-cols-[240px_minmax(0,1fr)] gap-9 max-wide:grid-cols-[minmax(0,1fr)] max-wide:gap-6">
+		{ children... }
+	</div>
+}
+
+// filterSidebar is the list's filters, the prototype's: a form that leads to the page with the choices it holds, so
+// it works without scripts, which filters.js submits as soon as a choice changes. Without scripts it shows an Apply
+// button. Each kind of filter is a group of fields under its name. Its controls show only what the address holds:
+// autocomplete="off" keeps a browser from restoring the visitor's last choices into them after Back.
+//
+// Below the narrow breakpoint the form folds into a disclosure named Filters, which counts the choices that are on. It's
+// closed unless a filter is on, so the results start near the top of a phone's screen; retired rules and unvetted
+// libraries, which Clear filters keeps, count but don't open it, so the sort tabs don't push the results down. From the breakpoint up,
+// the stylesheet shows the form whether the disclosure is open or not and hides its summary, where the browser can;
+// filters.js opens it in a browser that can't.
+templ filterSidebar(v ruleListView) {
+	<details class="group sticky top-[84px] self-start max-wide:static" open?={ v.filtered() } data-filters-disclosure>
+		<summary class="inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-full border border-border px-3.5 text-[13.5px] font-medium text-ink hover:border-border-strong [&::-webkit-details-marker]:hidden">
+			<svg class="size-3.5 shrink-0 text-muted group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+			</svg>
+			Filters
+			if n := v.chosen(); n > 0 {
+				<span class="font-normal text-muted">· { strconv.Itoa(n) }</span>
+			}
+		</summary>
+		@filterForm(v)
+	</details>
+}
+
+// filterForm is the filter sidebar's form.
+templ filterForm(v ruleListView) {
+	<form id="filters" class="text-[13.5px] text-muted max-narrow:mt-4 max-wide:grid max-wide:grid-cols-2 max-wide:gap-x-5 max-tiny:grid-cols-1" action={ templ.SafeURL(v.path) } method="get" autocomplete="off" data-filters aria-label="Filters">
+		for _, p := range v.formParams() {
+			<input type="hidden" name={ p.name } value={ p.value }/>
+		}
+		// Each library shows its owner's avatar and its repository's name, its owner said on hover and to screen readers,
+		// in stronger type while it's ticked.
+		if len(v.libraryFilters) > 0 {
+			@filterGroup("Libraries", "") {
+				for _, l := range v.libraryFilters {
+					<label class={ filterLabel, templ.KV("font-medium text-ink", l.checked) }>
+						<input class={ filterInput } type="checkbox" name={ domain.LibrariesParam } value={ l.value } checked?={ l.checked }/>
+						@libraryAvatar(l.avatar, l.owner, avatarXS, l.vetted)
+						<span class="min-w-0 flex-1 truncate" title={ l.fullName() }><span class="sr-only">{ l.owner }/</span>{ l.name }</span>
+						<span class="text-faint tabular-nums">{ strconv.Itoa(l.rules) }</span>
+					</label>
+				}
+			}
+		}
+		if v.page.OffersKind() {
+			@filterGroup("Kind", "") {
+				@exclusiveCheckbox(domain.KindParam, "techs", "Technologies", v.choices.Filters.Kind == "techs")
+				@exclusiveCheckbox(domain.KindParam, "practices", "Practices", v.choices.Filters.Kind == "practices")
+			}
+		}
+		@filterGroup("Impact", "") {
+			@exclusiveCheckbox(domain.ImpactParam, string(domain.HighImpact), "Critical and high", v.choices.Filters.Impact == domain.HighImpact)
+			@exclusiveCheckbox(domain.ImpactParam, string(domain.LowerImpact), "Medium and lower", v.choices.Filters.Impact == domain.LowerImpact)
+		}
+		@filterGroup("Stars", "") {
+			<label class={ filterLabel }>
+				<input class={ filterInput } type="radio" name={ domain.StarsParam } value="" checked?={ v.minStars() == "" }/> Any
+			</label>
+			for _, n := range domain.StarThresholds {
+				<label class={ filterLabel }>
+					<input class={ filterInput } type="radio" name={ domain.StarsParam } value={ strconv.Itoa(n) } checked?={ v.minStars() == strconv.Itoa(n) }/> { strconv.Itoa(n) }+
+				</label>
+			}
+		}
+		if v.offersRetired() {
+			@filterGroup("Retired", "") {
+				<label class={ filterLabel }>
+					<input class={ filterInput } type="checkbox" name={ domain.RetiredParam } value="1" checked?={ v.choices.Retired }/> Show retired rules
+				</label>
+			}
+		}
+		// Its one long label takes the whole width where the sidebar has two columns.
+		@filterGroup("Unvetted", "max-wide:col-span-full") {
+			<label class={ filterLabel }>
+				<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ v.choices.Unvetted }/> Include unvetted libraries
+			</label>
+			<p class="mt-0.5 pl-[21px] text-[12px] leading-[1.45] text-faint">
+				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(aboutHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
+			</p>
+		}
+		<div class="flex flex-wrap items-center gap-2 max-wide:col-span-full">
+			<noscript>
+				<button class={ chipStyle, "cursor-pointer" } type="submit">Apply filters</button>
+			</noscript>
+			if v.filtered() {
+				<a class={ chipStyle } href={ templ.SafeURL(v.clearHref()) }>Clear filters</a>
+			}
+		</div>
+	</form>
+}
+
+// filterLabel is a filter field's label, holding its box and its text.
+const filterLabel = "my-[5px] flex cursor-pointer items-center gap-2"
+
+// filterInput is a filter's checkbox or radio button, drawn in ink as the prototype's are.
+const filterInput = "size-[13px] flex-none accent-ink"
+
+// chipStyle is the prototype's chip that does something: a quiet, rounded control.
+const chipStyle = "inline-flex items-center gap-1.5 rounded-full border border-border bg-transparent px-[11px] py-0.5 text-[12.5px] whitespace-nowrap text-muted no-underline hover:border-border-strong hover:text-ink"
+
+// filterGroup is one kind of filter in the sidebar, under its name; class places it.
+templ filterGroup(name, class string) {
+	<fieldset class={ "mb-5 min-w-0", class }>
+		<legend class="mb-1.5 text-[11px] font-medium tracking-[.1em] text-faint uppercase">{ name }</legend>
+		{ children... }
+	</fieldset>
+}
+
+// exclusiveCheckbox is one of a filter's two checkboxes, of which one at most is on: filters.js turns the other off
+// when this one turns on, and without scripts, both on keeps every rule.
+templ exclusiveCheckbox(name, value, text string, checked bool) {
+	<label class={ filterLabel }>
+		<input class={ filterInput } type="checkbox" name={ name } value={ value } checked?={ checked } data-exclusive/> { text }
+	</label>
+}
+
+// resultsHead heads a list's results: how many rules pass its filters, from how many libraries, and the sort tabs. An
+// empty list has none, since its empty state says so.
+templ resultsHead(v ruleListView, more string) {
+	if v.total > 0 {
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<p class="text-[13px] text-muted">
+				{ plural(v.total, "rule", "rules") } in { plural(v.libraries, "library", "libraries") }
+				if more != "" {
+					<span>· { more }</span>
+				}
+			</p>
+			if tabs := v.sortTabs(); len(tabs) > 1 {
+				<nav class="inline-flex gap-0.5 rounded-full border border-border p-0.5 text-[12.5px]" aria-label="Sort">
+					for _, t := range tabs {
+						<a
+							class={ "rounded-full px-[11px] py-[3px] whitespace-nowrap no-underline", templ.KV("bg-surface-header text-ink", t.on), templ.KV("text-muted hover:text-ink", !t.on) }
+							href={ templ.SafeURL(t.href) }
+							if t.on {
+								aria-current="true"
+							}
+						>{ t.name }</a>
+					}
+				</nav>
+			}
+		</div>
+	}
+}
+
+// noFilteredRules says no rule passes the list's filters, and leads to the list without them.
+templ noFilteredRules(v ruleListView) {
+	<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+		No rules match these filters.{ " " }
+		<a class={ chipStyle } href={ templ.SafeURL(v.clearHref()) }>Clear filters</a>
+	</div>
+}
+
+// unvettedOptIn is the control that includes unvetted libraries in a list of libraries or groups, at path: a form
+// with one checkbox, which filters.js submits as soon as it changes, and which shows an Apply button without scripts.
+// Like the sidebar, its checkbox shows only what the address holds.
+templ unvettedOptIn(path string, unvetted bool) {
+	<form class="flex flex-wrap items-center gap-3 text-[13.5px] text-muted" action={ templ.SafeURL(path) } method="get" autocomplete="off" data-filters>
+		<label class={ filterLabel }>
+			<input class={ filterInput } type="checkbox" name={ domain.UnvettedParam } value="1" checked?={ unvetted }/> Include unvetted libraries
+		</label>
+		<noscript>
+			<button class={ chipStyle, "cursor-pointer" } type="submit">Apply</button>
+		</noscript>
+	</form>
+}

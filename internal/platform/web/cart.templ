@@ -68,14 +68,6 @@ templ cartOffer(c cartControl) {
 	}
 }
 
-// groupOffer is the button a group page's notice holds, or nil when it offers nothing.
-func groupOffer(g groupPageView) templ.Component {
-	if g.offer == nil {
-		return nil
-	}
-	return cartOffer(*g.offer)
-}
-
 // heldText is what a cart control reads for an item the cart holds, or imports with another item.
 func heldText(held heldState) string {
 	switch held {
@@ -257,11 +249,6 @@ templ cartLibrary(lib cartLibraryView) {
 			}
 		</ul>
 	</section>
-}
-
-// unvettedBadge marks a library Rulemart doesn't vet, in the one amber the palette has.
-templ unvettedBadge() {
-	<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
 }
 
 // cartItemRow is one item of the cart: its group's tile, or a rule's dashed one, what it is, its ID, how many rules a

@@ -1,4 +1,4 @@
-// The search page: a search field, and the vetted libraries' rules that match.
+// The search page: the rules that match a query, or every rule, under their groups, beside the filter sidebar.
 
 package web
 
@@ -8,80 +8,119 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
-// searchPage shows the search field and, once a visitor has searched, what matched, best first.
+// searchPage shows the rules a query matches, or every rule without one, under their groups, beside the filters, as
+// the prototype's search page does, and the retired rules after every current one, under a heading of their own. A phone's header has no search field, so the page holds its own there.
 templ searchPage(c chrome, v searchView) {
-	@layout(c, head{title: v.title(), noindex: true, searchPage: true}) {
+	@layout(c, head{title: v.title(), noindex: true, searchPage: true, query: v.query, filters: true}) {
 		<div class="page wrap">
-			<h1 class="title-xl">Search</h1>
-			<p class="mt-1.5 text-muted">Find rules in every vetted library by their title, text, or group.</p>
-			<div class="mt-[22px] max-w-[44rem]">
-				@searchForm("search", v.query, !v.searched())
-				<p class="mt-2 px-4 text-[12.5px] text-faint">
-					Search for{ " " }
-					@example(`"retry limits"`)
-					{ " " }to find the phrase,{ " " }
-					@example("testing -react")
-					{ " " }to leave out a word, or{ " " }
-					@example("testing or errors")
-					{ " " }to find either word.
-				</p>
+			@label("") {
+				Search
+			}
+			<h1 class="title-xl mt-2 mb-[22px] [overflow-wrap:anywhere]">{ v.heading() }</h1>
+			<div class="mb-6 narrow:hidden">
+				@searchForm("search", v.query, false)
 			</div>
-			if v.searched() {
-				<div class="mt-[30px] max-w-[52rem]">
-					if v.pageMissing() {
-						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							<p class="font-medium text-ink">The results for “{ v.query }” don't reach this page.</p>
-							<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
-						</div>
-					} else if v.tooLong {
-						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
-						</div>
-					} else if v.noWords {
-						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							<p class="font-medium text-ink">Nothing to search for in “{ v.query }”.</p>
-							<p class="mt-1">Search skips common words, such as “the”, “and”, and “of”, and words left out with a hyphen. Add a word to look for.</p>
-						</div>
-					} else if len(v.results) == 0 {
-						<div class="rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
-							<p class="font-medium text-ink">No rules match “{ v.query }”.</p>
-							<p class="mt-1">Try other words, or <a href={ templ.SafeURL(techsKind.href()) }>browse rules by group</a>.</p>
-						</div>
-					} else {
-						<h2 class="mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">
-							@searchSummary(v)
-						</h2>
-						@searchResults(v.completeResults())
-						if partial := v.partialResults(); len(partial) > 0 {
-							if v.complete > 0 {
-								<h3 class="mt-7 mb-3 border-b border-border pb-[11px] text-[14px] font-normal text-muted">Rules that match some of your words</h3>
+			if v.tooLong {
+				@searchMessage() {
+					Search holds up to { strconv.Itoa(domain.MaxSearchQueryLength) } characters. Shorten yours and search again.
+				}
+			} else if v.noWords {
+				@searchMessage() {
+					<p class="font-medium text-ink">Nothing to search for in “{ v.query }”.</p>
+					<p class="mt-1">Search skips common words, such as “the”, “and”, and “of”, and words left out with a hyphen. Add a word to look for.</p>
+				}
+			} else {
+				@listLayout() {
+					@filterSidebar(v.list)
+					<section aria-label="Results">
+						@resultsHead(v.list, searchMore(v))
+						if v.pageMissing() {
+							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+								<p class="font-medium text-ink">The results don't reach this page.</p>
+								<p class="mt-1"><a href={ templ.SafeURL(v.pageHref(1)) }>Go to the first page</a>.</p>
+							</div>
+						} else if v.list.filteredOut() {
+							@noFilteredRules(v.list)
+						} else if v.empty() {
+							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
+								No rules match. Try a broader word, or <a href={ templ.SafeURL(feedbackHref) }>tell us what you were looking for</a>.
+							</div>
+						} else {
+							for _, g := range v.groupsIn(completeTier) {
+								@resultGroup(g)
 							}
-							@searchResults(partial)
+							if partial := v.groupsIn(partialTier); len(partial) > 0 {
+								if v.list.complete > 0 {
+									@tierHeading() {
+										Rules that match some of your words
+									}
+								}
+								for _, g := range partial {
+									@resultGroup(g)
+								}
+							}
+							if retired := v.groupsIn(retiredTier); len(retired) > 0 {
+								@tierHeading() {
+									Retired rules
+								}
+								for _, g := range retired {
+									@resultGroup(g)
+								}
+							}
+							@searchPages(v)
 						}
-						@searchPages(v)
-					}
-				</div>
+					</section>
+				}
 			}
 		</div>
 	}
 }
 
-// example is a search a hint shows, as code, kept on one line with its quotes.
-templ example(query string) {
-	<code class="rounded-[4px] border border-border-subtle bg-surface px-1 whitespace-nowrap text-muted">{ query }</code>
+// searchMore is what the results head adds about a search's matches: how many hold every word, when some don't.
+func searchMore(v searchView) string {
+	if v.query == "" || v.list.complete == v.list.total {
+		return ""
+	}
+	return plural(v.list.complete, "matches", "match") + " every word"
 }
 
-// searchSummary says how many rules matched the query, and how many of them hold every word of it.
-templ searchSummary(v searchView) {
-	if v.complete == v.total {
-		{ plural(v.total, "rule matches", "rules match") } <span class="text-ink">“{ v.query }”</span>
-	} else if v.complete == 0 {
-		No rule matches every word of <span class="text-ink">“{ v.query }”</span>; { plural(v.total, "rule matches", "rules match") } some of them
-	} else {
-		{ plural(v.complete, "rule matches", "rules match") } every word of <span class="text-ink">“{ v.query }”</span>, and { strconv.Itoa(v.total - v.complete) } more match some of them
-	}
-	if v.pages > 1 {
-		<span>· Page { strconv.Itoa(v.page) } of { strconv.Itoa(v.pages) }</span>
+// tierHeading heads the results of a tier after the first: the current rules that lack some of the query's words, or
+// the retired rules.
+templ tierHeading() {
+	<h2 class="mt-8 mb-1 border-b border-border pb-[11px] text-[14px] font-normal text-muted">{ children... }</h2>
+}
+
+// searchMessage is a search's outcome when it shows no results: a query too long to run, or one with no word to find.
+templ searchMessage() {
+	<div class="max-w-[52rem] rounded-card border border-dashed border-border-strong p-[22px] text-[14px] text-muted">
+		{ children... }
+	</div>
+}
+
+// resultGroup is a group's rules on a page of results, under the prototype's group heading: its icon, its name and
+// ID, or its ID flagged as not canonical, and how many of its rules match, leading to the group's page.
+templ resultGroup(g resultGroupView) {
+	<h2 class="mt-[22px] mb-2.5 first-of-type:mt-1">
+		<a class="group flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[14px] leading-5 font-semibold text-ink no-underline" href={ templ.SafeURL(g.href) }>
+			<span class="self-center">
+				@groupTile(g.label, g.icon, tileXS)
+			</span>
+			if g.label.canonical {
+				<span class="underline-offset-4 group-hover:underline">{ g.label.name }</span>
+				<span class="font-mono text-[12px] font-normal text-faint">{ g.label.id }</span>
+			} else {
+				<span class="font-mono text-[12px] underline-offset-4 group-hover:underline">{ g.label.id }</span>
+				<span class="self-center">
+					@notCanonical(flagSM)
+				</span>
+			}
+			<span class="self-center rounded-full bg-surface-header px-2 text-[11.5px] leading-[18px] font-medium text-muted tabular-nums">{ strconv.Itoa(g.rules) }</span>
+		</a>
+	</h2>
+	@ruleRows() {
+		for _, r := range g.rows {
+			@ruleRow(r)
+		}
 	}
 }
 
@@ -101,18 +140,5 @@ templ searchPages(v searchView) {
 				<span></span>
 			}
 		</nav>
-	}
-}
-
-// searchResults lists rules that matched, in order.
-templ searchResults(results []ruleResultView) {
-	if len(results) > 0 {
-		<ol class="grid gap-2.5">
-			for _, r := range results {
-				<li>
-					@ruleResult(r)
-				</li>
-			}
-		</ol>
 	}
 }

@@ -41,16 +41,17 @@ func vettedKeys(vetted []domain.LibraryKey) []string {
 	return keys
 }
 
-// Libraries returns the vetted libraries, ordered by owner and name without regard to case.
-func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
+// Libraries returns the vetted libraries, and with unvetted, the ones listings name too, ordered by owner and name
+// without regard to case.
+func (s *Store) Libraries(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryCard, error) {
 	var cards []views.LibraryCard
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		cards, err = libraries(ctx, q, vetted)
+		cards, err = libraries(ctx, q, vetted, unvetted)
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("load libraries: %v", err)
+		return nil, fmt.Errorf("load libraries unvetted=%t: %v", unvetted, err)
 	}
 	return cards, nil
 }
@@ -68,7 +69,7 @@ func (s *Store) OwnerLibraries(ctx context.Context, vetted []domain.LibraryKey, 
 		for i, row := range rows {
 			cards[i] = views.LibraryCard{
 				Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
-				Rules: int(row.RuleCount),
+				Rules: int(row.RuleCount), Vetted: true,
 			}
 		}
 		return nil
@@ -110,10 +111,10 @@ func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]vie
 	var groups []views.LibraryGroup
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		var err error
-		if cards, err = libraries(ctx, q, vetted); err != nil {
+		if cards, err = libraries(ctx, q, vetted, false); err != nil {
 			return err
 		}
-		groups, err = libraryGroups(ctx, q, vetted)
+		groups, err = libraryGroups(ctx, q, vetted, false)
 		return err
 	})
 	if err != nil {
@@ -122,9 +123,9 @@ func (s *Store) HomePage(ctx context.Context, vetted []domain.LibraryKey) ([]vie
 	return cards, groups, nil
 }
 
-// libraries returns the vetted libraries, ordered by owner and name.
-func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey) ([]views.LibraryCard, error) {
-	rows, err := q.ListLibraries(ctx, vettedKeys(vetted))
+// libraries returns the vetted libraries, and with unvetted, the ones listings name too, ordered by owner and name.
+func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryCard, error) {
+	rows, err := q.ListLibraries(ctx, catalogdb.ListLibrariesParams{Vetted: vettedKeys(vetted), IncludeUnvetted: unvetted})
 	if err != nil {
 		return nil, fmt.Errorf("list libraries: %v", err)
 	}
@@ -132,10 +133,41 @@ func libraries(ctx context.Context, q *catalogdb.Queries, vetted []domain.Librar
 	for i, row := range rows {
 		cards[i] = views.LibraryCard{
 			Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
-			Rules: int(row.RuleCount),
+			Rules: int(row.RuleCount), Vetted: row.Vetted,
 		}
 	}
 	return cards, nil
+}
+
+// Groups returns each group that holds current rules in a vetted library, and with unvetted, in a library a listing
+// names too, once for each library that holds it, in path order and then the library's owner and name.
+func (s *Store) Groups(ctx context.Context, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
+	var groups []views.LibraryGroup
+	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		var err error
+		groups, err = libraryGroups(ctx, q, vetted, unvetted)
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load groups unvetted=%t: %v", unvetted, err)
+	}
+	return groups, nil
+}
+
+// libraryGroups returns each group that holds current rules in a library, as Groups does.
+func libraryGroups(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
+	rows, err := q.ListLibraryGroups(ctx, catalogdb.ListLibraryGroupsParams{Vetted: vettedKeys(vetted), IncludeUnvetted: unvetted})
+	if err != nil {
+		return nil, fmt.Errorf("list groups: %v", err)
+	}
+	groups := make([]views.LibraryGroup, len(rows))
+	for i, row := range rows {
+		groups[i] = views.LibraryGroup{
+			Path: row.Path, Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted,
+			Rules: int(row.RuleCount),
+		}
+	}
+	return groups, nil
 }
 
 // LibraryPage returns the vetted library owner/name, matched without regard to case, with its groups, current rules,
@@ -481,4 +513,8 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 
 func version(major, minor, patch int32) coderules.RuleVersion {
 	return coderules.RuleVersion{Major: int(major), Minor: int(minor), Patch: int(patch)}
+}
+
+func libraryRef(owner, name, avatarURL string) views.LibraryRef {
+	return views.LibraryRef{Owner: owner, Name: name, OwnerAvatarURL: avatarURL}
 }

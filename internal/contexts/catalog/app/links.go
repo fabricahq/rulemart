@@ -67,6 +67,19 @@ func (l ruleLinks) renamed(path string) bool {
 	return ok && replacement.FirstRelease == old.RetiredIn && old.LastTitle != "" && replacement.FirstTitle == old.LastTitle
 }
 
+// renamedThroughout reports whether the rule at path was renamed, and each rule that replaced it since was renamed in
+// turn, so the last of its replacements is the same rule under a new ID.
+func (l ruleLinks) renamedThroughout(path string) bool {
+	chain := l.replacements(path)
+	for _, step := range chain {
+		if !l.renamed(path) {
+			return false
+		}
+		path = step.Path
+	}
+	return len(chain) > 0
+}
+
 // replaced returns the rules whose retirement named the rule at path as their replacement, in path order: the one it
 // renamed, if any, and the others.
 func (l ruleLinks) replaced(path string) (renamedFrom *views.RuleRef, replaces []views.RuleRef) {

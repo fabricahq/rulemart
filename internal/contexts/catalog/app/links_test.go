@@ -217,3 +217,56 @@ func TestReplacementsFollowABoundedChain(t *testing.T) {
 		t.Fatalf("followed %d replacements, %v; want %d", len(page.Rule.Retirement.Replacements), err, domain.MaxReplacements)
 	}
 }
+
+// A retired rule in a list of rules names the last of its replacements, as its page follows them, and says it was
+// renamed only when every step of the way renamed it; a current rule names none.
+func TestListedRetiredRulesNameTheirLastReplacement(t *testing.T) {
+	links := linksOf(replacedTwice)
+	// a was renamed to b, which was renamed to c; d was renamed to e, which was replaced by f.
+	renames := []views.RuleLink{
+		{Path: "techs/go/a", Title: "A", RetiredIn: 2, ReplacedBy: "techs/go/b", FirstRelease: 1, FirstTitle: "A", LastTitle: "A"},
+		{Path: "techs/go/b", Title: "A", RetiredIn: 3, ReplacedBy: "techs/go/c", FirstRelease: 2, FirstTitle: "A", LastTitle: "A"},
+		{Path: "techs/go/c", Title: "A", FirstRelease: 3, FirstTitle: "A", LastTitle: "A"},
+		{Path: "techs/go/d", Title: "D", RetiredIn: 2, ReplacedBy: "techs/go/e", FirstRelease: 1, FirstTitle: "D", LastTitle: "D"},
+		{Path: "techs/go/e", Title: "D", RetiredIn: 3, ReplacedBy: "techs/go/f", FirstRelease: 2, FirstTitle: "D", LastTitle: "D"},
+		{Path: "techs/go/f", Title: "F", FirstRelease: 3, FirstTitle: "F", LastTitle: "F"},
+	}
+	row := func(path string, links []views.RuleLink) views.RuleRow {
+		return views.RuleRow{Rule: views.RuleCard{Path: path, Group: path[:strings.LastIndex(path, "/")]}, Retired: links != nil, Links: links}
+	}
+	r := &reads{ruleResults: views.RuleResults{Rows: []views.RuleRow{
+		row("practices/testing/check-retry-backoff", links),
+		row("techs/go/name-tests", links),
+		row("techs/go/a", renames),
+		row("techs/go/d", renames),
+		row("practices/testing/verify-retry-limits", nil),
+	}}}
+
+	got, err := app.Pages{Store: r, Groups: canonicalList(t)}.SearchRules(context.Background(), domain.ParseSearchQuery("retry"), domain.ListChoices{}, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, want := range []struct {
+		replacement string
+		renamed     bool
+	}{
+		{"practices/testing/verify-retry-limits", false},
+		{"techs/go/name-tests-by-behavior", true},
+		{"techs/go/c", true},
+		{"techs/go/f", false},
+		{"", false},
+	} {
+		r := got.Rows[i]
+		path := ""
+		if r.Replacement != nil {
+			path = r.Replacement.Path
+		}
+		if path != want.replacement || r.Renamed != want.renamed {
+			t.Errorf("%s: got replacement %q, renamed %t; want %q, %t", r.Rule.Path, path, r.Renamed, want.replacement, want.renamed)
+		}
+	}
+	if got.Rows[0].Replacement.Title != "Verify retry limits" {
+		t.Errorf("got the replacement titled %q", got.Rows[0].Replacement.Title)
+	}
+}

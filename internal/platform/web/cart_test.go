@@ -144,10 +144,6 @@ func newCartSite(t *testing.T) cartSite {
 func newCartSiteWith(t *testing.T, adjust func(*web.Options)) cartSite {
 	t.Helper()
 	c := unvettedCatalog()
-	// Tests add group pages through the fake's catalog, whose maps are the site's.
-	if c.groups == nil {
-		c.groups = map[string]views.GroupPage{}
-	}
 	cart := newFakeCart(c)
 	accounts := newFakeAccounts()
 	site := accountsSite{accounts: accounts, gitHub: &fakeGitHub{identity: octocat}, logs: &bytes.Buffer{}}
@@ -536,26 +532,12 @@ func TestTheHeaderCountsAFullCart(t *testing.T) {
 	}
 }
 
-// A canonical group's page across libraries offers each library's group, and a library's All rules tab each group.
-func TestGroupPagesAndAllRulesOfferGroups(t *testing.T) {
+// A library's All rules tab offers each group. A group's page across libraries offers none until slice R5.
+func TestAllRulesOfferGroups(t *testing.T) {
 	site := newCartSite(t)
-	site.cart.catalog.groups["techs/go"] = views.GroupPage{Path: "techs/go", Canonical: *goGroup, Libraries: []views.GroupLibrary{
-		{Library: views.LibraryRef{Owner: "example", Name: "rules"}, Rules: []views.RuleCard{{Path: "techs/go/return-errors", Group: "techs/go", Title: "Return errors with context"}}},
-	}}
-
-	page := body(t, site.signedInGet(t, "/g/techs/go"))
-	action := cartPath("/account/cart", clone(goGroupItem), "/g/techs/go")
-	if got := formActions(t, page); !slices.Contains(got, action) {
-		t.Errorf("the group's page posts to %q, want %q", got, action)
-	}
-	if !strings.Contains(page, `aria-label="Add this group: the group Go of example/rules"`) {
-		t.Error("the group's control doesn't name its library")
-	}
-	resp := site.signedInPost(t, action)
-	assertShows(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/g/techs/go", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}})),
-		"Added the group Go of example/rules to your cart.")
 
 	rules := body(t, site.signedInGet(t, library+"?tab=rules"))
+
 	testing := cartPath("/account/cart", url.Values{"library": {"example/rules"}, "group": {"practices/testing"}}, library+"?tab=rules")
 	if got := formActions(t, rules); !slices.Contains(got, testing) {
 		t.Errorf("the All rules tab posts to %q, want %q", got, testing)
@@ -614,7 +596,7 @@ func TestAddingFromAnUnvettedLibraryNeedsConfirming(t *testing.T) {
 		t.Fatalf("the confirmation answered %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page := body(t, resp)
-	assertShows(t, page, "This library has not been vetted. Tread carefully.", "Add the rule Return errors with context?",
+	assertShows(t, page, "This library has not been vetted. Be sure to review these rules carefully.", "Add the rule Return errors with context?",
 		"techs/go/return-errors", "Add to cart anyway")
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)

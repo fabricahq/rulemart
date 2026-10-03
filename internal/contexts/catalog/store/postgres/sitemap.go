@@ -12,11 +12,25 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// Sitemap returns the vetted libraries, ordered by owner and name, each with its current rules in ID order, at most
-// maxRules in all, and the IDs of the groups that hold current rules in them, from one state of the catalog.
-func (s *Store) Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRules int) (views.Sitemap, error) {
+// Sitemap returns the vetted libraries, ordered by owner and name, each with its current rules in ID order, and the IDs
+// of the groups that hold current rules in them, in ID order, at most maxEntries groups and rules in all, groups
+// first, from one state of the catalog.
+func (s *Store) Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxEntries int) (views.Sitemap, error) {
 	var sitemap views.Sitemap
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
+		groups, err := libraryGroups(ctx, q, vetted, false)
+		if err != nil {
+			return err
+		}
+		for _, g := range groups {
+			sitemap.Groups = append(sitemap.Groups, g.Path)
+		}
+		slices.Sort(sitemap.Groups)
+		sitemap.Groups = slices.Compact(sitemap.Groups)
+		if len(sitemap.Groups) > maxEntries {
+			sitemap.Groups, sitemap.Truncated = sitemap.Groups[:maxEntries], true
+		}
+		maxRules := maxEntries - len(sitemap.Groups)
 		keys := vettedKeys(vetted)
 		libraries, err := q.ListSitemapLibraries(ctx, keys)
 		if err != nil {
@@ -39,15 +53,6 @@ func (s *Store) Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxRule
 				Owner: lib.Owner, Name: lib.Name, Updated: lib.TaggedAt.Time.UTC(), Rules: byLibrary[lib.ID],
 			})
 		}
-		groups, err := libraryGroups(ctx, q, vetted)
-		if err != nil {
-			return err
-		}
-		for _, g := range groups {
-			sitemap.Groups = append(sitemap.Groups, g.Path)
-		}
-		slices.Sort(sitemap.Groups)
-		sitemap.Groups = slices.Compact(sitemap.Groups)
 		return nil
 	})
 	if err != nil {

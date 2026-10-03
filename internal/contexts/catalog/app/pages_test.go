@@ -20,19 +20,26 @@ import (
 type reads struct {
 	store.Reader
 	// libraries are the vetted libraries, which OwnerLibraries answers from.
-	libraries  []views.LibraryCard
-	groups     []views.LibraryGroup
-	groupRules []views.GroupLibrary
-	results    views.SearchResults
-	searched   []domain.SearchQuery
-	// pagesRead records each search's limit and skip.
-	pagesRead   [][2]int
-	searchedFor []domain.CanonicalGroup
-	ruleReads   []string
+	libraries []views.LibraryCard
+	groups    []views.LibraryGroup
+	// ruleResults answers Rules, which records each list it reads, with its limit and skip, and the groups it matches
+	// by.
+	ruleResults views.RuleResults
+	lists       []domain.RuleList
+	listPages   [][2]int
+	listGroups  []domain.CanonicalGroup
+	// unvetted records whether each read of the groups asked for unvetted libraries.
+	unvetted []bool
 }
 
-func (r *reads) Groups(context.Context, []domain.LibraryKey) ([]views.LibraryGroup, error) {
+func (r *reads) Groups(_ context.Context, _ []domain.LibraryKey, unvetted bool) ([]views.LibraryGroup, error) {
+	r.unvetted = append(r.unvetted, unvetted)
 	return r.groups, nil
+}
+
+func (r *reads) Rules(_ context.Context, _ []domain.LibraryKey, groups []domain.CanonicalGroup, list domain.RuleList, limit, skip int) (views.RuleResults, error) {
+	r.lists, r.listPages, r.listGroups = append(r.lists, list), append(r.listPages, [2]int{limit, skip}), groups
+	return r.ruleResults, nil
 }
 
 func (r *reads) OwnerLibraries(_ context.Context, _ []domain.LibraryKey, login string) ([]views.LibraryCard, error) {
@@ -47,17 +54,6 @@ func (r *reads) OwnerLibraries(_ context.Context, _ []domain.LibraryKey, login s
 
 func (r *reads) HomePage(context.Context, []domain.LibraryKey) ([]views.LibraryCard, []views.LibraryGroup, error) {
 	return []views.LibraryCard{{Owner: "acme", Name: "backend", Rules: 3}}, r.groups, nil
-}
-
-func (r *reads) GroupRules(_ context.Context, _ []domain.LibraryKey, path string) ([]views.GroupLibrary, error) {
-	r.ruleReads = append(r.ruleReads, path)
-	return r.groupRules, nil
-}
-
-func (r *reads) Search(_ context.Context, _ []domain.LibraryKey, groups []domain.CanonicalGroup, query domain.SearchQuery, limit, skip int) (views.SearchResults, error) {
-	r.searched, r.searchedFor = append(r.searched, query), groups
-	r.pagesRead = append(r.pagesRead, [2]int{limit, skip})
-	return r.results, nil
 }
 
 // canonicalList is a canonical group list of Go, Testing, and Accessibility, of which only Go has an icon.
@@ -80,38 +76,40 @@ var (
 	goView  = &views.CanonicalGroup{Name: "Go", Description: "The Go language.", Icon: views.GroupIcon{File: "devicon/go-original.svg"}}
 )
 
-// A canonical group is one group however many libraries hold it, so the index combines them; any other group stands
-// alone, so each library's is listed apart. Canonical groups come first, by name, then the others by ID.
-func TestGroupIndexCombinesCanonicalGroupsAndKeepsOthersApart(t *testing.T) {
+// A group is one group however many libraries hold it, so the index combines them under its ID, vetted when any of
+// them is. Canonical groups come first, by name, then the others by ID.
+func TestGroupIndexCombinesEachGroupsLibraries(t *testing.T) {
 	r := &reads{groups: []views.LibraryGroup{
-		{Path: "practices/testing", Library: acmeRef, Rules: 2},
+		{Path: "practices/testing", Library: acmeRef, Vetted: true, Rules: 2},
 		{Path: "practices/zz-review", Library: betaRef, Rules: 1},
-		{Path: "techs/go", Library: acmeRef, Rules: 1},
+		{Path: "techs/go", Library: acmeRef, Vetted: true, Rules: 1},
 		{Path: "techs/go", Library: betaRef, Rules: 3},
-		{Path: "techs/golang", Library: acmeRef, Rules: 1},
+		{Path: "techs/golang", Library: acmeRef, Vetted: true, Rules: 1},
 		{Path: "techs/golang", Library: betaRef, Rules: 2},
 	}}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 
-	got, err := pages.GroupIndex(context.Background())
+	got, err := pages.GroupIndex(context.Background(), true)
 
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := views.GroupIndex{
 		Techs: []views.GroupSummary{
-			{Path: "techs/go", Canonical: goView, Rules: 4, Libraries: []views.LibraryRef{acmeRef, betaRef}},
-			{Path: "techs/golang", Rules: 1, Libraries: []views.LibraryRef{acmeRef}},
-			{Path: "techs/golang", Rules: 2, Libraries: []views.LibraryRef{betaRef}},
+			{Path: "techs/go", Canonical: goView, Rules: 4, Libraries: []views.LibraryRef{acmeRef, betaRef}, Vetted: true},
+			{Path: "techs/golang", Rules: 3, Libraries: []views.LibraryRef{acmeRef, betaRef}, Vetted: true},
 		},
 		Practices: []views.GroupSummary{
 			{Path: "practices/testing", Canonical: &views.CanonicalGroup{Name: "Testing", Description: "What to test."}, Rules: 2,
-				Libraries: []views.LibraryRef{acmeRef}},
+				Libraries: []views.LibraryRef{acmeRef}, Vetted: true},
 			{Path: "practices/zz-review", Rules: 1, Libraries: []views.LibraryRef{betaRef}},
 		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if !slices.Equal(r.unvetted, []bool{true}) {
+		t.Errorf("read groups with unvetted %v, want true", r.unvetted)
 	}
 }
 
@@ -128,7 +126,7 @@ func TestHomePageShowsTheLibrariesAndTheGroupIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index, err := pages.GroupIndex(context.Background())
+	index, err := pages.GroupIndex(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +151,7 @@ func TestGroupIndexOrdersCanonicalGroupsByNameWithoutRegardToCase(t *testing.T) 
 		{Path: "techs/c-lang", Library: acmeRef, Rules: 1},
 	}}
 
-	got, err := app.Pages{Store: r, Groups: groups}.GroupIndex(context.Background())
+	got, err := app.Pages{Store: r, Groups: groups}.GroupIndex(context.Background(), false)
 
 	if err != nil {
 		t.Fatal(err)
@@ -167,122 +165,100 @@ func TestGroupIndexOrdersCanonicalGroupsByNameWithoutRegardToCase(t *testing.T) 
 	}
 }
 
-func TestGroupPageReadsACanonicalGroupsRulesInEveryLibrary(t *testing.T) {
-	r := &reads{groupRules: []views.GroupLibrary{{Library: acmeRef, Rules: []views.RuleCard{{Path: "techs/go/return-errors"}}}}}
+// A group's page lists a canonical group by the list's spelling of its ID, in the choices' order, and names each
+// rule's group as pages do.
+func TestGroupPageListsACanonicalGroupByTheListsSpelling(t *testing.T) {
+	r := &reads{ruleResults: views.RuleResults{Unfiltered: 1, Rows: []views.RuleRow{
+		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go"}},
+	}}}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
+	choices := domain.ListChoices{Unvetted: true, Filters: domain.RuleFilters{MinStars: 10}, Order: domain.Newest}
 
-	got, err := pages.GroupPage(context.Background(), "techs/go")
+	got, err := pages.GroupPage(context.Background(), "Techs/GO", choices)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := views.GroupPage{Path: "techs/go", Canonical: *goView, Libraries: r.groupRules}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %+v, want %+v", got, want)
+	if got.Path != "techs/go" || !reflect.DeepEqual(got.Canonical, goView) || !reflect.DeepEqual(got.Rules.Rows[0].CanonicalGroup, goView) {
+		t.Errorf("got %+v, want techs/go, canonical, its row named Go", got)
+	}
+	want := []domain.RuleList{{Group: "techs/go", ListChoices: choices}}
+	if !reflect.DeepEqual(r.lists, want) || !slices.Equal(r.listPages, [][2]int{{app.MaxGroupRules, 0}}) {
+		t.Errorf("read %+v, %v; want %+v, the first %d", r.lists, r.listPages, want, app.MaxGroupRules)
 	}
 }
 
-// An address may spell a group's ID in any case; the page names the list's spelling, so the site can redirect to it.
-func TestGroupPageMatchesTheIDWithoutRegardToCase(t *testing.T) {
-	r := &reads{}
-	pages := app.Pages{Store: r, Groups: canonicalList(t)}
+// A canonical group no library holds yet has its page, which says so; any other group has a page only while a
+// library holds it, current or retired, so a made-up ID has none.
+func TestGroupHasAPageWhenCanonicalOrHeld(t *testing.T) {
+	empty := app.Pages{Store: &reads{}, Groups: canonicalList(t)}
+	held := app.Pages{Store: &reads{ruleResults: views.RuleResults{Unfiltered: 1, Rows: []views.RuleRow{
+		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/golang/pass-context", Group: "techs/golang"}},
+	}}}, Groups: canonicalList(t)}
 
-	got, err := pages.GroupPage(context.Background(), "Techs/GO")
-
-	if err != nil || got.Path != "techs/go" || got.Canonical.Name != "Go" || !slices.Equal(r.ruleReads, []string{"techs/go"}) {
-		t.Fatalf("got %+v, %v; want techs/go", got, err)
+	if got, err := empty.GroupPage(context.Background(), "practices/accessibility", domain.ListChoices{}); err != nil || got.Canonical.Name != "Accessibility" {
+		t.Errorf("a canonical group no library holds: got %+v, %v", got, err)
+	}
+	if _, err := empty.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}); !errors.Is(err, app.ErrNotFound) {
+		t.Errorf("a group no library holds: got %v, want app.ErrNotFound", err)
+	}
+	got, err := held.GroupPage(context.Background(), "techs/golang", domain.ListChoices{})
+	if err != nil || got.Path != "techs/golang" || got.Canonical != nil || got.Rules.Rows[0].CanonicalGroup != nil {
+		t.Errorf("a held group that isn't canonical: got %+v, %v", got, err)
+	}
+	// Its retired rules are hidden until asked for, but the page offers them.
+	retired := app.Pages{Store: &reads{ruleResults: views.RuleResults{RetiredRules: 1}}, Groups: canonicalList(t)}
+	if got, err := retired.GroupPage(context.Background(), "techs/golang", domain.ListChoices{}); err != nil || got.Rules.RetiredRules != 1 {
+		t.Errorf("a group of only retired rules: got %+v, %v", got, err)
 	}
 }
 
-// A canonical group no vetted library holds yet still has its page, which says so.
-func TestGroupPageOfACanonicalGroupNoLibraryHoldsHasNoLibraries(t *testing.T) {
-	pages := app.Pages{Store: &reads{}, Groups: canonicalList(t)}
-
-	got, err := pages.GroupPage(context.Background(), "practices/accessibility")
-
-	if err != nil || got.Canonical.Name != "Accessibility" || len(got.Libraries) != 0 {
-		t.Fatalf("got %+v, %v", got, err)
-	}
-}
-
-// A group that isn't canonical stands alone in its library, so it has no page across libraries, and the store isn't
-// asked about an ID a visitor made up.
-func TestGroupPageRefusesAGroupThatIsntCanonical(t *testing.T) {
-	r := &reads{}
-	pages := app.Pages{Store: r, Groups: canonicalList(t)}
-
-	for _, id := range []string{"techs/golang", "techs/go/return-errors", "techs", ""} {
-		if _, err := pages.GroupPage(context.Background(), id); !errors.Is(err, app.ErrNotFound) {
-			t.Errorf("%q: got %v, want app.ErrNotFound", id, err)
-		}
-	}
-	if len(r.ruleReads) != 0 {
-		t.Fatalf("read the rules of %q", r.ruleReads)
-	}
-}
-
-// Search names each result's group as pages do, and matches groups by the whole canonical list.
-func TestSearchShowsEachResultsGroupByTheCanonicalList(t *testing.T) {
-	r := &reads{results: views.SearchResults{Total: 2, Results: []views.SearchResult{
+// Search lists the rules a query matches, or every rule without one, a page at a time, matching groups by the whole
+// canonical list and naming each rule's group as pages do.
+func TestSearchRulesReadsThePageOfTheListItIsAskedFor(t *testing.T) {
+	r := &reads{ruleResults: views.RuleResults{Rows: []views.RuleRow{
 		{Library: acmeRef, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go"}},
-		{Library: betaRef, Rule: views.RuleCard{Path: "techs/golang/pass-context", Group: "techs/golang"}},
 	}}}
 	list := canonicalList(t)
 	pages := app.Pages{Store: r, Groups: list}
+	choices := domain.ListChoices{Filters: domain.RuleFilters{Kind: "techs"}, Order: domain.BestMatch}
 
-	got, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), 1)
-
+	got, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), choices, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got.Results[0].CanonicalGroup, goView) || got.Results[1].CanonicalGroup != nil || got.Total != 2 {
-		t.Fatalf("got %+v", got)
+	if _, err := pages.SearchRules(context.Background(), domain.SearchQuery{}, choices, 1); err != nil {
+		t.Fatal(err)
 	}
-	if !slices.Equal(r.searchedFor, list.All()) {
-		t.Fatalf("searched with groups %+v, want the whole list", r.searchedFor)
+
+	if !reflect.DeepEqual(got.Rows[0].CanonicalGroup, goView) || !slices.Equal(r.listGroups, list.All()) {
+		t.Errorf("got %+v, matching groups %+v; want Go, by the whole list", got.Rows, r.listGroups)
+	}
+	want := []domain.RuleList{{Query: domain.ParseSearchQuery("errors"), ListChoices: choices}, {ListChoices: choices}}
+	if !reflect.DeepEqual(r.lists, want) || !slices.Equal(r.listPages, [][2]int{{app.SearchPageSize, app.SearchPageSize}, {app.SearchPageSize, 0}}) {
+		t.Errorf("read %+v, %v; want %+v, pages 2 and 1", r.lists, r.listPages, want)
 	}
 }
 
-// An empty query has nothing to find, and a query past the limit isn't run, so neither reaches the database.
-func TestSearchRunsNoQueryThatIsEmptyOrTooLong(t *testing.T) {
+// A query past the limit isn't run, and a page outside 1 to MaxSearchPage is a mistake; neither reaches the database.
+func TestSearchRulesRunsNoQueryTooLongAndNoPageOutOfBounds(t *testing.T) {
 	r := &reads{}
 	pages := app.Pages{Store: r, Groups: canonicalList(t)}
 
-	empty, err := pages.Search(context.Background(), domain.ParseSearchQuery("  "), 1)
-	if err != nil || len(empty.Results) != 0 || empty.Total != 0 {
-		t.Fatalf("an empty query gave %+v, %v", empty, err)
-	}
-	long := make([]byte, domain.MaxSearchQueryLength+1)
-	for i := range long {
-		long[i] = 'a'
-	}
-	if _, err := pages.Search(context.Background(), domain.ParseSearchQuery(string(long)), 1); !errors.Is(err, app.ErrSearchQueryTooLong) {
-		t.Fatalf("a long query gave %v, want app.ErrSearchQueryTooLong", err)
-	}
-	if len(r.searched) != 0 {
-		t.Fatalf("searched for %q", r.searched)
-	}
-}
-
-// Each page of a search holds SearchPageSize results, after the pages before it, and a page outside 1 to
-// MaxSearchPage is a mistake that never reaches the database.
-func TestSearchReadsThePageItIsAskedFor(t *testing.T) {
-	r := &reads{}
-	pages := app.Pages{Store: r, Groups: canonicalList(t)}
-
-	for _, page := range []int{1, 2, app.MaxSearchPage} {
-		if _, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), page); err != nil {
-			t.Fatal(err)
-		}
+	long := domain.ParseSearchQuery(strings.Repeat("a", domain.MaxSearchQueryLength+1))
+	if _, err := pages.SearchRules(context.Background(), long, domain.ListChoices{}, 1); !errors.Is(err, app.ErrSearchQueryTooLong) {
+		t.Errorf("a long query gave %v, want app.ErrSearchQueryTooLong", err)
 	}
 	for _, page := range []int{0, -1, app.MaxSearchPage + 1} {
-		if _, err := pages.Search(context.Background(), domain.ParseSearchQuery("errors"), page); err == nil {
+		if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, page); err == nil {
 			t.Errorf("searched page %d", page)
 		}
 	}
-	want := [][2]int{{app.SearchPageSize, 0}, {app.SearchPageSize, app.SearchPageSize}, {app.SearchPageSize, (app.MaxSearchPage - 1) * app.SearchPageSize}}
-	if !slices.Equal(r.pagesRead, want) {
-		t.Fatalf("read %v, want %v", r.pagesRead, want)
+	if _, err := pages.SearchRules(context.Background(), domain.ParseSearchQuery("errors"), domain.ListChoices{}, app.MaxSearchPage); err != nil {
+		t.Errorf("the last page: %v", err)
+	}
+	if len(r.lists) != 1 {
+		t.Errorf("read %+v, want only the last page", r.lists)
 	}
 }
 

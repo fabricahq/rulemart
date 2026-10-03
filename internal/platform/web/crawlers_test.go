@@ -97,7 +97,7 @@ type urlset struct {
 	} `xml:"url"`
 }
 
-// The sitemap lists the site's own pages, the canonical groups' pages, and each vetted library and current rule, by
+// The sitemap lists the site's own pages, the groups' pages, and each vetted library and current rule, by
 // their canonical addresses on the public origin, each library and rule with when it last changed.
 func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	c := newBrowsingCatalog()
@@ -197,7 +197,7 @@ func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 	for _, u := range got.URLs {
 		listed = append(listed, strings.TrimPrefix(u.Loc, "https://rulemart.example"))
 	}
-	// After the site's own pages and the canonical groups', the owners' pages, then the libraries' and their rules'.
+	// After the site's own pages and the groups', the owners' pages, then the libraries' and their rules'.
 	listed = listed[slices.Index(listed, "/o/browse"):]
 	want := []string{
 		"/o/browse", "/o/g", "/o/o",

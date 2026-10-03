@@ -82,7 +82,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		assertShows(t, get(path, nil), "2 2 stars")
 	}
 	assertShows(t, get(errorsRule, first), "Starred 2")
-	assertShows(t, get("/account/stars", second), "Return errors", "example/rules:techs/go/return-errors")
+	assertShows(t, get("/account/stars", second), "Return errors HIGH example/rules · Go")
 
 	if resp := send(t, handler, request{method: http.MethodPost, target: "/account/delete", cookies: first}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("deleting the account answered %d", resp.StatusCode)

@@ -11,6 +11,9 @@ import "errors"
 // so they're GitHub's.
 const GitHub = "github"
 
+// FabricaOwner owns Fabrica's libraries, which lists put first among libraries otherwise equal, while stars are few.
+const FabricaOwner = "fabricahq"
+
 // LibraryKey identifies a library by its code host and the host's repository ID, as the catalog stores it.
 type LibraryKey struct {
 	// Host is the code host; github is the only one.

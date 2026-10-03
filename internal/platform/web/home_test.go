@@ -19,7 +19,7 @@ func TestHomeListsTheLibraries(t *testing.T) {
 	if resp.Code != http.StatusOK {
 		t.Fatalf("got %d", resp.Code)
 	}
-	assertShows(t, resp.Body.String(), "Libraries", "rules Example rules for tests.", "example/rules · 2 rules")
+	assertShows(t, resp.Body.String(), "Libraries", "rules Vetted by Rulemart Example rules for tests.", "example/rules · 2 rules")
 }
 
 // The hero opens with Rulemart's horizontal logo, in place of an eyebrow, as Code Rules' home page does: one image for

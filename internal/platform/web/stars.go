@@ -218,18 +218,18 @@ func (s *server) starredPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	s.renderPrivate(w, r, http.StatusOK, starredPage(s.chrome, newStarredViews(starred, s.assets.iconURL)))
+	s.renderPrivate(w, r, http.StatusOK, starredPage(s.chrome, newStarredViews(starred)))
 }
 
-// newStarredViews describes the rules on a visitor's Starred rules as rule results. iconURL returns where the site
-// serves an icon file.
-func newStarredViews(starred []views.StarredRule, iconURL func(file string) string) []ruleResultView {
-	results := make([]ruleResultView, len(starred))
+// newStarredViews describes the rules on a visitor's Starred rules as rows that name their groups.
+func newStarredViews(starred []views.StarredRule) []ruleRowView {
+	rows := make([]ruleRowView, len(starred))
 	for i, s := range starred {
-		results[i] = newRuleResult(s.Library, s.Rule, s.CanonicalGroup, iconURL)
-		results[i].starredAs = s.StarredAs
+		group := newGroupLabel(s.Rule.Group, s.CanonicalGroup)
+		rows[i] = newRuleRow(newLibraryRefView(s.Library), false, s.Rule)
+		rows[i].group, rows[i].starredAs = &group, s.StarredAs
 	}
-	return results
+	return rows
 }
 
 // starView is a rule's star control: its stars, and a way to star or unstar it.
