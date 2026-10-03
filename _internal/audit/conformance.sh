@@ -24,8 +24,10 @@
 # after changing those pages.
 #
 # The prototype keeps its state in localStorage, so the script signs it in by writing that state; the site is signed
-# in through its dev sign-in, as test_user, and signed out by clearing its cookies. Both carts are filled by writing
-# their localStorage keys, with rules each catalog has.
+# in through its dev sign-in, as test_user, and signed out through its sign-out form. Both carts are filled by writing
+# their localStorage keys, with rules each catalog has. Each run uses a browser of its own, which it stops as it exits,
+# signing the site out first, and before each screenshot it checks the page is signed in or out as the case says and
+# keeps no saved theme, so the emulated color scheme applies.
 
 set -euo pipefail
 
@@ -41,8 +43,9 @@ site=${2%/}
 out=$3
 mkdir -p "$out"
 
-# Its own browser session, so the audit never drives a browser another task uses.
-export CHROME_DEVTOOLS_AXI_SESSION=${CHROME_DEVTOOLS_AXI_SESSION:-rulemart-audit}
+# A browser session of its own, named for this run alone, so the audit never drives a browser another task or an earlier
+# run used, and starts with no cookies, storage, or saved theme. chrome-devtools-axi runs it with a temporary profile.
+export CHROME_DEVTOOLS_AXI_SESSION="rulemart-audit-$$-$RANDOM"
 
 # doing names what the audit is doing, for the message that stops it.
 doing="setting up"
@@ -60,6 +63,21 @@ axi() {
     die "chrome-devtools-axi $1 failed with exit status $status:"$'\n'"$axi_out"
   fi
 }
+
+# signed_in is the state the site is in, which cleanup undoes: true once the audit signed it in.
+signed_in=false
+
+# cleanup runs as the audit exits, whether it finished or stopped: it signs the site out, so its session ends, and stops
+# the run's browser, which discards its profile.
+cleanup() {
+  if [[ $signed_in == true ]]; then
+    chrome-devtools-axi open "$site/" >/dev/null 2>&1 &&
+      chrome-devtools-axi eval "(() => { const f = document.querySelector('form[action^=\"/signout\"]'); if (f) f.submit(); return 'ok' })()" >/dev/null 2>&1 &&
+      chrome-devtools-axi wait 1000 >/dev/null 2>&1 || true
+  fi
+  chrome-devtools-axi stop >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 # js prints what a JavaScript expression returns, which must be a string. A script that throws, or returns anything
 # else, stops the audit, since the tool reports a thrown error as the expression's result.
@@ -170,24 +188,49 @@ EOF
 proto_cart='["fabricahq/public-rules::practices/testing/verify-retry-limits","group::fabricahq/public-rules::techs/go"]'
 site_cart='["fabricahq/code-rules-test-library::practices/testing/verify-retry-limits","group::fabricahq/public-rules::techs/go"]'
 
-# set_state signs both in or out, and fills both carts, then leaves the browser on the site.
+# set_state signs both in or out, empties each one's saved theme, so the emulated color scheme decides, and fills both
+# carts, then checks each is in that state.
 set_state() {
-  local signed_in=$1
+  local want=$1
   doing="signing the prototype ${2}"
   visit "$proto/" 200
-  [[ $(js "localStorage.setItem('rulemart-mock-v1', JSON.stringify({signedIn: $signed_in, cart: $proto_cart})), 'ok'") == ok ]]
+  # The prototype keeps everything, its theme too, in one key, so writing it whole leaves its theme at system.
+  [[ $(js "localStorage.setItem('rulemart-mock-v1', JSON.stringify({signedIn: $want, cart: $proto_cart})), 'ok'") == ok ]]
   doing="signing the site ${2}"
   visit "$site/" 200
-  [[ $(js "localStorage.setItem('rulemart-cart', JSON.stringify({cart: $site_cart})), 'ok'") == ok ]]
-  if [[ $signed_in == true ]]; then
+  [[ $(js "localStorage.removeItem('rulemart-theme'), localStorage.setItem('rulemart-cart', JSON.stringify({cart: $site_cart})), 'ok'") == ok ]]
+  if [[ $want == true ]]; then
     visit "$site/signin" 200
+    signed_in=true
     [[ $(js "document.querySelector('form[action*=\"dev-sign-in\"][action*=\"as=test_user&\"]').submit(), 'ok'") == ok ]]
     axi wait 1500
+    visit "$site/me" 200
   else
     # The session cookie is HttpOnly, so sign out through the site itself when a sign-out form is on the page.
     [[ $(js "(() => { const f = document.querySelector('form[action^=\"/signout\"]'); if (f) f.submit(); return 'ok' })()") == ok ]]
     axi wait 1000
+    signed_in=false
+    visit "$site/me" 200 "/signin?return=%2Fme"
   fi
+  check_state site "$want"
+  visit "$proto/" 200
+  check_state prototype "$want"
+}
+
+# check_state stops the audit unless the page open on side, prototype or site, is signed in when want is true and
+# signed out otherwise, and keeps no theme of its own, so the color scheme the browser emulates, scheme, applies.
+check_state() {
+  local side=$1 want=$2 got
+  if [[ $side == prototype ]]; then
+    got=$(js "String(JSON.parse(localStorage.getItem('rulemart-mock-v1') || '{}').signedIn === true)")
+  else
+    got=$(js "String(document.querySelector('form[action^=\"/signout\"]') !== null)")
+  fi
+  [[ $got == "$want" ]] || die "the $side is signed $([[ $want == true ]] && echo out || echo in), not as expected"
+  [[ $(js "document.documentElement.hasAttribute('data-theme') ? 'saved ' + document.documentElement.dataset.theme : 'system'") == system ]] ||
+    die "the $side applies a saved theme over the emulated color scheme"
+  [[ -z ${scheme:-} || $(js "matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'") == "$scheme" ]] ||
+    die "the $side's color scheme isn't $scheme"
 }
 
 # The controls each side opens an interaction with, and a script that returns open once the interaction shows, by side
@@ -220,6 +263,7 @@ shoot() {
   local side=$1 url=$2 status=$3 landing=$4 interaction=$5 file=$6
   rm -f "$file"
   visit "$url" "$status" "$landing"
+  check_state "$side" "$([[ $state == in ]] && echo true || echo false)"
   if [[ $interaction != - ]]; then
     press "${open_controls[$side.$interaction]}"
     [[ $(js "${shown_checks[$side.$interaction]}") == open ]] || die "pressing ${open_controls[$side.$interaction]} didn't open $interaction"
@@ -243,6 +287,7 @@ index="$out/index.html"
 } >"$index"
 
 for state in out in; do
+  scheme=""
   if [[ $state == in ]]; then set_state true in; else set_state false out; fi
   for width in 1280 390; do
     for scheme in light dark; do
