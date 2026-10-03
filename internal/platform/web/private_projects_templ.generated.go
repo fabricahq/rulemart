@@ -506,8 +506,9 @@ func listSeparator(i, n int) string {
 const (
 	dataHeadStyle = "border-b border-border px-2.5 py-2 text-left text-[11px] font-medium tracking-[.08em] text-faint uppercase"
 	dataCellStyle = "border-b border-border-subtle px-2.5 py-[11px] text-left align-top font-normal text-muted"
-	// dataRowHeadStyle is a row's first cell, which names it.
-	dataRowHeadStyle = "border-b border-border-subtle px-2.5 py-[11px] text-left align-top font-medium text-ink"
+	// dataRowHeadStyle is a row's first cell, which names it. It's a th, which the stylesheet's base rule doesn't let
+	// wrap anywhere as it does a td, so it says so itself, or the table sizes its columns unlike the prototype's.
+	dataRowHeadStyle = "border-b border-border-subtle px-2.5 py-[11px] text-left align-top font-medium text-ink [overflow-wrap:anywhere]"
 )
 
 var _ = templruntime.GeneratedTemplate
