@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,16 +92,14 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 		redirect(w, r, target.String())
 		return
 	}
-	rule := newRuleView(newLibraryView(lib), page.Page)
-	rule.groupIcon = newGroupIcon(page.Page.Rule.CanonicalGroup, s.assets.iconURL)
-	assets := newAssetViews(rule, page.Page.Assets, assetPath)
-	current := assets[slices.IndexFunc(assets, func(a assetView) bool { return a.current })]
-	html := ruleContext(page.HTML, rule.library, rule.id)
-	if !rule.library.vetted {
-		html = untrustedLinks(html)
-	}
+	rule := s.ruleViewWithoutStar(page.Page)
+	// AssetPage finds only an asset the rule lists.
+	assets := slices.Clone(rule.assets)
+	i := slices.IndexFunc(assets, func(a assetView) bool { return a.path == assetPath })
+	assets[i].current = true
 	canonical := assetPagePath(rule.library, rule.id, assetPath)
-	s.render(w, r, http.StatusOK, assetPage(s.pageChrome(canonical), rule, current, assets, html))
+	html := pageHTML(page.HTML, rule.library, rule.id)
+	s.render(w, r, http.StatusOK, assetPage(s.pageChrome(canonical), rule, assets[i], assets, html))
 }
 
 // assetImage serves the image at assetPath in the library owner/repo that Rulemart keeps, as the type ingestion
@@ -149,14 +146,14 @@ type assetView struct {
 	githubURL, rawURL string
 }
 
-// newAssetViews describes assets, the assets of the rule r, marking the one at current, if any.
-func newAssetViews(r ruleView, assets []views.Asset, current string) []assetView {
+// newAssetViews describes assets, the assets of the rule r.
+func newAssetViews(r ruleView, assets []views.Asset) []assetView {
 	list := make([]assetView, len(assets))
 	for i, a := range assets {
 		tag := domain.ReleaseTag(a.Release)
 		v := assetView{
 			path: a.Path, href: assetPagePath(r.library, r.id, a.Path), size: formatSize(a.Size),
-			kind: domain.AssetKindOf(a.MediaType), current: a.Path == current, kept: a.Kept, release: tag,
+			kind: domain.AssetKindOf(a.MediaType), kept: a.Kept, release: tag,
 			githubURL: domain.BlobURL(r.library.fullName(), tag, a.Path), rawURL: domain.RawURL(r.library.fullName(), tag, a.Path),
 		}
 		v.name, v.shared = strings.CutPrefix(a.Path, domain.SharedAssetDir)
@@ -179,14 +176,6 @@ func (a assetView) fileName() string { return path.Base(a.path) }
 // ruleQuery returns a rule's ID as a query's value, keeping its slashes, which a query may hold.
 func ruleQuery(rulePath string) string {
 	return strings.ReplaceAll(url.QueryEscape(rulePath), "%2F", "/")
-}
-
-// ruleContext returns rendered, HTML ingestion's renderer wrote for the rule at rulePath in lib, with each link to a
-// shared asset's page naming the rule, so that page shows the asset as the rule's. The renderer escapes every < in
-// text and writes each link's href itself, so only its links match.
-func ruleContext(rendered string, lib libraryView, rulePath string) string {
-	shared := regexp.MustCompile(`href="(` + regexp.QuoteMeta(lib.href+"/"+domain.SharedAssetDir) + `[^"#?]*)(#[^"]*)?"`)
-	return shared.ReplaceAllString(rendered, `href="$1?`+ruleParam+`=`+ruleQuery(rulePath)+`$2"`)
 }
 
 // formatSize writes a file's size as pages show it, such as 312 B, 2.4 KB, or 1.2 MB, counting 1,024 bytes a KB.

@@ -524,8 +524,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	r, file := page.Rule, domain.RuleFile(page.Rule.Path)
 	v := ruleView{
 		library: lib, href: ruleHref(lib.href, r.Path), id: r.Path, title: titleOrID(r.Title, r.Path), impact: r.Impact,
-		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
-		html:       r.HTML,
+		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML),
 		group:      newGroupLabel(r.Group, r.CanonicalGroup),
 		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
@@ -549,13 +548,8 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 	}
 	// The group holds the rule itself while it's current, whatever the links say.
 	v.groupRules = max(page.GroupRuleCount(), 1)
-	v.tags, v.assets = newTagViews(r.Tags), newAssetViews(v, page.Assets, "")
-	// A shared asset's page shows it as this rule's.
-	v.html, v.whenToReadHTML = ruleContext(v.html, lib, r.Path), ruleContext(v.whenToReadHTML, lib, r.Path)
-	if !lib.vetted {
-		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
-		v.html, v.whenToReadHTML = untrustedLinks(v.html), untrustedLinks(v.whenToReadHTML)
-	}
+	v.tags, v.assets = newTagViews(r.Tags), newAssetViews(v, page.Assets)
+	v.html, v.whenToReadHTML = pageHTML(r.HTML, lib, r.Path), pageHTML(r.WhenToReadHTML, lib, r.Path)
 	if retirement := r.Retirement; retirement != nil {
 		v.retired = &retiredView{
 			tag: domain.ReleaseTag(retirement.Release), href: releaseHref(lib, retirement.Release),
@@ -708,6 +702,27 @@ const labelStyle = "text-[12px] font-medium tracking-[.12em] text-muted uppercas
 
 // linkTag matches the start of a link's tag.
 var linkTag = regexp.MustCompile(`<a\s`)
+
+// pageHTML returns stored, HTML that ingestion's renderer wrote for the rule at rulePath in lib or one of its assets,
+// as a page of lib shows it: with each link to a shared asset's page naming the rule, and when lib isn't vetted, every
+// link marked as its author's.
+func pageHTML(stored string, lib libraryView, rulePath string) string {
+	// A shared asset's page shows it as this rule's.
+	html := ruleContext(stored, lib, rulePath)
+	if !lib.vetted {
+		// A library that isn't vetted wrote its links; they lend it none of Rulemart's standing with search engines.
+		html = untrustedLinks(html)
+	}
+	return html
+}
+
+// ruleContext returns rendered, HTML ingestion's renderer wrote for the rule at rulePath in lib, with each link to a
+// shared asset's page naming the rule, so that page shows the asset as the rule's. The renderer escapes every < in
+// text and writes each link's href itself, so only its links match.
+func ruleContext(rendered string, lib libraryView, rulePath string) string {
+	shared := regexp.MustCompile(`href="(` + regexp.QuoteMeta(lib.href+"/"+domain.SharedAssetDir) + `[^"#?]*)(#[^"]*)?"`)
+	return shared.ReplaceAllString(rendered, `href="$1?`+ruleParam+`=`+ruleQuery(rulePath)+`$2"`)
+}
 
 // untrustedLinks returns rendered, HTML that ingestion's renderer wrote, with every link marked rel="nofollow ugc", as
 // links an unvetted library's author wrote. The renderer escapes every < in text and writes no rel, so only its link

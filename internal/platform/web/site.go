@@ -654,13 +654,20 @@ func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 
 // ruleView describes the rule on page for the page r asks for, with its star control for the visitor.
 func (s *server) ruleView(r *http.Request, page views.RulePage) (ruleView, error) {
-	view := newRuleView(newLibraryView(page.Library), page)
-	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
+	view := s.ruleViewWithoutStar(page)
 	var err error
 	if view.star, err = s.starControl(r, view, page.Rule.Stars); err != nil {
 		return ruleView{}, err
 	}
 	return view, nil
+}
+
+// ruleViewWithoutStar describes the rule on page, with its group's icon, for a page that shows no star control, such as
+// an asset's.
+func (s *server) ruleViewWithoutStar(page views.RulePage) ruleView {
+	view := newRuleView(newLibraryView(page.Library), page)
+	view.groupIcon = newGroupIcon(page.Rule.CanonicalGroup, s.assets.iconURL)
+	return view
 }
 
 // pageChrome returns the frame for the page whose own address is href, the path its links use, which it names on
