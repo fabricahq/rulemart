@@ -1056,6 +1056,19 @@ func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
 	}
 }
 
+// A rule's About panel and a row's library mark name the publisher one way: Fabrica for a library of Fabrica's, and
+// the owner's login for any other.
+func TestPagesNameAFabricaLibrarysPublisherFabrica(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Library.Owner = "fabricahq"
+	c.rules["fabricahq/rules/techs/go/return-errors"] = page
+	handler := newSite(t, c)
+
+	assertShows(t, get(t, handler, "/fabricahq/rules/techs/go/return-errors").Body.String(), "Published by Fabrica Updated")
+	assertShows(t, get(t, handler, errorsRule).Body.String(), "Published by example Updated")
+}
+
 // Discuss and the Discussion tab come with rulemart#27, so a rule's page shows neither yet, and its engage row goes
 // when it has nothing to show, such as in a library Rulemart doesn't vet, where no one can star a rule, rather than
 // leave a gap under the rule's title.

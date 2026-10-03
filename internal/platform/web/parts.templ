@@ -383,11 +383,13 @@ templ ruleRow(r ruleRowView) {
 // library of Fabrica's, and otherwise its owner's avatar.
 templ libraryMark(lib libraryRefView) {
 	if lib.fabrica() {
-		<span class="inline-grid size-[18px] flex-none place-items-center rounded-[4px] bg-primary text-on-primary" title="Published by Fabrica">
+		<span class="inline-grid size-[18px] flex-none place-items-center rounded-[4px] bg-primary text-on-primary" title={ "Published by " + publisher(lib.owner) }>
 			@fabricaMark("size-3")
 		</span>
 	} else {
-		@avatar(lib.avatar, lib.owner, avatarXS)
+		<span class="inline-flex" title={ "Published by " + publisher(lib.owner) }>
+			@avatar(lib.avatar, lib.owner, avatarXS)
+		</span>
 	}
 }
 

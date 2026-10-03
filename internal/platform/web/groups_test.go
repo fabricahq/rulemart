@@ -218,4 +218,7 @@ func TestRuleRowsMarkRetiredUnvettedAndFabricasRules(t *testing.T) {
 	if find(fabricaRow, func(n *html.Node) bool { return attribute(n, "title") == "Published by Fabrica" }) == nil {
 		t.Error("Fabrica's rule doesn't show Fabrica's mark")
 	}
+	if find(unvettedRow, func(n *html.Node) bool { return attribute(n, "title") == "Published by stranger" }) == nil {
+		t.Error("another owner's rule doesn't name its owner on its mark")
+	}
 }

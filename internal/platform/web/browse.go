@@ -111,7 +111,19 @@ func newLibraryRefView(lib views.LibraryRef) libraryRefView {
 func (l libraryRefView) fullName() string { return l.owner + "/" + l.name }
 
 // fabrica reports whether the library is one of Fabrica's, which lists mark with Fabrica's logo and set first.
-func (l libraryRefView) fabrica() bool { return strings.EqualFold(l.owner, domain.FabricaOwner) }
+func (l libraryRefView) fabrica() bool { return isFabrica(l.owner) }
+
+// isFabrica reports whether owner is Fabrica's GitHub account.
+func isFabrica(owner string) bool { return strings.EqualFold(owner, domain.FabricaOwner) }
+
+// publisher returns how pages name who publishes a library of owner's: Fabrica for Fabrica's, and otherwise the owner's
+// login, since Rulemart keeps no display name.
+func publisher(owner string) string {
+	if isFabrica(owner) {
+		return "Fabrica"
+	}
+	return owner
+}
 
 // groupSummaryView is a group's row on a browse page, and its tile on the home page.
 type groupSummaryView struct {
