@@ -140,7 +140,8 @@ const choiceStyle = "mt-2.5 grid w-full cursor-pointer gap-1 rounded-[14px] bord
 
 // addToCartDialog asks what to add from a rule's page, as the prototype's modal does: just the rule, which stays in
 // sync with its library, or its whole group, which brings the library's later rules of it too. For a library Rulemart
-// doesn't vet, it first warns, as the library's pages do, and asks the visitor to confirm, which the cart records.
+// doesn't vet, it first warns, as the library's pages do, and asks the visitor to confirm, which the cart records, and
+// says checkout pins its rules to the reviewed commit and doesn't fork them.
 templ addToCartDialog(r ruleView) {
 	<dialog class={ dialogStyle } aria-label="Add to cart" data-cart-dialog>
 		if !r.library.vetted {
@@ -179,7 +180,7 @@ templ addToCartDialog(r ruleView) {
 				if r.library.vetted {
 					At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.
 				} else {
-					At checkout, you'll pick which project these go into, and you can fork a rule.
+					At checkout, you'll pick which project these go into. Forking waits until the rules are vetted, so you get exactly the reviewed text.
 				}
 			</p>
 		</div>

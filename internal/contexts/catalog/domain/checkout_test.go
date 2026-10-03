@@ -72,6 +72,28 @@ func TestCheckoutForAProjectRulemartDoesNotKnow(t *testing.T) {
 	assertCheckout(t, "unknown-project", checkout)
 }
 
+// An unvetted library's rule is never forked, even when the visitor chose to: a fork copies from the release a tag
+// names, which its publisher could move after review, so it stays a rule synced from the source pinned to the
+// reviewed commit, and the texts never copy it.
+func TestCheckoutSyncsAnUnvettedLibrarysForkFromTheReviewedCommit(t *testing.T) {
+	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{
+		Owner: "stranger", Name: "rules", Release: 3, Commit: strings.Repeat("3", 40),
+		Groups: []CheckoutGroup{testingGroup},
+		Forks:  []CheckoutRule{checkoutRule(goGroup, "use-go"), checkoutRule(testingGroup, "name-tests")},
+	}})
+
+	commands, prompt := checkout.Commands(), checkout.Prompt()
+
+	if strings.Contains(commands, "add rule") || strings.Contains(prompt, "forked") {
+		t.Errorf("the texts fork an unvetted library's rule:\n%s\n\n%s", commands, prompt)
+	}
+	want := "code-rules project add library stranger \\\n  --repository https://github.com/stranger/rules.git \\\n" +
+		"  --ref " + strings.Repeat("3", 40) + " \\\n  --groups practices/testing \\\n  --rules techs/go/use-go\n\ncode-rules project sync"
+	if !strings.Contains(commands, want) {
+		t.Errorf("got\n%s\nwant the rule synced from the reviewed commit, and the one its group brings left out:\n%s", commands, want)
+	}
+}
+
 // A new project, with no repository named: also adding the other rules of a rule's group imports the group whole, so a
 // fork of one of its rules needs a reason, and a group that isn't canonical is named by its ID.
 func TestCheckoutForANewProjectAddsTheRestOfTheGroups(t *testing.T) {

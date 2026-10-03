@@ -146,7 +146,8 @@ func (c Carts) resolve(items []domain.CartItem, keys []string, lib *views.CartLi
 }
 
 // resolveItem returns item, named by key, of the library lib, resolved: gone, unvetted unless confirmed, missing,
-// retired, or ready, in that order of precedence. fork is the visitor's choice for a rule.
+// retired, or ready, in that order of precedence. fork is the visitor's choice for a rule, which an unvetted library's
+// rule doesn't take: it stays in sync with the reviewed commit, as domain.NewCheckout says.
 func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibrary, confirmed, fork bool) views.ResolvedItem {
 	it := views.ResolvedItem{Key: key, Item: item, State: views.CartItemReady, Group: c.group(item.Group())}
 	if lib == nil {
@@ -170,7 +171,7 @@ func (c Carts) resolveItem(item domain.CartItem, key string, lib *views.CartLibr
 			it.State = views.CartItemMissing
 			break
 		}
-		it.Item.Path, it.Group, it.Title, it.Version, it.RetiredIn, it.Fork = r.Path, c.group(r.Group), r.Title, r.Version, r.RetiredIn, fork
+		it.Item.Path, it.Group, it.Title, it.Version, it.RetiredIn, it.Fork = r.Path, c.group(r.Group), r.Title, r.Version, r.RetiredIn, fork && lib.Vetted
 		if r.RetiredIn > 0 {
 			it.State = views.CartItemRetired
 		}

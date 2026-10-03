@@ -73,7 +73,7 @@ type CheckoutLibrary struct {
 	Release int
 	Commit  string
 	// Groups are the groups the cart holds whole. Rules are the single rules that stay in sync with the library, and
-	// Forks the ones the visitor forks.
+	// Forks the ones the visitor forks, which for an unvetted library stay in sync too, as NewCheckout says.
 	Groups       []CheckoutGroup
 	Rules, Forks []CheckoutRule
 	// RestOfGroups imports the groups of Rules whole instead: the visitor asked to add the rest of their groups too.
@@ -176,12 +176,18 @@ func (s checkoutSource) reviewCommand() string {
 
 // NewCheckout returns how target imports libraries: a source for each library with anything to import, named as
 // nameSources says. A rule whose group the cart holds whole is left out of the rules the source selects, since the
-// group brings it.
+// group brings it. An unvetted library's forks are selected as rules instead, pinned to the reviewed commit with the
+// rest of the source: Code Rules forks the release a tag names, which the library's publisher could move after the
+// review, so forking waits until Rulemart vets the library, or Code Rules can fork from a commit.
 func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 	var sources []checkoutSource
 	for _, lib := range libraries {
+		rules, forks := lib.Rules, lib.Forks
+		if !lib.Vetted {
+			rules, forks = slices.Concat(lib.Rules, lib.Forks), nil
+		}
 		source := checkoutSource{
-			Owner: lib.Owner, Name: lib.Name, Vetted: lib.Vetted, Release: lib.Release, Commit: lib.Commit, Forks: lib.Forks,
+			Owner: lib.Owner, Name: lib.Name, Vetted: lib.Vetted, Release: lib.Release, Commit: lib.Commit, Forks: forks,
 		}
 		for _, g := range lib.Groups {
 			if !source.importsGroup(g.ID) {
@@ -189,7 +195,7 @@ func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 			}
 		}
 		whole := slices.Clone(source.Groups)
-		for _, r := range lib.Rules {
+		for _, r := range rules {
 			switch {
 			case slices.ContainsFunc(whole, func(g CheckoutGroup) bool { return g.ID == r.Group.ID }):
 			case lib.RestOfGroups:
@@ -348,21 +354,17 @@ func (c Checkout) syncBlocks() []string {
 	return nil
 }
 
-// forkBlocks returns the command that copies each fork, by source, the first of a source that selects nothing after
-// the review note of an unvetted library, whose first block it is.
+// forkBlocks returns the command that copies each fork, by source. Only vetted libraries' sources fork, so none needs
+// a review note.
 func (c Checkout) forkBlocks() []string {
 	var blocks []string
 	for _, s := range c.sources {
-		for i, r := range s.Forks {
+		for _, r := range s.Forks {
 			lines := []string{"code-rules project add rule " + r.ID, "--from " + s.forkFrom() + "@" + r.Version}
 			if s.importsGroup(r.Group.ID) {
 				lines = append(lines, "--reason '"+forkReason+"'")
 			}
-			block := continued(lines)
-			if i == 0 && !s.selects() {
-				block = s.reviewNote() + block
-			}
-			blocks = append(blocks, block)
+			blocks = append(blocks, continued(lines))
 		}
 	}
 	return blocks

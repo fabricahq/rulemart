@@ -153,6 +153,30 @@ func TestCheckoutImportsAConfirmedUnvettedLibraryForReview(t *testing.T) {
 	}
 }
 
+// A confirmed unvetted library's rule the visitor chose to fork stays in sync with the reviewed commit instead, since
+// a fork would copy the release a tag names: the item isn't a fork, and the commands add it pinned, copying nothing.
+func TestCheckoutTreatsAForkFromAnUnvettedLibraryAsSync(t *testing.T) {
+	carts, _ := newCarts(t)
+	cart := app.Cart{
+		Keys:      []string{"stranger/rules::techs/go/use-go"},
+		Forks:     map[string]bool{"stranger/rules::techs/go/use-go": true},
+		Confirmed: map[string]bool{"stranger/rules": true},
+	}
+
+	checkout, err := carts.Checkout(context.Background(), cart, domain.CheckoutTarget{Mode: domain.ProjectUnknown})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := checkout.Libraries[0].Items[0]; it.Fork || it.State != views.CartItemReady {
+		t.Errorf("got %+v, want the rule ready and not forked", it)
+	}
+	if strings.Contains(checkout.Commands, "add rule") ||
+		!strings.Contains(checkout.Commands, "--ref "+strings.Repeat("b", 40)+" \\\n  --rules techs/go/use-go") {
+		t.Errorf("the commands should add the rule pinned to the reviewed commit, and fork nothing:\n%s", checkout.Commands)
+	}
+}
+
 // A forked rule is copied at its version, and the offer to add the rest of a picked rule's group counts the group's
 // current rules the cart doesn't hold: not the retired one, the picked one, or the forked one. Taking the offer
 // imports the group whole, so the fork in it gives a reason, and the count goes to 0.

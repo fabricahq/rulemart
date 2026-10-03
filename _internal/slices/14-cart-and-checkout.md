@@ -124,10 +124,16 @@ The spec's Proposed decisions are built as written, except where an entry here s
 - **Proposed: the "also add the rest of the groups" choice is `restOfGroups` throughout**, in the cart's state, the
   checkout's request and answer, and the code, rather than the prototype's `full`, which read as a full cart.
 - **Proposed: an unvetted library's items say they're pinned, not in sync.** Checkout pins such a library to the
-  commit reviewed, so its rule's card reads "Pinned to the reviewed commit" with only Fork, its whole group's row says
-  the same, the dialog and the group page say the rule or group is pinned and that later rules don't arrive, and the
-  Commands footnote leaves its rules out of those `code-rules project update` moves. The prototype shows Stay in
-  sync for every library.
+  commit reviewed, so its rule's card reads "Pinned to the reviewed commit", its whole group's row says the same, the
+  dialog and the group page say the rule or group is pinned and that later rules don't arrive, and the Commands
+  footnote leaves its rules out of those `code-rules project update` moves. The prototype shows Stay in sync for
+  every library.
+- **Proposed: an unvetted library's rules can't be forked yet.** `code-rules project add rule --from
+  <alias>@<version>` finds the release in the repository's tags, not at the source's `--ref` commit, so a publisher
+  could move a tag after the review and the fork would copy text nobody reviewed. The card offers no Fork and says
+  "Forking waits until the rules are vetted, so you get exactly the reviewed text", the dialog says the same, and
+  checkout treats a fork the browser still asks for as a rule kept at the reviewed commit. This waits for Code Rules
+  to fork from a commit; the prototype offers Fork for every library.
 - **Proposed: a group the cart holds shows ticked and disabled on the Groups tab**, so Select all groups, the count,
   the button, and the toast cover only the groups the box would add. The prototype lets the visitor tick it again
   and counts it.

@@ -101,8 +101,17 @@
           'Fork')));
   }
 
+  /** Return what a rule of an unvetted library says in place of Fork: why it can't be forked, and what it is instead,
+   * pinned to the commit reviewed, or included in its whole group. */
+  function pinnedNote(item) {
+    return h('div', 'max-w-[240px] text-right text-[12.5px] text-faint max-narrow:max-w-none max-narrow:text-left', {},
+      h('span', 'block whitespace-nowrap', {}, item.inGroup ? `Included in the ${item.group.name} group` : 'Pinned to the reviewed commit'),
+      h('span', 'mt-0.5 block', {}, 'Forking waits until the rules are vetted, so you get exactly the reviewed text.'));
+  }
+
   /** Return a rule's row: its icon, title, group and version, Stay in sync or Fork, or only Fork for a rule its whole
-   * group in the cart brings, or of an unvetted library, which stays at the commit reviewed, and Remove. */
+   * group in the cart brings, or none for a rule of an unvetted library, which stays at the commit reviewed, and
+   * Remove. */
   function ruleRow(item) {
     const note = leftOutNote(item);
     const title = item.href ? h('a', 'block leading-[1.35] font-semibold text-ink no-underline hover:underline', { href: item.href }, item.title)
@@ -110,10 +119,10 @@
     const meta = note ? [note, item.state === 'retired' && item.href ? h('a', 'text-muted', { href: item.href }, 'See what replaced it') : null]
       : [`Rule in ${item.group.name}`, ' · ', item.version];
     let mode = h('span');
-    if (item.state === 'ready' && item.inGroup) {
+    if (item.state === 'ready' && item.pinned) {
+      mode = pinnedNote(item);
+    } else if (item.state === 'ready' && item.inGroup) {
       mode = forkOnly(item, `Included in the ${item.group.name} group`);
-    } else if (item.state === 'ready' && item.pinned) {
-      mode = forkOnly(item, 'Pinned to the reviewed commit');
     } else if (item.state === 'ready') {
       const name = `mode-${item.key}`;
       const option = (value, label) => h('label', 'inline-flex cursor-pointer items-center rounded-full px-[11px] py-[3px] whitespace-nowrap text-muted has-checked:bg-surface-header has-checked:text-ink has-focus-visible:outline-2 has-focus-visible:outline-(--focus)', {},
@@ -258,7 +267,7 @@
       if (empty) return;
       const { answer } = checkout;
       const libraries = (answer?.libraries || [])
-        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted, expanded: expanded.has(item.key) })) }))
+        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: lib.vetted && !!fork[item.key], pinned: !lib.vetted, expanded: expanded.has(item.key) })) }))
         .filter(({ items }) => items.length);
       const items = libraries.flatMap(({ items: held }) => held);
       // A rule its whole group brings counts with the group.
@@ -342,10 +351,10 @@
      * reviewed, and on the Commands tab, how to pin a library to a release, as the checkout's answer suggests. */
     function showFootnote(prompt) {
       const code = (text) => h('code', '', {}, text);
-      const { cart, fork } = store.state();
+      const { cart } = store.state();
       const { answer } = checkout;
       const pinned = (answer?.libraries || [])
-        .filter((lib) => !lib.vetted && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key) && !fork[item.key]))
+        .filter((lib) => !lib.vetted && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key)))
         .map((lib) => lib.fullName);
       const parts = ['Rules move to newer versions only when your project runs ', code('code-rules project update'),
         pinned.length ? `, except those from ${listed(pinned)}, which stay at the commit you review.` : '.'];
