@@ -89,7 +89,7 @@ templ filterForm(v ruleListView) {
 		}
 		// Its one long label takes the whole width where the sidebar has two columns.
 		@filterGroup("Unvetted", "max-wide:col-span-full") {
-			@optInCheckbox(domain.UnvettedParam, "Include unvetted libraries", v.choices.Unvetted)
+			@optInCheckbox(domain.UnvettedParam, unvettedOptInLabel, v.choices.Unvetted)
 			<p class="mt-0.5 pl-[28px] text-[12px] leading-[1.45] text-faint">
 				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(aboutHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
 			</p>
@@ -171,7 +171,7 @@ templ noFilteredRules(v ruleListView) {
 // unvettedOptIn is the control that includes unvetted libraries in a list of libraries or groups, at path, as
 // optInForm draws it. Like the sidebar, its checkbox shows only what the address holds.
 templ unvettedOptIn(path string, unvetted bool) {
-	@optInForm(path, domain.UnvettedParam, "Include unvetted libraries", unvetted)
+	@optInForm(path, domain.UnvettedParam, unvettedOptInLabel, unvetted)
 }
 
 // optInForm is a page's control that adds something to its list, at path: a form with one checkbox, optInCheckbox,

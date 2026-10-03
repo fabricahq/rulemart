@@ -89,113 +89,139 @@ func aboutPage(c chrome, canList bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">on GitHub</a>. Browsing needs no account. Every hour, Rulemart checks each library for a new release.</p><h2 id=\"vetting\">What vetting means</h2><p>Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries Fabrica has vetted, each marked with a check, until you choose Include unvetted libraries beside the list. That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting is a reviewed change to <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">on GitHub</a>. Browsing needs no account. Every hour, Rulemart checks each library for a new release.</p><h2 id=\"vetting\">What vetting means</h2><p>Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries Fabrica has vetted, each marked with a check, until you choose ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var7 templ.SafeURL
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vettedFileURL))
+			var templ_7745c5c3_Var7 string
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(unvettedOptInLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 27, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 25, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">catalog/vetted.yaml</a> in Rulemart's repository, so the file's history shows when each library was vetted, and why.</p><p>Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica chose to show the library, not that it checked every rule: read the rules you adopt, as you would any code you add to your project.</p><h2 id=\"unvetted\">Unvetted libraries</h2><p>Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a listed library appears under <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " beside the list. That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting is a reviewed change to <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var8 templ.SafeURL
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
+			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(vettedFileURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 38, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 27, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" rel=\"nofollow\">unvetted libraries</a>, and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of it says \"This library has not been vetted. Be sure to review these rules carefully.\", search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">catalog/vetted.yaml</a> in Rulemart's repository, so the file's history shows when each library was vetted, and why.</p><p>Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica chose to show the library, not that it checked every rule: read the rules you adopt, as you would any code you add to your project.</p><h2 id=\"unvetted\">Unvetted libraries</h2><p>Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a listed library appears under <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var9 templ.SafeURL
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(codeRulesLibrariesURL))
+			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 48, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 38, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Code Rules' guide to libraries</a> explains.</li><li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" rel=\"nofollow\">unvetted libraries</a>, and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of it says \"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if canList {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<a href=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var10 templ.SafeURL
-				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listHref))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 52, Col: 40}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">List it on Rulemart</a>, so its pages show, under a warning, and Rulemart keeps them current.")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "List it on Rulemart, so its pages show, under a warning, and Rulemart keeps them current.")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(unvettedWarningText)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 40, Col: 35}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</li><li><a href=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\", search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.</p><h2 id=\"get-vetted\">Get a library vetted</h2><ol><li>Release the library with Code Rules, which tags each release, as <a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var11 templ.SafeURL
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(askToVetURL))
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(codeRulesLibrariesURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 58, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 48, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">Ask to vet a library</a> on GitHub. When Fabrica vets it, the next Rulemart release shows it across the site.</li></ol><h2 id=\"report\">Report a problem</h2><p>Each library's page has Report this library, for rules that are harmful, misleading, or not what they claim. For anything else, <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">Code Rules' guide to libraries</a> explains.</li><li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var12 templ.SafeURL
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(reportFormsURL))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 65, Col: 63}
+			if canList {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<a href=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var12 templ.SafeURL
+				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listHref))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 52, Col: 40}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\">List it on Rulemart</a>, so its pages show, under a warning, and Rulemart keeps them current.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "List it on Rulemart, so its pages show, under a warning, and Rulemart keeps them current.")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">report a problem</a>. Reports are public GitHub issues, so leave out anything private.</p><p><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</li><li><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 templ.SafeURL
-			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privacyHref))
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(askToVetURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 69, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 58, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">Privacy</a> says what Rulemart keeps about you, and for how long.</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">Ask to vet a library</a> on GitHub. When Fabrica vets it, the next Rulemart release shows it across the site.</li></ol><h2 id=\"report\">Report a problem</h2><p>Each library's page has Report this library, for rules that are harmful, misleading, or not what they claim. For anything else, <a href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 templ.SafeURL
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(reportFormsURL))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 65, Col: 63}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">report a problem</a>. Reports are public GitHub issues, so leave out anything private.</p><p><a href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 templ.SafeURL
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privacyHref))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 69, Col: 41}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\">Privacy</a> says what Rulemart keeps about you, and for how long.</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -227,12 +253,12 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var14 == nil {
-			templ_7745c5c3_Var14 = templ.NopComponent
+		templ_7745c5c3_Var16 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var16 == nil {
+			templ_7745c5c3_Var16 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var15 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var17 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -244,74 +270,74 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			var templ_7745c5c3_Var16 = []any{"page wrap", narrowPage}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var16...)
+			var templ_7745c5c3_Var18 = []any{"page wrap", narrowPage}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var18...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var17 string
-			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var16).String())
+			var templ_7745c5c3_Var19 string
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var18).String())
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 1, Col: 0}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><h1 class=\"title-xl\">Privacy</h1><p class=\"mt-1.5 text-muted\">What Rulemart keeps about you, why, for how long, and how to delete it. <a href=\"https://fabricahq.com\">Fabrica</a> runs Rulemart.</p><div class=\"prose mt-7\"><h2 id=\"browsing\">Browsing</h2><p>Browsing Rulemart needs no account, and sets no cookie. If you choose a color theme in the footer, your browser keeps the choice, and never sends it to Rulemart.</p><h2 id=\"cart\">Your cart</h2><p>Your cart needs no account either: your browser keeps it, with your choices for it and the repository you enter at checkout, until you remove them. Rulemart keeps none of it. Your cart's page sends them to Rulemart each time it changes, to write the prompt and commands that check it out, and Rulemart answers without storing them; its log records only that the page asked, as for any page.</p><h2 id=\"account\">Your account</h2><p>You sign in with GitHub. Rulemart asks GitHub to read your public profile and the organizations you belong to, and never to write anything. It keeps your GitHub user ID, your username, the name your profile shows, the address of your avatar, when you made your account, and when you last signed in, and updates your username, name, and avatar each time you sign in. Your avatar loads from GitHub's servers.</p><p>Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's server holds, so it can read your GitHub account again when you open your dashboard or press Refresh. Signing out deletes the token with your session, as does signing out everywhere; a session ends by itself after 30 days.</p><h2 id=\"github\">What Rulemart reads of your GitHub account</h2><p>With that token, Rulemart reads the names of your organizations and of the public repositories you and they own, at most 200 of them, the most recently pushed first. In each, it looks for a <code>rule-library.yaml</code> and <code>release/&lt;number&gt;</code> tags, which make a library you could add, and for <code>.code-rules/generated/provenance.json</code>, which makes a project. Of a project's provenance, it keeps the libraries it imports, under which names, the groups it imports, and the versions of their rules it holds, to count the updates waiting for it. It keeps nothing else of your repositories, and none of their code.</p><p>If you install the GitHub App \"Rulemart by Fabrica\", Rulemart also reads the private repositories you choose, the same way, and keeps which installations it reads through. Private repositories' names and projects show only to you, on your own pages, and count toward nothing others see.</p><p>What it read stays until it reads your account again, which replaces it, or until you delete your account. A change to the app's installation on GitHub discards it.</p><p>Signed in, Rulemart also keeps what you add, until you remove it:</p><ul><li><strong>Stars:</strong> which rules you starred, and when. Others see only how many stars a rule has.</li><li><strong>Listings:</strong> which repositories you list, and when you listed or retried them. A library's page shows the username you last signed in with as who added it, and when, while your listing stands. To limit how often anyone lists, Rulemart also notes when each account lists or retries, and deletes each note once it's a day old.</li></ul><h2 id=\"cookies\">Cookies</h2><p>Rulemart sets only cookies that signing in needs, never for advertising or tracking:</p><ul><li><code>__Host-rulemart-sign-in</code>, for 10 minutes: the state of a sign-in in progress.</li><li><code>__Host-rulemart-session</code>, for 30 days, or until you sign out: a random token that keeps you signed in. Rulemart stores only its SHA-256 hash.</li><li><code>__Host-rulemart-notice</code>, for 1 minute: which notice to show once, such as after you sign out.</li></ul><h2 id=\"logs\">Logs</h2><p>Rulemart is served through Amazon CloudFront, whose access logs record each request: your IP address and its country, your browser's user agent, the page you came from, the address you asked for, including a search's words, and when. Rulemart uses them to understand its traffic and to stop abuse, and deletes them after 180 days.</p><p>The server that builds pages logs each request it serves by the kind of page, such as a library's, never your IP address, the page's address, or your cookies. When you sign in or delete your account, it logs your account's number in Rulemart, not your GitHub details. It deletes these logs after 30 days.</p><h2 id=\"analytics\">Analytics</h2>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if analytics {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<p>Rulemart counts page views on every page, signed in or not, with <a href=\"https://www.cloudflare.com/web-analytics/\">Cloudflare Web Analytics</a>, which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded. No address names you or holds what's in your cart, so Cloudflare can't tell who you are or what you chose.</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<p>Rulemart uses no analytics service.</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<h2 id=\"others\">Who else handles it</h2><ul><li><strong>Amazon Web Services</strong> hosts Rulemart, in the United States, and keeps its logs.</li><li><strong>Neon</strong> hosts its database, in the United States.</li><li><strong>GitHub</strong> signs you in, answers what Rulemart reads of your account, and serves avatars and the images in rules.</li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "\"><h1 class=\"title-xl\">Privacy</h1><p class=\"mt-1.5 text-muted\">What Rulemart keeps about you, why, for how long, and how to delete it. <a href=\"https://fabricahq.com\">Fabrica</a> runs Rulemart.</p><div class=\"prose mt-7\"><h2 id=\"browsing\">Browsing</h2><p>Browsing Rulemart needs no account, and sets no cookie. If you choose a color theme in the footer, your browser keeps the choice, and never sends it to Rulemart.</p><h2 id=\"cart\">Your cart</h2><p>Your cart needs no account either: your browser keeps it, with your choices for it and the repository you enter at checkout, until you remove them. Rulemart keeps none of it. Your cart's page sends them to Rulemart each time it changes, to write the prompt and commands that check it out, and Rulemart answers without storing them; its log records only that the page asked, as for any page.</p><h2 id=\"account\">Your account</h2><p>You sign in with GitHub. Rulemart asks GitHub to read your public profile and the organizations you belong to, and never to write anything. It keeps your GitHub user ID, your username, the name your profile shows, the address of your avatar, when you made your account, and when you last signed in, and updates your username, name, and avatar each time you sign in. Your avatar loads from GitHub's servers.</p><p>Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's server holds, so it can read your GitHub account again when you open your dashboard or press Refresh. Signing out deletes the token with your session, as does signing out everywhere; a session ends by itself after 30 days.</p><h2 id=\"github\">What Rulemart reads of your GitHub account</h2><p>With that token, Rulemart reads the names of your organizations and of the public repositories you and they own, at most 200 of them, the most recently pushed first. In each, it looks for a <code>rule-library.yaml</code> and <code>release/&lt;number&gt;</code> tags, which make a library you could add, and for <code>.code-rules/generated/provenance.json</code>, which makes a project. Of a project's provenance, it keeps the libraries it imports, under which names, the groups it imports, and the versions of their rules it holds, to count the updates waiting for it. It keeps nothing else of your repositories, and none of their code.</p><p>If you install the GitHub App \"Rulemart by Fabrica\", Rulemart also reads the private repositories you choose, the same way, and keeps which installations it reads through. Private repositories' names and projects show only to you, on your own pages, and count toward nothing others see.</p><p>What it read stays until it reads your account again, which replaces it, or until you delete your account. A change to the app's installation on GitHub discards it.</p><p>Signed in, Rulemart also keeps what you add, until you remove it:</p><ul><li><strong>Stars:</strong> which rules you starred, and when. Others see only how many stars a rule has.</li><li><strong>Listings:</strong> which repositories you list, and when you listed or retried them. A library's page shows the username you last signed in with as who added it, and when, while your listing stands. To limit how often anyone lists, Rulemart also notes when each account lists or retries, and deletes each note once it's a day old.</li></ul><h2 id=\"cookies\">Cookies</h2><p>Rulemart sets only cookies that signing in needs, never for advertising or tracking:</p><ul><li><code>__Host-rulemart-sign-in</code>, for 10 minutes: the state of a sign-in in progress.</li><li><code>__Host-rulemart-session</code>, for 30 days, or until you sign out: a random token that keeps you signed in. Rulemart stores only its SHA-256 hash.</li><li><code>__Host-rulemart-notice</code>, for 1 minute: which notice to show once, such as after you sign out.</li></ul><h2 id=\"logs\">Logs</h2><p>Rulemart is served through Amazon CloudFront, whose access logs record each request: your IP address and its country, your browser's user agent, the page you came from, the address you asked for, including a search's words, and when. Rulemart uses them to understand its traffic and to stop abuse, and deletes them after 180 days.</p><p>The server that builds pages logs each request it serves by the kind of page, such as a library's, never your IP address, the page's address, or your cookies. When you sign in or delete your account, it logs your account's number in Rulemart, not your GitHub details. It deletes these logs after 30 days.</p><h2 id=\"analytics\">Analytics</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if analytics {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<li><strong>Cloudflare</strong> counts page views, and redirects rulemart.ai here.</li>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<p>Rulemart counts page views on every page, signed in or not, with <a href=\"https://www.cloudflare.com/web-analytics/\">Cloudflare Web Analytics</a>, which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded. No address names you or holds what's in your cart, so Cloudflare can't tell who you are or what you chose.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<li><strong>Cloudflare</strong> redirects rulemart.ai here.</li>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<p>Rulemart uses no analytics service.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</ul><p>Rulemart sells nothing about you, and shows no ads.</p><h2 id=\"delete\">Deleting your data</h2><p>Delete your account at the bottom of your <a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<h2 id=\"others\">Who else handles it</h2><ul><li><strong>Amazon Web Services</strong> hosts Rulemart, in the United States, and keeps its logs.</li><li><strong>Neon</strong> hosts its database, in the United States.</li><li><strong>GitHub</strong> signs you in, answers what Rulemart reads of your account, and serves avatars and the images in rules.</li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var18 templ.SafeURL
-			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
+			if analytics {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<li><strong>Cloudflare</strong> counts page views, and redirects rulemart.ai here.</li>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<li><strong>Cloudflare</strong> redirects rulemart.ai here.</li>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</ul><p>Rulemart sells nothing about you, and shows no ads.</p><h2 id=\"delete\">Deleting your data</h2><p>Delete your account at the bottom of your <a href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var20 templ.SafeURL
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `about.templ`, Line: 181, Col: 85}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\">dashboard</a>, under Delete your account. Rulemart deletes your account, sessions and their tokens, stars, listings, what it read of your GitHub account, and its record of the GitHub App's installations at once, and unlinks its notes of when you listed. Uninstall the app in your GitHub settings to remove its access there too. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:hello@fabricahq.com\">hello@fabricahq.com</a>.</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\">dashboard</a>, under Delete your account. Rulemart deletes your account, sessions and their tokens, stars, listings, what it read of your GitHub account, and its record of the GitHub App's installations at once, and unlinks its notes of when you listed. Uninstall the app in your GitHub settings to remove its access there too. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:hello@fabricahq.com\">hello@fabricahq.com</a>.</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Privacy · Rulemart", description: "What Rulemart keeps about you, why, for how long, and how to delete it."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Privacy · Rulemart", description: "What Rulemart keeps about you, why, for how long, and how to delete it."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

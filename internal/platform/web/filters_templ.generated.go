@@ -648,7 +648,7 @@ func filterForm(v ruleListView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = optInCheckbox(domain.UnvettedParam, "Include unvetted libraries", v.choices.Unvetted).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = optInCheckbox(domain.UnvettedParam, unvettedOptInLabel, v.choices.Unvetted).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1203,7 +1203,7 @@ func unvettedOptIn(path string, unvetted bool) templ.Component {
 			templ_7745c5c3_Var67 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = optInForm(path, domain.UnvettedParam, "Include unvetted libraries", unvetted).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = optInForm(path, domain.UnvettedParam, unvettedOptInLabel, unvetted).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -204,7 +204,7 @@ templ unvettedConfirmation(library string) {
 	<div class="flex gap-3 rounded-card border border-warn-border bg-warn-surface px-4 py-3.5" role="note">
 		@warningIcon("mt-[3px] size-[18px] shrink-0 text-warn-ink")
 		<div class="min-w-0">
-			<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">This library has not been vetted. Be sure to review these rules carefully.</p>
+			<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">{ unvettedWarningText }</p>
 			<p class="mt-1 text-[14px] text-ink">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed { library }. At checkout, the prompt asks your agent to review its rules before following them.</p>
 		</div>
 	</div>

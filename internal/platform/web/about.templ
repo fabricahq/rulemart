@@ -22,7 +22,7 @@ templ aboutPage(c chrome, canList bool) {
 				<h2 id="vetting">What vetting means</h2>
 				<p>
 					Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries
-					Fabrica has vetted, each marked with a check, until you choose Include unvetted libraries beside the list.
+					Fabrica has vetted, each marked with a check, until you choose { unvettedOptInLabel } beside the list.
 					That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting
 					is a reviewed change to <a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's
 					repository, so the file's history shows when each library was vetted, and why.
@@ -37,7 +37,7 @@ templ aboutPage(c chrome, canList bool) {
 					Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica
 					vets it, a listed library appears under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>,
 					and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of
-					it says "This library has not been vetted. Be sure to review these rules carefully.", search engines are asked
+					it says "{ unvettedWarningText }", search engines are asked
 					not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding
 					agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.
 				</p>
