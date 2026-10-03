@@ -55,8 +55,7 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About Rulemart", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem", "until you choose Include unvetted libraries beside the list",
-		"This library has not been vetted. Be sure to review these rules carefully.")
+		"Report a problem", "Include unvetted libraries", unvettedWarning)
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
 	}

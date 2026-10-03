@@ -24,9 +24,8 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 		t.Error("the title doesn't name the FAQ")
 	}
 	assertShows(t, page, "FAQ Questions and answers", "Still have a question? Ask us .",
-		// What an account adds, now that the dashboard and checkout's project picker have launched.
-		"Easier checkout , since Rulemart knows which of your GitHub projects use Code Rules",
-		"Project tracking , so you see when rule updates are available")
+		// What an account adds: the dashboard's project tracking and checkout's project picker.
+		"Easier checkout", "Project tracking")
 	questions := []string{
 		"What is Rulemart?", "Can I use Rulemart with any project?", "What is Code Rules?", "How do I use Rulemart?",
 		"What are rules, groups, and libraries?", "Should I stay in sync with a rule or fork it?", "How are rules versioned?",
