@@ -69,14 +69,6 @@ const pageActionStyle = "inline-flex min-h-11 shrink-0 items-center justify-cent
 // inputStyle is a text field, outlined in the color of deletion while its value is invalid.
 const inputStyle = "h-11 w-full min-w-0 rounded-[10px] border border-border-strong bg-paper px-3.5 text-[15px] text-ink placeholder:text-faint hover:border-ink focus-visible:border-(--focus) focus-visible:shadow-[0_0_0_1px_var(--focus)] focus-visible:outline-none aria-invalid:border-del-ink aria-invalid:focus-visible:shadow-[0_0_0_1px_var(--del-ink)]"
 
-// errorIcon is a circle with an exclamation mark, in the current text color.
-templ errorIcon(class string) {
-	<svg class={ class } viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		<circle cx="12" cy="12" r="9"></circle>
-		<path d="M12 7.5v5.5M12 16.5h.01"></path>
-	</svg>
-}
-
 // listingsPage shows a signed-in visitor's listings, newest first, each with its state, and ways to look at it, try a
 // failed one again, or remove one. A listing being checked says when it was asked for, and offers to check again, by
 // reloading the page, as Refresh status does, rather than reloading itself, which would move a reader's focus and
