@@ -481,6 +481,66 @@ func TestAFormerOrganizationOwnerNoLongerReadsItsPrivateRepositories(t *testing.
 	}
 }
 
+// An installation belongs to the GitHub account it's on, whatever that account is called now: an organization renamed
+// since the visitor installed the app, whose old name another organization they own took, is checked by its new name,
+// where they're only a member, so the installation is forgotten.
+func TestAnInstallationOnARenamedOrganizationIsCheckedByItsCurrentName(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Users[0].Organizations[0].Role = "admin"
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "octo-org", Name: "secret", Private: true, PushedAt: pushed.Add(-8 * time.Hour),
+		Files: map[string]string{domain.ProvenancePath: githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
+	})
+	fake.Installations = []githubtest.Installation{{ID: 2, Account: "octo-org", AccountID: 100, Organization: true, Repositories: []string{"octo-org/secret"}}}
+	site := newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	fake.Installations[0].Account = "octo-renamed"
+	fake.Users[0].Organizations = []githubtest.Membership{{Organization: "octo-renamed", Role: "member"}, {Organization: "octo-org", Role: "admin"}}
+	site.now = site.now.Add(domain.RefreshInterval)
+	got, err := site.accounts.Refresh(ctx, site.account, site.session)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range got.Projects {
+		if p.Private {
+			t.Errorf("still shows the private %s", p.FullName())
+		}
+	}
+	if installations, _ := site.accounts.Installations(ctx, site.account.ID); len(installations) != 0 {
+		t.Errorf("still reads through %+v", installations)
+	}
+}
+
+// An installation on the visitor's own account stays theirs when they rename it: it's still on their GitHub user.
+func TestAnInstallationOnTheVisitorsRenamedAccountStaysTheirs(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site := newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+
+	fake.Users[0].Login, fake.Installations[0].Account, site.account.Login = "mona-renamed", "mona-renamed", "mona-renamed"
+	site.now = site.now.Add(domain.RefreshInterval)
+	got, err := site.accounts.Refresh(ctx, site.account, site.session)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(got.Projects, func(p domain.Project) bool { return p.Private && p.FullName() == "mona/billing" }) {
+		t.Errorf("projects %+v, want the private mona/billing", got.Projects)
+	}
+	if installations, _ := site.accounts.Installations(ctx, site.account.ID); len(installations) != 1 {
+		t.Errorf("reads through %+v, want installation 5", installations)
+	}
+}
+
 // Access removed while a read is under way, by the visitor's "Remove access" or GitHub's webhook, is never undone by
 // that read: whether it succeeds or fails, neither what it returns nor what it keeps names a private repository.
 func TestAccessRemovedDuringAReadStaysRemoved(t *testing.T) {

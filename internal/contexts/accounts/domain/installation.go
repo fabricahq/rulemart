@@ -23,7 +23,8 @@ var ErrIgnoredEvent = errors.New("Rulemart does nothing for this delivery")
 // Installation is an installation of the GitHub App that an account reads private repositories through.
 type Installation struct {
 	ID int64
-	// Account is the login of the GitHub account the app is installed on: the visitor's own, or an organization's.
+	// Account is the login of the GitHub account the app is installed on, the visitor's own or an organization's, as
+	// GitHub named it when the visitor added the installation; the account may have been renamed since.
 	Account string
 }
 

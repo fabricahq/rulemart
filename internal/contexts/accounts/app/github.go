@@ -204,21 +204,34 @@ func (g GitHubAccounts) readOnce(ctx context.Context, token string, account doma
 	return snapshot, nil
 }
 
-// stillPermitted returns installations, checking with the visitor's own token that they still own each organization one
-// is on, as Install checked when they added it. A former owner, demoted or gone from the organization, is no longer
-// permitted, so the installation is forgotten for their account, with its snapshot, and it fails with
-// errAccessChanged.
+// stillPermitted returns installations, checking with GitHub that each is still on the visitor's own GitHub user or an
+// organization they own, as Install checked when they added it. It asks the app which account each is on now, since
+// accounts can be renamed and their old names taken by others, and checks the visitor's role in that organization by
+// its current name with their own token. An installation the visitor no longer may read through, such as when they're
+// demoted or gone from the organization, is forgotten for their account, with its snapshot, and one GitHub no longer
+// knows is forgotten for every account; then it fails with errAccessChanged.
 func (g GitHubAccounts) stillPermitted(ctx context.Context, token string, account domain.Account, installations []domain.Installation) ([]domain.Installation, error) {
+	if g.App == nil {
+		return installations, nil
+	}
 	revoked := false
 	for _, installation := range installations {
-		if g.App == nil || strings.EqualFold(installation.Account, account.Login) {
+		on, err := g.App.Installation(ctx, installation.ID)
+		if errors.Is(err, domain.ErrNoSuchInstallation) {
+			if err := g.Store.InstallationRemoved(ctx, installation.ID); err != nil {
+				return nil, err
+			}
+			revoked = true
 			continue
 		}
-		role, err := g.GitHub.OrganizationRole(ctx, token, installation.Account)
 		if err != nil {
 			return nil, err
 		}
-		if role == "admin" {
+		owned, err := g.owns(ctx, token, account, on)
+		if err != nil {
+			return nil, err
+		}
+		if owned {
 			continue
 		}
 		if err := g.Store.RemoveInstallation(ctx, account.ID, installation.ID); err != nil {
@@ -426,30 +439,41 @@ func (g GitHubAccounts) Install(ctx context.Context, account domain.Account, ses
 	return g.read(ctx, account, session)
 }
 
-// checkInstalledBy reports whether the visitor may read through an installation on the account on: it's their own, or
-// an organization they own, as their own token tells. It fails with ErrNotYourInstallation otherwise.
+// checkInstalledBy reports whether the visitor may read through an installation on the account on, as owns tells. It
+// fails with ErrNotYourInstallation otherwise.
 func (g GitHubAccounts) checkInstalledBy(ctx context.Context, account domain.Account, session domain.SessionToken, on domain.InstallationAccount) error {
-	if !on.Organization {
-		if on.ID != account.GitHubUserID {
-			return ErrNotYourInstallation
+	var token string
+	if on.Organization {
+		var err error
+		if token, err = g.Sessions.GitHubToken(ctx, session); err != nil {
+			return err
 		}
-		return nil
 	}
-	token, err := g.Sessions.GitHubToken(ctx, session)
-	if err != nil {
-		return err
-	}
-	role, err := g.GitHub.OrganizationRole(ctx, token, on.Login)
+	owned, err := g.owns(ctx, token, account, on)
 	if errors.Is(err, domain.ErrGitHubTokenRefused) {
 		return ErrNoGitHubToken
 	}
 	if err != nil {
 		return err
 	}
-	if role != "admin" {
+	if !owned {
 		return ErrNotYourInstallation
 	}
 	return nil
+}
+
+// owns reports whether the visitor may read through an installation on the account on: it's their own GitHub user, by
+// ID, since a login can change hands, or an organization they own, as their GitHub token tells, which only an
+// organization needs.
+func (g GitHubAccounts) owns(ctx context.Context, token string, account domain.Account, on domain.InstallationAccount) (bool, error) {
+	if !on.Organization {
+		return on.ID == account.GitHubUserID, nil
+	}
+	role, err := g.GitHub.OrganizationRole(ctx, token, on.Login)
+	if err != nil {
+		return false, err
+	}
+	return role == "admin", nil
 }
 
 // ForgetInstallations stops reading private repositories for the account: it forgets every installation it reads
