@@ -424,12 +424,25 @@ func TestRulePageReadsTagsAndAssets(t *testing.T) {
 	if _, err := reader.AssetPage(ctx, vetted, "example", "rules", "techs/go/close-what-you-open", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("an asset the rule doesn't list: got %v, want ErrNotFound", err)
 	}
-	image, err := reader.AssetContent(ctx, vetted, "example", "rules", "techs/go/assets/return-errors/z.svg")
+	image, err := reader.AssetContent(ctx, vetted, "example", "rules", "techs/go/return-errors", "techs/go/assets/return-errors/z.svg")
 	if err != nil || image.MediaType != "image/svg+xml" || string(image.Content) != "<svg/>" {
 		t.Errorf("the image is %+v, %v", image, err)
 	}
-	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
+	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", "", "assets/a.md"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("a file kept without bytes: got %v, want ErrNotFound", err)
+	}
+	// A rule's own asset's path may spell the rule in another case, as its address does, but not the file's name.
+	const otherCase, otherCaseAsset = "Techs/Go/Return-Errors", "Techs/Go/assets/Return-Errors/z.svg"
+	own, err := reader.AssetPage(ctx, vetted, "example", "rules", otherCase, otherCaseAsset)
+	if err != nil || own.Page.Rule.Path != "techs/go/return-errors" || own.Asset.Path != "techs/go/assets/return-errors/z.svg" {
+		t.Errorf("the own asset's page, its rule in another case, is %+v, %v; want the library's spelling", own.Asset, err)
+	}
+	image, err = reader.AssetContent(ctx, vetted, "example", "rules", otherCase, otherCaseAsset)
+	if err != nil || image.Rule != "techs/go/return-errors" || image.Path != "techs/go/assets/return-errors/z.svg" {
+		t.Errorf("the image, its rule in another case, is %+v, %v; want the library's spelling", image, err)
+	}
+	if _, err := reader.AssetContent(ctx, vetted, "example", "rules", otherCase, "Techs/Go/assets/Return-Errors/Z.svg"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("a file's name in another case: got %v, want ErrNotFound", err)
 	}
 }
 

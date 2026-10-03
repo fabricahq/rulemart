@@ -31,7 +31,8 @@ const ruleParam = "rule"
 
 // requestedAsset returns the path in the repository of the asset r's path names, and whether it names one: a shared
 // asset, under the library's shared asset directory, or one of a rule's own, under the rule's ID, which then names
-// rulePath. Code Rules reserves assets, so no group or rule's ID holds it.
+// rulePath. A rule's own asset's path spells the rule's asset directory as r's path spells the rule, which the catalog
+// matches without regard to case. Code Rules reserves assets, so no group or rule's ID holds it.
 func requestedAsset(r *http.Request) (rulePath, assetPath string, ok bool) {
 	if r.PathValue("kind")+"/" == domain.SharedAssetDir {
 		return "", domain.SharedAssetDir + r.PathValue("group"), true
@@ -61,12 +62,13 @@ func (s *server) orAsset(next http.HandlerFunc) http.HandlerFunc {
 
 // asset shows the asset at assetPath, a path in the repository, of the rule at rulePath on a page of its own, or with
 // the raw parameter, serves it, when it's an image Rulemart keeps. A shared asset's page shows it with the rule the rule
-// parameter names, or the first rule that lists it.
+// parameter names, or the first rule that lists it. An address that spells the library, or a rule whose own asset it
+// is, otherwise redirects to the library's spelling, as a rule's page does.
 func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPath string) {
 	owner, repo := r.PathValue("owner"), r.PathValue("repo")
 	query := r.URL.Query()
 	if query.Has(domain.AssetRawParam) {
-		s.assetImage(w, r, owner, repo, assetPath)
+		s.assetImage(w, r, owner, repo, rulePath, assetPath)
 		return
 	}
 	shared := rulePath == ""
@@ -88,9 +90,9 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 		return
 	}
 	lib := page.Page.Library
-	if lib.Owner != owner || lib.Name != repo {
+	if lib.Owner != owner || lib.Name != repo || page.Asset.Path != assetPath {
 		// assetPagePath escapes the path already, so it's written as it is rather than escaped again as a url.URL's Path.
-		redirect(w, r, withQuery(assetPagePath(newLibraryView(lib), page.Page.Rule.Path, assetPath), r))
+		redirect(w, r, withQuery(assetPagePath(newLibraryView(lib), page.Page.Rule.Path, page.Asset.Path), r))
 		return
 	}
 	rule := s.ruleViewWithoutStar(page.Page)
@@ -104,16 +106,22 @@ func (s *server) asset(w http.ResponseWriter, r *http.Request, rulePath, assetPa
 	s.render(w, r, http.StatusOK, assetPage(s.pageChrome(canonical), rule, assets[i], assets, html))
 }
 
-// assetImage serves the image at assetPath in the library owner/repo that Rulemart keeps, as the type ingestion
-// recorded, for a day, under a policy that runs and loads nothing, or the missing page.
-func (s *server) assetImage(w http.ResponseWriter, r *http.Request, owner, repo, assetPath string) {
-	image, err := s.catalog.AssetImage(r.Context(), owner, repo, assetPath)
+// assetImage serves the image at assetPath, of the rule at rulePath or shared, in the library owner/repo that Rulemart
+// keeps, as the type ingestion recorded, for a day, under a policy that runs and loads nothing, or the missing page. An
+// address that spells the rule otherwise redirects to the library's spelling.
+func (s *server) assetImage(w http.ResponseWriter, r *http.Request, owner, repo, rulePath, assetPath string) {
+	image, err := s.catalog.AssetImage(r.Context(), owner, repo, rulePath, assetPath)
 	if errors.Is(err, app.ErrNotFound) {
 		s.notFound(w, r)
 		return
 	}
 	if err != nil {
 		s.fail(w, r, err)
+		return
+	}
+	if image.Path != assetPath {
+		// The query names the raw parameter, so the redirect keeps serving the image.
+		redirect(w, r, withQuery(domain.AssetPagePath(owner+"/"+repo, image.Rule, image.Path), r))
 		return
 	}
 	w.Header().Set("Content-Security-Policy", assetPolicy)

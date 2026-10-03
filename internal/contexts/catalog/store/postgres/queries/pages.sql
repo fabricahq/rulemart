@@ -99,6 +99,14 @@ WHERE r.library_id = @library_id AND lower(r.path) = lower(@path)
 ORDER BY r.path = @path DESC, r.path
 LIMIT 1;
 
+-- GetRulePath returns the library's spelling of its rule at path, current or retired, matched as GetRule matches it.
+-- name: GetRulePath :one
+SELECT r.path
+FROM rules r
+WHERE r.library_id = @library_id AND lower(r.path) = lower(@path)
+ORDER BY r.path = @path DESC, r.path
+LIMIT 1;
+
 -- ListRuleLinks returns how every rule of the library was replaced: its retirement and replacement, the release that
 -- added it with its first title, and its last title, in path order.
 -- name: ListRuleLinks :many

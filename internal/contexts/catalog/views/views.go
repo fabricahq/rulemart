@@ -243,8 +243,11 @@ type AssetPage struct {
 
 // AssetContent is the media type and bytes of an asset the catalog keeps, of which Rulemart serves only images.
 type AssetContent struct {
-	MediaType string
-	Content   []byte
+	// Rule is the library's spelling of the rule whose own asset it is, or empty for a shared asset, and Path the
+	// asset's path in the repository, which spells the rule's asset directory as Rule does.
+	Rule, Path string
+	MediaType  string
+	Content    []byte
 }
 
 // Retirement is how a library release retired a rule.

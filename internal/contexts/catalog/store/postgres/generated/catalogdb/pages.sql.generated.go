@@ -250,6 +250,27 @@ func (q *Queries) GetRule(ctx context.Context, arg GetRuleParams) (GetRuleRow, e
 	return i, err
 }
 
+const getRulePath = `-- name: GetRulePath :one
+SELECT r.path
+FROM rules r
+WHERE r.library_id = $1 AND lower(r.path) = lower($2)
+ORDER BY r.path = $2 DESC, r.path
+LIMIT 1
+`
+
+type GetRulePathParams struct {
+	LibraryID int64
+	Path      string
+}
+
+// GetRulePath returns the library's spelling of its rule at path, current or retired, matched as GetRule matches it.
+func (q *Queries) GetRulePath(ctx context.Context, arg GetRulePathParams) (string, error) {
+	row := q.db.QueryRow(ctx, getRulePath, arg.LibraryID, arg.Path)
+	var path string
+	err := row.Scan(&path)
+	return path, err
+}
+
 const listCurrentRules = `-- name: ListCurrentRules :many
 SELECT r.id, r.path, g.path AS group_path, v.title::text AS title, v.impact::text AS impact, v.major, v.minor, v.patch
 FROM rules r

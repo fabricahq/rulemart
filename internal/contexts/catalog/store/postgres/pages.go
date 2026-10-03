@@ -362,8 +362,10 @@ func ruleAssets(ctx context.Context, q *catalogdb.Queries, id int64, rulePath st
 }
 
 // AssetPage returns the asset at assetPath of the rule at rulePath in the library owner/name, with the rule's page, or
-// of the first rule in path order that lists it when rulePath is empty, and how many rules list it. It fails with store.ErrNotFound when there's
-// no such library or rule, or the rule doesn't list such an asset.
+// of the first rule in path order that lists it when rulePath is empty, and how many rules list it. A rule's own
+// asset's path may spell the rule's asset directory as rulePath spells the rule; the page's paths are the library's
+// spelling. It fails with store.ErrNotFound when there's no such library or rule, or the rule doesn't list such an
+// asset.
 func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
 	var page views.AssetPage
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
@@ -380,6 +382,7 @@ func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner
 		if err != nil {
 			return err
 		}
+		assetPath = assetSpelledAsRule(assetPath, rulePath, rule.Rule.Path)
 		i := slices.IndexFunc(rule.Assets, func(a views.Asset) bool { return a.Path == assetPath })
 		if i < 0 {
 			return pgx.ErrNoRows
@@ -404,17 +407,26 @@ func (s *Store) AssetPage(ctx context.Context, vetted []domain.LibraryKey, owner
 	return page, nil
 }
 
-// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name. It fails with
-// store.ErrNotFound when there's no such library, or it keeps no bytes of such an asset.
-func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, assetPath string) (views.AssetContent, error) {
+// AssetContent returns the media type and bytes of the asset at assetPath in the library owner/name: one of the own
+// assets of the rule at rulePath, whose asset directory assetPath may spell as rulePath spells the rule, or a shared
+// one when rulePath is empty. It fails with store.ErrNotFound when there's no such library or rule, or it keeps no
+// bytes of such an asset.
+func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
 	var content views.AssetContent
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		_, id, err := library(ctx, q, vetted, owner, name)
 		if err != nil {
 			return err
 		}
-		row, err := q.GetAssetContent(ctx, catalogdb.GetAssetContentParams{LibraryID: id, Path: assetPath})
-		content = views.AssetContent{MediaType: row.MediaType, Content: row.Content}
+		content.Path = assetPath
+		if rulePath != "" {
+			if content.Rule, err = q.GetRulePath(ctx, catalogdb.GetRulePathParams{LibraryID: id, Path: rulePath}); err != nil {
+				return err
+			}
+			content.Path = assetSpelledAsRule(assetPath, rulePath, content.Rule)
+		}
+		row, err := q.GetAssetContent(ctx, catalogdb.GetAssetContentParams{LibraryID: id, Path: content.Path})
+		content.MediaType, content.Content = row.MediaType, row.Content
 		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -424,6 +436,16 @@ func (s *Store) AssetContent(ctx context.Context, vetted []domain.LibraryKey, ow
 		return views.AssetContent{}, fmt.Errorf("load asset %s/%s/%s: %v", owner, name, assetPath, err)
 	}
 	return content, nil
+}
+
+// assetSpelledAsRule returns assetPath, with the asset directory of the rule that requested spells, when assetPath is
+// in it, spelled as spelling spells the rule instead. A rule's ID matches without regard to case, but a file's name
+// doesn't, so the rest of the path stays as it is.
+func assetSpelledAsRule(assetPath, requested, spelling string) string {
+	if file, own := strings.CutPrefix(assetPath, domain.RuleAssetDir(requested)); own {
+		return domain.RuleAssetDir(spelling) + file
+	}
+	return assetPath
 }
 
 // ruleLinks reads how every rule of the library library was replaced, in path order.

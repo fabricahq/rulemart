@@ -116,11 +116,14 @@ type Catalog interface {
 	RulePage(ctx context.Context, owner, name, rulePath string) (views.RulePage, error)
 	// AssetPage returns the asset at assetPath, a path in the repository, of the current rule at rulePath in the
 	// library owner/name, with the rule's page, or of the first rule that lists it when rulePath is empty, or fails with
-	// app.ErrNotFound when there's no such library or rule, or the rule doesn't list such an asset.
+	// app.ErrNotFound when there's no such library or rule, or the rule doesn't list such an asset. A rule's own asset's
+	// path may spell the rule's asset directory as rulePath spells the rule; the page's paths are the library's spelling.
 	AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error)
-	// AssetImage returns the image at assetPath in the library owner/name that Rulemart keeps, or fails with
-	// app.ErrNotFound when there's no such library or image.
-	AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetContent, error)
+	// AssetImage returns the image at assetPath in the library owner/name that Rulemart keeps, one of the own assets of
+	// the rule at rulePath, matched as RulePage matches it, or a shared one when rulePath is empty, or fails with
+	// app.ErrNotFound when there's no such library, rule, or image. A rule's own asset's path may spell the rule's asset
+	// directory as rulePath spells the rule; the image's Rule and Path are the library's spelling.
+	AssetImage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error)
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)

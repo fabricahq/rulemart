@@ -169,8 +169,10 @@ func (c catalog) AssetPage(_ context.Context, owner, name, rulePath, assetPath s
 	return page, c.err
 }
 
-func (c catalog) AssetImage(_ context.Context, owner, name, assetPath string) (views.AssetContent, error) {
+// AssetImage finds an image by its path as the library spells it.
+func (c catalog) AssetImage(_ context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
 	image, ok := c.images[strings.ToLower(owner+"/"+name)+"/"+assetPath]
+	image.Rule, image.Path = rulePath, assetPath
 	if c.err == nil && !ok {
 		return image, fmt.Errorf("load asset %s/%s/%s: %w", owner, name, assetPath, app.ErrNotFound)
 	}

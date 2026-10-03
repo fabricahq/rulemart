@@ -332,3 +332,25 @@ changes: {practices/testing/test-changed-behavior: {change: new, summaries: [Add
 		})
 	}
 }
+
+// A rule's own asset's address may spell the rule in any case, as the rule's page's may, and redirects to the
+// library's spelling in one step, keeping the file's name as it is and the query, for the page and the raw image alike.
+func TestAssetAddressesRedirectOtherCasesOfTheirRule(t *testing.T) {
+	handler := newAssetSite(t)
+	otherCase := library + "/Practices/Testing/Test-Changed-Behavior"
+
+	assertRedirectsToPage(t, handler, otherCase, behaviorRule)
+	for _, page := range []string{loopPage, loopPage + "?raw=1"} {
+		if resp := get(t, handler, page); resp.Code != http.StatusOK {
+			t.Errorf("%s: got %d, want the asset", page, resp.Code)
+		}
+	}
+	assertRedirectsToPage(t, handler, otherCase+"/assets/loop.svg", loopPage)
+	assertRedirectsToPage(t, handler, otherCase+"/assets/loop.svg?raw=1", loopPage+"?raw=1")
+	// A file's name is a path in the repository, which tells cases apart.
+	for _, page := range []string{behaviorRule + "/assets/LOOP.svg", otherCase + "/assets/LOOP.svg?raw=1"} {
+		if resp := get(t, handler, page); resp.Code != http.StatusNotFound {
+			t.Errorf("%s: got %d to %q, want 404", page, resp.Code, resp.Header().Get("Location"))
+		}
+	}
+}

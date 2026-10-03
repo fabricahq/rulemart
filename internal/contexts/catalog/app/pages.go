@@ -120,8 +120,9 @@ func (p Pages) followLinks(page *views.RulePage) {
 
 // AssetPage returns the asset at assetPath, a path in the repository, of the current rule at rulePath in the library
 // owner/name, with the rule's page as RulePage returns it, or of the first rule in path order that lists the asset
-// when rulePath is empty. It fails with ErrNotFound when there's no such library or rule, or the rule doesn't list
-// such an asset.
+// when rulePath is empty. A rule's own asset's path may spell the rule's asset directory as rulePath spells the rule;
+// the page's paths are the library's spelling. It fails with ErrNotFound when there's no such library or rule, or the
+// rule doesn't list such an asset.
 func (p Pages) AssetPage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetPage, error) {
 	page, err := p.Store.AssetPage(ctx, p.Vetted, owner, name, rulePath, assetPath)
 	if err != nil {
@@ -131,11 +132,12 @@ func (p Pages) AssetPage(ctx context.Context, owner, name, rulePath, assetPath s
 	return page, nil
 }
 
-// AssetImage returns the image at assetPath in the library owner/name, as Rulemart serves it, or ErrNotFound when
-// there's no such library, or it keeps no image there: Rulemart serves no other file, so no library can serve a page
-// from Rulemart's origin.
-func (p Pages) AssetImage(ctx context.Context, owner, name, assetPath string) (views.AssetContent, error) {
-	image, err := p.Store.AssetContent(ctx, p.Vetted, owner, name, assetPath)
+// AssetImage returns the image at assetPath in the library owner/name, one of the own assets of the rule at rulePath
+// or a shared one when rulePath is empty, as the store's AssetContent matches them, as Rulemart serves it, or
+// ErrNotFound when there's no such library or rule, or it keeps no image there: Rulemart serves no other file, so no
+// library can serve a page from Rulemart's origin.
+func (p Pages) AssetImage(ctx context.Context, owner, name, rulePath, assetPath string) (views.AssetContent, error) {
+	image, err := p.Store.AssetContent(ctx, p.Vetted, owner, name, rulePath, assetPath)
 	if err != nil {
 		return views.AssetContent{}, err
 	}
