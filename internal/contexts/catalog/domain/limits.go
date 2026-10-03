@@ -31,8 +31,9 @@ type ContentLimits struct {
 	// FileBytes bounds each rule, group, or manifest file assembly reads.
 	FileBytes int64
 	// ContentBytes bounds the content assembly holds until the library is stored: every current rule's Markdown,
-	// its title, impact description, reading guidance, and tags, its HTML and the links rendering rewrites, the bytes
-	// and HTML of the assets it keeps, and every group's metadata file. A release's files share storage however many
+	// its title, impact description, reading guidance, and tags, its HTML and the links rendering rewrites, the links
+	// it finds to shared assets, each destination once however many references name it, the bytes and HTML of the
+	// assets it keeps, and every group's metadata file. A release's files share storage however many
 	// paths have the same content, so what a source fetches can't bound this: a small release can list thousands of
 	// rules or groups that share one large file.
 	ContentBytes int64

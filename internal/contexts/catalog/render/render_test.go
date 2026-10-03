@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // unlimited is an allowance no test body comes near.
@@ -330,8 +331,103 @@ func TestCodeHighlightsTextFilesByTheirNames(t *testing.T) {
 // Links finds every link and image a page would show, including one that names a definition, and none in raw HTML or
 // code, which pages show as text.
 func TestLinksFindsTheLinksAndImagesAPageShows(t *testing.T) {
-	got := Links("See [a](a.md) and ![b](b.png), [c][d], `[e](e.md)`, and <a href=\"f.md\">f</a>.\n\n[d]: c.md\n")
+	got, _, err := Links("See [a](a.md) and ![b](b.png), [c][d], `[e](e.md)`, and <a href=\"f.md\">f</a>.\n\n[d]: c.md\n", unlimited)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if want := []string{"a.md", "b.png", "c.md"}; !slices.Equal(got, want) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+// Links finds each destination once, in the order it first appears, however many links and references name it, and
+// uses its bytes once; it stops at its allowance rather than hold more.
+func TestLinksFindsEachDestinationOnceWithinItsAllowance(t *testing.T) {
+	body := "[a][d], [b](x.md), [c][d], ![e](x.md)\n\n[d]: retry.md\n"
+	const used = int64(len("retry.md") + len("x.md"))
+
+	got, spent, err := Links(body, used)
+
+	if want := []string{"retry.md", "x.md"}; err != nil || !slices.Equal(got, want) || spent != used {
+		t.Fatalf("got %q using %d, %v; want %q using %d", got, spent, err, want, used)
+	}
+	if _, _, err := Links(body, used-1); !errors.Is(err, domain.ErrOverAllowance) {
+		t.Fatalf("a byte short of the allowance: got %v, want a refusal", err)
+	}
+}
+
+// Assembly finds a rule's links to its shared assets before it renders the rule, so finding them must not expand as
+// rendering could: many references to one long link definition hold its destination once, within the content budget.
+func TestAssemblyFindsLinksWithoutExpandingReferences(t *testing.T) {
+	const references = 2_000
+	destination := "../../assets/" + strings.Repeat("a", 32<<10) // 32 KiB, which every reference names
+	body := strings.Repeat("[x][d] ", references) + "\n\n[d]: " + destination + "\n"
+	release := oneRule(t, body)
+	limits := domain.ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 20, AssetBytes: 1 << 10, RuleAssetBytes: 1 << 10, Assets: 10}
+
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	_, err := domain.Assemble(assembled, []domain.ReleaseSnapshot{release}, limits, Renderer{})
+	runtime.ReadMemStats(&after)
+
+	if want := "more than 1048576 bytes of content"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("got error %v, want the budget's refusal, %q", err, want)
+	}
+	// Finding every reference's link would allocate at least the destination per reference: over 64 MiB here.
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 32<<20 {
+		t.Fatalf("assembly allocated %d MiB for a 1 MiB budget", allocated>>20)
+	}
+}
+
+var assembled = domain.Repository{Host: domain.GitHub, ID: "42", Owner: "example", Name: "rules"}
+
+// oneRule returns release/1 of a library whose one rule, techs/go/return-errors, has body.
+func oneRule(t *testing.T, body string) domain.ReleaseSnapshot {
+	t.Helper()
+	const record = `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+`
+	parsed, err := coderules.ParseReleaseRecord([]byte(record), "release/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return domain.ReleaseSnapshot{
+		Number: 1, Tag: "release/1", CommitID: strings.Repeat("1", 40), Record: parsed,
+		Files: memoryFiles{
+			"rule-library.yaml":    "formatVersion: 1\n",
+			"techs/go/_group.yaml": "name: Go\ndescription: Go rules.\nwhenToRead: When the work involves Go.\n",
+			"techs/go/return-errors.md": "---\ntitle: Return errors\nwhenToRead: When returning errors.\nimpact: HIGH\n" +
+				"impactDescription: Prevents lost errors.\n---\n\n## Return errors\n\n" + body,
+		},
+	}
+}
+
+// memoryFiles is a release's files, by path, held in memory.
+type memoryFiles map[string]string
+
+func (f memoryFiles) Open(path string) (domain.File, error) {
+	content, ok := f[path]
+	if !ok {
+		return nil, domain.ErrFileMissing
+	}
+	return memoryFile(content), nil
+}
+
+func (f memoryFiles) List(dir string, max int) ([]string, error) {
+	var paths []string
+	for path := range f {
+		if strings.HasPrefix(path, dir) {
+			paths = append(paths, path)
+		}
+	}
+	slices.Sort(paths)
+	return paths[:min(len(paths), max+1)], nil
+}
+
+type memoryFile string
+
+func (f memoryFile) Size() int64           { return int64(len(f)) }
+func (f memoryFile) Read() ([]byte, error) { return []byte(f), nil }

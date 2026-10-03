@@ -263,19 +263,25 @@ func (a *assembly) renderCode(text, file string) (string, error) {
 	return a.spendRendering(a.renderer.Code(text, file, a.budget.remaining()))
 }
 
-// spendRendering spends what a render used from the budget, and returns its HTML, or its error, as the budget's
-// refusal when the render would have passed it.
+// spendRendering spends what a render used from the budget, and returns its HTML, or its error, as spendAllowance
+// does.
 func (a *assembly) spendRendering(html string, used int64, err error) (string, error) {
-	if errors.Is(err, ErrOverAllowance) {
-		return "", a.budget.exceeded()
-	}
-	if err != nil {
-		return "", err
-	}
-	if err := a.budget.spend(used); err != nil {
+	if err := a.spendAllowance(used, err); err != nil {
 		return "", err
 	}
 	return html, nil
+}
+
+// spendAllowance spends what the renderer used of the allowance it had, what's left of the budget, or returns its
+// error, as the budget's refusal when it would have passed the allowance.
+func (a *assembly) spendAllowance(used int64, err error) error {
+	if errors.Is(err, ErrOverAllowance) {
+		return a.budget.exceeded()
+	}
+	if err != nil {
+		return err
+	}
+	return a.budget.spend(used)
 }
 
 // readGroup reads the _group.yaml of the group at path, spending budget on it. A group with a current rule has one

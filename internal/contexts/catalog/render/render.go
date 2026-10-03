@@ -38,7 +38,9 @@ func (Renderer) Code(text, file string, allowance int64) (string, int64, error) 
 	return Code(text, file, allowance)
 }
 
-func (Renderer) Links(body string) []string { return Links(body) }
+func (Renderer) Links(body string, allowance int64) ([]string, int64, error) {
+	return Links(body, allowance)
+}
 
 // pageKey carries the source being rendered to pageTransformer, and allowanceKey the allowance that pays for
 // rewritten links. refusedKey holds the allowance's error when rewriting links would pass it.
@@ -211,25 +213,44 @@ func Code(text, file string, allowance int64) (string, int64, error) {
 	return out.html.String(), out.spent.used, nil
 }
 
-// Links returns the destinations of body's links and images, as written, in the order they appear: the links a page
-// of it would show, including those that name a link definition, without rewriting them.
-func Links(body string) []string {
+// Links returns the distinct destinations of body's links and images, as written, in the order they first appear:
+// the links a page of it would show, including those that name a link definition, without rewriting them. It holds
+// each destination once, however many references share it, and stops with domain.ErrOverAllowance rather than hold
+// more of their bytes than allowance; holding each once also bounds how many it returns by those bytes.
+func Links(body string, allowance int64) (destinations []string, used int64, err error) {
 	source := []byte(body)
 	document := linkParser.Parse(text.NewReader(source))
-	var destinations []string
-	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+	spent := &spending{limit: allowance}
+	found := map[string]bool{}
+	err = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
+		var destination []byte
 		switch node := node.(type) {
 		case *ast.Link:
-			destinations = append(destinations, string(node.Destination))
+			destination = node.Destination
 		case *ast.Image:
-			destinations = append(destinations, string(node.Destination))
+			destination = node.Destination
+		default:
+			return ast.WalkContinue, nil
 		}
+		// Looking a destination up as string(destination) copies nothing, so a reference already found costs nothing.
+		if found[string(destination)] {
+			return ast.WalkContinue, nil
+		}
+		if err := spent.spend(int64(len(destination))); err != nil {
+			return ast.WalkStop, err
+		}
+		text := string(destination)
+		found[text] = true
+		destinations = append(destinations, text)
 		return ast.WalkContinue, nil
 	})
-	return destinations
+	if err != nil {
+		return nil, 0, err
+	}
+	return destinations, spent.used, nil
 }
 
 // pageTransformer adapts a parsed body to its page, using the source in the parser context.

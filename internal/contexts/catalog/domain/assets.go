@@ -110,11 +110,20 @@ func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead stri
 		return nil, nil, err
 	}
 	file := RuleFile(rulePath)
-	queue := append(a.sharedTargets(file, body), a.sharedTargets(file, whenToRead)...)
+	type linking struct{ from, body string }
+	sources := []linking{{file, body}, {file, whenToRead}}
 	for _, p := range own {
 		if asset := a.read.assets[p]; AssetKindOf(asset.MediaType) == AssetMarkdown && asset.Content != nil {
-			queue = append(queue, a.sharedTargets(p, string(asset.Content))...)
+			sources = append(sources, linking{p, string(asset.Content)})
 		}
+	}
+	var queue []string
+	for _, source := range sources {
+		targets, err := a.sharedTargets(source.from, source.body)
+		if err != nil {
+			return nil, nil, err
+		}
+		queue = append(queue, targets...)
 	}
 	seen := map[string]bool{}
 	for len(queue) > 0 {
@@ -192,7 +201,9 @@ func (a *assembly) readSharedAsset(p string) (bool, error) {
 	}
 	a.read.assets[p] = asset
 	if AssetKindOf(asset.MediaType) == AssetMarkdown && asset.Content != nil {
-		a.read.sharedLinks[p] = a.sharedTargets(p, string(asset.Content))
+		if a.read.sharedLinks[p], err = a.sharedTargets(p, string(asset.Content)); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
 }
@@ -226,15 +237,20 @@ func (a *assembly) readAsset(release int, p string, file File, kept *int64) (*As
 	return asset, nil
 }
 
-// sharedTargets returns the shared files that the Markdown body of the file from links to, or shows as images.
-func (a *assembly) sharedTargets(from, body string) []string {
+// sharedTargets returns the shared files that the Markdown body of the file from links to, or shows as images. The
+// links it finds spend the budget, so a body can't hold more of them than the budget, even before it's rendered.
+func (a *assembly) sharedTargets(from, body string) ([]string, error) {
+	destinations, used, err := a.renderer.Links(body, a.budget.remaining())
+	if err := a.spendAllowance(used, err); err != nil {
+		return nil, fmt.Errorf("%s: %v", from, err)
+	}
 	var targets []string
-	for _, destination := range a.renderer.Links(body) {
+	for _, destination := range destinations {
 		if target, _, ok := ResolveLink(from, destination); ok && strings.HasPrefix(target, SharedAssetDir) {
 			targets = append(targets, target)
 		}
 	}
-	return targets
+	return targets, nil
 }
 
 // addresses returns where Rulemart shows each of paths, assets of the rule at rulePath, or nil for none, naming the

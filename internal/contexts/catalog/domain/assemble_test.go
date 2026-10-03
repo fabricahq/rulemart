@@ -67,7 +67,7 @@ func (f withUnreadable) Open(path string) (File, error) {
 }
 
 // markup stands in for render.Renderer: it wraps Markdown in a paragraph, and code in a block, using as many bytes as
-// that takes, and finds the links written as [text](destination).
+// that takes, and finds the links written as [text](destination), each destination once, using its bytes.
 type markup struct{}
 
 func (markup) Markdown(body string, _ MarkdownSource, allowance int64) (string, int64, error) {
@@ -81,12 +81,19 @@ func (markup) Code(text, _ string, allowance int64) (string, int64, error) {
 // markdownLink matches a Markdown link or image written inline, holding its destination.
 var markdownLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
 
-func (markup) Links(body string) []string {
+func (markup) Links(body string, allowance int64) ([]string, int64, error) {
 	var destinations []string
+	var used int64
 	for _, match := range markdownLink.FindAllStringSubmatch(body, -1) {
+		if slices.Contains(destinations, match[1]) {
+			continue
+		}
+		if used += int64(len(match[1])); used > allowance {
+			return nil, 0, ErrOverAllowance
+		}
 		destinations = append(destinations, match[1])
 	}
-	return destinations
+	return destinations, used, nil
 }
 
 // within returns html and its length, or ErrOverAllowance when it's longer than allowance.
@@ -97,14 +104,26 @@ func within(html string, allowance int64) (string, int64, error) {
 	return html, int64(len(html)), nil
 }
 
-// rendering is a renderer that renders Markdown with markdown, and code as markup does.
+// rendering is a renderer that renders Markdown with markdown, and code as markup does, and finds links with links, or
+// as markup does when it's nil.
 type rendering struct {
 	markup
 	markdown func(body string, source MarkdownSource, allowance int64) (string, int64, error)
+	links    func(body string, allowance int64) ([]string, int64, error)
 }
 
 func (r rendering) Markdown(body string, source MarkdownSource, allowance int64) (string, int64, error) {
+	if r.markdown == nil {
+		return r.markup.Markdown(body, source, allowance)
+	}
 	return r.markdown(body, source, allowance)
+}
+
+func (r rendering) Links(body string, allowance int64) ([]string, int64, error) {
+	if r.links == nil {
+		return r.markup.Links(body, allowance)
+	}
+	return r.links(body, allowance)
 }
 
 // limits leave room for every test library, except where a test lowers them.
@@ -504,6 +523,38 @@ func TestAssembleRefusesARuleWhoseHTMLWouldPassTheBudget(t *testing.T) {
 
 	if want := fmt.Sprintf("release/1: practices/testing/check-retry-backoff.md: the library's rules and groups hold more than %d bytes of content", limits.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("got error %v, want one containing %q", err, want)
+	}
+}
+
+// A body whose links would pass what's left of the budget is refused with the budget's error, as one whose HTML would.
+func TestAssembleRefusesARuleWhoseLinksWouldPassTheBudget(t *testing.T) {
+	refuse := rendering{links: func(string, int64) ([]string, int64, error) { return nil, 0, ErrOverAllowance }}
+
+	_, err := Assemble(repo, []ReleaseSnapshot{first(t)}, limits, refuse)
+
+	if want := fmt.Sprintf("release/1: practices/testing/check-retry-backoff.md: the library's rules and groups hold more than %d bytes of content", limits.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("got error %v, want one containing %q", err, want)
+	}
+}
+
+// The links assembly finds in a rule spend the budget, each destination once, however many links name it.
+func TestAssembleSpendsTheBudgetOnTheLinksItFinds(t *testing.T) {
+	release := withAssets(t, "See [a](gone.md), [b](gone.md), and [c](gone.md).", nil)
+	without, err := Assemble(repo, []ReleaseSnapshot{release}, assetLimits, markup{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	budget := assetLimits
+
+	budget.ContentBytes = contentBytes(without) + int64(len("gone.md"))
+	if _, err := Assemble(repo, []ReleaseSnapshot{release}, budget, markup{}); err != nil {
+		t.Fatalf("within the budget: %v", err)
+	}
+
+	budget.ContentBytes--
+	_, err = Assemble(repo, []ReleaseSnapshot{release}, budget, markup{})
+	if want := fmt.Sprintf("more than %d bytes of content", budget.ContentBytes); err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("a byte over the budget: got error %v, want %q", err, want)
 	}
 }
 
