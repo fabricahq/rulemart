@@ -126,6 +126,22 @@
       mode, removeButton(item));
   }
 
+  // How many of a whole group's rules its row lists before it offers the rest.
+  const SHOWN_RULES = 5;
+
+  /** Return the list of the rules a whole group brings, the first SHOWN_RULES of them unless the visitor expanded it,
+   * and the button that lists the rest. */
+  function ruleList(item, rules) {
+    if (!rules.length) return [];
+    const shown = item.expanded ? rules : rules.slice(0, SHOWN_RULES);
+    const list = h('ul', 'mt-2 list-disc pl-4 text-[12.5px] text-muted focus:outline-none', { tabindex: '-1', 'data-focus': `rules:${item.key}` },
+      ...shown.map((r) => h('li', 'my-0.5', {}, r.title)));
+    if (shown.length === rules.length) return [list];
+    return [list, h('button', 'mt-1 ml-4 cursor-pointer text-[12.5px] text-muted underline underline-offset-4 hover:text-ink', {
+      type: 'button', 'data-cart-more': item.key, 'aria-label': `Show the other ${rules.length - shown.length} ${item.title} rules`,
+    }, `+${rules.length - shown.length} more`)];
+  }
+
   /** Return a whole group's row, shaded: its tile, name and tag, how many rules and its ID, the rules it brings,
    * Stays in sync, or for an unvetted library's, that it's pinned, and Remove. */
   function groupRow(item) {
@@ -140,7 +156,7 @@
           h('span', 'rounded-full border border-border px-2 text-[11px] leading-[18px] font-medium whitespace-nowrap text-muted', {}, 'Whole group')),
         h('div', 'mt-[3px] flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-faint', {},
           ...(note ? [note] : [`${count(rules.length, 'rule', 'rules')} · `, h('span', 'mono', {}, item.id)])),
-        rules.length ? h('ul', 'mt-2 list-disc pl-4 text-[12.5px] text-muted', {}, ...rules.map((r) => h('li', 'my-0.5', {}, r.title))) : null),
+        ...ruleList(item, rules)),
       h('span', 'mt-1.5 text-[13px] whitespace-nowrap text-faint', {}, item.state !== 'ready' ? '' : item.pinned ? 'Pinned to the reviewed commit' : 'Stays in sync'),
       h('span', 'mt-0.5', {}, removeButton(item)));
   }
@@ -187,6 +203,8 @@
     let failed = false;
     let asked = 0;
     let timer;
+    // The keys of the whole groups whose every rule the visitor asked to see.
+    const expanded = new Set();
     // The lines the preview showed last, of its tab, so lines that change stand out briefly.
     let shown = { tab: null, lines: new Set() };
     repo.value = store.state().repo;
@@ -229,7 +247,7 @@
       $('[data-cart-full]').hidden = empty;
       if (empty) return;
       const libraries = (answer?.libraries || [])
-        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted })) }))
+        .map((lib) => ({ lib, items: lib.items.filter((item) => cart.includes(item.key)).map((item) => ({ ...item, fork: !!fork[item.key], pinned: !lib.vetted, expanded: expanded.has(item.key) })) }))
         .filter(({ items }) => items.length);
       const items = libraries.flatMap(({ items: held }) => held);
       // A rule its whole group brings counts with the group.
@@ -320,8 +338,15 @@
     }
 
     root.addEventListener('click', (event) => {
-      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy]');
+      const target = event.target.closest('[data-cart-drop], [data-cart-confirm-library], [data-cart-clear], [data-cart-tab], [data-cart-copy], [data-cart-more]');
       if (!target) return;
+      if (target.matches('[data-cart-more]')) {
+        // The button goes once the list shows every rule, so focus moves to the list.
+        expanded.add(target.dataset.cartMore);
+        show();
+        root.querySelector(`[data-focus="${CSS.escape(`rules:${target.dataset.cartMore}`)}"]`)?.focus();
+        return;
+      }
       if (target.matches('[data-cart-drop]')) {
         // Focus moves to the next item's Remove, or the one before, or Clear cart.
         const drops = [...root.querySelectorAll('[data-cart-drop]')];
