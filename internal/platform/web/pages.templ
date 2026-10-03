@@ -116,8 +116,9 @@ templ libraryFrame(c chrome, h head, lib libraryView, current libraryTab, withFa
 }
 
 // groupList lists one kind of group, each leading to its rules on the All rules tab, to its page in the library, and a
-// canonical group also to its page across libraries, with a checkbox that picks it for the cart. The row's main link
-// covers the row, and the other links and the checkbox sit above it.
+// canonical group also to its page across libraries, with a checkbox that picks it for the cart, which shades the row
+// and marks its edge while ticked, as the prototype's selected rows. The row's main link covers the row, and the other
+// links and the checkbox sit above it.
 templ groupList(kind string, lib libraryView, groups []groupView) {
 	if len(groups) > 0 {
 		@labelHeading("mt-[22px] mb-2 first:mt-0") {
@@ -126,7 +127,7 @@ templ groupList(kind string, lib libraryView, groups []groupView) {
 		@rowList() {
 			for _, g := range groups {
 				@rowItem() {
-					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
+					<div class={ "relative grid items-center gap-[14px] px-4 py-3 transition-colors duration-[120ms] hover:bg-surface has-[[data-cart-pick-group]:checked:enabled]:bg-surface has-[[data-cart-pick-group]:checked:enabled]:shadow-[inset_3px_0_var(--ink)] has-[.row-link:focus-visible]:outline-3 has-[.row-link:focus-visible]:outline-offset-[-3px] has-[.row-link:focus-visible]:outline-(--focus) max-narrow:grid-cols-[minmax(0,1fr)_auto] grid-cols-[minmax(190px,260px)_minmax(0,1fr)_auto]" }>
 						<div class="flex min-w-0 items-center gap-3">
 							@groupPick(lib, g)
 							@groupTile(g.label, g.icon, tileMD)
