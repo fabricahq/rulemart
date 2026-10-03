@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Identity is a GitHub user, as GitHub describes them when they sign in. NewIdentity makes one from what GitHub
@@ -18,6 +20,8 @@ type Identity struct {
 	Login string
 	// AvatarURL is the user's avatar on GitHub's avatar host, or empty to show the login's initial.
 	AvatarURL string
+	// Name is the name the user's GitHub profile shows, as WithName keeps it, or empty when they set none.
+	Name string
 }
 
 // githubLogin matches what GitHub allows in a login: letters, digits, and hyphens, and the underscore that joins an
@@ -42,6 +46,37 @@ func NewIdentity(id int64, login, avatarURL string) (Identity, error) {
 		avatarURL = ""
 	}
 	return Identity{GitHubUserID: id, Login: login, AvatarURL: avatarURL}, nil
+}
+
+// MaxNameLength is how many characters of a GitHub profile's name an identity keeps. GitHub allows 255.
+const MaxNameLength = 255
+
+// WithName returns the identity with name, the name the user's GitHub profile shows: its spaces trimmed, any control
+// or formatting character, such as one that reverses the text's direction, dropped, and cut at MaxNameLength
+// characters.
+func (i Identity) WithName(name string) Identity {
+	var kept strings.Builder
+	n := 0
+	for _, r := range strings.TrimSpace(name) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == utf8.RuneError {
+			continue
+		}
+		if n == MaxNameLength {
+			break
+		}
+		kept.WriteRune(r)
+		n++
+	}
+	i.Name = strings.TrimSpace(kept.String())
+	return i
+}
+
+// DisplayName returns the user's name, or their login when they set none.
+func (i Identity) DisplayName() string {
+	if i.Name != "" {
+		return i.Name
+	}
+	return i.Login
 }
 
 // Account is a visitor who has signed in, as Rulemart stores them.

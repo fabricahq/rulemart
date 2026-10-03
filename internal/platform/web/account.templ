@@ -125,7 +125,7 @@ templ signInPage(c chrome, view signInView) {
 							Continue with GitHub
 						</button>
 					</form>
-					<p class="mt-4 text-center text-[13px] text-faint">Rulemart asks GitHub only for your public profile, and keeps your GitHub user ID, username, and avatar. It can't see your private repositories or act on GitHub for you.</p>
+					<p class="mt-4 text-center text-[13px] text-faint">Rulemart asks GitHub for your public profile and the organizations you belong to, and keeps your GitHub user ID, username, name, and avatar, and the token GitHub gives it, encrypted, until you sign out. It reads your public repositories, and never writes to GitHub.</p>
 				}
 				if len(view.testUsers) > 0 {
 					<section class="mt-9 rounded-card border border-dashed border-border-strong px-5 py-4" aria-labelledby="test-users">
@@ -191,7 +191,7 @@ templ accountPage(c chrome, account accountView) {
 						{ account.since }
 					}
 				</dl>
-				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username and avatar each time you sign in, and keeps nothing else from GitHub. Each browser stays signed in for 30 days, or until you sign out. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
+				<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username, name, and avatar each time you sign in. Each browser keeps the token GitHub gave it, encrypted, and stays signed in for 30 days, or until you sign out, which deletes the token. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
 				if visitorOf(ctx).stars {
 					<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has. <a href={ templ.SafeURL(starredHref) }>Starred rules</a></p>
 				}

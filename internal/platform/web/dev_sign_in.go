@@ -48,7 +48,7 @@ func (s *server) devSignIn(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	for _, user := range testUsers {
 		if user.Login == query.Get("as") {
-			s.signIn(w, r, user, returnPath(query.Get("return")))
+			s.signIn(w, r, user, "", returnPath(query.Get("return")))
 			return
 		}
 	}

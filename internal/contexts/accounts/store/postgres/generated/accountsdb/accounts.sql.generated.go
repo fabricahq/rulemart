@@ -12,8 +12,8 @@ import (
 )
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (token_hash, account_id, expires_at)
-VALUES ($1, $2, now() + make_interval(secs => $3::bigint))
+INSERT INTO sessions (token_hash, account_id, expires_at, github_token)
+VALUES ($1, $2, now() + make_interval(secs => $3::bigint), $4)
 RETURNING expires_at
 `
 
@@ -21,10 +21,17 @@ type CreateSessionParams struct {
 	TokenHash       []byte
 	AccountID       int64
 	LifetimeSeconds int64
+	GithubToken     []byte
 }
 
+// CreateSession adds a session, keeping github_token, the session's sealed GitHub token, or NULL for none.
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (pgtype.Timestamptz, error) {
-	row := q.db.QueryRow(ctx, createSession, arg.TokenHash, arg.AccountID, arg.LifetimeSeconds)
+	row := q.db.QueryRow(ctx, createSession,
+		arg.TokenHash,
+		arg.AccountID,
+		arg.LifetimeSeconds,
+		arg.GithubToken,
+	)
 	var expires_at pgtype.Timestamptz
 	err := row.Scan(&expires_at)
 	return expires_at, err
@@ -105,7 +112,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) (int64, e
 }
 
 const getSessionAccount = `-- name: GetSessionAccount :one
-SELECT a.id, a.github_user_id, a.github_login, a.avatar_url, a.created_at
+SELECT a.id, a.github_user_id, a.github_login, a.avatar_url, a.github_name, a.created_at
 FROM sessions s
 JOIN accounts a ON a.id = s.account_id
 WHERE s.token_hash = $1 AND s.expires_at > now()
@@ -116,6 +123,7 @@ type GetSessionAccountRow struct {
 	GithubUserID int64
 	GithubLogin  string
 	AvatarUrl    string
+	GithubName   string
 	CreatedAt    pgtype.Timestamptz
 }
 
@@ -129,23 +137,39 @@ func (q *Queries) GetSessionAccount(ctx context.Context, tokenHash []byte) (GetS
 		&i.GithubUserID,
 		&i.GithubLogin,
 		&i.AvatarUrl,
+		&i.GithubName,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
+const getSessionGitHubToken = `-- name: GetSessionGitHubToken :one
+SELECT s.github_token FROM sessions s WHERE s.token_hash = $1 AND s.expires_at > now()
+`
+
+// GetSessionGitHubToken returns the sealed GitHub token of the session whose token hashes to token_hash, NULL when it
+// has none, while the session lasts.
+func (q *Queries) GetSessionGitHubToken(ctx context.Context, tokenHash []byte) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getSessionGitHubToken, tokenHash)
+	var github_token []byte
+	err := row.Scan(&github_token)
+	return github_token, err
+}
+
 const upsertAccount = `-- name: UpsertAccount :one
-INSERT INTO accounts (github_user_id, github_login, avatar_url)
-VALUES ($1, $2, $3)
+INSERT INTO accounts (github_user_id, github_login, avatar_url, github_name)
+VALUES ($1, $2, $3, $4)
 ON CONFLICT (github_user_id) DO UPDATE
-SET github_login = EXCLUDED.github_login, avatar_url = EXCLUDED.avatar_url, signed_in_at = now()
-RETURNING id, github_user_id, github_login, avatar_url, created_at
+SET github_login = EXCLUDED.github_login, avatar_url = EXCLUDED.avatar_url, github_name = EXCLUDED.github_name,
+    signed_in_at = now()
+RETURNING id, github_user_id, github_login, avatar_url, github_name, created_at
 `
 
 type UpsertAccountParams struct {
 	GithubUserID int64
 	GithubLogin  string
 	AvatarUrl    string
+	GithubName   string
 }
 
 type UpsertAccountRow struct {
@@ -153,18 +177,25 @@ type UpsertAccountRow struct {
 	GithubUserID int64
 	GithubLogin  string
 	AvatarUrl    string
+	GithubName   string
 	CreatedAt    pgtype.Timestamptz
 }
 
-// UpsertAccount adds the GitHub user's account, or updates its login and avatar to what GitHub reports now.
+// UpsertAccount adds the GitHub user's account, or updates its login, avatar, and name to what GitHub reports now.
 func (q *Queries) UpsertAccount(ctx context.Context, arg UpsertAccountParams) (UpsertAccountRow, error) {
-	row := q.db.QueryRow(ctx, upsertAccount, arg.GithubUserID, arg.GithubLogin, arg.AvatarUrl)
+	row := q.db.QueryRow(ctx, upsertAccount,
+		arg.GithubUserID,
+		arg.GithubLogin,
+		arg.AvatarUrl,
+		arg.GithubName,
+	)
 	var i UpsertAccountRow
 	err := row.Scan(
 		&i.ID,
 		&i.GithubUserID,
 		&i.GithubLogin,
 		&i.AvatarUrl,
+		&i.GithubName,
 		&i.CreatedAt,
 	)
 	return i, err

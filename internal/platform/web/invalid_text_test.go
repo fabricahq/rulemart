@@ -51,7 +51,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	gitHub := &fakeGitHub{identity: octocat}
 	handler, err := web.New(app.Pages{Store: webStore, Vetted: vetted, Groups: groups}, web.Options{
 		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString))},
+		Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), TokenKeys: testTokenKeys},
 		GitHub:   gitHub,
 		Listings: app.Listings{Store: webStore, Vetted: vetted},
 		Stars:    app.Stars{Store: webStore, Vetted: vetted},

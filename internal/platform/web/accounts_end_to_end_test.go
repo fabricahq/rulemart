@@ -20,7 +20,7 @@ func TestAVisitorSignsInBrowsesAndSignsOutWithStoredSessions(t *testing.T) {
 	gitHub := &fakeGitHub{identity: octocat}
 	handler, err := web.New(newCatalog(), web.Options{
 		Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString))},
+		Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), TokenKeys: testTokenKeys},
 		GitHub:   gitHub,
 	})
 	if err != nil {

@@ -30,7 +30,7 @@ func signIn(t *testing.T, s *Store, identity domain.Identity, replacing domain.S
 	if replacing != "" {
 		replacingHash = replacing.Hash()
 	}
-	account, session, err := s.SignIn(context.Background(), identity, token.Hash(), replacingHash)
+	account, session, err := s.SignIn(context.Background(), identity, token.Hash(), replacingHash, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,5 +244,44 @@ func TestSignInStoresAnEnterpriseManagedUsersLogin(t *testing.T) {
 	_, account := signIn(t, s, domain.Identity{GitHubUserID: 3, Login: "octocat_acme"}, "")
 	if account.Login != "octocat_acme" {
 		t.Errorf("stored %+v", account)
+	}
+}
+
+// The header shows the name a visitor's GitHub profile shows, so each sign-in keeps the name GitHub reports then, and
+// clears it when they removed it.
+func TestSignInKeepsTheNameGitHubReportsAtEachSignIn(t *testing.T) {
+	s, _ := newStore(t)
+	token, _ := signIn(t, s, octocat.WithName("The Octocat"), "")
+	if account, _ := sessionAccount(t, s, token); account.Name != "The Octocat" {
+		t.Errorf("the account's name is %q", account.Name)
+	}
+	token, _ = signIn(t, s, octocat, token)
+	if account, _ := sessionAccount(t, s, token); account.Name != "" {
+		t.Errorf("after the name was removed on GitHub, the account's name is %q", account.Name)
+	}
+}
+
+// The session's sealed token comes back as stored, a session without one has none, and once the session ends, so does
+// its token.
+func TestSessionGitHubTokenReturnsTheSealedTokenWhileTheSessionLasts(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	token := domain.NewSessionToken()
+	sealed := []byte("a sealed token of at least twenty-nine bytes")
+	if _, _, err := s.SignIn(ctx, octocat, token.Hash(), nil, sealed); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.SessionGitHubToken(ctx, token.Hash()); err != nil || string(got) != string(sealed) {
+		t.Fatalf("got %q, %v", got, err)
+	}
+	without, _ := signIn(t, s, octocat, "")
+	if got, err := s.SessionGitHubToken(ctx, without.Hash()); err != nil || got != nil {
+		t.Errorf("a session without a token: got %q, %v; want nil", got, err)
+	}
+	if err := s.EndSession(ctx, token.Hash()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SessionGitHubToken(ctx, token.Hash()); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("after sign-out: got %v, want ErrNotFound", err)
 	}
 }

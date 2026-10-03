@@ -31,8 +31,10 @@ To try signed-in pages, run `make web-dev` instead of `make web`: it builds the 
 sign-in page offers two test users, `test_user` and `test_user_2`, so you can sign in without GitHub.
 Release builds never have that tag, and a test checks that the web function's release binary has no dev sign-in. To
 sign in with GitHub itself, create an OAuth app whose callback URL is `http://127.0.0.1/account/github/callback`, and
-run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> make web`. Rulemart's cookies are `Secure`,
-which Chrome accepts from `http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
+run `GITHUB_CLIENT_ID=<its client ID> GITHUB_CLIENT_SECRET=<its secret> TOKEN_KEY=$(openssl rand -base64 32) make web`:
+each session keeps the visitor's GitHub token sealed with `TOKEN_KEY`, so a new key signs every browser's GitHub
+token out of reach until it signs in again. Rulemart's cookies are `Secure`, which Chrome accepts from
+`http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
 
 Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
 to show: `/browse/techs` and a group such as `/g/techs/go` across both, and `/search?q=retry`. The test library has

@@ -23,8 +23,9 @@ import (
 
 // Accounts signs visitors in and out. accounts/app.Sessions implements it.
 type Accounts interface {
-	// SignIn signs identity in with a new session, ending replacing's session, if any.
-	SignIn(ctx context.Context, identity accounts.Identity, replacing accounts.SessionToken) (accounts.Account, accounts.Session, error)
+	// SignIn signs identity in with a new session, which keeps gitHubToken, sealed, or none when it's empty, ending
+	// replacing's session, if any.
+	SignIn(ctx context.Context, identity accounts.Identity, gitHubToken string, replacing accounts.SessionToken) (accounts.Account, accounts.Session, error)
 	// Account returns the account token signs in, or fails with accountsapp.ErrSignedOut.
 	Account(ctx context.Context, token accounts.SessionToken) (accounts.Account, error)
 	SignOut(ctx context.Context, token accounts.SessionToken) error
@@ -40,8 +41,9 @@ type GitHub interface {
 	// AuthorizationURL returns the GitHub page that asks the visitor to authorize Rulemart, and then sends them to
 	// redirectURI with a code and state.
 	AuthorizationURL(state, challenge, redirectURI string) string
-	// Identify returns the user GitHub's code signs in.
-	Identify(ctx context.Context, code, verifier, redirectURI string) (accounts.Identity, error)
+	// Identify returns the user GitHub's code signs in, and the token that reads their organizations and public
+	// repositories.
+	Identify(ctx context.Context, code, verifier, redirectURI string) (accounts.Identity, string, error)
 }
 
 const (
@@ -382,7 +384,7 @@ func (s *server) gitHubCallback(w http.ResponseWriter, r *http.Request) {
 		s.refuseSignIn(w, r, "GitHub returned no code", flow.back, failedNotice)
 		return
 	}
-	identity, err := s.GitHub.Identify(r.Context(), query.Get("code"), flow.verifier, s.callbackURL(r))
+	identity, gitHubToken, err := s.GitHub.Identify(r.Context(), query.Get("code"), flow.verifier, s.callbackURL(r))
 	switch {
 	case errors.Is(err, github.ErrCodeRefused):
 		s.refuseSignIn(w, r, "GitHub refused the code", flow.back, incompleteNotice)
@@ -392,7 +394,7 @@ func (s *server) gitHubCallback(w http.ResponseWriter, r *http.Request) {
 			s.renderSignIn(w, r, http.StatusBadGateway, flow.back, failedNotice)
 		}
 	default:
-		s.signIn(w, r, identity, flow.back)
+		s.signIn(w, r, identity, gitHubToken, flow.back)
 	}
 }
 
@@ -406,10 +408,11 @@ func (s *server) goOnSignedIn(w http.ResponseWriter, r *http.Request, back strin
 	return true
 }
 
-// signIn signs identity in, replacing the session the browser held, if any, and returns it to back.
-func (s *server) signIn(w http.ResponseWriter, r *http.Request, identity accounts.Identity, back string) {
+// signIn signs identity in with a session that keeps gitHubToken, replacing the session the browser held, if any, and
+// returns it to back.
+func (s *server) signIn(w http.ResponseWriter, r *http.Request, identity accounts.Identity, gitHubToken, back string) {
 	replacing, _ := sessionToken(r)
-	account, session, err := s.Accounts.SignIn(r.Context(), identity, replacing)
+	account, session, err := s.Accounts.SignIn(r.Context(), identity, gitHubToken, replacing)
 	if err != nil {
 		s.fail(w, r, err)
 		return

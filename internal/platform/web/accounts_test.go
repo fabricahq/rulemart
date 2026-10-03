@@ -41,6 +41,8 @@ type fakeAccounts struct {
 	accounts map[int64]accounts.Account
 	// replaced records the token each sign-in replaced, "" for none.
 	replaced []accounts.SessionToken
+	// gitHubTokens are the GitHub token each live session keeps, "" for none.
+	gitHubTokens map[accounts.SessionToken]string
 	// deleted records the accounts deleted, by ID.
 	deleted []int64
 	// err, when set, fails every call.
@@ -48,10 +50,13 @@ type fakeAccounts struct {
 }
 
 func newFakeAccounts() *fakeAccounts {
-	return &fakeAccounts{sessions: map[accounts.SessionToken]int64{}, accounts: map[int64]accounts.Account{}}
+	return &fakeAccounts{
+		sessions: map[accounts.SessionToken]int64{}, accounts: map[int64]accounts.Account{},
+		gitHubTokens: map[accounts.SessionToken]string{},
+	}
 }
 
-func (f *fakeAccounts) SignIn(_ context.Context, identity accounts.Identity, replacing accounts.SessionToken) (accounts.Account, accounts.Session, error) {
+func (f *fakeAccounts) SignIn(_ context.Context, identity accounts.Identity, gitHubToken string, replacing accounts.SessionToken) (accounts.Account, accounts.Session, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
@@ -67,6 +72,7 @@ func (f *fakeAccounts) SignIn(_ context.Context, identity accounts.Identity, rep
 	f.accounts[identity.GitHubUserID] = account
 	token := accounts.NewSessionToken()
 	f.sessions[token] = identity.GitHubUserID
+	f.gitHubTokens[token] = gitHubToken
 	return account, accounts.Session{Token: token, ExpiresAt: time.Now().Add(accounts.SessionLifetime)}, nil
 }
 
@@ -130,7 +136,7 @@ func (f *fakeAccounts) endEverySession(token accounts.SessionToken) (int64, erro
 // signedIn adds a session for identity directly, and returns its token.
 func (f *fakeAccounts) signedIn(t *testing.T, identity accounts.Identity) accounts.SessionToken {
 	t.Helper()
-	_, session, err := f.SignIn(context.Background(), identity, "")
+	_, session, err := f.SignIn(context.Background(), identity, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,22 +172,28 @@ func (g *fakeGitHub) AuthorizationURL(state, challenge, redirectURI string) stri
 	return "https://github.com/login/oauth/authorize?" + url.Values{"state": {state}, "code_challenge": {challenge}, "redirect_uri": {redirectURI}}.Encode()
 }
 
-func (g *fakeGitHub) Identify(_ context.Context, code, verifier, redirectURI string) (accounts.Identity, error) {
+// issuedToken is the GitHub token fakeGitHub issues for authorizedCode.
+const issuedToken = "gho_issued-for-the-authorized-code"
+
+func (g *fakeGitHub) Identify(_ context.Context, code, verifier, redirectURI string) (accounts.Identity, string, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.identified++
 	switch {
 	case g.err != nil:
-		return accounts.Identity{}, g.err
+		return accounts.Identity{}, "", g.err
 	case code != authorizedCode:
-		return accounts.Identity{}, fmt.Errorf("sign in with GitHub: bad_verification_code: %w", github.ErrCodeRefused)
+		return accounts.Identity{}, "", fmt.Errorf("sign in with GitHub: bad_verification_code: %w", github.ErrCodeRefused)
 	case github.Challenge(verifier) != g.challenge:
-		return accounts.Identity{}, errors.New("the verifier doesn't match the challenge")
+		return accounts.Identity{}, "", errors.New("the verifier doesn't match the challenge")
 	case redirectURI != g.redirect:
-		return accounts.Identity{}, errors.New("the redirect URI differs from the authorization's")
+		return accounts.Identity{}, "", errors.New("the redirect URI differs from the authorization's")
 	}
-	return g.identity, nil
+	return g.identity, issuedToken, nil
 }
+
+// testTokenKeys seals the GitHub tokens of sessions stored in Postgres in tests.
+var testTokenKeys = accountsapp.FixedTokenKey{Key: accounts.NewTokenKey()}
 
 var octocat = accounts.Identity{GitHubUserID: 583231, Login: "octocat", AvatarURL: "https://avatars.githubusercontent.com/u/583231?v=4"}
 
@@ -328,7 +340,11 @@ func TestSignInWithGitHubSignsTheVisitorInAndReturnsThemWhereTheyStarted(t *test
 	}
 	page := send(t, site.handler, request{method: http.MethodGet, target: "/", cookies: []*http.Cookie{session}})
 	assertShows(t, body(t, page), "Signed in as octocat")
-	for _, leak := range []string{authorizedCode, location.Query().Get("state"), session.Value} {
+	// The session keeps GitHub's token, which the dashboard reads the visitor's repositories with.
+	if got := site.accounts.gitHubTokens[accounts.SessionToken(session.Value)]; got != issuedToken {
+		t.Errorf("the session keeps the GitHub token %q, want %q", got, issuedToken)
+	}
+	for _, leak := range []string{authorizedCode, location.Query().Get("state"), session.Value, issuedToken} {
 		if strings.Contains(site.logs.String(), leak) {
 			t.Errorf("the logs hold %q: %s", leak, site.logs)
 		}

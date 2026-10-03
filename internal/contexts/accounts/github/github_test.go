@@ -83,15 +83,28 @@ const (
 	octocatUser  = `{"login":"octocat","id":583231,"avatar_url":"https://avatars.githubusercontent.com/u/583231?v=4","name":"The Octocat","email":"octocat@github.com"}`
 )
 
-func TestIdentifyExchangesTheCodeAndReturnsTheUserItSignsIn(t *testing.T) {
+// The token comes back with the user, since the session keeps it to read the visitor's organizations and repositories.
+func TestIdentifyExchangesTheCodeAndReturnsTheUserItSignsInWithTheToken(t *testing.T) {
 	c := fakeGitHub(t, grantedToken, octocatUser)
-	got, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+	got, token, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := domain.Identity{GitHubUserID: 583231, Login: "octocat", AvatarURL: "https://avatars.githubusercontent.com/u/583231?v=4"}
-	if got != want {
-		t.Errorf("got %+v, want %+v", got, want)
+	want := domain.Identity{GitHubUserID: 583231, Login: "octocat", AvatarURL: "https://avatars.githubusercontent.com/u/583231?v=4", Name: "The Octocat"}
+	if got != want || token != testToken {
+		t.Errorf("got %+v with the token %q, want %+v with %q", got, token, want, testToken)
+	}
+}
+
+// A user who set no name has GitHub's null, which leaves the identity's name empty, so pages show the login.
+func TestIdentifyKeepsNoNameForAUserWhoSetNone(t *testing.T) {
+	c := fakeGitHub(t, grantedToken, `{"login":"octocat","id":583231,"avatar_url":"","name":null}`)
+	got, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "" || got.DisplayName() != "octocat" {
+		t.Errorf("got the name %q, shown as %q; want none, shown as the login", got.Name, got.DisplayName())
 	}
 }
 
@@ -108,6 +121,9 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 			`{"error":"<script>` + testCode + `</script>"}`, octocatUser, "an unrecognized error",
 		},
 		"GitHub returns no token":         {`{}`, octocatUser, "GitHub returned no token"},
+		"GitHub returns a token too long to keep": {
+			`{"access_token":"` + strings.Repeat("t", domain.MaxGitHubTokenLength+1) + `"}`, octocatUser, "GitHub returned no token",
+		},
 		"the exchange isn't JSON":         {`<html>`, octocatUser, "decode the response"},
 		"GitHub refuses the token":        {grantedToken, "", "GitHub answered 401"},
 		"the user has no ID":              {grantedToken, `{"login":"octocat"}`, "want a positive user ID"},
@@ -118,7 +134,7 @@ func TestIdentifyFailsWithoutLeakingTheCodeVerifierOrToken(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := fakeGitHub(t, tc.tokenBody, tc.userBody)
-			_, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+			_, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got %v, want an error saying %q", err, tc.want)
 			}
@@ -146,7 +162,7 @@ func TestIdentifyTellsARefusedCodeFromAFailureOfGitHubOrRulemart(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := fakeGitHub(t, tc.tokenBody, octocatUser)
-			_, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+			_, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
 			if err == nil || errors.Is(err, ErrCodeRefused) != tc.refused {
 				t.Errorf("got %v; want refused: %v", err, tc.refused)
 			}
@@ -159,7 +175,7 @@ func TestIdentifyTellsARefusedCodeFromAFailureOfGitHubOrRulemart(t *testing.T) {
 	defer server.Close()
 	c := New("client-id", fixedSecret("client-secret"))
 	c.tokenURL = server.URL
-	if _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect); err == nil || errors.Is(err, ErrCodeRefused) {
+	if _, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect); err == nil || errors.Is(err, ErrCodeRefused) {
 		t.Errorf("GitHub answering 503: got %v, want an error that isn't a refusal", err)
 	}
 }
@@ -169,7 +185,7 @@ func TestIdentifyForgetsAClientSecretGitHubRefuses(t *testing.T) {
 	c := fakeGitHub(t, `{"error":"incorrect_client_credentials"}`, octocatUser)
 	secret := &rotatedSecret{}
 	c.secret = secret
-	_, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
+	_, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect)
 	if err == nil || !strings.Contains(err.Error(), "incorrect_client_credentials") || secret.forgotten != 1 {
 		t.Errorf("got %v with the secret forgotten %d times, want the refusal and one Forget", err, secret.forgotten)
 	}
@@ -178,14 +194,15 @@ func TestIdentifyForgetsAClientSecretGitHubRefuses(t *testing.T) {
 func TestIdentifyFailsWhenItCantReadTheClientSecret(t *testing.T) {
 	c := fakeGitHub(t, grantedToken, octocatUser)
 	c.secret = failingSecret{}
-	if _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect); err == nil || !strings.Contains(err.Error(), "read the client secret") {
+	if _, _, err := c.Identify(context.Background(), testCode, testVerifier, testRedirect); err == nil || !strings.Contains(err.Error(), "read the client secret") {
 		t.Errorf("got %v, want an error reading the client secret", err)
 	}
 }
 
-// The authorization asks for no scopes, so GitHub shows the visitor that Rulemart reads only public information, and
-// it carries the state and the PKCE challenge, with S256 named, so GitHub won't accept the code without the verifier.
-func TestAuthorizationURLAsksForNoScopesAndCarriesStateAndChallenge(t *testing.T) {
+// The authorization asks for read:org, and nothing more, so GitHub shows the visitor that Rulemart reads their
+// organizations and public information, and it carries the state and the PKCE challenge, with S256 named, so GitHub
+// won't accept the code without the verifier.
+func TestAuthorizationURLAsksForReadOrgAndCarriesStateAndChallenge(t *testing.T) {
 	u, err := url.Parse(New("client-id", fixedSecret("")).AuthorizationURL("the-state", "the-challenge", testRedirect))
 	if err != nil {
 		t.Fatal(err)
@@ -195,10 +212,10 @@ func TestAuthorizationURLAsksForNoScopesAndCarriesStateAndChallenge(t *testing.T
 	}
 	want := url.Values{
 		"client_id": {"client-id"}, "redirect_uri": {testRedirect}, "state": {"the-state"},
-		"code_challenge": {"the-challenge"}, "code_challenge_method": {"S256"},
+		"code_challenge": {"the-challenge"}, "code_challenge_method": {"S256"}, "scope": {"read:org"},
 	}
 	if got := u.Query(); got.Encode() != want.Encode() {
-		t.Errorf("the authorization asks %v, want %v, with no scope", got, want)
+		t.Errorf("the authorization asks %v, want %v", got, want)
 	}
 }
 
