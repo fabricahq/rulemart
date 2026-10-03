@@ -326,13 +326,11 @@ templ ruleFrame(c chrome, h head, r ruleView, current ruleTab) {
 							}
 						}
 					</div>
-					if r.retired == nil {
-						// The prototype's engage row: Star, then Discuss, which comes with rulemart#27. It keeps its height while
-						// it holds nothing, so Discuss's arrival moves nothing.
+					if r.retired == nil && r.star.shown {
+						// The prototype's engage row: Star, then Discuss, which comes with rulemart#27. Without a Star control, as
+						// in an unvetted library, it holds nothing yet, so it goes rather than leave a gap.
 						<div class="mt-[14px] flex min-h-8 flex-wrap items-center gap-2" data-engage>
-							if r.star.shown {
-								@starControl(r.star)
-							}
+							@starControl(r.star)
 						</div>
 					}
 				</div>

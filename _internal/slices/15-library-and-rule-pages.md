@@ -140,9 +140,10 @@ The spec's Proposed decisions are built as written, except where an entry here s
   layout, so the head's impact label leads to Code Rules' explanation of the levels, named by what its level means,
   where a touch or a keyboard reaches it.
 - **Proposed: "Questions or suggestions?" leads to the library's issues on GitHub** until Discuss arrives with
-  rulemart#27, rather than ending in nothing. The engage row keeps its height on every current rule's page, even
-  without a Star control, as in an unvetted library, and the Discussion tab, between Rule and Versions, renders
-  nothing yet.
+  rulemart#27, rather than ending in nothing. The Discussion tab, between Rule and Versions, renders nothing yet.
+- **Proposed: the engage row shows only when it holds the Star control**, after browser QA, reversing its kept height:
+  on an unvetted library's rule page it held nothing, a 46-pixel gap under the title. Discuss adds it back to every
+  current rule's page with rulemart#27.
 - **Proposed: "Published by" names the owner's login**, since Rulemart keeps no display name.
 - **Proposed: a library group page flags a group that isn't canonical** beside its ID in the title, as its rows do.
 - **Proposed: sizes read in bytes below 1 KB, then KB and MB of 1,024**, to one decimal place below 100.

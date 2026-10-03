@@ -1056,9 +1056,10 @@ func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
 	}
 }
 
-// Discuss and the Discussion tab come with rulemart#27, so a rule's page shows neither yet, but its engage row keeps
-// its place even when it has nothing to show, such as in a library Rulemart doesn't vet, where no one can star a rule.
-func TestRulePageKeepsDiscussionsPlaceEmpty(t *testing.T) {
+// Discuss and the Discussion tab come with rulemart#27, so a rule's page shows neither yet, and its engage row goes
+// when it has nothing to show, such as in a library Rulemart doesn't vet, where no one can star a rule, rather than
+// leave a gap under the rule's title.
+func TestRulePageShowsNoDiscussionYetNorAnEmptyEngageRow(t *testing.T) {
 	c := newCatalog()
 	page := c.rules["example/rules/techs/go/return-errors"]
 	page.Library.Vetted = false
@@ -1069,8 +1070,7 @@ func TestRulePageKeepsDiscussionsPlaceEmpty(t *testing.T) {
 	if text := visibleText(t, body); strings.Contains(text, "Discuss") || !strings.Contains(text, "Rule Versions , 2") {
 		t.Errorf("the page shows Discuss, or tabs other than Rule and Versions:\n%s", text)
 	}
-	engage := find(parsePage(t, body), withAttribute("data-engage"))
-	if engage == nil || engage.FirstChild != nil && strings.TrimSpace(nodeText(engage)) != "" {
-		t.Errorf("the engage row is %+v, want it kept, empty", engage)
+	if engage := find(parsePage(t, body), withAttribute("data-engage")); engage != nil {
+		t.Errorf("the page shows an engage row with nothing in it: %q", nodeText(engage))
 	}
 }
