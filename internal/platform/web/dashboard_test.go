@@ -439,3 +439,48 @@ func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {
 		}
 	}
 }
+
+// A project's provenance file is written by anyone who can push to it, and a checkout for the project copies its
+// source names into commands, so a source name holding a newline or shell syntax never reaches them: the parser leaves
+// the source out, and the library is added under a name of Rulemart's.
+func TestCheckoutNeverCopiesAnUnsafeSourceNameFromAProjectsProvenance(t *testing.T) {
+	sources, err := accounts.ParseProvenance([]byte(`{"sources": [
+		{"name": "example\nprintf injected\n#", "repository": "https://github.com/example/rules"},
+		{"name": "$(touch pwned)", "repository": "https://github.com/example/rules"}
+	]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := accounts.Snapshot{ReadAt: time.Now(), Projects: []accounts.Project{
+		{Repository: accounts.Repository{Owner: "octocat", Name: "api"}, Sources: sources},
+	}}
+	carts := &fakeCarts{}
+	site := newAccountsSite(t, func(o *web.Options) { o.GitHubAccounts, o.Carts = newFakeGitHubAccounts(snapshot), carts })
+	req := httptest.NewRequest(http.MethodPost, "/cart/checkout.json", strings.NewReader(`{"cart":["example/rules::techs/go/return-errors"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: string(site.accounts.signedIn(t, octocat))})
+	recorder := httptest.NewRecorder()
+	site.handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("checkout answered %d: %s", recorder.Code, recorder.Body)
+	}
+
+	checkout := domain.NewCheckout(carts.target, []domain.CheckoutLibrary{{
+		Owner: "example", Name: "rules", Vetted: true, Release: 1,
+		Rules: []domain.CheckoutRule{{ID: "techs/go/return-errors", Group: domain.CheckoutGroup{ID: "techs/go", Name: "Go"}, Version: "1.0.0"}},
+	}})
+	var commands []string
+	for _, step := range checkout.Commands() {
+		commands = append(commands, step.Commands)
+	}
+	text := strings.Join(commands, "\n") + checkout.Prompt()
+	for _, unsafe := range []string{"printf injected", "$(", "already imports"} {
+		if strings.Contains(text, unsafe) {
+			t.Errorf("the texts hold %q:\n%s", unsafe, text)
+		}
+	}
+	if !strings.Contains(text, "code-rules project add library example \\\n") {
+		t.Errorf("the texts don't add the library as example:\n%s", text)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -59,8 +60,14 @@ type provenanceFile struct {
 	} `json:"rules"`
 }
 
+// sourceName matches a source name Code Rules' configuration accepts (internal/rules/configuration.go,
+// sourceNamePattern), which also reserves local for a project's own rules.
+var sourceName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
 // ParseProvenance returns the sources a provenance file names, by name, each with the groups it imports and the rules
-// the project holds of it at a published version. A rule whose origin is local, such as a fork, holds no library's
+// the project holds of it at a published version. A source whose name Code Rules' configuration wouldn't take is left
+// out with its rules: anyone who can write to a repository can write its provenance file, and checkout copies a
+// source's name into commands a visitor runs. A rule whose origin is local, such as a fork, holds no library's
 // version, so it's left out, as is one whose ID or version Code Rules wouldn't write. It fails for a file larger than
 // MaxProvenanceBytes, one that isn't a provenance file's JSON, or one that names no sources.
 func ParseProvenance(data []byte) ([]Source, error) {
@@ -78,7 +85,7 @@ func ParseProvenance(data []byte) ([]Source, error) {
 	sources := make([]Source, 0, len(file.Sources))
 	index := map[string]int{}
 	for _, s := range file.Sources {
-		if s.Name == "" || index[s.Name] != 0 {
+		if !sourceName.MatchString(s.Name) || s.Name == "local" || index[s.Name] != 0 {
 			continue
 		}
 		sources = append(sources, Source{

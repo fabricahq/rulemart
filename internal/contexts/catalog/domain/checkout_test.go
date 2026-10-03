@@ -251,3 +251,26 @@ func TestCheckoutPinExampleIsTheFirstVettedLibraryItImportsFrom(t *testing.T) {
 		t.Errorf("got %+v, want none without a vetted library it imports from", pin)
 	}
 }
+
+// A known project's source name reaches the commands as the visitor's GitHub account reported it, so a name Code Rules
+// wouldn't take, such as one holding a newline or shell syntax, is never written: the library is added under a name of
+// Rulemart's, and every line the data could reach stays a comment or one command.
+func TestCheckoutNeverWritesASourceNameCodeRulesWouldNotTake(t *testing.T) {
+	for _, name := range []string{"fabrica\nprintf injected\n#", "$(touch pwned)", "a;b", "Fabrica", "local", ""} {
+		target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Sources: map[string]string{"fabricahq/public-rules": name}}
+		checkout := NewCheckout(target, []CheckoutLibrary{{
+			Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
+			Groups: []CheckoutGroup{goGroup}, Forks: []CheckoutRule{checkoutRule(goGroup, "return-errors")},
+		}})
+
+		commands := stepsText(checkout.Commands())
+		for _, text := range []string{commands, checkout.Prompt()} {
+			if len(name) > len("local") && strings.Contains(text, name) {
+				t.Errorf("%q: the texts hold it:\n%s", name, text)
+			}
+		}
+		if !strings.Contains(commands, "code-rules project add library fabrica \\\n") || strings.Contains(commands, "already imports") {
+			t.Errorf("%q: got commands\n%s\nwant the library added as fabrica", name, commands)
+		}
+	}
+}

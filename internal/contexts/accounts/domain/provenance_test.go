@@ -98,3 +98,30 @@ func TestInstallationSettingsAreTheVisitorsOrTheOrganizations(t *testing.T) {
 		t.Errorf("an organization's: %s", got)
 	}
 }
+
+// A source name is copied into the commands a visitor runs, and any repository's contributor can write one, so a name
+// Code Rules' configuration wouldn't take, such as one holding a newline or shell syntax, or local, which it reserves,
+// is left out with its rules.
+func TestParseProvenanceLeavesOutASourceWhoseNameCodeRulesWouldNotTake(t *testing.T) {
+	sources, err := ParseProvenance([]byte(`{
+		"sources": [
+			{"name": "fabrica\nprintf injected\n#", "repository": "https://github.com/fabricahq/public-rules"},
+			{"name": "$(touch pwned)", "repository": "https://github.com/acme/rules"},
+			{"name": "Acme", "repository": "https://github.com/acme/rules"},
+			{"name": "2fa", "repository": "https://github.com/acme/rules"},
+			{"name": "local", "repository": "https://github.com/acme/rules"},
+			{"name": "a b", "repository": "https://github.com/acme/rules"},
+			{"name": "team-2", "repository": "https://github.com/acme/rules"}
+		],
+		"rules": [
+			{"id": "fabrica\nprintf injected\n#:techs/go/x", "origin": {"source": "fabrica\nprintf injected\n#", "version": "1.0.0"}},
+			{"id": "team-2:techs/go/x", "origin": {"source": "team-2", "version": "1.0.0"}}
+		]
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) != 1 || sources[0].Name != "team-2" || len(sources[0].Rules) != 1 {
+		t.Errorf("got %+v, want team-2 alone, with its rule", sources)
+	}
+}

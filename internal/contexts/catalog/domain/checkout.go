@@ -233,8 +233,17 @@ func sourceSlug(name string) string {
 	return strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(name), "-"), "-")
 }
 
+// sourceName matches a source name Code Rules' configuration accepts (internal/rules/configuration.go,
+// sourceNamePattern).
+var sourceName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// validSourceName reports whether Code Rules takes name as a source's name: it matches sourceName and isn't local,
+// which Code Rules reserves for a project's own rules. The commands hold a source's name unquoted, so only such a name
+// may reach them.
+func validSourceName(name string) bool { return sourceName.MatchString(name) && name != "local" }
+
 // nameSources gives each source the name Code Rules imports it under, distinct from every other and from the known
-// project's: the project's own name for a library it imports already; otherwise ownerAlias, with the repository's
+// project's: the project's own name for a library it imports already, when Code Rules would take it; otherwise ownerAlias, with the repository's
 // name added when other sources would share it, or a project's source has it. A name Code Rules can't take, one that
 // doesn't start with a letter, or local, which it reserves, starts with library-, and a name still taken gets a
 // number.
@@ -245,7 +254,7 @@ func nameSources(target CheckoutTarget, sources []checkoutSource) {
 	}
 	uses := map[string]int{}
 	for i, s := range sources {
-		if name, ok := target.Sources[strings.ToLower(s.FullName())]; ok && target.Mode == ProjectKnown {
+		if name, ok := target.Sources[strings.ToLower(s.FullName())]; ok && target.Mode == ProjectKnown && validSourceName(name) {
 			sources[i].Alias, sources[i].Configured = name, true
 			continue
 		}
@@ -259,7 +268,7 @@ func nameSources(target CheckoutTarget, sources []checkoutSource) {
 		if uses[name] > 1 || taken[name] {
 			name = strings.Trim(name+"-"+sourceSlug(s.Name), "-")
 		}
-		if name == "" || name[0] < 'a' || name[0] > 'z' || name == "local" {
+		if !validSourceName(name) {
 			name = strings.TrimSuffix("library-"+name, "-")
 		}
 		unique := name
