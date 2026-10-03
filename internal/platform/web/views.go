@@ -154,7 +154,8 @@ type groupView struct {
 	blurb string
 	// anchor is the group's section on the library's All rules tab.
 	anchor string
-	// acrossHref is the group's page across libraries.
+	// acrossHref is the group's page across libraries, including unvetted ones when the library is one, so it lists the
+	// library's own rules.
 	acrossHref string
 	rules      []ruleRowView
 	// cart is the control that adds the group to the cart, which server.withGroupCarts fills in.
@@ -294,7 +295,7 @@ func newLibraryContents(lib libraryView, page views.LibraryPage, iconURL func(fi
 	for _, g := range page.Groups {
 		view := groupView{
 			label: newGroupLabel(g.Path, g.Canonical), icon: newGroupIcon(g.Canonical, iconURL), anchor: groupAnchor(g.Path),
-			rules: byGroup[g.Path], acrossHref: groupHref(g.Path),
+			rules: byGroup[g.Path], acrossHref: withUnvetted(groupHref(g.Path), !lib.vetted),
 		}
 		view.blurb = g.Description
 		if g.Canonical != nil {
@@ -340,7 +341,7 @@ type ruleView struct {
 	whenToRead, whenToReadHTML string
 	group                      groupLabel
 	// groupHref is the group's section on the library's All rules tab, and acrossHref the group's page across
-	// libraries.
+	// libraries, including unvetted ones when the library is one, so it lists the rule.
 	groupHref, acrossHref string
 	// updated is when the release that published the current version was tagged.
 	updated string
@@ -402,7 +403,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 		version: r.Version.String(), whenToRead: plainText(r.WhenToRead, r.WhenToReadHTML), whenToReadHTML: r.WhenToReadHTML,
 		html:  r.HTML,
 		group: newGroupLabel(r.Group, r.CanonicalGroup), groupHref: lib.href + "?tab=rules#" + groupAnchor(r.Group),
-		acrossHref: groupHref(r.Group),
+		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
 		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
+	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
@@ -105,6 +106,52 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	}
 	if page := body(t, send(t, vetted, request{method: http.MethodGet, target: "/search?q=retrying"})); !strings.Contains(page, "Return errors") {
 		t.Error("search doesn't find the vetted library's rule")
+	}
+}
+
+// A listed library's links to a group's rules in every library include unvetted libraries, so they reach its rules,
+// even in a group only it holds, from the library's page and from a rule's.
+func TestAnUnvettedLibrarysLinksToAGroupAcrossLibrariesReachItsRules(t *testing.T) {
+	lib := gittest.NewLibrary(t)
+	lib.Group("techs/house-style", "House style")
+	lib.Rule("techs/house-style/keep-it-plain", "Keep it plain", "Write the plainest code that works.")
+	lib.Release(1, `formatVersion: 1
+release: 1
+rules: {techs/house-style/keep-it-plain: 1.0.0}
+changes: {techs/house-style/keep-it-plain: {change: new, summaries: [Add the rule.]}}
+`)
+	db, connString := databasetest.New(t)
+	ctx := context.Background()
+	ingester := app.Ingester{Repositories: repositories{lib.Repository(7)}, Fetch: git.Fetch, Render: render.Rule, Store: postgres.New(db), Limits: domain.DefaultLimits}
+	if _, err := ingester.Ingest(ctx, "https://github.com/example/rules"); err != nil {
+		t.Fatal(err)
+	}
+	var account int64
+	postgrestest.QueryRow(t, connString,
+		"INSERT INTO accounts (github_user_id, github_login, avatar_url) VALUES (1, 'octocat', '') RETURNING id", &account)
+	webStore := postgres.New(databasetest.AsWebRole(t, connString))
+	listing, err := webStore.CreateListing(ctx, nil, account, "example", "rules")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := postgres.New(databasetest.AsWorkerRole(t, connString)).ResolveListing(ctx, listing, domain.LibraryKey{Host: domain.GitHub, RepositoryID: "7"}); err != nil {
+		t.Fatal(err)
+	}
+	groups, err := shipped.CanonicalGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newSite(t, app.Pages{Store: webStore, Groups: groups})
+
+	for _, path := range []string{library, library + "/techs/house-style/keep-it-plain"} {
+		hrefs := links(t, get(t, handler, path).Body.String(), "rules in every library")
+		if len(hrefs) != 1 {
+			t.Fatalf("%s: got links %q to the group in every library, want one", path, hrefs)
+		}
+		resp := get(t, handler, hrefs[0])
+		if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), "Keep it plain") {
+			t.Errorf("%s: its link %s answered %d without the library's rule", path, hrefs[0], resp.Code)
+		}
 	}
 }
 
