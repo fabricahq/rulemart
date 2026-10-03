@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -143,6 +144,32 @@ func TestReturningFromInstallingTheAppRecordsTheVisitorsInstallation(t *testing.
 	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me/github/installed?installation_id=77"})
 	if signedOut.StatusCode != http.StatusSeeOther || !strings.Contains(signedOut.Header.Get("Location"), "installation_id%3D77") {
 		t.Errorf("signed out, answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
+	}
+}
+
+// A signed-in visitor whose session keeps no GitHub token Rulemart can use, returning from installing the app, is asked
+// to sign in again, coming back to finish: the sign-in page shows its form rather than sending them back to the
+// callback, which would send them to it again.
+func TestReturningFromInstallingTheAppWithoutAGitHubTokenAsksToSignInAgain(t *testing.T) {
+	gitHub := newFakeGitHubAccounts(accounts.Snapshot{})
+	gitHub.owned[77], gitHub.err = true, accountsapp.ErrNoGitHubToken
+	site, session := newGitHubSite(t, gitHub)
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me/github/installed?installation_id=77", cookies: []*http.Cookie{session}})
+	location, err := url.Parse(resp.Header.Get("Location"))
+	if resp.StatusCode != http.StatusSeeOther || err != nil {
+		t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	if back := location.Query().Get("return"); back != "/me/github/installed?installation_id=77" {
+		t.Errorf("returns to %q, want the callback", back)
+	}
+
+	signIn := send(t, site.handler, request{method: http.MethodGet, target: location.RequestURI(), cookies: []*http.Cookie{session}})
+	if signIn.StatusCode != http.StatusOK {
+		t.Fatalf("the sign-in page answered %d to %q, want its form", signIn.StatusCode, signIn.Header.Get("Location"))
+	}
+	if page := body(t, signIn); !strings.Contains(page, "Sign in again so Rulemart can read your repositories") || !strings.Contains(page, "Continue with GitHub") {
+		t.Errorf("the sign-in page lacks its form:\n%s", page)
 	}
 }
 

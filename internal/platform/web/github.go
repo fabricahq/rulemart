@@ -158,7 +158,8 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 			"That installation of Rulemart by Fabrica isn't on your GitHub account or an organization you own, so Rulemart can't read through it for you."))
 		return
 	case errors.Is(err, accountsapp.ErrNoGitHubToken):
-		seeOther(w, r, s.absolute(signInPageHref(returnPath(r.URL.RequestURI()))))
+		// The visitor is signed in, so the plain sign-in page would send them straight back here.
+		seeOther(w, r, s.absolute(signInAgainHref(returnPath(r.URL.RequestURI()))))
 		return
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		// The installation is recorded; the dashboard says the read failed.
