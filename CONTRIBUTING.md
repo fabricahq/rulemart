@@ -3,7 +3,9 @@
 ## Set up
 
 You need the Go version in [go.mod](go.mod), Docker, Python 3.11 or later, and a C compiler for sqlc. Node is
-optional and needs no packages: with it, `make check` also runs the site scripts' tests, which CI always runs.
+optional and needs no packages: with it, `make check` also runs the site scripts' tests, which CI always runs. Bash
+4 or later, such as Homebrew's, is optional too: with it, `make check` also checks that the conformance audit runs a
+browser of its own.
 
 ```sh
 make db     # start Postgres 18 in Docker on 127.0.0.1:55432

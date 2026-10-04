@@ -43,8 +43,19 @@ site=${2%/}
 out=$3
 mkdir -p "$out"
 
-# A browser session of its own, named for this run alone, so the audit never drives a browser another task or an earlier
-# run used, and starts with no cookies, storage, or saved theme. chrome-devtools-axi runs it with a temporary profile.
+# A browser of its own, which starts with no cookies, storage, or saved theme and is discarded as the audit exits, so it
+# never signs another browser's visitor out or overwrites its cart or theme. The session, named for this run alone,
+# gives it a bridge and port of its own, and chrome-devtools-axi launches it with a temporary profile unless a setting
+# says otherwise, so the audit ignores every setting that would: connecting to a running browser or a shared browser
+# service, a profile kept on disk, a fixed bridge port another session may hold, and Chrome flags, which can name a
+# profile or a port too.
+# conformance_test.sh checks it.
+for setting in CHROME_DEVTOOLS_AXI_{AUTO_CONNECT,BROWSER_URL,WS_HEADERS,MCP_SERVER_URL,USER_DATA_DIR,PORT,CHROME_ARGS}; do
+  if [[ -n ${!setting+set} ]]; then
+    echo "conformance.sh: ignoring $setting, since the audit runs a browser of its own" >&2
+    unset "$setting"
+  fi
+done
 export CHROME_DEVTOOLS_AXI_SESSION="rulemart-audit-$$-$RANDOM"
 
 # doing names what the audit is doing, for the message that stops it.
