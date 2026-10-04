@@ -23,7 +23,7 @@ type ruleListView struct {
 	path    string
 	params  url.Values
 	choices domain.ListChoices
-	mine mineView
+	mine    mineView
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
 	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, current
 	// the current ones among them, currentLibraries the libraries those come from, and retiredRules the retired rules
