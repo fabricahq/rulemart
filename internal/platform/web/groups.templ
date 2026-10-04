@@ -45,6 +45,7 @@ templ groupPage(c chrome, g groupPageView) {
 				@filterSidebar(g.list)
 				<section aria-labelledby="results">
 					<h2 id="results" class="sr-only">Rules</h2>
+					@myLibrariesStatus(g.list)
 					@resultsHead(g.list, "")
 					if g.list.filteredOut() {
 						@noFilteredRules(g.list)

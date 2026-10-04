@@ -25,9 +25,9 @@ type groupPageView struct {
 	rows          []ruleRowView
 }
 
-// newGroupPageView returns what the page of the group at address shows of page, read with choices; offersMine offers
+// newGroupPageView returns what the page of the group at address shows of page, read with choices, and of the visitor's
 // My libraries.
-func newGroupPageView(page views.GroupPage, address string, choices domain.ListChoices, offersMine bool, iconURL func(file string) string) groupPageView {
+func newGroupPageView(page views.GroupPage, address string, choices domain.ListChoices, mine mineView, iconURL func(file string) string) groupPageView {
 	v := groupPageView{
 		href: groupHref(page.Path), address: address, kind: kindOf(page.Path), label: newGroupLabel(page.Path, page.Canonical),
 		icon: newGroupIcon(page.Canonical, iconURL),
@@ -35,7 +35,7 @@ func newGroupPageView(page views.GroupPage, address string, choices domain.ListC
 	if page.Canonical != nil {
 		v.description = page.Canonical.Description
 	}
-	v.list = newRuleListView(domain.GroupListPage, v.href, nil, choices, offersMine, page.Rules)
+	v.list = newRuleListView(domain.GroupListPage, v.href, nil, choices, mine, page.Rules)
 	for _, r := range page.Rules.Rows {
 		v.rows = append(v.rows, newListedRuleRow(r))
 	}
@@ -71,7 +71,9 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := string(kind) + "/" + r.PathValue("name")
 		asked := domain.ParseListChoices(domain.GroupListPage, r.URL.Query())
-		choices, mine, ok := s.myLibraries(w, r, asked)
+		// A request with its choices spelled as the page's own address is the page to return to; any other redirects
+		// there below.
+		choices, mine, gitHub, ok := s.myLibraries(w, r, asked, returnPath(r.URL.RequestURI()))
 		if !ok {
 			return
 		}
@@ -89,7 +91,7 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 			redirect(w, r, own)
 			return
 		}
-		view := newGroupPageView(page, own, choices, visitorOf(r.Context()).account != nil, s.assets.iconURL)
+		view := newGroupPageView(page, own, choices, mineView{offered: visitorOf(r.Context()).account != nil, gitHub: gitHub}, s.assets.iconURL)
 		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 	}
 }

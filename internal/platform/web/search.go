@@ -68,14 +68,14 @@ type resultGroupView struct {
 	rows  []ruleRowView
 }
 
-// newSearchView returns what page shows of results, the rules query finds that choices keep; offersMine offers My
-// libraries, and tooLong marks a query search didn't run.
-func newSearchView(query domain.SearchQuery, choices domain.ListChoices, offersMine, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
+// newSearchView returns what page shows of results, the rules query finds that choices keep, and of the visitor's My
+// libraries; tooLong marks a query search didn't run.
+func newSearchView(query domain.SearchQuery, choices domain.ListChoices, mine mineView, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
 	words := queryWords(query)
 	v := searchView{
 		query: query.String(), tooLong: tooLong, noWords: results.NoWords, page: page,
 		pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
-		list:  newRuleListView(domain.SearchListPage, searchHref, searchParams(query.String()), choices, offersMine, results),
+		list:  newRuleListView(domain.SearchListPage, searchHref, searchParams(query.String()), choices, mine, results),
 	}
 	for _, r := range results.Rows {
 		tier := tierOf(r)
@@ -241,7 +241,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, own)
 		return
 	}
-	choices, mine, ok := s.myLibraries(w, r, choices)
+	choices, mine, gitHub, ok := s.myLibraries(w, r, choices, own)
 	if !ok {
 		return
 	}
@@ -255,7 +255,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	view := newSearchView(query, choices, visitorOf(r.Context()).account != nil, tooLong, results, page, s.assets.iconURL)
+	view := newSearchView(query, choices, mineView{offered: visitorOf(r.Context()).account != nil, gitHub: gitHub}, tooLong, results, page, s.assets.iconURL)
 	status := http.StatusOK
 	if view.pageMissing() {
 		status = http.StatusNotFound

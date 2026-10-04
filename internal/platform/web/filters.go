@@ -23,8 +23,7 @@ type ruleListView struct {
 	path    string
 	params  url.Values
 	choices domain.ListChoices
-	// offersMine is true for a signed-in visitor, whom the sidebar offers My libraries.
-	offersMine bool
+	mine mineView
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
 	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, current
 	// the current ones among them, currentLibraries the libraries those come from, and retiredRules the retired rules
@@ -46,9 +45,18 @@ type libraryFilterView struct {
 	rules int
 }
 
-func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, offersMine bool, results views.RuleResults) ruleListView {
+// mineView is what a list knows of the signed-in visitor's My libraries.
+type mineView struct {
+	// offered is true for a signed-in visitor, whom the sidebar offers My libraries.
+	offered bool
+	// gitHub is how Rulemart's read of the visitor's GitHub account went, which the list says while My libraries is on,
+	// or the zero view while it's off.
+	gitHub gitHubView
+}
+
+func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, mine mineView, results views.RuleResults) ruleListView {
 	v := ruleListView{
-		page: page, path: path, params: params, choices: choices, offersMine: offersMine, total: results.Total, complete: results.Complete,
+		page: page, path: path, params: params, choices: choices, mine: mine, total: results.Total, complete: results.Complete,
 		libraries: results.Libraries, unfiltered: results.Unfiltered, current: results.UnfilteredCurrent,
 		currentLibraries: results.UnfilteredCurrentLibraries, retiredRules: results.RetiredRules,
 	}

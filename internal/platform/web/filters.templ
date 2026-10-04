@@ -52,7 +52,7 @@ templ filterForm(v ruleListView) {
 		// name, its owner said on hover and to screen readers. Each row is in stronger type while it's ticked.
 		if len(v.libraryFilters) > 0 || v.choices.Filters.Mine {
 			@filterGroup("Libraries", "") {
-				if v.offersMine {
+				if v.mine.offered {
 					<label class={ filterLabel, templ.KV("font-medium text-ink", v.choices.Filters.Mine) }>
 						<input class={ filterInput } type="checkbox" name={ domain.MineParam } value="1" checked?={ v.choices.Filters.Mine }/> My libraries
 					</label>
@@ -165,10 +165,27 @@ templ resultsHead(v ruleListView, more string) {
 	}
 }
 
-// noFilteredRules says no rule passes the list's filters, and leads to the list without them.
+// myLibrariesStatus says how fresh Rulemart's read of the visitor's GitHub account is while My libraries is on, since
+// that read decides which libraries it keeps.
+templ myLibrariesStatus(v ruleListView) {
+	if v.choices.Filters.Mine {
+		@gitHubStatus(v.mine.gitHub, "mb-3")
+	}
+}
+
+// noFilteredRules says no rule passes the list's filters, and leads to the list without them. While Rulemart holds
+// no read of the visitor's GitHub account, My libraries knows only the visitor's own libraries, so it says that instead.
 templ noFilteredRules(v ruleListView) {
 	<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">
-		No rules match these filters.{ " " }
+		switch {
+			case v.choices.Filters.Mine && v.mine.gitHub.reading:
+				Rulemart is reading your repositories to find your libraries.
+			case v.choices.Filters.Mine && v.mine.gitHub.unread():
+				Rulemart hasn't read your repositories yet, so My libraries can't find your libraries.
+			default:
+				No rules match these filters.
+		}
+		{ " " }
 		<a class={ chipStyle } href={ templ.SafeURL(v.clearHref()) }>Clear filters</a>
 	</div>
 }

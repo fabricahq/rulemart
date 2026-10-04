@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
@@ -444,5 +446,85 @@ func TestMyLibrariesKeepsTheLibrariesTheVisitorsProjectsUse(t *testing.T) {
 	assertShows(t, page, "2 rules in 1 library", "Close response bodies MEDIUM other/go-rules Name packages plainly LOW other/go-rules")
 	if strings.Contains(visibleText(t, page), "Return errors with context") {
 		t.Error("My libraries keeps a rule of example/rules, which the visitor neither publishes nor uses")
+	}
+}
+
+// While another request makes the visitor's first read of GitHub, My libraries says Rulemart is reading their
+// repositories and loads the page again shortly, rather than saying no rule matches the filters.
+func TestMyLibrariesSaysItsReadingGitHubAndRefreshesWhileAFirstReadIsUnderWay(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{}, newBrowsingCatalog())
+	site.gitHub.err = accountsapp.ErrGitHubReading
+
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		resp := send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{site.session}})
+		page := body(t, resp)
+
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Refresh") != "3" {
+			t.Errorf("%s answered %d with Refresh %q, want 200 with Refresh 3", path, resp.StatusCode, resp.Header.Get("Refresh"))
+		}
+		assertShows(t, page, "Rulemart is reading your repositories on GitHub. This page will update in a moment.",
+			"Rulemart is reading your repositories to find your libraries. Clear filters")
+		if strings.Contains(visibleText(t, page), "No rules match these filters") {
+			t.Errorf("%s says no rule matches the filters while Rulemart reads the visitor's libraries", path)
+		}
+	}
+	if resp := send(t, site.handler, request{method: http.MethodGet, target: "/g/techs/go", cookies: []*http.Cookie{site.session}}); resp.Header.Get("Refresh") != "" {
+		t.Errorf("without My libraries, the page refreshes itself, Refresh %q", resp.Header.Get("Refresh"))
+	}
+}
+
+// When the latest read of GitHub failed, My libraries keeps what an earlier read found, says the read failed, and offers
+// to try again, returning to the list; when no read ever succeeded, it says so rather than that no rule matches.
+func TestMyLibrariesSaysWhenItsReadOfGitHubFailed(t *testing.T) {
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	site := newDashboardSite(t, failed, newBrowsingCatalog())
+	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+
+	page := site.get(t, "/g/techs/go?mine=1")
+
+	assertShows(t, page, "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again",
+		"1 rule in 1 library", "Return errors with context HIGH example/rules")
+	if !strings.Contains(page, `action="/me/refresh?return=%2Fg%2Ftechs%2Fgo%3Fmine%3D1"`) {
+		t.Error("Try again doesn't return to the list")
+	}
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/refresh?return=%2Fg%2Ftechs%2Fgo%3Fmine%3D1", cookies: []*http.Cookie{site.session}})
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/g/techs/go?mine=1" {
+		t.Errorf("Try again answered %d to %q, want the list", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	never := newDashboardSite(t, accounts.Snapshot{ReadFailed: true}, newBrowsingCatalog())
+	never.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		page := never.get(t, path)
+
+		assertShows(t, page, "Rulemart couldn't read your repositories on GitHub just now. Try again",
+			"Rulemart hasn't read your repositories yet, so My libraries can't find your libraries. Clear filters")
+		if strings.Contains(visibleText(t, page), "No rules match these filters") {
+			t.Errorf("%s says no rule matches the filters when Rulemart never read the visitor's libraries", path)
+		}
+	}
+}
+
+// A session without a token GitHub takes is asked to sign in again, and returns to the list afterward.
+func TestMyLibrariesAsksAVisitorWithoutATokenToSignInAgain(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{}, newBrowsingCatalog())
+	site.gitHub.err = accountsapp.ErrNoGitHubToken
+
+	page := site.get(t, "/search?mine=1&q=errors")
+
+	assertShows(t, page, "Sign in again so Rulemart can read your repositories on GitHub. Sign in again")
+	if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fsearch%3Fmine%3D1%26q%3Derrors"}) {
+		t.Errorf("Sign in again leads to %q", got)
+	}
+}
+
+// A list says how fresh My libraries is only while it's on.
+func TestMyLibrariesSaysWhenRulemartReadGitHub(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), newBrowsingCatalog())
+
+	assertShows(t, site.get(t, "/g/techs/go?mine=1"), "Read from GitHub 3 minutes ago. Refresh")
+	if strings.Contains(visibleText(t, site.get(t, "/g/techs/go")), "Read from GitHub") {
+		t.Error("without My libraries, the list says when Rulemart read GitHub")
 	}
 }

@@ -33,6 +33,7 @@ templ searchPage(c chrome, v searchView) {
 				@listLayout() {
 					@filterSidebar(v.list)
 					<section aria-label="Results">
+						@myLibrariesStatus(v.list)
 						@resultsHead(v.list, searchMore(v))
 						if v.pageMissing() {
 							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">

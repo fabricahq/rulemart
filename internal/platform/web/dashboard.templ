@@ -66,7 +66,7 @@ func dashboardTabs(d dashboardView) []tab {
 // and their organizations publish, the libraries their projects use, and the Account section.
 templ librariesTab(d dashboardView) {
 	@privateProjectsNote(d.gitHub)
-	@gitHubStatus(d.gitHub)
+	@gitHubStatus(d.gitHub, "mt-2.5")
 	<section aria-labelledby="published">
 		<h2 id="published" class={ sectionHeadStyle, "mt-6" }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
 		if len(d.owned) == 0 {
