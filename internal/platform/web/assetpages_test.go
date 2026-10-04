@@ -199,9 +199,9 @@ func TestAssetPagesShowEachAsset(t *testing.T) {
 	}{
 		whyPage: {[]string{
 			"rules › Testing › Test the behavior you changed",
-			"Assets 5 files big.png 300 KB cases.json 19 B loop.svg 117 B why.md 70 B Shared across the library glossary.md 50 B " +
-				"Not part of this rule's version. Projects get the copy from the newest library release. These files come with " +
-				"the rule when you add it.",
+			"Assets 5 files big.png 300 KB cases.json 19 B loop.svg 117 B why.md 70 B These files come with the rule when you " +
+				"add it. Shared across the library glossary.md 50 B " +
+				"Not part of this rule's version. Projects get the copy from the newest library release.",
 			"why.md Supporting file for this rule, part of version 1.0.0 · 70 B View on GitHub Raw",
 			"Why it works Read the glossary", "← Back to Test the behavior you changed",
 		}, `href="` + glossaryPage + behaviorQuery + `"`},

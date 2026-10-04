@@ -57,10 +57,10 @@ func newBrowsingCatalog() catalog {
 	c.groups = map[string]views.GroupPage{
 		"techs/go": {Path: "techs/go", Canonical: goGroup, Rules: views.RuleResults{
 			Rows: []views.RuleRow{returnErrorsRow, closeBodiesRow, namePackagesRow}, Total: 3, Libraries: 2, Unfiltered: 3,
-			UnfilteredLibraries: browsingCounts, RetiredRules: 1,
+			UnfilteredCurrent: 3, UnfilteredCurrentLibraries: 2, UnfilteredLibraries: browsingCounts, RetiredRules: 1,
 		}},
 		"techs/golang": {Path: "techs/golang", Rules: views.RuleResults{
-			Rows: []views.RuleRow{wrapErrorsRow}, Total: 1, Libraries: 1, Unfiltered: 1,
+			Rows: []views.RuleRow{wrapErrorsRow}, Total: 1, Libraries: 1, Unfiltered: 1, UnfilteredCurrent: 1, UnfilteredCurrentLibraries: 1,
 			UnfilteredLibraries: []views.LibraryCount{{Library: otherRef, Vetted: true, Rules: 1}},
 		}},
 		"practices/accessibility": {Path: "practices/accessibility", Canonical: &views.CanonicalGroup{Name: "Accessibility"}},

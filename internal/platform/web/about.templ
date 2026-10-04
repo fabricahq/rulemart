@@ -6,8 +6,11 @@ package web
 // vetted, and where to report a problem. It links listing when canList is true.
 templ aboutPage(c chrome, canList bool) {
 	@layout(c, head{title: "About Rulemart", description: "What Rulemart is, what vetting a Code Rules library means, and how to get a library vetted."}) {
-		<div class={ "page wrap", narrowPage }>
-			<h1 class="title-xl">About Rulemart</h1>
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				About
+			}
+			<h1 class="title-xl mt-2.5">About Rulemart</h1>
 			<div class="prose mt-5">
 				<p>
 					Rulemart is a catalog of <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> libraries: sets of engineering
@@ -21,10 +24,11 @@ templ aboutPage(c chrome, canList bool) {
 				</p>
 				<h2 id="vetting">What vetting means</h2>
 				<p>
-					Rules are instructions a coding agent follows, so Rulemart shows a library across the site, in its lists,
-					groups, and search, only once Fabrica has vetted it. Vetting is a reviewed change to
-					<a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's repository, so the file's
-					history shows when each library was vetted, and why.
+					Rules are instructions a coding agent follows, so Rulemart's lists, groups, and search show only the libraries
+					Fabrica has vetted, each marked with a check, until you choose { unvettedOptInLabel } beside the list.
+					That choice stays in the page's address, and its links keep it, so the default view never changes. Vetting
+					is a reviewed change to <a href={ templ.SafeURL(vettedFileURL) }>catalog/vetted.yaml</a> in Rulemart's
+					repository, so the file's history shows when each library was vetted, and why.
 				</p>
 				<p>
 					Vetting covers a library's future releases too, which Rulemart shows without another review. It means Fabrica
@@ -35,9 +39,10 @@ templ aboutPage(c chrome, canList bool) {
 				<p>
 					Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica
 					vets it, a listed library appears under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>,
-					and in the lists, groups, and search only for a visitor who includes unvetted libraries, tagged Unvetted. Every
-					page of it warns that it hasn't been vetted, search engines are asked not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding agent review
-					its rules and wait for your approval before adding it, pinned to the commit it reviewed.
+					and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. Every page of
+					it says "{ unvettedWarningText }", search engines are asked
+					not to index it, and adding its rules to your cart takes a second confirmation. Checkout then has your coding
+					agent review its rules and wait for your approval before adding it, pinned to the commit it reviewed.
 				</p>
 				<h2 id="get-vetted">Get a library vetted</h2>
 				<ol>
@@ -75,9 +80,12 @@ templ aboutPage(c chrome, canList bool) {
 // it. It says whether Rulemart counts visits with Cloudflare Web Analytics, which analytics reports.
 templ privacyPage(c chrome, analytics bool) {
 	@layout(c, head{title: "Privacy · Rulemart", description: "What Rulemart keeps about you, why, for how long, and how to delete it."}) {
-		<div class={ "page wrap", narrowPage }>
-			<h1 class="title-xl">Privacy</h1>
-			<p class="mt-1.5 text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				About
+			}
+			<h1 class="title-xl mt-2.5 mb-2.5">Privacy</h1>
+			<p class="text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
 			<div class="prose mt-7">
 				<h2 id="browsing">Browsing</h2>
 				<p>
@@ -100,9 +108,8 @@ templ privacyPage(c chrome, analytics bool) {
 				</p>
 				<p>
 					Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's
-					server holds, so it can read your GitHub account again when you open your dashboard or press Refresh. Signing
-					out deletes the token with your session, as does signing out everywhere; a session ends by itself after 30
-					days.
+					server holds, so it can read your GitHub account again, as the next section says. Signing out deletes the
+					token with your session, as does signing out everywhere; a session ends by itself after 30 days.
 				</p>
 				<h2 id="github">What Rulemart reads of your GitHub account</h2>
 				<p>
@@ -119,8 +126,16 @@ templ privacyPage(c chrome, analytics bool) {
 					only to you, on your own pages, and count toward nothing others see.
 				</p>
 				<p>
-					What it read stays until it reads your account again, which replaces it, or until you delete your account. A
-					change to the app's installation on GitHub discards it.
+					Rulemart reads your GitHub account the first time a page shows it after you sign in, when you press Refresh,
+					at most once a minute, and when GitHub returns you to Rulemart after you install the app or change which
+					repositories it reads. Each read replaces what the last one kept. Each read also asks GitHub about the app's
+					installations you read through: Rulemart forgets one you uninstalled, with what it read through it, and one on
+					an organization you no longer own, while a suspended one makes the read fail. A read that fails keeps what
+					Rulemart already held, saying when it was read.
+				</p>
+				<p>
+					So what it read stays, even after you change the app's installation on GitHub, until it reads your account
+					again, until you choose Remove access to private repos, which discards it, or until you delete your account.
 				</p>
 				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
 				<ul>
@@ -153,9 +168,11 @@ templ privacyPage(c chrome, analytics bool) {
 				<h2 id="analytics">Analytics</h2>
 				if analytics {
 					<p>
-						Rulemart counts page views with <a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web Analytics</a>,
-						which sets no cookie and doesn't record a page address's query, such as a search's words. Your browser sends
-						it each page's address, the page you came from, your browser's user agent, and how quickly the page loaded.
+						Rulemart counts page views on every page, signed in or not, with
+						<a href="https://www.cloudflare.com/web-analytics/">Cloudflare Web Analytics</a>, which sets no cookie and
+						doesn't record a page address's query, such as a search's words. Your browser sends it each page's address,
+						the page you came from, your browser's user agent, and how quickly the page loaded. No address names you or
+						holds what's in your cart, so Cloudflare can't tell who you are or what you chose.
 					</p>
 				} else {
 					<p>Rulemart uses no analytics service.</p>

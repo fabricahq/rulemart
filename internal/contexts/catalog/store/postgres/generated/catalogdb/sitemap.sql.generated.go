@@ -55,6 +55,54 @@ func (q *Queries) ListSitemapLibraries(ctx context.Context, vetted []string) ([]
 	return items, nil
 }
 
+const listSitemapLibraryGroups = `-- name: ListSitemapLibraryGroups :many
+SELECT l.id AS library_id, g.path, max(rel.tagged_at)::timestamptz AS tagged_at
+FROM libraries l
+JOIN rules r ON r.library_id = l.id AND r.retired_in_release_id IS NULL
+JOIN library_groups g ON g.id = r.group_id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+JOIN library_releases rel ON rel.id = v.release_id
+WHERE l.host || ':' || l.host_repository_id = ANY ($1::text[])
+GROUP BY l.id, g.path
+ORDER BY lower(l.owner), lower(l.name), g.path
+LIMIT $2::integer
+`
+
+type ListSitemapLibraryGroupsParams struct {
+	Vetted    []string
+	MaxGroups int32
+}
+
+type ListSitemapLibraryGroupsRow struct {
+	LibraryID int64
+	Path      string
+	TaggedAt  pgtype.Timestamptz
+}
+
+// ListSitemapLibraryGroups returns at most max_groups of the groups that hold the vetted libraries' current rules,
+// ordered by library as ListSitemapLibraries orders them, then by ID, each with when the latest release that published
+// the current version of one of its current rules was tagged. A rule names its group, since its ID may nest below the
+// group's.
+func (q *Queries) ListSitemapLibraryGroups(ctx context.Context, arg ListSitemapLibraryGroupsParams) ([]ListSitemapLibraryGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listSitemapLibraryGroups, arg.Vetted, arg.MaxGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSitemapLibraryGroupsRow
+	for rows.Next() {
+		var i ListSitemapLibraryGroupsRow
+		if err := rows.Scan(&i.LibraryID, &i.Path, &i.TaggedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSitemapRules = `-- name: ListSitemapRules :many
 SELECT l.id AS library_id, r.path, rel.tagged_at
 FROM libraries l

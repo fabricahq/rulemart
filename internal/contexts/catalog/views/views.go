@@ -426,10 +426,13 @@ type RuleResults struct {
 	// Total counts the rules that pass the list's filters, Complete those of them that hold every word a search finds,
 	// and Libraries the libraries they come from.
 	Total, Complete, Libraries int
-	// Unfiltered counts the rules the list holds before its filters, and UnfilteredLibraries the libraries they come
-	// from, Fabrica's first, then by owner and name, each with how many of them it holds.
-	Unfiltered          int
-	UnfilteredLibraries []LibraryCount
+	// Unfiltered counts the rules the list holds before its filters, retired ones too while it shows them, and
+	// UnfilteredLibraries the libraries they come from, Fabrica's first, then by owner and name, each with how many of
+	// them it holds. UnfilteredCurrent counts only the current rules among them, as a page's count of its rules does,
+	// and UnfilteredCurrentLibraries the libraries those come from, which leaves out a library whose only rules in the
+	// list are retired.
+	Unfiltered, UnfilteredCurrent, UnfilteredCurrentLibraries int
+	UnfilteredLibraries                                       []LibraryCount
 	// RetiredRules counts the retired rules of the list's group, or of every group, in its libraries, whether or not
 	// the list holds them, so a page offers to show them only when there are some.
 	RetiredRules int
@@ -699,8 +702,8 @@ type Sitemap struct {
 	// Groups are the IDs of the groups that hold the libraries' current rules, each once, in ID order, canonical or
 	// not.
 	Groups []string
-	// Truncated reports that the sitemap left out groups or rules past the most it reads, after the first groups and
-	// its libraries' first rules.
+	// Truncated reports that the sitemap left out groups, library groups, or rules past the most it reads, after the
+	// first groups, its libraries' first groups, and their first rules.
 	Truncated bool
 }
 
@@ -709,8 +712,18 @@ type SitemapLibrary struct {
 	Owner, Name string
 	// Updated is when the library's latest release was tagged.
 	Updated time.Time
+	// Groups are the groups that hold its current rules, in ID order.
+	Groups []SitemapGroup
 	// Rules are its current rules, in ID order.
 	Rules []SitemapRule
+}
+
+// SitemapGroup is a group of a vetted library in the sitemap.
+type SitemapGroup struct {
+	Path string
+	// Updated is when the latest release that published the current version of one of the group's current rules was
+	// tagged.
+	Updated time.Time
 }
 
 // SitemapRule is a current rule in the sitemap.

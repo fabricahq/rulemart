@@ -68,12 +68,14 @@ type resultGroupView struct {
 	rows  []ruleRowView
 }
 
-func newSearchView(query domain.SearchQuery, choices domain.ListChoices, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
+// newSearchView returns what page shows of results, the rules query finds that choices keep, and of the visitor's My
+// libraries; tooLong marks a query search didn't run.
+func newSearchView(query domain.SearchQuery, choices domain.ListChoices, mine mineView, tooLong bool, results views.RuleResults, page int, iconURL func(file string) string) searchView {
 	words := queryWords(query)
 	v := searchView{
 		query: query.String(), tooLong: tooLong, noWords: results.NoWords, page: page,
 		pages: min((results.Total+app.SearchPageSize-1)/app.SearchPageSize, app.MaxSearchPage),
-		list:  newRuleListView(domain.SearchListPage, searchHref, searchParams(query.String()), choices, results),
+		list:  newRuleListView(domain.SearchListPage, searchHref, searchParams(query.String()), choices, mine, results),
 	}
 	for _, r := range results.Rows {
 		tier := tierOf(r)
@@ -221,7 +223,7 @@ func searchHrefNumbered(query string, choices domain.ListChoices, number string)
 }
 
 // search shows a page of the rules that the query in the q parameter matches, or of every rule without one, the page
-// the page parameter numbers, from 1, with the choices the address holds. Its page names no canonical address and asks
+// the page parameter numbers, from 1, with the choices the address holds that the visitor can make. Its page names no canonical address and asks
 // search engines not to index it, since each query would otherwise be a page of its own. An address that spells its
 // choices or page number another way, or names the first page's number, redirects to its own, and a page past the last
 // is missing.
@@ -239,17 +241,21 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, own)
 		return
 	}
+	choices, mine, gitHub, ok := s.myLibraries(w, r, choices, own)
+	if !ok {
+		return
+	}
 	var results views.RuleResults
 	var err error
 	if page <= app.MaxSearchPage {
-		results, err = s.catalog.SearchRules(r.Context(), query, choices, page)
+		results, err = s.catalog.SearchRules(r.Context(), query, choices, mine, page)
 	}
 	tooLong := errors.Is(err, app.ErrSearchQueryTooLong)
 	if err != nil && !tooLong {
 		s.fail(w, r, err)
 		return
 	}
-	view := newSearchView(query, choices, tooLong, results, page, s.assets.iconURL)
+	view := newSearchView(query, choices, mineView{offered: visitorOf(r.Context()).account != nil, gitHub: gitHub}, tooLong, results, page, s.assets.iconURL)
 	status := http.StatusOK
 	if view.pageMissing() {
 		status = http.StatusNotFound

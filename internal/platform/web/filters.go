@@ -23,10 +23,12 @@ type ruleListView struct {
 	path    string
 	params  url.Values
 	choices domain.ListChoices
+	mine    mineView
 	// total counts the rules that pass the filters, complete those of them that hold every word of a search, and
-	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, and
-	// retiredRules the retired rules it could show.
-	total, complete, libraries, unfiltered, retiredRules int
+	// libraries the libraries they come from. unfiltered counts the rules the list holds before its filters, current
+	// the current ones among them, currentLibraries the libraries those come from, and retiredRules the retired rules
+	// it could show.
+	total, complete, libraries, unfiltered, current, currentLibraries, retiredRules int
 	// libraryFilters are the sidebar's libraries: those of the rules the list holds before its filters, Fabrica's
 	// first.
 	libraryFilters []libraryFilterView
@@ -43,10 +45,20 @@ type libraryFilterView struct {
 	rules int
 }
 
-func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, results views.RuleResults) ruleListView {
+// mineView is what a list knows of the signed-in visitor's My libraries.
+type mineView struct {
+	// offered is true for a signed-in visitor, whom the sidebar offers My libraries.
+	offered bool
+	// gitHub is how Rulemart's read of the visitor's GitHub account went, which the list says while My libraries is on,
+	// or the zero view while it's off.
+	gitHub gitHubView
+}
+
+func newRuleListView(page domain.ListPage, path string, params url.Values, choices domain.ListChoices, mine mineView, results views.RuleResults) ruleListView {
 	v := ruleListView{
-		page: page, path: path, params: params, choices: choices, total: results.Total, complete: results.Complete,
-		libraries: results.Libraries, unfiltered: results.Unfiltered, retiredRules: results.RetiredRules,
+		page: page, path: path, params: params, choices: choices, mine: mine, total: results.Total, complete: results.Complete,
+		libraries: results.Libraries, unfiltered: results.Unfiltered, current: results.UnfilteredCurrent,
+		currentLibraries: results.UnfilteredCurrentLibraries, retiredRules: results.RetiredRules,
 	}
 	for _, l := range results.UnfilteredLibraries {
 		value := domain.LibraryFilterValue(l.Library.Owner, l.Library.Name)
@@ -75,12 +87,12 @@ func addressOf(path string, choices, params url.Values) string {
 	return path + "?" + choices.Encode()
 }
 
-// chosen counts the sidebar's choices that are on: each library, the impact, the stars, the kind, and retired rules and
-// unvetted libraries, which the sidebar's disclosure counts on a phone.
+// chosen counts the sidebar's choices that are on: each library, My libraries, the impact, the stars, the kind, and
+// retired rules and unvetted libraries, which the sidebar's disclosure counts on a phone.
 func (v ruleListView) chosen() int {
 	n := len(v.choices.Filters.Libraries)
 	for _, on := range []bool{
-		v.choices.Filters.Impact != domain.AnyImpact, v.choices.Filters.MinStars > 0, v.choices.Filters.Kind != "",
+		v.choices.Filters.Mine, v.choices.Filters.Impact != domain.AnyImpact, v.choices.Filters.MinStars > 0, v.choices.Filters.Kind != "",
 		v.choices.Retired, v.choices.Unvetted,
 	} {
 		if on {

@@ -9,6 +9,22 @@ JOIN LATERAL (
 WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
 ORDER BY lower(l.owner), lower(l.name);
 
+-- ListSitemapLibraryGroups returns at most max_groups of the groups that hold the vetted libraries' current rules,
+-- ordered by library as ListSitemapLibraries orders them, then by ID, each with when the latest release that published
+-- the current version of one of its current rules was tagged. A rule names its group, since its ID may nest below the
+-- group's.
+-- name: ListSitemapLibraryGroups :many
+SELECT l.id AS library_id, g.path, max(rel.tagged_at)::timestamptz AS tagged_at
+FROM libraries l
+JOIN rules r ON r.library_id = l.id AND r.retired_in_release_id IS NULL
+JOIN library_groups g ON g.id = r.group_id
+JOIN rule_versions v ON v.rule_id = r.id AND v.html IS NOT NULL
+JOIN library_releases rel ON rel.id = v.release_id
+WHERE l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
+GROUP BY l.id, g.path
+ORDER BY lower(l.owner), lower(l.name), g.path
+LIMIT @max_groups::integer;
+
 -- ListSitemapRules returns at most max_rules of the vetted libraries' current rules, ordered by library as
 -- ListSitemapLibraries orders them, then by ID, each with when the release that published its current version was
 -- tagged. Only a current rule's current version keeps its HTML.

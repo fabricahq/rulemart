@@ -1,13 +1,17 @@
 package web_test
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/net/html"
 
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
+	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
@@ -152,7 +156,8 @@ func TestListFormsShowOnlyTheAddresssChoicesAfterHistoryNavigation(t *testing.T)
 // equalChoices reports whether a and b are the same choices.
 func equalChoices(a, b domain.ListChoices) bool {
 	return a.Unvetted == b.Unvetted && a.Retired == b.Retired && a.Order == b.Order && a.Filters.Impact == b.Filters.Impact &&
-		a.Filters.MinStars == b.Filters.MinStars && a.Filters.Kind == b.Filters.Kind && slices.Equal(a.Filters.Libraries, b.Filters.Libraries)
+		a.Filters.MinStars == b.Filters.MinStars && a.Filters.Kind == b.Filters.Kind && a.Filters.Mine == b.Filters.Mine &&
+		slices.Equal(a.Filters.Libraries, b.Filters.Libraries)
 }
 
 // A list's address has one spelling, and any other, such as a form submitted without a script, redirects to it in one
@@ -314,5 +319,212 @@ func TestFilterSidebarOffersRetiredRulesOnlyWhenTheListHasSome(t *testing.T) {
 		if got := slices.Contains(fieldNames(fields), "retired=1"); got != want {
 			t.Errorf("%s: offers retired rules %t, want %t", path, got, want)
 		}
+	}
+}
+
+// Signed out, the Libraries filter has no My libraries, and an address that asks for it shows the whole list, which
+// the catalog reads without it, and isn't indexed, as any address with choices.
+func TestMyLibrariesIsOfferedOnlyToASignedInVisitor(t *testing.T) {
+	var chosen []domain.ListChoices
+	var mine []domain.MyLibraries
+	c := newBrowsingCatalog()
+	c.chosen, c.mine = &chosen, &mine
+	handler := newSite(t, c)
+
+	for path, rows := range map[string]string{
+		"/g/techs/go?mine=1":      "Return errors with context HIGH example/rules 3 3 stars Close response bodies MEDIUM other/go-rules",
+		"/search?mine=1&q=errors": "techs/golang not canonical 1 Wrap errors MEDIUM other/go-rules",
+		"/search?mine=1":          "Return errors with context HIGH example/rules 3 3 stars Close response bodies MEDIUM other/go-rules",
+	} {
+		resp := get(t, handler, path)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.Code)
+		}
+		page := resp.Body.String()
+		assertShows(t, page, "Filters Libraries example/ rules 1 other/ go-rules", rows)
+		if _, _, fields := filterFields(t, page); slices.Contains(fieldNames(fields), "mine=1") {
+			t.Errorf("%s offers My libraries signed out", path)
+		}
+		if strings.Contains(visibleText(t, page), "Clear filters") {
+			t.Errorf("%s clears filters it doesn't show", path)
+		}
+		if content, _ := robots(t, page); content != "noindex" {
+			t.Errorf("%s: robots %q, want noindex", path, content)
+		}
+	}
+	for i, choices := range chosen {
+		if choices.Filters.Mine || mine[i].Owners != nil || mine[i].Libraries != nil {
+			t.Errorf("read the catalog with %+v for %+v, want neither My libraries nor the visitor's", choices, mine[i])
+		}
+	}
+}
+
+// Signed in, the Libraries filter starts with My libraries, which keeps the libraries the dashboard lists: those whose
+// owner is the visitor or one of their organizations, and those the visitor's projects use. The sort tabs keep it,
+// Clear filters clears it, and the catalog reads the visitor's libraries only when it's on.
+func TestMyLibrariesKeepsTheLibrariesOfTheVisitorAndTheirOrganizations(t *testing.T) {
+	var chosen []domain.ListChoices
+	var read []domain.MyLibraries
+	c := newBrowsingCatalog()
+	c.chosen, c.mine = &chosen, &read
+	site := newDashboardSite(t, octocatsGitHub(), c)
+
+	plain := site.get(t, "/g/techs/go")
+	mine := site.get(t, "/g/techs/go?mine=1")
+	search := site.get(t, "/search?mine=1&q=errors")
+
+	_, _, fields := filterFields(t, plain)
+	if names := fieldNames(fields); len(names) < 2 || names[0] != "mine=1" || names[1] != "libs=example/rules" {
+		t.Errorf("the form's fields are %q, want My libraries before the libraries", names)
+	}
+	if got := checkedFields(fields); !slices.Equal(got, []string{"stars="}) {
+		t.Errorf("without the choice, %q are on, want only any stars", got)
+	}
+	assertShows(t, plain, "Libraries My libraries example/ rules 1 other/ go-rules 2 Impact", "3 rules in 2 libraries")
+	_, _, fields = filterFields(t, mine)
+	if got := checkedFields(fields); !slices.Equal(got, []string{"mine=1", "stars="}) {
+		t.Errorf("with the choice, %q are on, want My libraries and any stars", got)
+	}
+	assertShows(t, mine, "Filters · 1", "Libraries My libraries example/ rules 1 other/ go-rules 2 Impact",
+		"1 rule in 1 library", "Return errors with context HIGH example/rules")
+	if strings.Contains(visibleText(t, mine), "Close response bodies") {
+		t.Error("My libraries keeps a rule of other/go-rules, which neither octocat nor their organizations own")
+	}
+	if got := links(t, mine, "Clear filters"); !slices.Equal(got, []string{"/g/techs/go"}) {
+		t.Errorf("Clear filters leads to %q", got)
+	}
+	if got := links(t, mine, "Newest"); !slices.Equal(got, []string{"/g/techs/go?mine=1&sort=new"}) {
+		t.Errorf("Newest leads to %q", got)
+	}
+	assertShows(t, search, "Libraries My libraries", "1 rule in 1 library", "Return errors with context")
+	if strings.Contains(visibleText(t, search), "Wrap errors") {
+		t.Error("search's My libraries keeps a rule of other/go-rules")
+	}
+	want := domain.MyLibraries{Owners: []string{"octocat", "octo-org", "example"}, Libraries: []string{"example/rules"}}
+	if len(read) != 3 || read[0].Owners != nil || read[0].Libraries != nil || !equalMine(read[1], want) || !equalMine(read[2], want) {
+		t.Errorf("read the catalog for the visitor's libraries %+v, want none, then %+v twice", read, want)
+	}
+	if len(chosen) != 3 || chosen[0].Filters.Mine || !chosen[1].Filters.Mine || !chosen[2].Filters.Mine {
+		t.Errorf("read the catalog with %+v, want My libraries on the second and third", chosen)
+	}
+}
+
+// A visitor whose account and organizations publish no library still has My libraries, which then keeps no rule and
+// says so as any filter does.
+func TestMyLibrariesOfAVisitorWithoutLibrariesKeepsNoRule(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now()}, newBrowsingCatalog())
+
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		page := site.get(t, path)
+
+		if _, _, fields := filterFields(t, page); !slices.Contains(checkedFields(fields), "mine=1") {
+			t.Errorf("%s doesn't show My libraries on", path)
+		}
+		assertShows(t, page, "No rules match these filters. Clear filters")
+		if strings.Contains(visibleText(t, page), "Return errors with context") {
+			t.Errorf("%s keeps a rule the visitor's libraries don't hold", path)
+		}
+	}
+}
+
+// equalMine reports whether a and b name the same visitor's libraries, in order.
+func equalMine(a, b domain.MyLibraries) bool {
+	return slices.Equal(a.Owners, b.Owners) && slices.Equal(a.Libraries, b.Libraries)
+}
+
+// My libraries also keeps the libraries the visitor's projects use, as the dashboard's "Used in your projects" lists
+// them, so a visitor who publishes nothing sees the rules of a library one of their projects imports.
+func TestMyLibrariesKeepsTheLibrariesTheVisitorsProjectsUse(t *testing.T) {
+	snapshot := accounts.Snapshot{ReadAt: time.Now(), Projects: []accounts.Project{{
+		Repository: accounts.Repository{Owner: "octocat", Name: "api"},
+		Sources:    []accounts.Source{{Name: "go", Library: "Other/Go-Rules"}},
+	}}}
+	site := newDashboardSite(t, snapshot, newBrowsingCatalog())
+
+	page := site.get(t, "/g/techs/go?mine=1")
+
+	assertShows(t, page, "2 rules in 1 library", "Close response bodies MEDIUM other/go-rules Name packages plainly LOW other/go-rules")
+	if strings.Contains(visibleText(t, page), "Return errors with context") {
+		t.Error("My libraries keeps a rule of example/rules, which the visitor neither publishes nor uses")
+	}
+}
+
+// While another request makes the visitor's first read of GitHub, My libraries says Rulemart is reading their
+// repositories and loads the page again shortly, rather than saying no rule matches the filters.
+func TestMyLibrariesSaysItsReadingGitHubAndRefreshesWhileAFirstReadIsUnderWay(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{}, newBrowsingCatalog())
+	site.gitHub.err = accountsapp.ErrGitHubReading
+
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		resp := send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{site.session}})
+		page := body(t, resp)
+
+		if resp.StatusCode != http.StatusOK || resp.Header.Get("Refresh") != "3" {
+			t.Errorf("%s answered %d with Refresh %q, want 200 with Refresh 3", path, resp.StatusCode, resp.Header.Get("Refresh"))
+		}
+		assertShows(t, page, "Rulemart is reading your repositories on GitHub. This page will update in a moment.",
+			"Rulemart is reading your repositories to find your libraries. Clear filters")
+		if strings.Contains(visibleText(t, page), "No rules match these filters") {
+			t.Errorf("%s says no rule matches the filters while Rulemart reads the visitor's libraries", path)
+		}
+	}
+	if resp := send(t, site.handler, request{method: http.MethodGet, target: "/g/techs/go", cookies: []*http.Cookie{site.session}}); resp.Header.Get("Refresh") != "" {
+		t.Errorf("without My libraries, the page refreshes itself, Refresh %q", resp.Header.Get("Refresh"))
+	}
+}
+
+// When the latest read of GitHub failed, My libraries keeps what an earlier read found, says the read failed, and offers
+// to try again, returning to the list; when no read ever succeeded, it says so rather than that no rule matches.
+func TestMyLibrariesSaysWhenItsReadOfGitHubFailed(t *testing.T) {
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	site := newDashboardSite(t, failed, newBrowsingCatalog())
+	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+
+	page := site.get(t, "/g/techs/go?mine=1")
+
+	assertShows(t, page, "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again",
+		"1 rule in 1 library", "Return errors with context HIGH example/rules")
+	if !strings.Contains(page, `action="/me/refresh?return=%2Fg%2Ftechs%2Fgo%3Fmine%3D1"`) {
+		t.Error("Try again doesn't return to the list")
+	}
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/refresh?return=%2Fg%2Ftechs%2Fgo%3Fmine%3D1", cookies: []*http.Cookie{site.session}})
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/g/techs/go?mine=1" {
+		t.Errorf("Try again answered %d to %q, want the list", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	never := newDashboardSite(t, accounts.Snapshot{ReadFailed: true}, newBrowsingCatalog())
+	never.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+	for _, path := range []string{"/g/techs/go?mine=1", "/search?mine=1"} {
+		page := never.get(t, path)
+
+		assertShows(t, page, "Rulemart couldn't read your repositories on GitHub just now. Try again",
+			"Rulemart hasn't read your repositories yet, so My libraries can't find your libraries. Clear filters")
+		if strings.Contains(visibleText(t, page), "No rules match these filters") {
+			t.Errorf("%s says no rule matches the filters when Rulemart never read the visitor's libraries", path)
+		}
+	}
+}
+
+// A session without a token GitHub takes is asked to sign in again, and returns to the list afterward.
+func TestMyLibrariesAsksAVisitorWithoutATokenToSignInAgain(t *testing.T) {
+	site := newDashboardSite(t, accounts.Snapshot{}, newBrowsingCatalog())
+	site.gitHub.err = accountsapp.ErrNoGitHubToken
+
+	page := site.get(t, "/search?mine=1&q=errors")
+
+	assertShows(t, page, "Sign in again so Rulemart can read your repositories on GitHub. Sign in again")
+	if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fsearch%3Fmine%3D1%26q%3Derrors"}) {
+		t.Errorf("Sign in again leads to %q", got)
+	}
+}
+
+// A list says how fresh My libraries is only while it's on.
+func TestMyLibrariesSaysWhenRulemartReadGitHub(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), newBrowsingCatalog())
+
+	assertShows(t, site.get(t, "/g/techs/go?mine=1"), "Read from GitHub 3 minutes ago. Refresh")
+	if strings.Contains(visibleText(t, site.get(t, "/g/techs/go")), "Read from GitHub") {
+		t.Error("without My libraries, the list says when Rulemart read GitHub")
 	}
 }

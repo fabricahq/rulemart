@@ -45,7 +45,7 @@ templ addPage(c chrome, v addView) {
 					}
 				</div>
 			</section>
-			@gitHubStatus(v.gitHub)
+			@gitHubStatus(v.gitHub, "mt-2.5")
 			<div class={ noteStyle, "mt-3.5" }>
 				<span>
 					Only public libraries can be published on Rulemart.
@@ -165,7 +165,7 @@ templ runPage(c chrome, v runView) {
 							<li class={ "flex items-start gap-2.5 py-[7px] text-[14px]", templ.KV("text-ink", step.done || step.failed), templ.KV("text-muted", !step.done && !step.failed) }>
 								@runTick(step)
 								<span class="min-w-0 [overflow-wrap:anywhere]">
-									{ step.text }
+									@runPartsText(step.parts)
 									if step.failed {
 										<span class="mt-1 block text-[13px] text-del-ink">{ v.failure }</span>
 									}

@@ -37,9 +37,9 @@ WHERE r.retired_in_release_id IS NULL AND l.host || ':' || l.host_repository_id 
 --
 -- Each rule's stars are the ones star_rule_ids and star_counts, in step, give it, which CountRuleStars counted; a rule
 -- they don't name has none. The filters keep the rules of the libraries libraries names, in lowercase as owner/name,
--- or of every library when it's empty; of the impact band impact, high for CRITICAL and HIGH and medium for the rest,
--- or of any when it's empty; with at least min_stars stars; and of the kind of group kind, techs or practices, or of
--- both when it's empty.
+-- or of every library when it's empty; with mine, of the libraries whose owner is one of owners, or that
+-- used_libraries names as owner/name, both in lowercase; of the impact band impact, high for CRITICAL and HIGH and medium for the rest, or of any when it's empty; with at least
+-- min_stars stars; and of the kind of group kind, techs or practices, or of both when it's empty.
 --
 -- Rules fall in three tiers: current rules that hold every find term, the other current rules, and then retired
 -- rules, those that hold every term first. Within a tier, order_by orders them: best by score, stars by stars, and new
@@ -175,7 +175,9 @@ library_counts AS (
     GROUP BY b.library_id, b.owner, b.name, b.owner_avatar_url, b.vetted
 ),
 facets AS (
-    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
+    SELECT (SELECT count(*) FROM base) AS unfiltered, (SELECT count(*) FROM base b WHERE NOT b.retired) AS unfiltered_current,
+           (SELECT count(DISTINCT b.library_id) FROM base b WHERE NOT b.retired) AS unfiltered_current_libraries,
+           (SELECT count(*) FROM documents d WHERE d.retired) AS retired_rules,
            coalesce(array_agg(c.owner ORDER BY c.position), '{}')::text[] AS library_owners,
            coalesce(array_agg(c.name ORDER BY c.position), '{}')::text[] AS library_names,
            coalesce(array_agg(c.owner_avatar_url ORDER BY c.position), '{}')::text[] AS library_avatar_urls,
@@ -186,6 +188,8 @@ facets AS (
 filtered AS (
     SELECT b.*, CASE WHEN b.retired THEN 2 WHEN cardinality(b.missing) > 0 THEN 1 ELSE 0 END AS tier FROM base b
     WHERE (cardinality(@libraries::text[]) = 0 OR lower(b.owner || '/' || b.name) = ANY (@libraries::text[]))
+      AND (NOT @mine::boolean OR lower(b.owner) = ANY (@owners::text[])
+           OR lower(b.owner || '/' || b.name) = ANY (@used_libraries::text[]))
       AND (@impact::text = '' OR (@impact::text = 'high') = (coalesce(b.impact, '') IN ('CRITICAL', 'HIGH')))
       AND b.stars >= @min_stars::integer
       AND (@kind::text = '' OR b.group_path LIKE @kind::text || '/%')
@@ -221,7 +225,7 @@ SELECT pg.library_id, pg.owner, pg.name, pg.owner_avatar_url, pg.vetted, pg.id, 
        pg.retired, coalesce(pg.stars, 0)::integer AS stars, pg.missing, pg.group_rules,
        (SELECT count(*) FROM filtered) AS total, (SELECT count(*) FROM filtered f WHERE cardinality(f.missing) = 0) AS complete,
        (SELECT count(DISTINCT f.library_id) FROM filtered f) AS libraries,
-       facets.unfiltered, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
+       facets.unfiltered, facets.unfiltered_current, facets.unfiltered_current_libraries, facets.retired_rules, facets.library_owners, facets.library_names, facets.library_avatar_urls,
        facets.library_vetted, facets.library_rules
 FROM facets
 LEFT JOIN page pg ON true

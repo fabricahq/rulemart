@@ -19,6 +19,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"golang.org/x/net/html"
 )
 
 // dashboardSite is the pages with sign-in, listings, stars, and visitors' GitHub accounts through fakes, octocat signed
@@ -71,14 +72,24 @@ func octocatsCatalog() catalog {
 
 func newDashboardSite(t *testing.T, snapshot accounts.Snapshot, c catalog) dashboardSite {
 	t.Helper()
+	return newDashboardSiteWith(t, snapshot, c, nil)
+}
+
+// newDashboardSiteWith is newDashboardSite with its options adjusted by adjust, if not nil.
+func newDashboardSiteWith(t *testing.T, snapshot accounts.Snapshot, c catalog, adjust func(*web.Options)) dashboardSite {
+	t.Helper()
 	site := dashboardSite{
 		accounts: newFakeAccounts(), gitHub: newFakeGitHubAccounts(snapshot), logs: &bytes.Buffer{},
 		listings: &fakeListings{byAccount: map[int64][]views.AccountListing{}},
 	}
-	handler, err := web.New(c, web.Options{
+	options := web.Options{
 		Log: slog.New(slog.NewJSONHandler(site.logs, nil)), Accounts: site.accounts, GitHub: &fakeGitHub{identity: octocat},
 		Listings: site.listings, Stars: newFakeStars(), GitHubAccounts: site.gitHub,
-	})
+	}
+	if adjust != nil {
+		adjust(&options)
+	}
+	handler, err := web.New(c, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,6 +381,18 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	done := site.get(t, "/me/add/run?repo=example%2Frules")
 	assertShows(t, done, "Done: Found rule-library.yaml in example/rules",
 		"Done: Read library release release/3 · 2 rules at their published versions", "example/rules is live on Rulemart.")
+	// What the check found is in stronger type, which leaves no space before the punctuation that follows it.
+	doc, err := html.Parse(strings.NewReader(done))
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexed := find(doc, func(n *html.Node) bool { return n.Data == "li" && strings.Contains(visibleTextOf(n), "indexed") })
+	if indexed == nil {
+		t.Fatal("no step says what was indexed")
+	}
+	if got := strings.Join(strings.Fields(visibleTextOf(indexed)), " "); strings.Contains(got, " ,") || !strings.Contains(got, "2 rules indexed") {
+		t.Errorf("the indexed step reads %q", got)
+	}
 
 	for _, target := range []string{"/me/add/run?repo=someone%2Felse", "/me/add/run"} {
 		resp := send(t, site.handler, request{method: http.MethodGet, target: target, cookies: []*http.Cookie{site.session}})

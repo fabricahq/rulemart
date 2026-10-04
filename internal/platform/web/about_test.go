@@ -43,8 +43,8 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says what Rulemart is, what vetting means, and how a library gets vetted, and has an address of its
-// own for search engines.
+// The about page says what Rulemart is, what vetting means, as the opt-in every list offers, and how a library gets
+// vetted, and has an address of its own for search engines.
 func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
 
@@ -55,7 +55,7 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About Rulemart", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem")
+		"Report a problem", "Include unvetted libraries", unvettedWarning)
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
 	}
@@ -86,13 +86,23 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"the organizations you belong to", "keeps the token GitHub gives Rulemart, encrypted", "Signing out deletes the token",
 			"at most 200 of them", ".code-rules/generated/provenance.json", "the versions of their rules it holds",
 			"Private repositories' names and projects show only to you", "until you delete your account",
-			"what it read of your GitHub account, and its record of the GitHub App's installations")
+			"what it read of your GitHub account, and its record of the GitHub App's installations",
+			"the first time a page shows it after you sign in, when you press Refresh, at most once a minute",
+			"a suspended one makes the read fail", "A read that fails keeps what Rulemart already held",
+			"even after you change the app's installation on GitHub")
+		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
+		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.
+		for _, promise := range []string{"installation on GitHub discards it", "when you open your dashboard"} {
+			if strings.Contains(visibleText(t, resp.body), promise) {
+				t.Errorf("the page promises %q", promise)
+			}
+		}
 	}
 	assertShows(t, without.Body.String(), "Rulemart uses no analytics service.")
 	if strings.Contains(visibleText(t, without.Body.String()), "Cloudflare Web Analytics") {
 		t.Error("without a token, the page names Cloudflare Web Analytics")
 	}
-	assertShows(t, with.Body.String(), "Cloudflare Web Analytics", "sets no cookie")
+	assertShows(t, with.Body.String(), "Cloudflare Web Analytics", "sets no cookie", "on every page, signed in or not")
 }
 
 // httptestResponse is a response's status and body, for tests that check two at once.

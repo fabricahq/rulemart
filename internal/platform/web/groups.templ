@@ -30,10 +30,11 @@ templ groupPage(c chrome, g groupPageView) {
 			if !g.label.canonical {
 				<p class="mt-[14px] rounded-[10px] border border-dashed border-border-strong px-[14px] py-2.5 text-[13px] text-muted"><span class="mono">{ g.label.id }</span> isn't a canonical group, so it only includes rules from libraries that chose this exact name.</p>
 			}
-			// A group no library holds says so below, rather than counting none here.
+			// A group no library holds says so below, rather than counting none here. The counts are of current rules and
+			// the libraries they come from, even while the list shows retired ones.
 			<p class="mt-2 mb-6 text-muted">
-				if g.list.unfiltered > 0 {
-					{ plural(g.list.unfiltered, "rule", "rules") } from { plural(len(g.list.libraryFilters), "library", "libraries") }
+				if g.list.current > 0 {
+					{ plural(g.list.current, "rule", "rules") } from { plural(g.list.currentLibraries, "library", "libraries") }
 					if g.description != "" {
 						{ " · " }
 					}
@@ -44,6 +45,7 @@ templ groupPage(c chrome, g groupPageView) {
 				@filterSidebar(g.list)
 				<section aria-labelledby="results">
 					<h2 id="results" class="sr-only">Rules</h2>
+					@myLibrariesStatus(g.list)
 					@resultsHead(g.list, "")
 					if g.list.filteredOut() {
 						@noFilteredRules(g.list)

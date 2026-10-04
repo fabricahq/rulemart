@@ -4,9 +4,11 @@ Rulemart is a catalog of public [Code Rules](https://code-rules.fabricahq.com)
 libraries. See [CONTRIBUTING.md](CONTRIBUTING.md) to build, test, migrate, and
 release it, [_internal/decisions.md](_internal/decisions.md) for the
 decisions that shape it, and [_internal/realignment.md](_internal/realignment.md)
-for the plan that brings the site to the `prototype` branch's user experience,
-which is the spec for every page. Run `make db`, then `make check`, to vet and test the
-code.
+for how the site came to match the `prototype` branch's user experience, which
+stays the spec for every page, and the differences chosen on purpose. After
+changing a page, compare it with the prototype as
+[CONTRIBUTING.md](CONTRIBUTING.md#run-the-site-locally) says. Run `make db`,
+then `make check`, to vet and test the code.
 
 README tier: primary, Josh's decision on 2026-10-02: Rulemart is a product
 people adopt for its own sake, so its README presents it as one.

@@ -46,7 +46,8 @@ func (s *Store) Rules(ctx context.Context, vetted []domain.LibraryKey, groups []
 	summary := rows[0]
 	results := views.RuleResults{
 		Total: int(summary.Total), Complete: int(summary.Complete), Libraries: int(summary.Libraries),
-		Unfiltered: int(summary.Unfiltered), RetiredRules: int(summary.RetiredRules),
+		Unfiltered: int(summary.Unfiltered), UnfilteredCurrent: int(summary.UnfilteredCurrent),
+		UnfilteredCurrentLibraries: int(summary.UnfilteredCurrentLibraries), RetiredRules: int(summary.RetiredRules),
 		NoWords: summary.Unfiltered == 0 && !params.MatchAll && searchable == 0,
 	}
 	for i, owner := range summary.LibraryOwners {
@@ -75,7 +76,9 @@ func ruleListParams(vetted []domain.LibraryKey, groups []domain.CanonicalGroup, 
 		Vetted: vettedKeys(vetted), IncludeUnvetted: list.Unvetted, IncludeRetired: list.HoldsRetired(),
 		GroupPath: list.Group, MatchAll: list.Query.IsZero(),
 		CanonicalIds: make([]string, len(groups)), CanonicalNames: make([]string, len(groups)),
-		Libraries: append([]string{}, list.Filters.Libraries...), Impact: string(list.Filters.Impact),
+		Libraries: append([]string{}, list.Filters.Libraries...), Mine: list.Filters.Mine,
+		Owners: lowercase(list.MyLibraries.Owners), UsedLibraries: lowercase(list.MyLibraries.Libraries),
+		Impact:   string(list.Filters.Impact),
 		MinStars: int32(list.Filters.MinStars), Kind: list.Filters.Kind, OrderBy: string(list.Order),
 		FirstOwner: domain.FabricaOwner, MaxResults: int32(limit), Skip: int32(skip),
 	}
