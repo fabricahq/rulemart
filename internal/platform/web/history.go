@@ -582,7 +582,8 @@ type ruleComparisonView struct {
 	// notes are the versions after from, up to to, newest first.
 	notes []versionView
 	// span says how many files changed between the releases the versions are from, as the prototype's count does,
-	// such as "1 file changed between release/1 and release/4, limited to this rule's file."
+	// such as "1 file changed between release/1 and release/4, limited to this rule's file.", or that the page can't
+	// compare the file when it has no diff of it.
 	span string
 	diff diffView
 	// backHref leads to the Versions tab, and wordsHref and linesHref show this comparison each way.
@@ -615,12 +616,16 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 		}
 	}
 	v.diff = newDiffView(lib, r.id, r.id, from, to, comparison.Text, mode, newDiffBudget())
-	changed := 1
-	if v.diff.unchanged {
-		changed = 0
+	releases := domain.ReleaseTag(fromRelease) + " and " + domain.ReleaseTag(toRelease)
+	switch {
+	case v.diff.state != views.TextShown:
+		// Without a diff the page can't tell whether the file changed, and the diff's box says why.
+		v.span = "Rulemart can't compare this rule's file between " + releases + "."
+	case v.diff.unchanged:
+		v.span = "0 files changed between " + releases + ", limited to this rule's file."
+	default:
+		v.span = "1 file changed between " + releases + ", limited to this rule's file."
 	}
-	v.span = plural(changed, "file", "files") + " changed between " + domain.ReleaseTag(fromRelease) + " and " +
-		domain.ReleaseTag(toRelease) + ", limited to this rule's file."
 	return v
 }
 

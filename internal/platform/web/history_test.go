@@ -427,6 +427,38 @@ func TestRuleComparisonSaysWhenItCantShowTheText(t *testing.T) {
 	assertShows(t, same, "Choose two different versions to compare.")
 }
 
+// A comparison whose text the page can't compare doesn't count the rule's file as changed between the releases, and
+// says it can't compare it, whether the catalog lacks the text, the text passes what a page compares, or its diff
+// passes what a page renders.
+func TestRuleComparisonDoesNotCountAFileItCouldNotCompare(t *testing.T) {
+	var lines strings.Builder
+	for range 10000 {
+		lines.WriteString("a\n")
+	}
+	for name, tc := range map[string]struct {
+		text views.ComparedText
+		want string
+	}{
+		"missing text":     {views.ComparedText{State: views.TextMissing, OldRelease: 1, NewRelease: 3}, "Rulemart doesn't have the text of these versions yet."},
+		"too large text":   {views.ComparedText{State: views.TextTooLarge, OldRelease: 1, NewRelease: 3}, "These changes are too large to show here."},
+		"too large a diff": {views.ComparedText{Old: lines.String(), New: strings.ReplaceAll(lines.String(), "a", "b"), OldRelease: 1, NewRelease: 3}, "These changes are too large to show here."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := historyCatalog()
+			comparison := c.ruleComparisons["example/rules/techs/go/return-errors 1.0.0...2.0.0"]
+			comparison.Text = tc.text
+			c.ruleComparisons["example/rules/techs/go/return-errors 1.0.0...2.0.0"] = comparison
+
+			page := get(t, newSite(t, c), errorsRule+"?tab=versions&from=1.0.0&to=2.0.0&view=lines").Body.String()
+
+			assertShows(t, page, "Rulemart can't compare this rule's file between release/1 and release/3. techs/go/return-errors.md", tc.want)
+			if strings.Contains(visibleText(t, page), "changed between") {
+				t.Error("the page counts a file it couldn't compare as changed")
+			}
+		})
+	}
+}
+
 // Short text can make a long diff: every line changed, or a few words in each of thousands of paragraphs. A page
 // renders a bounded number of a diff's rows and marks, so it stays far below what one response can hold, and says
 // when it can't show them.
