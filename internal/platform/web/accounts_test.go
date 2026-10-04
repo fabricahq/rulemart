@@ -913,6 +913,16 @@ func TestTheSignInPageSaysWhySignInIsNeededForTheAccount(t *testing.T) {
 	assertShows(t, page, "Sign in to see your dashboard.")
 }
 
+// Opened directly, with nowhere to return to, the sign-in page gives no reason: the visitor wasn't on their way to
+// their dashboard, though signing in takes them there.
+func TestTheSignInPageOpenedDirectlyGivesNoReason(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin"}))
+	if strings.Contains(visibleText(t, page), "Sign in to see your dashboard.") {
+		t.Error("the page says the visitor is on their way to their dashboard")
+	}
+}
+
 // On the account page, the menu marks Account as the current page.
 func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)

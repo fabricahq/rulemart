@@ -13,7 +13,7 @@ import (
 // releasesPage is a library's Library releases tab: a page of its releases, newest first, each as its release notes
 // describe it, with links to newer and older pages.
 templ releasesPage(c chrome, lib libraryView, v releasesView) {
-	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary()}, lib, releasesTab, libraryFacts(lib)) {
+	@libraryFrame(c, head{title: "Library releases · " + lib.owner + "/" + lib.name + " · Rulemart", description: lib.summary(), compare: true}, lib, releasesTab, libraryFacts(lib)) {
 		<div class="mb-4 grid gap-3">
 			<p class="text-[13px] text-muted">{ releasesIntroText }</p>
 			if len(v.from) > 1 {
@@ -83,9 +83,19 @@ templ releaseCardView(card releaseCard) {
 	</section>
 }
 
-// releaseNotesLink leads to a release's notes on GitHub, named the same wherever a page links them.
+// releaseNotesLink leads to a library release's GitHub Release page, named as the prototype's release cards name it.
 templ releaseNotesLink(href, tag string) {
-	@githubLink(href, "Release notes", "Release notes for "+tag+" on GitHub")
+	@githubLink(href, "GitHub Release page", "GitHub Release page for "+tag)
+}
+
+// versionNotesLink leads to the GitHub Release page of the release that published a rule's version, on its row of
+// the versions, smaller and fainter, as the prototype draws it beside each row's comparison, underlined only on hover,
+// and named Release notes, as the prototype's rows name it.
+templ versionNotesLink(href, tag string) {
+	<a class="inline-flex items-center gap-[5px] text-[12px] whitespace-nowrap text-faint no-underline hover:text-muted hover:underline hover:underline-offset-3" href={ templ.SafeURL(href) } aria-label={ "Release notes for " + tag + " on GitHub" }>
+		@githubMark("size-3 flex-none")
+		Release notes
+	</a>
 }
 
 // githubLink leads to a page on GitHub, marked with GitHub's logo, its text muted beside the content it's about, and
@@ -160,24 +170,31 @@ templ changeItemView(item changeItem) {
 		}
 		if len(item.replacedBy) > 0 {
 			<div>
-				@replacementChain(item.replacedBy, false)
+				@replacementChain(chainSteps(item.replacedBy, false), false)
 			</div>
 		}
 	</li>
 }
 
-// replacementChain names a retired rule's replacement, then the rule that replaced that one, and so on, or with
-// renamed, the rule's new ID.
-templ replacementChain(links []ruleLink, renamed bool) {
-	for _, step := range chainSteps(links, renamed) {
-		{ step.prefix }<a href={ templ.SafeURL(step.link.href) }>{ step.link.title }</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">{ step.id }</span>{ step.suffix }
+// replacementChain shows steps, a chain of replacements as chainSteps or headChainSteps words it. With bold, as at the
+// head of a retired rule's page, each title is in stronger type, as the prototype's is.
+templ replacementChain(steps []chainStep, bold bool) {
+	for _, step := range steps {
+		{ step.prefix }<a href={ templ.SafeURL(step.link.href) }>
+			if bold {
+				<b class="font-semibold">{ step.link.title }</b>
+			} else {
+				{ step.link.title }
+			}
+		</a><span class="ml-1 font-mono text-[12px] text-faint [overflow-wrap:anywhere] empty:hidden">{ step.id }</span>{ step.suffix }
 	}
 }
 
 // compareForm chooses two versions, or two releases, to compare, and submits them to action with the tab named
-// tabName, keeping the diff's mode. Without a script, choosing doesn't submit: the Compare button does.
+// tabName, keeping the diff's mode. compare.js submits it as soon as either changes, as the prototype's does, which a
+// page loads with head's compare; without a script, the Compare button does.
 templ compareForm(action, tabName string, from, to []releaseOption, mode diffMode, fromLabel, toLabel string) {
-	<form class="flex flex-wrap items-center gap-2 text-[14px]" action={ templ.SafeURL(action) } method="get">
+	<form class="flex flex-wrap items-center gap-2 text-[14px]" action={ templ.SafeURL(action) } method="get" data-compare-form>
 		<input type="hidden" name="tab" value={ tabName }/>
 		<span class="text-muted">Compare</span>
 		<label class="sr-only" for="compare-from">{ fromLabel }</label>
@@ -198,7 +215,9 @@ templ compareForm(action, tabName string, from, to []releaseOption, mode diffMod
 		if mode == diffLines {
 			<input type="hidden" name="view" value={ string(mode) }/>
 		}
-		<button class="inline-flex h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] text-[13px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface" type="submit">Compare</button>
+		<noscript>
+			<button class="inline-flex h-8 cursor-pointer items-center rounded-full border border-border-strong px-[13px] text-[13px] font-medium text-ink transition-colors duration-[160ms] hover:border-ink hover:bg-surface" type="submit">Compare</button>
+		</noscript>
 	</form>
 }
 
@@ -229,7 +248,7 @@ templ modeLink(name, href string, on bool) {
 
 // releaseComparisonPage is what changed in a library between two releases, and the changed rules' text.
 templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) {
-	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
+	@libraryFrame(c, head{title: "Compare " + v.fromTag + "..." + v.toTag + " · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, compare: true}, lib, releasesTab, nil) {
 		@compareBar(v.backHref, "All library releases", len(v.diffs) > 0, diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(lib.href, "releases", v.fromOptions, v.toOptions, diffMode(v.mode), "Older library release", "Newer library release")
 		}
@@ -266,7 +285,7 @@ templ releaseComparisonPage(c chrome, lib libraryView, v releaseComparisonView) 
 
 // ruleComparisonPage is what changed between two versions of a rule, and its text.
 templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
-	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true}, r, versionsTab) {
+	@ruleFrame(c, head{title: "Compare " + v.from + "..." + v.to + " · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, compare: true}, r, versionsTab) {
 		@compareBar(v.backHref, "All versions", !v.same, diffMode(v.mode), v.wordsHref, v.linesHref) {
 			@compareForm(r.href, "versions", v.fromOptions, v.toOptions, diffMode(v.mode), "Older version", "Newer version")
 		}
@@ -297,8 +316,7 @@ templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
 					}
 				</div>
 			}
-			<h2 class="mt-[22px] text-[12px] font-medium tracking-[.12em] text-muted uppercase">Changed text</h2>
-			<p class="mt-1 text-[13px] text-faint">{ v.span }</p>
+			<p class="mt-[18px] text-[13px] text-faint">{ v.span }</p>
 			@diffFile(v.diff)
 		}
 	}
@@ -307,7 +325,7 @@ templ ruleComparisonPage(c chrome, r ruleView, v ruleComparisonView) {
 // releasesNotFoundPage is a library's Library releases tab that says it can't show the releases a link asked for, with
 // the means to choose two releases to compare.
 templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message string) {
-	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true}, lib, releasesTab, nil) {
+	@libraryFrame(c, head{title: "Not found · " + lib.owner + "/" + lib.name + " · Rulemart", noindex: true, compare: true}, lib, releasesTab, nil) {
 		@compareBar(releasesHref(lib), "All library releases", false, diffWords, "", "") {
 			if len(v.from) > 1 {
 				@compareForm(lib.href, "releases", v.from, v.to, diffWords, "Older library release", "Newer library release")
@@ -320,7 +338,7 @@ templ releasesNotFoundPage(c chrome, lib libraryView, v releasesView, message st
 // ruleComparisonNotFoundPage is a rule's Versions tab that says it can't compare the versions a link asked for, with
 // the means to choose two of its versions.
 templ ruleComparisonNotFoundPage(c chrome, r ruleView, from, to []releaseOption, message string) {
-	@ruleFrame(c, head{title: "Not found · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true}, r, versionsTab) {
+	@ruleFrame(c, head{title: "Not found · " + r.title + " · " + r.library.owner + "/" + r.library.name + " · Rulemart", noindex: true, compare: true}, r, versionsTab) {
 		@compareBar(r.href+"?tab=versions", "All versions", false, diffWords, "", "") {
 			if len(from) > 1 {
 				@compareForm(r.href, "versions", from, to, diffWords, "Older version", "Newer version")

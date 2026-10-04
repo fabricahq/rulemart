@@ -4,7 +4,8 @@
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
 // LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes. RULEMART_BASE_URL, such
 // as https://rulemart.fabricahq.com, is the public origin each page names as its canonical address, and where
-// sign-in happens; unset, pages name none.
+// sign-in happens; unset, pages name none, except in a build with the rulemartdev tag, whose pages name the loopback
+// address it serves at.
 //
 // GITHUB_CLIENT_ID names the GitHub OAuth app visitors sign in with, and GITHUB_CLIENT_SECRET holds its client
 // secret, or GITHUB_CLIENT_SECRET_PARAMETER names the SSM parameter holding it, as on Lambda. Each session keeps the
@@ -35,6 +36,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -81,7 +83,7 @@ func main() {
 		lambda.Start(newFunction(handler).handle)
 		return
 	}
-	addr := cmp.Or(os.Getenv("ADDR"), "127.0.0.1:8080")
+	addr := listenAddr(os.Getenv)
 	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	logger.Info("serving Rulemart", "url", "http://"+addr)
 	err = server.ListenAndServe()
@@ -99,9 +101,9 @@ func exit(logger *slog.Logger, err error) {
 // be at schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
 // the function's start.
 func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (http.Handler, error) {
-	baseURL, err := web.ParseBaseURL(os.Getenv("RULEMART_BASE_URL"))
+	baseURL, err := newBaseURL(os.Getenv)
 	if err != nil {
-		return nil, fmt.Errorf("read RULEMART_BASE_URL: %v", err)
+		return nil, err
 	}
 	onLambda := os.Getenv("AWS_LAMBDA_RUNTIME_API") != ""
 	if web.DevSignIn && onLambda {
@@ -170,6 +172,28 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		options.GitHubAccounts = accounts
 	}
 	return web.New(pages, options)
+}
+
+// listenAddr returns the address a server run anywhere but on Lambda listens at: ADDR, or 127.0.0.1:8080.
+func listenAddr(getenv func(string) string) string {
+	return cmp.Or(getenv("ADDR"), "127.0.0.1:8080")
+}
+
+// newBaseURL returns the public origin RULEMART_BASE_URL names. Unset, a build with the rulemartdev tag names the
+// address it listens at, when that's a loopback one, such as http://127.0.0.1:8080, so a local build serves the sitemap
+// and robots.txt names it, as in production.
+func newBaseURL(getenv func(string) string) (*url.URL, error) {
+	text := getenv("RULEMART_BASE_URL")
+	if text == "" && web.DevSignIn {
+		if local, err := web.ParseBaseURL("http://" + listenAddr(getenv)); err == nil {
+			return local, nil
+		}
+	}
+	baseURL, err := web.ParseBaseURL(text)
+	if err != nil {
+		return nil, fmt.Errorf("read RULEMART_BASE_URL: %v", err)
+	}
+	return baseURL, nil
 }
 
 // newGitHub returns the GitHub OAuth app that GITHUB_CLIENT_ID names, with the client secret GITHUB_CLIENT_SECRET or

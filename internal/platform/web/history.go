@@ -190,7 +190,8 @@ func newRuleLinks(lib libraryView, refs []views.RuleRef) []ruleLink {
 type chainStep struct {
 	prefix, suffix string
 	link           ruleLink
-	// id is the rule's ID, shown beside its title for a rename, whose title is the same, and empty otherwise.
+	// id is the rule's ID, shown beside its title: at the head of a retired rule's page always, and elsewhere only for
+	// a rename, whose title is the same. It is empty when not shown.
 	id string
 }
 
@@ -219,15 +220,12 @@ func chainSteps(links []ruleLink, renamed bool) []chainStep {
 	return steps
 }
 
-// rowChainSteps words a chain of replacements by the rules' IDs, within a line that names a retired rule: "replaced
-// by a, itself replaced by b", or "renamed to a", with no period, collapsed as chainSteps collapses a long chain.
-func rowChainSteps(links []ruleLink, renamed bool) []chainStep {
+// headChainSteps words a chain of replacements as chainSteps does, for the head of a retired rule's page, which shows
+// each rule's ID beside its title.
+func headChainSteps(links []ruleLink, renamed bool) []chainStep {
 	steps := chainSteps(links, renamed)
 	for i := range steps {
-		steps[i].id, steps[i].suffix = steps[i].link.id, ""
-	}
-	if len(steps) > 0 {
-		steps[0].prefix = strings.ToLower(steps[0].prefix)
+		steps[i].id = steps[i].link.id
 	}
 	return steps
 }
@@ -583,7 +581,8 @@ type ruleComparisonView struct {
 	major                  bool
 	// notes are the versions after from, up to to, newest first.
 	notes []versionView
-	// span says which releases the versions are from, such as "Between release/1 and release/4."
+	// span says how many files changed between the releases the versions are from, as the prototype's count does,
+	// such as "1 file changed between release/1 and release/4, limited to this rule's file."
 	span string
 	diff diffView
 	// backHref leads to the Versions tab, and wordsHref and linesHref show this comparison each way.
@@ -615,8 +614,13 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 			toRelease = version.Release
 		}
 	}
-	v.span = "Between " + domain.ReleaseTag(fromRelease) + " and " + domain.ReleaseTag(toRelease) + "."
 	v.diff = newDiffView(lib, r.id, r.id, from, to, comparison.Text, mode, newDiffBudget())
+	changed := 1
+	if v.diff.unchanged {
+		changed = 0
+	}
+	v.span = plural(changed, "file", "files") + " changed between " + domain.ReleaseTag(fromRelease) + " and " +
+		domain.ReleaseTag(toRelease) + ", limited to this rule's file."
 	return v
 }
 

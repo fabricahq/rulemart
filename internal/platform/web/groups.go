@@ -14,25 +14,28 @@ import (
 
 // groupPageView is what a group's page shows.
 type groupPageView struct {
-	// href is the page's own address, without choices.
-	href        string
-	kind        groupKind
-	label       groupLabel
-	icon        groupIcon
-	description string
-	list        ruleListView
-	rows        []ruleRowView
+	// href is the page's own address, without choices, and address the address asked for, in its own spelling, whose
+	// choices may include one the visitor can't make.
+	href, address string
+	kind          groupKind
+	label         groupLabel
+	icon          groupIcon
+	description   string
+	list          ruleListView
+	rows          []ruleRowView
 }
 
-func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL func(file string) string) groupPageView {
+// newGroupPageView returns what the page of the group at address shows of page, read with choices, and of the visitor's
+// My libraries.
+func newGroupPageView(page views.GroupPage, address string, choices domain.ListChoices, mine mineView, iconURL func(file string) string) groupPageView {
 	v := groupPageView{
-		href: groupHref(page.Path), kind: kindOf(page.Path), label: newGroupLabel(page.Path, page.Canonical),
+		href: groupHref(page.Path), address: address, kind: kindOf(page.Path), label: newGroupLabel(page.Path, page.Canonical),
 		icon: newGroupIcon(page.Canonical, iconURL),
 	}
 	if page.Canonical != nil {
 		v.description = page.Canonical.Description
 	}
-	v.list = newRuleListView(domain.GroupListPage, v.href, nil, choices, page.Rules)
+	v.list = newRuleListView(domain.GroupListPage, v.href, nil, choices, mine, page.Rules)
 	for _, r := range page.Rules.Rows {
 		v.rows = append(v.rows, newListedRuleRow(r))
 	}
@@ -40,7 +43,7 @@ func newGroupPageView(page views.GroupPage, choices domain.ListChoices, iconURL 
 }
 
 // indexed reports whether search engines may index the page: only at its own address, with no choice in it.
-func (v groupPageView) indexed() bool { return groupAddress(v.label.id, v.list.choices) == v.href }
+func (v groupPageView) indexed() bool { return v.address == v.href }
 
 // groupAddress is the address of the page of the group whose ID is path, with choices, in the one spelling the page's
 // own address has.
@@ -62,13 +65,19 @@ func (v groupPageView) summary() string {
 	return v.label.id + ": rules for coding agents from the Code Rules libraries that chose this group, on Rulemart."
 }
 
-// group shows the page of the group of kind that the path names, with the choices its address holds. It redirects
-// another spelling of a canonical group's name, or of the choices, to the page's own address.
+// group shows the page of the group of kind that the path names, with the choices its address holds that the visitor
+// can make. It redirects another spelling of a canonical group's name, or of the choices, to the page's own address.
 func (s *server) group(kind groupKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := string(kind) + "/" + r.PathValue("name")
-		choices := domain.ParseListChoices(domain.GroupListPage, r.URL.Query())
-		page, err := s.catalog.GroupPage(r.Context(), id, choices)
+		asked := domain.ParseListChoices(domain.GroupListPage, r.URL.Query())
+		// A request with its choices spelled as the page's own address is the page to return to; any other redirects
+		// there below.
+		choices, mine, gitHub, ok := s.myLibraries(w, r, asked, returnPath(r.URL.RequestURI()))
+		if !ok {
+			return
+		}
+		page, err := s.catalog.GroupPage(r.Context(), id, choices, mine)
 		if errors.Is(err, app.ErrNotFound) {
 			s.notFound(w, r)
 			return
@@ -77,11 +86,12 @@ func (s *server) group(kind groupKind) http.HandlerFunc {
 			s.fail(w, r, err)
 			return
 		}
-		if own := groupAddress(page.Path, choices); page.Path != id || !spelledAs(r, own) {
+		own := groupAddress(page.Path, asked)
+		if page.Path != id || !spelledAs(r, own) {
 			redirect(w, r, own)
 			return
 		}
-		view := newGroupPageView(page, choices, s.assets.iconURL)
+		view := newGroupPageView(page, own, choices, mineView{offered: visitorOf(r.Context()).account != nil, gitHub: gitHub}, s.assets.iconURL)
 		s.render(w, r, http.StatusOK, groupPage(s.pageChrome(view.href), view))
 	}
 }

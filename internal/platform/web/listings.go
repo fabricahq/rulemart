@@ -35,6 +35,12 @@ const (
 	// unvettedHref lists the unvetted libraries. /libraries/unvetted could hide a library: GitHub has an account
 	// named libraries.
 	unvettedHref = "/unvetted"
+	// unvettedOptInLabel labels the checkbox that adds unvetted libraries to a list, which the about and FAQ pages
+	// name too.
+	unvettedOptInLabel = "Include unvetted libraries"
+	// unvettedWarningText heads every page of an unvetted library and the dialog that confirms adding its rules, and
+	// the about page quotes it.
+	unvettedWarningText = "This library has not been vetted. Be sure to review these rules carefully."
 	// listingsHref is the signed-in visitor's listings, and removeListingHref and retryListingHref act on the one its
 	// listing parameter names, with POST.
 	listingsHref      = dashboardHref + "/listings"

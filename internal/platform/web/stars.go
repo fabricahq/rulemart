@@ -104,7 +104,7 @@ func (s *server) starControl(req *http.Request, r ruleView, stars int) (starView
 	star := starView{shown: true, count: stars, title: r.title}
 	switch {
 	case s.Stars != nil && v.account == nil && v.signIn != "":
-		star.signIn = s.starSignIn(v.here)
+		star.signIn, star.withGitHub = s.starSignIn(v.here), v.withGitHub
 		return star, nil
 	case s.Stars == nil || v.account == nil:
 		// The count alone, which shows nothing until the rule has stars.
@@ -236,6 +236,9 @@ type starView struct {
 	// as when no one can sign in, the control shows the count alone.
 	starred        bool
 	action, signIn string
+	// withGitHub is true when signing in is with GitHub, so the sign-in dialog says Continue with GitHub, rather than
+	// only as a local build's test users.
+	withGitHub bool
 	// focused is true when the page follows starring, unstarring, or signing in to star, and focuses the button.
 	// prompt is true when it follows signing in to star a rule the visitor hasn't starred, and highlights it, and
 	// notice is the page's notice then, naming the rule.

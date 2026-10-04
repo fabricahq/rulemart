@@ -13,7 +13,7 @@ templ browsePage(c chrome, v browseView) {
 			@label("") {
 				Browse
 			}
-			<h1 class="title-xl mt-2">{ v.kind.name() }</h1>
+			<h1 class="title-xl mt-2.5">{ v.kind.name() }</h1>
 			@tabs([]tab{
 				{name: techsKind.name(), href: withUnvetted(techsKind.href(), v.unvetted), count: -1, on: v.kind == techsKind},
 				{name: practicesKind.name(), href: withUnvetted(practicesKind.href(), v.unvetted), count: -1, on: v.kind == practicesKind},

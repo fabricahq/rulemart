@@ -1,7 +1,8 @@
 # Realignment with the prototype
 
-How Rulemart gets from the merged slice 3 to 9 stack to the user experience the `prototype` branch defines, and
-what launches at the end.
+The `prototype` branch's user experience is the spec for every page of Rulemart. This file says how to run the
+prototype, the decisions that shape the site where it departs from the prototype, and the matrix of accepted
+differences, route by route. Its last part records how the realignment with the prototype was done.
 
 ## Why
 
@@ -11,8 +12,8 @@ prototype's design tokens and little else. The backend is sound and stays: inges
 diffs, sign-in, sessions, the listing worker, vetting, caching, SEO, and security headers. The gap is in
 information architecture, interactions, and two data decisions, stars and the cart.
 
-From here on, **the prototype is the spec.** A slice is done when its routes behave as the prototype's do, judged
-side by side in a browser, except where a decision below says otherwise.
+**The prototype is the spec.** A page is done when it behaves as the prototype's does, judged side by side in a
+browser, except where a decision below or the conformance matrix says otherwise.
 
 To run the prototype:
 
@@ -76,72 +77,99 @@ Everything else the slice docs proposed is accepted as they state it.
 
 ## Conformance matrix
 
-Each prototype route, what the stack has today, and the slice that closes the gap. "Different" means a decision
-above chose otherwise.
+Each prototype route, the site's, and how they compare, as slice R8's audit found them on 2026-10-03, side by side at
+1280 and 390 pixels, light and dark. [audit/conformance.sh](audit/conformance.sh) takes those screenshots again; its
+table lists each case it compares: every public page signed out and signed in, the dashboard's pages signed out, where
+the site redirects to sign-in, and signed in, a comparison of two library releases, and, open, the "Sign in to star
+rules" dialog, the Add to cart dialog, and checkout's project picker with its box for a new project. "Match" means
+the same layout, type, spacing, and behavior, where the pages differ only in their data: the prototype's libraries
+are invented, and the site shows the two real ones. Every other difference is named, with the decision that chose it,
+so the next person knows it was chosen, not missed, and the ones still open say so.
 
-| Prototype route | Today | Status | Slice |
-| --- | --- | --- | --- |
-| `#/` home: hero, popular chips, tech and practice tiles, four libraries, List your library | Hero, libraries, group tiles | Partial | R1 |
-| `#/browse/techs`, `#/browse/practices`: row per canonical group | `/groups`, one page | Partial | R1 |
-| `#/browse/{kind}/other`: non-canonical groups | Listed per library on `/groups` | Missing | R1 |
-| `#/libraries` | `/libraries`, vetted only, unvetted behind a link | Match, plus the opt-in control | R4 |
-| `#/{owner}`: owner page with libraries | None | Missing | R1 |
-| `#/faq`, `#/feedback` | `/about`, issue forms | Missing | R1 |
-| Header: Techs, Practices, Libraries, FAQ, search, cart, sign-in | Libraries, Groups, search, sign-in | Partial | R1 |
-| Footer: feedback, theme | Links, theme menu | Partial | R1 |
-| Brand mark, favicons | Cube mark | Different | R2 |
-| Star on rules, counts on rows, Starred rules tab | Stars on libraries | Different | R3 |
-| `#/g/{kind}/{group}`: flat ranked list, filter sidebar, sort tabs, non-canonical with note | Canonical only, sectioned by library, no filters | Partial | R4 |
-| `#/search`: grouped by group, filter sidebar, sort tabs | Flat, paged, no filters | Partial | R4 |
-| Retired rules in search | Excluded | Different | R4 |
-| Unvetted opt-in on browse, group, search | Hidden except `/unvetted` | Different | R4 |
-| Cart in the browser, header badge, add-to-cart modal | Postgres cart, sign-in required | Different | R5 |
-| `#/cart`: three-step checkout, sync or fork, upsell, project picker, Prompt and Commands tabs | Cart page and a prompt page | Partial | R5 |
-| Library page: verified check, Groups tab checkboxes and Add groups panel, Added by, On Rulemart since | Add library button, per-row Add, Report link | Partial | R6 |
-| `#/{owner}/{repo}/{kind}/{group}`: library group page with Add group | None | Missing | R6 |
-| Rule page: tags, Star, Discuss, add-to-cart modal, About panel with Discuss, assets panel | Rule and Versions tabs, About panel | Partial | R6 |
-| Asset pages | None | Missing | R6 |
-| Versions tab and compare view | Present | Match | none |
-| Library releases tab | Present | Match | none |
-| Retired rule page | Present | Match | none |
-| Discussion tabs, Discuss modal | None | Deferred, #27 | later |
-| `#/signin` with perks | `/sign-in` | Partial | R7 |
-| `#/me`: My libraries, used in your projects, Starred rules | `/account`, `/account/listings`, `/account/stars` | Partial | R7 |
-| `#/me/add`: repo picker, URL form, `#/me/add/run` checklist | `/list` form, `/account/listings` | Partial | R7 |
-| `#/me/private`, `#/gh/install` | None | Missing | R7 |
-| About, privacy, robots, sitemap, headers, analytics | Present | Match, updated for the above | R8 |
+Differences on every page:
 
-## Slices
+- **Library names.** A Code Rules library declares no display name, so pages name it by its repository, such as
+  `public-rules`, or `owner/name` beside rules, where the prototype shows invented names such as "Fabrica Public
+  Rules".
+- **The header and footer on a phone.** Below 960 pixels, a menu button stands in for the header's links, as slice
+  R1's decision says, where the prototype hides them; the footer keeps one line, with About, Feedback, Privacy, and the
+  source and theme icons, as R1 decided, and its links and icons are 44-pixel tap targets.
+- **Page padding on a phone.** Below 720 pixels, the prototype's `.wrap { padding: 0 16px }` also zeroes `.page`'s 36
+  pixels above and 80 below, a slip of the shorthand that puts the content against the header. The site keeps them.
+- **Sign-in's GitHub mark.** "Sign in with GitHub" and Continue with GitHub show only when GitHub sign-in is
+  configured, so a local `make web-dev` build shows "Sign in" and its test users' box instead.
+- **Proposed: dates are absolute**, such as "1 Oct 2026", where the prototype writes "3 days ago". Pages are cached and
+  the same for everyone, so a date never goes stale and needs no script.
+- **Toasts** show at the viewport's bottom right, and the first star adds an info toast that links to Starred rules,
+  as slice R3 decided.
+- **Discuss** and the Discussion tabs wait for [rulemart#27](https://github.com/fabricahq/rulemart/issues/27).
+- **Search relevance.** The site ranks real rules with Postgres full-text search, as slice R4 built it, so the order of
+  equally good matches can differ from the prototype's hand-tuned mock.
 
-Each slice is one pull request from `main`, with a doc in `slices/` numbered from 10, and goes through the
-verification below before it merges. Order matters: each builds on the last.
+| Prototype route | Site | Status |
+| --- | --- | --- |
+| `#/` home | `/` | Match, except the hero opens with Rulemart's logo, as R2 decided, and lists show vetted libraries |
+| `#/browse/techs`, `#/browse/practices` | `/browse/techs`, `/browse/practices` | Match, except rows show no group ID, as R1 decided, and the Include unvetted libraries control, as the vetting decision says. "View other technology groups (N) →" shows, as the prototype's does, only while a library declares a group that isn't canonical, which neither real library does |
+| `#/browse/{kind}/other` | `/browse/{kind}/other` | Match, with the opt-in control |
+| `#/libraries` | `/libraries` | Match, except it lists vetted libraries, titled "Libraries Rulemart has vetted", with the opt-in control |
+| `#/{owner}` | `/{owner}`, `/o/{login}` | Match, except it shows the login and avatar only: the display name, kind, verified domain, and bio wait for a slice that stores them, as R1's doc proposes |
+| `#/faq` | `/faq` | Match, except answers that mention Discuss point to the library's repository until rulemart#27 |
+| `#/feedback` | `/feedback` | Match, plus "Something broken on Rulemart", as R1 decided; a specific rule's feedback goes to the library's repository until rulemart#27 |
+| Header and footer | Every page | Match, except as listed above |
+| Brand mark, favicons | Every page | Different, as R2 decided |
+| `#/g/{kind}/{group}` | `/g/{kind}/{group}` | Match, except the sidebar's Retired and Unvetted filters, which R4 decided, a library row in stronger type while it's ticked rather than for Fabrica's, as slice R4's doc records, and on a phone the sidebar folds into a Filters disclosure, as R4 decided. The count under the title counts current rules only, and the libraries they come from, even while retired ones show. Signed in, the Libraries filter starts with My libraries, as the prototype's, which keeps the libraries the dashboard lists: those the visitor and their organizations publish, and those their projects use. Signed out, `mine=1` is ignored |
+| `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided, with the phone's Filters disclosure, as on group pages, and the ranking named above. Signed in, it offers My libraries, as group pages do |
+| `#/cart` | `/cart` | Match, with the vetted check on each vetted library's avatar. The list of items isn't a live region: screen readers hear a change through its toast or the control that made it |
+| Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects. "+ Or use a project that doesn't use Code Rules yet" opens the same box for a new project, and moves focus to its repository field, since the button it replaces goes |
+| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice. The All rules tab lists every rule on one page, as the prototype's does |
+| Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form, which compares as soon as a release is chosen, and each release's Compare link from slice 4; each card links its "GitHub Release page" |
+| None | `/{owner}/{repo}?tab=releases&from=&to=` | Site only, from slice 4: the prototype compares a rule's versions but not two library releases. The page takes the rule comparison's layout: what changed, then each changed rule's text |
+| `#/{owner}/{repo}/{kind}/{group}` | The same | Match; the Whole group box keeps the library's `owner/name` on one line |
+| Rule page | `/{owner}/{repo}/{kind}/{group}/{rule}` | Match, except Discuss and the Discussion tab wait for rulemart#27, and the About panel says "Questions or suggestions? Ask on GitHub" meanwhile. Star, signed out, opens the "Sign in to star rules" dialog, which matches the prototype's, with "Sign in" for Continue with GitHub on a local build; without a script it goes to sign-in. Add to cart opens a dialog that matches the prototype's. The Assets panel puts "These files come with the rule" under the rule's own files and the release note under the shared ones, so neither speaks for the other's |
+| Versions tab and compare view | `?tab=versions`, `&from=&to=` | Match: a choice compares at once, and the line reads "N files changed between release/x and release/y, limited to this rule's file", since the site compares the rule's file, not its assets. The Compare button shows only without a script, and each version row's comparison buttons are as wide as each other |
+| Retired rule page | The same address | Match, plus the last version's text, from slice 4 |
+| Asset pages | `/{owner}/{repo}/.../assets/{file}` | Match |
+| Discussion tabs, Discuss modal | None | Deferred, rulemart#27 |
+| `#/signin` | `/signin` | Match |
+| `#/me`, `#/me?tab=stars`, `#/me/add`, `#/me/private`, signed out | The same, which redirect to `/signin?return=` | Match: the prototype draws its sign-in page at the dashboard's address, while the site redirects to its own, which returns there after signing in and adds a line saying what for, such as "Sign in to add a library." |
+| `#/me`, `#/me?tab=stars` | `/me`, `/me?tab=stars` | Match, plus when GitHub was read, with Refresh, a New tag on a library that came to Rulemart in the last day, and the Account section, as slice R7's doc records |
+| `#/me/add`, `#/me/add/run` | `/me/add`, `/me/add/run` | Match, plus when GitHub was read, with Refresh |
+| `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
+| About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8. About and Privacy take FAQ's layout, under an About label. `make web-dev` names its loopback address as the base URL, so the sitemap answers locally too |
 
-### R1. Shell and navigation
+## Record: how the realignment was done
+
+### Slices
+
+Each slice was one pull request from `main`, with a doc in `slices/` numbered from 10, and went through the
+verification below before it merged. Each built on the last.
+
+#### R1. Shell and navigation
 
 The header, footer, home, browse pages, owner pages, FAQ, feedback, and the prototype's URLs. No data change.
 Routes: `/`, `/browse/techs`, `/browse/practices`, `/browse/{kind}/other`, `/g/{kind}/{name}` (the existing group
 page, moved), `/{owner}`, `/faq`, `/feedback`; redirects from `/groups` and `/groups/{kind}/{name}`.
 
-### R2. Brand
+#### R2. Brand
 
 The header mark, favicons, apple-touch-icon, social image, and the README's mark from `brand/`, including Josh's
 local header and favicon edits. One pull request with before-and-after screenshots at 1280 and 390 pixels, light
 and dark.
 
-### R3. Stars on rules
+#### R3. Stars on rules
 
 Migration: drop `stars`, add `rule_stars (account_id, rule_id, created_at)` with the same grants. The Star control in
 the rule page head and the count on every rule row and card; `/account/stars` as a minimal Starred rules list until
 R7 builds the dashboard. The star routes move to `/stars` and `/stars/remove`, named by rule.
 
-### R4. Discovery
+#### R4. Discovery
 
 Group pages as flat lists with the filter sidebar (libraries, impact, stars, and the unvetted opt-in) and sort tabs
 (Most starred, Newest); non-canonical group pages with the Not canonical note. Search grouped by group with the
 sidebar (plus Kind) and sort tabs (Best match, Most starred, Newest), retired rules labeled. The rule row used
 everywhere: library mark, title, impact, stars. The opt-in control on `/libraries` and the browse pages.
 
-### R5. Cart and checkout
+#### R5. Cart and checkout
 
 The browser cart: keys as the prototype's (`owner/repo::group/slug`, `group::owner/repo::group`), the header badge,
 In cart states, the add-to-cart modal on rule pages, and the unvetted confirmation inside it. The `/cart` page with
@@ -150,14 +178,14 @@ a repository field; signed in: the visitor's projects once R7 lands), and the Pr
 A JSON endpoint under `/cart/` that resolves keys and returns the texts. Migration: drop `cart_items`. Verified
 against the real `code-rules` CLI as slice 8 was.
 
-### R6. Library and rule pages
+#### R6. Library and rule pages
 
 Library page: the verified check, Added by and On Rulemart since, the Groups tab with checkboxes and the Add groups
 panel, All rules with the Retired section, and the Report link kept. The library group page. Rule page: tags, the
 Star and Discuss places, the About panel with Published by and Updated, the assets panel, asset pages, and relative
 link rewriting as the prototype does. Code highlighting already happens at ingestion.
 
-### R7. Dashboard and add a library
+#### R7. Dashboard and add a library
 
 Sign-in with `read:org`, the token kept encrypted per session, `/signin` with the perks. `/me` with My libraries
 (published by you and your orgs, with totals; used in your projects from `provenance.json`, with update counts) and
@@ -167,15 +195,15 @@ installation callback that records which repositories the app can see. The proje
 same projects. Infrastructure: an SSM parameter for the GitHub App's private key, the worker token made required,
 and the OAuth secret already planned in infra-live#23.
 
-### R8. Launch gate
+#### R8. Launch gate
 
 Analytics on every page. About, privacy, robots, and the sitemap updated for the routes and data above. The
 side-by-side screenshot audit of every prototype route at 1280 and 390 pixels, light and dark, with the prototype
 served next to the site; fix the differences. Then [launch.md](launch.md), updated for the merged stack.
 
-## Verification, for every slice
+### Verification, for every slice
 
-In this order, once the slice is built and its own tests pass:
+In this order, once the slice was built and its own tests passed:
 
 1. **A fresh browser agent**, with no knowledge of the code, uses `chrome-devtools-axi` against a local Rulemart with
    both real libraries ingested to carry out the slice's use cases the way the prototype's click paths go. It
@@ -188,4 +216,4 @@ In this order, once the slice is built and its own tests pass:
 4. **Devin's review** of the pull request. Resolve its feedback.
 5. **Merge.**
 
-Each slice's doc records the Proposed decisions it adds, as the earlier slices' do.
+Each slice's doc recorded the Proposed decisions it added, as the earlier slices' did.

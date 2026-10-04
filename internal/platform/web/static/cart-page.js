@@ -57,6 +57,23 @@
       src ? h('img', 'absolute inset-0 size-full object-cover', { src, alt: '' }) : owner.slice(0, 1).toUpperCase());
   }
 
+  /** Return a library's avatar, carrying the check mark the libraryAvatar part draws on a vetted library's, which says
+   * "Vetted by Rulemart" on hover; screen readers hear it beside the library's name. */
+  function libraryAvatar(lib) {
+    if (!lib.vetted || lib.gone) return avatar(lib.avatar, lib.owner);
+    const check = document.createElementNS(SVG, 'svg');
+    check.setAttribute('viewBox', '0 0 12 12');
+    check.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(SVG, 'path');
+    for (const [name, value] of Object.entries({ d: 'M3.2 6.2 5.1 8l3.7-4', fill: 'none', stroke: '#fff', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })) {
+      path.setAttribute(name, value);
+    }
+    check.append(path);
+    return h('span', 'relative inline-flex flex-none', { title: 'Vetted by Rulemart' },
+      avatar(lib.avatar, lib.owner),
+      h('span', 'absolute -right-[3px] -bottom-[3px] grid size-4 place-items-center rounded-full border-2 border-paper bg-vetted [&>svg]:size-2.5', { 'data-vetted': true }, check));
+  }
+
   /** Return a group's tile, as the groupTile part draws the prototype's medium one: its icon, its name's initial, or,
    * for a group that isn't canonical, an empty dashed tile. */
   function groupTile(group) {
@@ -194,7 +211,8 @@
   function libraryBlock(lib, items) {
     const name = lib.href ? h('a', 'font-semibold text-ink no-underline hover:underline', { href: lib.href }, lib.name) : h('b', 'font-semibold', {}, lib.name);
     const parts = [h('div', 'mb-2.5 flex flex-wrap items-center gap-2.5', {},
-      avatar(lib.avatar, lib.owner), name, h('span', 'font-mono text-[12px] break-all text-faint', {}, lib.fullName),
+      libraryAvatar(lib), name, lib.vetted && !lib.gone ? h('span', 'sr-only', {}, 'Vetted by Rulemart') : null,
+      h('span', 'font-mono text-[12px] break-all text-faint', {}, lib.fullName),
       !lib.vetted && !lib.gone ? h('span', 'inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink', {}, 'Unvetted') : null)];
     if (lib.gone) {
       parts.push(h('p', 'mb-2.5 text-[13px] text-muted', {}, 'This library is no longer on Rulemart, so checkout leaves its rules out. Remove them, or find another library.'));
@@ -212,7 +230,7 @@
     const rest = lib.restOfGroups;
     if (rest) {
       parts.push(h('label', 'mt-2.5 flex cursor-pointer items-center gap-2 text-[13px] text-muted', {},
-        h('input', 'size-4 accent-(--ink)', { type: 'checkbox', checked: rest.added, 'data-cart-rest-of-groups': lib.fullName, 'data-focus': `rest:${lib.fullName}` }),
+        h('input', '', { type: 'checkbox', checked: rest.added, 'data-cart-rest-of-groups': lib.fullName, 'data-focus': `rest:${lib.fullName}` }),
         `Also add the other ${listed(rest.groups)} rules${rest.added ? '' : ` (${rest.rules} more)`}`));
     }
     return h('div', 'mb-[26px] last:mb-3.5', {}, ...parts);

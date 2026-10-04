@@ -123,6 +123,30 @@ func TestPagesLoadCloudflareAnalyticsWithAToken(t *testing.T) {
 	}
 }
 
+// Signed-in pages load the beacon too, since their addresses, such as /me and /cart, carry nothing about the visitor,
+// and the cart's contents never appear in one.
+func TestSignedInPagesLoadCloudflareAnalyticsWithAToken(t *testing.T) {
+	const token = "0123456789abcdef0123456789abcdef"
+	site := newDashboardSiteWith(t, octocatsGitHub(), octocatsCatalog(), func(o *web.Options) { o.AnalyticsToken = token })
+
+	for _, path := range []string{"/me", "/me?tab=stars", "/me/add", "/cart"} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, path)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		beacon := find(doc, func(n *html.Node) bool {
+			return n.Data == "script" && attribute(n, "src") == "https://static.cloudflareinsights.com/beacon.min.js"
+		})
+		if beacon == nil {
+			t.Errorf("%s: no Cloudflare beacon", path)
+			continue
+		}
+		if got := attribute(beacon, "data-cf-beacon"); got != `{"token":"`+token+`"}` {
+			t.Errorf("%s: the beacon's data is %q", path, got)
+		}
+	}
+}
+
 // The sign-in page's policy adds GitHub's authorization page to form-action, and keeps the analytics sources.
 func TestSignInPolicyKeepsAnalyticsSources(t *testing.T) {
 	site := newAccountsSite(t, func(o *web.Options) { o.AnalyticsToken = "0123456789abcdef0123456789abcdef" })

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
@@ -114,17 +116,17 @@ func TestReleasesTabListsWhatEachReleaseChanged(t *testing.T) {
 	page := resp.Body.String()
 	assertShows(t, page,
 		"Groups , 2 All rules , 2 Library releases , 3",
-		"release/3 Latest Major 3 Sep 2026 Compare with release/2 Release notes Library release 3 changes 3 rules: 1 new, 1 major, and 1 retired. "+
+		"release/3 Latest Major 3 Sep 2026 Compare with release/2 GitHub Release page Library release 3 changes 3 rules: 1 new, 1 major, and 1 retired. "+
 			"New rules Close bodies techs/go/close-bodies 1.0.0 Add the rule. "+
 			"Major changes Code that complied with the previous rule version could fail the new one, so review these before updating. "+
 			"Return errors with context techs/go/return-errors 1.0.0 → 2.0.0 Require context on every error. Add an example. "+
 			"Retired rules Check retry backoff practices/testing/check-retry-backoff last version 1.0.0 Merge it. Replaced by Verify retry limits . "+
 			"All rule versions in this library release Rule Version practices/testing/verify-retry-limits 1.1.0",
-		"release/2 2 Sep 2026 Compare with release/1 Release notes Library release 2 changes 1 rule: 1 minor. Minor changes "+
+		"release/2 2 Sep 2026 Compare with release/1 GitHub Release page Library release 2 changes 1 rule: 1 minor. Minor changes "+
 			"Verify retry limits practices/testing/verify-retry-limits 1.0.0 → 1.1.0 Count timeouts as attempts. "+
 			"This library release also updates shared files, such as group descriptions or shared assets.",
 		// A first release adds every rule, and its notes don't repeat "Add the rule." for each.
-		"release/1 1 Sep 2026 Release notes Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner example",
+		"release/1 1 Sep 2026 GitHub Release page Library release 1 publishes 1 rule. New rules Verify retry limits practices/testing/verify-retry-limits 1.0.0 Owner example",
 	)
 	if strings.Index(page, `id="release-3"`) > strings.Index(page, `id="release-2"`) {
 		t.Error("release/2 comes before release/3")
@@ -151,7 +153,7 @@ func TestReleasesTabChoosesReleasesToCompare(t *testing.T) {
 	page := get(t, newSite(t, historyCatalog()), library+"?tab=releases").Body.String()
 
 	for _, want := range []string{
-		`<form class="flex flex-wrap items-center gap-2 text-[14px]" action="/example/rules" method="get"><input type="hidden" name="tab" value="releases">`,
+		`<form class="flex flex-wrap items-center gap-2 text-[14px]" action="/example/rules" method="get" data-compare-form><input type="hidden" name="tab" value="releases">`,
 		`<select id="compare-from"`, `<option value="2" selected>release/2</option>`,
 		`<select id="compare-to"`, `<option value="3" selected>release/3</option>`,
 	} {
@@ -345,6 +347,42 @@ func TestReleaseComparisonOfOneReleaseAsksForTwo(t *testing.T) {
 	assertShows(t, page, "Choose two different library releases to compare.")
 }
 
+// Choosing a version or a release to compare shows the comparison at once, as the prototype's does, through
+// compare.js, which compare.test.mjs tests: the form it submits asks for the page's own tab with the two choices, from
+// and to. Only without a script does the form show its Compare button. Every page with the form loads the script.
+func TestCompareFormsSubmitOnChangeAndShowTheirButtonOnlyWithoutAScript(t *testing.T) {
+	handler := newSite(t, historyCatalog())
+
+	for _, path := range []string{
+		errorsRule + "?tab=versions&from=1.0.0&to=2.0.0", library + "?tab=releases", library + "?tab=releases&from=1&to=3",
+	} {
+		doc := parsePage(t, get(t, handler, path).Body.String())
+		form := find(doc, func(n *html.Node) bool { return n.Data == "form" && hasAttribute(n, "data-compare-form") })
+		if form == nil {
+			t.Errorf("%s: no compare form compare.js submits", path)
+			continue
+		}
+		if !loadsScript(doc, "compare.js") {
+			t.Errorf("%s: doesn't load compare.js", path)
+		}
+		var fields []string
+		for n := range form.Descendants() {
+			if n.Type == html.ElementNode && (n.Data == "select" || n.Data == "input") {
+				fields = append(fields, n.Data+" "+attribute(n, "name"))
+			}
+		}
+		if page, _, _ := strings.Cut(path, "?"); attribute(form, "method") != "get" || attribute(form, "action") != page ||
+			!slices.Equal(fields, []string{"input tab", "select from", "select to"}) {
+			t.Errorf("%s: the form sends %s %s with %q, want get %s with the tab, from, and to", path,
+				attribute(form, "method"), attribute(form, "action"), fields, page)
+		}
+		noscript := find(form, func(n *html.Node) bool { return n.Data == "noscript" })
+		if noscript == nil || !strings.Contains(nodeText(noscript), "Compare") {
+			t.Errorf("%s: the Compare button shows with a script too", path)
+		}
+	}
+}
+
 // A rule's Versions tab compares each version with the one before, and the first with the latest, and leads to the
 // release that published each.
 func TestRuleVersionsTabLeadsToComparisonsAndReleases(t *testing.T) {
@@ -366,7 +404,7 @@ func TestRuleComparisonShowsWhatChangedAndTheText(t *testing.T) {
 	assertShows(t, page,
 		"Rule Versions , 2 ← All versions Compare",
 		"What changed 1 version Includes a major change. Work that complied with 1.0.0 could fail 2.0.0, so review the changes before updating. "+
-			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. Changed text Between release/1 and release/3. "+
+			"2.0.0 Major release/3 3 Sep 2026 Require context on every error. Add an example. 1 file changed between release/1 and release/3, limited to this rule's file. "+
 			"techs/go/return-errors.md 1.0.0 → 2.0.0 +4 −2 View at 2.0.0",
 	)
 	for _, want := range []string{`<h2 class="text-[12px] font-medium tracking-[.12em] text-muted uppercase">What changed</h2>`, `<h3 class="mono font-semibold">2.0.0</h3>`, `id="diff-techs_go_return-errors-title"`} {
@@ -453,7 +491,7 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 	page := resp.Body.String()
 	assertShows(t, page,
 		"Check retry backoff Retired Last version 1.1.0 Retired in release/3 · 3 Sep 2026 Merge it. "+
-			"Replaced by Verify retries , itself replaced by Verify retry limits .",
+			"Replaced by Verify retries practices/testing/verify-retries , itself replaced by Verify retry limits practices/testing/verify-retry-limits .",
 		// It shows its last version's text, and links that file at the release that published it.
 		"Text of version 1.1.0 View on GitHub Rule Wait longer after each attempt. Why",
 		"Versions · 2 1.1.0 release/2 2 Sep 2026 Wait longer. Compare with 1.0.0",

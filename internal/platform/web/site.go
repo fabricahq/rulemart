@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -74,8 +75,8 @@ type Options struct {
 	AnalyticsToken string
 }
 
-// ParseBaseURL parses text as Options.BaseURL: an https origin with no path, query, or fragment, such as
-// https://rulemart.fabricahq.com. Empty text gives nil.
+// ParseBaseURL parses text as Options.BaseURL: an https origin, or an http one on a loopback host, with no path,
+// query, or fragment, such as https://rulemart.fabricahq.com. Empty text gives nil.
 func ParseBaseURL(text string) (*url.URL, error) {
 	if text == "" {
 		return nil, nil
@@ -90,13 +91,24 @@ func ParseBaseURL(text string) (*url.URL, error) {
 	return u, nil
 }
 
-// checkBaseURL reports whether u is an https origin and nothing more, so a page's path appends to it as is.
+// checkBaseURL reports whether u is an origin and nothing more, so a page's path appends to it as is: an https one, or
+// an http one on a loopback host, such as a local build's http://127.0.0.1:8080.
 func checkBaseURL(u *url.URL) error {
-	if u.Scheme != "https" || u.Host == "" || u.Opaque != "" || u.User != nil || u.Path != "" || u.RawPath != "" ||
-		u.ForceQuery || u.RawQuery != "" || u.Fragment != "" {
-		return errors.New("want an https origin with no path, query, or fragment, such as https://rulemart.example")
+	if (u.Scheme != "https" && (u.Scheme != "http" || !isLoopback(u.Hostname()))) || u.Host == "" || u.Opaque != "" ||
+		u.User != nil || u.Path != "" || u.RawPath != "" || u.ForceQuery || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("want an https origin, or an http one on a loopback host, with no path, query, or fragment, " +
+			"such as https://rulemart.example")
 	}
 	return nil
+}
+
+// isLoopback reports whether host, without a port, names this machine: localhost or a loopback address.
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
 }
 
 // Catalog reads what the pages show. app.Pages implements it, finding the vetted libraries, and the ones listings name
@@ -133,11 +145,11 @@ type Catalog interface {
 	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
 	// GroupPage returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
-	// and no library holds it.
-	GroupPage(ctx context.Context, id string, choices domain.ListChoices) (views.GroupPage, error)
+	// and no library holds it. mine are the visitor's libraries, which My libraries keeps.
+	GroupPage(ctx context.Context, id string, choices domain.ListChoices, mine domain.MyLibraries) (views.GroupPage, error)
 	// SearchRules returns page, from 1 to app.MaxSearchPage, of the rules query finds, or of every rule for the zero
-	// query, that choices keep. It fails with app.ErrSearchQueryTooLong for a query it won't run.
-	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error)
+	// query, that choices keep, mine as GroupPage's. It fails with app.ErrSearchQueryTooLong for a query it won't run.
+	SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, mine domain.MyLibraries, page int) (views.RuleResults, error)
 	// Dashboard returns what a visitor's dashboard shows of the catalog: the libraries whose owner is one of owners, and
 	// those of names, as owner/name, the libraries the visitor's projects import.
 	Dashboard(ctx context.Context, owners, names []string) (views.Dashboard, error)
@@ -188,7 +200,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"), cartPageScript: assets.url("cart-page.js"), cartCheckoutScript: assets.url("cart-checkout.js"),
-			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), starScript: assets.url("star.js"), compareScript: assets.url("compare.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),

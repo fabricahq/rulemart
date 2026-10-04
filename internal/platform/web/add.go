@@ -5,13 +5,17 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/a-h/templ"
 
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
@@ -378,26 +382,55 @@ func (v runView) following() bool { return !v.done() && v.state != domain.Listin
 
 // runStep is one line of the checklist, which ticks once it's done, spins while it's running, and says why it failed.
 type runStep struct {
-	text                  string
+	parts                 []runPart
 	done, running, failed bool
 }
+
+// runPart is a run of a step's text, in stronger type when it names what the check found, as the prototype's does.
+type runPart struct {
+	text   string
+	strong bool
+}
+
+// runPartsText writes parts' text, each run in stronger type in a b element. It writes them itself, since templ puts a
+// space after an element that ends a line, which would stand before the punctuation that follows a run in stronger
+// type.
+func runPartsText(parts []runPart) templ.Component {
+	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+		for _, part := range parts {
+			text := templ.EscapeString(part.text)
+			if part.strong {
+				text = `<b class="font-semibold">` + text + `</b>`
+			}
+			if _, err := io.WriteString(w, text); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// runText and runStrong return a step's text as one part, in ordinary and in stronger type.
+func runText(text string) runPart   { return runPart{text: text} }
+func runStrong(text string) runPart { return runPart{text: text, strong: true} }
 
 // steps returns the checklist, as the prototype words it: what the check found, once it found it.
 func (v runView) steps() []runStep {
 	steps := []runStep{
-		{text: "Looking for rule-library.yaml in " + v.fullName},
-		{text: "Read the latest library release · its rules at their published versions"},
-		{text: "Groups and rules indexed"},
-		{text: "Watching for new library releases"},
+		{parts: []runPart{runText("Looking for "), runStrong("rule-library.yaml"), runText(" in " + v.fullName)}},
+		{parts: []runPart{runText("Read the latest library release · its rules at their published versions")}},
+		{parts: []runPart{runText("Groups and rules indexed")}},
+		{parts: []runPart{runText("Watching for new library releases")}},
 	}
 	switch {
 	case v.library != nil:
 		lib := v.library
-		steps[0].text = "Found rule-library.yaml in " + v.fullName
-		steps[1].text = "Read library release " + domain.ReleaseTag(lib.LatestRelease) + " · " + plural(lib.Rules, "rule", "rules") + " at their published versions"
-		steps[2].text = plural(lib.Groups, "group", "groups") + ", " + plural(lib.Rules, "rule", "rules") + " indexed"
+		rules := plural(lib.Rules, "rule", "rules")
+		steps[0].parts = []runPart{runText("Found "), runStrong("rule-library.yaml"), runText(" in " + v.fullName)}
+		steps[1].parts = []runPart{runText("Read library release "), runStrong(domain.ReleaseTag(lib.LatestRelease)), runText(" · " + rules + " at their published versions")}
+		steps[2].parts = []runPart{runStrong(plural(lib.Groups, "group", "groups")), runText(", "), runStrong(rules), runText(" indexed")}
 		if lib.LicenseExpression != "" {
-			steps[2].text += " · license " + lib.LicenseExpression
+			steps[2].parts = append(steps[2].parts, runText(" · license "), runStrong(lib.LicenseExpression))
 		}
 		for i := range steps {
 			steps[i].done = true

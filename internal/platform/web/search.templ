@@ -16,7 +16,7 @@ templ searchPage(c chrome, v searchView) {
 			@label("") {
 				Search
 			}
-			<h1 class="title-xl mt-2 mb-[22px] [overflow-wrap:anywhere]">{ v.heading() }</h1>
+			<h1 class="title-xl mt-2.5 mb-[22px] [overflow-wrap:anywhere]">{ v.heading() }</h1>
 			<div class="mb-6 narrow:hidden">
 				@searchForm("search", v.query, false)
 			</div>
@@ -33,6 +33,7 @@ templ searchPage(c chrome, v searchView) {
 				@listLayout() {
 					@filterSidebar(v.list)
 					<section aria-label="Results">
+						@myLibrariesStatus(v.list)
 						@resultsHead(v.list, searchMore(v))
 						if v.pageMissing() {
 							<div class="rounded-card border border-dashed border-border-strong p-[22px] text-center text-[14px] text-muted">

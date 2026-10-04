@@ -72,17 +72,27 @@ func assetSummary(r ruleView, a assetView) string {
 	return a.fileName() + ": a supporting file of the rule " + r.title + " in " + r.library.fullName() + ", on Rulemart."
 }
 
-// assetsPanel lists a rule's assets, as the prototype's Assets panel: its own files, then the files it shares with
-// the library, each leading to its page, with the one whose page shows the list marked.
+// assetsPanel lists a rule's assets, as the prototype's Assets panel: its own files, which come with the rule, then
+// the files it shares with the library, which come from the newest release instead, each leading to its page, with the
+// one whose page shows the list marked. Each group's note sits under it, so neither speaks for the other's files.
 templ assetsPanel(assets []assetView) {
 	@sidePanel("Assets", "assets", assetCount(len(assets))) {
 		<div class="grid gap-0.5 px-2.5 pt-2.5 pb-3">
-			for _, a := range assets {
-				if !a.shared {
-					@assetRow(a)
+			if own := len(assets) - sharedCount(assets); own > 0 {
+				for _, a := range assets {
+					if !a.shared {
+						@assetRow(a)
+					}
 				}
+				<p class="mx-2 mt-2 text-[12px] text-faint">
+					if own == 1 {
+						This file comes with the rule when you add it.
+					} else {
+						These files come with the rule when you add it.
+					}
+				</p>
 			}
-			if sharedAssets(assets) {
+			if sharedCount(assets) > 0 {
 				<p class="px-2 pt-2.5 pb-1 text-[11px] font-medium tracking-[.08em] text-faint uppercase first:pt-1">Shared across the library</p>
 				for _, a := range assets {
 					if a.shared {
@@ -91,13 +101,6 @@ templ assetsPanel(assets []assetView) {
 				}
 				<p class="mx-2 mt-1 text-[12px] text-faint">Not part of this rule's version. Projects get the copy from the newest library release.</p>
 			}
-			<p class="mx-2 mt-2 text-[12px] text-faint">
-				if len(assets) == 1 {
-					This file comes with the rule when you add it.
-				} else {
-					These files come with the rule when you add it.
-				}
-			</p>
 		</div>
 	}
 }
@@ -107,14 +110,15 @@ templ assetCount(n int) {
 	<span class="text-[12px] text-faint">{ plural(n, "file", "files") }</span>
 }
 
-// sharedAssets reports whether any of assets is shared across the library.
-func sharedAssets(assets []assetView) bool {
+// sharedCount returns how many of assets are shared across the library.
+func sharedCount(assets []assetView) int {
+	n := 0
 	for _, a := range assets {
 		if a.shared {
-			return true
+			n++
 		}
 	}
-	return false
+	return n
 }
 
 // assetRow is one asset in the Assets panel: its kind's icon, its name, cut short with its whole path on hover, and its

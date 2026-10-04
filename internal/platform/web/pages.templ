@@ -18,7 +18,7 @@ templ librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) {
 			@label("") {
 				Libraries
 			}
-			<h1 class="title-xl mt-2 mb-2">
+			<h1 class="title-xl mt-2.5 mb-2">
 				if unvetted {
 					Every library on Rulemart
 				} else {
@@ -226,10 +226,9 @@ templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSe
 						@label("mb-1.5") {
 							Whole group
 						}
-						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span>
-							// The name wraps after its slash rather than leave "from" alone at a line's end.
-							@breakable(lib.fullName() + ".")
-						</span>{ " " }@groupUpdates(lib)</p>
+						// The library's name moves to the next line whole, rather than break at its slash or a hyphen, unless it's
+						// longer than the line.
+						<p class="mb-[14px] text-[13px] text-muted">Adds all { plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") } from <span class="inline-block max-w-full" data-library-name>{ lib.fullName() }.</span>{ " " }@groupUpdates(lib)</p>
 						@groupCartControl(lib, g)
 						if g.label.canonical {
 							<p class="mt-4 text-[13px]"><a href={ templ.SafeURL(g.acrossHref) }>See { g.label.display() } rules from every library →</a></p>
@@ -391,7 +390,7 @@ templ retiredRule(r ruleView) {
 		}
 		if len(r.retired.replacedBy) > 0 {
 			<p class="mt-1.5">
-				@replacementChain(r.retired.replacedBy, r.retired.renamed)
+				@replacementChain(headChainSteps(r.retired.replacedBy, r.retired.renamed), true)
 			</p>
 		}
 		<p class="mt-1.5 text-[13px] text-faint">Projects that pin it keep its last version. Other projects drop it when they update.</p>
@@ -532,12 +531,12 @@ templ versionList(r ruleView) {
 					<div class="grid grid-cols-[auto_auto] items-center gap-[14px] max-narrow:flex max-narrow:flex-wrap">
 						<span class="max-narrow:empty:hidden narrow:min-w-[10.5rem] narrow:[&>a]:w-full">
 							if v.compareHref != "" {
-								@smallButton(v.compareHref) {
+								@smallGhostButton(v.compareHref) {
 									Compare with { v.previous }
 								}
 							}
 						</span>
-						@releaseNotesLink(v.notesURL, v.tag)
+						@versionNotesLink(v.notesURL, v.tag)
 					</div>
 				</div>
 			}

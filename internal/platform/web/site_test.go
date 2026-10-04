@@ -56,9 +56,11 @@ type catalog struct {
 	// results are keyed by the query that finds them, empty for every rule, followed for pages after the first by
 	// " page " and the page's number; any other query or page finds nothing, whatever the choices.
 	results map[string]views.RuleResults
-	// searched records each query searched, and chosen the choices of every list read, when they aren't nil.
+	// searched records each query searched, chosen the choices of every list read, and mine the libraries My
+	// libraries keeps in each, when they aren't nil.
 	searched *[]string
 	chosen   *[]domain.ListChoices
+	mine     *[]domain.MyLibraries
 	// assets are assets' pages, keyed by lowercase owner/name, then /<asset path> and " rule=<rule path>", the rule
 	// empty for the first rule that lists it; images are keyed by lowercase owner/name, then /<asset path>, and spell
 	// their library's owner and name as the library does.
@@ -127,21 +129,50 @@ func (c catalog) Dashboard(_ context.Context, owners, names []string) (views.Das
 	return d, c.err
 }
 
-// Group matches id without regard to case, and records the choices.
-func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
-	if c.chosen != nil {
-		*c.chosen = append(*c.chosen, choices)
-	}
+// Group matches id without regard to case, records the choices and the visitor's libraries, and keeps only their rules
+// for My libraries.
+func (c catalog) GroupPage(_ context.Context, id string, choices domain.ListChoices, mine domain.MyLibraries) (views.GroupPage, error) {
+	c.record(choices, mine)
 	page, ok := c.groups[strings.ToLower(id)]
 	if c.err == nil && !ok {
 		return page, fmt.Errorf("load group: %w", app.ErrNotFound)
 	}
+	page.Rules = keepMine(page.Rules, choices, mine)
 	return page, c.err
 }
 
-// SearchRules answers as app.Pages does for a long query, app.ErrSearchQueryTooLong, and records the query and the
-// choices.
-func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error) {
+// record records the choices and the visitor's libraries of a list read, as chosen and mine ask.
+func (c catalog) record(choices domain.ListChoices, mine domain.MyLibraries) {
+	if c.chosen != nil {
+		*c.chosen = append(*c.chosen, choices)
+	}
+	if c.mine != nil {
+		*c.mine = append(*c.mine, mine)
+	}
+}
+
+// keepMine returns results with only the rows of the visitor's libraries, mine, counted, when choices keep My
+// libraries, as the store's filter does; otherwise results as they are.
+func keepMine(results views.RuleResults, choices domain.ListChoices, mine domain.MyLibraries) views.RuleResults {
+	if !choices.Filters.Mine {
+		return results
+	}
+	var rows []views.RuleRow
+	libraries := map[string]bool{}
+	for _, r := range results.Rows {
+		if slices.ContainsFunc(mine.Owners, func(o string) bool { return strings.EqualFold(o, r.Library.Owner) }) ||
+			slices.ContainsFunc(mine.Libraries, func(l string) bool { return strings.EqualFold(l, r.Library.FullName()) }) {
+			rows = append(rows, r)
+			libraries[strings.ToLower(r.Library.FullName())] = true
+		}
+	}
+	results.Rows, results.Total, results.Complete, results.Libraries = rows, len(rows), len(rows), len(libraries)
+	return results
+}
+
+// SearchRules answers as app.Pages does for a long query, app.ErrSearchQueryTooLong, records the query, the choices,
+// and the visitor's libraries, and keeps only their rules for My libraries.
+func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choices domain.ListChoices, mine domain.MyLibraries, page int) (views.RuleResults, error) {
 	if c.err != nil {
 		return views.RuleResults{}, c.err
 	}
@@ -151,13 +182,11 @@ func (c catalog) SearchRules(_ context.Context, query domain.SearchQuery, choice
 	if c.searched != nil {
 		*c.searched = append(*c.searched, query.String())
 	}
-	if c.chosen != nil {
-		*c.chosen = append(*c.chosen, choices)
-	}
+	c.record(choices, mine)
 	if page > 1 {
-		return c.results[fmt.Sprintf("%s page %d", query, page)], nil
+		return keepMine(c.results[fmt.Sprintf("%s page %d", query, page)], choices, mine), nil
 	}
-	return c.results[query.String()], nil
+	return keepMine(c.results[query.String()], choices, mine), nil
 }
 
 func (c catalog) LibraryPage(_ context.Context, owner, name string) (views.LibraryPage, error) {
@@ -626,16 +655,22 @@ func TestPagesNameNoCanonicalAddressWithoutABaseURL(t *testing.T) {
 	}
 }
 
-// A page's path is appended to the base URL as it is, so anything but a bare https origin would name wrong addresses.
-func TestParseBaseURLAcceptsOnlyAnHTTPSOrigin(t *testing.T) {
-	if got, err := web.ParseBaseURL("https://rulemart.example"); err != nil || got.String() != "https://rulemart.example" {
-		t.Fatalf("got %v, %v", got, err)
+// A page's path is appended to the base URL as it is, so anything but a bare origin would name wrong addresses, and
+// plain http is only for a server on this machine, as a local build's.
+func TestParseBaseURLAcceptsAnHTTPSOriginOrALoopbackOne(t *testing.T) {
+	for _, text := range []string{
+		"https://rulemart.example", "http://127.0.0.1:8080", "http://localhost:8080", "http://[::1]:8080", "http://127.0.0.1",
+	} {
+		if got, err := web.ParseBaseURL(text); err != nil || got.String() != text {
+			t.Errorf("parsed %q as %v, %v", text, got, err)
+		}
 	}
 	if got, err := web.ParseBaseURL(""); err != nil || got != nil {
 		t.Fatalf("empty text gave %v, %v, want none", got, err)
 	}
 	for _, text := range []string{
-		"http://rulemart.example", "https://rulemart.example/", "https://rulemart.example/catalog",
+		"http://rulemart.example", "http://192.168.1.2:8080", "http://0.0.0.0:8080", "http://127.0.0.1:8080/",
+		"https://rulemart.example/", "https://rulemart.example/catalog",
 		"https://rulemart.example?q", "https://rulemart.example#top", "https://user@rulemart.example", "https://",
 		"rulemart.example", "https:rulemart.example",
 	} {
@@ -1039,6 +1074,26 @@ func assertRedirectsToPage(t *testing.T, handler http.Handler, target, want stri
 	}
 }
 
+// Only a rule's own files come with it; the files it shares with its library come from the newest release, so a rule
+// with shared files alone never says its files come with it.
+func TestAssetsPanelSaysOnlyTheRulesOwnFilesComeWithIt(t *testing.T) {
+	c := newCatalog()
+	page := c.rules["example/rules/techs/go/return-errors"]
+	page.Assets = []views.Asset{
+		{Path: "assets/glossary.md", Size: 1600, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+		{Path: "assets/terms.md", Size: 800, MediaType: "text/markdown; charset=utf-8", Release: 3, Kept: true},
+	}
+	c.rules["example/rules/techs/go/return-errors"] = page
+
+	text := visibleText(t, get(t, newSite(t, c), errorsRule).Body.String())
+
+	assertShows(t, text, "Assets 2 files Shared across the library glossary.md 1.6 KB terms.md 800 B "+
+		"Not part of this rule's version. Projects get the copy from the newest library release. Owner example")
+	if strings.Contains(text, "come with the rule") || strings.Contains(text, "comes with the rule") {
+		t.Errorf("a rule with only shared files says its files come with it:\n%s", text)
+	}
+}
+
 // A rule's head links each of its tags to a search for it, and its Rule tab's panels say who publishes it, how fresh it
 // is, where to ask about it, its assets when it has any, and its facts, as the prototype's.
 func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
@@ -1058,9 +1113,9 @@ func TestRulePageShowsTagsAndItsPanels(t *testing.T) {
 	assertShows(t, withAssets,
 		"Return errors with context HIGH 2.0.0 #errors #error wrapping",
 		"About rules Published by example Updated 3 Sep 2026 Questions or suggestions? Ask on GitHub "+
-			"Assets 2 files loop.svg 2.4 KB Shared across the library glossary.md 1.6 KB "+
+			"Assets 2 files loop.svg 2.4 KB This file comes with the rule when you add it. "+
+			"Shared across the library glossary.md 1.6 KB "+
 			"Not part of this rule's version. Projects get the copy from the newest library release. "+
-			"These files come with the rule when you add it. "+
 			"Owner example Repository rules License MIT File return-errors.md",
 	)
 	for text, want := range map[string]string{

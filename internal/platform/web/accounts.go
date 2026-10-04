@@ -361,7 +361,9 @@ func (s *server) signInPage(w http.ResponseWriter, r *http.Request) {
 		seeOther(w, r, back)
 	case !s.signInAvailable():
 		s.renderSignIn(w, r, http.StatusNotFound, back, "")
-	case publicPath(back) != back:
+	case r.URL.Query().Get("return") != "" && publicPath(back) != back:
+		// Only a visitor sent from one of their own pages is told why; one who opened the page directly wasn't on
+		// their way to the dashboard it returns to.
 		s.renderSignIn(w, r, http.StatusOK, back, signInPurpose(back))
 	case r.URL.Query().Get("to") == starPurpose && back != "/":
 		s.renderSignIn(w, r, http.StatusOK, back, "Sign in to star rules. You'll come back to this one.")

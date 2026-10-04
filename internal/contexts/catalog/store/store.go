@@ -202,9 +202,9 @@ type Reader interface {
 	// of owners, and those whose owner/name is one of names, all matched without regard to case, as views.Dashboard
 	// describes them.
 	Dashboard(ctx context.Context, vetted []domain.LibraryKey, owners, names []string) (views.Dashboard, error)
-	// Sitemap returns the vetted libraries, their current rules, and the groups that hold them, at most maxEntries
-	// groups and rules in all: the first groups in ID order, then the first rules in owner, name, and ID order, from
-	// one state of the catalog.
+	// Sitemap returns the vetted libraries, their groups and current rules, and the groups that hold them, at most
+	// maxEntries groups, library groups, and rules in all: the first groups in ID order, then the first library groups
+	// and then the first rules, both in owner, name, and ID order, from one state of the catalog.
 	Sitemap(ctx context.Context, vetted []domain.LibraryKey, maxEntries int) (views.Sitemap, error)
 }
 

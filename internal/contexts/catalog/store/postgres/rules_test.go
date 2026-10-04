@@ -200,6 +200,47 @@ func TestAGroupsFiltersKeepTheRulesTheyName(t *testing.T) {
 	}
 }
 
+// My libraries keeps the rules of the visitor's libraries: those whose owner is one of the list's owners, and those
+// its libraries name as owner/name, the libraries the visitor's projects use, either, without regard to case; and with
+// the other filters, those that pass them all. A visitor with neither in the list sees none. It doesn't change what the
+// list holds before its filters, which the sidebar counts.
+func TestMyLibrariesKeepTheRulesOfTheVisitorsLibraries(t *testing.T) {
+	c := newRuleLists(t)
+
+	for _, tc := range []struct {
+		name    string
+		filters domain.RuleFilters
+		mine    domain.MyLibraries
+		want    []string
+	}{
+		{"an organization's", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat", "Zeta"}}, []string{zapErrors, yieldErrors}},
+		{"the visitor's and an organization's", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"FabricaHQ", "zeta"}},
+			[]string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"a library a project uses", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat"}, Libraries: []string{"Zeta/Go"}},
+			[]string{zapErrors, yieldErrors}},
+		{"an owner's and a library a project uses", domain.RuleFilters{Mine: true},
+			domain.MyLibraries{Owners: []string{"fabricahq"}, Libraries: []string{"zeta/go"}}, []string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"a library of the same owner a project uses", domain.RuleFilters{Mine: true}, domain.MyLibraries{Libraries: []string{"zeta/rules"}}, []string{}},
+		{"owners who publish nothing here", domain.RuleFilters{Mine: true}, domain.MyLibraries{Owners: []string{"octocat", "aardvark"}}, []string{}},
+		{"neither", domain.RuleFilters{Mine: true}, domain.MyLibraries{}, []string{}},
+		{"without my libraries", domain.RuleFilters{}, domain.MyLibraries{Owners: []string{"zeta"}, Libraries: []string{"zeta/go"}},
+			[]string{handleErrors, zapErrors, nameThings, yieldErrors}},
+		{"and a library of another owner", domain.RuleFilters{Mine: true, Libraries: []string{"fabricahq/rules"}},
+			domain.MyLibraries{Owners: []string{"zeta"}, Libraries: []string{"zeta/go"}}, []string{}},
+		{"and an impact", domain.RuleFilters{Mine: true, Impact: domain.LowerImpact}, domain.MyLibraries{Owners: []string{"fabricahq"}}, []string{nameThings}},
+	} {
+		list := goList(tc.filters)
+		list.MyLibraries = tc.mine
+		got := c.listRules(t, list)
+		if !slices.Equal(sourceIDs(got), tc.want) || got.Total != len(tc.want) {
+			t.Errorf("%s: got %q of %d, want %q", tc.name, sourceIDs(got), got.Total, tc.want)
+		}
+		if got.Unfiltered != 4 || len(got.UnfilteredLibraries) != 2 {
+			t.Errorf("%s: got %d unfiltered from %+v, want 4 from 2 libraries", tc.name, got.Unfiltered, got.UnfilteredLibraries)
+		}
+	}
+}
+
 // Nothing of a listed library is read unless the list asks for unvetted libraries; then its rules join the list,
 // unvetted and without stars, after the vetted rules they tie with, and the sidebar counts it.
 func TestAListReadsUnvettedLibrariesOnlyWhenAsked(t *testing.T) {
@@ -315,8 +356,8 @@ func TestSearchListsRetiredRulesAfterEveryCurrentRule(t *testing.T) {
 }
 
 // A list holds retired rules when it shows them, a search for words always and any other list when asked, and the
-// sidebar's counts include them then, so narrowing a list never raises a count. Every list knows how many retired
-// rules it could show.
+// sidebar's counts include them then, so narrowing a list never raises a count, while a page's own count of its rules
+// counts current ones only. Every list knows how many retired rules it could show.
 func TestAListCountsItsRetiredRulesOnlyWhenItShowsThem(t *testing.T) {
 	c := newRuleLists(t)
 	fabrica := func(results views.RuleResults) int {
@@ -329,20 +370,22 @@ func TestAListCountsItsRetiredRulesOnlyWhenItShowsThem(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name                       string
-		list                       domain.RuleList
-		unfiltered, fabrica, total int
+		name                                string
+		list                                domain.RuleList
+		unfiltered, current, fabrica, total int
 	}{
-		{"every rule", domain.RuleList{ListChoices: domain.ListChoices{Order: domain.MostStarred}}, 6, 3, 6},
-		{"every rule with retired ones", domain.RuleList{ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 7, 4, 7},
-		{"a group", goList(domain.RuleFilters{}), 4, 2, 4},
-		{"a group with retired ones", domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 5, 3, 5},
-		{"a search", domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}}, 6, 3, 6},
+		{"every rule", domain.RuleList{ListChoices: domain.ListChoices{Order: domain.MostStarred}}, 6, 6, 3, 6},
+		{"every rule with retired ones", domain.RuleList{ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 7, 6, 4, 7},
+		{"a group", goList(domain.RuleFilters{}), 4, 4, 2, 4},
+		{"a group with retired ones", domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: true, Order: domain.MostStarred}}, 5, 4, 3, 5},
+		{"a search", domain.RuleList{Query: domain.ParseSearchQuery("errors"), ListChoices: domain.ListChoices{Order: domain.BestMatch}}, 6, 5, 3, 6},
 	} {
 		got := c.listRules(t, tc.list)
-		if got.Unfiltered != tc.unfiltered || fabrica(got) != tc.fabrica || got.Total != tc.total || got.RetiredRules != 1 {
-			t.Errorf("%s: got %d rules, %d of fabricahq/rules, %d passing, %d retired; want %d, %d, %d, 1",
-				tc.name, got.Unfiltered, fabrica(got), got.Total, got.RetiredRules, tc.unfiltered, tc.fabrica, tc.total)
+		if got.Unfiltered != tc.unfiltered || got.UnfilteredCurrent != tc.current || fabrica(got) != tc.fabrica || got.Total != tc.total ||
+			got.RetiredRules != 1 {
+			t.Errorf("%s: got %d rules, %d current, %d of fabricahq/rules, %d passing, %d retired; want %d, %d, %d, %d, 1",
+				tc.name, got.Unfiltered, got.UnfilteredCurrent, fabrica(got), got.Total, got.RetiredRules, tc.unfiltered, tc.current,
+				tc.fabrica, tc.total)
 		}
 	}
 	if got := c.listRules(t, domain.RuleList{Group: "techs/golang", ListChoices: domain.ListChoices{Order: domain.MostStarred}}); got.RetiredRules != 0 {
@@ -381,6 +424,40 @@ func TestAGroupOfOnlyRetiredRulesCountsThemWhileHidingThem(t *testing.T) {
 	if want := []string{"relic/rules:techs/legacy/gone"}; !slices.Equal(sourceIDs(shown), want) || !shown.Rows[0].Retired ||
 		shown.Unfiltered != 1 || shown.RetiredRules != 1 {
 		t.Errorf("shown: got %q, %d rules, %d retired; want %q retired, 1, 1", sourceIDs(shown), shown.Unfiltered, shown.RetiredRules, want)
+	}
+}
+
+// A page counts the libraries its current rules come from, while the sidebar lists every library of the rules the list
+// holds: a library whose only rules in a group are retired joins the sidebar while retired rules show, but not the
+// page's count.
+func TestAListCountsOnlyTheLibrariesOfItsCurrentRulesForThePage(t *testing.T) {
+	c := newRuleLists(t)
+	gone := listedRule("techs/go/gone", "Gone", "LOW", 1)
+	gone.RetiredIn, gone.RetirementSummaries, gone.WhenToReadHTML = 2, []string{"Drop it."}, ""
+	relic := newLibrary("34", "relic", "rules", []domain.Group{goGroup}, gone)
+	relic.Releases = append(relic.Releases, domain.Release{Number: 2, CommitID: strings.Repeat("2", 40), TaggedAt: day(5)})
+	if _, err := c.worker.ReplaceLibrary(context.Background(), relic); err != nil {
+		t.Fatal(err)
+	}
+	vetted := append(slices.Clone(vettedLists), domain.LibraryKey{Host: domain.GitHub, RepositoryID: "34"})
+
+	for _, tc := range []struct {
+		name               string
+		retired            bool
+		sidebar, ofCurrent int
+	}{
+		{"hiding retired rules", false, 2, 2},
+		{"showing retired rules", true, 3, 2},
+	} {
+		got, err := c.web.Rules(context.Background(), vetted, canonicalGroups,
+			domain.RuleList{Group: "techs/go", ListChoices: domain.ListChoices{Retired: tc.retired, Order: domain.MostStarred}}, 50, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.UnfilteredLibraries) != tc.sidebar || got.UnfilteredCurrentLibraries != tc.ofCurrent {
+			t.Errorf("%s: got %d libraries in the sidebar and %d of current rules, want %d and %d",
+				tc.name, len(got.UnfilteredLibraries), got.UnfilteredCurrentLibraries, tc.sidebar, tc.ofCurrent)
+		}
 	}
 }
 

@@ -205,14 +205,15 @@ const MaxGroupRules = 500
 // group's, matched without regard to case, in every library that holds it, or any other group's, in the libraries that
 // chose exactly that ID. It fails with ErrNotFound for a group that isn't canonical and holds no rule, current or
 // retired, before the filters, so a made-up ID has no page while a group whose rules are all retired keeps its own. The
-// page's Path is the list's spelling of a canonical group's ID.
-func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoices) (views.GroupPage, error) {
+// page's Path is the list's spelling of a canonical group's ID. mine are the visitor's libraries, which My libraries
+// keeps.
+func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoices, mine domain.MyLibraries) (views.GroupPage, error) {
 	page := views.GroupPage{Path: id}
 	if g, ok := p.Groups.FindIgnoringCase(id); ok {
 		page.Path, page.Canonical = g.ID, p.canonical(g.ID)
 	}
 	var err error
-	page.Rules, err = p.rules(ctx, domain.RuleList{Group: page.Path, ListChoices: choices}, MaxGroupRules, 0)
+	page.Rules, err = p.rules(ctx, domain.RuleList{Group: page.Path, MyLibraries: mine, ListChoices: choices}, MaxGroupRules, 0)
 	if err != nil {
 		return views.GroupPage{}, err
 	}
@@ -225,15 +226,15 @@ func (p Pages) GroupPage(ctx context.Context, id string, choices domain.ListChoi
 // SearchRules returns page, counted from 1, of the rules that match query, or of every rule for the zero query, that
 // choices keep, in their order, SearchPageSize to a page. A query longer than domain.MaxSearchQueryLength fails with
 // ErrSearchQueryTooLong without reading the catalog. A page past the last holds no rules, and page must be from 1 to
-// MaxSearchPage.
-func (p Pages) SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, page int) (views.RuleResults, error) {
+// MaxSearchPage. mine are the visitor's libraries, which My libraries keeps.
+func (p Pages) SearchRules(ctx context.Context, query domain.SearchQuery, choices domain.ListChoices, mine domain.MyLibraries, page int) (views.RuleResults, error) {
 	if page < 1 || page > MaxSearchPage {
 		return views.RuleResults{}, fmt.Errorf("search: page %d is outside 1 to %d", page, MaxSearchPage)
 	}
 	if query.TooLong() {
 		return views.RuleResults{}, fmt.Errorf("search: %w", ErrSearchQueryTooLong)
 	}
-	return p.rules(ctx, domain.RuleList{Query: query, ListChoices: choices}, SearchPageSize, (page-1)*SearchPageSize)
+	return p.rules(ctx, domain.RuleList{Query: query, MyLibraries: mine, ListChoices: choices}, SearchPageSize, (page-1)*SearchPageSize)
 }
 
 // rules reads a page of list, at most limit rules after the first skip, names each one's group as pages do, and

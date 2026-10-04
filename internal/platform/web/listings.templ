@@ -19,7 +19,7 @@ templ unvettedWarning(plural bool) {
 				<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">These libraries have not been vetted. Be sure to review their rules carefully.</p>
 				<p class="mt-1 text-[14px] text-ink">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed these. Their rules are instructions your coding agent follows.</p>
 			} else {
-				<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">This library has not been vetted. Be sure to review these rules carefully.</p>
+				<p class="text-[15px] leading-[1.5] font-semibold text-warn-ink">{ unvettedWarningText }</p>
 				<p class="mt-1 text-[14px] text-ink">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed this one. Its rules are instructions your coding agent follows.</p>
 			}
 		</div>
@@ -170,7 +170,7 @@ templ removeListingPage(c chrome, l listingView) {
 	@layout(c, head{title: "Remove a listing · Rulemart", noindex: true, narrow: true}) {
 		<div class={ "page wrap", narrowPage }>
 			<p class={ labelStyle }><a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
-			<h1 class="title-xl mt-2">Remove this listing?</h1>
+			<h1 class="title-xl mt-2.5">Remove this listing?</h1>
 			<div class="mt-5 rounded-card border border-border px-5 py-5">
 				<div class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
 					<p class="leading-[1.35] font-semibold [overflow-wrap:anywhere]">{ l.fullName }</p>

@@ -1,5 +1,6 @@
-// What a signed-in visitor's GitHub account holds, which the dashboard, the add-a-library picker, and checkout's
-// project picker show; the GitHub App's return to Rulemart after a visitor installs it; and its webhook.
+// What a signed-in visitor's GitHub account holds, which the dashboard, the add-a-library picker, checkout's project
+// picker, and the lists' My libraries show; the GitHub App's return to Rulemart after a visitor installs it; and its
+// webhook.
 
 package web
 
@@ -14,6 +15,7 @@ import (
 
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 )
 
 // GitHubAccounts reads what signed-in visitors' GitHub accounts hold, and the GitHub App that reads their private
@@ -79,6 +81,22 @@ type gitHubView struct {
 // none. It answers the request itself with a failure, and returns false, when a read fails for a reason a page
 // can't show.
 func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account accounts.Account, back string) (gitHubView, bool) {
+	view, ok := s.gitHubRead(w, r, account, back)
+	if !ok || !view.available {
+		return view, ok
+	}
+	installations, err := s.GitHubAccounts.Installations(r.Context(), account.ID)
+	if err != nil {
+		s.fail(w, r, err)
+		return gitHubView{}, false
+	}
+	view.installations, view.private = installations, len(installations) > 0
+	return view, true
+}
+
+// gitHubRead is gitHubView without the installations: how Rulemart's read of the account's GitHub account went, and
+// what it found. While another request makes the account's first read, it asks the page to load again shortly.
+func (s *server) gitHubRead(w http.ResponseWriter, r *http.Request, account accounts.Account, back string) (gitHubView, bool) {
 	if s.GitHubAccounts == nil {
 		return gitHubView{}, true
 	}
@@ -102,21 +120,44 @@ func (s *server) gitHubView(w http.ResponseWriter, r *http.Request, account acco
 	if !snapshot.ReadAt.IsZero() {
 		view.readAt = moment(snapshot.ReadAt, time.Now())
 	}
-	installations, err := s.GitHubAccounts.Installations(r.Context(), account.ID)
-	if err != nil {
-		s.fail(w, r, err)
-		return gitHubView{}, false
-	}
-	view.installations, view.private = installations, len(installations) > 0
 	return view, true
 }
 
+// unread reports whether Rulemart can read visitors' GitHub accounts but holds no read of this one: it's making the
+// first read, the first read failed, or the session keeps no token GitHub takes.
+func (g gitHubView) unread() bool { return g.available && g.readAt == "" }
+
+// myLibraries returns choices as the visitor r comes from can make them, and the libraries their My libraries keeps,
+// those their dashboard lists, as Rulemart last read their GitHub account: the libraries they and their organizations
+// publish, and those their projects use. Signed out, the choices leave out My libraries, which a list offers only to
+// a signed-in visitor. It reads the visitor's GitHub account only while My libraries is on, and then also returns how
+// that read went, for the list at back to say as the dashboard does; while the read fails or is under way, it keeps
+// the visitor's own libraries and what an earlier read found. It answers the request with a failure, and returns
+// false, when reading the account fails otherwise.
+func (s *server) myLibraries(w http.ResponseWriter, r *http.Request, choices domain.ListChoices, back string) (domain.ListChoices, domain.MyLibraries, gitHubView, bool) {
+	v := visitorOf(r.Context())
+	if v.account == nil {
+		choices.Filters.Mine = false
+		return choices, domain.MyLibraries{}, gitHubView{}, true
+	}
+	if !choices.Filters.Mine {
+		return choices, domain.MyLibraries{}, gitHubView{}, true
+	}
+	gitHub, ok := s.gitHubRead(w, r, *v.account, back)
+	if !ok {
+		return domain.ListChoices{}, domain.MyLibraries{}, gitHubView{}, false
+	}
+	snapshot := gitHub.snapshot
+	return choices, domain.MyLibraries{Owners: snapshot.Owners(v.account.Login), Libraries: snapshot.LibraryNames()}, gitHub, true
+}
+
 // refresh reads the signed-in visitor's GitHub account again, and returns to the return parameter, one of the pages
-// that show it, the dashboard by default, which says how the read went. A read that succeeded, now or within the
+// that show it, the dashboard by default, which says how the read went: the visitor's own pages, the cart, and the
+// lists that offer My libraries. A read that succeeded, now or within the
 // minute, says so in a toast.
 func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 	back := returnPath(r.URL.Query().Get("return"))
-	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref {
+	if path, _, _ := strings.Cut(back, "?"); !signedInPage(path) && path != cartHref && path != searchHref && !strings.HasPrefix(path, groupPrefix) {
 		back = dashboardHref
 	}
 	v := visitorOf(r.Context())
