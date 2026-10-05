@@ -202,7 +202,7 @@ func TestPrivacyPageSaysWhatTheWebhookDiscardsOnceDeliveriesArrive(t *testing.T)
 	}
 	assertShows(t, resp.Body.String(),
 		"GitHub also tells Rulemart when an installation you read through is uninstalled, suspended, or unsuspended, or changes which repositories it reads",
-		"Rulemart then discards what it read through it, and forgets an uninstalled one",
+		"Rulemart then asks GitHub about the installation, forgets it if it's uninstalled",
 		"Otherwise, what it did read stays until a later read replaces it")
 	if strings.Contains(visibleText(t, resp.Body.String()), "What it did read stays") {
 		t.Error("the page says what Rulemart read outlives a change on GitHub")
