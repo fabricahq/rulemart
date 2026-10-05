@@ -279,12 +279,7 @@
       if (!cart.length) return;
       const { revision } = checkout;
       try {
-        const response = await fetch(root.dataset.cartCheckout, {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cart, fork, restOfGroups, confirmed, repo: repository, project }),
-        });
-        if (!response.ok) throw new Error(`checkout answered ${response.status}`);
-        const body = await response.json();
+        const body = await checkouts.post(root.dataset.cartCheckout, { cart, fork, restOfGroups, confirmed, repo: repository, project });
         const before = checkout;
         checkout = checkouts.accept(checkout, revision, body);
         if (checkout === before) return;

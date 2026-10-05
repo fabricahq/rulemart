@@ -3,7 +3,10 @@
  * which every change to what checkout reads advances; answer, the latest answer accepted, which the page keeps showing,
  * dimmed, until the next arrives; answered, the revision that answer is for; and failed, whether the request for the
  * current revision failed. An answer or a failure counts only for the revision it was asked for, so a slow answer to an
- * older cart never replaces a newer one's, and the page offers to copy only text that matches the cart. */
+ * older cart never replaces a newer one's, and the page offers to copy only text that matches the cart. It also owns
+ * the request for an answer, post, so a test can see what the page sends. That request is the site's only one with a
+ * body, so it alone sends the body's SHA-256 in x-amz-content-sha256: CloudFront's origin access control signs a
+ * request's body only with that header, and the function refuses a POST whose body it didn't sign. */
 (() => {
   /** Return what the page knows before it asks: revision 0, with no answer. */
   const start = () => ({ revision: 0, answer: null, answered: -1, failed: false });
@@ -38,5 +41,26 @@
     return answer.commands.map((step, i) => ({ heading: step.heading ? `${i + 1}. ${step.heading}` : '', text: step.commands }));
   }
 
-  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending, blocks };
+  /** Return the lowercase hex SHA-256 of text's UTF-8 bytes, or null without Web Crypto, which browsers offer only
+   * over https and on localhost. */
+  async function sha256(text) {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const digest = await subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  /** Post cart, the choices checkout reads, to url, the cart's checkout endpoint, with the body's SHA-256 when the
+   * browser can compute it, and return its answer; reject when the request fails or answers with an error. */
+  async function post(url, cart) {
+    const body = JSON.stringify(cart);
+    const headers = { 'Content-Type': 'application/json' };
+    const hash = await sha256(body);
+    if (hash) headers['x-amz-content-sha256'] = hash;
+    const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers, body });
+    if (!response.ok) throw new Error(`checkout answered ${response.status}`);
+    return response.json();
+  }
+
+  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending, blocks, post };
 })();

@@ -1,4 +1,4 @@
-// Check out the cart a visitor's browser keeps: cart-page.js posts its keys and choices, and the answer resolves
+// Check out the cart a visitor's browser keeps: the cart's page posts its keys and choices, and the answer resolves
 // each against the catalog and holds the prompt and commands that import it.
 
 package web
@@ -42,7 +42,7 @@ const (
 // characters, twice, as the cart and its forks, and the rest of the choices.
 const maxCheckoutBytes = 4 * domain.MaxCartItems * domain.MaxCartKeyLength
 
-// checkoutRequest is what cart-page.js posts: the cart as the browser keeps it, in localStorage's rulemart-cart.
+// checkoutRequest is what the cart's page posts: the cart as the browser keeps it, in localStorage's rulemart-cart.
 type checkoutRequest struct {
 	// Cart is the cart's keys, in order, as domain.CartItem's Key writes them.
 	Cart []string `json:"cart"`
@@ -222,10 +222,15 @@ func (s *server) redirectToCart(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, withQuery(cartHref, r))
 }
 
-// checkout answers a cart that cart-page.js posts, as checkoutRequest describes it, with its checkout. Another site
+// checkout answers a cart that the cart's page posts, as checkoutRequest describes it, with its checkout. Another site
 // can't post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that
 // isn't such a cart, holds more than domain.MaxCartItems keys, or names more libraries than checkoutRequest allows, is
 // refused with 400.
+//
+// It's the site's only request with a body, so the script that posts it, cart-checkout.js, sends the body's SHA-256 in
+// x-amz-content-sha256: CloudFront's origin access control signs a request's body only when the viewer sends that
+// header, and the function URL refuses a body it didn't sign with 403 before this handler runs. Nothing here reads the
+// header, and nothing local checks it, so only production breaks if the script stops sending it.
 func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
 		s.writeJSON(w, r, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
