@@ -1175,3 +1175,36 @@ func TestRulePageShowsNoDiscussionYetNorAnEmptyEngageRow(t *testing.T) {
 		t.Errorf("the page shows an engage row with nothing in it: %q", nodeText(engage))
 	}
 }
+
+// Every page's footer names the release serving it, after Rulemart's name, linking a release's tag to its page on
+// GitHub; a build without a release tag, such as a local one, says dev, or names what it was given, without a link.
+func TestTheFooterNamesTheRunningRelease(t *testing.T) {
+	for release, want := range map[string]struct{ text, href string }{
+		"v0.2.1":   {"v0.2.1", "https://github.com/fabricahq/rulemart/releases/tag/v0.2.1"},
+		"":         {"dev", ""},
+		"dev":      {"dev", ""},
+		"abc1234":  {"abc1234", ""},
+		"v1.2.3/x": {"v1.2.3/x", ""},
+	} {
+		handler, err := web.New(newCatalog(), web.Options{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Release: release})
+		if err != nil {
+			t.Fatal(err)
+		}
+		page := get(t, handler, "/faq").Body.String()
+		doc, err := html.Parse(strings.NewReader(page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		footer := find(doc, func(n *html.Node) bool { return n.Data == "footer" })
+		if got := nodeText(footer); !strings.HasPrefix(got, "Fabrica / Rulemart "+want.text+" About") {
+			t.Errorf("release %q: the footer reads %q, want the release %q after Rulemart's name", release, got, want.text)
+		}
+		link := find(footer, func(n *html.Node) bool { return n.Data == "a" && nodeText(n) == want.text })
+		switch {
+		case want.href == "" && link != nil:
+			t.Errorf("release %q: the footer links it to %q", release, attribute(link, "href"))
+		case want.href != "" && (link == nil || attribute(link, "href") != want.href):
+			t.Errorf("release %q: the footer links it to %v, want %q", release, link, want.href)
+		}
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -76,6 +77,20 @@ type Options struct {
 	// GitHubWebhook is true when GitHub's deliveries reach the GitHub App's webhook, as through the web function's
 	// webhook alias, so the privacy page says a delivery discards what Rulemart read through an installation.
 	GitHubWebhook bool
+	// Release is the release serving the pages, such as v0.2.1, which every page's footer names, linking a release
+	// tag to its page on GitHub. Empty is a build without one, such as a local one, which the footer calls dev.
+	Release string
+}
+
+// releaseTag matches a release's tag, such as v0.2.1, which names its page on GitHub.
+var releaseTag = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// releaseURL returns the page on GitHub of release, when it's a release's tag, or empty.
+func releaseURL(release string) string {
+	if !releaseTag.MatchString(release) {
+		return ""
+	}
+	return repositoryURL + "/releases/tag/" + release
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin, or an http one on a loopback host, with no path,
@@ -240,7 +255,8 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), starScript: assets.url("star.js"), compareScript: assets.url("compare.js"), deleteAccountScript: assets.url("delete-account.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
-			font: assets.url("fonts/inter-latin.woff2"),
+			font:    assets.url("fonts/inter-latin.woff2"),
+			release: cmp.Or(options.Release, "dev"), releaseURL: releaseURL(options.Release),
 		},
 	}
 	s.content, err = loadContentPages(contentFiles, newContentValues(s.listingAvailable(), options.AnalyticsToken != "", options.GitHubWebhook))

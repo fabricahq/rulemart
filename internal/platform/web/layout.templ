@@ -37,6 +37,9 @@ type chrome struct {
 	// beacon is the data Cloudflare's analytics beacon reads, naming the site's token, or empty when analytics are
 	// off.
 	beacon string
+	// release is the release serving the pages, or dev, and releaseURL its page on GitHub, or empty for one that isn't
+	// a release's tag.
+	release, releaseURL string
 }
 
 // head is a page's title and description, and how its frame differs from other pages'.
@@ -248,7 +251,7 @@ templ layout(c chrome, h head) {
 			<template data-toast-template>
 				@noticeBanner(notice{toast: toastStatus}, head{})
 			</template>
-			@footer()
+			@footer(c)
 			if c.beacon != "" {
 				// Cloudflare's snippet goes before the body's end; it sets no cookie.
 				<script defer src={ analyticsScript } data-cf-beacon={ c.beacon }></script>
@@ -361,20 +364,26 @@ templ sectionsMenu(current string) {
 	</details>
 }
 
-// footer is the bar at the bottom of every page: Fabrica's link; what Rulemart is, where to give feedback, and
-// Rulemart's privacy notice; and, as icons, Rulemart's source on GitHub and the theme menu. It doesn't repeat the
+// footer is the bar at the bottom of every page: Fabrica's link, and the release serving the page, linking a
+// release's tag to its page on GitHub; what Rulemart is, where to give feedback, and Rulemart's privacy notice; and,
+// as icons, Rulemart's source on GitHub and the theme menu. It doesn't repeat the
 // header's sections, which a phone reaches through the header's menu, and the about page leads to Code Rules.
 // Its row is 44 pixels tall, for its tap targets, where the prototype's is a line of 13-pixel text, 24.75 tall, so its
 // padding is 10 pixels less above and 9.25 less below, keeping its text where the prototype's is, and its height.
-templ footer() {
+templ footer(c chrome) {
 	<footer class="border-t border-border pt-3 pb-[30.75px] text-[13px] text-muted">
 		<div class="wrap flex items-center gap-x-6 whitespace-nowrap max-narrow:gap-x-3 max-tiny:gap-x-0">
-			// A phone's footer has room on its one line for Rulemart's name alone. A narrow phone's draws its icons'
+			// A phone's footer has room on its one line for Rulemart's name alone, without Fabrica's or the release. A narrow phone's draws its icons'
 			// buttons smaller, ending at the line's end, and spaces its links closer.
 			<span>
 				<a class="text-muted no-underline hover:text-ink hover:underline hover:underline-offset-3 max-narrow:hidden" href="https://fabricahq.com">Fabrica</a>
 				<span class="max-narrow:hidden">/</span>
 				Rulemart
+				if c.releaseURL != "" {
+					<a class="ml-1.5 text-[12px] text-faint no-underline max-narrow:hidden hover:text-ink hover:underline hover:underline-offset-3" href={ templ.SafeURL(c.releaseURL) } title="This release on GitHub">{ c.release }</a>
+				} else {
+					<span class="ml-1.5 text-[12px] text-faint max-narrow:hidden">{ c.release }</span>
+				}
 			</span>
 			// The links fill the room between Rulemart's name and the icons.
 			<nav class="flex min-w-0 flex-1 items-center justify-end gap-x-[18px] max-narrow:gap-x-3 max-tiny:ml-2 max-tiny:gap-x-2" aria-label="Site">

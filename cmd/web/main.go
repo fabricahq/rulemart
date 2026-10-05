@@ -172,6 +172,7 @@ func newSite(ctx context.Context, logger *slog.Logger, schemaVersion int64, webh
 		Carts:    app.Carts{Store: catalogStore, Vetted: vetted, Groups: groups},
 		// Not a secret: Cloudflare's beacon sends it from every page.
 		AnalyticsToken: os.Getenv("CLOUDFLARE_WEB_ANALYTICS_TOKEN"),
+		Release:        os.Getenv(logging.ReleaseEnv),
 	}
 	if gitHub != nil {
 		options.GitHub = gitHub
