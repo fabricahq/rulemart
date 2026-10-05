@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,8 @@ type fakeGitHubAccounts struct {
 	// owned are the installations visitors may install, and delivered the IDs of the deliveries acted on.
 	owned     map[int64]bool
 	delivered []string
+	// panics, when set, is what Deliver panics with, as a bug in acting on a delivery would.
+	panics any
 }
 
 func newFakeGitHubAccounts(snapshot accounts.Snapshot) *fakeGitHubAccounts {
@@ -95,10 +98,14 @@ func (f *fakeGitHubAccounts) ForgetInstallations(_ context.Context, accountID in
 	return nil
 }
 
-// Deliver acts on a delivery signed "sha256=good", for the installation event, once per ID, recording its ID.
+// Deliver acts on a delivery signed "sha256=good", for the installation event, once per ID, recording its ID, unless
+// panics is set.
 func (f *fakeGitHubAccounts) Deliver(_ context.Context, delivery accounts.Delivery) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.panics != nil {
+		panic(f.panics)
+	}
 	switch {
 	case delivery.Signature != "sha256=good":
 		return accounts.ErrBadSignature
@@ -252,6 +259,33 @@ func TestTheWebhookIgnoresABrowsersHeadersAndCookies(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A webhook that panics fails only its own delivery, through the site and alone, with a plain 503 GitHub retries,
+// which sets no cookie, renders no page, and can't be cached.
+func TestAWebhookThatPanicsAnswersAPlain503(t *testing.T) {
+	gitHub := newFakeGitHubAccounts(accounts.Snapshot{})
+	gitHub.panics = errors.New("a bug in acting on a delivery")
+	site, _ := newGitHubSite(t, gitHub)
+	for name, handler := range map[string]http.Handler{"the site": site.handler, "the webhook alone": site.handler.Webhook()} {
+		t.Run(name, func(t *testing.T) {
+			resp := send(t, handler, request{
+				method: http.MethodPost, target: "/account/github/webhook",
+				cookies: []*http.Cookie{{Name: sessionCookie, Value: "stale"}, {Name: noticeCookie, Value: "unknown"}},
+				header: http.Header{
+					"X-Github-Delivery": {"delivery-1"}, "X-Github-Event": {"installation"}, "X-Hub-Signature-256": {"sha256=good"},
+				},
+			})
+			if resp.StatusCode != http.StatusServiceUnavailable || len(resp.Cookies()) != 0 || resp.Header.Get("Cache-Control") != "no-store" ||
+				!strings.HasPrefix(resp.Header.Get("Content-Type"), "text/plain") {
+				t.Errorf("answered %d, %q, %q, setting %v; want a plain 503 that sets no cookie and can't be cached",
+					resp.StatusCode, resp.Header.Get("Content-Type"), resp.Header.Get("Cache-Control"), resp.Cookies())
+			}
+			if got := body(t, resp); !strings.Contains(got, "Rulemart can't take this delivery right now") {
+				t.Errorf("answered %q", got)
+			}
+		})
 	}
 }
 
