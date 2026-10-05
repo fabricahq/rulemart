@@ -228,6 +228,41 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, dashboardHref)
 }
 
+// delivering reports whether there's a webhook for GitHub's deliveries: with sign-in, since visitors sign in before
+// installing the GitHub App, and the app.
+func (s *server) delivering() bool {
+	return s.Accounts != nil && s.privateAvailable()
+}
+
+// webhookHandler returns what Site.Webhook does: GitHub's deliveries aren't a visitor's, so no session, no check that a
+// browser started them here, and no page, even when one fails.
+func (s *server) webhookHandler() http.Handler {
+	mux := http.NewServeMux()
+	if s.delivering() {
+		mux.HandleFunc("POST "+WebhookHref, s.webhook)
+		s.routes["POST "+WebhookHref] = true
+	}
+	return s.logRequests(withSecurityHeaders(s.policies.page, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.delivering() || !isDelivery(r) {
+			notWebhook(w)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})), notWebhookFailed)
+}
+
+// notWebhook answers a request the webhook alone doesn't take: a plain 404 that sets no cookie and can't be cached.
+func notWebhook(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "Not found", http.StatusNotFound)
+}
+
+// notWebhookFailed answers a delivery the webhook failed on by panicking, as it does any it can't take right now.
+func notWebhookFailed(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "Rulemart can't take this delivery right now", http.StatusServiceUnavailable)
+}
+
 // webhook acts on a delivery of the GitHub App's webhook, which GitHub signs with the webhook's secret. It answers 204
 // for a delivery it acted on or has nothing to do for, so GitHub doesn't send it again, 200 for one it already acted
 // on, which it ignores, 401 for one GitHub didn't sign, and 400 for a signed one without an ID.

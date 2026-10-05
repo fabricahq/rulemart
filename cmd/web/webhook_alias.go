@@ -1,20 +1,15 @@
-// Answer only the GitHub App's webhook through any Lambda alias, such as the one whose Function URL nothing signs.
+// Tell the site's invocations from any Lambda alias's, such as the one whose Function URL nothing signs, which only the
+// GitHub App's webhook answers.
 
 package main
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"log/slog"
-	"net/http"
 	"regexp"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambdacontext"
-
-	"github.com/fabricahq/rulemart/internal/platform/web"
 )
 
 // newWebhookAlias returns the Lambda alias GITHUB_APP_WEBHOOK_ALIAS names, or empty when it's unset. getenv reads a
@@ -53,22 +48,4 @@ func throughSite(ctx context.Context) bool {
 		return true
 	}
 	return len(parts) == 8 && (parts[7] == "$LATEST" || allDigits.MatchString(parts[7]))
-}
-
-// webhookOnly reports whether request is one the webhook alias's URL may pass to the pages: any method on the
-// webhook's path, exactly as written, so the pages answer a wrong method there as they would anywhere.
-func webhookOnly(request events.APIGatewayV2HTTPRequest) bool {
-	return cmp.Or(request.RawPath, request.RequestContext.HTTP.Path) == web.WebhookHref
-}
-
-// rejectThroughWebhookAlias logs that the function refused request through an invocation that isn't the site's, without its path or
-// query string, which anyone can choose, and returns the response for it: a 404 that can't be cached and sets nothing.
-func rejectThroughWebhookAlias(ctx context.Context, request events.APIGatewayV2HTTPRequest) events.APIGatewayV2HTTPResponse {
-	slog.InfoContext(ctx, "request", "route", "webhook alias", "method", request.RequestContext.HTTP.Method,
-		"status", http.StatusNotFound, "requestID", request.RequestContext.RequestID)
-	return events.APIGatewayV2HTTPResponse{
-		StatusCode: http.StatusNotFound,
-		Headers:    map[string]string{"Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store"},
-		Body:       "Not found\n",
-	}
 }

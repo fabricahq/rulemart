@@ -16,22 +16,22 @@ import (
 // logRequests logs one line for each request next serves: the route pattern it matched, the method, the status and
 // body bytes sent, how long it took, the Cache-Control it sent, and the request ID. It leaves out the path, query
 // string, and headers, which can identify visitors or carry secrets; CloudFront's own logs keep what analysis needs
-// of those.
-func (s *server) logRequests(next http.Handler) http.Handler {
+// of those. A request next panics on gets failed's answer, such as s.unavailable's page.
+func (s *server) logRequests(next http.Handler, failed http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		recorder := &responseRecorder{ResponseWriter: w}
-		s.serveRecovering(recorder, r, next)
+		s.serveRecovering(recorder, r, next, failed)
 		s.Log.InfoContext(r.Context(), "request", "route", s.route(r), "method", r.Method, "status", recorder.statusCode(),
 			"bytes", recorder.bytes, "duration_ms", logging.Milliseconds(time.Since(start)),
 			"cache", w.Header().Get("Cache-Control"), "requestID", s.requestID(r))
 	})
 }
 
-// serveRecovering serves r with next. If next panics, it logs the panic once, with its stack, and answers with the
-// page any other failure gets, unless next already started the response. It logs a runtime error's text, which the
+// serveRecovering serves r with next. If next panics, it logs the panic once, with its stack, and answers with failed,
+// unless next already started the response. It logs a runtime error's text, which the
 // runtime writes, but only the type of any other value, which could hold anything, such as a connection string.
-func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http.Handler) {
+func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http.Handler, failed http.HandlerFunc) {
 	defer func() {
 		recovered := recover()
 		if recovered == nil {
@@ -40,7 +40,7 @@ func (s *server) serveRecovering(w *responseRecorder, r *http.Request, next http
 		s.Log.ErrorContext(r.Context(), "panic", "route", s.route(r), "method", r.Method, "requestID", s.requestID(r),
 			"panic", panicDescription(recovered), "stack", string(debug.Stack()))
 		if w.status == 0 {
-			s.unavailable(w, r)
+			failed(w, r)
 		}
 	}()
 	next.ServeHTTP(w, r)

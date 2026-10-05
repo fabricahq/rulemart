@@ -174,13 +174,45 @@ type server struct {
 	Options
 }
 
-// New returns the handler for Rulemart's pages, reading them from catalog.
-func New(catalog Catalog, options Options) (http.Handler, error) {
+// Site answers Rulemart's requests: its pages, reading them from a catalog, and the GitHub App's webhook.
+type Site struct {
+	pages, webhook http.Handler
+	// delivering is true when there's a webhook for GitHub's deliveries: with sign-in and the GitHub App.
+	delivering bool
+}
+
+// New returns Rulemart's site, reading its pages from catalog.
+func New(catalog Catalog, options Options) (*Site, error) {
 	s, err := newServer(catalog, options)
 	if err != nil {
 		return nil, err
 	}
-	return s.handler(), nil
+	pages := s.handler()
+	return &Site{pages: pages, webhook: s.webhookHandler(), delivering: s.delivering()}, nil
+}
+
+// ServeHTTP answers a delivery of the GitHub App's webhook, as isDelivery tells, as Webhook does, and every other
+// request with the pages, which a delivery without the app reaches too.
+func (s *Site) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.delivering && isDelivery(r) {
+		s.webhook.ServeHTTP(w, r)
+		return
+	}
+	s.pages.ServeHTTP(w, r)
+}
+
+// Webhook returns the handler of the GitHub App's webhook alone, which the web function answers with through an alias,
+// whose URL anyone can call. It answers a delivery, as isDelivery tells, before anything reads a session or checks that
+// a browser started it on this site, since GitHub isn't a browser, and its signature authenticates it. Every other
+// request, and a delivery without the app, gets a plain 404 that sets no cookie and can't be cached: through the
+// alias, the webhook is the only thing there, so a wrong method on its path is answered as a wrong path is, and the
+// alias says nothing about what else the site serves.
+func (s *Site) Webhook() http.Handler { return s.webhook }
+
+// isDelivery reports whether r is one GitHub's deliveries could be: a POST to WebhookHref, exactly as written, since
+// ServeMux would also take another spelling of it, such as one with an escaped letter.
+func isDelivery(r *http.Request) bool {
+	return r.Method == http.MethodPost && r.URL.EscapedPath() == WebhookHref
 }
 
 // newServer returns the server of Rulemart's pages, reading them from catalog, before it routes any. It refuses
@@ -296,9 +328,6 @@ func (s *server) handler() http.Handler {
 			handle("GET "+privateHref, s.privatePage)
 			handle("POST "+removePrivateHref, s.removePrivate)
 			handle("GET "+installedHref, s.installed)
-			// GitHub's deliveries aren't a visitor's: no session, no page.
-			mux.HandleFunc("POST "+WebhookHref, s.webhook)
-			s.routes["POST "+WebhookHref] = true
 		}
 		if s.Stars != nil {
 			handle("GET "+legacyStarredHref, s.legacyStarred)
@@ -316,7 +345,7 @@ func (s *server) handler() http.Handler {
 	handle(rulePattern, s.orAsset(s.rule))
 	handle(notFoundPattern, s.notFound)
 	return s.logRequests(withSecurityHeaders(s.policies.page, withPrivateResponses(s.withSameOriginWrites(withoutTrailingSlash(
-		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))))
+		s.withStaticFiles(withSiteSectionsInLowercase(mux)))))), s.unavailable)
 }
 
 // The routes that take every path the site's own pages don't: an owner's, a library's, a library group's, and a
