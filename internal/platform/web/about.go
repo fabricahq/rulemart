@@ -45,9 +45,9 @@ func reportLibraryURL(fullName string) string {
 // askToVetURL is where a visitor asks Fabrica to vet a library.
 var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
 
-// about shows what Rulemart is, what vetting means, and how a library gets vetted.
+// about shows what Rulemart and Code Rules are, and how Rulemart is meant to be used.
 func (s *server) about(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, aboutPage(s.pageChrome(aboutHref), s.listingAvailable()))
+	s.render(w, r, http.StatusOK, aboutPage(s.pageChrome(aboutHref)))
 }
 
 // vetting shows what vetting a library means, what an unvetted one is, how a library gets vetted, and where to

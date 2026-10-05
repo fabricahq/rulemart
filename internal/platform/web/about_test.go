@@ -43,9 +43,10 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says what Rulemart is, what vetting means, as the opt-in every list offers, and how a library gets
-// vetted, and has an address of its own for search engines.
-func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
+// The about page says, in about one screen, that Rulemart is a visual interface over Code Rules libraries, what Code
+// Rules is, and how Rulemart is meant to be used, and leads to the vetting page for the rest. It has an address of its
+// own for search engines.
+func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
 
 	resp := get(t, handler, "/about")
@@ -54,20 +55,61 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 		t.Fatalf("answered %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "About Rulemart", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem", "Include unvetted libraries", unvettedWarning)
+	assertShows(t, page, "About", "About Rulemart")
+	want := []string{
+		"Rulemart is a visual interface over Code Rules libraries. Browse the rules that libraries publish for the " +
+			"technologies and practices your project uses, see what changed between releases, collect the rules you want " +
+			"in a cart, and check out with a prompt for your coding agent, or the commands to run yourself, that import " +
+			"them with Code Rules.",
+		"Code Rules is Fabrica's open-source convention and CLI for engineering rules: Markdown files that state what " +
+			"to do, when it applies, and what evidence shows compliance, published in versioned libraries on GitHub and " +
+			"imported into a project so coding agents follow them while they write and review code.",
+		"Use Rulemart to pick the rules your project should follow, then let Code Rules keep them current: your " +
+			"project pins the versions it imports, and code-rules project update moves to newer ones when you choose. " +
+			"The libraries Rulemart shows by default are vetted by Fabrica; read how vetting works.",
+		"Rulemart's source is on GitHub. Privacy says what Rulemart keeps about you, and for how long.",
+	}
+	if got := proseParagraphs(t, page); !slices.Equal(got, want) {
+		t.Errorf("the body is\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
 	}
-	if got := links(t, page, "Code Rules"); !slices.Contains(got, "https://code-rules.fabricahq.com") {
-		t.Errorf("Code Rules leads to %q", got)
+	for text, want := range map[string]string{
+		"Code Rules":        "https://code-rules.fabricahq.com",
+		"Fabrica":           "https://fabricahq.com",
+		"how vetting works": "/about/vetting",
+		"on GitHub":         "https://github.com/fabricahq/rulemart",
+		"Privacy":           "/privacy",
+	} {
+		if got := links(t, page, text); !slices.Contains(got, want) {
+			t.Errorf("%s leads to %q, want %s", text, got, want)
+		}
 	}
-	if got := links(t, page, "catalog/vetted.yaml"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml"}) {
-		t.Errorf("vetted.yaml leads to %q", got)
+	if !strings.Contains(page, "<code>code-rules project update</code>") {
+		t.Error("the update command isn't shown as code")
 	}
-	if got := links(t, page, "Ask to vet a library"); len(got) != 1 || !strings.Contains(got[0], "template=ask-to-vet-a-library.yml") {
-		t.Errorf("asking to vet leads to %q", got)
+}
+
+// proseParagraphs returns the text of each paragraph in a page's prose, its body below the title, with its runs of
+// whitespace collapsed to one space.
+func proseParagraphs(t *testing.T, body string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
 	}
+	var paragraphs []string
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && slices.Contains(strings.Fields(attribute(n, "class")), "prose") {
+			for p := range n.Descendants() {
+				if p.Type == html.ElementNode && p.Data == "p" {
+					paragraphs = append(paragraphs, strings.Join(strings.Fields(visibleTextOf(p)), " "))
+				}
+			}
+		}
+	}
+	return paragraphs
 }
 
 // The vetting page says what vetting means, as the opt-in every list offers, what an unvetted library is, how a
