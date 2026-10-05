@@ -70,7 +70,7 @@ func TestHandleRejectsRequestsTheAdapterCantConvertWithoutLoggingThem(t *testing
 			}
 
 			printed := captureStdout(t, func() {
-				out, err = newFunction(pages).handle(context.Background(), raw)
+				out, err = newFunction(pages, "").handle(context.Background(), raw)
 			})
 
 			if err != nil {

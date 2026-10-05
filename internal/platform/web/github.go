@@ -41,14 +41,13 @@ type GitHubAccounts interface {
 	Deliver(ctx context.Context, event string, body []byte, signature string) error
 }
 
-const (
-	// installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and
-	// setup_action: the app's setup URL.
-	installedHref = "/me/github/installed"
-	// webhookHref is the GitHub App's webhook URL. GitHub, which has no account named account, POSTs to it, and a path
-	// under account takes no library's page.
-	webhookHref = accountHref + "/github/webhook"
-)
+// installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and setup_action:
+// the app's setup URL.
+const installedHref = "/me/github/installed"
+
+// WebhookHref is the GitHub App's webhook URL. GitHub, which has no account named account, POSTs to it, and a path under
+// account takes no library's page. The web function's webhook alias answers nothing else.
+const WebhookHref = accountHref + "/github/webhook"
 
 // maxWebhookBytes bounds a delivery the webhook reads: GitHub caps a payload at 25 MB, but an installation's events,
 // even naming every repository it changed, are far smaller, and a Lambda function's request holds at most 6 MB.

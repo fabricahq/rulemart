@@ -294,8 +294,8 @@ func (s *server) handler() http.Handler {
 			handle("POST "+removePrivateHref, s.removePrivate)
 			handle("GET "+installedHref, s.installed)
 			// GitHub's deliveries aren't a visitor's: no session, no page.
-			mux.HandleFunc("POST "+webhookHref, s.webhook)
-			s.routes["POST "+webhookHref] = true
+			mux.HandleFunc("POST "+WebhookHref, s.webhook)
+			s.routes["POST "+WebhookHref] = true
 		}
 		if s.Stars != nil {
 			handle("GET "+legacyStarredHref, s.legacyStarred)

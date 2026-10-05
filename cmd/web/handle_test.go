@@ -41,7 +41,7 @@ func (h *recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func TestHandleServesFunctionURLRequestsWithThePages(t *testing.T) {
 	pages := &recorder{body: []byte("<h1>Verify retry limits</h1>")}
 
-	out, err := newFunction(pages).handle(context.Background(), json.RawMessage(functionURLRequest))
+	out, err := newFunction(pages, "").handle(context.Background(), json.RawMessage(functionURLRequest))
 
 	if err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestHandleServesFunctionURLRequestsWithThePages(t *testing.T) {
 func TestHandleEncodesBinaryResponses(t *testing.T) {
 	font := []byte{0x77, 0x4f, 0x46, 0x32, 0xff, 0xfe, 0x00}
 
-	out, err := newFunction(&recorder{body: font}).handle(context.Background(), json.RawMessage(functionURLRequest))
+	out, err := newFunction(&recorder{body: font}, "").handle(context.Background(), json.RawMessage(functionURLRequest))
 
 	if err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestHandleRejectsEventsItDoesNotRecognize(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			pages := &recorder{}
 
-			_, err := newFunction(pages).handle(context.Background(), json.RawMessage(event))
+			_, err := newFunction(pages, "").handle(context.Background(), json.RawMessage(event))
 
 			if err == nil {
 				t.Fatal("accepted an unrecognized event")
@@ -116,7 +116,7 @@ func TestHandlePassesCookiesBothWays(t *testing.T) {
 		w.WriteHeader(http.StatusSeeOther)
 	})
 
-	out, err := newFunction(pages).handle(context.Background(), raw)
+	out, err := newFunction(pages, "").handle(context.Background(), raw)
 
 	if err != nil {
 		t.Fatal(err)
