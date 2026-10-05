@@ -597,9 +597,9 @@ func TestMyLibrariesShowsEachListingsState(t *testing.T) {
 	page := body(t, resp)
 	assertShows(t, page, "My libraries , 4", "Listed by you · 4",
 		"new Checking someone/new · Rulemart is checking it on GitHub. You asked 1 minute ago.",
-		"broken Failed someone/broken · The repository has no release/<number> tags Try again Remove",
-		"rules Unvetted stranger/rules · Listed 2 Sep 2026 Remove",
-		"rules Vetted example/rules · Listed 1 Sep 2026 Remove")
+		"broken Failed someone/broken · The repository has no release/<number> tags · Try again · Remove",
+		"rules Unvetted stranger/rules · Listed 2 Sep 2026 · Remove",
+		"rules Vetted example/rules · Listed 1 Sep 2026 · Remove")
 	if strings.Contains(page, `http-equiv="refresh"`) {
 		t.Error("the page reloads itself")
 	}

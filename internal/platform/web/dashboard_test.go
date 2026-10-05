@@ -323,15 +323,32 @@ func TestMyLibrariesShowsTheVisitorsListingsInPlace(t *testing.T) {
 	page := site.get(t, "/me")
 
 	assertShows(t, page, "My libraries , 5",
-		"Published by you and your orgs · 4 rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules Remove "+
+		"Published by you and your orgs · 4 rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules · Remove "+
 			"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule "+
-			"new-rules Checking octocat/new-rules · Rulemart is checking it on GitHub. You asked 1 minute ago. Remove "+
-			"broken Failed Octocat/broken · The repository has no release/<number> tags Try again Remove",
-		"+ Add a library Listed by you · 1 rules Unvetted stranger/rules · Listed 2 Sep 2026 Remove")
+			"new-rules Checking octocat/new-rules · Rulemart is checking it on GitHub. You asked 1 minute ago. · Remove "+
+			"broken Failed Octocat/broken · The repository has no release/<number> tags · Try again · Remove",
+		"+ Add a library Listed by you · 1 rules Unvetted stranger/rules · Listed 2 Sep 2026 · Remove")
 	if got := links(t, page, "Remove"); !slices.Equal(got, []string{
 		"/me/listings/remove?listing=1", "/me/listings/remove?listing=5", "/me/listings/remove?listing=4", "/me/listings/remove?listing=3",
 	}) {
 		t.Errorf("the Remove links lead to %q", got)
+	}
+	// Try again and Remove follow the status they act on, on the row's second line, with nothing at the row's edge.
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || !(n.Data == "a" && nodeText(n) == "Remove" || n.Data == "button" && nodeText(n) == "Try again") {
+			continue
+		}
+		line := n.Parent
+		for line != nil && (line.Data == "form" || line.Data == "span") {
+			line = line.Parent
+		}
+		if line == nil || !strings.Contains(nodeText(line), " · ") || line.Parent == nil || line.Parent.Parent == nil || line.Parent.Parent.LastChild != line.Parent && strings.TrimSpace(nodeText(line.Parent.Parent.LastChild)) != "" {
+			t.Errorf("%s isn't on its row's second line, after the status", nodeText(n))
+		}
 	}
 	if got := headings(t, page, "h2"); !slices.Equal(got, []string{"Published by you and your orgs · 4", "Listed by you · 1"}) {
 		t.Errorf("the tab's headings are %q", got)

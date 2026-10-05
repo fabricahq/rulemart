@@ -10,7 +10,7 @@ import (
 
 // The dashboard's pieces: a dashed note; the heading of one of a tab's groups, when it has more than one, in sentence
 // case with its count; a row of a section's list with something at its far edge; a row of only text, ruled above, so
-// the first sits under the lede, and one of My libraries, which may end in actions; its title line, and the figure that follows a name on it, 8 pixels after it, or a
+// the first sits under the lede, and an action on a row's second line, in the page's link style; its title line, and the figure that follows a name on it, 8 pixels after it, or a
 // space after it when it opens with a separator; a chip; and a small button.
 const (
 	noteStyle        = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
@@ -19,7 +19,7 @@ const (
 	chipOnStyle      = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
 	quietChipStyle   = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
 	textRowStyle     = "border-t border-border-subtle py-[13px]"
-	myRowStyle       = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px]"
+	rowActionStyle   = "cursor-pointer text-[12.5px] text-ink underline decoration-border-strong underline-offset-[3px] hover:decoration-ink"
 	titleLineStyle   = "flex flex-wrap items-baseline gap-x-2 gap-y-1 leading-[1.35] font-semibold"
 	rowFigureStyle   = "text-[13px] font-normal whitespace-nowrap text-muted tabular-nums"
 	linkButtonStyle  = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
@@ -129,9 +129,10 @@ templ groupHeading(id, name string, count int) {
 
 // myLibraryRow is a row of My libraries: the library's name, leading to its page or to the check that adds it, its
 // stars, where Rulemart counts them, New, and its state; then its repository and what its state says of it; and, for a
-// listing of the visitor's, Try again when its check failed, and Remove.
+// listing of the visitor's, Try again when its check failed, and Remove, after what its state says, as small text
+// actions.
 templ myLibraryRow(m myLibraryView) {
-	<div class={ myRowStyle }>
+	<div class={ textRowStyle }>
 		<div class="min-w-0">
 			<p class={ titleLineStyle }>
 				<a
@@ -152,18 +153,21 @@ templ myLibraryRow(m myLibraryView) {
 				}
 				@libraryStateBadge(m.state)
 			</p>
-			<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]"><span class="mono">@breakable(m.fullName())</span> · { m.detail }</p>
-		</div>
-		if m.removeConfirm != "" {
-			<div class="flex flex-wrap justify-end gap-2">
+			// A div, since a form can't sit inside a paragraph.
+			<div class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
+				<span class="mono">@breakable(m.fullName())</span>{ " · " + m.detail }
 				if m.retry != "" {
-					<form method="post" action={ templ.SafeURL(m.retry) }>
-						<button class={ smallActionStyle } type="submit" aria-label={ "Try adding " + m.fullName() + " again" }>Try again</button>
+					{ " · " }
+					<form class="inline" method="post" action={ templ.SafeURL(m.retry) }>
+						<button class={ rowActionStyle } type="submit" aria-label={ "Try adding " + m.fullName() + " again" }>Try again</button>
 					</form>
 				}
-				<a class={ smallActionStyle, "no-underline" } href={ templ.SafeURL(m.removeConfirm) } aria-label={ "Remove your listing of " + m.fullName() }>Remove</a>
+				if m.removeConfirm != "" {
+					{ " · " }
+					<a class={ rowActionStyle } href={ templ.SafeURL(m.removeConfirm) } aria-label={ "Remove your listing of " + m.fullName() }>Remove</a>
+				}
 			</div>
-		}
+		</div>
 	</div>
 }
 
