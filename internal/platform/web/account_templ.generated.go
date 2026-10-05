@@ -718,8 +718,9 @@ func signInPage(c chrome, view signInView) templ.Component {
 }
 
 // accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, where the privacy page says
-// the rest, their listings, and the ways to sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it takes two
-// deliberate clicks.
+// the rest, their listings, and the ways to sign out, everywhere at once, or delete their account. Deleting asks
+// first, by opening a disclosure, so it takes two deliberate clicks; the disclosure's summary reads as one, a muted
+// chevron and label, rather than as a link that acts.
 func accountContent(account accountView, listings bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -782,7 +783,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 			var templ_7745c5c3_Var37 string
 			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(account.gitHubUserID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 172, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 173, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 			if templ_7745c5c3_Err != nil {
@@ -814,7 +815,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(account.login)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 176, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 177, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 				if templ_7745c5c3_Err != nil {
@@ -832,7 +833,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 				var templ_7745c5c3_Var40 templ.SafeURL
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(account.profileURL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 178, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 179, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -845,7 +846,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 				var templ_7745c5c3_Var41 string
 				templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(account.login)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 178, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 179, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 				if templ_7745c5c3_Err != nil {
@@ -878,7 +879,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(account.name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 183, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 184, Col: 18}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -940,7 +941,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(account.since)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 196, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 197, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -959,7 +960,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 		var templ_7745c5c3_Var47 templ.SafeURL
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privacyHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 199, Col: 137}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 200, Col: 137}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -977,7 +978,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 			var templ_7745c5c3_Var48 templ.SafeURL
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listingsHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 201, Col: 80}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 202, Col: 80}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -995,7 +996,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 		var templ_7745c5c3_Var49 templ.SafeURL
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(signOutHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 204, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 205, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {
@@ -1030,7 +1031,7 @@ func accountContent(account accountView, listings bool) templ.Component {
 		var templ_7745c5c3_Var52 templ.SafeURL
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(signOutEverywhereHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 207, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 208, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
@@ -1058,14 +1059,14 @@ func accountContent(account accountView, listings bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" type=\"submit\">Sign out everywhere</button></form></div><p class=\"mt-3 text-[13.5px] text-muted\">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p><details class=\"group mt-6\"><summary class=\"-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden\"><svg class=\"size-3.5 shrink-0 group-open:rotate-90\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 3.5 4.5 4.5L6 12.5\"></path></svg> <span class=\"underline underline-offset-4\">Delete your account</span></summary><div class=\"mt-3 rounded-card border border-border-strong px-4 py-4\"><p class=\"text-[14px] text-ink\">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p><form class=\"mt-4\" method=\"post\" action=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "\" type=\"submit\">Sign out everywhere</button></form></div><p class=\"mt-3 text-[13.5px] text-muted\">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p><details class=\"group mt-6\"><summary class=\"-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink focus-visible:text-ink [&::-webkit-details-marker]:hidden\"><svg class=\"size-3.5 shrink-0 text-muted group-open:rotate-90\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m6 3.5 4.5 4.5L6 12.5\"></path></svg> <span>Delete your account</span></summary><div class=\"mt-3 rounded-card border border-border-strong px-4 py-4\"><p class=\"text-[14px] text-ink\">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p><form class=\"mt-4\" method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var55 templ.SafeURL
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(deleteAccountHref))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 221, Col: 77}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `account.templ`, Line: 222, Col: 77}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
