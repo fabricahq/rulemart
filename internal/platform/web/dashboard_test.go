@@ -142,7 +142,9 @@ func TestTheDashboardsRowsKeepTheirFiguresBesideTheirNames(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		name := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p" })
+		name := find(doc, func(n *html.Node) bool {
+			return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p"
+		})
 		if name == nil {
 			t.Fatalf("%s lists no example/rules", target)
 		}
