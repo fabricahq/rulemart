@@ -5,8 +5,5 @@
 # repository is the name when the library was vetted, for readers; the host and ID are what count.
 libraries:
   - host: github
-    repositoryID: 1398540739
-    repository: fabricahq/code-rules-test-library
-  - host: github
     repositoryID: 1382078543
     repository: fabricahq/public-rules

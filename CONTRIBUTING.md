@@ -24,7 +24,6 @@ owner, ingest a library as `rulemart_worker`, then serve the pages at <http://12
 
 ```sh
 make migrate
-make ingest URL=https://github.com/fabricahq/code-rules-test-library
 make ingest URL=https://github.com/fabricahq/public-rules
 make web
 ```
@@ -34,8 +33,8 @@ sign-in page offers two test users, `test_user` and `test_user_2`, so you can si
 sign-in, that build also serves a fake GitHub in memory,
 [githubtest's `DevFake`](internal/contexts/accounts/github/githubtest/dev.go), so the dashboard at
 <http://127.0.0.1:8080/me> has something to show: `test_user` belongs to the fabricahq organization, which publishes
-the two libraries below, so `/me/add` lists them, and two projects import them at older rule versions, so they have
-updates waiting. The fake lists only public libraries real GitHub has, since the worker reads real GitHub. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
+the two libraries below, so `/me/add` lists them, and two projects import them. The test library's rules there are at
+older versions, so once it's listed or vetted locally, as below, they have updates waiting. The fake lists only public libraries real GitHub has, since the worker reads real GitHub. Continue to GitHub on `/me/private` installs the fake's GitHub App at once, which adds a private library
 and a private project. Nothing runs the worker locally, so a library added at `/me/add` stays in progress on
 `/me/add/run` until you run `make worker`, in another terminal, which checks it once, against the same database when
 `make web-dev` uses the local `rulemart` one; for another, give `make worker` that database too, such as
@@ -60,12 +59,18 @@ Deployed, each secret comes from an SSM SecureString that the variable of the sa
 `GITHUB_CLIENT_ID`, `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, and `GITHUB_APP_SLUG` aren't secret. Rulemart's cookies are `Secure`, which Chrome accepts from
 `http://127.0.0.1`, as it would from no other plain-HTTP host but `localhost`.
 
-Those are the two libraries [catalog/vetted.yaml](catalog/vetted.yaml) vets, so every page has more than one library
-to show: `/browse/techs` and a group such as `/g/techs/go` across both, and `/search?q=retry`. The test library has
-six releases to compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of
-them, and a rule's Versions tab compares two of its versions. Its `techs/go/use-contexts` rule has assets of its own
-and shared ones, such as `/fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go`. Run `make ingest` again
-to bring a library up to date, or `make worker` to update every vetted one. To keep the local `rulemart` database for
+[catalog/vetted.yaml](catalog/vetted.yaml) vets fabricahq/public-rules, which has one release, so each of its rules has
+one version. The test library, fabricahq/code-rules-test-library, has what public-rules doesn't yet, but Rulemart
+doesn't vet it, so locally its pages answer 404 until you list it or vet it. Listed, by signing in with
+`make web-dev`, adding it at `/me/add`, and running `make worker`, its pages show under the unvetted warning. Vetted,
+by ingesting it with `make ingest URL=https://github.com/fabricahq/code-rules-test-library` and adding it to
+`vetted.yaml` in a change you don't commit, every page has two libraries to show: `/browse/techs` and a group such as
+`/g/techs/go` across both, and `/search?q=retry`. The conformance audit needs it vetted. It has six releases to
+compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of them, and a
+rule's Versions tab compares two of its versions. Its `practices/testing/verify-retries` rule is retired, and its
+`techs/go/use-contexts` rule has assets of its own and shared ones, such as
+`/fabricahq/code-rules-test-library/techs/go/use-contexts/assets/example.go`. Run `make ingest` again to bring a
+library up to date, or `make worker` to update every vetted or listed one. To keep the local `rulemart` database for
 other work, point the commands at another database on the same server, such as
 `LOCAL_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/rulemart_dev?sslmode=disable' make migrate`, after
 creating it with `docker exec rulemart-postgres createdb -U postgres rulemart_dev`; `make ingest` and `make web` take
