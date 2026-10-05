@@ -85,7 +85,7 @@ templ privacyPage(c chrome, analytics bool) {
 				About
 			}
 			<h1 class="title-xl mt-2.5 mb-2.5">Privacy</h1>
-			<p class="text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. <a href="https://fabricahq.com">Fabrica</a> runs Rulemart.</p>
+			<p class="text-muted">What Rulemart keeps about you, why, for how long, and how to delete it. Rulemart is run by <a href="https://fabricahq.com">Fabrica</a>.</p>
 			<div class="prose mt-7">
 				<h2 id="browsing">Browsing</h2>
 				<p>
@@ -107,23 +107,34 @@ templ privacyPage(c chrome, analytics bool) {
 					name, and avatar each time you sign in. Your avatar loads from GitHub's servers.
 				</p>
 				<p>
-					Each browser you sign in with keeps the token GitHub gives Rulemart, encrypted with a key only Rulemart's
-					server holds, so it can read your GitHub account again, as the next section says. Signing out deletes the
-					token with your session, as does signing out everywhere; a session ends by itself after 30 days.
+					When you sign in, GitHub gives Rulemart a token for your account. Rulemart stores that token with your
+					session, encrypted with a key that only its server holds, and uses it to read your GitHub account as the next
+					section describes. Signing out deletes the token along with the session, whether you sign out of this browser
+					or everywhere. A session you never sign out of ends on its own after 30 days.
 				</p>
-				<h2 id="github">What Rulemart reads of your GitHub account</h2>
-				<p>
-					With that token, Rulemart reads the names of your organizations and of the public repositories you and they
-					own, at most 200 of them, the most recently pushed first. In each, it looks for a <code>rule-library.yaml</code>
-					and <code>release/&lt;number&gt;</code> tags, which make a library you could add, and for
-					<code>.code-rules/generated/provenance.json</code>, which makes a project. Of a project's provenance, it keeps the
-					libraries it imports, under which names, the groups it imports, and the versions of their rules it holds,
-					to count the updates waiting for it. It keeps nothing else of your repositories, and none of their code.
-				</p>
+				<h2 id="github">What Rulemart reads from GitHub</h2>
+				<p>Using that GitHub token, Rulemart reads:</p>
+				<ul>
+					<li>the names of your organizations;</li>
+					<li>the names of the public repositories you and your organizations own, at most 200 of them, most recently pushed first.</li>
+				</ul>
+				<p>In each repository it looks for two things:</p>
+				<ul>
+					<li>
+						A <code>rule-library.yaml</code> file and <code>release/&lt;number&gt;</code> tags. Together they make a library
+						you could add to Rulemart.
+					</li>
+					<li>
+						A <code>.code-rules/generated/provenance.json</code> file, which marks the repository as a project. From it,
+						Rulemart keeps which libraries the project imports and under what names, which groups it imports, and which
+						rule versions it holds, so it can count the updates waiting for the project.
+					</li>
+				</ul>
+				<p>Rulemart keeps nothing else about your repositories, and none of their code.</p>
 				<p>
 					If you install the GitHub App "Rulemart by Fabrica", Rulemart also reads the private repositories you choose,
-					the same way, and keeps which installations it reads through. Private repositories' names and projects show
-					only to you, on your own pages, and count toward nothing others see.
+					the same way, and keeps which installations it reads through. The names of your private repositories, and the
+					projects in them, appear only to you on your own pages. They never count toward anything other visitors see.
 				</p>
 				<p>
 					Rulemart reads your GitHub account the first time a page shows it after you sign in, when you press Refresh,
