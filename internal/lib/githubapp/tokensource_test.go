@@ -119,17 +119,31 @@ func TestForgetDropsTheToken(t *testing.T) {
 	}
 }
 
-// Reinstalling the app gives the account a new installation, which the source finds once the old one is gone.
-func TestTokenSourceFindsAReinstalledInstallation(t *testing.T) {
+// Reinstalling the app gives the account a new installation. The source gives its token as soon as it learns the old
+// one is gone, not the old installation's token, which GitHub no longer takes, though most of its hour is left.
+func TestTokenSourceGivesAReinstalledInstallationsTokenAtOnce(t *testing.T) {
 	source, fake, c := newTokenSource(t)
 	wantToken(t, source, githubapptest.Token(9, 1))
 
 	fake.SetInstallations([]githubapptest.Installation{{ID: 20, Account: "octo-org", AccountID: 3, Organization: true}})
-	c.advance(time.Hour)
-	if _, err := source.Value(context.Background()); !errors.Is(err, ErrNoSuchInstallation) {
-		t.Fatalf("with the old installation gone, got %v, want ErrNoSuchInstallation", err)
-	}
+	c.advance(56 * time.Minute)
 	wantToken(t, source, githubapptest.Token(20, 2))
+	if fake.Lookups() != 2 {
+		t.Errorf("looked the installation up %d times, want twice", fake.Lookups())
+	}
+}
+
+// Uninstalling the app leaves the account no installation, so the source fails rather than give the old
+// installation's token, though most of its hour is left.
+func TestTokenSourceFailsOnceTheAppIsUninstalled(t *testing.T) {
+	source, fake, c := newTokenSource(t)
+	wantToken(t, source, githubapptest.Token(9, 1))
+
+	fake.SetInstallations(nil)
+	c.advance(56 * time.Minute)
+	if got, err := source.Value(context.Background()); !errors.Is(err, ErrNoSuchInstallation) || got != "" {
+		t.Fatalf("with the app uninstalled, got %q, %v; want ErrNoSuchInstallation", got, err)
+	}
 }
 
 // An account without the app, or whose installation is suspended, gets no token.

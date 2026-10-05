@@ -28,7 +28,8 @@ type TokenSource struct {
 	mu sync.Mutex
 	// installation is the installation's ID, or 0 until the source finds it, and after GitHub said it has none.
 	installation int64
-	// token is the last token minted, or the zero Token before the first, and after Forget.
+	// token is the last token minted, or the zero Token before the first, after Forget, and after GitHub said the
+	// installation is gone.
 	token Token
 }
 
@@ -40,7 +41,8 @@ func (a *App) TokenSource(login string) *TokenSource {
 
 // Value returns a token for the installation: the one the source keeps, while more than refreshBefore of it is left,
 // or a new one. When minting fails, it returns the token it keeps while more than minimumLife of it is left, and fails
-// after that, with ErrNoSuchInstallation when GitHub has no installation on the account, or refuses it a token.
+// after that. It fails at once, with ErrNoSuchInstallation, when GitHub has no installation on the account, or refuses
+// it a token, since GitHub refuses the kept token too.
 func (s *TokenSource) Value(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -53,6 +55,8 @@ func (s *TokenSource) Value(ctx context.Context) (string, error) {
 	case err == nil:
 		s.token = token
 		return token.Value, nil
+	case errors.Is(err, ErrNoSuchInstallation):
+		s.token = Token{}
 	case s.token.Value != "" && now.Before(s.token.ExpiresAt.Add(-minimumLife)):
 		return s.token.Value, nil
 	}
@@ -66,10 +70,12 @@ func (s *TokenSource) Forget() {
 	s.token = Token{}
 }
 
-// mint finds the installation, unless the source knows it, and mints a token for it. When GitHub has no such
-// installation, as after the app was reinstalled, it forgets the installation, so the next mint finds it again.
+// mint finds the installation, unless the source knows it, and mints a token for it. When GitHub no longer has the
+// installation it knows, as after the app was reinstalled, it finds the account's installation again and mints a token
+// for that.
 func (s *TokenSource) mint(ctx context.Context) (Token, error) {
-	if s.installation == 0 {
+	known := s.installation != 0
+	if !known {
 		installation, err := s.app.AccountInstallation(ctx, s.account)
 		if err != nil {
 			return Token{}, err
@@ -79,6 +85,9 @@ func (s *TokenSource) mint(ctx context.Context) (Token, error) {
 	token, err := s.app.InstallationToken(ctx, s.installation)
 	if errors.Is(err, ErrNoSuchInstallation) {
 		s.installation = 0
+		if known {
+			return s.mint(ctx)
+		}
 	}
 	return token, err
 }
