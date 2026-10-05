@@ -145,7 +145,7 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	for target, order := range map[string][]string{
-		"/me": {"Published by you and your orgs", "+ Add a library", "Read from GitHub", "Showing public repos only."},
+		"/me":              {"Published by you and your orgs", "+ Add a library", "Read from GitHub", "Showing public repos only."},
 		"/me?tab=projects": {"Used in your projects", "provenance.json", "Read from GitHub", "Showing public repos only."},
 	} {
 		text := visibleText(t, site.get(t, target))
@@ -357,11 +357,11 @@ func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	site.get(t, "/me")
 
 	for target, want := range map[string]string{
-		"/me/refresh":                                "/me",
+		"/me/refresh": "/me",
 		"/me/refresh?return=%2Fme%3Ftab%3Dprojects": "/me?tab=projects",
-		"/me/refresh?return=%2Fme%2Fadd":             "/me/add",
-		"/me/refresh?return=%2Fcart":                 "/cart",
-		"/me/refresh?return=%2Ffaq":                  "/me",
+		"/me/refresh?return=%2Fme%2Fadd":            "/me/add",
+		"/me/refresh?return=%2Fcart":                "/cart",
+		"/me/refresh?return=%2Ffaq":                 "/me",
 	} {
 		resp := send(t, site.handler, request{method: http.MethodPost, target: target, cookies: []*http.Cookie{site.session}})
 		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
