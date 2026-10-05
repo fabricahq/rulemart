@@ -670,11 +670,20 @@ matters.
   cookie or query string, so a signed-in visitor doesn't cache them per session.
 - **GitHub's deliveries reach the webhook through a public Lambda alias that answers nothing else.** CloudFront's
   origin access control can't sign a body GitHub didn't hash, so the web function gets a second Function URL, on an
-  alias, with no authorization, and CloudFront sends only `/account/github/webhook` there. The function recognizes
-  the alias by the qualifier of the invoked function ARN, which Lambda sets from the URL, and answers 404 to every
-  other path before the pages see the request. The webhook's HMAC authenticates GitHub; the webhook records each
-  delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not the ID, and ignores a
-  repeat for a week, so a copied delivery can't be replayed.
+  alias, with no authorization, and CloudFront sends only `/account/github/webhook` there. The function fails closed:
+  only an invocation Lambda identifies as the site's, by the qualifier of the invoked function ARN, which Lambda sets
+  from the URL, none, `$LATEST`, or a version, reaches the pages. Any alias, and a missing Lambda context, gets only
+  the webhook, whatever `GITHUB_APP_WEBHOOK_ALIAS` says, so a wrong value can't expose the site; the variable only
+  turns on the privacy page's paragraph and silences a start-up warning. The webhook answers a POST to its exact path
+  before the visitor and cross-origin checks, which are for browsers, and a plain, cookie-free, uncacheable 404 to
+  anything else there, a wrong method included, since through the alias it's the only resource.
+- **A delivery says which installation changed; GitHub says how.** HMAC proves GitHub signed a body, not that it's
+  fresh, so Rulemart doesn't apply what a delivery says happened: it asks GitHub for the installation's state, gone,
+  suspended, or active, applies that, and discards the snapshots of the accounts that read through it. A captured
+  suspension sent again after a newer unsuspension, even once its record has expired, then changes nothing. The
+  webhook also records each delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not
+  the ID, and ignores a repeat for a week, in the same transaction as the change, so a redelivery discards no
+  snapshot again and a failed application leaves no record.
 - **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
   write itself. Infrastructure turns it on if abuse appears.
 - **There is no synthetic check yet.** The 5xx alarm already sees any failure a visitor meets; a check would add only
