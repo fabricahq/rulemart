@@ -679,11 +679,15 @@ matters.
   anything else there, a wrong method included, since through the alias it's the only resource.
 - **A delivery says which installation changed; GitHub says how.** HMAC proves GitHub signed a body, not that it's
   fresh, so Rulemart doesn't apply what a delivery says happened: it asks GitHub for the installation's state, gone,
-  suspended, or active, applies that, and discards the snapshots of the accounts that read through it. A captured
-  suspension sent again after a newer unsuspension, even once its record has expired, then changes nothing. The
-  webhook also records each delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not
-  the ID, and ignores a repeat for a week, in the same transaction as the change, so a redelivery discards no
-  snapshot again and a failed application leaves no record.
+  suspended, or active, applies that, and discards the snapshots of the accounts that read through it. Only GitHub's
+  404 means gone; a 403 refuses to say, so the delivery fails and GitHub sends it again. A captured suspension sent
+  again after a newer unsuspension, even once its record has expired, then changes nothing. The webhook also records
+  each delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not the ID, and ignores
+  a repeat for a week. One transaction takes a Postgres advisory lock on the installation, records the delivery, then
+  asks GitHub and applies the answer, so deliveries for one installation, across Lambda instances, act one at a time,
+  each reading GitHub after the last committed and none undoing a newer one; a repeat returns before asking GitHub,
+  which a replayed body can't make Rulemart spend requests on; and a failed read or application leaves no record.
+  The transaction holds a database connection while GitHub answers, within the GitHub client's five-second timeout.
 - **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
   write itself. Infrastructure turns it on if abuse appears.
 - **There is no synthetic check yet.** The 5xx alarm already sees any failure a visitor meets; a check would add only
