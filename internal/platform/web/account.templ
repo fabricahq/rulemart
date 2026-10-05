@@ -167,7 +167,7 @@ templ signInPage(c chrome, view signInView) {
 // sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it takes two
 // deliberate clicks.
 templ accountContent(account accountView, listings, stars bool) {
-	<dl class="grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
+	<dl class={ factsStyle }>
 		@fact("GitHub user ID") {
 			<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
 		}
