@@ -212,7 +212,7 @@ func TestTheDashboardHasNoProjectsTabWithoutGitHub(t *testing.T) {
 	}
 }
 
-// currentTabs returns the name of each tab a page's tab bar marks current.
+// currentTabs returns the name of each tab a page's tab bar, marked data-tabs, marks current.
 func currentTabs(t *testing.T, page string) []string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
@@ -221,7 +221,7 @@ func currentTabs(t *testing.T, page string) []string {
 	}
 	var names []string
 	for n := range doc.Descendants() {
-		if n.Type == html.ElementNode && n.Data == "a" && attribute(n, "aria-current") == "page" && n.Parent != nil && n.Parent.Data == "nav" {
+		if n.Type == html.ElementNode && n.Data == "a" && attribute(n, "aria-current") == "page" && n.Parent != nil && hasAttribute(n.Parent, "data-tabs") {
 			name, _, _ := strings.Cut(nodeText(n), " ,")
 			names = append(names, name)
 		}

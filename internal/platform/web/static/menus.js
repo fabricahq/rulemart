@@ -2,7 +2,8 @@
  * it, and on Escape, which returns focus to its button. Without JavaScript, each still opens and closes with its
  * button. Also focuses the header's search field when / is pressed while nothing else has focus, and gives the
  * control a page focused after a click, marked data-autofocused, the keyboard's focus ring once the visitor presses a
- * key or focus leaves it. */
+ * key or focus leaves it. On a phone, where a page's tab bar, marked data-tabs, scrolls sideways, it scrolls the
+ * current tab into view as the page loads. */
 (() => {
   // Once the page's scripts have run, since one of them, filters.js, may focus a control too.
   document.addEventListener('DOMContentLoaded', () => {
@@ -24,6 +25,20 @@
     if (!search || !search.offsetParent) return;
     event.preventDefault();
     search.focus();
+  });
+  // Only sideways, by the bar's own scroll position, so a page the browser restores partway down stays there.
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-tabs] [aria-current="page"]').forEach((current) => {
+      const bar = current.closest('[data-tabs]');
+      if (bar.scrollWidth <= bar.clientWidth) return;
+      const style = getComputedStyle(bar);
+      const edges = bar.getBoundingClientRect();
+      const left = edges.left + parseFloat(style.paddingLeft);
+      const right = edges.right - parseFloat(style.paddingRight);
+      const tab = current.getBoundingClientRect();
+      if (tab.right > right) bar.scrollLeft += tab.right - right;
+      else if (tab.left < left) bar.scrollLeft -= left - tab.left;
+    });
   });
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('details[data-menu]').forEach((menu) => {

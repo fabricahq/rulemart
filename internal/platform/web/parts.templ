@@ -148,21 +148,25 @@ type tab struct {
 	on         bool
 }
 
-// tabs is a page's tab bar. Its tabs fit a narrow phone's width at a smaller size, and wrap onto a second row rather
-// than scroll, so no tab, or its focus ring, is ever hidden.
+// tabs is a page's tab bar, whose rule spans the column. Below the narrow breakpoint, its tabs stay on one row, which
+// scrolls sideways without a scrollbar when they don't fit, and menus.js scrolls the current tab into view; on the
+// narrowest phones they're smaller too. The row reaches 6 pixels past the bar on every side, padded as much, so a
+// tab's focus ring, which the scrolling row would otherwise clip, shows in full.
 templ tabs(items []tab) {
-	<nav class="mt-[26px] mb-[22px] flex flex-wrap gap-x-6 border-b border-border max-tiny:gap-x-4">
-		for _, t := range items {
-			<a
-				class={ "pb-[11px] text-[14px] whitespace-nowrap no-underline hover:text-ink max-tiny:text-[13px]", templ.KV("font-medium text-ink shadow-[inset_0_-2px_var(--ink)]", t.on), templ.KV("text-muted", !t.on) }
-				href={ templ.SafeURL(t.href) }
-				if t.on {
-					aria-current="page"
-				}
-			>
-				{ t.name }@tabCount(t.count)
-			</a>
-		}
+	<nav class="mt-[26px] mb-[22px] border-b border-border">
+		<div class="-m-1.5 flex flex-wrap gap-x-6 p-1.5 max-narrow:flex-nowrap max-narrow:overflow-x-auto max-narrow:[scrollbar-width:none] max-tiny:gap-x-4 max-narrow:[&::-webkit-scrollbar]:hidden" data-tabs>
+			for _, t := range items {
+				<a
+					class={ "pb-[11px] text-[14px] whitespace-nowrap no-underline hover:text-ink max-tiny:text-[13px]", templ.KV("font-medium text-ink shadow-[inset_0_-2px_var(--ink)]", t.on), templ.KV("text-muted", !t.on) }
+					href={ templ.SafeURL(t.href) }
+					if t.on {
+						aria-current="page"
+					}
+				>
+					{ t.name }@tabCount(t.count)
+				</a>
+			}
+		</div>
 	</nav>
 }
 
