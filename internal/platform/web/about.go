@@ -1,5 +1,5 @@
-// The pages about Rulemart itself, what it is and how it treats visitors' data, and the places on GitHub where
-// visitors ask for a library's vetting or report a problem, which keep no reports of Rulemart's own.
+// The pages about Rulemart itself, what it is and how it treats visitors' data, written in content/, and the places
+// on GitHub where visitors ask for a library's vetting or report a problem, which keep no reports of Rulemart's own.
 
 package web
 
@@ -47,16 +47,16 @@ var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
 
 // about shows what Rulemart and Code Rules are, and how Rulemart is meant to be used.
 func (s *server) about(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, aboutPage(s.pageChrome(aboutHref)))
+	s.render(w, r, http.StatusOK, contentPageView(s.pageChrome(aboutHref), s.content.about))
 }
 
 // vetting shows what vetting a library means, what an unvetted one is, how a library gets vetted, and where to
 // report a problem.
 func (s *server) vetting(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, vettingPage(s.pageChrome(vettingHref), s.listingAvailable()))
+	s.render(w, r, http.StatusOK, contentPageView(s.pageChrome(vettingHref), s.content.vetting))
 }
 
 // privacy shows what Rulemart keeps about visitors, why, for how long, and who else handles it.
 func (s *server) privacy(w http.ResponseWriter, r *http.Request) {
-	s.render(w, r, http.StatusOK, privacyPage(s.pageChrome(privacyHref), s.AnalyticsToken != ""))
+	s.render(w, r, http.StatusOK, contentPageView(s.pageChrome(privacyHref), s.content.privacy))
 }

@@ -166,6 +166,8 @@ type server struct {
 	routes map[string]bool
 	// policies are the content security policies the site sends, with analytics when Options.AnalyticsToken is set.
 	policies policies
+	// content holds the pages written in Markdown, as this server's options show them.
+	content contentPages
 	Options
 }
 
@@ -194,7 +196,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &server{
+	s := &server{
 		catalog: catalog, assets: assets, Options: options, routes: map[string]bool{}, policies: newPolicies(beacon != ""),
 		chrome: chrome{
 			beacon:     beacon,
@@ -205,7 +207,12 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
-	}, nil
+	}
+	s.content, err = loadContentPages(contentFiles, newContentValues(s.listingAvailable(), options.AnalyticsToken != ""))
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 // handler routes each page's pattern to its handler, recording every pattern in s.routes, and returns the routes behind
