@@ -113,12 +113,19 @@ templ privacyPage(c chrome, analytics bool) {
 					or everywhere. A session you never sign out of ends on its own after 30 days.
 				</p>
 				<h2 id="github">What Rulemart reads from GitHub</h2>
-				<p>Using that GitHub token, Rulemart reads:</p>
+				<p>
+					<strong>When it reads.</strong> Rulemart reads your GitHub account at three moments: on the first page that shows
+					it after you sign in; when you press Refresh, at most once a minute; and when GitHub returns you to Rulemart
+					after you install the app or change which repositories it reads. Each read replaces what the last one kept. If
+					a read fails, Rulemart keeps what it already held and shows when that was read.
+				</p>
+				<p><strong>What it reads</strong>, using your GitHub token:</p>
 				<ul>
 					<li>the names of your organizations;</li>
-					<li>the names of the public repositories you and your organizations own, at most 200 of them, most recently pushed first.</li>
+					<li>the names of the public repositories you and your organizations own, at most 200 of them, most recently pushed first;</li>
+					<li>once you install the GitHub App "Rulemart by Fabrica", the private repositories you chose, read the same way.</li>
 				</ul>
-				<p>In each repository it looks for two things:</p>
+				<p><strong>What it looks for in each repository:</strong></p>
 				<ul>
 					<li>
 						A <code>rule-library.yaml</code> file and <code>release/&lt;number&gt;</code> tags. Together they make a library
@@ -132,30 +139,29 @@ templ privacyPage(c chrome, analytics bool) {
 				</ul>
 				<p>Rulemart keeps nothing else about your repositories, and none of their code.</p>
 				<p>
-					If you install the GitHub App "Rulemart by Fabrica", Rulemart also reads the private repositories you choose,
-					the same way, and keeps which installations it reads through. The names of your private repositories, and the
-					projects in them, appear only to you on your own pages. They never count toward anything other visitors see.
+					<strong>Private repositories.</strong> The names of your private repositories, and the projects in them, appear
+					only to you on your own pages. They never count toward anything other visitors see.
 				</p>
 				<p>
-					Rulemart reads your GitHub account the first time a page shows it after you sign in, when you press Refresh,
-					at most once a minute, and when GitHub returns you to Rulemart after you install the app or change which
-					repositories it reads. Each read replaces what the last one kept. Each read also asks GitHub about the app's
-					installations you read through: Rulemart forgets one you uninstalled, with what it read through it, and one on
-					an organization you no longer own, while a suspended one makes the read fail. A read that fails keeps what
-					Rulemart already held, saying when it was read.
+					<strong>The app's installations.</strong> Rulemart keeps which installations it reads through, and each read
+					asks GitHub about them. One you uninstalled is forgotten, along with what was read through it. One on an
+					organization you no longer own is forgotten. A suspended one makes the read fail until GitHub lifts the
+					suspension.
 				</p>
 				<p>
-					So what it read stays, even after you change the app's installation on GitHub, until it reads your account
-					again, until you choose Remove access to private repos, which discards it, or until you delete your account.
+					<strong>How long, and how to delete.</strong> What Rulemart read stays until the next read replaces it, until you
+					choose Remove access to private repos, which discards it and forgets the installations, or until you delete
+					your account.
 				</p>
-				<p>Signed in, Rulemart also keeps what you add, until you remove it:</p>
+				<h2 id="adds">What you add while signed in</h2>
+				<p>Kept until you remove it:</p>
 				<ul>
 					<li><strong>Stars:</strong> which rules you starred, and when. Others see only how many stars a rule has.</li>
 					<li>
-						<strong>Listings:</strong> which repositories you list, and when you listed or retried them. A library's page
-						shows the username you last signed in with as who added it, and when, while your listing stands. To limit how
-						often anyone lists, Rulemart also notes when each account lists or retries, and deletes each note once it's a
-						day old.
+						<strong>Listings:</strong> which repositories you listed, and when you listed or retried them. A library's page
+						shows the username you last signed in with as who added it, while your listing stands. To limit how often
+						anyone lists, Rulemart also notes when each account lists or retries, and deletes each note once it's a day
+						old.
 					</li>
 				</ul>
 				<h2 id="cookies">Cookies</h2>

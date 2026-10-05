@@ -82,7 +82,7 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 		}
 		assertShows(t, resp.body, "GitHub user ID", "__Host-rulemart-session", "30 days", "IP address", "180 days",
 			"Delete your account", "6 hours", "Amazon Web Services", "Neon",
-			"A library's page shows the username you last signed in with as who added it, and when, while your listing stands.",
+			"A library's page shows the username you last signed in with as who added it, while your listing stands.",
 			"the organizations you belong to", "GitHub gives Rulemart a token for your account", "encrypted with a key that only its server holds",
 			"Signing out deletes the token along with the session", "whether you sign out of this browser or everywhere",
 			"Rulemart is run by Fabrica", "What Rulemart reads from GitHub", "the names of your organizations",
@@ -91,9 +91,9 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"The names of your private repositories, and the projects in them, appear only to you on your own pages",
 			"They never count toward anything other visitors see", "until you delete your account",
 			"what it read of your GitHub account, and its record of the GitHub App's installations",
-			"the first time a page shows it after you sign in, when you press Refresh, at most once a minute",
-			"a suspended one makes the read fail", "A read that fails keeps what Rulemart already held",
-			"even after you change the app's installation on GitHub")
+			"on the first page that shows it after you sign in; when you press Refresh, at most once a minute",
+			"A suspended one makes the read fail", "If a read fails, Rulemart keeps what it already held",
+			"What Rulemart read stays until the next read replaces it")
 		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
 		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.
 		for _, promise := range []string{"installation on GitHub discards it", "when you open your dashboard"} {
