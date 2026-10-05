@@ -92,7 +92,7 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"It never reads their code", "until you delete your account",
 			"what it read of your GitHub account, and its record of the GitHub App's installations",
 			"only when you act: when you sign in, press Refresh, or return from installing the app",
-			"A suspended one makes the read fail", "It never reads in the background",
+			"reads fail until the suspension is lifted", "It never reads in the background",
 			"What it read stays until a later read replaces it")
 		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
 		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.

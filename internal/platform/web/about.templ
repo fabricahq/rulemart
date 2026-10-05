@@ -141,10 +141,10 @@ templ privacyPage(c chrome, analytics bool) {
 					visitors see.
 				</p>
 				<p>
-					<strong>The app's installations.</strong> Rulemart keeps which installations it reads through, and each read
-					asks GitHub about them. One you uninstalled is forgotten, along with what was read through it. One on an
-					organization you no longer own is forgotten. A suspended one makes the read fail until GitHub lifts the
-					suspension.
+					<strong>The app's installations.</strong> Rulemart remembers which installations of the app it reads your private
+					repositories through, and checks them with GitHub on every read. If you uninstall the app, Rulemart forgets the
+					installation and everything it read through it. If you lose ownership of an organization, it forgets that
+					organization's installation too. If GitHub suspends the app, reads fail until the suspension is lifted.
 				</p>
 				<p>
 					<strong>How long, and how to delete.</strong> Rulemart reads your GitHub account only when you act: when you sign
