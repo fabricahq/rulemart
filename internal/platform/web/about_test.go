@@ -96,8 +96,8 @@ func proseParagraphs(t *testing.T, body string) []string {
 	return paragraphs
 }
 
-// The vetting page says what vetting means, as the opt-in every list offers, what an unvetted library is, how a
-// library gets vetted, and where to report a problem, and has an address of its own for search engines. Where listing
+// The vetting page explains vetting, keeps the section anchors other pages link to, and says where to report a
+// problem; its wording is Josh's to edit. It has an address of its own for search engines. Where listing
 // isn't available, it names listing a library without leading to the form.
 func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
@@ -108,8 +108,13 @@ func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 		t.Fatalf("answered %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "About", "Library vetting", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem", "Include unvetted libraries", unvettedWarning, "List it on Rulemart")
+	assertShows(t, page, "About", "Library vetting", "Report a problem", "Include unvetted libraries", unvettedWarning,
+		"List it on Rulemart")
+	for _, id := range []string{"vetting", "unvetted", "get-vetted", "report"} {
+		if !strings.Contains(page, `id="`+id+`"`) {
+			t.Errorf("the page has no %s section for links to land on", id)
+		}
+	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about/vetting"}) {
 		t.Errorf("names %q as canonical", got)
 	}

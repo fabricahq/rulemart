@@ -35,8 +35,8 @@ inside an organization or with everyone.
 
 ## Introducing Code Rules
 
-We wrote [Code Rules]({{.CodeRulesURL}}), an MIT-licensed open source tool to implement this concept of rules. Code Rules
-is a package manager for your agent rules.
+We wrote [Code Rules]({{.CodeRulesURL}}), an MIT-licensed open source tool by [Fabrica](https://fabricahq.com) to implement
+this concept of rules. Code Rules is a package manager for your agent rules.
 
 ## Introducing Rulemart
 
