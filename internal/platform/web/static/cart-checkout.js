@@ -3,7 +3,8 @@
  * which every change to what checkout reads advances; answer, the latest answer accepted, which the page keeps showing,
  * dimmed, until the next arrives; answered, the revision that answer is for; and failed, whether the request for the
  * current revision failed. An answer or a failure counts only for the revision it was asked for, so a slow answer to an
- * older cart never replaces a newer one's, and the page offers to copy only text that matches the cart. */
+ * older cart never replaces a newer one's, and the page offers to copy only text that matches the cart. It also owns
+ * the request for an answer, post, so a test can see what the page sends. */
 (() => {
   /** Return what the page knows before it asks: revision 0, with no answer. */
   const start = () => ({ revision: 0, answer: null, answered: -1, failed: false });
@@ -38,5 +39,15 @@
     return answer.commands.map((step, i) => ({ heading: step.heading ? `${i + 1}. ${step.heading}` : '', text: step.commands }));
   }
 
-  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending, blocks };
+  /** Post cart, the choices checkout reads, to url, the cart's checkout endpoint, and return its answer; reject when
+   * the request fails or answers with an error. */
+  async function post(url, cart) {
+    const response = await fetch(url, {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cart),
+    });
+    if (!response.ok) throw new Error(`checkout answered ${response.status}`);
+    return response.json();
+  }
+
+  window.rulemartCheckout = { start, change, accept, fail, isCurrent, isPending, blocks, post };
 })();

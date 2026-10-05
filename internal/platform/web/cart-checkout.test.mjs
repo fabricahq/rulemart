@@ -1,15 +1,15 @@
-// Tests of static/cart-checkout.js, which the cart's page keeps its checkout's state with. make check runs them with
-// node --test when Node is installed. They live outside static/, which the site embeds and serves.
+// Tests of static/cart-checkout.js, which the cart's page keeps its checkout's state with and asks for it with. make
+// check runs them with node --test when Node is installed. They live outside static/, which the site embeds and serves.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 
-/** Return window.rulemartCheckout, as static/cart-checkout.js defines it in a browser. */
-function loadCheckout() {
+/** Return window.rulemartCheckout, as static/cart-checkout.js defines it in a browser whose other globals are globals. */
+function loadCheckout(globals = {}) {
   const window = {};
-  vm.runInNewContext(readFileSync(new URL('./static/cart-checkout.js', import.meta.url), 'utf8'), { window });
+  vm.runInNewContext(readFileSync(new URL('./static/cart-checkout.js', import.meta.url), 'utf8'), { ...globals, window });
   return window.rulemartCheckout;
 }
 
@@ -140,4 +140,38 @@ test('should show no block before the first answer, or when nothing in the cart 
   assert.deepEqual(blocks(start(), 'commands'), []);
   assert.deepEqual(blocks(nothing, 'commands'), []);
   assert.deepEqual(blocks(nothing, 'prompt'), []);
+});
+
+/** Post cart to /cart/checkout.json with post, in a browser whose fetch answers with status and answer, and return
+ * what post returned or rejected with, and the requests fetch received, each its URL and options. */
+async function post(cart, { status = 200, answer = first } = {}) {
+  const requests = [];
+  const fetch = async (url, options) => {
+    requests.push({ url, options });
+    return { ok: status >= 200 && status < 300, status, json: async () => answer };
+  };
+  const checkout = loadCheckout({ fetch });
+  const result = await checkout.post('/cart/checkout.json', cart).then((value) => ({ value }), (error) => ({ error }));
+  return { ...result, requests };
+}
+
+const cart = { cart: ['example/rules::techs/go/return-errors'], fork: {}, restOfGroups: {}, confirmed: {}, repo: '', project: '' };
+
+test('should post the cart as JSON to the checkout, same-origin, and return its answer', async () => {
+  const { value, requests } = await post(cart);
+
+  assert.equal(value, first);
+  assert.equal(requests.length, 1);
+  const [{ url, options }] = requests;
+  assert.equal(url, '/cart/checkout.json');
+  assert.equal(options.method, 'POST');
+  assert.equal(options.credentials, 'same-origin');
+  assert.equal(options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(options.body), cart);
+});
+
+test('should reject when the checkout answers with an error status', async () => {
+  const { error } = await post(cart, { status: 403 });
+
+  assert.match(error.message, /403/);
 });
