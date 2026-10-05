@@ -173,6 +173,21 @@ func TestOnlyTheSitesInvocationsReachThePages(t *testing.T) {
 		"another alias":                   {invokedAt(functionARN + ":live"), false},
 		"an ARN that isn't a function's":  {invokedAt("arn:aws:lambda:us-east-1:123456789012"), false},
 		"no Lambda context":               {context.Background(), false},
+		"another partition's function":    {invokedAt("arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:rulemart-web"), true},
+		"another partition's version":     {invokedAt("arn:aws-cn:lambda:cn-north-1:123456789012:function:rulemart-web:7"), true},
+		"every field empty":               {invokedAt("arn::lambda:::function:x"), false},
+		"an empty partition":              {invokedAt("arn::lambda:us-east-1:123456789012:function:rulemart-web"), false},
+		"an empty region":                 {invokedAt("arn:aws:lambda::123456789012:function:rulemart-web"), false},
+		"an empty account":                {invokedAt("arn:aws:lambda:us-east-1::function:rulemart-web"), false},
+		"an empty name":                   {invokedAt("arn:aws:lambda:us-east-1:123456789012:function:"), false},
+		"an empty qualifier":              {invokedAt(functionARN + ":"), false},
+		"an account of 11 digits":         {invokedAt("arn:aws:lambda:us-east-1:12345678901:function:rulemart-web"), false},
+		"an account that isn't digits":    {invokedAt("arn:aws:lambda:us-east-1:12345678901x:function:rulemart-web"), false},
+		"another service":                 {invokedAt("arn:aws:states:us-east-1:123456789012:function:rulemart-web"), false},
+		"a name Lambda can't give":        {invokedAt("arn:aws:lambda:us-east-1:123456789012:function:rulemart.web"), false},
+		"a name too long":                 {invokedAt("arn:aws:lambda:us-east-1:123456789012:function:" + strings.Repeat("a", 65)), false},
+		"a version, then more":            {invokedAt(functionARN + ":42:extra"), false},
+		"$LATEST, then more":              {invokedAt(functionARN + ":$LATEST:42"), false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			resp := answer(t, f, tc.ctx, call{method: http.MethodGet, path: "/privacy"})
