@@ -32,6 +32,9 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 		"Who can publish a library?", "Do I need a Rulemart account?", "How do I give feedback?",
 	}
 	if got := summaries(t, page); !slices.Equal(got, questions) {
+		if got := links(t, page, "About Rulemart"); !slices.Contains(got, "/about") {
+			t.Errorf("the What is Rulemart answer leads to %q, want /about", got)
+		}
 		t.Errorf("the questions are %q, want %q", got, questions)
 	}
 	// Each question's + or − marker, which CSS draws, is hidden from screen readers, so the disclosure's name is the
