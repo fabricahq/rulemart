@@ -38,6 +38,8 @@ type Fake struct {
 	mu sync.Mutex
 	// failMints answers each request for a token with 502 while it's true.
 	failMints bool
+	// onMint, unless nil, runs as the fake answers each request for a token, before it answers.
+	onMint func()
 	// mints counts the tokens the fake minted, and lookups the requests for an account's installation.
 	mints, lookups int
 }
@@ -77,6 +79,14 @@ func (f *Fake) FailMints(fail bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failMints = fail
+}
+
+// OnMint makes the fake call fn as it answers each request for a token, before it answers, such as to advance a test's
+// clock as though GitHub were slow to answer. A nil fn stops it.
+func (f *Fake) OnMint(fn func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.onMint = fn
 }
 
 // SetInstallations replaces the app's installations, such as when it's reinstalled, while the fake serves.
@@ -154,6 +164,12 @@ func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {
 	in, ok := f.findInstallation(w, r)
 	if !ok {
 		return
+	}
+	f.mu.Lock()
+	onMint := f.onMint
+	f.mu.Unlock()
+	if onMint != nil {
+		onMint()
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -107,6 +107,20 @@ func TestAFailedMintKeepsTheOldTokenUntilAMinuteBeforeItExpires(t *testing.T) {
 	wantToken(t, source, githubapptest.Token(9, 2))
 }
 
+// A mint can take long to fail, so the source judges the token it keeps by the time the mint failed: a token with more
+// than a minute left when the mint started, but less when it failed, is too close to expiring to give.
+func TestASlowFailedMintGivesNoTokenThatExpiredMeanwhile(t *testing.T) {
+	source, fake, c := newTokenSource(t)
+	wantToken(t, source, githubapptest.Token(9, 1))
+
+	fake.FailMints(true)
+	fake.OnMint(func() { c.advance(30 * time.Second) })
+	c.advance(time.Hour - 65*time.Second)
+	if got, err := source.Value(context.Background()); err == nil {
+		t.Fatalf("with 35 seconds of the token left once the mint failed, got %q, want the failed mint's error", got)
+	}
+}
+
 // A token GitHub refused, such as one revoked, is forgotten, and the next call mints another.
 func TestForgetDropsTheToken(t *testing.T) {
 	source, fake, _ := newTokenSource(t)

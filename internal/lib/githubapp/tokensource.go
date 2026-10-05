@@ -40,14 +40,13 @@ func (a *App) TokenSource(login string) *TokenSource {
 }
 
 // Value returns a token for the installation: the one the source keeps, while more than refreshBefore of it is left,
-// or a new one. When minting fails, it returns the token it keeps while more than minimumLife of it is left, and fails
+// or a new one. When minting fails, it returns the token it keeps if more than minimumLife of it is left then, and fails
 // after that. It fails at once, with ErrNoSuchInstallation, when GitHub has no installation on the account, or refuses
 // it a token, since GitHub refuses the kept token too.
 func (s *TokenSource) Value(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := s.app.now()
-	if s.token.Value != "" && now.Before(s.token.ExpiresAt.Add(-refreshBefore)) {
+	if s.token.Value != "" && s.app.now().Before(s.token.ExpiresAt.Add(-refreshBefore)) {
 		return s.token.Value, nil
 	}
 	token, err := s.mint(ctx)
@@ -57,7 +56,8 @@ func (s *TokenSource) Value(ctx context.Context) (string, error) {
 		return token.Value, nil
 	case errors.Is(err, ErrNoSuchInstallation):
 		s.token = Token{}
-	case s.token.Value != "" && now.Before(s.token.ExpiresAt.Add(-minimumLife)):
+	// A mint can take long to fail, so read the clock again.
+	case s.token.Value != "" && s.app.now().Before(s.token.ExpiresAt.Add(-minimumLife)):
 		return s.token.Value, nil
 	}
 	return "", err
