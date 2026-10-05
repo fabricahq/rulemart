@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
@@ -595,6 +596,40 @@ func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 	}
 	if reads := site.fake.Requests(installationRoute) - readsBefore; reads != 1 {
 		t.Errorf("the copies asked GitHub about the installation %d times, want once", reads)
+	}
+}
+
+// GitHub answers 404 for an installation it doesn't know, but 403 when it refuses to say, which doesn't mean the app
+// was uninstalled: a delivery whose read GitHub refuses fails, keeping the installation and its snapshot and recording
+// nothing, so GitHub's redelivery of it is acted on once GitHub answers.
+func TestAnInstallationGitHubRefusesToDescribeIsntTakenForRemoved(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	snapshots := func() int {
+		var n int
+		postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_snapshots", &n)
+		return n
+	}
+	site.fake.Fail = func(path string) bool { return strings.HasPrefix(path, "/app/installations/") }
+	site.fake.FailStatus = http.StatusForbidden
+	site.fake.Installations[0].Suspended = true
+
+	if err := deliver("delivery-1", "deleted"); err == nil {
+		t.Fatal("a delivery whose read GitHub refused succeeded")
+	}
+	if suspended() || snapshots() != 1 {
+		t.Fatalf("a refused read changed the installation or discarded the snapshot")
+	}
+
+	site.fake.Fail = nil
+	if err := deliver("delivery-1", "deleted"); err != nil || !suspended() {
+		t.Fatalf("GitHub's redelivery once GitHub answers: got %v, suspended %t, want it acted on", err, suspended())
+	}
+	site.fake.Installations = nil
+	if err := deliver("delivery-2", "suspend"); err != nil {
+		t.Fatalf("a delivery for an installation GitHub doesn't know: %v", err)
+	}
+	if installations, err := site.accounts.Installations(context.Background(), site.account.ID); err != nil || len(installations) != 0 {
+		t.Errorf("installations %+v, %v, want the one GitHub doesn't know forgotten", installations, err)
 	}
 }
 

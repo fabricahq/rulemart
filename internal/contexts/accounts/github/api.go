@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -214,10 +215,20 @@ func (a *API) get(ctx context.Context, token, path, accept string, maxBytes int,
 		return false, err
 	}
 	setHeaders(request, token, accept)
-	return a.do(request, maxBytes, v)
+	found, err := a.do(request, maxBytes, v)
+	if errors.Is(err, errForbidden) {
+		return false, nil
+	}
+	return found, err
 }
 
-// do sends request, and decodes its response as get describes.
+// errForbidden reports a 403 that isn't a rate limit's: GitHub refusing to say, which a read through a token takes for
+// not found, since GitHub answers it for what the token can't see, but an app's lookup of an installation doesn't,
+// since only 404 says GitHub doesn't know the installation.
+var errForbidden = errors.New("GitHub answered 403 Forbidden")
+
+// do sends request, and decodes its response as get describes, except that it fails with errForbidden for a 403 that
+// isn't a rate limit's.
 func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	response, err := a.http.Do(request)
 	if err != nil {
@@ -229,8 +240,10 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 		return false, domain.ErrGitHubTokenRefused
 	case rateLimited(response):
 		return false, fmt.Errorf("GitHub answered %s: rate limited", response.Status)
-	case response.StatusCode == http.StatusNotFound, response.StatusCode == http.StatusForbidden:
+	case response.StatusCode == http.StatusNotFound:
 		return false, nil
+	case response.StatusCode == http.StatusForbidden:
+		return false, errForbidden
 	case response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated:
 		return false, fmt.Errorf("GitHub answered %s", response.Status)
 	}

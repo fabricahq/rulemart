@@ -95,7 +95,8 @@ type installationRecord struct {
 	SuspendedAt *time.Time `json:"suspended_at"`
 }
 
-// installation reads installation id, reporting whether GitHub knows it.
+// installation reads installation id, reporting whether GitHub knows it: GitHub answers 404 for one it doesn't, and a
+// 403, which refuses to say, fails.
 func (a *App) installation(ctx context.Context, id int64) (installationRecord, bool, error) {
 	var installation installationRecord
 	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
@@ -110,7 +111,7 @@ func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
 	}
 	found, err := a.asApp(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(id, 10)+"/access_tokens", &token)
 	switch {
-	case err == nil && !found:
+	case errors.Is(err, errForbidden), err == nil && !found:
 		err = domain.ErrNoSuchInstallation
 	case err == nil && token.Token == "":
 		err = errors.New("GitHub returned no token")
@@ -141,7 +142,8 @@ func (a *App) InstallationRepositories(ctx context.Context, token string, limit 
 	return repos, more, nil
 }
 
-// asApp sends a request to path, signed as the app, and decodes its JSON into v, as API.get does.
+// asApp sends a request to path, signed as the app, and decodes its JSON into v, as API.get does, except that it fails
+// with errForbidden for a 403 that isn't a rate limit's, which only the caller can tell the meaning of.
 func (a *App) asApp(ctx context.Context, method, path string, v any) (bool, error) {
 	jwt, err := a.jwt(ctx)
 	if err != nil {

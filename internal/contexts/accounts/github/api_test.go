@@ -110,6 +110,46 @@ func TestTheAppSignsItsRequestsWithAJWTFromItsKey(t *testing.T) {
 	}
 }
 
+// GitHub answers 404 for an installation it doesn't know, the one answer that says the app was uninstalled; a 403
+// refuses to say, so the lookup fails, as it does for a rate limit or GitHub failing, rather than call it gone.
+func TestAnInstallationIsGoneOnlyWhenGitHubAnswers404(t *testing.T) {
+	for name, tc := range map[string]struct {
+		status  int
+		header  map[string]string
+		message string
+		gone    bool
+	}{
+		"not found":                 {status: 404, gone: true},
+		"an installation's refusal": {status: 403, message: "Resource not accessible by integration"},
+		"rate limited":              {status: 403, header: map[string]string{"X-RateLimit-Remaining": "0"}},
+		"too many requests":         {status: 429},
+		"GitHub failing":            {status: 502},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for k, v := range tc.header {
+					w.Header().Set(k, v)
+				}
+				http.Error(w, `{"message":"`+tc.message+`"}`, tc.status)
+			}))
+			defer server.Close()
+			app := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubtest.AppKeyPEM(githubtest.NewAppKey()))}, NewAPI(server.URL))
+
+			state, err := app.InstallationState(context.Background(), 9)
+			if tc.gone && (err != nil || state != domain.InstallationGone) {
+				t.Errorf("the state: got %v, %v, want gone", state, err)
+			}
+			if !tc.gone && err == nil {
+				t.Errorf("the state: got %v, want a failure", state)
+			}
+			_, err = app.Installation(context.Background(), 9)
+			if errors.Is(err, domain.ErrNoSuchInstallation) != tc.gone || err == nil {
+				t.Errorf("the account: got %v, want ErrNoSuchInstallation: %t", err, tc.gone)
+			}
+		})
+	}
+}
+
 func TestInstallURLIsTheAppsInstallPage(t *testing.T) {
 	if got := NewApp(AppConfig{Slug: "rulemart-by-fabrica"}, nil).InstallURL(); got != "https://github.com/apps/rulemart-by-fabrica/installations/new" {
 		t.Errorf("got %s", got)

@@ -4,6 +4,7 @@
 package githubtest
 
 import (
+	"cmp"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -38,8 +39,10 @@ type Fake struct {
 	// GitHub sends them to the app's setup URL. InstallAs is the installation it names.
 	InstalledURL string
 	InstallAs    int64
-	// Fail, when it returns true for a request's path, answers it with 502, as GitHub failing does.
-	Fail func(path string) bool
+	// Fail, when it returns true for a request's path, answers it with FailStatus, or 502 when that's zero, as GitHub
+	// failing does.
+	Fail       func(path string) bool
+	FailStatus int
 	// Answering, when set, is called with each request's path once Fake has decided its answer and before it sends it,
 	// as when GitHub is slow to send what it read: a test may hold an answer there while GitHub changes.
 	Answering func(path string)
@@ -126,7 +129,8 @@ func (f *Fake) Handler() http.Handler {
 			f.requests[pattern]++
 			f.mu.Unlock()
 			if f.Fail != nil && f.Fail(r.URL.Path) {
-				http.Error(w, `{"message":"Server Error"}`, http.StatusBadGateway)
+				status := cmp.Or(f.FailStatus, http.StatusBadGateway)
+				http.Error(w, `{"message":"`+http.StatusText(status)+`"}`, status)
 				return
 			}
 			if f.Answering == nil {
