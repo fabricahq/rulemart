@@ -97,6 +97,12 @@ than adding history.
   wrote, so no library can write instructions into it, and names each unvetted library so the agent reviews its
   rules first, pinned to the commit reviewed. [Slice R5](slices/14-cart-and-checkout.md) records how the commands
   were checked against the real CLI.
+- **The checkout request is the site's one request with a body, so it sends the body's SHA-256 in
+  `x-amz-content-sha256`.** CloudFront's origin access control signs a request's body only when the viewer sends
+  that header, and the function URL refuses an unsigned body with 403; every other write is a POST with an empty
+  body, as [slice 5](slices/5-sign-in.md) decided. `cart-checkout.js` hashes the exact body with Web Crypto, and
+  sends the request without the header in a browser that has none. Without the header, the cart's page can't load
+  in production, though nothing local notices.
 - **Signed in, checkout offers the visitor's projects**, read from their repositories' provenance files, so the
   prompt names the repository and says which libraries it already imports.
 
