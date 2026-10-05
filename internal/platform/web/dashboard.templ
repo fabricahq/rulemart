@@ -9,8 +9,9 @@ import (
 )
 
 // The dashboard's pieces: a dashed note; the heading of one of a tab's groups, when it has more than one, in sentence
-// case with its count; a row of a section's list with something at its far edge; a row of only text, ruled above, so
-// the first sits under the lede, and an action on a row's second line, in the page's link style; its title line, and the figure that follows a name on it, 8 pixels after it, or a
+// case with its count; a row of a section's list with something at its far edge; a card that holds a list of data,
+// as rowList does, and one of its rows, which the list divides, and an action on a row's second line, in the page's
+// link style; its title line, and the figure that follows a name on it, 8 pixels after it, or a
 // space after it when it opens with a separator; a chip; and a small button.
 const (
 	noteStyle        = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
@@ -18,7 +19,8 @@ const (
 	listRowStyle     = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
 	chipOnStyle      = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
 	quietChipStyle   = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
-	textRowStyle     = "border-t border-border-subtle py-[13px]"
+	listCardStyle    = "overflow-hidden rounded-card border border-border bg-paper"
+	cardRowStyle     = "px-4 py-[13px]"
 	rowActionStyle   = "cursor-pointer text-[12.5px] text-ink underline decoration-border-strong underline-offset-[3px] hover:decoration-ink"
 	titleLineStyle   = "flex flex-wrap items-baseline gap-x-2 gap-y-1 leading-[1.35] font-semibold"
 	rowFigureStyle   = "text-[13px] font-normal whitespace-nowrap text-muted tabular-nums"
@@ -101,22 +103,31 @@ templ librariesContent(d dashboardView) {
 		} else {
 			<h2 id="published" class="sr-only">Libraries you and your organizations publish</h2>
 		}
-		if len(d.mine) == 0 {
-			<p class="border-t border-border-subtle py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
-		}
-		for _, m := range d.mine {
-			@myLibraryRow(m)
-		}
-		if visitorOf(ctx).listings {
-			<div class="mt-3"><a class={ signInButtonStyle } href={ templ.SafeURL(listHref) }>+ Add a library</a></div>
-		}
+		<div class={ listCardStyle }>
+			if len(d.mine) == 0 {
+				<p class={ cardRowStyle, "text-[13.5px] text-muted" }>No library of yours or your organizations' is on Rulemart yet.</p>
+			} else {
+				<ul class="divide-y divide-border-subtle">
+					for _, m := range d.mine {
+						@myLibraryRow(m)
+					}
+				</ul>
+			}
+			if visitorOf(ctx).listings {
+				<div class="border-t border-border-subtle bg-surface px-4 py-2.5"><a class={ signInButtonStyle, "bg-paper" } href={ templ.SafeURL(listHref) }>+ Add a library</a></div>
+			}
+		</div>
 	</section>
 	if len(d.listedByYou) > 0 {
 		<section class="mt-[30px]" aria-labelledby="listed-by-you">
 			@groupHeading("listed-by-you", "Listed by you", len(d.listedByYou))
-			for _, m := range d.listedByYou {
-				@myLibraryRow(m)
-			}
+			<div class={ listCardStyle }>
+				<ul class="divide-y divide-border-subtle">
+					for _, m := range d.listedByYou {
+						@myLibraryRow(m)
+					}
+				</ul>
+			</div>
 		</section>
 	}
 	@gitHubSummary(d.gitHub)
@@ -132,7 +143,7 @@ templ groupHeading(id, name string, count int) {
 // listing of the visitor's, Try again when its check failed, and Remove, after what its state says, as small text
 // actions.
 templ myLibraryRow(m myLibraryView) {
-	<div class={ textRowStyle }>
+	<li class={ cardRowStyle }>
 		<div class="min-w-0">
 			<p class={ titleLineStyle }>
 				<a
@@ -168,7 +179,7 @@ templ myLibraryRow(m myLibraryView) {
 				}
 			</div>
 		</div>
-	</div>
+	</li>
 }
 
 // libraryStateBadge names a row of My libraries' state as a chip.
@@ -191,7 +202,7 @@ templ projectsContent(d dashboardView) {
 	<section aria-labelledby="used">
 		<h2 id="used" class="sr-only">Libraries your projects use</h2>
 		if len(d.used) == 0 {
-			<p class="border-t border-border-subtle py-[13px] text-[13.5px] text-muted">
+			<p class={ listCardStyle, cardRowStyle, "text-[13.5px] text-muted" }>
 				if d.gitHub.reading {
 					Rulemart is reading your projects.
 				} else if d.gitHub.readAt == "" {
@@ -201,37 +212,43 @@ templ projectsContent(d dashboardView) {
 				}
 			</p>
 		}
-		for _, u := range d.used {
-			<div class={ textRowStyle }>
-				<div class="min-w-0">
-					<p class={ titleLineStyle }>
-						<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
-							if !u.vetted {
-								rel="nofollow"
-							}
-						>{ u.name }</a>
-						<span class={ rowFigureStyle, "-ml-1" }>· { plural(len(u.projects), "project", "projects") }</span>
-						if !u.vetted {
-							@unvettedBadge()
-						}
-					</p>
-					<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
-						for i, p := range u.projects {
-							if i > 0 {
-								{ " · " }
-							}
-							{ p.repository }
-							if p.private {
-								{ " (private)" }
-							}
-							if p.updates > 0 {
-								{ " · " }<b class="font-medium text-ink">{ plural(p.updates, "rule update", "rule updates") }</b>
-							} else {
-								{ " · up to date" }
-							}
-						}
-					</p>
-				</div>
+		if len(d.used) > 0 {
+			<div class={ listCardStyle }>
+				<ul class="divide-y divide-border-subtle">
+					for _, u := range d.used {
+						<li class={ cardRowStyle }>
+							<div class="min-w-0">
+								<p class={ titleLineStyle }>
+									<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
+										if !u.vetted {
+											rel="nofollow"
+										}
+									>{ u.name }</a>
+									<span class={ rowFigureStyle, "-ml-1" }>· { plural(len(u.projects), "project", "projects") }</span>
+									if !u.vetted {
+										@unvettedBadge()
+									}
+								</p>
+								<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
+									for i, p := range u.projects {
+										if i > 0 {
+											{ " · " }
+										}
+										{ p.repository }
+										if p.private {
+											{ " (private)" }
+										}
+										if p.updates > 0 {
+											{ " · " }<b class="font-medium text-ink">{ plural(p.updates, "rule update", "rule updates") }</b>
+										} else {
+											{ " · up to date" }
+										}
+									}
+								</p>
+							</div>
+						</li>
+					}
+				</ul>
 			</div>
 		}
 	</section>

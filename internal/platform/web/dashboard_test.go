@@ -159,6 +159,42 @@ func TestTheDashboardsListsHaveNoVisibleSectionHeadings(t *testing.T) {
 	}
 }
 
+// My libraries and Projects each show their rows as a list in one card, and My libraries' + Add a library sits in that
+// card, after the list, so the list and its action read as one object; the line on the read of GitHub follows the card.
+func TestTheDashboardsListsAreCards(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, last := range map[string]string{"/me": "+ Add a library", "/me?tab=projects": ""} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := find(doc, func(n *html.Node) bool {
+			return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p"
+		})
+		if name == nil {
+			t.Fatalf("%s lists no example/rules", target)
+		}
+		item := name
+		for item != nil && item.Data != "li" {
+			item = item.Parent
+		}
+		if item == nil || item.Parent.Data != "ul" {
+			t.Fatalf("%s: example/rules isn't an item of a list", target)
+		}
+		card := item.Parent.Parent
+		if !strings.Contains(attribute(card, "class"), "rounded-card") || !strings.Contains(attribute(card, "class"), "border") {
+			t.Errorf("%s: the list isn't in a card: %q", target, attribute(card, "class"))
+		}
+		text := nodeText(card)
+		if last != "" && !strings.HasSuffix(text, last) {
+			t.Errorf("%s: the card ends %q, want %q", target, text[max(0, len(text)-40):], last)
+		}
+		if strings.Contains(text, "read from GitHub") {
+			t.Errorf("%s: the line on the read of GitHub is inside the card", target)
+		}
+	}
+}
+
 // Each row of My libraries and Projects keeps its figure, the stars or the projects, on its title line beside the name,
 // with nothing at the row's far edge.
 func TestTheDashboardsRowsKeepTheirFiguresBesideTheirNames(t *testing.T) {
