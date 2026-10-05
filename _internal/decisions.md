@@ -57,9 +57,9 @@ than adding history.
   Rulemart's; a page without one, such as an unvetted library's, shows no card.
 - **Reports and requests to vet a library are GitHub issues** in Rulemart's public repository, through issue forms,
   so Rulemart stores nothing new. Each library's page links a report with the library filled in.
-- **`/about` and `/privacy` say what Rulemart is and what it keeps.** The privacy notice states only what the code
-  and infrastructure do, and changes with them: a change to what Rulemart keeps, logs, or shares updates it in the
-  same pull request.
+- **`/about`, `/about/vetting`, and `/privacy` say what Rulemart is, what vetting means, and what it keeps.** The
+  privacy notice states only what the code and infrastructure do, and changes with them: a change to what Rulemart
+  keeps, logs, or shares updates it in the same pull request.
 
 ## Stars
 

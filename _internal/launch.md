@@ -76,9 +76,9 @@ Before anything merges:
    - whether it needs anything legal the code can't tell, such as a lawful basis, a controller's name and address,
      or a jurisdiction. It deliberately claims none;
    - whether "Fabrica" should name the legal entity that runs Rulemart.
-2. **Confirm the about page's vetting wording**: lists show vetted libraries until the visitor includes unvetted
-   ones, and vetting "means Fabrica chose to show the library, not that it checked every rule". Say what Fabrica
-   checks if it should say more.
+2. **Confirm the vetting page's wording** at `/about/vetting`: lists show vetted libraries until the visitor
+   includes unvetted ones, and vetting "means Fabrica chose to show the library, not that it checked every rule".
+   Say what Fabrica checks if it should say more.
 3. **The proposed decisions were decided** on 2026-10-05 and recorded in the slice documents.
 4. **Collect the OAuth app's values.** The OAuth app "Rulemart" exists in the fabricahq organization. Confirm its
    authorization callback URL is `https://rulemart.fabricahq.com/account/github/callback` and Device Flow is off.
@@ -286,7 +286,7 @@ curl -sI $B/favicon.ico | grep -iE '^(HTTP|content-type)'
 # Writes: an empty POST passes CloudFront's signing and reaches the function.
 curl -si -X POST $B/signout | head -1               # 303
 # The pages, and the old addresses' permanent redirects.
-for p in /browse/techs /browse/practices /g/techs/go /fabricahq /faq /feedback /about /privacy /cart /signin '/search?q=retry' /unvetted; do
+for p in /browse/techs /browse/practices /g/techs/go /fabricahq /faq /feedback /about /about/vetting /privacy /cart /signin '/search?q=retry' /unvetted; do
   curl -s -o /dev/null -w "%{http_code} $p\n" "$B$p"
 done
 for p in /groups /groups/techs/go /sign-in /list /account; do curl -s -o /dev/null -w "%{http_code} $p -> %{redirect_url}\n" $B$p; done
