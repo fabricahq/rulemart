@@ -16,9 +16,15 @@
 // exits, failing when a job failed.
 //
 // Set DATABASE_URL to a connection string, or DATABASE_URL_PARAMETER to the SSM parameter holding one, as on Lambda.
-// GITHUB_TOKEN, or GITHUB_TOKEN_PARAMETER naming the SSM parameter that holds it, authenticates GitHub lookups when
-// set. LOG_LEVEL and RULEMART_RELEASE configure its logs, as
-// internal/platform/logging describes.
+// LOG_LEVEL and RULEMART_RELEASE configure its logs, as internal/platform/logging describes.
+//
+// GitHub lookups authenticate as the GitHub App "Rulemart by Fabrica" when GITHUB_APP_ID names it and
+// GITHUB_APP_PRIVATE_KEY holds its private key, in PEM, or GITHUB_APP_PRIVATE_KEY_PARAMETER names the SSM parameter
+// holding it: they carry tokens of the app's installation on the account GITHUB_APP_INSTALLATION_ACCOUNT names,
+// fabricahq unless set, which the worker mints hourly from the key. Once set, these replace the personal token, and the
+// worker ignores GITHUB_TOKEN and GITHUB_TOKEN_PARAMETER; set the ID and the key together, or none of the three.
+// Without them, GITHUB_TOKEN, or GITHUB_TOKEN_PARAMETER naming the SSM parameter that holds it, authenticates GitHub
+// lookups when set. The worker logs which it uses, once at start.
 package main
 
 import (
@@ -45,11 +51,11 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/github"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp"
 	"github.com/fabricahq/rulemart/internal/platform/database"
 	"github.com/fabricahq/rulemart/internal/platform/database/migrate"
 	"github.com/fabricahq/rulemart/internal/platform/logging"
 	"github.com/fabricahq/rulemart/internal/platform/queue"
-	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
 func main() {
@@ -74,7 +80,7 @@ func main() {
 		if err != nil {
 			exit(logger, err)
 		}
-		logging.Ready(logger, schemaVersion, time.Since(start))
+		w.started(schemaVersion, start)
 		lambda.Start(w.handle)
 		return
 	}
@@ -84,7 +90,7 @@ func main() {
 	if err != nil {
 		exit(logger, err)
 	}
-	logging.Ready(logger, schemaVersion, time.Since(start))
+	w.started(schemaVersion, start)
 	if _, err := w.runOnce(ctx); err != nil {
 		logger.Error("poll failed", "error", err.Error())
 		os.Exit(1)
@@ -123,6 +129,15 @@ type worker struct {
 	// queue receives the schedule's jobs; runOnce replaces it with a queue in memory.
 	queue sender
 	log   *slog.Logger
+	// gitHubAuth names the authentication the worker's GitHub lookups use, as its log says at start.
+	gitHubAuth []any
+}
+
+// started logs that the worker, which needs schemaVersion and started at start, is ready, and which authentication its
+// GitHub lookups use.
+func (w *worker) started(schemaVersion int64, start time.Time) {
+	logging.Ready(w.log, schemaVersion, time.Since(start))
+	w.log.Info("github authentication", w.gitHubAuth...)
 }
 
 // newWorker returns a worker that updates the vetted libraries and checks listings in the database the environment
@@ -136,19 +151,20 @@ func newWorker(ctx context.Context, logger *slog.Logger, queue sender, schemaVer
 	if err != nil {
 		return nil, err
 	}
-	token, err := secret.FromEnv(ctx, os.Getenv, "GITHUB_TOKEN")
+	client := &http.Client{Timeout: 30 * time.Second}
+	auth, err := newGitHubAuth(ctx, os.Getenv, githubapp.APIURL, client)
 	if err != nil {
 		return nil, err
 	}
 	ingester := app.Ingester{
-		Repositories: github.Client{Client: &http.Client{Timeout: 30 * time.Second}, BaseURL: "https://api.github.com", Token: token},
+		Repositories: github.Client{Client: client, BaseURL: githubapp.APIURL, Token: auth.token},
 		Fetch:        git.Fetch,
 		List:         git.ListReleaseTags,
 		Renderer:     render.Renderer{},
 		Store:        postgres.New(source.Open(schemaVersion)),
 		Limits:       domain.DefaultLimits,
 	}
-	return &worker{updater: ingester, listings: ingester, vetted: vetted, queue: queue, log: logger}, nil
+	return &worker{updater: ingester, listings: ingester, vetted: vetted, queue: queue, log: logger, gitHubAuth: auth.attrs}, nil
 }
 
 // scheduleSource is the source field of the event the EventBridge schedule sends.
