@@ -66,13 +66,16 @@ type Store interface {
 	// InstallationRemoved forgets the installation id for every account, and discards their snapshots, in one
 	// transaction.
 	InstallationRemoved(ctx context.Context, id int64) error
-	// ApplyDelivery applies state, what GitHub says of installation id now, which delivery of the GitHub App's webhook
-	// said changed, and records delivery as applied at, in one transaction, unless a delivery with its ID or body was
-	// applied within memory before at: then it changes nothing and returns false. An installation gone is forgotten as
-	// InstallationRemoved forgets it; one suspended or active is marked so for every account that reads through it, and
-	// has those accounts' snapshots discarded. In the same transaction, it forgets the deliveries applied more than
-	// memory before at.
-	ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, state domain.InstallationState, at time.Time, memory time.Duration) (applied bool, err error)
+	// ApplyDelivery acts on delivery of the GitHub App's webhook, which said installation id changed, in one
+	// transaction that holds a lock on the installation, so deliveries for one installation act one at a time, each
+	// once the one before it committed. When a delivery with its ID or body was applied within memory before at, it
+	// changes nothing and returns false without calling readState. Otherwise it records delivery as applied at, calls
+	// readState for what GitHub says of the installation now, and applies that: an installation gone is forgotten as
+	// InstallationRemoved forgets it; one suspended or active is marked so for every account that reads through it,
+	// and has those accounts' snapshots discarded. When readState fails, it records and changes nothing, and returns
+	// readState's error, so the delivery can be sent again. First, it forgets the deliveries applied more than memory
+	// before at.
+	ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, at time.Time, memory time.Duration, readState func(context.Context) (domain.InstallationState, error)) (applied bool, err error)
 }
 
 // ReadClaim is what ClaimRead found as it claimed a read, or declined to.

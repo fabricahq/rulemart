@@ -498,8 +498,11 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 // it's unsuspended, and either, like an active one, has the snapshots of the accounts that read through it discarded,
 // so their next page reads GitHub again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookInstallation
 // does for a delivery it doesn't act on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and
-// with domain.ErrRepeatedDelivery, changing nothing, for one it acted on within domain.DeliveryMemory, by its ID or its
-// body. It checks the signature, then the ID, then what the delivery is.
+// with domain.ErrRepeatedDelivery, changing nothing and without asking GitHub, for one it acted on within
+// domain.DeliveryMemory, by its ID or its body. It checks the signature, then the ID, then what the delivery is.
+// Deliveries for one installation act one at a time, each asking GitHub once the one before it committed, so a read
+// GitHub answered slowly can't undo a newer one, and a delivery whose read fails is recorded nowhere, so GitHub can
+// send it again.
 func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) error {
 	if g.App == nil {
 		return ErrNoApp
@@ -516,11 +519,8 @@ func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) e
 	if err != nil {
 		return err
 	}
-	state, err := g.App.InstallationState(ctx, id)
-	if err != nil {
-		return fmt.Errorf("deliver deliveryID=%q: %v", delivery.ID, err)
-	}
-	applied, err := g.Store.ApplyDelivery(ctx, delivery, id, state, g.now(), domain.DeliveryMemory)
+	readState := func(ctx context.Context) (domain.InstallationState, error) { return g.App.InstallationState(ctx, id) }
+	applied, err := g.Store.ApplyDelivery(ctx, delivery, id, g.now(), domain.DeliveryMemory, readState)
 	if err != nil {
 		return err
 	}

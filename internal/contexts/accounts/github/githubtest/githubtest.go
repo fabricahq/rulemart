@@ -13,7 +13,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"maps"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strconv"
@@ -38,6 +40,9 @@ type Fake struct {
 	InstallAs    int64
 	// Fail, when it returns true for a request's path, answers it with 502, as GitHub failing does.
 	Fail func(path string) bool
+	// Answering, when set, is called with each request's path once Fake has decided its answer and before it sends it,
+	// as when GitHub is slow to send what it read: a test may hold an answer there while GitHub changes.
+	Answering func(path string)
 
 	mu sync.Mutex
 	// requests counts the requests each route answered, by its pattern.
@@ -124,7 +129,16 @@ func (f *Fake) Handler() http.Handler {
 				http.Error(w, `{"message":"Server Error"}`, http.StatusBadGateway)
 				return
 			}
-			handler(w, r)
+			if f.Answering == nil {
+				handler(w, r)
+				return
+			}
+			answer := httptest.NewRecorder()
+			handler(answer, r)
+			f.Answering(r.URL.Path)
+			maps.Copy(w.Header(), answer.Header())
+			w.WriteHeader(answer.Code)
+			_, _ = w.Write(answer.Body.Bytes())
 		})
 	}
 	route("GET /user/orgs", f.organizations)

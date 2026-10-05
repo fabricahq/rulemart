@@ -175,21 +175,33 @@ func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	return nil
 }
 
-// ApplyDelivery applies what GitHub says of the installation a delivery of the GitHub App's webhook said changed and
-// records the delivery, unless it's a repeat, as store.Store describes. Of copies of one delivery that arrive
-// together, the first to record it holds its row until it commits, so the others find it recorded.
-func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, state domain.InstallationState, at time.Time, memory time.Duration) (bool, error) {
+// ApplyDelivery acts on a delivery of the GitHub App's webhook, as store.Store describes. Copies of one delivery, and
+// deliveries for one installation, that arrive together wait for each other on the installation's lock, so each finds
+// what the one before it committed, and only the first copy asks GitHub. It forgets old deliveries in a statement of
+// its own, so the transaction, which holds a lock while GitHub answers, locks no other installation's rows.
+func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, at time.Time, memory time.Duration, readState func(context.Context) (domain.InstallationState, error)) (bool, error) {
+	before := at.Add(-memory)
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		return accountsdb.New(pool).ForgetDeliveries(ctx, pgtype.Timestamptz{Time: before, Valid: true})
+	})
+	if err != nil {
+		return false, fmt.Errorf("forget GitHub webhook deliveries appliedBefore=%s: %v", before.Format(time.RFC3339), err)
+	}
 	digest := sha256.Sum256(delivery.Body)
 	var applied bool
-	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+	err = s.inTransaction(ctx, func(q *accountsdb.Queries) error {
 		applied = false
-		if err := q.ForgetDeliveries(ctx, pgtype.Timestamptz{Time: at.Add(-memory), Valid: true}); err != nil {
+		if err := q.LockInstallation(ctx, id); err != nil {
 			return err
 		}
 		recorded, err := q.RecordDelivery(ctx, accountsdb.RecordDeliveryParams{
 			DeliveryID: delivery.ID, BodySha256: digest[:], AppliedAt: pgtype.Timestamptz{Time: at, Valid: true},
 		})
 		if err != nil || recorded == 0 {
+			return err
+		}
+		state, err := readState(ctx)
+		if err != nil {
 			return err
 		}
 		applied = true

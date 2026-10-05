@@ -200,6 +200,18 @@ func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]Lis
 	return items, nil
 }
 
+const lockInstallation = `-- name: LockInstallation :exec
+SELECT pg_advisory_xact_lock(hashtextextended('github_installation ' || $1::bigint, 0))
+`
+
+// LockInstallation holds, until the transaction ends, a lock on the installation that every delivery of the GitHub
+// App's webhook for it takes, so they act one at a time. Its key hashes the installation's ID with a name of its own,
+// so it can't be the catalog's listing lock, but for a chance of one in 2^64, which only makes a delivery wait.
+func (q *Queries) LockInstallation(ctx context.Context, installationID int64) error {
+	_, err := q.db.Exec(ctx, lockInstallation, installationID)
+	return err
+}
+
 const recordDelivery = `-- name: RecordDelivery :execrows
 INSERT INTO github_deliveries (delivery_id, body_sha256, applied_at)
 VALUES ($1, $2, $3)

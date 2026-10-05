@@ -73,6 +73,12 @@ WHERE account_id IN (SELECT account_id FROM github_installations WHERE installat
 -- name: SetInstallationSuspended :exec
 UPDATE github_installations SET suspended = @suspended WHERE installation_id = @installation_id;
 
+-- LockInstallation holds, until the transaction ends, a lock on the installation that every delivery of the GitHub
+-- App's webhook for it takes, so they act one at a time. Its key hashes the installation's ID with a name of its own,
+-- so it can't be the catalog's listing lock, but for a chance of one in 2^64, which only makes a delivery wait.
+-- name: LockInstallation :exec
+SELECT pg_advisory_xact_lock(hashtextextended('github_installation ' || @installation_id::bigint, 0));
+
 -- ForgetDeliveries forgets the deliveries of the GitHub App's webhook applied before the time given.
 -- name: ForgetDeliveries :exec
 DELETE FROM github_deliveries WHERE applied_at < @applied_before;

@@ -458,7 +458,8 @@ func TestADeliveryWhoseApplicationFailsLeavesNoRecordAndCanBeRetried(t *testing.
 		return n
 	}
 
-	if applied, err := s.ApplyDelivery(ctx, delivery, 5, domain.InstallationSuspended, at, domain.DeliveryMemory); err == nil || applied {
+	readState := func(context.Context) (domain.InstallationState, error) { return domain.InstallationSuspended, nil }
+	if applied, err := s.ApplyDelivery(ctx, delivery, 5, at, domain.DeliveryMemory, readState); err == nil || applied {
 		t.Fatalf("applied %v, %v, want the injected failure", applied, err)
 	}
 	if deliveries() != 0 || suspended() || generation(t, connString, account.ID) != before {
@@ -466,7 +467,7 @@ func TestADeliveryWhoseApplicationFailsLeavesNoRecordAndCanBeRetried(t *testing.
 	}
 
 	postgrestest.Exec(t, connString, "DROP TRIGGER fail_installation_update ON github_installations")
-	if applied, err := s.ApplyDelivery(ctx, delivery, 5, domain.InstallationSuspended, at.Add(time.Minute), domain.DeliveryMemory); err != nil || !applied {
+	if applied, err := s.ApplyDelivery(ctx, delivery, 5, at.Add(time.Minute), domain.DeliveryMemory, readState); err != nil || !applied {
 		t.Fatalf("the retry: applied %v, %v", applied, err)
 	}
 	if deliveries() != 1 || !suspended() || generation(t, connString, account.ID) != before+1 {

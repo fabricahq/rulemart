@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -558,8 +559,8 @@ func TestADeliveryAppliesWhatGitHubSaysOfTheInstallationNow(t *testing.T) {
 	}
 }
 
-// Copies of one delivery that arrive together act once between them: the account's GitHub generation, which each
-// application advances, advances once.
+// Copies of one delivery that arrive together act once between them, and ask GitHub once: the account's GitHub
+// generation, which each application advances, advances once.
 func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 	site, deliver, suspended := suspendable(t)
 	site.fake.Installations[0].Suspended = true
@@ -569,7 +570,7 @@ func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 		postgrestest.QueryRow(t, site.connString, fmt.Sprintf("SELECT github_generation FROM accounts WHERE id = %d", site.account.ID), &generation)
 		return generation
 	}
-	before := generation()
+	before, readsBefore := generation(), site.fake.Requests(installationRoute)
 	errs := make([]error, 8)
 	var wg sync.WaitGroup
 	for i := range errs {
@@ -591,6 +592,102 @@ func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 	}
 	if after := generation(); after != before+1 {
 		t.Errorf("the generation advanced from %d to %d, want once", before, after)
+	}
+	if reads := site.fake.Requests(installationRoute) - readsBefore; reads != 1 {
+		t.Errorf("the copies asked GitHub about the installation %d times, want once", reads)
+	}
+}
+
+// installationRoute is the fake GitHub's route that says what GitHub says of an installation now.
+const installationRoute = "GET /app/installations/{id}"
+
+// A delivery Rulemart already acted on is answered as a repeat without asking GitHub, even while GitHub fails, so a
+// copy sent again costs GitHub nothing; but one whose read of GitHub failed is recorded nowhere, so GitHub's
+// redelivery of it is acted on, not taken for a repeat.
+func TestARepeatedDeliveryDoesntAskGitHub(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	site.fake.Installations[0].Suspended = true
+	if err := deliver("delivery-1", "suspend"); err != nil {
+		t.Fatal(err)
+	}
+	reads := site.fake.Requests(installationRoute)
+	site.fake.Fail = func(path string) bool { return strings.HasPrefix(path, "/app/installations/") }
+
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the delivery again while GitHub fails: got %v, want ErrRepeatedDelivery", err)
+	}
+	if got := site.fake.Requests(installationRoute); got != reads {
+		t.Errorf("the repeat asked GitHub about the installation %d times, want none", got-reads)
+	}
+
+	site.fake.Installations[0].Suspended = false
+	if err := deliver("delivery-2", "unsuspend"); err == nil || errors.Is(err, domain.ErrRepeatedDelivery) || !suspended() {
+		t.Fatalf("a new delivery while GitHub fails: got %v, suspended %t, want it to fail and change nothing", err, suspended())
+	}
+	site.fake.Fail = nil
+	if err := deliver("delivery-2", "unsuspend"); err != nil || suspended() {
+		t.Errorf("GitHub's redelivery once GitHub answers: got %v, suspended %t, want it acted on", err, suspended())
+	}
+}
+
+// Deliveries for one installation act one at a time, each asking GitHub once the one before it committed, so a read
+// GitHub answers slowly, from before a newer change, can't commit after the newer delivery's and undo it.
+func TestASlowReadOfAnInstallationCantUndoANewerDeliverys(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	held, release := make(chan struct{}), make(chan struct{})
+	var holding atomic.Bool
+	site.fake.Answering = func(string) {
+		if holding.CompareAndSwap(false, true) {
+			close(held)
+			<-release
+		}
+	}
+	site.fake.Installations[0].Suspended = true
+	older := make(chan error, 1)
+	go func() { older <- deliver("delivery-1", "suspend") }()
+	<-held
+
+	site.fake.Installations[0].Suspended = false
+	newerDone := make(chan struct{})
+	var newer error
+	go func() {
+		defer close(newerDone)
+		newer = deliver("delivery-2", "unsuspend")
+	}()
+	// The newer delivery either acts while the older one's read is held, or waits for the older one to commit.
+	waitFor(t, "the newer delivery to act or wait for the older one", func() bool {
+		select {
+		case <-newerDone:
+			return true
+		default:
+			var waiting int
+			postgrestest.QueryRow(t, site.connString, `SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock'`, &waiting)
+			return waiting > 0
+		}
+	})
+	close(release)
+
+	if err := <-older; err != nil {
+		t.Errorf("the older delivery: %v", err)
+	}
+	<-newerDone
+	if newer != nil {
+		t.Errorf("the newer delivery: %v", newer)
+	}
+	if suspended() {
+		t.Error("the older delivery's read of a suspension outlasted the newer unsuspension")
+	}
+}
+
+// waitFor waits until done reports true, failing the test after ten seconds.
+func waitFor(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); !done(); {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
