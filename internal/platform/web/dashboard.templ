@@ -71,12 +71,11 @@ func dashboardTabs(d dashboardView) []tab {
 	return append(tabs, tab{name: "Account", href: dashboardAccountHref, count: -1, on: d.tab == accountTab})
 }
 
-// librariesContent is My libraries: what Rulemart read of GitHub, then the libraries the visitor and their
-// organizations publish.
+// librariesContent is My libraries: the libraries the visitor and their organizations publish, then how to add one,
+// then what Rulemart read of GitHub.
 templ librariesContent(d dashboardView) {
-	@gitHubSummary(d.gitHub)
 	<section aria-labelledby="published">
-		<h2 id="published" class={ sectionHeadStyle, "mt-6" }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
+		<h2 id="published" class={ sectionHeadStyle }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
 		if len(d.owned) == 0 {
 			<p class="py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
 		}
@@ -108,14 +107,14 @@ templ librariesContent(d dashboardView) {
 			<div class="mt-3"><a class={ signInButtonStyle } href={ templ.SafeURL(listHref) }>+ Add a library</a></div>
 		}
 	</section>
+	@gitHubSummary(d.gitHub)
 }
 
-// projectsContent is Projects: what Rulemart read of GitHub, then the libraries the visitor's projects use, with the
-// updates waiting for each project.
+// projectsContent is Projects: the libraries the visitor's projects use, with the updates waiting for each project,
+// then what Rulemart read of GitHub.
 templ projectsContent(d dashboardView) {
-	@gitHubSummary(d.gitHub)
 	<section aria-labelledby="used">
-		<h2 id="used" class={ sectionHeadStyle, "mt-6" }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
+		<h2 id="used" class={ sectionHeadStyle }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
 		if len(d.used) == 0 {
 			<p class="py-[13px] text-[13.5px] text-muted">
 				if d.gitHub.reading {
@@ -162,23 +161,24 @@ templ projectsContent(d dashboardView) {
 		}
 		<p class="mt-3 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
 	</section>
+	@gitHubSummary(d.gitHub)
 }
 
-// gitHubSummary opens My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account: the
-// note on private projects, and how fresh the read is.
+// gitHubSummary ends My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account: how
+// fresh the read is, then the note on private projects.
 templ gitHubSummary(g gitHubView) {
-	@privateProjectsNote(g)
-	@gitHubStatus(g, "mt-2.5")
+	@gitHubStatus(g, "mt-6")
+	@privateProjectsNote(g, "mt-2.5")
 }
 
 // privateProjectsNote is the prototype's note on private projects: whether the dashboard includes the visitor's
-// private projects, with the way to include or manage them.
-templ privateProjectsNote(g gitHubView) {
+// private projects, with the way to include or manage them. class places it on the page.
+templ privateProjectsNote(g gitHubView, class string) {
 	if g.available {
 		if g.private {
-			<div class={ noteStyle }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
+			<div class={ noteStyle, class }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
 		} else {
-			<div class={ noteStyle }>
+			<div class={ noteStyle, class }>
 				<span>Showing public repos only.</span>
 				if g.privateAvailable {
 					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>

@@ -140,6 +140,26 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 		"Read from each project's .code-rules/generated/provenance.json .")
 }
 
+// My libraries and Projects lead with their lists, then what adds to them, and end with how fresh the read of GitHub is
+// and the note on private projects.
+func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, order := range map[string][]string{
+		"/me": {"Published by you and your orgs", "+ Add a library", "Read from GitHub", "Showing public repos only."},
+		"/me?tab=projects": {"Used in your projects", "provenance.json", "Read from GitHub", "Showing public repos only."},
+	} {
+		text := visibleText(t, site.get(t, target))
+		last := -1
+		for _, part := range order {
+			at := strings.Index(text, part)
+			if at <= last {
+				t.Errorf("%s shows %q out of the order %q:\n%s", target, part, order, text)
+			}
+			last = at
+		}
+	}
+}
+
 // Each of the dashboard's tabs, My libraries, Projects, Starred rules, and Account, shows its own content and none of
 // the others', under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
 // which both show what Rulemart read of GitHub, say how fresh the read is, and their Refresh returns to the same tab.
