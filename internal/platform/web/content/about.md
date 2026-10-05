@@ -5,7 +5,7 @@ description: Why Rulemart exists, what Code Rules is, and how Rulemart helps you
 eyebrow: About
 ---
 
-**Why.** Everyone writes software with agents now, and agents need guidance to write it well. Most teams give that
+**Why Rulemart.** Everyone writes software with agents now, and agents need guidance to write it well. Most teams give that
 guidance through skills, which are coarse: hard to version, hard to share across teams, and all-or-nothing when
 something changes.
 
