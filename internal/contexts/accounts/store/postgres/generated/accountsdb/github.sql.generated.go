@@ -144,6 +144,16 @@ func (q *Queries) DiscardInstallationSnapshots(ctx context.Context, installation
 	return result.RowsAffected(), nil
 }
 
+const forgetDeliveries = `-- name: ForgetDeliveries :exec
+DELETE FROM github_deliveries WHERE applied_at < $1
+`
+
+// ForgetDeliveries forgets the deliveries of the GitHub App's webhook applied before the time given.
+func (q *Queries) ForgetDeliveries(ctx context.Context, appliedBefore pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, forgetDeliveries, appliedBefore)
+	return err
+}
+
 const getSnapshot = `-- name: GetSnapshot :one
 
 SELECT snapshot FROM github_snapshots WHERE account_id = $1
@@ -188,6 +198,28 @@ func (q *Queries) ListInstallations(ctx context.Context, accountID int64) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordDelivery = `-- name: RecordDelivery :execrows
+INSERT INTO github_deliveries (delivery_id, body_sha256, applied_at)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type RecordDeliveryParams struct {
+	DeliveryID string
+	BodySha256 []byte
+	AppliedAt  pgtype.Timestamptz
+}
+
+// RecordDelivery records a delivery of the GitHub App's webhook as applied, unless one with its ID or body is recorded.
+// It returns 1 when it recorded the delivery, and 0 when it's a repeat.
+func (q *Queries) RecordDelivery(ctx context.Context, arg RecordDeliveryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordDelivery, arg.DeliveryID, arg.BodySha256, arg.AppliedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const saveSnapshot = `-- name: SaveSnapshot :execrows

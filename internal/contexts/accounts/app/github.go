@@ -493,24 +493,28 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 // Deliver acts on a delivery of the GitHub App's webhook: an installation uninstalled is forgotten for every account,
 // one suspended is kept but read through by none until it's unsuspended, and each of these, like a change to the
 // repositories one reads, discards the snapshots of the accounts that read through it, so their next page reads GitHub
-// again. It fails with ErrNoApp without a GitHub App, and as GitHubApp.WebhookChange does for a delivery it doesn't act
-// on.
-func (g GitHubAccounts) Deliver(ctx context.Context, event string, body []byte, signature string) error {
+// again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookChange does for a delivery it doesn't act
+// on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and with domain.ErrRepeatedDelivery,
+// changing nothing, for one it acted on within domain.DeliveryMemory, by its ID or its body.
+func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) error {
 	if g.App == nil {
 		return ErrNoApp
 	}
-	change, err := g.App.WebhookChange(ctx, event, body, signature)
+	change, err := g.App.WebhookChange(ctx, delivery.Event, delivery.Body, delivery.Signature)
 	if err != nil {
 		return err
 	}
-	switch change.Action {
-	case domain.Uninstalled:
-		return g.Store.InstallationRemoved(ctx, change.ID)
-	case domain.Suspended, domain.Unsuspended:
-		return g.Store.InstallationSuspended(ctx, change.ID, change.Action == domain.Suspended)
-	default:
-		return g.Store.InstallationChanged(ctx, change.ID)
+	if !delivery.RecordableID() {
+		return domain.ErrNoDeliveryID
 	}
+	applied, err := g.Store.ApplyDelivery(ctx, delivery, change, g.now(), domain.DeliveryMemory)
+	if err != nil {
+		return err
+	}
+	if !applied {
+		return domain.ErrRepeatedDelivery
+	}
+	return nil
 }
 
 func (g GitHubAccounts) now() time.Time {

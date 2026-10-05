@@ -37,8 +37,9 @@ type GitHubAccounts interface {
 	Install(ctx context.Context, account accounts.Account, session accounts.SessionToken, id int64) (accounts.Snapshot, error)
 	ForgetInstallations(ctx context.Context, accountID int64) error
 	// Deliver acts on a delivery of the GitHub App's webhook, failing with accounts.ErrBadSignature for one GitHub didn't
-	// sign and accounts.ErrIgnoredEvent for one it does nothing for.
-	Deliver(ctx context.Context, event string, body []byte, signature string) error
+	// sign, accounts.ErrIgnoredEvent for one it does nothing for, accounts.ErrNoDeliveryID for a signed one without an ID
+	// it can record, and accounts.ErrRepeatedDelivery for one it already acted on.
+	Deliver(ctx context.Context, delivery accounts.Delivery) error
 }
 
 // installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and setup_action:
@@ -228,8 +229,8 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 }
 
 // webhook acts on a delivery of the GitHub App's webhook, which GitHub signs with the webhook's secret. It answers 204
-// for a delivery it acted on or has nothing to do for, so GitHub doesn't send it again, and 401 for one GitHub didn't
-// sign.
+// for a delivery it acted on or has nothing to do for, so GitHub doesn't send it again, 200 for one it already acted
+// on, which it ignores, 401 for one GitHub didn't sign, and 400 for a signed one without an ID.
 func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", privateCache)
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBytes))
@@ -237,10 +238,19 @@ func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the delivery is too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	err = s.GitHubAccounts.Deliver(r.Context(), r.Header.Get("X-GitHub-Event"), body, r.Header.Get("X-Hub-Signature-256"))
+	err = s.GitHubAccounts.Deliver(r.Context(), accounts.Delivery{
+		ID: r.Header.Get("X-GitHub-Delivery"), Event: r.Header.Get("X-GitHub-Event"), Body: body,
+		Signature: r.Header.Get("X-Hub-Signature-256"),
+	})
 	switch {
 	case err == nil, errors.Is(err, accounts.ErrIgnoredEvent):
 		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, accounts.ErrRepeatedDelivery):
+		s.Log.InfoContext(r.Context(), "webhook ignored", "route", s.route(r), "requestID", s.requestID(r), "reason", "repeated delivery")
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, accounts.ErrNoDeliveryID):
+		s.Log.WarnContext(r.Context(), "webhook refused", "route", s.route(r), "requestID", s.requestID(r), "reason", "no delivery ID")
+		http.Error(w, "the delivery has no X-GitHub-Delivery ID", http.StatusBadRequest)
 	case errors.Is(err, accounts.ErrBadSignature):
 		s.Log.WarnContext(r.Context(), "webhook refused", "route", s.route(r), "requestID", s.requestID(r), "reason", "bad signature")
 		http.Error(w, "the signature isn't the webhook's", http.StatusUnauthorized)

@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,11 +167,7 @@ func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) err
 // InstallationRemoved forgets the installation for every account and discards their snapshots, in one transaction.
 func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
-			return err
-		}
-		_, err := q.DeleteInstallation(ctx, id)
-		return err
+		return applyChange(ctx, q, domain.InstallationChange{ID: id, Action: domain.Uninstalled})
 	})
 	if err != nil {
 		return fmt.Errorf("forget GitHub installation installationID=%d: %v", id, err)
@@ -178,38 +175,51 @@ func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	return nil
 }
 
-// InstallationChanged discards the snapshots of the accounts that read through the installation, in one transaction.
-func (s *Store) InstallationChanged(ctx context.Context, id int64) error {
+// ApplyDelivery applies the change a delivery of the GitHub App's webhook reported and records the delivery, unless
+// it's a repeat, as store.Store describes. Of copies of one delivery that arrive together, the first to record it
+// holds its row until it commits, so the others find it recorded.
+func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, change domain.InstallationChange, at time.Time, memory time.Duration) (bool, error) {
+	digest := sha256.Sum256(delivery.Body)
+	var applied bool
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
+		applied = false
+		if err := q.ForgetDeliveries(ctx, pgtype.Timestamptz{Time: at.Add(-memory), Valid: true}); err != nil {
 			return err
 		}
-		_, err := q.DiscardInstallationSnapshots(ctx, id)
-		return err
+		recorded, err := q.RecordDelivery(ctx, accountsdb.RecordDeliveryParams{
+			DeliveryID: delivery.ID, BodySha256: digest[:], AppliedAt: pgtype.Timestamptz{Time: at, Valid: true},
+		})
+		if err != nil || recorded == 0 {
+			return err
+		}
+		applied = true
+		return applyChange(ctx, q, change)
 	})
 	if err != nil {
-		return fmt.Errorf("discard snapshots of GitHub installation installationID=%d: %v", id, err)
+		return false, fmt.Errorf("apply GitHub webhook delivery deliveryID=%q installationID=%d: %v", delivery.ID, change.ID, err)
 	}
-	return nil
+	return applied, nil
 }
 
-// InstallationSuspended records whether the installation is suspended, and discards the snapshots of the accounts that
-// read through it, in one transaction.
-func (s *Store) InstallationSuspended(ctx context.Context, id int64, suspended bool) error {
-	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
-			return err
-		}
-		if err := q.SetInstallationSuspended(ctx, accountsdb.SetInstallationSuspendedParams{InstallationID: id, Suspended: suspended}); err != nil {
-			return err
-		}
-		_, err := q.DiscardInstallationSnapshots(ctx, id)
+// applyChange applies change to the installation for every account that reads through it, within a transaction: an
+// uninstalled one is forgotten, a suspended or unsuspended one marked so, and each of these, like a change to the
+// repositories it reads, discards those accounts' snapshots, after advancing their GitHub generations.
+func applyChange(ctx context.Context, q *accountsdb.Queries, change domain.InstallationChange) error {
+	if err := q.AdvanceInstallationGenerations(ctx, change.ID); err != nil {
 		return err
-	})
-	if err != nil {
-		return fmt.Errorf("mark GitHub installation installationID=%d suspended=%t: %v", id, suspended, err)
 	}
-	return nil
+	switch change.Action {
+	case domain.Uninstalled:
+		_, err := q.DeleteInstallation(ctx, change.ID)
+		return err
+	case domain.Suspended, domain.Unsuspended:
+		params := accountsdb.SetInstallationSuspendedParams{InstallationID: change.ID, Suspended: change.Action == domain.Suspended}
+		if err := q.SetInstallationSuspended(ctx, params); err != nil {
+			return err
+		}
+	}
+	_, err := q.DiscardInstallationSnapshots(ctx, change.ID)
+	return err
 }
 
 // discardSnapshot discards the account's snapshot within a transaction, after advancing its GitHub generation, so a

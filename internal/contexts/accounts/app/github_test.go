@@ -335,7 +335,7 @@ func signature(secret, body string) string {
 func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t *testing.T) {
 	ctx := context.Background()
 	deliver := func(site *gitHubSite, event, body, sig string) error {
-		return site.accounts.Deliver(ctx, event, []byte(body), sig)
+		return site.accounts.Deliver(ctx, domain.Delivery{ID: "72d3162e-cc78-11e3-81ab-4c9367dc0958", Event: event, Body: []byte(body), Signature: sig})
 	}
 	count := func(site *gitHubSite, table string) int {
 		var n int
@@ -398,6 +398,132 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 			}
 		})
 	}
+	// GitHub always sends a delivery's ID, which Rulemart records to recognize the delivery sent again, but checks the
+	// signature first, so a delivery GitHub didn't sign learns nothing more.
+	for name, tc := range map[string]struct {
+		id, signature string
+		want          error
+	}{
+		"signed without an ID":          {"", signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with an ID too long":    {strings.Repeat("a", 101), signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with a space in its ID": {"72d3162e cc78", signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"unsigned without an ID":        {"", "", domain.ErrBadSignature},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := installed(t)
+			err := site.accounts.Deliver(ctx, domain.Delivery{ID: tc.id, Event: "installation", Body: []byte(removed), Signature: tc.signature})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+			if count(site, "github_installations") != 1 || count(site, "github_snapshots") != 1 {
+				t.Error("a delivery without an ID changed what Rulemart keeps")
+			}
+		})
+	}
+}
+
+// suspendable returns mona's site with the app installed on her account, and functions that deliver a signed
+// installation event with the action and ID given, and that report whether her installation is suspended.
+func suspendable(t *testing.T) (site *gitHubSite, deliver func(id, action string) error, suspended func() bool) {
+	t.Helper()
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site = newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+	deliver = func(id, action string) error {
+		body := `{"action":"` + action + `","installation":{"id":5,"app_id":42}}`
+		return site.accounts.Deliver(ctx, domain.Delivery{ID: id, Event: "installation", Body: []byte(body), Signature: signature(webhookSecret, body)})
+	}
+	suspended = func() bool {
+		t.Helper()
+		installations, err := site.accounts.Installations(ctx, site.account.ID)
+		if err != nil || len(installations) != 1 {
+			t.Fatalf("installations %+v, %v, want installation 5", installations, err)
+		}
+		return installations[0].Suspended
+	}
+	return site, deliver, suspended
+}
+
+// A delivery Rulemart acted on changes nothing when it arrives again: by its ID, as GitHub redelivers it, or by its
+// body, since only the body is signed, so a copy of an old suspension can't suspend the app again under a new ID.
+func TestARepeatedDeliveryChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	site, deliver, suspended := suspendable(t)
+	if err := deliver("delivery-1", "suspend"); err != nil || !suspended() {
+		t.Fatalf("a first suspension: %v, suspended %t", err, suspended())
+	}
+	if err := deliver("delivery-2", "unsuspend"); err != nil || suspended() {
+		t.Fatalf("a new delivery, unsuspending: %v, suspended %t", err, suspended())
+	}
+
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the suspension again: got %v, want ErrRepeatedDelivery", err)
+	}
+	if err := deliver("delivery-3", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the suspension's body under a new ID: got %v, want ErrRepeatedDelivery", err)
+	}
+	other := `{"action":"suspend","installation":{"id":5,"app_id":42},"sender":{"login":"mona"}}`
+	err := site.accounts.Deliver(ctx, domain.Delivery{ID: "delivery-2", Event: "installation", Body: []byte(other), Signature: signature(webhookSecret, other)})
+	if !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("another body under a recorded ID: got %v, want ErrRepeatedDelivery", err)
+	}
+	if suspended() {
+		t.Error("a repeated delivery suspended the installation again")
+	}
+}
+
+// Rulemart remembers a delivery for domain.DeliveryMemory, then forgets it, so the same ID and body act again.
+func TestADeliveryIsForgottenAfterDeliveryMemory(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	start := site.now
+	if err := deliver("delivery-1", "suspend"); err != nil {
+		t.Fatal(err)
+	}
+	if err := deliver("delivery-2", "unsuspend"); err != nil {
+		t.Fatal(err)
+	}
+
+	site.now = start.Add(domain.DeliveryMemory)
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) || suspended() {
+		t.Fatalf("exactly DeliveryMemory later: got %v, suspended %t, want ErrRepeatedDelivery", err, suspended())
+	}
+	site.now = start.Add(domain.DeliveryMemory + time.Second)
+	if err := deliver("delivery-1", "suspend"); err != nil || !suspended() {
+		t.Fatalf("after DeliveryMemory: got %v, suspended %t, want the suspension applied", err, suspended())
+	}
+	var remembered int
+	postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_deliveries", &remembered)
+	if remembered != 1 {
+		t.Errorf("remembers %d deliveries, want only the latest", remembered)
+	}
+}
+
+// Copies of one delivery that arrive together act once between them.
+func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
+	_, deliver, suspended := suspendable(t)
+	errs := make([]error, 8)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() { errs[i] = deliver("delivery-1", "suspend") })
+	}
+	wg.Wait()
+
+	applied := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			applied++
+		case !errors.Is(err, domain.ErrRepeatedDelivery):
+			t.Errorf("a copy failed: %v", err)
+		}
+	}
+	if applied != 1 || !suspended() {
+		t.Errorf("%d copies acted, suspended %t, want one", applied, suspended())
+	}
 }
 
 // Suspending the app on GitHub hides the private repositories it reads, without forgetting the installation, and
@@ -414,7 +540,8 @@ func TestASuspendedInstallationsRepositoriesDisappearAndReturnWhenUnsuspended(t 
 		t.Helper()
 		fake.Installations[0].Suspended = suspended
 		body := `{"action":"` + action + `","installation":{"id":5,"app_id":42}}`
-		if err := site.accounts.Deliver(ctx, "installation", []byte(body), signature(webhookSecret, body)); err != nil {
+		delivery := domain.Delivery{ID: action, Event: "installation", Body: []byte(body), Signature: signature(webhookSecret, body)}
+		if err := site.accounts.Deliver(ctx, delivery); err != nil {
 			t.Fatalf("deliver %s: %v", action, err)
 		}
 	}
@@ -499,7 +626,7 @@ func TestInstallWithoutTheAppFails(t *testing.T) {
 	if _, err := site.accounts.Install(context.Background(), site.account, site.session, 1); !errors.Is(err, ErrNoApp) {
 		t.Errorf("got %v, want ErrNoApp", err)
 	}
-	if err := site.accounts.Deliver(context.Background(), "installation", nil, ""); !errors.Is(err, ErrNoApp) {
+	if err := site.accounts.Deliver(context.Background(), domain.Delivery{ID: "delivery-1", Event: "installation"}); !errors.Is(err, ErrNoApp) {
 		t.Errorf("a delivery: got %v, want ErrNoApp", err)
 	}
 }

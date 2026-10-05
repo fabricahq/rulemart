@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -29,7 +30,7 @@ type fakeGitHubAccounts struct {
 	reads int
 	// app is false for a server without the GitHub App.
 	app bool
-	// owned are the installations visitors may install, and delivered the deliveries acted on.
+	// owned are the installations visitors may install, and delivered the IDs of the deliveries acted on.
 	owned     map[int64]bool
 	delivered []string
 }
@@ -94,17 +95,21 @@ func (f *fakeGitHubAccounts) ForgetInstallations(_ context.Context, accountID in
 	return nil
 }
 
-// Deliver acts on a delivery signed "sha256=good", for the installation event, as the fake's change.
-func (f *fakeGitHubAccounts) Deliver(_ context.Context, event string, body []byte, signature string) error {
+// Deliver acts on a delivery signed "sha256=good", for the installation event, once per ID, recording its ID.
+func (f *fakeGitHubAccounts) Deliver(_ context.Context, delivery accounts.Delivery) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	switch {
-	case signature != "sha256=good":
+	case delivery.Signature != "sha256=good":
 		return accounts.ErrBadSignature
-	case event != "installation":
+	case delivery.Event != "installation":
 		return accounts.ErrIgnoredEvent
+	case delivery.ID == "":
+		return accounts.ErrNoDeliveryID
+	case slices.Contains(f.delivered, delivery.ID):
+		return accounts.ErrRepeatedDelivery
 	}
-	f.delivered = append(f.delivered, string(body))
+	f.delivered = append(f.delivered, delivery.ID)
 	return nil
 }
 
@@ -183,13 +188,17 @@ func TestReturningFromRequestingTheAppSaysTheOwnersMustApprove(t *testing.T) {
 	}
 }
 
-// GitHub's deliveries carry a body and no browser's headers: a signed one is acted on, an unsigned one refused, and
-// one Rulemart has nothing to do for answered, so GitHub doesn't send it again.
+// GitHub's deliveries carry a body and no browser's headers: a signed one is acted on, an unsigned one refused, one
+// Rulemart has nothing to do for answered, so GitHub doesn't send it again, and one it already acted on answered as
+// done, without acting again.
 func TestTheWebhookActsOnlyOnDeliveriesGitHubSigned(t *testing.T) {
 	gitHub := newFakeGitHubAccounts(accounts.Snapshot{})
 	site, _ := newGitHubSite(t, gitHub)
-	deliver := func(event, signature string) int {
+	deliver := func(id, event, signature string) int {
 		req := httptest.NewRequest(http.MethodPost, "/account/github/webhook", strings.NewReader(`{"action":"deleted"}`))
+		if id != "" {
+			req.Header.Set("X-GitHub-Delivery", id)
+		}
 		req.Header.Set("X-GitHub-Event", event)
 		req.Header.Set("X-Hub-Signature-256", signature)
 		req.Header.Set("User-Agent", "GitHub-Hookshot/abc")
@@ -198,13 +207,19 @@ func TestTheWebhookActsOnlyOnDeliveriesGitHubSigned(t *testing.T) {
 		_, _ = io.Copy(io.Discard, recorder.Result().Body)
 		return recorder.Code
 	}
-	if got := deliver("installation", "sha256=good"); got != http.StatusNoContent || len(gitHub.delivered) != 1 {
+	if got := deliver("delivery-1", "installation", "sha256=good"); got != http.StatusNoContent || len(gitHub.delivered) != 1 {
 		t.Errorf("a signed delivery: %d, delivered %v", got, gitHub.delivered)
 	}
-	if got := deliver("installation", "sha256=bad"); got != http.StatusUnauthorized || len(gitHub.delivered) != 1 {
+	if got := deliver("delivery-1", "installation", "sha256=good"); got != http.StatusOK || len(gitHub.delivered) != 1 {
+		t.Errorf("the same delivery again: %d, delivered %v", got, gitHub.delivered)
+	}
+	if got := deliver("delivery-2", "installation", "sha256=bad"); got != http.StatusUnauthorized || len(gitHub.delivered) != 1 {
 		t.Errorf("an unsigned delivery: %d", got)
 	}
-	if got := deliver("ping", "sha256=good"); got != http.StatusNoContent {
+	if got := deliver("", "installation", "sha256=good"); got != http.StatusBadRequest || len(gitHub.delivered) != 1 {
+		t.Errorf("a signed delivery without an ID: %d", got)
+	}
+	if got := deliver("delivery-3", "ping", "sha256=good"); got != http.StatusNoContent {
 		t.Errorf("a ping: %d", got)
 	}
 }

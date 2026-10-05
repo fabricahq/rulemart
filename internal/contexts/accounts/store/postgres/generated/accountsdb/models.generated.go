@@ -31,6 +31,12 @@ type Asset struct {
 	Html      pgtype.Text
 }
 
+type GithubDelivery struct {
+	DeliveryID string
+	BodySha256 []byte
+	AppliedAt  pgtype.Timestamptz
+}
+
 type GithubInstallation struct {
 	AccountID      int64
 	InstallationID int64

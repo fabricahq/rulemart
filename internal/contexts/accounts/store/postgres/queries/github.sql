@@ -72,3 +72,14 @@ WHERE account_id IN (SELECT account_id FROM github_installations WHERE installat
 -- SetInstallationSuspended records, for every account that reads through the installation, whether it's suspended.
 -- name: SetInstallationSuspended :exec
 UPDATE github_installations SET suspended = @suspended WHERE installation_id = @installation_id;
+
+-- ForgetDeliveries forgets the deliveries of the GitHub App's webhook applied before the time given.
+-- name: ForgetDeliveries :exec
+DELETE FROM github_deliveries WHERE applied_at < @applied_before;
+
+-- RecordDelivery records a delivery of the GitHub App's webhook as applied, unless one with its ID or body is recorded.
+-- It returns 1 when it recorded the delivery, and 0 when it's a repeat.
+-- name: RecordDelivery :execrows
+INSERT INTO github_deliveries (delivery_id, body_sha256, applied_at)
+VALUES (@delivery_id, @body_sha256, @applied_at)
+ON CONFLICT DO NOTHING;
