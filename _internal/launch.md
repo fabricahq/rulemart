@@ -69,7 +69,7 @@ jq -e 'length > 0 and all(.bucket == "pass" or .bucket == "skipping")' <<<"${s:-
 
 Before anything merges:
 
-1. **Confirm the privacy notice** at `/privacy` (`internal/platform/web/about.templ`), which states only what the code
+1. **Confirm the privacy notice** at `/privacy` (`internal/platform/web/content/privacy.md`), which states only what the code
    and infrastructure do: the sealed GitHub token, what Rulemart reads of a GitHub account and its organizations, the
    cart the browser keeps, rule stars, and page views counted on every page once the analytics token is set. Decide:
    - the contact for privacy questions is `legal@fabricahq.com` (decided 2026-10-05), which the privacy page names;

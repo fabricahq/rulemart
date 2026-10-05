@@ -223,6 +223,11 @@ than adding history.
 - **Go, templ, Tailwind, sqlc, and goose, with Postgres on Neon.** No Node: Tailwind runs as its standalone
   binary. Pages are server-rendered; small scripts paint what only the browser knows, such as the cart.
 - **Static assets are embedded in the web binary** and cached by CloudFront for a year under hashed names.
+- **Prose pages are Markdown with a small template layer.** About, vetting, and privacy live in
+  `internal/platform/web/content/*.md`, so Josh edits their words directly instead of through templ's syntax. Go
+  template actions name the shared links and strings and switch on what the server offers; `make generate` renders
+  the Markdown with goldmark, so the web function still links no Markdown renderer, and the server runs the templates
+  at start, refusing to start on a missing value. The FAQ and feedback pages stay templ: their structure is markup.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
   release records with Code Rules' own parser: a copy in `internal/lib/coderules` until Code Rules publishes a
   public parsing package.

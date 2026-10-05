@@ -86,7 +86,8 @@ robots.txt names <http://127.0.0.1:8080/sitemap.xml> and the social card points 
 it has no sitemap, unless `RULEMART_BASE_URL` names one, such as `https://rulemart.example`. To try Cloudflare
 Web Analytics, set `CLOUDFLARE_WEB_ANALYTICS_TOKEN` to a site's token: pages then load its beacon, and the content
 security policy allows it. `/about` and `/privacy` describe Rulemart and what it keeps; when a change alters what
-Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/about.templ` with it.
+Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/content/privacy.md` with it, as
+[Edit a content page](#edit-a-content-page) says.
 
 The `prototype` branch's click-through mock is the spec for every page, as
 [_internal/realignment.md](_internal/realignment.md) says. After changing a page, compare it with the prototype. With
@@ -132,10 +133,41 @@ assets and tags were stored, stored it. A new
 listing is looked up on GitHub first, and a listing whose repository fails records why, for its lister. A queue in
 memory stands in for SQS. Run it twice: the second run finds nothing to ingest.
 
+## Edit a content page
+
+The about, vetting, and privacy pages are written in Markdown, one file each in
+[internal/platform/web/content](internal/platform/web/content): `about.md`, `vetting.md`, and `privacy.md`. The FAQ
+and feedback pages stay in templ, since their answers are disclosures and their topics rows of prefilled links.
+
+Each file starts with front matter: `title`, the page's name in browsers' tabs and search results; `heading`, its
+`h1`; `description`, for search results; `eyebrow`, the label above the heading; and an optional `lede`, the HTML
+under the heading. The body is GitHub-flavored Markdown, and may hold raw HTML, such as a link with `rel="nofollow"`.
+Give a heading an ID other pages link to with `{#id}` after it, as `## Cookies {#cookies}`, so rewording it keeps
+the links working.
+
+Both the body and the lede are Go templates, so they can name a link or a shared string, as `{{.CodeRulesURL}}`,
+and choose words by what the server offers, as `{{if .CanList}}...{{else}}...{{end}}`. `contentValues` in
+[internal/platform/web/content.go](internal/platform/web/content.go) lists every value they can name, with the
+switches `.CanList` and `.Analytics`. An action must open and close on one line; one alone in a paragraph can
+choose between whole paragraphs. Unlike in a `.templ` file, line breaks and indentation inside a paragraph don't
+matter, and words around a value need no templ syntax.
+
+`make generate` renders each file as `<page>.generated.html` beside it, with goldmark, so the web function doesn't
+link a Markdown renderer. The server runs the templates when it starts, with every combination of the switches, and
+refuses to start when one names a value `contentValues` lacks or the front matter is wrong. To check a change and
+see it:
+
+```sh
+make generate && go test -tags rulemartdev ./internal/platform/web -run 'About|Vetting|Privacy|Help|Content'
+```
+
+Then restart `make web-dev`.
+
 ## Generated files
 
-sqlc writes the database queries' Go, templ the pages' Go, and Tailwind the stylesheet. Their output is committed,
-so building needs none of them, and every generated file says so where it lives:
+sqlc writes the database queries' Go, templ the pages' Go, contentgen the content pages' HTML, and Tailwind the
+stylesheet. Their output is committed, so building needs none of them, and every generated file says so where it
+lives:
 
 - sqlc writes each context's queries beside its store: the catalog's into
   `internal/contexts/catalog/store/postgres/generated/catalogdb`, and accounts' into
@@ -143,17 +175,19 @@ so building needs none of them, and every generated file says so where it lives:
 - Tailwind writes `internal/platform/web/static/generated/app.css`.
 - templ output must stay beside its `.templ` source, because Go needs it in the same package and so the same
   directory. `make generate` renames templ's `x_templ.go` to `x_templ.generated.go`.
+- `internal/platform/web/contentgen` renders each content page's Markdown as `<page>.generated.html` beside it, as
+  [Edit a content page](#edit-a-content-page) says.
 
 [.gitattributes](.gitattributes) marks `generated/` directories and `*.generated.*` files as generated, so GitHub
 collapses them in diffs. After changing a query in a context's `store/postgres/queries`, a migration,
-a `.templ` file, or `internal/platform/web/styles/app.css`, run:
+a `.templ` file, a content page's Markdown, or `internal/platform/web/styles/app.css`, run:
 
 ```sh
 make generate
 ```
 
-It deletes the generated files, then runs sqlc and templ as Go tools, and Tailwind as its standalone binary, which it
-downloads into `bin/` and checks against the SHA-256 pinned in the [Makefile](Makefile). CI runs
+It deletes the generated files, then runs contentgen, sqlc, and templ as Go tools, and Tailwind as its standalone
+binary, which it downloads into `bin/` and checks against the SHA-256 pinned in the [Makefile](Makefile). CI runs
 `make check-generated`, which fails when a committed generated file differs from what its sources generate, or is
 one they no longer generate, such as a file under an old name.
 
