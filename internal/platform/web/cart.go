@@ -226,6 +226,11 @@ func (s *server) redirectToCart(w http.ResponseWriter, r *http.Request) {
 // can't post one (withSameOriginWrites), and the answer is the visitor's alone, so nothing caches it. A request that
 // isn't such a cart, holds more than domain.MaxCartItems keys, or names more libraries than checkoutRequest allows, is
 // refused with 400.
+//
+// It's the site's only request with a body, so the script that posts it, cart-checkout.js, sends the body's SHA-256 in
+// x-amz-content-sha256: CloudFront's origin access control signs a request's body only when the viewer sends that
+// header, and the function URL refuses a body it didn't sign with 403 before this handler runs. Nothing here reads the
+// header, and nothing local checks it, so only production breaks if the script stops sending it.
 func (s *server) checkout(w http.ResponseWriter, r *http.Request) {
 	if media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || media != "application/json" {
 		s.writeJSON(w, r, http.StatusUnsupportedMediaType, map[string]string{"error": "send the cart as application/json"})
