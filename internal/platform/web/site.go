@@ -73,6 +73,9 @@ type Options struct {
 	// beacon with, and the content security policy allows. Empty leaves analytics out: no page loads another site's
 	// script. New refuses one that can't be a token.
 	AnalyticsToken string
+	// GitHubWebhook is true when GitHub's deliveries reach the GitHub App's webhook, as through the web function's
+	// webhook alias, so the privacy page says a delivery discards what Rulemart read through an installation.
+	GitHubWebhook bool
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin, or an http one on a loopback host, with no path,
@@ -208,7 +211,7 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			font: assets.url("fonts/inter-latin.woff2"),
 		},
 	}
-	s.content, err = loadContentPages(contentFiles, newContentValues(s.listingAvailable(), options.AnalyticsToken != ""))
+	s.content, err = loadContentPages(contentFiles, newContentValues(s.listingAvailable(), options.AnalyticsToken != "", options.GitHubWebhook))
 	if err != nil {
 		return nil, err
 	}

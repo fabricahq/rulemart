@@ -24,7 +24,8 @@
 // GITHUB_APP_WEBHOOK_ALIAS names the Lambda alias whose Function URL takes the app's webhook deliveries from anyone,
 // since GitHub can't sign them as CloudFront's origin access control asks. Through it, the function answers 404 to
 // every path but the webhook's, /account/github/webhook, whose own signature check authenticates GitHub, before any
-// page could set a cookie or render. Unset, every request reaches the pages, as through the function's own URL.
+// page could set a cookie or render, and the privacy page says what a delivery discards. Unset, every request reaches
+// the pages, as through the function's own URL.
 //
 // Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
 // sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
@@ -83,7 +84,7 @@ func main() {
 	if err != nil {
 		exit(logger, err)
 	}
-	handler, err := newHandler(context.Background(), logger, schemaVersion)
+	handler, err := newHandler(context.Background(), logger, schemaVersion, webhookAlias)
 	if err != nil {
 		exit(logger, err)
 	}
@@ -108,8 +109,9 @@ func exit(logger *slog.Logger, err error) {
 
 // newHandler returns the pages' handler, reading the catalog from the database the environment names, which must
 // be at schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
-// the function's start.
-func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (http.Handler, error) {
+// the function's start. webhookAlias names the alias GitHub's webhook deliveries arrive through, or is empty without
+// one.
+func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64, webhookAlias string) (http.Handler, error) {
 	baseURL, err := newBaseURL(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -177,6 +179,7 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		accounts := accountsapp.GitHubAccounts{Store: accountsStore, Sessions: sessions, GitHub: reader}
 		if gitHubApp != nil {
 			accounts.App = gitHubApp
+			options.GitHubWebhook = webhookAlias != ""
 		}
 		options.GitHubAccounts = accounts
 	}

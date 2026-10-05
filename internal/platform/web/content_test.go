@@ -9,7 +9,7 @@ import (
 
 // Each content page's sections keep the IDs other pages and readers link to.
 func TestContentPagesKeepTheirSectionIDs(t *testing.T) {
-	pages, err := loadContentPages(contentFiles, newContentValues(true, true))
+	pages, err := loadContentPages(contentFiles, newContentValues(true, true, true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestContentPagesThatCannotRenderFailTheStart(t *testing.T) {
 		}
 		files["content/generated/vetting.generated.html"] = &fstest.MapFile{Data: []byte(page)}
 
-		if _, err := loadContentPages(files, newContentValues(false, false)); err == nil {
+		if _, err := loadContentPages(files, newContentValues(false, false, false)); err == nil {
 			t.Errorf("a page with %s loaded", problem)
 		}
 	}
