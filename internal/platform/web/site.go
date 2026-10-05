@@ -225,6 +225,8 @@ func (s *server) handler() http.Handler {
 	handle("GET "+robotsHref, s.robots)
 	handle("GET "+sitemapHref, s.sitemap)
 	handle("GET "+aboutHref, s.about)
+	// Two segments, so it takes the page of a library named about/vetting, as libraryPageTaken says.
+	handle("GET "+vettingHref, s.vetting)
 	handle("GET "+privacyHref, s.privacy)
 	handle("GET "+faqHref, s.faq)
 	handle("GET "+feedbackHref, s.feedback)
@@ -349,9 +351,9 @@ func (s *server) withStaticFiles(next http.Handler) http.Handler {
 //
 // A library's page has two segments, and a rule's at least five, since a rule's ID has at least three, so the site's
 // pages under these sections take only the pages of the libraries libraryPageTaken names, by design: browse/techs and
-// browse/practices, the browse pages, and every library owned by o, whose address is an owner's page under /o/.
-// GitHub has users named browse and o. Their rules' pages stay, and so does every other library's page, such as
-// browse/rules, g/techs, groups/techs, or libraries/rules.
+// browse/practices, the browse pages, about/vetting, the vetting page, and every library owned by o, whose address is
+// an owner's page under /o/. GitHub has users named browse and o. Their rules' pages stay, and so does every other
+// library's page, such as browse/rules, g/techs, groups/techs, or libraries/rules.
 var siteSections = []string{
 	"browse", "g", "o", "groups", "libraries", "search", "unvetted", "about", "privacy", "faq", "feedback", "cart",
 }
@@ -374,7 +376,8 @@ func reservedOwner(login string) bool {
 // libraryPageTaken reports whether one of the site's own pages takes the address of the library owner/name's page, in
 // any case, as siteSections lists, so the library has no page, and the sitemap leaves its address out. The visitor's
 // pages take me/{name}, as an owner named me's libraries' pages, GitHub's callback takes account/{name}, though GitHub
-// has no account named account, and starring takes stars/remove.
+// has no account named account, starring takes stars/remove, and the vetting page takes about/vetting, but not
+// about/Vetting, since only a path's first segment redirects to lowercase.
 func libraryPageTaken(owner, name string) bool {
 	switch strings.ToLower(owner) {
 	case strings.Trim(ownerAliasPrefix, "/"), strings.TrimPrefix(accountHref, "/"), strings.TrimPrefix(starsHref, "/"),
@@ -383,6 +386,8 @@ func libraryPageTaken(owner, name string) bool {
 	case strings.Trim(browsePrefix, "/"):
 		_, kind := parseGroupKind(name)
 		return kind
+	case strings.TrimPrefix(aboutHref, "/"):
+		return aboutHref+"/"+name == vettingHref
 	}
 	return false
 }

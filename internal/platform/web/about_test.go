@@ -24,7 +24,7 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 		"Privacy /privacy",
 		"Source on GitHub https://github.com/fabricahq/rulemart",
 	}
-	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
+	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/about/vetting", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
 		doc, err := html.Parse(strings.NewReader(page[strings.Index(page, "<footer"):]))
 		if err != nil {
@@ -67,6 +67,51 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	}
 	if got := links(t, page, "Ask to vet a library"); len(got) != 1 || !strings.Contains(got[0], "template=ask-to-vet-a-library.yml") {
 		t.Errorf("asking to vet leads to %q", got)
+	}
+}
+
+// The vetting page says what vetting means, as the opt-in every list offers, what an unvetted library is, how a
+// library gets vetted, and where to report a problem, and has an address of its own for search engines. Where listing
+// isn't available, it names listing a library without leading to the form.
+func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
+	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
+
+	resp := get(t, handler, "/about/vetting")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("answered %d", resp.Code)
+	}
+	page := resp.Body.String()
+	assertShows(t, page, "About", "Library vetting", "What vetting means", "Unvetted libraries", "Get a library vetted",
+		"Report a problem", "Include unvetted libraries", unvettedWarning, "List it on Rulemart")
+	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about/vetting"}) {
+		t.Errorf("names %q as canonical", got)
+	}
+	if got := links(t, page, "catalog/vetted.yaml"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml"}) {
+		t.Errorf("vetted.yaml leads to %q", got)
+	}
+	if got := links(t, page, "unvetted libraries"); !slices.Equal(got, []string{"/unvetted"}) {
+		t.Errorf("unvetted libraries leads to %q", got)
+	}
+	if got := links(t, page, "Ask to vet a library"); len(got) != 1 || !strings.Contains(got[0], "template=ask-to-vet-a-library.yml") {
+		t.Errorf("asking to vet leads to %q", got)
+	}
+	if got := links(t, page, "report a problem"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/issues/new/choose"}) {
+		t.Errorf("reporting a problem leads to %q", got)
+	}
+	if got := links(t, page, "List it on Rulemart"); len(got) != 0 {
+		t.Errorf("without listing, List it on Rulemart leads to %q", got)
+	}
+}
+
+// Where listing is available, the vetting page's steps lead to the listing form.
+func TestVettingPageLeadsToListingWhenListingIsAvailable(t *testing.T) {
+	site := newListingSite(t)
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/about/vetting"}))
+
+	if got := links(t, page, "List it on Rulemart"); !slices.Equal(got, []string{"/me/add"}) {
+		t.Errorf("List it on Rulemart leads to %q", got)
 	}
 }
 

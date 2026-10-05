@@ -10,6 +10,7 @@ import (
 
 const (
 	aboutHref   = "/about"
+	vettingHref = aboutHref + "/vetting"
 	privacyHref = "/privacy"
 )
 
@@ -47,6 +48,12 @@ var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
 // about shows what Rulemart is, what vetting means, and how a library gets vetted.
 func (s *server) about(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, aboutPage(s.pageChrome(aboutHref), s.listingAvailable()))
+}
+
+// vetting shows what vetting a library means, what an unvetted one is, how a library gets vetted, and where to
+// report a problem.
+func (s *server) vetting(w http.ResponseWriter, r *http.Request) {
+	s.render(w, r, http.StatusOK, vettingPage(s.pageChrome(vettingHref), s.listingAvailable()))
 }
 
 // privacy shows what Rulemart keeps about visitors, why, for how long, and who else handles it.
