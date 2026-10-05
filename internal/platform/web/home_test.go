@@ -119,7 +119,7 @@ func TestHomeLeadsToGettingVettedWhenListingIsntAvailable(t *testing.T) {
 	page := get(t, newSite(t, newBrowsingCatalog()), "/").Body.String()
 
 	assertShows(t, page, "Stock the shelves Have a public Code Rules library? List it on Rulemart in a minute.")
-	if got := links(t, page, "List your library"); !slices.Equal(got, []string{"/about#get-vetted"}) {
+	if got := links(t, page, "List your library"); !slices.Equal(got, []string{"/about/vetting#get-vetted"}) {
 		t.Errorf("List your library leads to %q", got)
 	}
 }

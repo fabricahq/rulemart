@@ -96,7 +96,7 @@ templ filterForm(v ruleListView) {
 		@filterGroup("Unvetted", "max-wide:col-span-full") {
 			@optInCheckbox(domain.UnvettedParam, unvettedOptInLabel, v.choices.Unvetted)
 			<p class="mt-0.5 pl-[28px] text-[12px] leading-[1.45] text-faint">
-				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(aboutHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
+				<a class="text-faint underline-offset-2 hover:text-ink" href={ templ.SafeURL(vettingHref + "#vetting") }>Libraries anyone listed that Rulemart hasn't reviewed</a>
 			</p>
 		}
 		<div class="flex flex-wrap items-center gap-2 max-wide:col-span-full">

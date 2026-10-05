@@ -65,7 +65,7 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 // library vetted.
 func (s *server) listYourLibraryHref(r *http.Request) string {
 	if !s.listingAvailable() {
-		return aboutHref + "#get-vetted"
+		return vettingHref + "#get-vetted"
 	}
 	if visitorOf(r.Context()).account == nil {
 		return s.absolute(signInPageHref(listHref))

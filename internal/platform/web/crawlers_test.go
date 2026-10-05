@@ -53,7 +53,7 @@ func TestRobotsKeepCrawlersOutOfPrivateAndEndlessPages(t *testing.T) {
 		"/example/rules?tab=releases&from=1&to=3": true, "/example/rules/techs/go/x?tab=versions&from=1.0.0&to=2.0.0": true,
 		// Pages crawlers may read, among them libraries whose owners' names start like a disallowed page's.
 		"/": false, "/libraries": false, "/g/techs/go": false, "/browse/techs": false, "/faq": false, "/example/rules": false, "/example/rules?tab=releases": false,
-		"/about": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
+		"/about": false, "/about/vetting": false, "/privacy": false, "/listr/rules": false, "/searchkit/rules": false, "/unvetted-fan/rules": false,
 		"/signin-kit/rules": false, "/accountant/rules": false, "/cartography/rules": false, "/cart/rules": false,
 		// Owners' other addresses, among them those whose logins are the site's own pages.
 		"/o/example": false, "/o/me": false, "/o/cart": false, "/o/signin": false,
@@ -164,6 +164,7 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 		"https://rulemart.example/browse/practices",
 		"https://rulemart.example/browse/practices/other",
 		"https://rulemart.example/about",
+		"https://rulemart.example/about/vetting",
 		"https://rulemart.example/privacy",
 		"https://rulemart.example/faq",
 		"https://rulemart.example/feedback",
@@ -195,13 +196,15 @@ func TestSitemapListsEveryIndexablePageByItsCanonicalAddress(t *testing.T) {
 	}
 }
 
-// A library whose page's address is one of the site's own pages, such as browse/techs, a browse page, or o/rules, an
-// owner's page under /o/, has no page to list, so the sitemap leaves it out; its groups' and rules' pages, under it, stay.
+// A library whose page's address is one of the site's own pages, such as browse/techs, a browse page, about/vetting,
+// or o/rules, an owner's page under /o/, has no page to list, so the sitemap leaves it out; its groups' and rules' pages, under it, stay.
 func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 	c := newBrowsingCatalog()
 	group := []views.SitemapGroup{{Path: "techs/go", Updated: day(3)}}
 	rule := []views.SitemapRule{{Path: "techs/go/return-errors", Updated: day(3)}}
 	c.sitemap = views.Sitemap{Libraries: []views.SitemapLibrary{
+		{Owner: "about", Name: "Vetting", Updated: day(3)},
+		{Owner: "about", Name: "vetting", Updated: day(3), Groups: group, Rules: rule},
 		{Owner: "browse", Name: "Practices", Updated: day(3), Groups: group, Rules: rule},
 		{Owner: "browse", Name: "rules", Updated: day(3)},
 		{Owner: "browse", Name: "techs", Updated: day(3), Groups: group, Rules: rule},
@@ -224,9 +227,11 @@ func TestSitemapLeavesOutLibraryPagesTheSiteTakes(t *testing.T) {
 		listed = append(listed, strings.TrimPrefix(u.Loc, "https://rulemart.example"))
 	}
 	// After the site's own pages and the groups', the owners' pages, then the libraries' and their rules'.
-	listed = listed[slices.Index(listed, "/o/browse"):]
+	listed = listed[slices.Index(listed, "/o/about"):]
 	want := []string{
-		"/o/browse", "/o/g", "/o/o",
+		"/o/about", "/o/browse", "/o/g", "/o/o",
+		"/about/Vetting",
+		"/about/vetting/techs/go", "/about/vetting/techs/go/return-errors",
 		"/browse/Practices/techs/go", "/browse/Practices/techs/go/return-errors",
 		"/browse/rules",
 		"/browse/techs/techs/go", "/browse/techs/techs/go/return-errors",

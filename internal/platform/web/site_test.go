@@ -740,7 +740,7 @@ func find(n *html.Node, matches func(*html.Node) bool) *html.Node {
 
 func TestPagesAreCacheableForAMinute(t *testing.T) {
 	handler := newSite(t, newCatalog())
-	for _, path := range []string{"/", library, retryRule, retryRule + "?tab=versions", "/example/missing"} {
+	for _, path := range []string{"/", library, retryRule, retryRule + "?tab=versions", "/example/missing", "/about", "/about/vetting"} {
 		resp := get(t, handler, path)
 		if got := resp.Header().Get("Cache-Control"); got != "public, max-age=0, s-maxage=60" {
 			t.Errorf("%s: Cache-Control is %q", path, got)

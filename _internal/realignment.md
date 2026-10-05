@@ -136,6 +136,7 @@ Differences on every page:
 | `#/me/add`, `#/me/add/run` | `/me/add`, `/me/add/run` | Match, plus when GitHub was read, with Refresh |
 | `#/me/private`, `#/gh/install` | `/me/private`, GitHub's own install page | Match; the prototype's mock of GitHub's page has no counterpart |
 | About, privacy, robots, sitemap, headers, analytics | `/about`, `/privacy`, `/robots.txt`, `/sitemap.xml` | Site only, updated in R8. About and Privacy take FAQ's layout, under an About label. `make web-dev` names its loopback address as the base URL, so the sitemap answers locally too |
+| None | `/about/vetting` | Site only: the prototype has no about page. Josh decided on 2026-10-05 that `/about` stays one screen about Rulemart and Code Rules, so what vetting means, unvetted libraries, getting a library vetted, and reporting a problem moved to a page of their own, which takes FAQ's layout under the About label, as About and Privacy do |
 
 ## Record: how the realignment was done
 

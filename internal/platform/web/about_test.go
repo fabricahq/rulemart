@@ -24,7 +24,7 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 		"Privacy /privacy",
 		"Source on GitHub https://github.com/fabricahq/rulemart",
 	}
-	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/privacy", "/faq", "/feedback"} {
+	for _, path := range []string{"/", library, unvettedLibrary, "/search?q=errors", "/example/missing", "/about", "/about/vetting", "/privacy", "/faq", "/feedback"} {
 		page := get(t, handler, path).Body.String()
 		doc, err := html.Parse(strings.NewReader(page[strings.Index(page, "<footer"):]))
 		if err != nil {
@@ -43,9 +43,11 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says what Rulemart is, what vetting means, as the opt-in every list offers, and how a library gets
-// vetted, and has an address of its own for search engines.
-func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
+// The about page says, in about one screen, why Rulemart exists, what Code Rules is, and that Rulemart is a visual
+// interface over its libraries, and leads to the vetting page for the rest. Its prose is Josh's to edit, so the test
+// checks the page's shape and links, not the words. It has an address of its
+// own for search engines.
+func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
 
 	resp := get(t, handler, "/about")
@@ -54,19 +56,93 @@ func TestAboutPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 		t.Fatalf("answered %d", resp.Code)
 	}
 	page := resp.Body.String()
-	assertShows(t, page, "About Rulemart", "What vetting means", "Unvetted libraries", "Get a library vetted",
-		"Report a problem", "Include unvetted libraries", unvettedWarning)
+	assertShows(t, page, "About", "About Rulemart")
+	if got := proseParagraphs(t, page); len(got) < 4 || !strings.Contains(got[0], "agents") || !strings.Contains(strings.Join(got, " "), "Code Rules") {
+		t.Errorf("the body is\n%s\nwant at least four paragraphs, opening with why agents need rules and naming Code Rules", strings.Join(got, "\n"))
+	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
 	}
-	if got := links(t, page, "Code Rules"); !slices.Contains(got, "https://code-rules.fabricahq.com") {
-		t.Errorf("Code Rules leads to %q", got)
+	for _, href := range []string{
+		"https://code-rules.fabricahq.com",
+		"/about/vetting",
+		"https://github.com/fabricahq/rulemart",
+		"/feedback",
+	} {
+		if !strings.Contains(page, `href="`+href+`"`) {
+			t.Errorf("the page doesn't link to %s", href)
+		}
+	}
+}
+
+// proseParagraphs returns the text of each paragraph in a page's prose, its body below the title, with its runs of
+// whitespace collapsed to one space.
+func proseParagraphs(t *testing.T, body string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var paragraphs []string
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && slices.Contains(strings.Fields(attribute(n, "class")), "prose") {
+			for p := range n.Descendants() {
+				if p.Type == html.ElementNode && p.Data == "p" {
+					paragraphs = append(paragraphs, strings.Join(strings.Fields(visibleTextOf(p)), " "))
+				}
+			}
+		}
+	}
+	return paragraphs
+}
+
+// The vetting page explains vetting, keeps the section anchors other pages link to, and says where to report a
+// problem; its wording is Josh's to edit. It has an address of its own for search engines. Where listing
+// isn't available, it names listing a library without leading to the form.
+func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
+	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
+
+	resp := get(t, handler, "/about/vetting")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("answered %d", resp.Code)
+	}
+	page := resp.Body.String()
+	assertShows(t, page, "About", "Library vetting", "Report a problem", "Include unvetted libraries", unvettedWarning,
+		"List it on Rulemart")
+	for _, id := range []string{"vetting", "unvetted", "get-vetted", "report"} {
+		if !strings.Contains(page, `id="`+id+`"`) {
+			t.Errorf("the page has no %s section for links to land on", id)
+		}
+	}
+	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about/vetting"}) {
+		t.Errorf("names %q as canonical", got)
 	}
 	if got := links(t, page, "catalog/vetted.yaml"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/blob/main/catalog/vetted.yaml"}) {
 		t.Errorf("vetted.yaml leads to %q", got)
 	}
+	if got := links(t, page, "unvetted libraries"); !slices.Equal(got, []string{"/unvetted"}) {
+		t.Errorf("unvetted libraries leads to %q", got)
+	}
 	if got := links(t, page, "Ask to vet a library"); len(got) != 1 || !strings.Contains(got[0], "template=ask-to-vet-a-library.yml") {
 		t.Errorf("asking to vet leads to %q", got)
+	}
+	if got := links(t, page, "report a problem"); !slices.Equal(got, []string{"https://github.com/fabricahq/rulemart/issues/new/choose"}) {
+		t.Errorf("reporting a problem leads to %q", got)
+	}
+	if got := links(t, page, "List it on Rulemart"); len(got) != 0 {
+		t.Errorf("without listing, List it on Rulemart leads to %q", got)
+	}
+}
+
+// Where listing is available, the vetting page's steps lead to the listing form.
+func TestVettingPageLeadsToListingWhenListingIsAvailable(t *testing.T) {
+	site := newListingSite(t)
+
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/about/vetting"}))
+
+	if got := links(t, page, "List it on Rulemart"); !slices.Equal(got, []string{"/me/add"}) {
+		t.Errorf("List it on Rulemart leads to %q", got)
 	}
 }
 
@@ -82,14 +158,18 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 		}
 		assertShows(t, resp.body, "GitHub user ID", "__Host-rulemart-session", "30 days", "IP address", "180 days",
 			"Delete your account", "6 hours", "Amazon Web Services", "Neon",
-			"A library's page shows the username you last signed in with as who added it, and when, while your listing stands.",
-			"the organizations you belong to", "keeps the token GitHub gives Rulemart, encrypted", "Signing out deletes the token",
-			"at most 200 of them", ".code-rules/generated/provenance.json", "the versions of their rules it holds",
-			"Private repositories' names and projects show only to you", "until you delete your account",
+			"A library's page shows the username you last signed in with as who added it, while your listing stands.",
+			"the organizations you belong to", "GitHub gives Rulemart a token for your account", "encrypted with a key that only its server holds",
+			"Signing out deletes the token along with the session", "whether you sign out of this browser or everywhere",
+			"Rulemart is run by Fabrica", "What Rulemart reads from GitHub", "the names of your organizations",
+			"at most 200 of them, most recently pushed first", ".code-rules/generated/provenance.json",
+			"which rule versions it holds", "Rulemart keeps nothing else about your repositories, and none of their code",
+			"No other visitor ever sees any information about your private repositories",
+			"It never reads their code", "until you delete your account",
 			"what it read of your GitHub account, and its record of the GitHub App's installations",
-			"the first time a page shows it after you sign in, when you press Refresh, at most once a minute",
-			"a suspended one makes the read fail", "A read that fails keeps what Rulemart already held",
-			"even after you change the app's installation on GitHub")
+			"only when you act: when you sign in, press Refresh, or return from installing the app",
+			"reads fail until the suspension is lifted", "It never reads in the background",
+			"What it did read stays until a later read replaces it")
 		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
 		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.
 		for _, promise := range []string{"installation on GitHub discards it", "when you open your dashboard"} {

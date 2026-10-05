@@ -1,0 +1,28 @@
+// The frame of the pages written in Markdown, which content.go loads.
+
+package web
+
+// contentPageView shows p under its eyebrow and heading: its lede, if it has one, then its prose.
+templ contentPageView(c chrome, p contentPage) {
+	@layout(c, head{title: p.title, description: p.description}) {
+		<div class="page wrap max-w-[760px]">
+			@label("") {
+				{ p.eyebrow }
+			}
+			if p.lede != nil {
+				<h1 class="title-xl mt-2.5 mb-2.5">{ p.heading }</h1>
+				<p class="text-muted">
+					@p.lede
+				</p>
+				<div class="prose mt-7">
+					@p.body
+				</div>
+			} else {
+				<h1 class="title-xl mt-2.5">{ p.heading }</h1>
+				<div class="prose mt-5">
+					@p.body
+				</div>
+			}
+		</div>
+	}
+}
