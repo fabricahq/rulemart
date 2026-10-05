@@ -499,17 +499,22 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 // so their next page reads GitHub again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookInstallation
 // does for a delivery it doesn't act on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and
 // with domain.ErrRepeatedDelivery, changing nothing, for one it acted on within domain.DeliveryMemory, by its ID or its
-// body.
+// body. It checks the signature, then the ID, then what the delivery is.
 func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) error {
 	if g.App == nil {
 		return ErrNoApp
 	}
 	id, err := g.App.WebhookInstallation(ctx, delivery.Event, delivery.Body, delivery.Signature)
-	if err != nil {
+	// Only once the signature is GitHub's may the answer say more, and GitHub always sends an ID, even with a delivery
+	// Rulemart does nothing for, such as a ping.
+	if err != nil && !errors.Is(err, domain.ErrIgnoredEvent) {
 		return err
 	}
 	if !delivery.RecordableID() {
 		return domain.ErrNoDeliveryID
+	}
+	if err != nil {
+		return err
 	}
 	state, err := g.App.InstallationState(ctx, id)
 	if err != nil {

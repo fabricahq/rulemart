@@ -37,8 +37,8 @@ type GitHubAccounts interface {
 	Install(ctx context.Context, account accounts.Account, session accounts.SessionToken, id int64) (accounts.Snapshot, error)
 	ForgetInstallations(ctx context.Context, accountID int64) error
 	// Deliver acts on a delivery of the GitHub App's webhook, failing with accounts.ErrBadSignature for one GitHub didn't
-	// sign, accounts.ErrIgnoredEvent for one it does nothing for, accounts.ErrNoDeliveryID for a signed one without an ID
-	// it can record, and accounts.ErrRepeatedDelivery for one it already acted on.
+	// sign, accounts.ErrNoDeliveryID for a signed one without an ID it can record, even one it would do nothing for,
+	// accounts.ErrIgnoredEvent for one it does nothing for, and accounts.ErrRepeatedDelivery for one it already acted on.
 	Deliver(ctx context.Context, delivery accounts.Delivery) error
 }
 

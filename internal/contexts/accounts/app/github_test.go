@@ -400,19 +400,25 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 		})
 	}
 	// GitHub always sends a delivery's ID, which Rulemart records to recognize the delivery sent again, but checks the
-	// signature first, so a delivery GitHub didn't sign learns nothing more.
+	// signature first, so a delivery GitHub didn't sign learns nothing more, and the ID next, so a signed one without
+	// it is refused even when Rulemart would do nothing for it, such as a ping.
+	created := `{"action":"created","installation":{"id":5,"app_id":42}}`
+	ping := `{"zen":"Keep it logically awesome.","hook_id":1,"installation":{"id":5,"app_id":42}}`
 	for name, tc := range map[string]struct {
-		id, signature string
-		want          error
+		id, event, body, signature string
+		want                       error
 	}{
-		"signed without an ID":          {"", signature(webhookSecret, removed), domain.ErrNoDeliveryID},
-		"signed with an ID too long":    {strings.Repeat("a", 101), signature(webhookSecret, removed), domain.ErrNoDeliveryID},
-		"signed with a space in its ID": {"72d3162e cc78", signature(webhookSecret, removed), domain.ErrNoDeliveryID},
-		"unsigned without an ID":        {"", "", domain.ErrBadSignature},
+		"signed without an ID":            {"", "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with an ID too long":      {strings.Repeat("a", 101), "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with a space in its ID":   {"72d3162e cc78", "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"a signed ping without an ID":     {"", "ping", ping, signature(webhookSecret, ping), domain.ErrNoDeliveryID},
+		"an ignored action without an ID": {"", "installation", created, signature(webhookSecret, created), domain.ErrNoDeliveryID},
+		"unsigned without an ID":          {"", "installation", removed, "", domain.ErrBadSignature},
+		"an unsigned ping without an ID":  {"", "ping", ping, signature("another-secret", ping), domain.ErrBadSignature},
 	} {
 		t.Run(name, func(t *testing.T) {
 			site := installed(t)
-			err := site.accounts.Deliver(ctx, domain.Delivery{ID: tc.id, Event: "installation", Body: []byte(removed), Signature: tc.signature})
+			err := site.accounts.Deliver(ctx, domain.Delivery{ID: tc.id, Event: tc.event, Body: []byte(tc.body), Signature: tc.signature})
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("got %v, want %v", err, tc.want)
 			}

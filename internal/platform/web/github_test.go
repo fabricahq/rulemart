@@ -102,10 +102,10 @@ func (f *fakeGitHubAccounts) Deliver(_ context.Context, delivery accounts.Delive
 	switch {
 	case delivery.Signature != "sha256=good":
 		return accounts.ErrBadSignature
-	case delivery.Event != "installation":
-		return accounts.ErrIgnoredEvent
 	case delivery.ID == "":
 		return accounts.ErrNoDeliveryID
+	case delivery.Event != "installation":
+		return accounts.ErrIgnoredEvent
 	case slices.Contains(f.delivered, delivery.ID):
 		return accounts.ErrRepeatedDelivery
 	}
@@ -221,6 +221,12 @@ func TestTheWebhookActsOnlyOnDeliveriesGitHubSigned(t *testing.T) {
 	}
 	if got := deliver("delivery-3", "ping", "sha256=good"); got != http.StatusNoContent {
 		t.Errorf("a ping: %d", got)
+	}
+	if got := deliver("", "ping", "sha256=good"); got != http.StatusBadRequest {
+		t.Errorf("a signed ping without an ID: %d", got)
+	}
+	if got := deliver("", "ping", "sha256=bad"); got != http.StatusUnauthorized {
+		t.Errorf("an unsigned ping without an ID: %d", got)
 	}
 }
 
