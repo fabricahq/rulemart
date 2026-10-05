@@ -424,3 +424,52 @@ func TestOneReadIsClaimedAMinuteUntilTheSnapshotIsDiscarded(t *testing.T) {
 		t.Errorf("once the snapshot was discarded, the claim is %+v, want the read claimed at the next generation without it", discarded)
 	}
 }
+
+// A delivery is recorded and applied in one transaction, so one whose application fails after its record is written
+// leaves neither the record nor any of its change behind, and GitHub's redelivery of it is then applied, not skipped as
+// a repeat.
+func TestADeliveryWhoseApplicationFailsLeavesNoRecordAndCanBeRetried(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	if err := s.AddInstallation(ctx, account.ID, domain.Installation{ID: 5, Account: "octocat"}); err != nil {
+		t.Fatal(err)
+	}
+	before := generation(t, connString, account.ID)
+	// Applying a suspension updates the installation's rows, after the delivery's record is written.
+	postgrestest.Exec(t, connString, `CREATE FUNCTION fail_installation_update() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'injected failure'; END $$`)
+	postgrestest.Exec(t, connString, `CREATE TRIGGER fail_installation_update BEFORE UPDATE ON github_installations
+		FOR EACH ROW EXECUTE FUNCTION fail_installation_update()`)
+	delivery := domain.Delivery{ID: "delivery-1", Event: "installation", Body: []byte(`{"action":"suspend"}`)}
+	at := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	suspended := func() bool {
+		t.Helper()
+		installations, err := s.Installations(ctx, account.ID)
+		if err != nil || len(installations) != 1 {
+			t.Fatalf("installations %+v, %v, want installation 5", installations, err)
+		}
+		return installations[0].Suspended
+	}
+	deliveries := func() int {
+		t.Helper()
+		var n int
+		postgrestest.QueryRow(t, connString, "SELECT count(*) FROM github_deliveries", &n)
+		return n
+	}
+
+	if applied, err := s.ApplyDelivery(ctx, delivery, 5, domain.InstallationSuspended, at, domain.DeliveryMemory); err == nil || applied {
+		t.Fatalf("applied %v, %v, want the injected failure", applied, err)
+	}
+	if deliveries() != 0 || suspended() || generation(t, connString, account.ID) != before {
+		t.Fatalf("a failed delivery left %d records, suspended %t, generation %d, want none of it", deliveries(), suspended(), generation(t, connString, account.ID))
+	}
+
+	postgrestest.Exec(t, connString, "DROP TRIGGER fail_installation_update ON github_installations")
+	if applied, err := s.ApplyDelivery(ctx, delivery, 5, domain.InstallationSuspended, at.Add(time.Minute), domain.DeliveryMemory); err != nil || !applied {
+		t.Fatalf("the retry: applied %v, %v", applied, err)
+	}
+	if deliveries() != 1 || !suspended() || generation(t, connString, account.ID) != before+1 {
+		t.Errorf("the retry left %d records, suspended %t, generation %d, want it applied once", deliveries(), suspended(), generation(t, connString, account.ID))
+	}
+}

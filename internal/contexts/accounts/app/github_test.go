@@ -558,10 +558,18 @@ func TestADeliveryAppliesWhatGitHubSaysOfTheInstallationNow(t *testing.T) {
 	}
 }
 
-// Copies of one delivery that arrive together act once between them.
+// Copies of one delivery that arrive together act once between them: the account's GitHub generation, which each
+// application advances, advances once.
 func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 	site, deliver, suspended := suspendable(t)
 	site.fake.Installations[0].Suspended = true
+	generation := func() int64 {
+		t.Helper()
+		var generation int64
+		postgrestest.QueryRow(t, site.connString, fmt.Sprintf("SELECT github_generation FROM accounts WHERE id = %d", site.account.ID), &generation)
+		return generation
+	}
+	before := generation()
 	errs := make([]error, 8)
 	var wg sync.WaitGroup
 	for i := range errs {
@@ -580,6 +588,9 @@ func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
 	}
 	if applied != 1 || !suspended() {
 		t.Errorf("%d copies acted, suspended %t, want one", applied, suspended())
+	}
+	if after := generation(); after != before+1 {
+		t.Errorf("the generation advanced from %d to %d, want once", before, after)
 	}
 }
 
