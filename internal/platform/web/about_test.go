@@ -43,8 +43,8 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says, in about one screen, that Rulemart is a visual interface over Code Rules libraries, what Code
-// Rules is, and how Rulemart is meant to be used, and leads to the vetting page for the rest. It has an address of its
+// The about page says, in about one screen, why Rulemart exists, what Code Rules is, and that Rulemart is a visual
+// interface over its libraries, and leads to the vetting page for the rest. It has an address of its
 // own for search engines.
 func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
@@ -57,17 +57,24 @@ func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T)
 	page := resp.Body.String()
 	assertShows(t, page, "About", "About Rulemart")
 	want := []string{
-		"Rulemart is a visual interface over Code Rules libraries. Browse the rules that libraries publish for the " +
-			"technologies and practices your project uses, see what changed between releases, collect the rules you want " +
-			"in a cart, and check out with a prompt for your coding agent, or the commands to run yourself, that import " +
-			"them with Code Rules.",
-		"Code Rules is Fabrica's open-source convention and CLI for engineering rules: Markdown files that state what " +
-			"to do, when it applies, and what evidence shows compliance, published in versioned libraries on GitHub and " +
-			"imported into a project so coding agents follow them while they write and review code.",
-		"Use Rulemart to pick the rules your project should follow, then let Code Rules keep them current: your " +
-			"project pins the versions it imports, and code-rules project update moves to newer ones when you choose. " +
-			"The libraries Rulemart shows by default are vetted by Fabrica; read how vetting works.",
-		"Rulemart's source is on GitHub. Privacy says what Rulemart keeps about you, and for how long.",
+		"Why. Everyone writes software with agents now, and agents need guidance to write it well. Most teams give " +
+			"that guidance through skills, which are coarse: hard to version, hard to share across teams, and " +
+			"all-or-nothing when something changes.",
+		"Rulemart exists so teams can share what they've learned about writing good code as rules, inside their " +
+			"organization or with everyone. Adopt the rules that fit your project, in whatever subset you want. When a " +
+			"coding session goes wrong, turn the retro into a rule. The feedback loop gets shorter, within a team and " +
+			"across the community, and more code comes out right the first time.",
+		"A rule in an agent's context doesn't guarantee it follows every rule to the letter; you still validate the " +
+			"work. But an agent told exactly how you want code written is far more likely to write it that way.",
+		"What. The mechanism is Code Rules, Fabrica's open-source package manager for engineering rules you give to " +
+			"AI. Rules are Markdown files that live in a project or are published in versioned libraries on GitHub; a " +
+			"project imports the ones it wants and updates them when it chooses.",
+		"Teams needed a way to browse those rules, see what changed, and pick which to adopt. Rulemart is that: a " +
+			"visual interface over Code Rules libraries. Collect rules in a cart and check out with a prompt for your " +
+			"coding agent, or the commands to run yourself. The libraries it shows by default are vetted by Fabrica; " +
+			"read how vetting works.",
+		"Rulemart is free and open source on GitHub. We hope you find it useful, we welcome thoughtful " +
+			"contributions, and we especially want your feedback.",
 	}
 	if got := proseParagraphs(t, page); !slices.Equal(got, want) {
 		t.Errorf("the body is\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -80,14 +87,11 @@ func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T)
 		"Fabrica":           "https://fabricahq.com",
 		"how vetting works": "/about/vetting",
 		"on GitHub":         "https://github.com/fabricahq/rulemart",
-		"Privacy":           "/privacy",
+		"your feedback":     "/feedback",
 	} {
 		if got := links(t, page, text); !slices.Contains(got, want) {
 			t.Errorf("%s leads to %q, want %s", text, got, want)
 		}
-	}
-	if !strings.Contains(page, "<code>code-rules project update</code>") {
-		t.Error("the update command isn't shown as code")
 	}
 }
 
