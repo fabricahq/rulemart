@@ -1,6 +1,6 @@
 # Local build and checks. dist builds the release assets Release Planner publishes: one ZIP per Lambda function, plus
 # SHA256SUMS and manifest.json. check needs the Postgres from db; CI provides its own.
-.PHONY: dist check check-js check-audit generate check-generated db db-stop migrate ingest worker web web-dev clean
+.PHONY: dist check check-js check-audit generate check-generated db db-stop migrate ingest worker web web-dev web-watch clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
 # rulemart database and the roles infrastructure creates in production: the NOLOGIN group roles that migrations grant
@@ -171,6 +171,26 @@ web:
 # GitHub. Only this local build has it. Nothing checks a library added locally until make worker runs.
 web-dev:
 	DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' go run -tags $(DEV_TAG) ./cmd/web
+
+# Serves the pages as make web-dev does and, whenever a Markdown, templ, CSS, or Go file under internal/ or cmd/
+# changes, regenerates, rebuilds, and restarts the server, in a few seconds. Refresh the browser to see the change.
+# Needs no file watcher: it polls once a second. Stop it with Ctrl-C.
+WATCH_STAMP := bin/.web-watch-stamp
+web-watch:
+	@mkdir -p bin
+	@trap 'kill $$pid 2>/dev/null; exit 0' INT TERM; \
+	while true; do \
+	  $(MAKE) --no-print-directory generate >/dev/null || { sleep 2; continue; }; \
+	  go build -tags $(DEV_TAG) -o bin/web-watch ./cmd/web || { sleep 2; continue; }; \
+	  touch $(WATCH_STAMP); \
+	  DATABASE_URL='$(LOCAL_WEB_DATABASE_URL)' bin/web-watch & pid=$$!; \
+	  echo "web-watch: serving http://127.0.0.1:8080, watching for changes"; \
+	  while [ -z "$$(find internal cmd -newer $(WATCH_STAMP) -not -path '*/generated/*' -not -name '*.generated.*' -not -name '*_templ.go' \( -name '*.md' -o -name '*.templ' -o -name '*.css' -o -name '*.go' -o -name '*.js' \) -print -quit)" ]; do \
+	    sleep 1; \
+	  done; \
+	  echo "web-watch: change detected, restarting"; \
+	  kill $$pid 2>/dev/null; wait $$pid 2>/dev/null; \
+	done
 
 clean:
 	rm -rf dist bin

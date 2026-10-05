@@ -159,6 +159,9 @@ see it:
 
 ```sh
 make generate && go test -tags rulemartdev ./internal/platform/web -run 'About|Vetting|Privacy|Help|Content'
+
+For a live loop, run `make web-watch` instead of `make web-dev`: it regenerates, rebuilds, and restarts the server a few
+seconds after any Markdown, templ, CSS, Go, or JavaScript file changes; refresh the browser to see the result.
 ```
 
 Then restart `make web-dev`.
