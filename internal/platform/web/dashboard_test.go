@@ -161,14 +161,14 @@ func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 }
 
 // Each of the dashboard's tabs, My libraries, Projects, Starred rules, and Account, shows its own content and none of
-// the others', under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
+// the others', each but Account under a lede saying what it shows, under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
 // which both show what Rulemart read of GitHub, say how fresh the read is, and their Refresh returns to the same tab.
 // A tab the page doesn't know shows My libraries.
 func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
-	libraries := []string{"Published by you and your orgs", "+ Add a library"}
-	projects := []string{"Used in your projects", "provenance.json"}
-	stars := []string{"You haven't starred any rules yet."}
+	libraries := []string{"The Code Rules libraries you and your organizations have added to Rulemart.", "Published by you and your orgs", "+ Add a library"}
+	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Used in your projects", "provenance.json"}
+	stars := []string{"The rules you starred, so you can find them again.", "You haven't starred any rules yet."}
 	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
 	gitHub := []string{"Showing public repos only.", "Read from GitHub"}
 	for _, tc := range []struct {
