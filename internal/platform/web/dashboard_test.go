@@ -116,7 +116,7 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 
 	assertShows(t, page,
 		"Dashboard The Octocat @octocat · member of octo-org, example",
-		"Published by you and your orgs 2 rules ★ 1,235 1,235 stars in all example/rules · 2 rules",
+		"Libraries you and your organizations publish rules ★ 1,235 1,235 stars in all example/rules · 2 rules",
 		"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule", "+ Add a library",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects")
 	if got := links(t, page, "Include private projects"); !slices.Equal(got, []string{"/me/private"}) {
@@ -130,6 +130,32 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 	}
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
+	}
+}
+
+// My libraries and Projects introduce their lists with their ledes, not a visible section heading repeating the tab:
+// each list's heading is for screen readers only, and the tab bar holds the counts.
+func TestTheDashboardsListsHaveNoVisibleSectionHeadings(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, want := range map[string]string{"/me": "Libraries you and your organizations publish", "/me?tab=projects": "Libraries your projects use"} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var visible, hidden []string
+		for n := range doc.Descendants() {
+			if n.Type != html.ElementNode || n.Data != "h2" {
+				continue
+			}
+			if strings.Contains(" "+attribute(n, "class")+" ", " sr-only ") {
+				hidden = append(hidden, nodeText(n))
+			} else {
+				visible = append(visible, nodeText(n))
+			}
+		}
+		if len(visible) > 0 || !slices.Equal(hidden, []string{want}) {
+			t.Errorf("%s has visible headings %q and screen-reader headings %q, want none and %q", target, visible, hidden, want)
+		}
 	}
 }
 
@@ -165,7 +191,7 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 	page := site.get(t, "/me?tab=projects")
 
 	assertShows(t, page,
-		"Used in your projects 1 rules · 2 projects octocat/api · 1 rule update · octocat/billing (private) · up to date",
+		"Libraries your projects use rules · 2 projects octocat/api · 1 rule update · octocat/billing (private) · up to date",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects",
 		"Read from each project's .code-rules/generated/provenance.json .")
 }
@@ -175,8 +201,8 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	for target, order := range map[string][]string{
-		"/me":              {"Published by you and your orgs", "+ Add a library", "Public repos only · read from GitHub"},
-		"/me?tab=projects": {"Used in your projects", "Public repos only · read from GitHub", "provenance.json"},
+		"/me":              {"Libraries you and your organizations publish", "+ Add a library", "Public repos only · read from GitHub"},
+		"/me?tab=projects": {"Libraries your projects use", "Public repos only · read from GitHub", "provenance.json"},
 	} {
 		text := visibleText(t, site.get(t, target))
 		last := -1
@@ -196,8 +222,8 @@ func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 // A tab the page doesn't know shows My libraries.
 func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
-	libraries := []string{"The Code Rules libraries you and your organizations have added to Rulemart.", "Published by you and your orgs", "+ Add a library"}
-	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Used in your projects", "provenance.json"}
+	libraries := []string{"The Code Rules libraries you and your organizations have added to Rulemart.", "Libraries you and your organizations publish", "+ Add a library"}
+	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Libraries your projects use", "provenance.json"}
 	stars := []string{"The rules you starred, so you can find them again.", "You haven't starred any rules yet."}
 	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
 	gitHub := []string{"Public repos only", "read from GitHub"}
@@ -253,8 +279,8 @@ func TestTheDashboardHasNoProjectsTabWithoutGitHub(t *testing.T) {
 
 	page := site.get(t, "/me?tab=projects")
 
-	assertShows(t, page, "My libraries , 0 Starred rules , 0 Account", "Published by you and your orgs")
-	if text := visibleText(t, page); strings.Contains(text, "Projects") || strings.Contains(text, "Used in your projects") {
+	assertShows(t, page, "My libraries , 0 Starred rules , 0 Account", "Libraries you and your organizations publish")
+	if text := visibleText(t, page); strings.Contains(text, "Projects") || strings.Contains(text, "Libraries your projects use") {
 		t.Errorf("without GitHub, the dashboard offers projects:\n%s", text)
 	}
 	if got := currentTabs(t, page); !slices.Equal(got, []string{"My libraries"}) {
@@ -300,11 +326,11 @@ func TestTheDashboardSaysWhenTheVisitorHasNothingYet(t *testing.T) {
 	page := site.get(t, "/me")
 
 	assertShows(t, page, "The Octocat @octocat My libraries , 0 Projects , 0",
-		"Published by you and your orgs 0 No library of yours or your organizations' is on Rulemart yet.")
+		"Libraries you and your organizations publish No library of yours or your organizations' is on Rulemart yet.")
 	if strings.Contains(visibleText(t, page), "member of") {
 		t.Error("the head names organizations the visitor isn't in")
 	}
-	assertShows(t, site.get(t, "/me?tab=projects"), "Used in your projects 0 None of your projects imports a library that's on Rulemart.")
+	assertShows(t, site.get(t, "/me?tab=projects"), "Libraries your projects use None of your projects imports a library that's on Rulemart.")
 }
 
 // Once the visitor installed the GitHub App, the line on the read says private projects are included, and leads to

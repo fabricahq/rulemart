@@ -785,7 +785,7 @@ func TestWithoutStarringPagesOnlyCountStars(t *testing.T) {
 		})
 	}
 	site := newStarSiteWith(t, func(o *web.Options) { o.Stars = nil })
-	if page := body(t, site.signedInGet(t, "/me?tab=stars")); strings.Contains(page, "Starred rules") || !strings.Contains(page, "Published by you and your orgs") {
+	if page := body(t, site.signedInGet(t, "/me?tab=stars")); strings.Contains(page, "Starred rules") || !strings.Contains(page, "Libraries you and your organizations publish") {
 		t.Error("without stars, the dashboard offers Starred rules")
 	}
 }
@@ -802,7 +802,7 @@ func TestStarredRulesListStarsThatNoLongerCount(t *testing.T) {
 
 	page := body(t, site.signedInGet(t, "/me?tab=stars"))
 
-	assertShows(t, page, "No longer counted 2",
+	assertShows(t, page, "No longer counted · 2",
 		"Retry forever example/rules · practices/testing/retry-forever · Its library retired it without a replacement. Unstar",
 		"techs/go/old gone/rules · techs/go/old · Its library is no longer on Rulemart. Unstar")
 	want := "/stars/remove?" + url.Values{"library": {"example/rules"}, "return": {"/me?tab=stars"}, "rule": {"practices/testing/retry-forever"}}.Encode()

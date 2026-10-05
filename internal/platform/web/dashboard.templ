@@ -4,17 +4,17 @@ package web
 
 import "strconv"
 
-// The dashboard's pieces, as the prototype draws them: a dashed note, a section's small uppercase head with its count,
-// a row of a section's list with something at its far edge, a row of only text, its title line, and the figure that
-// follows a name on it, 8 pixels after it, or a space after it when it opens with a separator, a chip, and a small
-// button.
+// The dashboard's pieces: a dashed note; the heading of one of a tab's groups, when it has more than one, in sentence
+// case with its count; a row of a section's list with something at its far edge; a row of only text, ruled above, so
+// the first sits under the lede; its title line, and the figure that follows a name on it, 8 pixels after it, or a
+// space after it when it opens with a separator; a chip; and a small button.
 const (
 	noteStyle        = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
-	sectionHeadStyle = "flex justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase"
+	subHeadStyle     = "text-[15px] font-medium tracking-[-.01em] text-ink"
 	listRowStyle     = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
 	chipOnStyle      = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
 	quietChipStyle   = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
-	textRowStyle     = "border-t border-border-subtle py-[13px] first:border-t-0"
+	textRowStyle     = "border-t border-border-subtle py-[13px]"
 	titleLineStyle   = "flex flex-wrap items-baseline gap-x-2 gap-y-1 leading-[1.35] font-semibold"
 	rowFigureStyle   = "text-[13px] font-normal whitespace-nowrap text-muted tabular-nums"
 	linkButtonStyle  = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
@@ -91,9 +91,9 @@ func dashboardTabs(d dashboardView) []tab {
 // then what Rulemart read of GitHub.
 templ librariesContent(d dashboardView) {
 	<section aria-labelledby="published">
-		<h2 id="published" class={ sectionHeadStyle }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
+		<h2 id="published" class="sr-only">Libraries you and your organizations publish</h2>
 		if len(d.owned) == 0 {
-			<p class="py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
+			<p class="border-t border-border-subtle py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
 		}
 		for _, o := range d.owned {
 			<div class={ textRowStyle }>
@@ -130,9 +130,9 @@ templ librariesContent(d dashboardView) {
 // then what Rulemart read of GitHub, and where it read the projects' libraries.
 templ projectsContent(d dashboardView) {
 	<section aria-labelledby="used">
-		<h2 id="used" class={ sectionHeadStyle }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
+		<h2 id="used" class="sr-only">Libraries your projects use</h2>
 		if len(d.used) == 0 {
-			<p class="py-[13px] text-[13.5px] text-muted">
+			<p class="border-t border-border-subtle py-[13px] text-[13.5px] text-muted">
 				if d.gitHub.reading {
 					Rulemart is reading your projects.
 				} else if d.gitHub.readAt == "" {
@@ -233,8 +233,8 @@ templ starredContent(d dashboardView) {
 	}
 	if len(d.uncounted) > 0 {
 		<section class="mt-9" aria-labelledby="uncounted">
-			<h2 id="uncounted" class={ sectionHeadStyle }><span>No longer counted</span><span>{ strconv.Itoa(len(d.uncounted)) }</span></h2>
-			<p class="mt-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
+			<h2 id="uncounted" class={ subHeadStyle }>No longer counted<span class="font-normal text-faint"> · { strconv.Itoa(len(d.uncounted)) }</span></h2>
+			<p class="mt-1.5 mb-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
 			for _, u := range d.uncounted {
 				<div class={ listRowStyle }>
 					<div class="min-w-0">
