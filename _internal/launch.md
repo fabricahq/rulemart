@@ -72,8 +72,7 @@ Before anything merges:
 1. **Confirm the privacy notice** at `/privacy` (`internal/platform/web/about.templ`), which states only what the code
    and infrastructure do: the sealed GitHub token, what Rulemart reads of a GitHub account and its organizations, the
    cart the browser keeps, rule stars, and page views counted on every page once the analytics token is set. Decide:
-   - whether `hello@fabricahq.com` is the right contact for privacy questions and security reports, which the
-     privacy page and the Report a problem form name;
+   - the contact for privacy questions is `legal@fabricahq.com` (decided 2026-10-05), which the privacy page names;
    - whether it needs anything legal the code can't tell, such as a lawful basis, a controller's name and address,
      or a jurisdiction. It deliberately claims none;
    - whether "Fabrica" should name the legal entity that runs Rulemart.

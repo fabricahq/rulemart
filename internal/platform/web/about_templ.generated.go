@@ -347,7 +347,7 @@ func privacyPage(c chrome, analytics bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\">dashboard</a>, under Delete your account. Rulemart deletes your account, sessions and their tokens, stars, listings, what it read of your GitHub account, and its record of the GitHub App's installations at once, and unlinks its notes of when you listed. Uninstall the app in your GitHub settings to remove its access there too. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:hello@fabricahq.com\">hello@fabricahq.com</a>.</p></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\">dashboard</a>, under Delete your account. Rulemart deletes your account, sessions and their tokens, stars, listings, what it read of your GitHub account, and its record of the GitHub App's installations at once, and unlinks its notes of when you listed. Uninstall the app in your GitHub settings to remove its access there too. The database's history, which lets Fabrica restore it after a failure, keeps them for up to 6 hours more. Logs age out as above.</p><p>For any question about your data, write to <a href=\"mailto:legal@fabricahq.com\">legal@fabricahq.com</a>.</p></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
