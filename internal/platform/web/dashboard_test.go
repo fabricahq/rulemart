@@ -116,9 +116,15 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 
 	assertShows(t, page,
 		"Dashboard The Octocat @octocat · member of octo-org, example",
-		"Showing public repos only. Include private projects", "Read from GitHub 3 minutes ago. Refresh",
 		"Published by you and your orgs 2 rules example/rules · 2 rules ★ 1,235 1,235 stars in all",
-		"new New Unvetted octo-org/new · 1 rule ★ 0 0 stars in all", "+ Add a library")
+		"new New Unvetted octo-org/new · 1 rule ★ 0 0 stars in all", "+ Add a library",
+		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects")
+	if got := links(t, page, "Include private projects"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Include private projects leads to %q", got)
+	}
+	if strings.Contains(page, "border-dashed") {
+		t.Error("the dashboard still draws the dashed note on private projects")
+	}
 	if got := rels(t, page, "/octo-org/new"); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("the unvetted library links with rel %q", got)
 	}
@@ -135,18 +141,18 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 	page := site.get(t, "/me?tab=projects")
 
 	assertShows(t, page,
-		"Showing public repos only. Include private projects", "Read from GitHub 3 minutes ago. Refresh",
 		"Used in your projects 1 rules octocat/api · 1 rule update · octocat/billing (private) · up to date 2 projects",
+		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects",
 		"Read from each project's .code-rules/generated/provenance.json .")
 }
 
-// My libraries and Projects lead with their lists, then what adds to them, and end with how fresh the read of GitHub is
-// and the note on private projects.
+// My libraries and Projects lead with their lists, then what adds to them, and end with one line on the read of GitHub:
+// whether it includes private projects, and how fresh it is.
 func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	for target, order := range map[string][]string{
-		"/me":              {"Published by you and your orgs", "+ Add a library", "Read from GitHub", "Showing public repos only."},
-		"/me?tab=projects": {"Used in your projects", "provenance.json", "Read from GitHub", "Showing public repos only."},
+		"/me":              {"Published by you and your orgs", "+ Add a library", "Public repos only · read from GitHub"},
+		"/me?tab=projects": {"Used in your projects", "Public repos only · read from GitHub", "provenance.json"},
 	} {
 		text := visibleText(t, site.get(t, target))
 		last := -1
@@ -170,7 +176,7 @@ func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
 	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Used in your projects", "provenance.json"}
 	stars := []string{"The rules you starred, so you can find them again.", "You haven't starred any rules yet."}
 	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
-	gitHub := []string{"Showing public repos only.", "Read from GitHub"}
+	gitHub := []string{"Public repos only", "read from GitHub"}
 	for _, tc := range []struct {
 		target, tab string
 		shows       [][]string
@@ -277,14 +283,15 @@ func TestTheDashboardSaysWhenTheVisitorHasNothingYet(t *testing.T) {
 	assertShows(t, site.get(t, "/me?tab=projects"), "Used in your projects 0 None of your projects imports a library that's on Rulemart.")
 }
 
-// Once the visitor installed the GitHub App, the note says private projects are included, and leads to managing them.
+// Once the visitor installed the GitHub App, the line on the read says private projects are included, and leads to
+// managing them.
 func TestTheDashboardSaysWhenItIncludesPrivateProjects(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	site.gitHub.installations[1] = []accounts.Installation{{ID: 9, Account: "octocat"}}
 
 	page := site.get(t, "/me")
 
-	assertShows(t, page, "Including private projects from the repos you selected. Private projects are only visible to you. Manage")
+	assertShows(t, page, "Including private projects from the repos you selected · read from GitHub 3 minutes ago · Refresh · Manage")
 	if got := links(t, page, "Manage"); !slices.Equal(got, []string{"/me/private"}) {
 		t.Errorf("Manage leads to %q", got)
 	}

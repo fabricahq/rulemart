@@ -122,7 +122,7 @@ templ librariesContent(d dashboardView) {
 }
 
 // projectsContent is Projects: the libraries the visitor's projects use, with the updates waiting for each project,
-// then what Rulemart read of GitHub.
+// then what Rulemart read of GitHub, and where it read the projects' libraries.
 templ projectsContent(d dashboardView) {
 	<section aria-labelledby="used">
 		<h2 id="used" class={ sectionHeadStyle }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
@@ -170,32 +170,46 @@ templ projectsContent(d dashboardView) {
 				<span class="text-[13px] text-muted">{ plural(len(u.projects), "project", "projects") }</span>
 			</div>
 		}
-		<p class="mt-3 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
 	</section>
-	@gitHubSummary(d.gitHub)
+	@gitHubSummary(d.gitHub) {
+		<p class="mt-1.5 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
+	}
 }
 
-// gitHubSummary ends My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account: how
-// fresh the read is, then the note on private projects.
+// gitHubSummary ends My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account, in
+// one line, a section's gap below the list: whether the read includes private projects, when it was, with Refresh, and
+// the way to include or manage private projects. While Rulemart can't show a read, the line says why instead, as
+// gitHubStatus does. Its children, such as a footnote, follow it.
 templ gitHubSummary(g gitHubView) {
-	@gitHubStatus(g, "mt-6")
-	@privateProjectsNote(g, "mt-2.5")
-}
-
-// privateProjectsNote is the prototype's note on private projects: whether the dashboard includes the visitor's
-// private projects, with the way to include or manage them. class places it on the page.
-templ privateProjectsNote(g gitHubView, class string) {
 	if g.available {
-		if g.private {
-			<div class={ noteStyle, class }><span>Including private projects from the repos you selected. Private projects are only visible to you.</span><a href={ templ.SafeURL(privateHref) }>Manage</a></div>
-		} else {
-			<div class={ noteStyle, class }>
-				<span>Showing public repos only.</span>
-				if g.privateAvailable {
-					<a href={ templ.SafeURL(privateHref) }>Include private projects</a>
-				}
-			</div>
-		}
+		<div class="mt-[30px]">
+			if g.signInAgain != "" || g.failed || g.reading {
+				@gitHubStatus(g, "")
+			} else {
+				<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-faint" data-github-status>
+					if g.private {
+						<span>Including private projects from the repos you selected</span>
+					} else {
+						<span>Public repos only</span>
+					}
+					if g.readAt != "" {
+						<span>·</span>
+						<span>read from GitHub { g.readAt }</span>
+						<span>·</span>
+						@refreshButton(g.refresh, "Refresh")
+					}
+					if g.private {
+						<span>·</span>
+						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>Manage</a>
+					} else if g.privateAvailable {
+						<span>·</span>
+						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>Include private projects</a>
+					}
+					@truncatedRead(g)
+				</div>
+			}
+			{ children... }
+		</div>
 	}
 }
 

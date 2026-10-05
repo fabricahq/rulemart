@@ -26,10 +26,15 @@ templ gitHubStatus(g gitHubView, class string) {
 					<span>Read from GitHub { g.readAt }.</span>
 					@refreshButton(g.refresh, "Refresh")
 			}
-			if g.snapshot.Truncated {
-				<span class="basis-full">Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.</span>
-			}
+			@truncatedRead(g)
 		</div>
+	}
+}
+
+// truncatedRead says, on a line of its own in a GitHub status's row, when the read left repositories out.
+templ truncatedRead(g gitHubView) {
+	if g.snapshot.Truncated {
+		<span class="basis-full">Some of your repositories are left out: Rulemart reads the 200 most recently pushed of yours and your first 100 organizations'.</span>
 	}
 }
 
