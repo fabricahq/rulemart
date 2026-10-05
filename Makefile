@@ -55,14 +55,14 @@ TAILWIND := bin/tailwindcss-$(TAILWIND_VERSION)-$(TAILWIND_PLATFORM)
 
 # Generated files, committed so builds need no generators. CI fails when they're stale. sqlc and Tailwind write into
 # generated/ directories, sqlc one for each context's store; templ output must sit beside its source, in the same
-# package, so it's named *_templ.generated.go instead, and each content page's HTML sits beside its Markdown as
-# <page>.generated.html. make generate deletes all of them first, so a stale or renamed
+# package, so it's named *_templ.generated.go instead, and each content page's HTML sits under generated/ beside its
+# Markdown as generated/<page>.html. make generate deletes all of them first, so a stale or renamed
 # file shows as a deletion.
 SQLC_OUT := internal/contexts/catalog/store/postgres/generated internal/contexts/accounts/store/postgres/generated
 TEMPL_DIR := internal/platform/web
 STYLESHEET_OUT := internal/platform/web/static/generated
 CONTENT_DIR := internal/platform/web/content
-GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go' ':(glob)$(CONTENT_DIR)/*.generated.html'
+GENERATED := $(SQLC_OUT) $(STYLESHEET_OUT) ':(glob)$(TEMPL_DIR)/*_templ*.go' ':(glob)$(CONTENT_DIR)/generated/*.html'
 
 # Builds HEAD's committed tree twice, as the release does, and requires identical ZIPs. Uncommitted changes aren't in
 # the build.
@@ -95,7 +95,7 @@ check-audit:
 # x_templ.go, so each is renamed x_templ.generated.go.
 generate: $(TAILWIND)
 	rm -rf $(SQLC_OUT) $(STYLESHEET_OUT)
-	rm -f $(TEMPL_DIR)/*_templ*.go $(CONTENT_DIR)/*.generated.html
+	rm -rf $(TEMPL_DIR)/*_templ*.go $(CONTENT_DIR)/generated
 	go run ./internal/platform/web/contentgen $(CONTENT_DIR)
 	go tool sqlc generate
 	go tool templ generate -path $(TEMPL_DIR)

@@ -1,5 +1,5 @@
 // Command contentgen renders the Markdown of Rulemart's content pages, each <page>.md in the directory it's given, as
-// the <page>.generated.html the web package serves, so the web function links no Markdown renderer. Each generated
+// the generated/<page>.html the web package serves, so the web function links no Markdown renderer. Each generated
 // file keeps its page's front matter and template actions as written, and holds its body as HTML; the web package
 // reads the front matter and runs the actions when it starts.
 package main
@@ -30,7 +30,7 @@ func main() {
 	}
 }
 
-// generate writes <page>.generated.html beside each <page>.md in dir.
+// generate writes generated/<page>.html under dir for each <page>.md in it.
 func generate(dir string) error {
 	sources, err := filepath.Glob(filepath.Join(dir, "*.md"))
 	if err != nil {
@@ -48,7 +48,10 @@ func generate(dir string) error {
 		if err != nil {
 			return fmt.Errorf("render %s: %v", source, err)
 		}
-		if err := os.WriteFile(strings.TrimSuffix(source, ".md")+".generated.html", out, 0o644); err != nil {
+		if err := os.MkdirAll(filepath.Join(dir, "generated"), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dir, "generated", strings.TrimSuffix(filepath.Base(source), ".md")+".html"), out, 0o644); err != nil {
 			return err
 		}
 	}

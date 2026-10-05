@@ -47,9 +47,9 @@ func TestContentPagesThatCannotRenderFailTheStart(t *testing.T) {
 	} {
 		files := fstest.MapFS{}
 		for _, name := range []string{"about", "vetting", "privacy"} {
-			files["content/"+name+".generated.html"] = &fstest.MapFile{Data: []byte(front + "<p>Fine.</p>")}
+			files["content/generated/"+name+".html"] = &fstest.MapFile{Data: []byte(front + "<p>Fine.</p>")}
 		}
-		files["content/vetting.generated.html"] = &fstest.MapFile{Data: []byte(page)}
+		files["content/generated/vetting.html"] = &fstest.MapFile{Data: []byte(page)}
 
 		if _, err := loadContentPages(files, newContentValues(false, false)); err == nil {
 			t.Errorf("a page with %s loaded", problem)

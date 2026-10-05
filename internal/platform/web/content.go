@@ -1,5 +1,5 @@
 // The pages whose words are written in Markdown, in content/<page>.md, which make generate renders as
-// content/<page>.generated.html: each page's front matter, then its body as HTML. Both may hold template actions, such
+// content/generated/<page>.html: each page's front matter, then its body as HTML. Both may hold template actions, such
 // as {{.CodeRulesURL}}, which run when the server starts.
 
 package web
@@ -17,7 +17,7 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-//go:embed content/*.generated.html
+//go:embed content/generated/*.html
 var contentFiles embed.FS
 
 // contentValues are what a content page's template actions can name, as {{.CodeRulesURL}} or {{if .CanList}}.
@@ -92,9 +92,9 @@ type contentFrontMatter struct {
 	Lede string `yaml:"lede"`
 }
 
-// loadContentPage returns the page name, from content/<name>.generated.html in files, with values.
+// loadContentPage returns the page name, from content/generated/<name>.html in files, with values.
 func loadContentPage(files fs.FS, name string, values contentValues) (contentPage, error) {
-	generated, err := fs.ReadFile(files, "content/"+name+".generated.html")
+	generated, err := fs.ReadFile(files, "content/generated/"+name+".html")
 	if err != nil {
 		return contentPage{}, err
 	}
