@@ -3,7 +3,8 @@
 ## Goal
 
 Prove the site is the prototype, then put it live. Everything launch-related that the realignment changed is
-brought up to date, every prototype route is compared with the site side by side, and the runbook is run.
+brought up to date, every prototype route is compared with the site side by side, and the launch runbook, which now
+lives in infra-live as [decisions](../decisions.md#infrastructure-and-delivery) records, is run.
 [realignment.md](../realignment.md) records the decisions.
 
 ## What changes
@@ -22,7 +23,7 @@ brought up to date, every prototype route is compared with the site side by side
   writes paired screenshots to a directory; the differences are reviewed and fixed, and the final set is attached
   to the pull request. The matrix in `realignment.md` is updated to "Match" or to a named, accepted difference.
 - **The README.** Remove the note that the live site runs v0.1.0, and reword "Checkout pins each library to the release you saw" once R5 lands, so the README describes the released site.
-- **The runbook.** `launch.md` is rewritten for the merged state: the infra-live changes from R7 (infra-live#27,
+- **The runbook.** The launch runbook is rewritten for the merged state: the infra-live changes from R7 (infra-live#27,
   stacked on infra-live#25), the release that carries migrations 00013 to 00016, the SSM parameters to set (OAuth
   secret, token key, app key, webhook secret, worker token, analytics token), the GitHub App's settings to confirm
   (setup URL `/me/github/installed`, webhook URL `/account/github/webhook`, the Installation and Installation
@@ -45,4 +46,4 @@ brought up to date, every prototype route is compared with the site side by side
 
 - `make check` and `make check-generated` pass.
 - The audit's screenshot pairs show no unexplained difference.
-- Then the verification [realignment.md](../realignment.md) sets for every slice, and the runbook.
+- Then the verification [realignment.md](../realignment.md) sets for every slice, and the launch runbook's checks.

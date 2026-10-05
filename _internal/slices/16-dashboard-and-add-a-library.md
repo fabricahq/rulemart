@@ -192,8 +192,9 @@ required, as the realignment planned. The app's settings on GitHub: setup URL
 repositories; permissions Contents read and Metadata read. The webhook's POST carries a body, which CloudFront's origin
 access control signs only when the sender hashes it, so `/account/github/webhook` needs a CloudFront behavior that
 forwards it to the Function URL without OAC signing, or a Function URL of its own with `AuthType NONE`; the delivery's
-HMAC signature is what authenticates it. The runbook's step 3 lists the parameters, and the pull request the
-infra-live change, as a checklist.
+HMAC signature is what authenticates it. infra-live's operations document lists the parameters, as
+[decisions](../decisions.md#infrastructure-and-delivery) records, and the pull request the infra-live change, as a
+checklist.
 
 ## Not in this slice
 

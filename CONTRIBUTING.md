@@ -320,7 +320,9 @@ Each release is the pair of Lambda functions, built from the release commit:
    describe.
 
 Publishing doesn't deploy. A deployment pins a release's tag and its ZIPs' SHA-256 values in Fabrica's
-infrastructure repository, so production may still run an older release when the next one migrates.
+infrastructure repository, so production may still run an older release when the next one migrates. That repository
+also documents how production is deployed, checked, and rolled back, as
+[_internal/decisions.md](_internal/decisions.md#infrastructure-and-delivery) records.
 
 CI runs `make check`, and builds the release files the same way, on every pull request and every push to main. The
 build doesn't depend on the release's version, so CI's files for a commit are byte for byte the ones a release of it
