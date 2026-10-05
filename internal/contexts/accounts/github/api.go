@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp"
 )
 
 // APIURL is GitHub's REST API.
@@ -263,7 +264,7 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	switch {
 	case response.StatusCode == http.StatusUnauthorized:
 		return false, domain.ErrGitHubTokenRefused
-	case rateLimited(response):
+	case githubapp.RateLimited(response):
 		return false, fmt.Errorf("GitHub answered %s: rate limited", response.Status)
 	case response.StatusCode == http.StatusNotFound:
 		return false, nil
@@ -287,26 +288,6 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 		return false, fmt.Errorf("decode the response: %v", err)
 	}
 	return true, nil
-}
-
-// maxRateLimitMessageBytes bounds what rateLimited reads of a 403's body: GitHub's error messages are under a KiB.
-const maxRateLimitMessageBytes = 4 << 10
-
-// rateLimited reports whether GitHub's response says the token made too many requests, rather than that it can't see
-// what it asked for: a 429, or a 403 with its primary rate limit's remaining count of 0, a secondary limit's
-// Retry-After, or a message about a rate limit, which a secondary limit may send without either header. It reads a
-// 403's body, and takes one it can't read for a rate limit's, so a read fails rather than skip what it couldn't tell.
-func rateLimited(response *http.Response) bool {
-	switch {
-	case response.StatusCode == http.StatusTooManyRequests:
-		return true
-	case response.StatusCode != http.StatusForbidden:
-		return false
-	case response.Header.Get("X-RateLimit-Remaining") == "0" || response.Header.Get("Retry-After") != "":
-		return true
-	}
-	message, err := io.ReadAll(io.LimitReader(response.Body, maxRateLimitMessageBytes))
-	return err != nil || strings.Contains(strings.ToLower(string(message)), "rate limit")
 }
 
 // setHeaders asks GitHub for accept, or its JSON, from API version 2022-11-28, authorized by token, if any.

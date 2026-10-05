@@ -22,6 +22,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres"
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
 )
@@ -64,10 +65,10 @@ func newGitHubSite(t *testing.T, fake *githubtest.Fake, app bool) *gitHubSite {
 	api := github.NewAPI(server.URL)
 	site.accounts = GitHubAccounts{Store: accountStore, Sessions: sessions, GitHub: api, Now: func() time.Time { return site.now }}
 	if app {
-		fake.AppClientID, fake.AppKey = "Iv1.app", githubtest.NewAppKey()
+		fake.AppClientID, fake.AppKey = "Iv1.app", githubapptest.NewKey()
 		site.accounts.App = github.NewApp(github.AppConfig{
 			ID: appID, ClientID: fake.AppClientID, Slug: "rulemart-by-fabrica",
-			PrivateKey: staticSecret(githubtest.AppKeyPEM(fake.AppKey)), WebhookSecret: staticSecret(webhookSecret),
+			PrivateKey: staticSecret(githubapptest.KeyPEM(fake.AppKey)), WebhookSecret: staticSecret(webhookSecret),
 		}, api)
 	}
 	account, session, err := sessions.SignIn(context.Background(), mona, monaToken, "")
