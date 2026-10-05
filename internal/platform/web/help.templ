@@ -12,7 +12,7 @@ templ faqPage(c chrome) {
 			<h1 class="title-xl mt-2.5 mb-6">Questions and answers</h1>
 			@faqItem("What is Rulemart?") {
 				<p>Rulemart is a catalog of engineering rules for AI coding agents. Teams publish the practices they've figured out, like how to handle errors or test retries, and you can browse them, see who publishes them, and add the ones you want to your own codebase.</p>
-				<p>Think of it as shopping for best practices instead of writing every rule yourself.</p>
+				<p>Think of it as shopping for best practices instead of writing every rule yourself. To learn more, see <a href={ templ.SafeURL(aboutHref) }>About Rulemart</a>.</p>
 			}
 			@faqItem("Can I use Rulemart with any project?") {
 				<p>Yes, in any language, public or private, as long as it uses <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Code Rules adds them to your project and keeps them in sync.</p>
