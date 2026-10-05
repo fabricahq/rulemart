@@ -5,13 +5,18 @@ package web
 import "strconv"
 
 // The dashboard's pieces, as the prototype draws them: a dashed note, a section's small uppercase head with its count,
-// a row of a section's list, a chip, and a small button.
+// a row of a section's list with something at its far edge, a row of only text, its title line, and the figure that
+// follows a name on it, 8 pixels after it, or a space after it when it opens with a separator, a chip, and a small
+// button.
 const (
 	noteStyle        = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
 	sectionHeadStyle = "flex justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase"
 	listRowStyle     = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
 	chipOnStyle      = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
 	quietChipStyle   = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
+	textRowStyle     = "border-t border-border-subtle py-[13px] first:border-t-0"
+	titleLineStyle   = "flex flex-wrap items-baseline gap-x-2 gap-y-1 leading-[1.35] font-semibold"
+	rowFigureStyle   = "text-[13px] font-normal whitespace-nowrap text-muted tabular-nums"
 	linkButtonStyle  = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
 )
 
@@ -91,14 +96,18 @@ templ librariesContent(d dashboardView) {
 			<p class="py-[13px] text-[13.5px] text-muted">No library of yours or your organizations' is on Rulemart yet.</p>
 		}
 		for _, o := range d.owned {
-			<div class={ listRowStyle }>
+			<div class={ textRowStyle }>
 				<div class="min-w-0">
-					<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
+					<p class={ titleLineStyle }>
 						<a class="no-underline hover:underline" href={ templ.SafeURL(o.href) }
 							if !o.vetted {
 								rel="nofollow"
 							}
 						>{ o.name }</a>
+						<span class={ rowFigureStyle } title={ starCountText(o.stars) }>
+							<span aria-hidden="true">★ { formatCount(o.stars) }</span>
+							<span class="sr-only">{ starCountText(o.stars) } in all</span>
+						</span>
 						if o.isNew {
 							<span class={ chipOnStyle }>New</span>
 						}
@@ -108,10 +117,6 @@ templ librariesContent(d dashboardView) {
 					</p>
 					<p class="mt-0.5 text-[12.5px] text-faint"><span class="mono">@breakable(o.owner + "/" + o.name)</span> · { plural(o.rules, "rule", "rules") }</p>
 				</div>
-				<span class="text-[13px] text-muted tabular-nums" title={ starCountText(o.stars) }>
-					<span aria-hidden="true">★ { formatCount(o.stars) }</span>
-					<span class="sr-only">{ starCountText(o.stars) } in all</span>
-				</span>
 			</div>
 		}
 		if visitorOf(ctx).listings {
@@ -138,14 +143,15 @@ templ projectsContent(d dashboardView) {
 			</p>
 		}
 		for _, u := range d.used {
-			<div class={ listRowStyle }>
+			<div class={ textRowStyle }>
 				<div class="min-w-0">
-					<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
+					<p class={ titleLineStyle }>
 						<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
 							if !u.vetted {
 								rel="nofollow"
 							}
 						>{ u.name }</a>
+						<span class={ rowFigureStyle, "-ml-1" }>· { plural(len(u.projects), "project", "projects") }</span>
 						if !u.vetted {
 							@unvettedBadge()
 						}
@@ -167,7 +173,6 @@ templ projectsContent(d dashboardView) {
 						}
 					</p>
 				</div>
-				<span class="text-[13px] text-muted">{ plural(len(u.projects), "project", "projects") }</span>
 			</div>
 		}
 	</section>

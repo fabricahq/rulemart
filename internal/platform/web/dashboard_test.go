@@ -116,8 +116,8 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 
 	assertShows(t, page,
 		"Dashboard The Octocat @octocat · member of octo-org, example",
-		"Published by you and your orgs 2 rules example/rules · 2 rules ★ 1,235 1,235 stars in all",
-		"new New Unvetted octo-org/new · 1 rule ★ 0 0 stars in all", "+ Add a library",
+		"Published by you and your orgs 2 rules ★ 1,235 1,235 stars in all example/rules · 2 rules",
+		"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule", "+ Add a library",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects")
 	if got := links(t, page, "Include private projects"); !slices.Equal(got, []string{"/me/private"}) {
 		t.Errorf("Include private projects leads to %q", got)
@@ -133,6 +133,28 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 	}
 }
 
+// Each row of My libraries and Projects keeps its figure, the stars or the projects, on its title line beside the name,
+// with nothing at the row's far edge.
+func TestTheDashboardsRowsKeepTheirFiguresBesideTheirNames(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, want := range map[string]string{"/me": "rules ★ 1,235 1,235 stars in all", "/me?tab=projects": "rules · 2 projects"} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p" })
+		if name == nil {
+			t.Fatalf("%s lists no example/rules", target)
+		}
+		if got := nodeText(name.Parent); got != want {
+			t.Errorf("%s: example/rules' title line reads %q, want %q", target, got, want)
+		}
+		if row := name.Parent.Parent.Parent; row.FirstChild != row.LastChild && strings.TrimSpace(nodeText(row.LastChild)) != "" && row.LastChild != name.Parent.Parent {
+			t.Errorf("%s: example/rules' row holds something beside its text: %q", target, nodeText(row.LastChild))
+		}
+	}
+}
+
 // Projects shows the libraries the visitor's projects use, with the updates waiting for each project, as the
 // prototype's My libraries does below the visitor's own libraries.
 func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *testing.T) {
@@ -141,7 +163,7 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 	page := site.get(t, "/me?tab=projects")
 
 	assertShows(t, page,
-		"Used in your projects 1 rules octocat/api · 1 rule update · octocat/billing (private) · up to date 2 projects",
+		"Used in your projects 1 rules · 2 projects octocat/api · 1 rule update · octocat/billing (private) · up to date",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects",
 		"Read from each project's .code-rules/generated/provenance.json .")
 }
@@ -266,7 +288,7 @@ func TestTheDashboardMarksALibraryNewOnlyWithinADayOfItsListing(t *testing.T) {
 
 	page := site.get(t, "/me")
 
-	assertShows(t, page, "fresh New Unvetted octo-org/fresh", "stale Unvetted octo-org/stale")
+	assertShows(t, page, "fresh ★ 0 0 stars in all New Unvetted octo-org/fresh", "stale ★ 0 0 stars in all Unvetted octo-org/stale")
 }
 
 // A visitor in no organization, with no projects and nothing published, sees each tab say so.
