@@ -591,13 +591,18 @@ func (s *server) signedOutAlready(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, "/")
 }
 
-// deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. A visitor whose
-// session has ended, even after this request began, may no longer act for the account, and goes home told they're
-// signed out.
+// deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. It takes the
+// account's GitHub login in the login field, typed exactly, as its final confirmation: any other value, whatever the
+// page's script let through, shows the Account tab with 400, saying so, and deletes nothing. A visitor whose session
+// has ended, even after this request began, may no longer act for the account, and goes home told they're signed out.
 func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
 		s.signedOutAlready(w, r)
+		return
+	}
+	if r.PostFormValue("login") != v.account.Login {
+		s.showDashboard(w, r, *v.account, dashboardView{tab: accountTab, deleteRefused: true}, http.StatusBadRequest)
 		return
 	}
 	err := s.Accounts.DeleteAccount(r.Context(), v.token)

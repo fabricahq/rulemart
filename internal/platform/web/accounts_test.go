@@ -222,17 +222,26 @@ func newAccountsSite(t *testing.T, adjust func(*web.Options)) accountsSite {
 	return site
 }
 
-// request is a request to send to a site: a method and target, the cookies the browser holds, and its headers.
+// request is a request to send to a site: a method and target, the cookies the browser holds, its headers, and the
+// form it posts, if any.
 type request struct {
 	method, target string
 	cookies        []*http.Cookie
 	header         http.Header
+	form           url.Values
 }
 
 // send sends r to handler as a browser would on the same site, unless r's header says otherwise.
 func send(t *testing.T, handler http.Handler, r request) *http.Response {
 	t.Helper()
-	req := httptest.NewRequest(r.method, r.target, nil)
+	var form io.Reader
+	if r.form != nil {
+		form = strings.NewReader(r.form.Encode())
+	}
+	req := httptest.NewRequest(r.method, r.target, form)
+	if r.form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 	if r.method != http.MethodGet && r.method != http.MethodHead {
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 	}
@@ -621,9 +630,10 @@ func TestStateChangingRequestsFromAnotherSiteAreRefused(t *testing.T) {
 			site := newAccountsSite(t, func(o *web.Options) { o.BaseURL = baseURL })
 			token := site.accounts.signedIn(t, octocat)
 			for _, target := range []string{"/signout", "/me/account/sign-out-everywhere", "/me/account/delete", "/signin"} {
-				// Every request to the function arrives at the Function URL's host, not the public origin.
+				// Every request to the function arrives at the Function URL's host, not the public origin. Deleting
+				// takes the account's login, which the other actions ignore.
 				resp := send(t, site.handler, request{method: http.MethodPost, target: "https://abc.lambda-url.us-west-2.on.aws" + target,
-					cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, header: tc.header})
+					cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, header: tc.header, form: url.Values{"login": {"octocat"}}})
 				if resp.StatusCode != tc.want {
 					t.Errorf("POST %s answered %d, want %d", target, resp.StatusCode, tc.want)
 				}
@@ -824,7 +834,8 @@ func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
 	token := site.accounts.signedIn(t, octocat)
 
 	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete"})
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}},
+		form: url.Values{"login": {"octocat"}}})
 
 	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signed out, deleting answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
@@ -837,6 +848,83 @@ func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
 	assertShows(t, page, "Rulemart deleted your account and signed you out everywhere.", "Sign in")
 	if strings.Contains(visibleText(t, page), "Signed in as") {
 		t.Error("the page still shows the deleted account signed in")
+	}
+}
+
+// Deleting an account takes the account's GitHub login, typed exactly, which is what stops it, whatever the page's
+// script does: a missing, wrong, or differently cased login is refused, with the Account tab open at Delete your
+// account saying why, and deletes nothing.
+func TestDeleteAccountTakesTheAccountsExactLogin(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	session := []*http.Cookie{{Name: sessionCookie, Value: string(token)}}
+
+	for name, form := range map[string]url.Values{
+		"missing":           nil,
+		"empty":             {"login": {""}},
+		"another account's": {"login": {"hubot"}},
+		"differently cased": {"login": {"Octocat"}},
+		"with a space":      {"login": {"octocat "}},
+		"with an @":         {"login": {"@octocat"}},
+	} {
+		resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: session, form: form})
+		if resp.StatusCode != http.StatusBadRequest || resp.Header.Get("Cache-Control") != "private, no-store" {
+			t.Errorf("%s: answered %d, cached as %q, want 400, private", name, resp.StatusCode, resp.Header.Get("Cache-Control"))
+		}
+		if len(site.accounts.deleted) != 0 || !site.accounts.live(token) {
+			t.Fatalf("%s: deleted %v, or ended the session", name, site.accounts.deleted)
+		}
+		page := body(t, resp)
+		assertShows(t, page, "That isn't your username. Type octocat exactly to delete your account.")
+		doc, err := html.Parse(strings.NewReader(page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		disclosure := find(doc, func(n *html.Node) bool {
+			return n.Data == "details" && strings.Contains(nodeText(n), "Delete your account")
+		})
+		if disclosure == nil || !hasAttribute(disclosure, "open") {
+			t.Errorf("%s: the refusal doesn't open Delete your account", name)
+		}
+		if got := currentTabs(t, page); !slices.Equal(got, []string{"Account"}) {
+			t.Errorf("%s: the refusal shows the tab %q, want Account", name, got)
+		}
+	}
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: session, form: url.Values{"login": {"octocat"}}})
+	if resp.StatusCode != http.StatusSeeOther || len(site.accounts.deleted) != 1 {
+		t.Errorf("the exact login answered %d, deleting %v", resp.StatusCode, site.accounts.deleted)
+	}
+}
+
+// The Account tab's Delete your account asks for the login, labeled, in its own form, which works without a script,
+// and holds the dialog the script opens instead, which asks for it again behind a Delete my account that starts
+// disabled, and a Cancel that closes it.
+func TestDeleteAccountAsksForTheLogin(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+
+	assertShows(t, page, "Type your username, @octocat, to confirm", "Delete your account?", "Cancel")
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields, disabled int
+	for n := range doc.Descendants() {
+		switch {
+		case n.Data == "input" && attribute(n, "name") == "login":
+			if id := attribute(n, "id"); id == "" || find(doc, func(l *html.Node) bool { return l.Data == "label" && attribute(l, "for") == id }) == nil {
+				t.Errorf("a login field %q has no label", id)
+			}
+			fields++
+		case n.Data == "button" && nodeText(n) == "Delete my account" && hasAttribute(n, "disabled"):
+			disabled++
+		}
+	}
+	dialog := find(doc, func(n *html.Node) bool { return n.Data == "dialog" && hasAttribute(n, "data-delete-dialog") })
+	if fields != 2 || disabled != 1 || dialog == nil || attribute(dialog, "data-login") != "octocat" {
+		t.Errorf("the page has %d login fields, %d disabled Delete my account, and the dialog %v, want 2, 1, and one for octocat", fields, disabled, dialog)
 	}
 }
 

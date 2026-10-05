@@ -36,21 +36,27 @@ const newWithin = 24 * time.Hour
 // in first.
 func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	tab := s.dashboardTab(r.URL.Query().Get("tab"))
-	back := dashboardTabHref(tab)
-	account, ok := s.signedIn(w, r, back)
+	account, ok := s.signedIn(w, r, dashboardTabHref(tab))
 	if !ok {
 		return
 	}
-	gitHub, ok := s.gitHubView(w, r, account, back)
+	s.showDashboard(w, r, account, dashboardView{tab: tab}, http.StatusOK)
+}
+
+// showDashboard answers with status and account's dashboard, on the tab shown names, saying what shown says beside it,
+// such as that deleting the account was refused.
+func (s *server) showDashboard(w http.ResponseWriter, r *http.Request, account accounts.Account, shown dashboardView, status int) {
+	gitHub, ok := s.gitHubView(w, r, account, dashboardTabHref(shown.tab))
 	if !ok {
 		return
 	}
-	view, err := s.dashboardView(r.Context(), account, gitHub, tab)
+	view, err := s.dashboardView(r.Context(), account, gitHub, shown.tab)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	s.renderPrivate(w, r, http.StatusOK, dashboardPage(s.chrome, view))
+	view.deleteRefused = shown.deleteRefused
+	s.renderPrivate(w, r, status, dashboardPage(s.chrome, view))
 }
 
 // dashboardTab returns the dashboard's tab that name names, or "", My libraries, for none, or one the dashboard doesn't
@@ -115,6 +121,8 @@ type dashboardView struct {
 	gitHub  gitHubView
 	// tab is the tab shown, as dashboardTab names it.
 	tab string
+	// deleteRefused is true on the Account tab when the server refused to delete the account for the login typed.
+	deleteRefused bool
 	// starsAvailable is false when no one can star, so the dashboard has no Starred rules.
 	starsAvailable bool
 	// starCount counts the rules the visitor's stars count toward, which Starred rules' tab shows.

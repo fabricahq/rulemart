@@ -176,7 +176,7 @@ func dashboardPage(c chrome, d dashboardView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			case accountTab:
-				templ_7745c5c3_Err = accountContent(d.account, visitorOf(ctx).listings).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = accountContent(d.account, visitorOf(ctx).listings, d.deleteRefused).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -192,7 +192,7 @@ func dashboardPage(c chrome, d dashboardView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Dashboard · Rulemart", noindex: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Dashboard · Rulemart", noindex: true, deleteAccount: d.tab == accountTab}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -99,6 +99,10 @@ const outlineButtonStyle = "inline-flex min-h-10 cursor-pointer items-center jus
 // dangerButtonStyle is an action that can't be undone, outlined in the color of deletion.
 const dangerButtonStyle = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-del-ink px-4 text-[14px] font-medium whitespace-nowrap text-del-ink transition-colors duration-[160ms] hover:bg-surface"
 
+// destructiveButtonStyle is the last step of an action that can't be undone: dangerButtonStyle filled with the color of
+// deletion, as large as a page's main action, and dimmed while disabled.
+const destructiveButtonStyle = "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-del-ink bg-del-ink px-5 text-[15px] font-medium whitespace-nowrap text-paper transition-opacity duration-[160ms] hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
+
 // signInPerks are what a free account lets a visitor do, as the sign-in page lists them.
 var signInPerks = []string{
 	"Star the rules you find useful",
@@ -165,9 +169,10 @@ templ signInPage(c chrome, view signInView) {
 
 // accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, where the privacy page says
 // the rest, their listings, and the ways to sign out, everywhere at once, or delete their account. Deleting asks
-// first, by opening a disclosure, so it takes two deliberate clicks; the disclosure's summary reads as one, a muted
-// chevron and label, rather than as a link that acts.
-templ accountContent(account accountView, listings bool) {
+// first, by opening a disclosure, so it takes two deliberate clicks, and then for the account's login, typed again in a
+// dialog where scripts run; the disclosure's summary reads as one, a muted chevron and label, rather than as a link that
+// acts. refused opens the disclosure saying the server refused the login typed.
+templ accountContent(account accountView, listings, refused bool) {
 	<dl class={ factsStyle }>
 		@fact("GitHub user ID") {
 			<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
@@ -210,7 +215,12 @@ templ accountContent(account accountView, listings bool) {
 		</form>
 	</div>
 	<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
-	<details class="group mt-6">
+	<details
+		class="group mt-6"
+		if refused {
+			open
+		}
+	>
 		<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink focus-visible:text-ink [&::-webkit-details-marker]:hidden">
 			<svg class="size-3.5 shrink-0 text-muted group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 				<path d="m6 3.5 4.5 4.5L6 12.5"></path>
@@ -219,9 +229,58 @@ templ accountContent(account accountView, listings bool) {
 		</summary>
 		<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
 			<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
-			<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
-				<button class={ dangerButtonStyle } type="submit">Delete my account</button>
+			<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) } data-delete-inline>
+				<div data-delete-field>
+					@deleteLoginField(account.login, "delete-login", refused)
+				</div>
+				if refused {
+					<p class="mt-1.5 text-[13px] text-del-ink" id="delete-login-error">That isn't your username. Type { account.login } exactly to delete your account.</p>
+				}
+				<button class={ dangerButtonStyle, "mt-4" } type="submit">Delete my account</button>
 			</form>
 		</div>
 	</details>
+	@deleteAccountDialog(account)
+}
+
+// deleteLoginField asks for the account's login, which deleting it takes, as the field id. invalid marks it as a login
+// the server refused, which delete-login-error says.
+templ deleteLoginField(login, id string, invalid bool) {
+	<label class="block text-[13.5px] text-muted" for={ id }>Type your username, { "@" + login }, to confirm</label>
+	<input
+		class={ inputStyle, "mt-1.5" }
+		id={ id }
+		name="login"
+		autocomplete="off"
+		autocapitalize="none"
+		spellcheck="false"
+		if invalid {
+			aria-invalid="true"
+			aria-describedby="delete-login-error"
+		}
+	/>
+}
+
+// deleteAccountDialog is the final confirmation delete-account.js opens when the visitor presses Delete my account in
+// the disclosure, as a shadcn AlertDialog does: what deleting takes, the login typed again, and Delete my account,
+// which the script enables only once the field holds the login, beside Cancel, which closes the dialog through its
+// form's dialog method. Delete my account comes first, so pressing Enter in the field never cancels, and row-reverse
+// sets Cancel at its left.
+templ deleteAccountDialog(account accountView) {
+	<dialog class={ dialogStyle } aria-labelledby="delete-title" aria-describedby="delete-description" data-delete-dialog data-login={ account.login }>
+		<div class="mb-[14px] flex items-start justify-between gap-3">
+			<h2 class="text-[1.35rem] tracking-[-.035em]" id="delete-title">Delete your account?</h2>
+			<form method="dialog">
+				<button class={ dialogCloseStyle } aria-label="Close">×</button>
+			</form>
+		</div>
+		<p class="text-muted" id="delete-description">This deletes your Rulemart account, its stars, its listings, what Rulemart read of your GitHub account, and every session. Nothing on GitHub changes.</p>
+		<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
+			@deleteLoginField(account.login, "delete-dialog-login", false)
+			<div class="mt-5 flex flex-row-reverse flex-wrap justify-start gap-2.5">
+				<button class={ destructiveButtonStyle } type="submit" disabled data-delete-confirm>Delete my account</button>
+				<button class={ outlineButtonStyle, "min-h-11" } type="submit" formmethod="dialog" formnovalidate>Cancel</button>
+			</div>
+		</form>
+	</dialog>
 }

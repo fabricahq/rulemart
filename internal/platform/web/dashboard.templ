@@ -18,7 +18,7 @@ const (
 // dashboardPage is the signed-in visitor's dashboard, as the prototype's: under the Dashboard eyebrow, their avatar,
 // centered beside their name, login, and organizations, then the tab shown, each with only its own content.
 templ dashboardPage(c chrome, d dashboardView) {
-	@layout(c, head{title: "Dashboard · Rulemart", noindex: true}) {
+	@layout(c, head{title: "Dashboard · Rulemart", noindex: true, deleteAccount: d.tab == accountTab}) {
 		<div class="page wrap">
 			@label("") {
 				Dashboard
@@ -45,7 +45,7 @@ templ dashboardPage(c chrome, d dashboardView) {
 				case starsTab:
 					@starredContent(d)
 				case accountTab:
-					@accountContent(d.account, visitorOf(ctx).listings)
+					@accountContent(d.account, visitorOf(ctx).listings, d.deleteRefused)
 				default:
 					@librariesContent(d)
 			}
