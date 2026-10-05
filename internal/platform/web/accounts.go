@@ -133,6 +133,7 @@ var notices = map[string]string{
 	"refreshed":                "Read from GitHub less than a minute ago",
 	"private-added":            "Rulemart can now see the private repos you selected.",
 	"private-removed":          "Private repo access removed",
+	"private-skipped":          "Okay. Rulemart will only look at your public repos.",
 	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
 	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
@@ -321,7 +322,7 @@ func signInReturn(target string) string {
 }
 
 // meActions are the addresses under /me that take POST, which signing in never returns to.
-var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true}
+var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true, skipPrivateHref: true}
 
 // signedInPages are what the sign-in page says to a visitor on their way to each of the visitor's own pages, under
 // /me, which only a signed-in visitor can see; one it doesn't name says signInToDashboard.

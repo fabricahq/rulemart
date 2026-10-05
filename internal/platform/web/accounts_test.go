@@ -558,6 +558,7 @@ func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 		"/account/github/callback?x=1":    "/",
 		"/me/account/delete":              "/",
 		"/me/account/sign-out-everywhere": "/",
+		"/me/private/skip":                "/",
 		"/" + strings.Repeat("a", 2000):   "/",
 	} {
 		t.Run(target, func(t *testing.T) {

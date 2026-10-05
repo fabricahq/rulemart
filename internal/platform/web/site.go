@@ -343,6 +343,7 @@ func (s *server) handler() http.Handler {
 		if s.privateAvailable() {
 			handle("GET "+privateHref, s.privatePage)
 			handle("POST "+removePrivateHref, s.removePrivate)
+			handle("POST "+skipPrivateHref, s.skipPrivate)
 			handle("GET "+installedHref, s.installed)
 		}
 		if s.Stars != nil {

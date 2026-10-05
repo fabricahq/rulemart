@@ -694,6 +694,35 @@ func TestThePrivateProjectsPageOffersTheAppOrItsRemoval(t *testing.T) {
 	}
 }
 
+// Skip, public repos only, confirms the choice as the prototype does: it returns to the dashboard, which says, once, in
+// a status toast, that Rulemart only looks at public repos. Signed out, it asks to sign in first, and signing in never
+// returns to it.
+func TestSkippingPrivateProjectsSaysSo(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/private")
+	if got := formActions(t, page); !slices.Contains(got, "/me/private/skip") {
+		t.Errorf("the page's forms post to %q, want Skip's", got)
+	}
+	if got := links(t, page, "Skip, public repos only"); len(got) != 0 {
+		t.Errorf("Skip is a link to %q, which says nothing", got)
+	}
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/private/skip", cookies: []*http.Cookie{site.session}})
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me" || len(site.gitHub.installations[1]) != 0 {
+		t.Fatalf("skipping answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	dashboard := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
+	if got, kind := toastText(t, dashboard), noticeToast(t, dashboard); got != "Okay. Rulemart will only look at your public repos." || kind != "status" {
+		t.Errorf("the dashboard toasts %q as a %q toast, want a status toast", got, kind)
+	}
+
+	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/me/private/skip"})
+	if want := "/signin?return=%2Fme%2Fprivate"; signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != want {
+		t.Errorf("signed out, skipping answered %d to %q, want %q", signedOut.StatusCode, signedOut.Header.Get("Location"), want)
+	}
+}
+
 // Checkout's Where it goes offers a signed-in visitor their projects, each saying what it uses, private ones marked,
 // and a way to use a project that doesn't use Code Rules yet; and the checkout writes for the project chosen.
 func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
