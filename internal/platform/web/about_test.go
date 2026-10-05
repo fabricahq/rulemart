@@ -93,7 +93,7 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"what it read of your GitHub account, and its record of the GitHub App's installations",
 			"only when you act: when you sign in, press Refresh, or return from installing the app",
 			"reads fail until the suspension is lifted", "It never reads in the background",
-			"What it read stays until a later read replaces it")
+			"What it did read stays until a later read replaces it")
 		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
 		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.
 		for _, promise := range []string{"installation on GitHub discards it", "when you open your dashboard"} {
