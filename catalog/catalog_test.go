@@ -8,13 +8,13 @@ import (
 )
 
 // The shipped list must parse, or the web function couldn't start.
-func TestVettedListsTheTestLibrary(t *testing.T) {
+func TestVettedListsPublicRules(t *testing.T) {
 	libraries, err := Vetted()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(libraries, domain.LibraryKey{Host: "github", RepositoryID: "1398540739"}) {
-		t.Fatalf("vetted libraries are %v, without fabricahq/code-rules-test-library", libraries)
+	if !slices.Contains(libraries, domain.LibraryKey{Host: "github", RepositoryID: "1382078543"}) {
+		t.Fatalf("vetted libraries are %v, without fabricahq/public-rules", libraries)
 	}
 }
 

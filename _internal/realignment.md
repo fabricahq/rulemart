@@ -200,7 +200,8 @@ and the OAuth secret already planned in infra-live#23.
 
 Analytics on every page. About, privacy, robots, and the sitemap updated for the routes and data above. The
 side-by-side screenshot audit of every prototype route at 1280 and 390 pixels, light and dark, with the prototype
-served next to the site; fix the differences. Then [launch.md](launch.md), updated for the merged stack.
+served next to the site; fix the differences. Then the launch runbook, updated for the merged stack, which now lives
+in infra-live, as [decisions](decisions.md#infrastructure-and-delivery) records.
 
 ### Verification, for every slice
 

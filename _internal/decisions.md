@@ -206,8 +206,8 @@ than adding history.
   minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
   sees it. GitHub returns a visitor who installed the app to `/me/github/installed`, which records the installation
   once GitHub says it's on their account or an organization they own, and the app's webhook, signed with its secret,
-  forgets an uninstalled one, once infrastructure gives the webhook a path to the function; until then the visitor's
-  next read notices, as [launch.md](launch.md#two-facts-to-know-first) says.
+  forgets an uninstalled one, once infrastructure gives the webhook a path to the function, which rulemart#41 and
+  infra-catalog#29 do; until then the visitor's next read notices.
   [Slice R7](slices/16-dashboard-and-add-a-library.md) explains the choices.
 - **Sessions live in Postgres, by the SHA-256 of a random token** the `__Host-rulemart-session` cookie holds: Secure,
   HttpOnly, SameSite=Lax. A session lasts 30 days and is never extended, each sign-in replaces the browser's session,
@@ -335,6 +335,10 @@ than adding history.
   Release Planner's release-assets workflow. A release is pinned for deployment only after a matching rebuild or a
   verified build attestation.
 - **Local development and tests use Postgres 18 in Docker.**
+- **How production is operated, and the launch record, live in fabricahq/infra-live**, in
+  `aws/rulemart/us-west-2/rulemart-prod/OPERATIONS.md`, beside the stack they describe: its secrets and their
+  rotation, the GitHub apps' settings, deploying and rolling back a release, and the checks after a deploy. They
+  describe private infrastructure, so this public repository keeps only what the code needs from it.
 
 ## What Rulemart logs
 

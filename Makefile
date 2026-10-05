@@ -150,7 +150,7 @@ db-stop:
 migrate:
 	$(LOCAL_DATABASE_ENV) go run ./cmd/migrate-database
 
-# Ingests the library at URL, such as https://github.com/fabricahq/code-rules-test-library, into the local rulemart
+# Ingests the library at URL, such as https://github.com/fabricahq/public-rules, into the local rulemart
 # database as rulemart_worker, or into the one DATABASE_URL or DATABASE_URL_PARAMETER names.
 ingest:
 	@test -n "$(URL)" || { echo "usage: make ingest URL=https://github.com/<owner>/<repository>"; exit 2; }

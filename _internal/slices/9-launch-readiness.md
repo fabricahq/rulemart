@@ -5,7 +5,8 @@
 Close the gaps between slices 1 to 8 and a public launch: what search engines and social sites read, the headers
 that keep pages safe, optional privacy-friendly analytics, a privacy notice and an about page, a way to report a
 library, alarms for the failures the web function catches, and a pass over every page for consistency.
-[launch.md](../launch.md) is the runbook that puts it all live.
+The launch runbook put it all live; it now lives in infra-live, as
+[decisions](../decisions.md#infrastructure-and-delivery) records.
 
 Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in this slice and stand as built.
 **Superseded** ones were proposed here and replaced by the slice named. **Existing** ones are already in
@@ -85,9 +86,8 @@ Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in
   notes of listing requests that rate-limit listing and outlive a deleted account, unlinked; CloudFront's logs, with
   IP addresses, kept 180 days; the function's logs, without them, kept 30 days, which name an account's internal ID
   when it signs in or is deleted; Neon's 6-hour history; Cloudflare Web Analytics only when on; and who else handles
-  data: AWS, Neon, GitHub, and Cloudflare. It names `hello@fabricahq.com`, the address fabricahq.com shows, for
-  questions. It makes no legal claim, such as a lawful basis or a jurisdiction. [launch.md](../launch.md) lists what
-  Josh confirms before launch.
+  data: AWS, Neon, GitHub, and Cloudflare. It names `legal@fabricahq.com` for questions, as Josh decided on
+  2026-10-05. It makes no legal claim, such as a lawful basis or a jurisdiction.
 - **Decided (Josh), 2026-10-05: `/about` says vetting means Fabrica chose to show a library, not that it checked every rule**, and that
   vetting covers future releases (**Existing**). Getting vetted is: release with Code Rules, list it, then ask on
   GitHub.
@@ -123,8 +123,8 @@ Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in
 - **Decided (Josh), 2026-10-05: no synthetic check yet.** A Route 53 health check costs about $2 to $3 a month with HTTPS and string
   matching, and CloudWatch Synthetics about $1 a month hourly, but either alarms only in us-east-1, which needs a
   second SNS topic and email subscription there. The 5xx alarm already sees any failure a visitor meets; a check would
-  add only failures before the function, such as DNS or the certificate, which [launch.md](../launch.md)'s checks
-  cover at deploy.
+  add only failures before the function, such as DNS or the certificate, which the checks after each deploy cover,
+  in infra-live's operations document.
 
 ### Logging
 
@@ -153,7 +153,8 @@ No migration and no new role. The sitemap reads tables `rulemart_catalog_reader`
 - **fabricahq/infra-live:** the stack's `web_analytics.site_token`, empty, and `write_rate_limit`, null; `web_lambda`'s
   `CLOUDFLARE_WEB_ANALYTICS_TOKEN` once the token is set, and its three log alarms; `cdn`'s static paths.
 
-[launch.md](../launch.md) orders every merge, release, and apply.
+The launch runbook ordered every merge, release, and apply; infra-live's operations document records it, as
+[decisions](../decisions.md#infrastructure-and-delivery) says.
 
 ## Verification
 
@@ -178,4 +179,4 @@ No migration and no new role. The sitemap reads tables `rulemart_catalog_reader`
 ## Not in this slice
 
 A sitemap index, for more than 45,000 rules. A synthetic check. Turning the WAF rule on. Showing listers who reported
-their library. Dropping `hello_messages`, which [launch.md](../launch.md) schedules for a later release.
+their library. Dropping `hello_messages`, in a later release's own change.
