@@ -6,34 +6,30 @@ eyebrow: About
 ---
 <!-- Generated from about.md by make generate. Edit about.md instead. -->
 <p>Today, agents write almost all the code, but agents need guidance to write it well.</p>
-<p>Most teams give that guidance through <strong>skills</strong>: a skill for writing good Go, a skill for designing a schema, a skill
-for writing tests. Skills work, but as a delivery vehicle for guidance they're clumsy. A skill is coarse-grained, one
-file holding many best practices that don't all apply every time, so it's hard to update with a single insight, hard to
-adopt in part, and versioned in name only.</p>
-<p>The fix is to make guidance granular: one insight is one <strong>rule</strong>.</p>
-<h2 id="rules-are-small">Rules are small</h2>
+<p>Most teams give that guidance through <strong>skills</strong>: a skill for writing good Go, a skill for designing a database schema, a skill
+for writing tests. Skills work, but they're not an ideal delivery vehicle for guidance.</p>
+<p>The root problem is that skills are coarse-grained. They tend to pack many insights and practices into a single artifact. As a result,
+skills are easy to share but awkward to fully understand. When authors update skills, the skill may now be in a state where its users want
+some of its guidance, but not all of it. Finally, skills are technically versioned, but rarely do those versions convey breaking changes explicitly.</p>
+<h2 id="introducing-rules">Introducing Rules</h2>
+<p>The fix is to make guidance granular by capturing one insight as one <strong>rule</strong>.</p>
+<h3 id="rules-are-small">Rules are small</h3>
 <p>A rule describes a single best practice: what to do, when it applies, and what evidence shows it was followed. An agent
 reads only the rules that apply to the work in front of it.</p>
-<h2 id="rules-are-versioned">Rules are versioned</h2>
+<h3 id="rules-are-versioned">Rules are versioned</h3>
 <p>Each rule carries its own version. An update says whether it changes the guidance, so work that followed the old
 version may no longer comply, or only improves it.</p>
-<h2 id="rules-are-updatable">Rules are updatable</h2>
-<p>When a coding session goes wrong, turn the retro into a new rule or a new version of one, without touching anything
-else. The feedback loop gets shorter, within a team and across the community, and more code comes out right the first
-time.</p>
-<h2 id="rules-are-organized">Rules are organized</h2>
-<p>Rules live in <strong>groups</strong>, by technology or practice, so humans and agents know when to read them.</p>
-<h2 id="rules-are-shareable">Rules are shareable</h2>
+<h3 id="rules-are-shareable">Rules are shareable</h3>
 <p>Rules are published in <strong>libraries</strong>, plain Git repositories, from which a project imports exactly the rules it wants,
 inside an organization or with everyone.</p>
-<p>That is the mental model <a href="{{.CodeRulesURL}}">Code Rules</a> implements: <a href="https://fabricahq.com">Fabrica</a>'s open-source
-package manager for the rules you give your agents. A rule is a Markdown file that lives in a project or in a library;
-a project imports the rules it wants and updates them when it chooses.</p>
-<p>Rulemart is a visual interface over Code Rules libraries: browse the rules others have written, see what changed
-between releases, collect the ones that fit your project, and check out with a prompt for your coding agent or the
-commands to run yourself. The libraries it shows by default are vetted by Fabrica; read
-<a href="{{.VettingHref}}">how vetting works</a>.</p>
-<p>A rule in an agent's context doesn't guarantee it follows every rule to the letter; you still validate the work. But an
-agent told exactly how you want code written is far more likely to write it that way.</p>
-<p>Rulemart is free and open source <a href="{{.RepositoryURL}}">on GitHub</a>. We hope you find it useful, we welcome thoughtful
-contributions, and we especially want <a href="{{.FeedbackHref}}">your feedback</a>.</p>
+<h2 id="introducing-code-rules">Introducing Code Rules</h2>
+<p>We wrote <a href="{{.CodeRulesURL}}">Code Rules</a>, an MIT-licensed open source tool to implement this concept of rules. Code Rules
+is a package manager for your agent rules.</p>
+<h2 id="introducing-rulemart">Introducing Rulemart</h2>
+<p>Rulemart is a way to visually browse the rules available from many Code Rules libraries so you can pick and choose exactly the rules you want,
+add them to your project, and get clean, versioned updates as their authors make changes (or you can fork the rules to maintain
+them yourself).</p>
+<p>Rulemart is free and open source <a href="{{.RepositoryURL}}">on GitHub</a>. Anyone is free to publish their own Code Rules library on Rulemart so that
+we can all benefit from your insights about how best to guide agents. Note that all new libraries are <a href="{{.VettingHref}}">manually vetted</a> to
+ensure that Rulemart users are embedding safe guidance in their projects.</p>
+<p>We hope you find Rulemart useful, we welcome thoughtful contributions, and we especially welcome <a href="{{.FeedbackHref}}">your feedback</a> on how to make it more useful.</p>
