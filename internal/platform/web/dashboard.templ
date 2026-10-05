@@ -1,4 +1,4 @@
-// The dashboard's page: the visitor's head, the My libraries and Starred rules tabs, and the Account section.
+// The dashboard's page: the visitor's head, and its tabs, My libraries, Projects, Starred rules, and Account.
 
 package web
 
@@ -7,16 +7,16 @@ import "strconv"
 // The dashboard's pieces, as the prototype draws them: a dashed note, a section's small uppercase head with its count,
 // a row of a section's list, a chip, and a small button.
 const (
-	noteStyle       = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
+	noteStyle        = "flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-dashed border-border-strong px-3.5 py-2.5 text-[13px] text-muted"
 	sectionHeadStyle = "flex justify-between border-b border-border px-0.5 pb-[7px] text-[11px] tracking-[.1em] text-faint uppercase"
-	listRowStyle    = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
-	chipOnStyle     = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
-	quietChipStyle       = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
-	linkButtonStyle = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
+	listRowStyle     = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-[13px] first:border-t-0"
+	chipOnStyle      = "inline-flex items-center gap-1.5 rounded-full border border-ink bg-surface px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-ink no-underline"
+	quietChipStyle   = "inline-flex items-center gap-1.5 rounded-full border border-border px-[11px] py-0.5 text-[12.5px] font-normal whitespace-nowrap text-muted no-underline"
+	linkButtonStyle  = "cursor-pointer text-ink underline underline-offset-[3px] decoration-border-strong hover:decoration-ink"
 )
 
 // dashboardPage is the signed-in visitor's dashboard, as the prototype's: their avatar, name, login, and organizations,
-// then the My libraries tab, or the Starred rules tab.
+// then the tab shown, each with only its own content.
 templ dashboardPage(c chrome, d dashboardView) {
 	@layout(c, head{title: "Dashboard · Rulemart", noindex: true}) {
 		<div class="page wrap">
@@ -36,10 +36,15 @@ templ dashboardPage(c chrome, d dashboardView) {
 				</div>
 			</div>
 			@tabs(dashboardTabs(d))
-			if d.stars {
-				@starredTab(d)
-			} else {
-				@librariesTab(d)
+			switch d.tab {
+				case projectsTab:
+					@projectsContent(d)
+				case starsTab:
+					@starredContent(d)
+				case accountTab:
+					@accountContent(d.account, visitorOf(ctx).listings, d.starsAvailable)
+				default:
+					@librariesContent(d)
 			}
 		</div>
 	}
@@ -53,20 +58,23 @@ func nameOrLogin(a accountView) string {
 	return a.login
 }
 
-// dashboardTabs are the dashboard's tabs: My libraries, and Starred rules, with its count, where visitors can star.
+// dashboardTabs are the dashboard's tabs, each but Account with the count of its rows: My libraries; Projects, where
+// Rulemart can read visitors' GitHub accounts; Starred rules, where visitors can star; and Account.
 func dashboardTabs(d dashboardView) []tab {
-	tabs := []tab{{name: "My libraries", href: dashboardHref, count: -1, on: !d.stars}}
-	if d.starsAvailable {
-		tabs = append(tabs, tab{name: "Starred rules", href: starredHref, count: d.starCount, on: d.stars})
+	tabs := []tab{{name: "My libraries", href: dashboardHref, count: len(d.owned), on: d.tab == ""}}
+	if d.gitHub.available {
+		tabs = append(tabs, tab{name: "Projects", href: projectsHref, count: len(d.used), on: d.tab == projectsTab})
 	}
-	return tabs
+	if d.starsAvailable {
+		tabs = append(tabs, tab{name: "Starred rules", href: starredHref, count: d.starCount, on: d.tab == starsTab})
+	}
+	return append(tabs, tab{name: "Account", href: dashboardAccountHref, count: -1, on: d.tab == accountTab})
 }
 
-// librariesTab is My libraries: the note on private projects, how fresh the read of GitHub is, the libraries the visitor
-// and their organizations publish, the libraries their projects use, and the Account section.
-templ librariesTab(d dashboardView) {
-	@privateProjectsNote(d.gitHub)
-	@gitHubStatus(d.gitHub, "mt-2.5")
+// librariesContent is My libraries: what Rulemart read of GitHub, then the libraries the visitor and their
+// organizations publish.
+templ librariesContent(d dashboardView) {
+	@gitHubSummary(d.gitHub)
 	<section aria-labelledby="published">
 		<h2 id="published" class={ sectionHeadStyle, "mt-6" }><span>Published by you and your orgs</span><span>{ strconv.Itoa(len(d.owned)) }</span></h2>
 		if len(d.owned) == 0 {
@@ -100,57 +108,67 @@ templ librariesTab(d dashboardView) {
 			<div class="mt-3"><a class={ signInButtonStyle } href={ templ.SafeURL(listHref) }>+ Add a library</a></div>
 		}
 	</section>
-	if d.gitHub.available {
-		<section aria-labelledby="used">
-			<h2 id="used" class={ sectionHeadStyle, "mt-[30px]" }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
-			if len(d.used) == 0 {
-				<p class="py-[13px] text-[13.5px] text-muted">
-					if d.gitHub.reading {
-						Rulemart is reading your projects.
-					} else if d.gitHub.readAt == "" {
-						Rulemart hasn't read your projects yet.
-					} else {
-						None of your projects imports a library that's on Rulemart.
-					}
-				</p>
-			}
-			for _, u := range d.used {
-				<div class={ listRowStyle }>
-					<div class="min-w-0">
-						<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
-							<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
-								if !u.vetted {
-									rel="nofollow"
-								}
-							>{ u.name }</a>
+}
+
+// projectsContent is Projects: what Rulemart read of GitHub, then the libraries the visitor's projects use, with the
+// updates waiting for each project.
+templ projectsContent(d dashboardView) {
+	@gitHubSummary(d.gitHub)
+	<section aria-labelledby="used">
+		<h2 id="used" class={ sectionHeadStyle, "mt-6" }><span>Used in your projects</span><span>{ strconv.Itoa(len(d.used)) }</span></h2>
+		if len(d.used) == 0 {
+			<p class="py-[13px] text-[13.5px] text-muted">
+				if d.gitHub.reading {
+					Rulemart is reading your projects.
+				} else if d.gitHub.readAt == "" {
+					Rulemart hasn't read your projects yet.
+				} else {
+					None of your projects imports a library that's on Rulemart.
+				}
+			</p>
+		}
+		for _, u := range d.used {
+			<div class={ listRowStyle }>
+				<div class="min-w-0">
+					<p class="flex flex-wrap items-center gap-2 leading-[1.35] font-semibold">
+						<a class="no-underline hover:underline" href={ templ.SafeURL(u.href) }
 							if !u.vetted {
-								@unvettedBadge()
+								rel="nofollow"
 							}
-						</p>
-						<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
-							for i, p := range u.projects {
-								if i > 0 {
-									{ " · " }
-								}
-								{ p.repository }
-								if p.private {
-									{ " (private)" }
-								}
-								if p.updates > 0 {
-									{ " · " }<b class="font-medium text-ink">{ plural(p.updates, "rule update", "rule updates") }</b>
-								} else {
-									{ " · up to date" }
-								}
+						>{ u.name }</a>
+						if !u.vetted {
+							@unvettedBadge()
+						}
+					</p>
+					<p class="mt-0.5 text-[12.5px] text-faint [overflow-wrap:anywhere]">
+						for i, p := range u.projects {
+							if i > 0 {
+								{ " · " }
 							}
-						</p>
-					</div>
-					<span class="text-[13px] text-muted">{ plural(len(u.projects), "project", "projects") }</span>
+							{ p.repository }
+							if p.private {
+								{ " (private)" }
+							}
+							if p.updates > 0 {
+								{ " · " }<b class="font-medium text-ink">{ plural(p.updates, "rule update", "rule updates") }</b>
+							} else {
+								{ " · up to date" }
+							}
+						}
+					</p>
 				</div>
-			}
-			<p class="mt-3 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
-		</section>
-	}
-	@accountSection(d.account, visitorOf(ctx).listings, d.starsAvailable)
+				<span class="text-[13px] text-muted">{ plural(len(u.projects), "project", "projects") }</span>
+			</div>
+		}
+		<p class="mt-3 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
+	</section>
+}
+
+// gitHubSummary opens My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account: the
+// note on private projects, and how fresh the read is.
+templ gitHubSummary(g gitHubView) {
+	@privateProjectsNote(g)
+	@gitHubStatus(g, "mt-2.5")
 }
 
 // privateProjectsNote is the prototype's note on private projects: whether the dashboard includes the visitor's
@@ -170,9 +188,9 @@ templ privateProjectsNote(g gitHubView) {
 	}
 }
 
-// starredTab is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty
+// starredContent is Starred rules: the rules the visitor's stars count toward, newest first, as rule rows, or the empty
 // state, then any star that counts toward no rule, under No longer counted, each with Unstar.
-templ starredTab(d dashboardView) {
+templ starredContent(d dashboardView) {
 	if len(d.starred) == 0 {
 		<div class="rounded-card border border-dashed border-border-strong px-[22px] py-[22px] text-center text-[14px] text-muted">You haven't starred any rules yet. Star a rule from its page.</div>
 	} else {

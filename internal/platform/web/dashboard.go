@@ -1,9 +1,10 @@
-// The signed-in visitor's dashboard: the libraries they and their organizations publish, the projects that use
-// Rulemart's libraries and the updates waiting for them, their starred rules, and their account.
+// The signed-in visitor's dashboard, a tab for each of: the libraries they and their organizations publish, the
+// projects that use Rulemart's libraries and the updates waiting for them, their starred rules, and their account.
 
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,8 +15,19 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
 )
 
-// starsTab is the dashboard's tab parameter for Starred rules; without it, the dashboard shows My libraries.
-const starsTab = "stars"
+// The dashboard's tabs other than My libraries, as its tab parameter names them; without one, the dashboard shows My
+// libraries.
+const (
+	projectsTab = "projects"
+	starsTab    = "stars"
+	accountTab  = "account"
+)
+
+// projectsHref and dashboardAccountHref are the dashboard's Projects and Account tabs.
+const (
+	projectsHref         = dashboardHref + "?tab=" + projectsTab
+	dashboardAccountHref = dashboardHref + "?tab=" + accountTab
+)
 
 // newWithin is how long after a library comes to Rulemart the dashboard marks it New.
 const newWithin = 24 * time.Hour
@@ -23,11 +35,8 @@ const newWithin = 24 * time.Hour
 // dashboard shows the signed-in visitor's dashboard, on the tab the tab parameter names, or sends anyone else to sign
 // in first.
 func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
-	tab := r.URL.Query().Get("tab")
-	back := dashboardHref
-	if tab == starsTab {
-		back = starredHref
-	}
+	tab := s.dashboardTab(r.URL.Query().Get("tab"))
+	back := dashboardTabHref(tab)
 	account, ok := s.signedIn(w, r, back)
 	if !ok {
 		return
@@ -36,37 +45,63 @@ func (s *server) dashboard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	view := dashboardView{account: newAccountView(account), gitHub: gitHub, stars: tab == starsTab && s.starsAvailable(), starsAvailable: s.starsAvailable()}
-	if s.Stars != nil {
-		starred, err := s.Stars.AccountStars(r.Context(), account.ID)
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		view.starCount = len(starred)
-		if view.stars {
-			uncounted, err := s.Stars.UncountedStars(r.Context(), account.ID)
-			if err != nil {
-				s.fail(w, r, err)
-				return
-			}
-			view.starred, view.uncounted = newStarredViews(starred), newUncountedViews(uncounted, starredHref)
-		}
-	}
-	if !view.stars {
-		libraries, err := s.catalog.Dashboard(r.Context(), gitHub.snapshot.Owners(account.Login), gitHub.snapshot.LibraryNames())
-		if err != nil {
-			s.fail(w, r, err)
-			return
-		}
-		view.owned, view.used = newOwnedViews(libraries.Owned, time.Now()), newUsedViews(libraries.Imported, gitHub.snapshot)
+	view, err := s.dashboardView(r.Context(), account, gitHub, tab)
+	if err != nil {
+		s.fail(w, r, err)
+		return
 	}
 	s.renderPrivate(w, r, http.StatusOK, dashboardPage(s.chrome, view))
 }
 
-// legacyAccount redirects the account page's old address to the dashboard, whose Account section took its place.
+// dashboardTab returns the dashboard's tab that name names, or "", My libraries, for none, or one the dashboard doesn't
+// offer: one it doesn't know, Projects where Rulemart can't read visitors' GitHub accounts, or Starred rules where no
+// one can star.
+func (s *server) dashboardTab(name string) string {
+	switch {
+	case name == projectsTab && s.GitHubAccounts != nil, name == starsTab && s.starsAvailable(), name == accountTab:
+		return name
+	}
+	return ""
+}
+
+// dashboardTabHref returns the address of the dashboard's tab, as dashboardTab names it.
+func dashboardTabHref(tab string) string {
+	if tab == "" {
+		return dashboardHref
+	}
+	return dashboardHref + "?tab=" + tab
+}
+
+// dashboardView returns what the dashboard shows the account on tab, beside what Rulemart read of its GitHub account:
+// every tab's count, and the tab's own rows.
+func (s *server) dashboardView(ctx context.Context, account accounts.Account, gitHub gitHubView, tab string) (dashboardView, error) {
+	view := dashboardView{account: newAccountView(account), gitHub: gitHub, tab: tab, starsAvailable: s.starsAvailable()}
+	libraries, err := s.catalog.Dashboard(ctx, gitHub.snapshot.Owners(account.Login), gitHub.snapshot.LibraryNames())
+	if err != nil {
+		return dashboardView{}, err
+	}
+	view.owned, view.used = newOwnedViews(libraries.Owned, time.Now()), newUsedViews(libraries.Imported, gitHub.snapshot)
+	if s.Stars == nil {
+		return view, nil
+	}
+	starred, err := s.Stars.AccountStars(ctx, account.ID)
+	if err != nil {
+		return dashboardView{}, err
+	}
+	view.starCount = len(starred)
+	if tab == starsTab {
+		uncounted, err := s.Stars.UncountedStars(ctx, account.ID)
+		if err != nil {
+			return dashboardView{}, err
+		}
+		view.starred, view.uncounted = newStarredViews(starred), newUncountedViews(uncounted, starredHref)
+	}
+	return view, nil
+}
+
+// legacyAccount redirects the account page's old address to the dashboard's Account tab, which took its place.
 func (s *server) legacyAccount(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, dashboardHref)
+	redirect(w, r, dashboardAccountHref)
 }
 
 // legacyStarred redirects Starred rules' old address to the dashboard's tab.
@@ -78,14 +113,17 @@ func (s *server) legacyStarred(w http.ResponseWriter, r *http.Request) {
 type dashboardView struct {
 	account accountView
 	gitHub  gitHubView
-	// stars is true on the Starred rules tab, and false on My libraries. starsAvailable is false when no one can star.
-	stars, starsAvailable bool
-	// starCount counts the rules the visitor's stars count toward, which the tab shows.
+	// tab is the tab shown, as dashboardTab names it.
+	tab string
+	// starsAvailable is false when no one can star, so the dashboard has no Starred rules.
+	starsAvailable bool
+	// starCount counts the rules the visitor's stars count toward, which Starred rules' tab shows.
 	starCount int
-	// owned and used are My libraries' sections.
+	// owned are My libraries' rows, and used Projects'. Every tab holds them, for the tabs' counts.
 	owned []ownedView
 	used  []usedView
-	// starred are the rules the visitor's stars count toward, and uncounted their stars that count toward none.
+	// starred are the rules the visitor's stars count toward, and uncounted their stars that count toward none; both
+	// are empty except on Starred rules.
 	starred   []ruleRowView
 	uncounted []uncountedView
 }

@@ -76,7 +76,7 @@ const inputStyle = "h-11 w-full min-w-0 rounded-[10px] border border-border-stro
 templ listingsPage(c chrome, v listingsView) {
 	@layout(c, head{title: "Your listings · Rulemart", noindex: true, narrow: true}) {
 		<div class={ "page wrap", narrowPage }>
-			<p class={ labelStyle }><a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(dashboardHref) }>Dashboard</a></p>
+			<p class={ labelStyle }><a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(dashboardAccountHref) }>Account</a></p>
 			<div class="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
 				<h1 class="title-xl">Your listings</h1>
 				<a class={ pageActionStyle } href={ templ.SafeURL(listHref) }>Add a library</a>

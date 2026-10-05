@@ -40,7 +40,7 @@ const (
 	// stars, so neither hides an owner's or a library's page.
 	starsHref  = "/stars"
 	unstarHref = starsHref + "/remove"
-	// starredHref is the signed-in visitor's Starred rules, the dashboard's second tab.
+	// starredHref is the signed-in visitor's Starred rules, a tab of the dashboard.
 	starredHref = dashboardHref + "?tab=" + starsTab
 	// legacyStarredHref is Starred rules' old address, which redirects.
 	legacyStarredHref = accountHref + "/stars"

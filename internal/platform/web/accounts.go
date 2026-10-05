@@ -104,9 +104,9 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onDashboard, onListPage, and onStarredPage are true on the dashboard's My libraries, the page that adds a
-	// library, and the dashboard's Starred rules, which the menu marks as current.
-	onDashboard, onListPage, onStarredPage bool
+	// onDashboard, onListPage, onStarredPage, and onAccountPage are true on the dashboard's My libraries, the page that
+	// adds a library, and the dashboard's Starred rules and Account, which the menu marks as current.
+	onDashboard, onListPage, onStarredPage, onAccountPage bool
 	// listings and stars are true when visitors can list libraries and star rules, so the menu links adding a library
 	// and Starred rules.
 	listings, stars bool
@@ -211,10 +211,11 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 // request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
 func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
 	back := returnPath(r.URL.RequestURI())
-	starsTab := r.URL.Path == dashboardHref && r.URL.Query().Get("tab") == starsTab
+	onDashboard, tab := r.URL.Path == dashboardHref, s.dashboardTab(r.URL.Query().Get("tab"))
 	v := visitor{
-		here: back, onDashboard: r.URL.Path == dashboardHref && !starsTab, onListPage: r.URL.Path == listHref,
-		onStarredPage: starsTab, listings: s.listingAvailable(), stars: s.starsAvailable(),
+		here: back, onDashboard: onDashboard && tab == "", onListPage: r.URL.Path == listHref,
+		onStarredPage: onDashboard && tab == starsTab, onAccountPage: onDashboard && tab == accountTab,
+		listings: s.listingAvailable(), stars: s.starsAvailable(),
 	}
 	if s.signInAvailable() {
 		v.signIn = s.absolute(signInPageHref(back))
@@ -331,6 +332,14 @@ var signedInPages = map[string]string{
 	privateHref:  "Sign in to include your private projects.",
 }
 
+// dashboardTabPurposes are what the sign-in page says to a visitor on their way to each of the dashboard's tabs but My
+// libraries, which says signInToDashboard.
+var dashboardTabPurposes = map[string]string{
+	projectsTab: "Sign in to see your projects.",
+	starsTab:    "Sign in to see your starred rules.",
+	accountTab:  "Sign in to see your account.",
+}
+
 // signInToDashboard is what the sign-in page says to a visitor on their way to their dashboard.
 const signInToDashboard = "Sign in to see your dashboard."
 
@@ -398,8 +407,8 @@ func signInPurpose(back string) string {
 	if err != nil {
 		return signInToDashboard
 	}
-	if u.Path == dashboardHref && u.Query().Get("tab") == starsTab {
-		return "Sign in to see your starred rules."
+	if u.Path == dashboardHref {
+		return cmp.Or(dashboardTabPurposes[u.Query().Get("tab")], signInToDashboard)
 	}
 	return cmp.Or(signedInPages[u.Path], signInToDashboard)
 }
@@ -684,7 +693,7 @@ type testUserView struct {
 	login, action string
 }
 
-// accountView is what the dashboard's Account section shows of the signed-in account.
+// accountView is what the dashboard's Account tab shows of the signed-in account.
 type accountView struct {
 	login, name, avatar, profileURL, gitHubUserID, since string
 	// testUser is true for a local build's test user, which isn't a GitHub user, so the page links no profile.

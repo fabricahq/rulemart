@@ -1,5 +1,5 @@
 // The pages and header parts of accounts: the header's account menu or sign-in link, the sign-in page, and the
-// dashboard's Account section.
+// dashboard's Account tab.
 
 package web
 
@@ -45,8 +45,8 @@ templ signInLabel(v visitor) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu: their name and @login, then
-// links to their dashboard, adding a library, and their Starred rules, and Sign out. Sign-out is a form, since it
-// changes state. The button is as wide as the avatar and as tall as a tap,
+// links to their dashboard, adding a library, their Starred rules, and their Account, and Sign out. Sign-out is a form,
+// since it changes state. The button is as wide as the avatar and as tall as a tap,
 // so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's
 // border darkens, and its focus ring is drawn just inside its circle, so nothing reaches past the edge. menus.js
 // closes the menu when focus or a click leaves it.
@@ -67,6 +67,7 @@ templ accountMenu(v visitor) {
 			if v.stars {
 				@menuLink(starredHref, "Starred rules", v.onStarredPage)
 			}
+			@menuLink(dashboardAccountHref, "Account", v.onAccountPage)
 			<form method="post" action={ templ.SafeURL(v.signOut) }>
 				<button class={ menuItemStyle, "w-full cursor-pointer text-left" } type="submit">Sign out</button>
 			</form>
@@ -162,70 +163,67 @@ templ signInPage(c chrome, view signInView) {
 	}
 }
 
-// accountSection ends the dashboard's My libraries: what Rulemart keeps about the visitor, their listings, and the
-// ways to sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it
-// takes two deliberate clicks.
-templ accountSection(account accountView, listings, stars bool) {
-	<section class="mt-14 border-t border-border pt-8" aria-labelledby="account">
-		<h2 id="account" class="text-[1.15rem] font-semibold tracking-[-.03em]">Account</h2>
-		<dl class="mt-4 grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
-			@fact("GitHub user ID") {
-				<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
-			}
-			@fact("Username") {
-				if account.testUser {
-					{ account.login } <span class="text-faint">(local test user)</span>
-				} else {
-					<a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a>
-				}
-			}
-			@fact("Name") {
-				if account.name != "" {
-					{ account.name }
-				} else {
-					<span class="text-faint">None</span>
-				}
-			}
-			@fact("Avatar") {
-				if account.avatar != "" {
-					Your GitHub avatar
-				} else {
-					<span class="text-faint">None</span>
-				}
-			}
-			@fact("Account created") {
-				{ account.since }
-			}
-		</dl>
-		<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username, name, and avatar each time you sign in. Each browser keeps the token GitHub gave it, encrypted, and stays signed in for 30 days, or until you sign out, which deletes the token. What Rulemart reads of your repositories stays until you delete your account. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
-		if stars {
-			<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.</p>
+// accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, their listings, and the ways to
+// sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it takes two
+// deliberate clicks.
+templ accountContent(account accountView, listings, stars bool) {
+	<dl class="grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
+		@fact("GitHub user ID") {
+			<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
 		}
-		if listings {
-			<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you added, and when you added or retried them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
+		@fact("Username") {
+			if account.testUser {
+				{ account.login } <span class="text-faint">(local test user)</span>
+			} else {
+				<a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a>
+			}
 		}
-		<div class="mt-6 flex flex-wrap gap-2.5">
-			<form method="post" action={ templ.SafeURL(signOutHref) }>
-				<button class={ outlineButtonStyle } type="submit">Sign out</button>
-			</form>
-			<form method="post" action={ templ.SafeURL(signOutEverywhereHref) }>
-				<button class={ outlineButtonStyle } type="submit">Sign out everywhere</button>
+		@fact("Name") {
+			if account.name != "" {
+				{ account.name }
+			} else {
+				<span class="text-faint">None</span>
+			}
+		}
+		@fact("Avatar") {
+			if account.avatar != "" {
+				Your GitHub avatar
+			} else {
+				<span class="text-faint">None</span>
+			}
+		}
+		@fact("Account created") {
+			{ account.since }
+		}
+	</dl>
+	<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username, name, and avatar each time you sign in. Each browser keeps the token GitHub gave it, encrypted, and stays signed in for 30 days, or until you sign out, which deletes the token. What Rulemart reads of your repositories stays until you delete your account. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
+	if stars {
+		<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.</p>
+	}
+	if listings {
+		<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you added, and when you added or retried them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
+	}
+	<div class="mt-6 flex flex-wrap gap-2.5">
+		<form method="post" action={ templ.SafeURL(signOutHref) }>
+			<button class={ outlineButtonStyle } type="submit">Sign out</button>
+		</form>
+		<form method="post" action={ templ.SafeURL(signOutEverywhereHref) }>
+			<button class={ outlineButtonStyle } type="submit">Sign out everywhere</button>
+		</form>
+	</div>
+	<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
+	<details class="group mt-6">
+		<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
+			<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+			</svg>
+			<span class="underline underline-offset-4">Delete your account</span>
+		</summary>
+		<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
+			<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
+			<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
+				<button class={ dangerButtonStyle } type="submit">Delete my account</button>
 			</form>
 		</div>
-		<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
-		<details class="group mt-6">
-			<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-				<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="m6 3.5 4.5 4.5L6 12.5"></path>
-				</svg>
-				<span class="underline underline-offset-4">Delete your account</span>
-			</summary>
-			<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
-				<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
-				<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
-					<button class={ dangerButtonStyle } type="submit">Delete my account</button>
-				</form>
-			</div>
-		</details>
-	</section>
+	</details>
 }

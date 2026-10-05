@@ -781,10 +781,10 @@ func TestTheAccountPageShowsWhatRulemartKeepsOnlyToItsOwner(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 
-	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me"})
-	signedIn := send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account"})
+	signedIn := send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
-	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/signin?return=%2Fme" {
+	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/signin?return=%2Fme%3Ftab%3Daccount" {
 		t.Errorf("signed out, the account page answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
 	}
 	page := body(t, signedIn)
@@ -906,11 +906,21 @@ func TestSigningOutFromTheAccountPageReturnsHome(t *testing.T) {
 	assertShows(t, followNotice(t, site, stale, "/"), "You're signed out.")
 }
 
-// Sent to sign in from the account page, a visitor is told why.
-func TestTheSignInPageSaysWhySignInIsNeededForTheAccount(t *testing.T) {
+// Sent to sign in from a tab of the dashboard, a visitor is told why; a tab the dashboard doesn't know is its first.
+func TestTheSignInPageSaysWhySignInIsNeededForTheDashboard(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=%2Fme"}))
-	assertShows(t, page, "Sign in to see your dashboard.")
+	for back, want := range map[string]string{
+		"/me":              "Sign in to see your dashboard.",
+		"/me?tab=projects": "Sign in to see your projects.",
+		"/me?tab=stars":    "Sign in to see your starred rules.",
+		"/me?tab=account":  "Sign in to see your account.",
+		"/me?tab=nonsense": "Sign in to see your dashboard.",
+	} {
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=" + url.QueryEscape(back)}))
+		if got := visibleText(t, page); !strings.Contains(got, want) {
+			t.Errorf("on the way to %s, the sign-in page doesn't say %q:\n%s", back, want, got)
+		}
+	}
 }
 
 // Opened directly, with nowhere to return to, the sign-in page gives no reason: the visitor wasn't on their way to
@@ -923,19 +933,29 @@ func TestTheSignInPageOpenedDirectlyGivesNoReason(t *testing.T) {
 	}
 }
 
-// On the account page, the menu marks Account as the current page.
-func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
+// On the dashboard's My libraries, the menu marks Dashboard as the current page, and on its Account tab, Account.
+func TestTheMenuMarksTheDashboardAndAccountCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
-	for path, want := range map[string]string{"/me": "page", "/browse/techs": ""} {
+	for path, want := range map[string]map[string]string{
+		"/me":              {"Dashboard": "page", "Account": ""},
+		"/me?tab=nonsense": {"Dashboard": "page", "Account": ""},
+		"/me?tab=account":  {"Dashboard": "", "Account": "page"},
+		"/browse/techs":    {"Dashboard": "", "Account": ""},
+	} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 		doc, err := html.Parse(strings.NewReader(page))
 		if err != nil {
 			t.Fatal(err)
 		}
-		link := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/me" })
-		if link == nil || attribute(link, "aria-current") != want {
-			t.Errorf("%s: the menu's Account link is %v, want aria-current %q", path, link, want)
+		for name, current := range want {
+			// The menu's links are its details' only links; the dashboard's tab bar has its own.
+			link := find(doc, func(n *html.Node) bool {
+				return n.Data == "a" && nodeText(n) == name && n.Parent != nil && n.Parent.Data == "div" && n.Parent.Parent != nil && n.Parent.Parent.Data == "details"
+			})
+			if link == nil || attribute(link, "aria-current") != current {
+				t.Errorf("%s: the menu's %s link is %v, want aria-current %q", path, name, link, current)
+			}
 		}
 	}
 }

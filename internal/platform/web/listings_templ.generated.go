@@ -385,15 +385,15 @@ func listingsPage(c chrome, v listingsView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var20 templ.SafeURL
-			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardHref))
+			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(dashboardAccountHref))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 79, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `listings.templ`, Line: 79, Col: 135}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\">Dashboard</a></p><div class=\"mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-3\"><h1 class=\"title-xl\">Your listings</h1>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\">Account</a></p><div class=\"mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-3\"><h1 class=\"title-xl\">Your listings</h1>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

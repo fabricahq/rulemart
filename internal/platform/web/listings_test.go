@@ -735,16 +735,20 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	}
 }
 
-// The account menu leads to adding a library, the dashboard to the visitor's listings, and the libraries page to adding
-// one, only where listing is available.
+// The account menu leads to adding a library, the dashboard's Account tab to the visitor's listings, which lead back to
+// it, and the libraries page to adding one, only where listing is available.
 func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	site := newListingSite(t)
 	page := body(t, site.signedInGet(t, "/libraries"))
 	if got := links(t, page, "Add a library"); !slices.Equal(got, []string{"/me/add"}) {
 		t.Errorf("the menu links adding a library at %q", got)
 	}
-	if got := links(t, body(t, site.signedInGet(t, "/me")), "Your listings"); !slices.Equal(got, []string{"/me/listings"}) {
-		t.Errorf("the dashboard links your listings at %q", got)
+	if got := links(t, body(t, site.signedInGet(t, "/me?tab=account")), "Your listings"); !slices.Equal(got, []string{"/me/listings"}) {
+		t.Errorf("the dashboard's Account tab links your listings at %q", got)
+	}
+	// The listings page leads back to where it's linked from, as the menu's Account does.
+	if got := links(t, body(t, site.signedInGet(t, "/me/listings")), "Account"); !slices.Equal(got, []string{"/me?tab=account", "/me?tab=account"}) {
+		t.Errorf("the listings page leads back to the Account tab at %q", got)
 	}
 	if got := links(t, page, "list a public library"); !slices.Equal(got, []string{"/me/add"}) {
 		t.Errorf("the libraries page links listing at %q", got)

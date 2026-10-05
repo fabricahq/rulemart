@@ -30,8 +30,8 @@ func TestALocalBuildSignsInAsATestUser(t *testing.T) {
 	if signInLinkHasMark(t, body(t, send(t, site.handler, request{method: http.MethodGet, target: "/browse/techs"}))) {
 		t.Error("without GitHub, the Sign in link shows GitHub's mark")
 	}
-	// A test user is no GitHub user: the dashboard's Account section says so, and links no GitHub profile.
-	account := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{session}}))
+	// A test user is no GitHub user: the dashboard's Account tab says so, and links no GitHub profile.
+	account := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{session}}))
 	assertShows(t, account, "Username test_user (local test user)")
 	if strings.Contains(account, "github.com/test_user") || strings.Contains(visibleText(t, account), "Signed in with GitHub") {
 		t.Error("the account page presents a test user as a GitHub user")
