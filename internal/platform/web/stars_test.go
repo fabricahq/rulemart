@@ -733,8 +733,8 @@ func TestStarredRulesSayWhenThereAreNone(t *testing.T) {
 	}
 }
 
-// The account menu leads to Starred rules, and the account page says Rulemart keeps which rules the visitor
-// starred, and that deleting the account removes them. Signing out from Starred rules returns home.
+// The account menu leads to Starred rules, and the account page says that deleting the account removes the visitor's
+// stars. Signing out from Starred rules returns home.
 func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 	site := newStarSite(t)
 
@@ -742,10 +742,7 @@ func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
 		t.Errorf("the menu's Starred rules leads to %q", got)
 	}
 	page := body(t, site.signedInGet(t, "/me?tab=account"))
-	assertShows(t, page, "it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.", "It removes your stars, your listings")
-	if text := visibleText(t, page); strings.Count(text, " also ") > 1 {
-		t.Errorf("the account page says also more than once: %s", text)
-	}
+	assertShows(t, page, "It removes your stars, your listings")
 	signedOut := site.signedInPost(t, "/signout?return=%2Fme%3Ftab%3Dstars")
 	if signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signing out of Starred rules returns to %q, want home", signedOut.Header.Get("Location"))

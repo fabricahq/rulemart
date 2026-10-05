@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -788,7 +789,11 @@ func TestTheAccountPageShowsWhatRulemartKeepsOnlyToItsOwner(t *testing.T) {
 		t.Errorf("signed out, the account page answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
 	}
 	page := body(t, signedIn)
-	assertShows(t, page, "octocat", "GitHub user ID 583231", "Username octocat", "Account created 2 Oct 2026", "Sign out everywhere", "Delete my account")
+	assertShows(t, page, "octocat", "GitHub user ID 583231", "Username octocat", "Account created 2 Oct 2026",
+		"What Rulemart keeps about you, and for how long, is on the privacy page .", "Sign out everywhere", "Delete my account")
+	if got := links(t, page, "privacy page"); !slices.Equal(got, []string{"/privacy"}) {
+		t.Errorf("the privacy page is at %q", got)
+	}
 	if !strings.Contains(page, `<meta name="robots" content="noindex">`) {
 		t.Error("the account page can be indexed")
 	}

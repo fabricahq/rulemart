@@ -176,7 +176,7 @@ func dashboardPage(c chrome, d dashboardView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			case accountTab:
-				templ_7745c5c3_Err = accountContent(d.account, visitorOf(ctx).listings, d.starsAvailable).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = accountContent(d.account, visitorOf(ctx).listings).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

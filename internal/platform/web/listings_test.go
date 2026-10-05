@@ -743,7 +743,9 @@ func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	if got := links(t, page, "Add a library"); !slices.Equal(got, []string{"/me/add"}) {
 		t.Errorf("the menu links adding a library at %q", got)
 	}
-	if got := links(t, body(t, site.signedInGet(t, "/me?tab=account")), "Your listings"); !slices.Equal(got, []string{"/me/listings"}) {
+	account := body(t, site.signedInGet(t, "/me?tab=account"))
+	assertShows(t, account, "Your listings : the libraries you've added to Rulemart, and when.")
+	if got := links(t, account, "Your listings"); !slices.Equal(got, []string{"/me/listings"}) {
 		t.Errorf("the dashboard's Account tab links your listings at %q", got)
 	}
 	// The listings page leads back to where it's linked from, as the menu's Account does.

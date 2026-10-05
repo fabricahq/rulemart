@@ -45,7 +45,7 @@ templ dashboardPage(c chrome, d dashboardView) {
 				case starsTab:
 					@starredContent(d)
 				case accountTab:
-					@accountContent(d.account, visitorOf(ctx).listings, d.starsAvailable)
+					@accountContent(d.account, visitorOf(ctx).listings)
 				default:
 					@librariesContent(d)
 			}

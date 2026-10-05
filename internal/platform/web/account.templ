@@ -163,10 +163,10 @@ templ signInPage(c chrome, view signInView) {
 	}
 }
 
-// accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, their listings, and the ways to
-// sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it takes two
+// accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, where the privacy page says
+// the rest, their listings, and the ways to sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it takes two
 // deliberate clicks.
-templ accountContent(account accountView, listings, stars bool) {
+templ accountContent(account accountView, listings bool) {
 	<dl class={ factsStyle }>
 		@fact("GitHub user ID") {
 			<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
@@ -196,12 +196,9 @@ templ accountContent(account accountView, listings, stars bool) {
 			{ account.since }
 		}
 	</dl>
-	<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username, name, and avatar each time you sign in. Each browser keeps the token GitHub gave it, encrypted, and stays signed in for 30 days, or until you sign out, which deletes the token. What Rulemart reads of your repositories stays until you delete your account. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
-	if stars {
-		<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.</p>
-	}
+	<p class="mt-3 text-[13.5px] text-muted">What Rulemart keeps about you, and for how long, is on the <a href={ templ.SafeURL(privacyHref) }>privacy page</a>.</p>
 	if listings {
-		<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you added, and when you added or retried them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
+		<p class="mt-2 text-[13.5px] text-muted"><a href={ templ.SafeURL(listingsHref) }>Your listings</a>: the libraries you've added to Rulemart, and when.</p>
 	}
 	<div class="mt-6 flex flex-wrap gap-2.5">
 		<form method="post" action={ templ.SafeURL(signOutHref) }>
