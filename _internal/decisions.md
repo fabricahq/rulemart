@@ -668,6 +668,13 @@ matters.
   underscores stops the web function at start.
 - **Static files share one CloudFront copy**: `/_static/*` and `/favicon.ico` have a cache behavior whose key holds no
   cookie or query string, so a signed-in visitor doesn't cache them per session.
+- **GitHub's deliveries reach the webhook through a public Lambda alias that answers nothing else.** CloudFront's
+  origin access control can't sign a body GitHub didn't hash, so the web function gets a second Function URL, on an
+  alias, with no authorization, and CloudFront sends only `/account/github/webhook` there. The function recognizes
+  the alias by the qualifier of the invoked function ARN, which Lambda sets from the URL, and answers 404 to every
+  other path before the pages see the request. The webhook's HMAC authenticates GitHub; the webhook records each
+  delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not the ID, and ignores a
+  repeat for a week, so a copied delivery can't be replayed.
 - **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
   write itself. Infrastructure turns it on if abuse appears.
 - **There is no synthetic check yet.** The 5xx alarm already sees any failure a visitor meets; a check would add only
