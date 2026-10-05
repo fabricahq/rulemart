@@ -80,9 +80,7 @@ Before anything merges:
 2. **Confirm the about page's vetting wording**: lists show vetted libraries until the visitor includes unvetted
    ones, and vetting "means Fabrica chose to show the library, not that it checked every rule". Say what Fabrica
    checks if it should say more.
-3. **Decide the Proposed decisions** in the slice docs from [slices/10-shell-and-navigation.md](slices/10-shell-and-navigation.md)
-   to [slices/17-launch-gate.md](slices/17-launch-gate.md), and the earlier ones' that are still Proposed. Changing
-   one is a pull request of its own.
+3. **The proposed decisions were decided** on 2026-10-05 and recorded in the slice documents.
 4. **Collect the OAuth app's values.** The OAuth app "Rulemart" exists in the fabricahq organization. Confirm its
    authorization callback URL is `https://rulemart.fabricahq.com/account/github/callback` and Device Flow is off.
    Rulemart asks for `read:org` when a visitor signs in, so the app needs no change for it. Generate a client secret

@@ -36,9 +36,9 @@ brought up to date, every prototype route is compared with the site side by side
 
 ## Decisions
 
-- **Proposed: the audit script is kept**, as the way to check the site against the prototype after any later
+- **Decided (Josh), 2026-10-05: the audit script is kept**, as the way to check the site against the prototype after any later
   change, and runs on demand, not in CI, since it needs both servers and a browser.
-- **Proposed: every accepted difference from the prototype is named in the matrix**, so the next person knows it was
+- **Decided (Josh), 2026-10-05: every accepted difference from the prototype is named in the matrix**, so the next person knows it was
   chosen, not missed.
 
 ## Verification

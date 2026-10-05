@@ -6,9 +6,10 @@ Anyone signed in can star a vetted library, to keep it on a list of their own an
 Every vetted library's pages, and the libraries list, show how many accounts starred it. Starring works without
 JavaScript, and pages for visitors who aren't signed in stay the same for everyone and cached.
 
-Decisions marked **Proposed** are new in this slice and wait for review. **Decided** ones are Josh's. **Existing**
-ones are already in [decisions.md](../decisions.md) or an earlier slice. decisions.md said nothing about stars beyond
-slice 5's note that deleting an account should remove them, so every choice here is Proposed.
+Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in this slice and stand as built.
+**Superseded** ones were proposed here and replaced by the slice named. **Existing** ones are already in
+[decisions.md](../decisions.md) or an earlier slice. decisions.md said nothing about stars beyond slice 5's note
+that deleting an account should remove them, so every choice here was proposed.
 
 ## What a visitor can do
 
@@ -26,13 +27,13 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### What can be starred
 
-- **Proposed: libraries, not rules.** A library is stored by its code host and repository ID, which survive renames and
+- **Superseded by [slice R3](12-stars-on-rules.md): libraries, not rules.** A library is stored by its code host and repository ID, which survive renames and
   transfers, so a star always means the same library. A rule can be retired, renamed, or replaced, which a star would
   have to follow or lose; and slice 8's cart already collects rules to adopt. Starring rules can come later as a second
   table without changing this one.
-- **Proposed: a library's own pages star it, not its rules' pages.** A star beside a rule's title would read as starring
+- **Superseded by [slice R3](12-stars-on-rules.md): a library's own pages star it, not its rules' pages.** A star beside a rule's title would read as starring
   the rule; the rule's page links its library, one click from Star. Devin's review asked for it on rule pages too.
-- **Proposed: only vetted libraries.** An unvetted library's pages show no stars, and starring one is missing. A star
+- **Decided (Josh), 2026-10-05: only vetted libraries.** An unvetted library's pages show no stars, and starring one is missing. A star
   count is a trust signal, which an unvetted library shouldn't borrow, as its pages' `nofollow` keeps it from borrowing
   Rulemart's reputation in search engines. It's also where throwaway accounts would inflate counts. A library that
   loses its vetting keeps its stars, unshown; its starrers see it on their stars page as Unvetted, when a listing
@@ -40,14 +41,14 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### Counts and caching
 
-- **Proposed: counts are public**, on a vetted library's pages, whose button always shows its count, 0 included, and its
+- **Decided (Josh), 2026-10-05: counts are public**, on a vetted library's pages, whose button always shows its count, 0 included, and its
   row in the libraries list, which shows none at 0, so lists stay quiet until a library has stars.
-- **Proposed: pages count stars as they read**, with `count(*)` on an index, rather than keeping a count column.
+- **Decided (Josh), 2026-10-05: pages count stars as they read**, with `count(*)` on an index, rather than keeping a count column.
   Nothing can drift, and at Rulemart's size each count is an index lookup.
-- **Proposed: a count may be a minute old for visitors who aren't signed in.** CloudFront keeps their pages for a
+- **Decided (Josh), 2026-10-05: a count may be a minute old for visitors who aren't signed in.** CloudFront keeps their pages for a
   minute (**Existing**), so a new star shows within a minute. A signed-in visitor's pages are never cached
   (**Existing**), so whoever stars sees their own star and the new count at once.
-- **Proposed: browsers ask again for every public page: `public, max-age=0, s-maxage=60`.** With `max-age=60`, a
+- **Decided (Josh), 2026-10-05: browsers ask again for every public page: `public, max-age=0, s-maxage=60`.** With `max-age=60`, a
   browser that signed out showed the page it kept from before signing in, with a stale count. CloudFront's cache
   policy honors `s-maxage` between its minimum TTL of 0 and maximum of a year, so it keeps pages a minute as before,
   and answers browsers' requests from its copy; nothing in infrastructure changes. Each page view now reaches
@@ -55,10 +56,10 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### Ordering and abuse
 
-- **Proposed: nothing sorts by stars, and there's no "most starred" view.** Libraries are listed by owner and name so
+- **Superseded by [slice R4](13-discovery.md): nothing sorts by stars, and there's no "most starred" view.** Libraries are listed by owner and name so
   no library can buy its place (**Existing**); a ranking by stars would reward inflating them. With counts that only
   inform, an account stars a library at most once, and inflating a count takes a GitHub account per star.
-- **Proposed: no rate limit on starring.** A star is one row per account and library, so the table is bounded by
+- **Decided (Josh), 2026-10-05: no rate limit on starring.** A star is one row per account and library, so the table is bounded by
   accounts times vetted libraries, and starring and unstarring over and over writes one row each time, within the web
   function's concurrency, as slice 5 reasoned for sign-in. A CloudFront WAF rate rule on `POST` covers it if abuse
   appears (**Existing**). An operator removes an account's stars with SQL, as the database's owner:
@@ -67,24 +68,24 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### Starring
 
-- **Proposed: `POST /account/stars?library=owner/name` stars, and `POST /account/stars/remove?library=owner/name`
+- **Superseded by [slice R3](12-stars-on-rules.md): `POST /account/stars?library=owner/name` stars, and `POST /account/stars/remove?library=owner/name`
   unstars.** Writes are POSTs with an empty body and their input in the action's query string, refused when another
   site starts them (**Existing**). Paths under `/account` can't hide a library's `/{owner}/{repo}` (**Existing**). The
   library is named as its pages' addresses name it, matched without regard to case.
-- **Proposed: two actions, not a toggle, so repeating one is harmless.** Starring a starred library keeps one star,
+- **Decided (Josh), 2026-10-05: two actions, not a toggle, so repeating one is harmless.** Starring a starred library keeps one star,
   and unstarring what isn't starred does nothing, so a double click or a resent form lands where one does. Unstarring
   a library the catalog doesn't have is missing, as starring one is, and the page names it.
-- **Proposed: each returns to its `return` parameter, or the library's page.** The button carries the page it's on,
+- **Decided (Josh), 2026-10-05: each returns to its `return` parameter, or the library's page.** The button carries the page it's on,
   so starring from the All rules tab or a comparison returns there; a return path is checked as signing in checks one
   (**Existing**), and one that fails the check returns to the library's page. The stars page's Unstar returns to it.
-- **Proposed: the page that follows says what happened, by the notice cookie** (**Existing**): "You starred this
+- **Superseded by [slice R3](12-stars-on-rules.md): the page that follows says what happened, by the notice cookie** (**Existing**): "You starred this
   library. It's on Your stars." or "You unstarred this library.", and it focuses the button with `autofocus`, so
   keyboard and screen reader users land where they were and hear its new state, without a script.
-- **Proposed: a visitor who isn't signed in gets a link, not a form.** The page is the same for everyone and cached,
+- **Decided (Josh), 2026-10-05: a visitor who isn't signed in gets a link, not a form.** The page is the same for everyone and cached,
   so its Star is a link to `/sign-in?return=<page>?star=1&to=star`, named "Sign in to star owner/name, N stars". The
   sign-in page says why, and promises to come back only when the return path passed its check. A POST without a
   session, such as from a tab whose session ended, does the same and changes nothing.
-- **Proposed: signing in to star prompts once, and never stars by itself.** The library's page takes `star=1` off its
+- **Decided (Josh), 2026-10-05: signing in to star prompts once, and never stars by itself.** The library's page takes `star=1` off its
   address with a redirect that sets a notice, so the prompt shows once, and reloading or sharing the page doesn't
   repeat it. The prompt names the library, and the button is focused and filled in the primary color, one click from
   starring. A library the visitor starred already gets "You're signed in. You've starred this library already.", and
@@ -92,38 +93,38 @@ slice 5's note that deleting an account should remove them, so every choice here
 - **Known: Back right after signing in to star does nothing visible**, as after any sign-in (**Existing**, slice 5):
   the history holds the sign-in page, which sends a signed-in visitor on. Skipping it would need a script to replace the
   history entry.
-- **Proposed: no JavaScript.** Each star is a form post and a redirect back, which reloads the page with the button at
+- **Decided (Josh), 2026-10-05: no JavaScript.** Each star is a form post and a redirect back, which reloads the page with the button at
   its top. A script could save the reload, but the page would then show a count it didn't read.
-- **Proposed: a failure to read whether the visitor starred a library fails the page**, with the usual 503, as a
+- **Decided (Josh), 2026-10-05: a failure to read whether the visitor starred a library fails the page**, with the usual 503, as a
   failed session read does (**Existing**), rather than offering a star they have.
 
 ### The stars page
 
-- **Proposed: `/account/stars`, newest first.** It's the visitor's own list, so recency fits better than the owner
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): `/account/stars`, newest first.** It's the visitor's own list, so recency fits better than the owner
   and name order public lists use. Signing in may return to it, as to the listings page; signing out from it returns
   home (**Existing**, extended). Each star says when: minutes or hours ago within a day, so stars made the same day
   show their order, and the date after that, with the time to the minute in UTC on hover, such as "2 Oct 2026, 13:50
   UTC".
-- **Proposed: unstarring there keeps the library named, with Star again, focused.** The one-time notice cookie carries
+- **Superseded by [slice R3](12-stars-on-rules.md): unstarring there keeps the library named, with Star again, focused.** The one-time notice cookie carries
   which library, as `unstarred-here:owner/name`, so only the visitor's own unstarring names it: an address can't make
   the page say anything. Starring it again focuses its row's Unstar the same way. Browser QA found that an
   `?unstarred=` parameter, as first built, let any link put its own text on the page.
-- **Proposed: the account page says Rulemart keeps which libraries you star, and when, and shows others only the
+- **Superseded by [slice R3](12-stars-on-rules.md): the account page says Rulemart keeps which libraries you star, and when, and shows others only the
   counts; deleting the account says it removes your stars.**
 
 ### Accessibility
 
-- **Proposed: the button is a toggle, named "Star owner/name, 3 stars" either way, with `aria-pressed` saying
+- **Superseded by [slice R3](12-stars-on-rules.md): the button is a toggle, named "Star owner/name, 3 stars" either way, with `aria-pressed` saying
   whether it's starred**, while the eye reads a star, Star or Starred, and the count. It's as wide either way, and
   starred, it's filled in the primary color, ink in the light theme, with its text and star inverted, not in a color:
   the palette's one amber means caution and nothing else (**Existing**). Prompting after sign-in, it's outlined in ink
   inside a ring. Its hover text says what a star is for, as do the stars page and the account page.
-- **Proposed: tabs name their counts apart**, "Groups, 14" rather than "Groups14", with a visually hidden comma, and fit
+- **Decided (Josh), 2026-10-05: tabs name their counts apart**, "Groups, 14" rather than "Groups14", with a visually hidden comma, and fit
   a 320-pixel phone, wrapping rather than scrolling if they ever don't, so no tab or focus ring is hidden.
 
 ### Text Postgres can't hold
 
-- **Proposed: a path with a NUL byte or bytes that aren't UTF-8 is missing, before any read**, since every name a path
+- **Decided (Josh), 2026-10-05: a path with a NUL byte or bytes that aren't UTF-8 is missing, before any read**, since every name a path
   holds is text the catalog stores, and Postgres would refuse the query. A library to star or unstar named with such
   text is missing too. Other parameters are each page's to read, as search already cleans its query (**Existing**). An
   end-to-end test sends such text in every part of every address, signed in and out, and wants no failure. Browser QA
@@ -131,17 +132,17 @@ slice 5's note that deleting an account should remove them, so every choice here
 
 ### Data and roles
 
-- **Proposed: migration 00011 adds `stars`**: an account, a library, and when, keyed by the account and library.
+- **Superseded by [slice R3](12-stars-on-rules.md): migration 00011 adds `stars`**: an account, a library, and when, keyed by the account and library.
   Deleting the account removes its stars, which slice 5 asked for, so a deleted account's stars stop counting, and
   "Rulemart deletes everything it keeps about you" stays true. A library's row keeps its id across ingestions and
   renames (**Existing**), so a star follows the library; neither function deletes a library, and if an operator does,
   its stars go with it. It only adds a table, which the release still running doesn't read.
-- **Proposed: no new role.** A star is an account's, as a listing is, so `rulemart_accounts_writer` gets `SELECT`,
+- **Decided (Josh), 2026-10-05: no new role.** A star is an account's, as a listing is, so `rulemart_accounts_writer` gets `SELECT`,
   `INSERT`, and `DELETE`, never `UPDATE`, so no one can backdate one; `rulemart_catalog_reader` gets `SELECT`, to
   count. The worker gets nothing.
-- **Proposed: stars live in the catalog context**, beside listings: `app.Stars`, `store.Stars`, and
+- **Decided (Josh), 2026-10-05: stars live in the catalog context**, beside listings: `app.Stars`, `store.Stars`, and
   `queries/stars.sql`, since counts are page reads of the catalog and a star names a library.
-- **Proposed: the web function logs nothing new.** Its access log already records each star's route and status, by
+- **Decided (Josh), 2026-10-05: the web function logs nothing new.** Its access log already records each star's route and status, by
   pattern (**Existing**).
 
 ## Infrastructure

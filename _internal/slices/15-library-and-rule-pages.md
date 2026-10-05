@@ -49,40 +49,40 @@ The Versions tab, the comparison views, the releases tab, and the retired rule p
 
 ## Decisions
 
-- **Proposed: assets are stored at ingestion**, within the existing content budget: each rule's `assets/<slug>/`
+- **Decided (Josh), 2026-10-05: assets are stored at ingestion**, within the existing content budget: each rule's `assets/<slug>/`
   files and the library-root `assets/` files a rule's text or Markdown assets link to, with their size and type.
   Images and files up to a size cap (256 KiB a file, 2 MiB a rule) are kept as bytes in a new `assets` table;
   larger ones are listed with a GitHub link only. Markdown assets are rendered as rule text is, with raw HTML
   escaped. Migration 00015; grants as rule content's.
-- **Proposed: a rule's image is served from Rulemart's own origin** at its asset address, with the content type the
+- **Decided (Josh), 2026-10-05: a rule's image is served from Rulemart's own origin** at its asset address, with the content type the
   ingestion recorded and `nosniff`, cached a day. Rulemart has no separate cookieless domain yet; CloudFront's
   static behavior can take these paths later.
-- **Proposed: "Added by" names the lister** for a listed library, from the listing row, and "Fabrica" for a library
+- **Decided (Josh), 2026-10-05: "Added by" names the lister** for a listed library, from the listing row, and "Fabrica" for a library
   `vetted.yaml` named before any listing; "On Rulemart since" is the listing's or the first ingestion's date.
-- **Proposed: `?sel=` carries the Groups tab's selection**, as the prototype, and the Add groups button is a form
+- **Decided (Josh), 2026-10-05: `?sel=` carries the Groups tab's selection**, as the prototype, and the Add groups button is a form
   that posts the selected group keys to the cart script's handler without JavaScript falling back to a page that
   lists what to add, so the control works either way.
-- **Proposed: the engage row and the tab bar reserve Discuss's place** with nothing rendered until rulemart#27, so
+- **Decided (Josh), 2026-10-05: the engage row and the tab bar reserve Discuss's place** with nothing rendered until rulemart#27, so
   the layout doesn't shift later.
 - **Existing:** the Versions tab, comparisons, the releases tab, retired rule pages, impact levels, rendering at
   ingestion, and the unvetted band and robots rules.
 
 ### Decided while building
 
-The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+The spec's decisions are built as written, except where an entry here says otherwise and why.
 
-- **Proposed: a rule's own assets are the files in its asset directory, `assets/<rule name>/` beside its file**, such
+- **Decided (Josh), 2026-10-05: a rule's own assets are the files in its asset directory, `assets/<rule name>/` beside its file**, such
   as `practices/testing/assets/test-changed-behavior/`, as Code Rules' parser defines the directory a rule's version
   covers, read at the release that published the current version; shared assets are the library-root `assets/` files
   the rule's text, its reading guidance, or its own Markdown files link to, and the files those shared Markdown files
   link to in turn, as the prototype's `linkedShared` follows them, read at the latest release. A link to a shared file
   the latest release doesn't hold stays a link to GitHub. Only current rules have assets; a retired rule's page shows
   none, as the prototype's doesn't.
-- **Proposed: bytes are kept only for images and UTF-8 text**, which pages show; any other file, such as a binary
+- **Decided (Josh), 2026-10-05: bytes are kept only for images and UTF-8 text**, which pages show; any other file, such as a binary
   within the caps, is listed with its size and linked on GitHub, since a page can't show it and Rulemart serves no
   file but an image. A file's type comes from its name for images (PNG, JPEG, GIF, WebP, AVIF, SVG) and Markdown, and
   from its bytes for other text.
-- **Proposed: the caps keep bytes in path order while they fit**: a file of 256 KiB at most, while the rule's own
+- **Decided (Josh), 2026-10-05: the caps keep bytes in path order while they fit**: a file of 256 KiB at most, while the rule's own
   files kept come to 2 MiB at most, so a later, smaller file can still be kept after a larger one wasn't. The library's
   shared files count as one more rule, 2 MiB together, in the order rules find them. Kept bytes and assets' HTML come
   out of the existing content budget, and a library may list at most 10,000 assets, Code Rules' own limit on a
@@ -94,72 +94,72 @@ The spec's Proposed decisions are built as written, except where an entry here s
   budget as rendering does, since it comes before rendering. Listing asset directories visits at most 100,000 tree
   entries over a library's releases, and descends at most 64 directories, and stops when the ingestion's deadline
   passes, since directories that share a subtree without files reach exponentially many entries from a few objects.
-- **Proposed: text assets are stored as highlighted code**, rendered at ingestion with the same highlighter as rules'
+- **Decided (Josh), 2026-10-05: text assets are stored as highlighted code**, rendered at ingestion with the same highlighter as rules'
   fenced code, by the file's name, as the prototype highlights them. So rendering is now an interface, `Renderer`,
   with Markdown, Code, and Links, rather than one function, and resolving a link moves to the domain, which finds the
   shared files before the rule is rendered.
-- **Proposed: links to assets are written at ingestion, and a shared asset's link names its rule as pages read it.** A
+- **Decided (Josh), 2026-10-05: links to assets are written at ingestion, and a shared asset's link names its rule as pages read it.** A
   rule's or a Markdown asset's link to a known asset leads to its page; its image loads from Rulemart when Rulemart
   keeps the bytes, and from GitHub otherwise. A shared Markdown file is rendered once for every rule that links to it,
   so pages add `?rule=<rule ID>` to links to shared assets' pages as they're read. A link to an asset keeps its
   fragment and drops any query its author wrote.
-- **Proposed: other relative links lead to GitHub at the release that holds the file**: the rule's release tag for its
+- **Decided (Josh), 2026-10-05: other relative links lead to GitHub at the release that holds the file**: the rule's release tag for its
   own file and asset directory, and the latest release for library-wide files, as the prototype's `ghFileUrl` and the
   renderer already did. The spec says "at the rule's release tag", but a library-wide file isn't part of the rule's
   version, and the newest release holds the copy a project gets.
-- **Proposed: stored text names no library.** Assembly renders links to a library's pages and its files on GitHub with
+- **Decided (Josh), 2026-10-05: stored text names no library.** Assembly renders links to a library's pages and its files on GitHub with
   a placeholder in place of its owner and name, which pages fill in with the library they show, as they add `?rule=`.
   Copied to another library's rows, as a local fixture of an unvetted copy was, or read after a repository is
   renamed, a rule's text still leads only within the library whose page shows it. Text stored before this release
   names its library, as before, until the worker ingests it again.
-- **Proposed: an image's bytes are served at its page's address with `?raw=1`**, from the asset table, as the type
+- **Decided (Josh), 2026-10-05: an image's bytes are served at its page's address with `?raw=1`**, from the asset table, as the type
   ingestion recorded, with `nosniff`, `Cache-Control: public, max-age=86400`, and a content security policy of its own,
   `default-src 'none'; style-src 'unsafe-inline'; sandbox`, so an SVG a library wrote can't run or load anything even
   opened on its own. A response to a signed-in visitor stays `private, no-store`, as every response to one is. The
   asset page's Raw button leads to GitHub's raw file, as the prototype's does.
-- **Proposed: a shared asset's page without `?rule=`, or with a rule that doesn't list it, shows it with the first rule
+- **Decided (Josh), 2026-10-05: a shared asset's page without `?rule=`, or with a rule that doesn't list it, shows it with the first rule
   in path order that does**, as the prototype's does, and every spelling names its address without `rule` as
   canonical, so search engines index the file once. After browser QA, a shared asset's page says how many other rules
   use it, "used by this rule and N other rules", so the rule it shows with doesn't read as the file's only one.
-- **Proposed: the worker ingests again a library stored without tags.** Ingestion writes each version's tags, an empty
+- **Decided (Josh), 2026-10-05: the worker ingests again a library stored without tags.** Ingestion writes each version's tags, an empty
   array when it lists none, and its assets in one transaction, so a version with content but no tags marks a library a
   release before this one stored, whose assets are missing too. Tags are read from the frontmatter, text between
   commas or an array of strings, as Code Rules' template writes them, and kept on every version's content.
-- **Proposed: "On Rulemart since" for a library stored before this release is the migration's date**, since nothing
+- **Decided (Josh), 2026-10-05: "On Rulemart since" for a library stored before this release is the migration's date**, since nothing
   recorded its first ingestion; production's libraries came days before. "Added by" links the lister's GitHub profile,
   with `nofollow`, by the login they last signed in with, and reads "Fabrica", unlinked, for a library vetted without
   a listing. The privacy page says a listing shows its lister's username.
-- **Proposed: the Groups tab's controls need JavaScript, as R5 decided for every cart control**, rather than a form
+- **Decided (Josh), 2026-10-05: the Groups tab's controls need JavaScript, as R5 decided for every cart control**, rather than a form
   with a fallback page. The cart lives in the browser, so a page that only lists what to add, without JavaScript,
   adds nothing. The server reads `?sel=` to render the ticked boxes, the box's count, and its button, and `cart.js`
   keeps the address and each row's link to its group page in step as boxes change, so the selection survives a visit
   to a group page and back, whose links carry it too. Adding the groups leaves them out of `sel`, as the prototype
   clears it.
-- **Proposed: a library's group rows lead only to the group's page in the library**, as the prototype's, not across
+- **Decided (Josh), 2026-10-05: a library's group rows lead only to the group's page in the library**, as the prototype's, not across
   libraries, partly reversing R4: the library group page offers "See <Group> rules from every library" for a canonical
   group, and a rule's crumbs lead to any group across libraries. Only practices show a blurb, as the prototype.
-- **Proposed: the library's title is its repository's name**, beside its owner's avatar with the vetted check mark,
+- **Decided (Josh), 2026-10-05: the library's title is its repository's name**, beside its owner's avatar with the vetted check mark,
   since Rulemart keeps no display name; its facts are the prototype's plain list, with Report this library under it.
-- **Proposed: a retired row on the All rules tab reads "Retired in release/N, replaced by <title> <ID>"** (or
+- **Decided (Josh), 2026-10-05: a retired row on the All rules tab reads "Retired in release/N, replaced by <title> <ID>"** (or
   "renamed to <ID>") in the shared row's gray, after its group's current rules, and a group whose rules are all retired
   shows only with the option on; every list's retired rows name a replacement by title and ID alike, as the prototype's
   name it by ID. The option is a one-checkbox form, as the unvetted opt-in is, which `filters.js` submits, with a
   checkbox the size of the group rows'.
-- **Proposed: the rule page's crumbs lead its group to the group across libraries**, as the prototype's, and drop
+- **Decided (Josh), 2026-10-05: the rule page's crumbs lead its group to the group across libraries**, as the prototype's, and drop
   R4's separate "rules in every library" link. The About panel's Impact fact and note are gone with the prototype's
   layout, so the head's impact label leads to Code Rules' explanation of the levels, named by what its level means,
   where a touch or a keyboard reaches it.
-- **Proposed: "Questions or suggestions?" leads to the library's issues on GitHub** until Discuss arrives with
+- **Decided (Josh), 2026-10-05: "Questions or suggestions?" leads to the library's issues on GitHub** until Discuss arrives with
   rulemart#27, rather than ending in nothing. The Discussion tab, between Rule and Versions, renders nothing yet.
-- **Proposed: the engage row shows only when it holds the Star control**, after browser QA, reversing its kept height:
+- **Decided (Josh), 2026-10-05: the engage row shows only when it holds the Star control**, after browser QA, reversing its kept height:
   on an unvetted library's rule page it held nothing, a 46-pixel gap under the title. Discuss adds it back to every
   current rule's page with rulemart#27.
-- **Proposed: "Published by" names Fabrica for a library of Fabrica's, and otherwise the owner's login**, since
+- **Decided (Josh), 2026-10-05: "Published by" names Fabrica for a library of Fabrica's, and otherwise the owner's login**, since
   Rulemart keeps no display name, on a rule's About panel and every row's library mark alike. "Added by" stays the
   lister's `@login`, or "Fabrica" for a library vetted without a listing.
-- **Proposed: a library group page flags a group that isn't canonical** beside its ID in the title, as its rows do.
-- **Proposed: sizes read in bytes below 1 KB, then KB and MB of 1,024**, to one decimal place below 100.
-- **Proposed: an asset's page takes its Markdown's headings a level down**, after browser QA, so the file's name stays
+- **Decided (Josh), 2026-10-05: a library group page flags a group that isn't canonical** beside its ID in the title, as its rows do.
+- **Decided (Josh), 2026-10-05: sizes read in bytes below 1 KB, then KB and MB of 1,024**, to one decimal place below 100.
+- **Decided (Josh), 2026-10-05: an asset's page takes its Markdown's headings a level down**, after browser QA, so the file's name stays
   the page's one top heading, as a retired rule's page does with its last text. Rendered Markdown still styles a
   level-one heading, which a rule's body can hold when it doesn't repeat the title.
 
