@@ -152,7 +152,7 @@ switches `.CanList` and `.Analytics`. An action must open and close on one line;
 choose between whole paragraphs. Unlike in a `.templ` file, line breaks and indentation inside a paragraph don't
 matter, and words around a value need no templ syntax.
 
-`make generate` renders each file as `generated/<page>.html` beside the Markdown files, with goldmark, so the web function doesn't
+`make generate` renders each file as `generated/<page>.generated.html` beside the Markdown files, with goldmark, so the web function doesn't
 link a Markdown renderer. The server runs the templates when it starts, with every combination of the switches, and
 refuses to start when one names a value `contentValues` lacks or the front matter is wrong. To check a change and
 see it:
@@ -178,7 +178,7 @@ lives:
 - Tailwind writes `internal/platform/web/static/generated/app.css`.
 - templ output must stay beside its `.templ` source, because Go needs it in the same package and so the same
   directory. `make generate` renames templ's `x_templ.go` to `x_templ.generated.go`.
-- `internal/platform/web/contentgen` renders each content page's Markdown as `generated/<page>.html` beside the Markdown files, as
+- `internal/platform/web/contentgen` renders each content page's Markdown as `generated/<page>.generated.html` beside the Markdown files, as
   [Edit a content page](#edit-a-content-page) says.
 
 [.gitattributes](.gitattributes) marks `generated/` directories and `*.generated.*` files as generated, so GitHub
