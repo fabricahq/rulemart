@@ -124,7 +124,7 @@ templ librariesContent(d dashboardView) {
 
 // groupHeading heads one of a tab's groups, when it has more than one, as id: its name, then its count of rows.
 templ groupHeading(id, name string, count int) {
-	<h2 id={ id } class={ subHeadStyle, "mb-2" }>{ name }<span class="font-normal text-faint"> · { strconv.Itoa(count) }</span></h2>
+	<h2 id={ id } class={ subHeadStyle, "mb-2" }>{ name }<span class="font-normal text-faint">{ " · " + strconv.Itoa(count) }</span></h2>
 }
 
 // myLibraryRow is a row of My libraries: the library's name, leading to its page or to the check that adds it, its
@@ -288,7 +288,7 @@ templ starredContent(d dashboardView) {
 	}
 	if len(d.uncounted) > 0 {
 		<section class="mt-9" aria-labelledby="uncounted">
-			<h2 id="uncounted" class={ subHeadStyle }>No longer counted<span class="font-normal text-faint"> · { strconv.Itoa(len(d.uncounted)) }</span></h2>
+			<h2 id="uncounted" class={ subHeadStyle }>No longer counted<span class="font-normal text-faint">{ " · " + strconv.Itoa(len(d.uncounted)) }</span></h2>
 			<p class="mt-1.5 mb-2.5 text-[13px] text-muted">These stars count toward no rule Rulemart shows now. Rulemart keeps them, in case their library comes back; unstar them to let them go.</p>
 			for _, u := range d.uncounted {
 				<div class={ listRowStyle }>
