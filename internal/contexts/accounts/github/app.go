@@ -59,14 +59,7 @@ func (a *App) InstallURL() string {
 
 // Installation returns the GitHub account installation id is on, or fails with domain.ErrNoSuchInstallation.
 func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAccount, error) {
-	var installation struct {
-		Account struct {
-			Login string `json:"login"`
-			ID    int64  `json:"id"`
-			Type  string `json:"type"`
-		} `json:"account"`
-	}
-	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
+	installation, found, err := a.installation(ctx, id)
 	if err == nil && !found {
 		err = domain.ErrNoSuchInstallation
 	}
@@ -75,6 +68,38 @@ func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAc
 	}
 	account := installation.Account
 	return domain.InstallationAccount{Login: account.Login, ID: account.ID, Organization: account.Type == "Organization"}, nil
+}
+
+// InstallationState returns what GitHub says of installation id now: gone, suspended, or active.
+func (a *App) InstallationState(ctx context.Context, id int64) (domain.InstallationState, error) {
+	installation, found, err := a.installation(ctx, id)
+	switch {
+	case err != nil:
+		return 0, fmt.Errorf("read the state of installation id=%d: %w", id, err)
+	case !found:
+		return domain.InstallationGone, nil
+	case installation.SuspendedAt != nil:
+		return domain.InstallationSuspended, nil
+	}
+	return domain.InstallationActive, nil
+}
+
+// installationRecord is what GitHub says of an installation that Installation and InstallationState read.
+type installationRecord struct {
+	Account struct {
+		Login string `json:"login"`
+		ID    int64  `json:"id"`
+		Type  string `json:"type"`
+	} `json:"account"`
+	// SuspendedAt is when the account's owner suspended the app there, or nil while they haven't.
+	SuspendedAt *time.Time `json:"suspended_at"`
+}
+
+// installation reads installation id, reporting whether GitHub knows it.
+func (a *App) installation(ctx context.Context, id int64) (installationRecord, bool, error) {
+	var installation installationRecord
+	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
+	return installation, found, err
 }
 
 // InstallationToken returns a token that reads the repositories installation id may, for an hour, or fails with

@@ -167,7 +167,7 @@ func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) err
 // InstallationRemoved forgets the installation for every account and discards their snapshots, in one transaction.
 func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		return applyChange(ctx, q, domain.InstallationChange{ID: id, Action: domain.Uninstalled})
+		return applyState(ctx, q, id, domain.InstallationGone)
 	})
 	if err != nil {
 		return fmt.Errorf("forget GitHub installation installationID=%d: %v", id, err)
@@ -175,10 +175,10 @@ func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	return nil
 }
 
-// ApplyDelivery applies the change a delivery of the GitHub App's webhook reported and records the delivery, unless
-// it's a repeat, as store.Store describes. Of copies of one delivery that arrive together, the first to record it
-// holds its row until it commits, so the others find it recorded.
-func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, change domain.InstallationChange, at time.Time, memory time.Duration) (bool, error) {
+// ApplyDelivery applies what GitHub says of the installation a delivery of the GitHub App's webhook said changed and
+// records the delivery, unless it's a repeat, as store.Store describes. Of copies of one delivery that arrive
+// together, the first to record it holds its row until it commits, so the others find it recorded.
+func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, state domain.InstallationState, at time.Time, memory time.Duration) (bool, error) {
 	digest := sha256.Sum256(delivery.Body)
 	var applied bool
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
@@ -193,32 +193,30 @@ func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, cha
 			return err
 		}
 		applied = true
-		return applyChange(ctx, q, change)
+		return applyState(ctx, q, id, state)
 	})
 	if err != nil {
-		return false, fmt.Errorf("apply GitHub webhook delivery deliveryID=%q installationID=%d: %v", delivery.ID, change.ID, err)
+		return false, fmt.Errorf("apply GitHub webhook delivery deliveryID=%q installationID=%d: %v", delivery.ID, id, err)
 	}
 	return applied, nil
 }
 
-// applyChange applies change to the installation for every account that reads through it, within a transaction: an
-// uninstalled one is forgotten, a suspended or unsuspended one marked so, and each of these, like a change to the
-// repositories it reads, discards those accounts' snapshots, after advancing their GitHub generations.
-func applyChange(ctx context.Context, q *accountsdb.Queries, change domain.InstallationChange) error {
-	if err := q.AdvanceInstallationGenerations(ctx, change.ID); err != nil {
+// applyState applies state, what GitHub says of installation id, for every account that reads through it, within a
+// transaction: one gone is forgotten, which discards those accounts' snapshots, and one suspended or active is marked
+// so, and those accounts' snapshots discarded, after advancing their GitHub generations either way.
+func applyState(ctx context.Context, q *accountsdb.Queries, id int64, state domain.InstallationState) error {
+	if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
 		return err
 	}
-	switch change.Action {
-	case domain.Uninstalled:
-		_, err := q.DeleteInstallation(ctx, change.ID)
+	if state == domain.InstallationGone {
+		_, err := q.DeleteInstallation(ctx, id)
 		return err
-	case domain.Suspended, domain.Unsuspended:
-		params := accountsdb.SetInstallationSuspendedParams{InstallationID: change.ID, Suspended: change.Action == domain.Suspended}
-		if err := q.SetInstallationSuspended(ctx, params); err != nil {
-			return err
-		}
 	}
-	_, err := q.DiscardInstallationSnapshots(ctx, change.ID)
+	params := accountsdb.SetInstallationSuspendedParams{InstallationID: id, Suspended: state == domain.InstallationSuspended}
+	if err := q.SetInstallationSuspended(ctx, params); err != nil {
+		return err
+	}
+	_, err := q.DiscardInstallationSnapshots(ctx, id)
 	return err
 }
 

@@ -47,16 +47,18 @@ type GitHubApp interface {
 	InstallURL() string
 	// Installation returns the account installation id is on, or fails with domain.ErrNoSuchInstallation.
 	Installation(ctx context.Context, id int64) (domain.InstallationAccount, error)
+	// InstallationState returns what GitHub says of installation id now: gone, suspended, or active.
+	InstallationState(ctx context.Context, id int64) (domain.InstallationState, error)
 	// InstallationToken returns a token that reads what installation id may, or fails with
 	// domain.ErrNoSuchInstallation.
 	InstallationToken(ctx context.Context, id int64) (string, error)
 	// InstallationRepositories returns the private repositories an installation's token reads, the most recently
 	// pushed first, at most limit, and whether it left some out.
 	InstallationRepositories(ctx context.Context, token string, limit int) (repos []domain.GitHubRepository, more bool, err error)
-	// WebhookChange returns the change to an installation a webhook delivery reports, after checking its signature. It
-	// fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one that changes
-	// nothing Rulemart keeps.
-	WebhookChange(ctx context.Context, event string, body []byte, signature string) (domain.InstallationChange, error)
+	// WebhookInstallation returns the ID of the installation a webhook delivery says changed, after checking its
+	// signature. It fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for
+	// one that changes nothing Rulemart keeps.
+	WebhookInstallation(ctx context.Context, event string, body []byte, signature string) (int64, error)
 }
 
 // ErrNoApp reports that Rulemart has no GitHub App to read private repositories with.
@@ -490,24 +492,30 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 	return g.Store.RemoveInstallations(ctx, accountID)
 }
 
-// Deliver acts on a delivery of the GitHub App's webhook: an installation uninstalled is forgotten for every account,
-// one suspended is kept but read through by none until it's unsuspended, and each of these, like a change to the
-// repositories one reads, discards the snapshots of the accounts that read through it, so their next page reads GitHub
-// again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookChange does for a delivery it doesn't act
-// on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and with domain.ErrRepeatedDelivery,
-// changing nothing, for one it acted on within domain.DeliveryMemory, by its ID or its body.
+// Deliver acts on a delivery of the GitHub App's webhook that says an installation changed by applying what GitHub
+// says of it now, not what the delivery says happened, so a copy of an old delivery sent again can't undo a newer
+// change: an installation gone is forgotten for every account, one suspended is kept but read through by none until
+// it's unsuspended, and either, like an active one, has the snapshots of the accounts that read through it discarded,
+// so their next page reads GitHub again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookInstallation
+// does for a delivery it doesn't act on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and
+// with domain.ErrRepeatedDelivery, changing nothing, for one it acted on within domain.DeliveryMemory, by its ID or its
+// body.
 func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) error {
 	if g.App == nil {
 		return ErrNoApp
 	}
-	change, err := g.App.WebhookChange(ctx, delivery.Event, delivery.Body, delivery.Signature)
+	id, err := g.App.WebhookInstallation(ctx, delivery.Event, delivery.Body, delivery.Signature)
 	if err != nil {
 		return err
 	}
 	if !delivery.RecordableID() {
 		return domain.ErrNoDeliveryID
 	}
-	applied, err := g.Store.ApplyDelivery(ctx, delivery, change, g.now(), domain.DeliveryMemory)
+	state, err := g.App.InstallationState(ctx, id)
+	if err != nil {
+		return fmt.Errorf("deliver deliveryID=%q: %v", delivery.ID, err)
+	}
+	applied, err := g.Store.ApplyDelivery(ctx, delivery, id, state, g.now(), domain.DeliveryMemory)
 	if err != nil {
 		return err
 	}

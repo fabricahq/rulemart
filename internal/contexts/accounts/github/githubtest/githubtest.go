@@ -320,7 +320,14 @@ func (f *Fake) installation(w http.ResponseWriter, r *http.Request) {
 	if in.Organization {
 		kind = "Organization"
 	}
-	writeJSON(w, map[string]any{"id": in.ID, "account": map[string]any{"login": in.Account, "id": in.AccountID, "type": kind}})
+	// GitHub says when the account's owner suspended the app there, and null while they haven't.
+	var suspendedAt any
+	if in.Suspended {
+		suspendedAt = "2026-09-01T00:00:00Z"
+	}
+	writeJSON(w, map[string]any{
+		"id": in.ID, "account": map[string]any{"login": in.Account, "id": in.AccountID, "type": kind}, "suspended_at": suspendedAt,
+	})
 }
 
 func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {

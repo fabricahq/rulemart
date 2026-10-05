@@ -88,22 +88,16 @@ type InstallationAccount struct {
 	Organization bool
 }
 
-// InstallationChange is what GitHub's webhook says happened to an installation of the GitHub App.
-type InstallationChange struct {
-	ID     int64
-	Action InstallationAction
-}
-
-// InstallationAction is what happened to an installation of the GitHub App.
-type InstallationAction int
+// InstallationState is what GitHub says of an installation of the GitHub App when asked, which Rulemart applies when
+// a delivery of the app's webhook says the installation changed, rather than what the delivery says happened: anyone
+// holding a copy of a delivery can send it again, but GitHub's answer is always current.
+type InstallationState int
 
 const (
-	// RepositoriesChanged means the repositories the installation may read changed.
-	RepositoriesChanged InstallationAction = iota
-	// Uninstalled means the app was uninstalled, so the installation reads nothing for anyone, ever again.
-	Uninstalled
-	// Suspended means the account's owner suspended the app, so it reads nothing until they unsuspend it.
-	Suspended
-	// Unsuspended means the account's owner unsuspended the app, so it reads what it did before.
-	Unsuspended
+	// InstallationActive means the installation reads the repositories its account's owner chose.
+	InstallationActive InstallationState = iota
+	// InstallationSuspended means the account's owner suspended the app, so it reads nothing until they unsuspend it.
+	InstallationSuspended
+	// InstallationGone means the app was uninstalled, so the installation reads nothing for anyone, ever again.
+	InstallationGone
 )

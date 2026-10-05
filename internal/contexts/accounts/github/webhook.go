@@ -1,6 +1,6 @@
 // Check and read the deliveries of the GitHub App's webhook: GitHub signs each with the webhook's secret, and Rulemart
 // acts on the ones that say an installation was removed, suspended, or unsuspended, or that the repositories it reads
-// changed.
+// changed, by asking GitHub what the installation's state is now.
 
 package github
 
@@ -11,22 +11,23 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 )
 
-// WebhookChange returns the change to an installation a delivery of the app's webhook reports, after checking that
-// signature, its X-Hub-Signature-256 header, is the HMAC-SHA256 of body with the webhook's secret. event is its
-// X-GitHub-Event header. It fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one
-// that changes nothing Rulemart keeps.
-func (a *App) WebhookChange(ctx context.Context, event string, body []byte, signature string) (domain.InstallationChange, error) {
+// WebhookInstallation returns the ID of the installation a delivery of the app's webhook says changed, after checking
+// that signature, its X-Hub-Signature-256 header, is the HMAC-SHA256 of body with the webhook's secret. event is its
+// X-GitHub-Event header. It fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and
+// domain.ErrIgnoredEvent for one that changes nothing Rulemart keeps.
+func (a *App) WebhookInstallation(ctx context.Context, event string, body []byte, signature string) (int64, error) {
 	secret, err := a.config.WebhookSecret.Value(ctx)
 	if err != nil {
-		return domain.InstallationChange{}, fmt.Errorf("read the webhook's secret: %v", err)
+		return 0, fmt.Errorf("read the webhook's secret: %v", err)
 	}
 	if !ValidSignature([]byte(secret), body, signature) {
-		return domain.InstallationChange{}, domain.ErrBadSignature
+		return 0, domain.ErrBadSignature
 	}
 	var delivery struct {
 		Action       string `json:"action"`
@@ -36,24 +37,17 @@ func (a *App) WebhookChange(ctx context.Context, event string, body []byte, sign
 		} `json:"installation"`
 	}
 	if err := json.Unmarshal(body, &delivery); err != nil {
-		return domain.InstallationChange{}, fmt.Errorf("decode the delivery: %v", err)
+		return 0, fmt.Errorf("decode the delivery: %v", err)
 	}
-	change := domain.InstallationChange{ID: delivery.Installation.ID}
+	id := delivery.Installation.ID
 	switch {
-	case change.ID <= 0 || (delivery.Installation.AppID != 0 && delivery.Installation.AppID != a.config.ID):
-		return domain.InstallationChange{}, domain.ErrIgnoredEvent
-	case event == "installation" && delivery.Action == "deleted":
-		change.Action = domain.Uninstalled
-	case event == "installation" && delivery.Action == "suspend":
-		change.Action = domain.Suspended
-	case event == "installation" && delivery.Action == "unsuspend":
-		change.Action = domain.Unsuspended
-	case event == "installation" && delivery.Action == "new_permissions_accepted", event == "installation_repositories":
-		change.Action = domain.RepositoriesChanged
-	default:
-		return domain.InstallationChange{}, domain.ErrIgnoredEvent
+	case id <= 0 || (delivery.Installation.AppID != 0 && delivery.Installation.AppID != a.config.ID):
+		return 0, domain.ErrIgnoredEvent
+	case event == "installation" && slices.Contains([]string{"deleted", "suspend", "unsuspend", "new_permissions_accepted"}, delivery.Action),
+		event == "installation_repositories":
+		return id, nil
 	}
-	return change, nil
+	return 0, domain.ErrIgnoredEvent
 }
 
 // ValidSignature reports whether signature, as GitHub's X-Hub-Signature-256 header writes it, sha256= and the hex
