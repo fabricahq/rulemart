@@ -22,10 +22,11 @@
 // rulemartdev tag and no GitHub sign-in reads a fake GitHub in memory instead, with an app of its own.
 //
 // GITHUB_APP_WEBHOOK_ALIAS names the Lambda alias whose Function URL takes the app's webhook deliveries from anyone,
-// since GitHub can't sign them as CloudFront's origin access control asks. Through it, the function answers 404 to
-// every path but the webhook's, /account/github/webhook, whose own signature check authenticates GitHub, before any
-// page could set a cookie or render, and the privacy page says what a delivery discards. Unset, every request reaches
-// the pages, as through the function's own URL.
+// since GitHub can't sign them as CloudFront's origin access control asks, and the privacy page then says what a
+// delivery discards; on Lambda, the app without it warns at start. Whatever it names, the function answers 404 to every
+// path but the webhook's, /account/github/webhook, whose own signature check authenticates GitHub, through any alias,
+// and without Lambda's context, before any page could set a cookie or render. Only the function's own URL, unqualified
+// or through $LATEST or a version, reaches the pages.
 //
 // Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
 // sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
@@ -90,7 +91,7 @@ func main() {
 	}
 	logging.Ready(logger, schemaVersion, time.Since(start))
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
-		lambda.Start(newFunction(handler, webhookAlias).handle)
+		lambda.Start(newFunction(handler).handle)
 		return
 	}
 	addr := listenAddr(os.Getenv)
@@ -180,6 +181,10 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64, w
 		if gitHubApp != nil {
 			accounts.App = gitHubApp
 			options.GitHubWebhook = webhookAlias != ""
+			if onLambda && webhookAlias == "" {
+				logger.Warn("GITHUB_APP_WEBHOOK_ALIAS is unset, so the privacy page doesn't say what the GitHub App's webhook " +
+					"discards: name the alias whose Function URL takes its deliveries, once there is one")
+			}
 		}
 		options.GitHubAccounts = accounts
 	}
@@ -334,13 +339,10 @@ func lambdaRequestID(r *http.Request) string {
 type function struct {
 	// adapter turns Function URL requests into requests for the pages' handler.
 	adapter *httpadapter.HandlerAdapterV2
-	// webhookAlias is the Lambda alias whose Function URL takes GitHub's webhook deliveries from anyone, through which
-	// the function answers only the webhook, or empty when there's none, so every request reaches the pages.
-	webhookAlias string
 }
 
-func newFunction(handler http.Handler, webhookAlias string) *function {
-	return &function{adapter: httpadapter.NewV2(handler), webhookAlias: webhookAlias}
+func newFunction(handler http.Handler) *function {
+	return &function{adapter: httpadapter.NewV2(handler)}
 }
 
 // invocation holds the field handle uses to recognize a Function URL request.
@@ -353,7 +355,8 @@ type invocation struct {
 }
 
 // handle serves Function URL requests, and rejects anything else. The schedule invokes the worker function, not this
-// one. Through the webhook alias, it answers 404 to every path but the webhook's.
+// one. Unless Lambda invoked it as the site, as throughSite says, such as through the webhook alias, it answers 404 to
+// every path but the webhook's.
 func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var event invocation
 	if err := json.Unmarshal(raw, &event); err != nil {
@@ -367,9 +370,9 @@ func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error)
 	if err := json.Unmarshal(raw, &request); err != nil {
 		return nil, fmt.Errorf("decode Function URL request: %v", err)
 	}
-	// Before anything else reads the request: through the webhook alias, nothing but the webhook may set a cookie or
-	// render a page.
-	if f.webhookAlias != "" && throughAlias(ctx, f.webhookAlias) && !webhookOnly(request) {
+	// Before anything else reads the request: unless the site's, nothing but the webhook may set a cookie or render a
+	// page.
+	if !throughSite(ctx) && !webhookOnly(request) {
 		return rejectThroughWebhookAlias(ctx, request), nil
 	}
 	if !convertible(request) {

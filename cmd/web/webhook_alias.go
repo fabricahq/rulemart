@@ -1,4 +1,4 @@
-// Answer only the GitHub App's webhook through the Lambda alias whose Function URL nothing signs.
+// Answer only the GitHub App's webhook through any Lambda alias, such as the one whose Function URL nothing signs.
 
 package main
 
@@ -34,16 +34,25 @@ var (
 	allDigits = regexp.MustCompile(`^[0-9]+$`)
 )
 
-// throughAlias reports whether Lambda invoked the function through alias, by the qualifier of the function ARN it
-// invoked: arn:aws:lambda:<region>:<account>:function:<name>, then :<alias> through the alias's Function URL. Lambda
-// sets the ARN from the URL the request arrived at, so a caller can't forge it, as it could a header or a path.
-func throughAlias(ctx context.Context, alias string) bool {
+// throughSite reports whether Lambda invoked the function as the site, by the function ARN it invoked, which Lambda
+// sets from the URL the request arrived at, so a caller can't forge it, as it could a header or a path:
+// arn:aws:lambda:<region>:<account>:function:<name>, through the function's own URL, which only CloudFront can call,
+// then :$LATEST or :<version> when invoked so. Any other qualifier is an alias, which may have a URL that nothing signs,
+// such as the webhook alias's, so it isn't the site's, whatever GITHUB_APP_WEBHOOK_ALIAS names; nor is an invocation
+// without Lambda's context, which names nothing.
+func throughSite(ctx context.Context) bool {
 	invoked, ok := lambdacontext.FromContext(ctx)
 	if !ok {
 		return false
 	}
 	parts := strings.Split(invoked.InvokedFunctionArn, ":")
-	return len(parts) == 8 && parts[7] == alias
+	switch {
+	case len(parts) < 7 || parts[0] != "arn" || parts[2] != "lambda" || parts[5] != "function" || parts[6] == "":
+		return false
+	case len(parts) == 7:
+		return true
+	}
+	return len(parts) == 8 && (parts[7] == "$LATEST" || allDigits.MatchString(parts[7]))
 }
 
 // webhookOnly reports whether request is one the webhook alias's URL may pass to the pages: any method on the
@@ -52,7 +61,7 @@ func webhookOnly(request events.APIGatewayV2HTTPRequest) bool {
 	return cmp.Or(request.RawPath, request.RequestContext.HTTP.Path) == web.WebhookHref
 }
 
-// rejectThroughWebhookAlias logs that the function refused request through the webhook alias, without its path or
+// rejectThroughWebhookAlias logs that the function refused request through an invocation that isn't the site's, without its path or
 // query string, which anyone can choose, and returns the response for it: a 404 that can't be cached and sets nothing.
 func rejectThroughWebhookAlias(ctx context.Context, request events.APIGatewayV2HTTPRequest) events.APIGatewayV2HTTPResponse {
 	slog.InfoContext(ctx, "request", "route", "webhook alias", "method", request.RequestContext.HTTP.Method,

@@ -67,7 +67,7 @@ func TestThroughTheWebhookAliasOnlyTheWebhookReachesThePages(t *testing.T) {
 			pages := &sessionSetter{}
 			ctx, raw := invokeAt(t, aliasARN, tc.method, tc.path)
 
-			out, err := newFunction(pages, "webhook").handle(ctx, raw)
+			out, err := newFunction(pages).handle(ctx, raw)
 
 			if err != nil {
 				t.Fatal(err)
@@ -89,27 +89,43 @@ func TestThroughTheWebhookAliasOnlyTheWebhookReachesThePages(t *testing.T) {
 	}
 }
 
-// Through the function's own URL, which only CloudFront can call, and through any qualifier that isn't the alias,
-// every path reaches the pages; with no alias configured, nothing is restricted, whatever the qualifier.
-func TestOutsideTheWebhookAliasEveryPathReachesThePages(t *testing.T) {
-	for name, tc := range map[string]struct{ alias, arn string }{
-		"the function's own URL":          {"webhook", functionARN},
-		"another alias":                   {"webhook", functionARN + ":live"},
-		"an alias whose name contains it": {"webhook", functionARN + ":webhooks"},
-		"no alias configured":             {"", aliasARN},
+// Only an invocation Lambda identifies as the site's reaches the pages: through the function's own URL, which only
+// CloudFront can call, unqualified, or qualified by $LATEST or a version. Any other qualifier is an alias, which can
+// have a URL nothing signs, so it gets only the webhook whatever GITHUB_APP_WEBHOOK_ALIAS says, and so does an
+// invocation without Lambda's context, which names nothing.
+func TestOnlyTheSitesInvocationsReachThePages(t *testing.T) {
+	site := func(arn string) context.Context {
+		return lambdacontext.NewContext(context.Background(), &lambdacontext.LambdaContext{InvokedFunctionArn: arn})
+	}
+	for name, tc := range map[string]struct {
+		ctx     context.Context
+		reaches bool
+	}{
+		"the function's own URL":          {site(functionARN), true},
+		"$LATEST":                         {site(functionARN + ":$LATEST"), true},
+		"a version":                       {site(functionARN + ":42"), true},
+		"the webhook alias":               {site(aliasARN), false},
+		"an alias the variable misspells": {site(functionARN + ":webhooks"), false},
+		"another alias":                   {site(functionARN + ":live"), false},
+		"an ARN that isn't a function's":  {site("arn:aws:lambda:us-east-1:123456789012"), false},
+		"no Lambda context":               {context.Background(), false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			for _, path := range []string{"/", "/me", "/account/github/webhook"} {
+			for _, path := range []string{"/", "/privacy", "/me"} {
 				pages := &sessionSetter{}
-				ctx, raw := invokeAt(t, tc.arn, http.MethodGet, path)
+				_, raw := invokeAt(t, functionARN, http.MethodGet, path)
 
-				out, err := newFunction(pages, tc.alias).handle(ctx, raw)
+				out, err := newFunction(pages).handle(tc.ctx, raw)
 
 				if err != nil {
 					t.Fatal(err)
 				}
-				if resp := out.(events.APIGatewayV2HTTPResponse); !pages.reached || resp.StatusCode != http.StatusNoContent {
-					t.Errorf("%s answered %d without reaching the pages", path, resp.StatusCode)
+				resp := out.(events.APIGatewayV2HTTPResponse)
+				if tc.reaches != pages.reached {
+					t.Fatalf("%s reached the pages: %v, want %v", path, pages.reached, tc.reaches)
+				}
+				if !tc.reaches && (resp.StatusCode != http.StatusNotFound || len(resp.Cookies) != 0 || resp.Headers["Cache-Control"] != "no-store") {
+					t.Errorf("%s answered %+v, want a 404 that sets no cookie and can't be cached", path, resp)
 				}
 			}
 		})
