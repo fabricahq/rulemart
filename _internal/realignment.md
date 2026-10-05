@@ -98,7 +98,7 @@ Differences on every page:
   pixels above and 80 below, a slip of the shorthand that puts the content against the header. The site keeps them.
 - **Sign-in's GitHub mark.** "Sign in with GitHub" and Continue with GitHub show only when GitHub sign-in is
   configured, so a local `make web-dev` build shows "Sign in" and its test users' box instead.
-- **Proposed: dates are absolute**, such as "1 Oct 2026", where the prototype writes "3 days ago". Pages are cached and
+- **Decided (Josh), 2026-10-05: dates are absolute**, such as "1 Oct 2026", where the prototype writes "3 days ago". Pages are cached and
   the same for everyone, so a date never goes stale and needs no script.
 - **Toasts** show at the viewport's bottom right, and the first star adds an info toast that links to Starred rules,
   as slice R3 decided.
@@ -112,7 +112,7 @@ Differences on every page:
 | `#/browse/techs`, `#/browse/practices` | `/browse/techs`, `/browse/practices` | Match, except rows show no group ID, as R1 decided, and the Include unvetted libraries control, as the vetting decision says. "View other technology groups (N) →" shows, as the prototype's does, only while a library declares a group that isn't canonical, which neither real library does |
 | `#/browse/{kind}/other` | `/browse/{kind}/other` | Match, with the opt-in control |
 | `#/libraries` | `/libraries` | Match, except it lists vetted libraries, titled "Libraries Rulemart has vetted", with the opt-in control |
-| `#/{owner}` | `/{owner}`, `/o/{login}` | Match, except it shows the login and avatar only: the display name, kind, verified domain, and bio wait for a slice that stores them, as R1's doc proposes |
+| `#/{owner}` | `/{owner}`, `/o/{login}` | Match, except it shows the login and avatar only: the display name, kind, verified domain, and bio wait for a slice that stores them, as R1 decided |
 | `#/faq` | `/faq` | Match, except answers that mention Discuss point to the library's repository until rulemart#27 |
 | `#/feedback` | `/feedback` | Match, plus "Something broken on Rulemart", as R1 decided; a specific rule's feedback goes to the library's repository until rulemart#27 |
 | Header and footer | Every page | Match, except as listed above |
@@ -121,7 +121,7 @@ Differences on every page:
 | `#/search` | `/search` | Match, plus retired rules in their own section and the sidebar's Retired and Unvetted filters, as R4 decided, with the phone's Filters disclosure, as on group pages, and the ranking named above. Signed in, it offers My libraries, as group pages do |
 | `#/cart` | `/cart` | Match, with the vetted check on each vetted library's avatar. The list of items isn't a live region: screen readers hear a change through its toast or the control that made it |
 | Checkout's project picker | `/cart`, signed in | Match, plus a line saying when the projects were read, with a link to include private projects. "+ Or use a project that doesn't use Code Rules yet" opens the same box for a new project, and moves focus to its repository field, since the button it replaces goes |
-| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, proposed, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice. The All rules tab lists every rule on one page, as the prototype's does |
+| Library page | `/{owner}/{repo}` | Match, except the Discussion tab waits for rulemart#27, the Report link stays, as R6 decided, and, as R5 decided, a group already in the cart shows its checkbox ticked and disabled, so it can't be added twice. The All rules tab lists every rule on one page, as the prototype's does |
 | Library releases tab | `/{owner}/{repo}?tab=releases` | Match, with the compare form, which compares as soon as a release is chosen, and each release's Compare link from slice 4; each card links its "GitHub Release page" |
 | None | `/{owner}/{repo}?tab=releases&from=&to=` | Site only, from slice 4: the prototype compares a rule's versions but not two library releases. The page takes the rule comparison's layout: what changed, then each changed rule's text |
 | `#/{owner}/{repo}/{kind}/{group}` | The same | Match; the Whole group box keeps the library's `owner/name` on one line |
@@ -216,4 +216,4 @@ In this order, once the slice was built and its own tests passed:
 4. **Devin's review** of the pull request. Resolve its feedback.
 5. **Merge.**
 
-Each slice's doc recorded the Proposed decisions it added, as the earlier slices' did.
+Each slice's doc recorded the decisions it proposed, as the earlier slices' did, and Josh decided them on 2026-10-05.

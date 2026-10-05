@@ -9,8 +9,9 @@ else changes for visitors who don't sign in: browsing still needs no account, an
 Later slices build on this: 6 lets anyone signed in list a library, and adds the unvetted area; 7 adds stars; 8 adds
 the cart and its checkout prompt. "For later slices" below says how they plug in.
 
-Decisions marked **Proposed** are new in this slice and wait for review. **Decided** ones are Josh's. **Existing**
-ones are already in [decisions.md](../decisions.md) or an earlier slice.
+Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in this slice and stand as built.
+**Superseded** ones were proposed here and replaced by the slice named. **Existing** ones are already in
+[decisions.md](../decisions.md) or an earlier slice.
 
 ## What a visitor can do
 
@@ -34,7 +35,7 @@ ones are already in [decisions.md](../decisions.md) or an earlier slice.
 
 ### Caching signed-in pages
 
-**Proposed: a signed-in request bypasses every cache, and public pages stay identical for everyone.** CloudFront
+**Decided (Josh), 2026-10-05: a signed-in request bypasses every cache, and public pages stay identical for everyone.** CloudFront
 caches whatever the function marks `public`, under a key without cookies, so a page that showed one visitor's avatar
 and was marked public would be served to everyone. Three layers keep that from happening:
 
@@ -59,55 +60,55 @@ endpoint can come later without changing the session model.
 ### GitHub
 
 - **Decided: GitHub is the only sign-in provider.** Every library is a GitHub repository.
-- **Proposed: a GitHub OAuth app, asking for no scopes.** With no scopes, GitHub's consent screen says Rulemart reads
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): a GitHub OAuth app, asking for no scopes.** With no scopes, GitHub's consent screen says Rulemart reads
   only public information, and the token can read nothing private. Rulemart needs the user's ID, login, and avatar,
   nothing else. A GitHub App would ask for "act on your behalf" and issue expiring tokens to refresh, for no benefit
   while Rulemart never calls GitHub for a user. A later slice that needs private data, such as the prototype's
   project tracking, can add a GitHub App then; accounts keep working, since both report the same user ID.
-- **Proposed: the token is discarded after reading the user, not stored or revoked.** It has no scopes, so it can read
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): the token is discarded after reading the user, not stored or revoked.** It has no scopes, so it can read
   only what's public. Revoking it would add a request and a failure mode to every sign-in for no protection.
-- **Proposed: state and PKCE together.** `POST /sign-in` keeps a random state and a PKCE verifier in a cookie and sends
+- **Decided (Josh), 2026-10-05: state and PKCE together.** `POST /sign-in` keeps a random state and a PKCE verifier in a cookie and sends
   GitHub the state and the verifier's S256 challenge. The callback refuses a state that isn't the cookie's, compared
   in constant time, before asking GitHub anything, and exchanges the code with the verifier, so a leaked code is
   worthless without this browser's cookie.
-- **Proposed: the flow lives in a `__Host-rulemart-sign-in` cookie for ten minutes**, holding the state, the verifier,
+- **Decided (Josh), 2026-10-05: the flow lives in a `__Host-rulemart-sign-in` cookie for ten minutes**, holding the state, the verifier,
   and the return path. It needs no signing key: the `__Host-` prefix stops any other site, even under
   `fabricahq.com`, from setting it, and the return path it holds is checked again when it comes back. Starting a second
   sign-in in another tab replaces the first, whose callback then says to sign in again.
-- **Proposed: only the sign-in page's content security policy lets a form lead to GitHub.** Browsers check a form's
+- **Decided (Josh), 2026-10-05: only the sign-in page's content security policy lets a form lead to GitHub.** Browsers check a form's
   redirects against `form-action`, and the GitHub button posts to `/sign-in`, which redirects to
   `https://github.com/login/oauth/authorize`. The sign-in page alone, including the callback's errors, allows that one
   address; every other page keeps `form-action 'self'`.
-- **Proposed: sign-in happens on the public origin.** Sign-in links are absolute on `RULEMART_BASE_URL`, and GitHub's
+- **Decided (Josh), 2026-10-05: sign-in happens on the public origin.** Sign-in links are absolute on `RULEMART_BASE_URL`, and GitHub's
   callback is `RULEMART_BASE_URL/account/github/callback`, so a visitor on CloudFront's `cloudfront.net` domain moves to
   the public one, where the cookies and the OAuth app's callback are. Locally, without a base URL, the callback is on
   the request's own host over HTTP; GitHub accepts only the callback URLs its OAuth app registers.
 
 ### Sessions
 
-- **Proposed: sessions in Postgres, by token hash.** The session cookie holds 32 random bytes, base64url-encoded; the
+- **Decided (Josh), 2026-10-05: sessions in Postgres, by token hash.** The session cookie holds 32 random bytes, base64url-encoded; the
   `sessions` table stores only their SHA-256, so reading the table signs no one in. A malformed cookie is refused
   before any database read.
-- **Proposed: a fixed 30-day lifetime, never extended.** Extending on use would write to Neon on page views. Signing
+- **Decided (Josh), 2026-10-05: a fixed 30-day lifetime, never extended.** Extending on use would write to Neon on page views. Signing
   in again takes one click once a visitor has authorized Rulemart, since GitHub skips its consent screen.
-- **Proposed: at most 20 sessions per account.** Signing in on a 21st browser ends the oldest, so a script signing in
+- **Decided (Josh), 2026-10-05: at most 20 sessions per account.** Signing in on a 21st browser ends the oldest, so a script signing in
   over and over can't grow the table without bound. Every sign-in also deletes every expired session, so the table
   needs no scheduled cleanup.
-- **Proposed: a new session at every sign-in, ending the one the browser held.** A token planted in a browser before
+- **Decided (Josh), 2026-10-05: a new session at every sign-in, ending the one the browser held.** A token planted in a browser before
   sign-in signs no one in after it.
-- **Proposed: the session cookie is `__Host-rulemart-session`: Secure, HttpOnly, SameSite=Lax, Path=/, no Domain**,
+- **Decided (Josh), 2026-10-05: the session cookie is `__Host-rulemart-session`: Secure, HttpOnly, SameSite=Lax, Path=/, no Domain**,
   and Max-Age the session's lifetime. Lax sends it on GitHub's top-level redirect back, and on links from other sites,
   so a visitor following a link arrives signed in, but not on another site's form posts or fetches. A cookie that no
   longer signs anyone in is cleared on the next page.
-- **Proposed: signing out everywhere and deleting an account act only for a live session.** Each finds the account
+- **Decided (Josh), 2026-10-05: signing out everywhere and deleting an account act only for a live session.** Each finds the account
   from the request's session token in the same statement that writes, so a request whose session another browser
   ended a moment earlier changes nothing, even after the visitor signs in again.
-- **Proposed: a failure to read the session fails the page** with the usual 503, rather than showing a signed-in
+- **Decided (Josh), 2026-10-05: a failure to read the session fails the page** with the usual 503, rather than showing a signed-in
   visitor a signed-out page that could mislead them, such as into signing in again.
 
 ### Writes and CSRF
 
-- **Proposed: every state-changing request is a POST with an empty body, and the function refuses one another site
+- **Decided (Josh), 2026-10-05: every state-changing request is a POST with an empty body, and the function refuses one another site
   started**, with Go's `http.CrossOriginProtection`: a browser's `Sec-Fetch-Site` must say `same-origin` or `none`,
   or, from a browser too old to send it, `Origin` must be this host or `RULEMART_BASE_URL`. A request with neither,
   such as from curl, carries no visitor's cookies against their will. `SameSite=Lax` is a second barrier.
@@ -116,13 +117,13 @@ endpoint can come later without changing the session model.
   body fails at Lambda, while an empty one passes (see the infra-catalog module's README). A token in a hidden field
   would need a body, and in the query string it would land in CloudFront's access logs. `Sec-Fetch-Site` needs neither.
   Forms carry what they need in their action's query string, which holds nothing secret, such as where to return.
-- **Proposed: return paths are paths on this site only.** A return parameter must start with one `/`, have no
+- **Decided (Josh), 2026-10-05: return paths are paths on this site only.** A return parameter must start with one `/`, have no
   backslash or control character, parse with no scheme or host, fit in 2,000 bytes, and not be a sign-in page;
   anything else returns to `/`. `//evil.example`, `/\evil.example`, and `https://evil.example` all go home. Nothing
   under `/account/` is a return target either: it holds the callback and actions that take POST. Signing out doesn't
   return to the account page, which a signed-out visitor can't see, but home. A URL's `#fragment` never reaches the
   server, so a visitor returns to the page without it; keeping it would need a script.
-- **Proposed: after signing out, signing out everywhere, or deleting an account, the next page says so, once.** The
+- **Decided (Josh), 2026-10-05: after signing out, signing out everywhere, or deleting an account, the next page says so, once.** The
   action's redirect sets `__Host-rulemart-notice` for a minute, naming one of Rulemart's notices, never text to show.
   The page that renders it clears it, so that one response sets a cookie and is private, and the next is cached as
   usual. CloudFront keys its cache on this cookie too, so a cached page never hides the notice. A query parameter would
@@ -138,18 +139,18 @@ endpoint can come later without changing the session model.
 - **Decided: accounts are keyed by GitHub's numeric user ID.** Logins change, and a freed login can belong to someone
   else. `accounts.github_user_id` is unique; `github_login` isn't. A login may have an underscore, as an Enterprise
   Managed User's does, such as `octocat_acme`.
-- **Proposed: an account keeps only the GitHub user ID, the login, and the avatar's address**, the last two refreshed
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): an account keeps only the GitHub user ID, the login, and the avatar's address**, the last two refreshed
   at each sign-in, plus when it was made and last signed in. No name, email, or token. An avatar that isn't on
   `avatars.githubusercontent.com`, the only image host the pages' content security policy allows, isn't kept.
-- **Proposed: a visitor can delete their account.** It deletes the row and, by cascade, its sessions. Later slices
+- **Decided (Josh), 2026-10-05: a visitor can delete their account.** It deletes the row and, by cascade, its sessions. Later slices
   decide what deleting does to what they add: stars should go with it, and a listed library should stay listed.
-- **Proposed: a new bounded context, `internal/contexts/accounts`**, laid out as the catalog is: `domain` for
+- **Decided (Josh), 2026-10-05: a new bounded context, `internal/contexts/accounts`**, laid out as the catalog is: `domain` for
   identities, accounts, and session tokens; `store` and `store/postgres`, with sqlc's output in
   `generated/accountsdb`; `app` for signing in and out; and `github` for the OAuth app.
 
 ### Database roles
 
-- **Proposed: a new group role, `rulemart_accounts_writer`**, NOLOGIN, which infrastructure creates with SQL like the
+- **Decided (Josh), 2026-10-05: a new group role, `rulemart_accounts_writer`**, NOLOGIN, which infrastructure creates with SQL like the
   catalog's, and which `rulemart_web` joins beside `rulemart_catalog_reader`. Migration 00009 grants it `USAGE` on
   `public`, `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on `accounts`, and `SELECT`, `INSERT`, and `DELETE` on
   `sessions`: a session is never changed, so no one can extend one. It refuses a missing or privileged role, as 00003
@@ -158,7 +159,7 @@ endpoint can come later without changing the session model.
 
 ### Routes
 
-- **Proposed: `/sign-in` and `/sign-out` at one segment, and everything else under `/account`.** A one-segment path
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): `/sign-in` and `/sign-out` at one segment, and everything else under `/account`.** A one-segment path
   can't hide a library's `/{owner}/{repo}`, and `account` is a GitHub route, so no GitHub user can take it. Two
   candidates are real GitHub users and were avoided: `sign-in` (so not `/sign-in/github`) and `dev`.
 
@@ -168,34 +169,34 @@ endpoint can come later without changing the session model.
   does, the sign-in page offers two test users, `test_user` and `test_user_2`, which `POST
   /account/dev-sign-in` signs in through the same code as GitHub's callback. Their IDs, 9,000,000,001 and
   9,000,000,002, are far past GitHub's, no personal GitHub account can have an underscore in its login, and they have
-  no avatar. Their account page calls them local test users and links no GitHub profile. **Proposed** guards:
+  no avatar. Their account page calls them local test users and links no GitHub profile. **Decided (Josh)**, 2026-10-05, guards:
   - The code lives in `internal/platform/web/dev_sign_in.go`, which only the tag compiles;
     `dev_sign_in_off.go` stands in otherwise.
   - `cmd/web`'s tests build the web function with `lambda-build.toml`'s own tags and check that its binary lacks the
     dev sign-in's route, while a `rulemartdev` build has it, so the check would see a regression.
   - A `rulemartdev` build refuses to start on Lambda.
   - `make check` vets and tests both builds.
-- **Proposed: without `GITHUB_CLIENT_ID`, pages offer no sign-in**, outside a dev build: no header link, and
+- **Decided (Josh), 2026-10-05: without `GITHUB_CLIENT_ID`, pages offer no sign-in**, outside a dev build: no header link, and
   `/sign-in` answers 404, saying sign-in isn't available yet. A release with this slice can deploy before the OAuth app
   exists, and sign-in appears once infrastructure sets the variables. The header's Sign in shows GitHub's mark only
   when it leads to GitHub.
 
 ### Header
 
-- **Proposed: the account slot is as wide as its widest content at each width**, the Sign in button, a phone's Sign in
+- **Decided (Josh), 2026-10-05: the account slot is as wide as its widest content at each width**, the Sign in button, a phone's Sign in
   link, or a narrow phone's icon, and stays, empty, on the sign-in page, so signing in or out never moves Libraries,
   Groups, or search. Its content sits at the page's edge: the avatar's button shades past it, into the margin, and its
   focus ring is drawn just inside the avatar.
-- **Proposed: below 384 pixels, the header drops Fabrica's mark and shows Sign in as a labeled person icon**, so it
+- **Decided (Josh), 2026-10-05: below 384 pixels, the header drops Fabrica's mark and shows Sign in as a labeled person icon**, so it
   fits down to 320 pixels; between 384 and 720 it keeps the mark, without Fabrica's name, and a Sign in link.
 
 ### Logging and abuse
 
-- **Proposed: the web function logs `signed in` and `deleted account` with the account's internal ID**, and
+- **Decided (Josh), 2026-10-05: the web function logs `signed in` and `deleted account` with the account's internal ID**, and
   `sign-in refused`, `sign-in failed`, and `cross-origin request refused` with a reason, never a code, state, token,
   verifier, login, or cookie. The access log still records only the route, so `/account/github/callback?code=...`
   logs as `/account/github/callback`. An internal account ID is pseudonymous; the privacy notice should mention it.
-- **Proposed: no rate limiting in the function for now.** Each sign-in needs a real GitHub authorization, and
+- **Decided (Josh), 2026-10-05: no rate limiting in the function for now.** Each sign-in needs a real GitHub authorization, and
   GitHub limits code exchanges; each account keeps at most 20 sessions; and the account's 10 Lambda slots bound the
   load anyone can put on Neon. A CloudFront WAF rate rule on `POST` and `/account/github/callback` is the next step if
   abuse appears, and it would also cover the listing form of slice 6.

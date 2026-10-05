@@ -7,8 +7,8 @@ hero, the browser tab, a phone's home screen, links shared on social sites, and 
 reviewed from its before-and-after screenshots, so the look is judged on its own.
 [realignment.md](../realignment.md) explains why it is a slice of its own.
 
-Decisions marked **Proposed** are new in this slice and wait for review. **Decided** ones are Josh's. **Existing**
-ones describe what the site already does.
+Decisions marked **Decided** are Josh's: those dated 2026-10-05 were proposed in this slice and stand as built.
+**Existing** ones describe what the site already does.
 
 ## What a visitor sees
 
@@ -31,28 +31,28 @@ ones describe what the site already does.
   [Code Rules' site](https://code-rules.fabricahq.com/): the header reads Fabrica's cube, "Fabrica", a slash, and
   "Rulemart", exactly as before this slice, and the hero's eyebrow becomes the horizontal logo lockup, centered, 56
   pixels tall at desktop and 48 on phones.
-- **Proposed: the hero shows two `<img>` elements, one per theme**, `rulemart-horizontal-dark.svg` and
+- **Decided (Josh), 2026-10-05: the hero shows two `<img>` elements, one per theme**, `rulemart-horizontal-dark.svg` and
   `rulemart-horizontal-white.svg`, copied unchanged from `brand/logos/` into the static files and served under their
   hashed names, each with its width and height and `alt="Rulemart"`. A new `dark:` variant in the stylesheet shows
   one and hides the other by the same rule as the color tokens: dark when the visitor chose dark in the footer, or
   chose nothing and their system prefers dark. A `<picture>` with a `prefers-color-scheme` source would ignore the
   footer's choice. The hidden image isn't rendered, so screen readers read Rulemart once.
-- **Proposed: `favicon.svg` and `apple-touch-icon.png` are the package's files, copied unchanged** into
+- **Decided (Josh), 2026-10-05: `favicon.svg` and `apple-touch-icon.png` are the package's files, copied unchanged** into
   `internal/platform/web/static/` under the names the pages and the `/favicon.ico` route already use (**Existing**).
   Static files are served under hashed names and cached for a year, so replacing them needs no infrastructure change
   (**Existing**); `/favicon.ico` is cached a day.
-- **Proposed: `favicon.ico` is built from the package's dedicated favicon artwork, not copied.** The package's ICO
+- **Decided (Josh), 2026-10-05: `favicon.ico` is built from the package's dedicated favicon artwork, not copied.** The package's ICO
   scales its 256-pixel app tile, the symbol on #202020, down to each size, which leaves a gray smudge at 16 pixels
   and looks nothing like the SVG favicon. `brand/assets.py` instead puts `favicons/rulemart-dark-16.png`, `-32.png`,
   and `-48.png`, drawn for those sizes with the heavier stroke, into the ICO unchanged, one frame a size. Like
   those files, its stroke is the ink color on transparency, so a browser that shows the ICO in a dark tab strip
   shows a dark mark on dark; every current browser takes the adaptive SVG instead.
-- **Proposed: a static SVG may hold a `<style>` that loads nothing.** The adaptive favicon switches its stroke with a
+- **Decided (Josh), 2026-10-05: a static SVG may hold a `<style>` that loads nothing.** The adaptive favicon switches its stroke with a
   `prefers-color-scheme` rule, which the check for static SVGs rejected outright. A stylesheet runs no code; it can
   only load through an `@import` or a URL. So the check takes a `<style>` with neither, nor an escape that could spell
   one, nor an element inside it, and it now covers every static SVG, the favicon included, rather than only the
   vendored group icons.
-- **Proposed: `brand/` keeps the package's SVGs, its guide, `build.py`, and the PNGs up to 400 pixels wide.** The
+- **Decided (Josh), 2026-10-05: `brand/` keeps the package's SVGs, its guide, `build.py`, and the PNGs up to 400 pixels wide.** The
   renders at 512 pixels and up, the ZIP, the `.DS_Store` files, and an older copy of the package nested inside it
   are left out: `build.py` makes the renders and the ZIP again from the SVGs, and `brand/.gitignore` keeps them out
   when it does. The package's `SHA256SUMS` keeps only the lines for the files committed, unchanged, so
@@ -61,23 +61,23 @@ ones describe what the site already does.
 - **Decided (Josh): the social image carries the tagline.** It is the dark horizontal logo, 520 pixels wide, over
   "Agent coding best practices, off the shelf" in the hero's two lines, the two centered as one block on the surface
   color (#F6F6F6). The alt text is "Rulemart: agent coding best practices, off the shelf", as it was.
-- **Proposed: the tagline is no wider than the logo, in the muted gray, and as far below it as the wordmark is from
+- **Decided (Josh), 2026-10-05: the tagline is no wider than the logo, in the muted gray, and as far below it as the wordmark is from
   the symbol.** Inter Regular at 38 pixels in #626262 keeps its longer line at 518 pixels, so the logo stays
   dominant, and both stay inside the middle 630-pixel square that some apps crop a wide image to. The gap is
   measured from the logo itself, the widest empty run of columns in its drawing, 49 pixels, so the logo still
   reads as one unit.
-- **Proposed: `brand/assets.py` makes the social image and `favicon.ico`**, beside the package's `build.py`, with
+- **Decided (Josh), 2026-10-05: `brand/assets.py` makes the social image and `favicon.ico`**, beside the package's `build.py`, with
   `rsvg-convert` for the logo and Pillow for the rest. Pillow reads the package's `source/inter-latin.woff2`
   directly and sets its Regular instance. It centers the logo by what it draws rather than its padding, and the
   tagline by its capitals and baseline, and it gives the same bytes on every run.
 - **Decided (Josh): the README is primary-tier**, a landing page for people who might use Rulemart, as
   `AGENTS.md` now says.
-- **Proposed: the README's logo is its title.** The logo, 240 pixels wide, is the centered `<h1>`, with the alt text
+- **Decided (Josh), 2026-10-05: the README's logo is its title.** The logo, 240 pixels wide, is the centered `<h1>`, with the alt text
   Rulemart, so the name reads once rather than as a logo over a second "Rulemart" heading; the hero's tagline and a
   one-line promise follow, as the primary tier's title block asks. The guide asks for the horizontal logo at 120
   pixels or wider. It names the SVGs in `brand/logos/` by relative path, which GitHub renders, and, centered, the
   logo's built-in padding needs no cropping.
-- **Proposed: the Code Rules companion mark in `brand/code-rules/` stays in the package but is not used**, since the
+- **Decided (Josh), 2026-10-05: the Code Rules companion mark in `brand/code-rules/` stays in the package but is not used**, since the
   Code Rules site owns its own mark.
 
 ## Not in this slice

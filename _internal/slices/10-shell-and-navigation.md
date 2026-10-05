@@ -9,8 +9,8 @@ prototype's addresses for groups. No data changes. This is the first realignment
 
 The prototype is the spec. Run it with `python3 -m http.server 8766 --directory prototype` from a checkout of the
 `prototype` branch, and compare each route below with the site side by side, at 1280 and 390 pixels, light and dark.
-Where this document and the prototype differ, this document says why, and the difference is a **Proposed**
-decision.
+Where this document and the prototype differ, this document says why, and the difference is a decision Josh made,
+dated 2026-10-05 unless he made it earlier, or one a later slice **Superseded**.
 
 ## What a visitor sees
 
@@ -50,14 +50,14 @@ decision.
 
 ### Addresses
 
-- **Proposed: the prototype's addresses.** `/browse/techs`, `/browse/practices`, `/browse/{kind}/other`,
+- **Decided (Josh), 2026-10-05: the prototype's addresses.** `/browse/techs`, `/browse/practices`, `/browse/{kind}/other`,
   `/g/{kind}/{name}`, `/{owner}`, `/faq`, `/feedback`. `/groups` redirects permanently to `/browse/techs`, and
   `/groups/{kind}/{name}` to `/g/{kind}/{name}`, keeping the query. The sitemap, canonical links, and every internal
   link use the new addresses.
-- **Proposed: `/browse` redirects to `/browse/techs`**, and a kind in another case, such as `/browse/Techs`, redirects
+- **Decided (Josh), 2026-10-05: `/browse` redirects to `/browse/techs`**, and a kind in another case, such as `/browse/Techs`, redirects
   to its one spelling, as a group's ID does. The prototype has no `/browse` of its own; a visitor who trims the
   address lands on the technologies.
-- **Proposed: reserved first segments, and `/o/{login}` for an owner whose login is one.** The site's own one-segment
+- **Decided (Josh), 2026-10-05: reserved first segments, and `/o/{login}` for an owner whose login is one.** The site's own one-segment
   pages are `browse`, `g`, `libraries`, `search`, `unvetted`, `list`, `about`, `privacy`, `faq`, `feedback`, `o`,
   and the account pages. GitHub has users named `g`, `faq`, `browse`, `list`, `o`, and `me`, so an owner page can't
   share their address: every owner is also at `/o/{login}`, which is the canonical address for an owner whose login
@@ -73,40 +73,40 @@ decision.
   or a release tag on a rule's page, still name the address, pending a decision on leaving them out. A route test checks that every route under a
   segment a login could spell takes only these. The lowercase redirect for the sections, and for a kind under
   them, redirects only to a path the site's own pages take, so a library owned by `G` keeps `/G/{repo}`.
-- **Proposed: an owner page exists for an owner with a vetted library**, and answers 404 otherwise, even for an owner
+- **Decided (Josh), 2026-10-05: an owner page exists for an owner with a vetted library**, and answers 404 otherwise, even for an owner
   with a listed, unvetted library, so listing a repository can't create a page under Rulemart's address. The page
   shows the login, the avatar the catalog stores, and the owner's vetted libraries. The owner's display name, kind
   (organization or person), and bio wait for a slice that stores them, since the catalog keeps only what ingestion
   reads from the repository.
-- **Proposed: a library's About panel leads to its owner's page**, as the prototype's does, and its Repository row to
+- **Decided (Josh), 2026-10-05: a library's About panel leads to its owner's page**, as the prototype's does, and its Repository row to
   GitHub. An unvetted library's owner has no page, so its Owner row leads to the owner on GitHub instead. The
   libraries page's lede says each library shows its owner and repository, rather than the prototype's "owner line",
   which no row has.
 
 ### Home
 
-- **Proposed: "Popular" names the two technologies and two practices with the most rules**, since Rulemart has no
+- **Decided (Josh), 2026-10-05: "Popular" names the two technologies and two practices with the most rules**, since Rulemart has no
   traffic data yet; the prototype hard-codes four. The chips link to the group pages.
-- **Proposed: tiles sort by rule count, then name**, as the prototype's, and say "N rules · M libraries"; the libraries band shows
+- **Decided (Josh), 2026-10-05: tiles sort by rule count, then name**, as the prototype's, and say "N rules · M libraries"; the libraries band shows
   the first four vetted libraries in owner and name order (**Existing**), since nothing sorts libraries by anything
   else. On a narrow phone, under 384 pixels, the tiles stand in one column rather than the prototype's two, which cut
   off names such as Concurrency at 320 pixels.
-- **Proposed: "List your library →" leads to `/list`** while that is the page that lists a library, signed in, and to
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): "List your library →" leads to `/list`** while that is the page that lists a library, signed in, and to
   sign-in with a return to it otherwise; slice R7 moves it to `/me/add`. Where listing isn't available, as in a build
   without sign-in, it leads to the about page's "Get a library vetted".
 
 ### Browse
 
-- **Proposed: a practice's row shows its description, a technology's doesn't**, as the prototype does: a technology's
+- **Decided (Josh), 2026-10-05: a practice's row shows its description, a technology's doesn't**, as the prototype does: a technology's
   name says what it is, and the row stays one line.
-- **Proposed: "other groups" lists one row per library and group ID**, naming the library, since two libraries that
+- **Superseded by [slice R4](13-discovery.md): "other groups" lists one row per library and group ID**, naming the library, since two libraries that
   choose the same ID that isn't canonical hold separate groups (**Existing**). The row leads to the group's section
   on the library's All rules tab until slice R4 gives every group a page. The prototype's "similar to" note needs a
   list of near-canonical names Rulemart doesn't keep, so there is none.
-- **Proposed: the counts count current rules in vetted libraries**, as the groups page did.
-- **Proposed: rows sort by rule count, then name**, as the home page's tiles do, so both pages rank groups alike; the
+- **Decided (Josh), 2026-10-05: the counts count current rules in vetted libraries**, as the groups page did.
+- **Decided (Josh), 2026-10-05: rows sort by rule count, then name**, as the home page's tiles do, so both pages rank groups alike; the
   prototype lists groups by size too. Tiles with as many rules also sort by name, rather than by ID.
-- **Proposed: on a phone, a row's counts drop under its text**, in line with it, rather than stand beside it as the
+- **Decided (Josh), 2026-10-05: on a phone, a row's counts drop under its text**, in line with it, rather than stand beside it as the
   prototype's do, since beside it, "10 rules" and "2 libraries" squeezed a practice's description into a column about
   120 pixels wide at 390 pixels and broke names mid-word at 320. Names wrap only between words.
 - **Decided (Josh): a browse row shows no group ID**, only the icon, the name, and a practice's description. On a
@@ -125,15 +125,15 @@ decision.
 
 ### Header, footer, FAQ, feedback
 
-- **Proposed: the header's cart keeps today's behavior**, a link to the cart for signed-in visitors only, drawn as the
+- **Superseded by [slice R5](14-cart-and-checkout.md): the header's cart keeps today's behavior**, a link to the cart for signed-in visitors only, drawn as the
   prototype's icon with its count badge, until slice R5 moves the cart into the browser and shows it to everyone. It
   shows at every width, as the prototype's does, so the avatar no longer carries the count on a phone.
-- **Proposed: the account menu lists Account, Add a library, Your stars, Your cart, Your listings, Sign out**,
+- **Superseded by [slice R7](16-dashboard-and-add-a-library.md): the account menu lists Account, Add a library, Your stars, Your cart, Your listings, Sign out**,
   leading to today's `/account`, `/list`, `/account/stars`, `/account/cart`, and `/account/listings`, until slices R3
   and R7 fold them into the dashboard. The prototype's Dashboard and Starred rules would open pages titled "Account"
   and "Your stars", which lists starred libraries, so the menu names the pages as they are; slices R3 and R7 restore
   the prototype's names when the pages become those.
-- **Proposed: the header marks a link current only on its own pages**: a kind's browse page and its other groups, the
+- **Decided (Josh), 2026-10-05: the header marks a link current only on its own pages**: a kind's browse page and its other groups, the
   libraries page, and the FAQ, as the prototype does, and the cart marks its icon. A library's, a rule's, a group's,
   or an owner's page marks none, as in the prototype, and so do the unvetted libraries page and the page that lists a
   library, which the prototype doesn't have.
@@ -144,9 +144,9 @@ decision.
   account menu's, marking the current one as the header does. It is a `<details data-menu>`, as the account and theme
   menus are, so it works without JavaScript and menus.js closes it. The prototype's phone header offers no way to
   these pages.
-- **Proposed: `/` focuses the header's search field**, as the prototype, when nothing else has focus; the small script
+- **Decided (Josh), 2026-10-05: `/` focuses the header's search field**, as the prototype, when nothing else has focus; the small script
   that closes menus gains that.
-- **Proposed: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a
+- **Decided (Josh), 2026-10-05: the FAQ's answers describe Rulemart as it is.** "Who can publish a library?" says anyone can list a
   public library and that Rulemart vets the ones it shows by default; "Do I need a Rulemart account?" names the
   perks that exist, with project tracking and the picker added by slice R7; "How do I give feedback?" points a rule's
   feedback at the library's repository, since Discuss comes later (rulemart#27); "Should I stay in sync with a rule
@@ -155,7 +155,7 @@ decision.
   `code-rules project update` does. "What are rules, groups, and libraries?" names real rules from
   fabricahq/public-rules, "Add operation and identifier context to errors at boundaries" in Go and "Keep tests
   independent" in Testing, and groups that hold rules today, rather than the prototype's invented ones.
-- **Proposed: feedback topics open prefilled GitHub issues**: Rulemart topics in fabricahq/rulemart, Code Rules
+- **Decided (Josh), 2026-10-05: feedback topics open prefilled GitHub issues**: Rulemart topics in fabricahq/rulemart, Code Rules
   topics in fabricahq/code-rules, and "Anything else" in fabricahq/rulemart, the page's owner, with the title prefix
   `[<topic label>] `, the prototype's body, and the labels `feedback` and `topic:<key>`, which both repositories
   have. GitHub drops labels for people who can't set them, so the title prefix carries the topic too. "Something

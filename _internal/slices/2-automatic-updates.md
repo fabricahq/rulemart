@@ -6,12 +6,12 @@ When a vetted library publishes a release, Rulemart shows it within about an hou
 worker function checks each vetted library on a schedule, and ingests the ones whose release tags changed. It
 connects as a login that can only write the catalog, so production ingestion no longer needs the database's owner.
 
-Decisions marked **Proposed** are new in this slice and wait for review. **Existing** ones are already in
-[decisions.md](../decisions.md) or slice 1.
+Decisions marked **Decided (Josh), 2026-10-05** were proposed in this slice and stand as built. **Existing** ones
+are already in [decisions.md](../decisions.md) or slice 1.
 
 ## Scope
 
-**Trigger.** **Proposed:** the existing EventBridge schedule invokes the worker function instead of the web
+**Trigger.** **Decided (Josh), 2026-10-05:** the existing EventBridge schedule invokes the worker function instead of the web
 function, with the same `{"source": "schedule"}` event. **Decided:** it runs hourly, `rate(1 hour)`, instead of
 every 10 minutes. The worker sends one job per library in the vetted list its release embeds to the existing jobs
 queue, and returns. Why:
@@ -23,13 +23,13 @@ queue, and returns. Why:
   shows within about an hour, plus ingestion. If updates need to be faster, the check can compare the listed tags
   with a fingerprint kept outside Postgres, so an unchanged library never wakes the database.
 
-**Jobs.** **Proposed:** a job names one library by its code host and the host's repository ID, the key vetting
+**Jobs.** **Decided (Josh), 2026-10-05:** a job names one library by its code host and the host's repository ID, the key vetting
 uses (**Existing**): `{"host": "github", "repositoryID": "1398540739"}`. The worker refuses a job with unknown
 fields, or for a library its release doesn't vet. A job holds no URL, so a queued message can't point the worker
 at another repository. One job per library keeps failures apart: an unreachable or broken library fails only its
 own job.
 
-**Checking for new releases cheaply.** **Proposed:** each job first compares the library's release tags with what
+**Checking for new releases cheaply.** **Decided (Josh), 2026-10-05:** each job first compares the library's release tags with what
 the catalog stored, and ingests only when they differ:
 
 1. Read the clone URL ingestion last fetched from, and each stored release's tag object ID. Migration 00004 adds
@@ -45,7 +45,7 @@ unauthenticated API requests an hour from one IP address, and Lambda functions s
 references over Git doesn't count against it. A renamed repository still answers at its old URL through GitHub's
 redirect, and the next ingestion stores its new name and URL.
 
-**Ingestion.** **Proposed:** the worker function ingests, through the queue's existing SQS trigger: one message per
+**Ingestion.** **Decided (Josh), 2026-10-05:** the worker function ingests, through the queue's existing SQS trigger: one message per
 invocation, at most two at once.
 
 - **Idempotent.** Ingestion replaces a library's rows in one transaction, and changes nothing when the tags are
@@ -54,7 +54,7 @@ invocation, at most two at once.
   (**Existing**). The worker gets 2,048 MB of memory, so a library at the limits fails its job rather than the
   function. Its timeout is 120 seconds, and each job stops 10 seconds before that, so its transaction rolls back
   while the function still runs. The libraries Rulemart knows ingest in under two seconds. Three more bounds keep a
-  hostile library within these, each **Proposed**:
+  hostile library within these, each **Decided (Josh)**, 2026-10-05:
   - Listing and fetching refuse more than 16 MiB of advertised references, which go-git would otherwise hold whole.
   - A rule gets one second to highlight its code, and code past that shows escaped and without highlighting, since
     chroma takes minutes on some inputs.
@@ -68,7 +68,7 @@ invocation, at most two at once.
   throttled poll for up to 50 minutes, so a busy moment doesn't skip an hour. A library that stays broken fails
   again every hour, and keeps the dead-letter alarm on until it's fixed or no longer vetted.
 
-**Database access.** **Proposed**, following the split between infrastructure and migrations (**Existing**):
+**Database access.** **Decided (Josh)**, 2026-10-05, following the split between infrastructure and migrations (**Existing**):
 
 - Infrastructure creates `rulemart_catalog_writer`, a NOLOGIN group role, and `rulemart_worker`, a login role that's
   a member of it, with SQL. It writes the login's pooled connection string to `/rulemart/prod/worker-database-url`.
@@ -79,7 +79,7 @@ invocation, at most two at once.
   grants nothing on `hello_messages`, and nothing that changes the schema.
 - The worker connects as `rulemart_worker`, and reads no other parameter. Only migrations still need the owner.
 
-**What the worker logs.** **Proposed:** the worker writes JSON lines with Go's `slog`, under snake_case keys that
+**What the worker logs.** **Decided (Josh), 2026-10-05:** the worker writes JSON lines with Go's `slog`, under snake_case keys that
 mean the same on every line, so CloudWatch Logs Insights can group by them. It never logs a connection string or a
 token.
 
@@ -101,13 +101,13 @@ filter ispresent(outcome)
 | sort failures desc, p95_ms desc
 ```
 
-**Operator command.** **Proposed:** `cmd/ingest <repository URL>` stays, for local development and backfills,
+**Operator command.** **Decided (Josh), 2026-10-05:** `cmd/ingest <repository URL>` stays, for local development and backfills,
 including libraries not yet vetted. `make ingest` connects as `rulemart_worker` locally, as `make web` connects as
 `rulemart_web`, and `make db` creates both new roles. A production backfill sets
 `DATABASE_URL_PARAMETER=/rulemart/prod/worker-database-url`. `make worker` runs the worker locally: one poll, with a
 queue in memory in place of SQS, through the same handler as on Lambda.
 
-**The skeleton's leftovers.** **Proposed:**
+**The skeleton's leftovers.** **Decided (Josh), 2026-10-05:**
 
 - The web function stops acknowledging the schedule's event, and answers only Function URL requests. The
   infrastructure change moves the schedule to the worker before it deploys this web function.

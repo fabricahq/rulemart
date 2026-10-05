@@ -46,16 +46,16 @@ apps exist.
 
 ## Decisions
 
-- **Proposed: sign-in asks for `read:org`**, so Rulemart can list the visitor's organizations and their
+- **Decided (Josh), 2026-10-05: sign-in asks for `read:org`**, so Rulemart can list the visitor's organizations and their
   repositories, including memberships they keep private. The authorize page says so. Everything else about the
   flow stays (state, PKCE, the flow cookie, return paths).
-- **Proposed: the OAuth token is kept, encrypted, in the session row**, with a key from SSM (`/rulemart/prod/
+- **Decided (Josh), 2026-10-05: the OAuth token is kept, encrypted, in the session row**, with a key from SSM (`/rulemart/prod/
   token-key`, 32 random bytes, AES-GCM), and deleted with the session. The dashboard reads GitHub with it at
   sign-in and when the visitor presses Refresh, never on every page view; results are cached per account in a
   `github_snapshots` table (organizations, publishable repositories, projects and their sources) with the time
   read, shown with "as of" and refreshed at most once a minute. Migration 00016 adds the column and the table,
   with grants to `rulemart_accounts_writer`. Reverses slice 5's "discard the token".
-- **Proposed: what the scan reads.** With the visitor's token: `/user/orgs`, then the visitor's and each
+- **Decided (Josh), 2026-10-05: what the scan reads.** With the visitor's token: `/user/orgs`, then the visitor's and each
   organization's repositories (public ones, plus private ones where the GitHub App is installed, read with the
   app's installation token). For each repository: does its default branch hold `rule-library.yaml` and a
   `release/<n>` tag (publishable); does it hold `.code-rules/generated/provenance.json` (a project), parsed by
@@ -63,23 +63,23 @@ apps exist.
   with the library's current versions in the catalog. Repositories are listed with the GitHub search API where it
   cuts the work (`filename:rule-library.yaml user:<login>`), with the REST fallback. Budget: at most 200
   repositories a scan; past that the dashboard says so.
-- **Proposed: the GitHub App "Rulemart by Fabrica"** handles private repositories: `/me/private` sends the visitor to
+- **Decided (Josh), 2026-10-05: the GitHub App "Rulemart by Fabrica"** handles private repositories: `/me/private` sends the visitor to
   `https://github.com/apps/rulemart-by-fabrica/installations/new`; GitHub returns to `/me/github/installed` with
   the installation ID, which Rulemart records on the account after checking with the app's token that the
   installation belongs to the visitor; a webhook at `/github/webhook` (secret in SSM) records installation
   changes and removals. The app's private key lives in SSM (`/rulemart/prod/github-app-key`), with its App ID and
   client ID as variables. "Remove access" links to the installation's settings on GitHub and forgets the
   installation.
-- **Proposed: `/me/add` lists publishable repositories from the snapshot**, and "Add this library" posts the existing
+- **Decided (Josh), 2026-10-05: `/me/add` lists publishable repositories from the snapshot**, and "Add this library" posts the existing
   listing flow for that repository, then shows `/me/add/run`, which polls the listing's state every two seconds
   with a small script, or reloads without one. The URL form keeps the existing input checks. Private publishable
   repositories are shown but can't be added.
-- **Proposed: "Published by you and your orgs" are the vetted or listed libraries whose owner is the visitor or one of
+- **Decided (Josh), 2026-10-05: "Published by you and your orgs" are the vetted or listed libraries whose owner is the visitor or one of
   their organizations**, with totals as the sum of rule stars; "New" marks ones listed within the day.
-- **Proposed: the prototype's URLs**: `/signin` (from `/sign-in`, redirect), `/me`, `/me/add`, `/me/add/run`,
+- **Decided (Josh), 2026-10-05: the prototype's URLs**: `/signin` (from `/sign-in`, redirect), `/me`, `/me/add`, `/me/add/run`,
   `/me/private`, `/me/github/installed`, `/signout` (POST), and the account actions under `/me/account/...`. The
   old `/account/...` addresses redirect. `me` is a GitHub user, so an owner named `me` is at `/o/me` (R1).
-- **Proposed: the privacy page grows** to name the token, the snapshot, the organizations, repository names, and
+- **Decided (Josh), 2026-10-05: the privacy page grows** to name the token, the snapshot, the organizations, repository names, and
   provenance data Rulemart keeps, for how long (until sign-out or deletion), and that private repository data is
   shown only to the visitor.
 - **Existing:** accounts keyed by GitHub ID, sessions, private responses for signed-in pages, the listing worker and
@@ -87,62 +87,62 @@ apps exist.
 
 ### Decided while building
 
-The spec's Proposed decisions are built as written, except where an entry here says otherwise and why.
+The spec's decisions are built as written, except where an entry here says otherwise and why.
 
-- **Proposed: GitHub is read on the first page after sign-in that shows it, not inside the callback.** Each sign-in
+- **Decided (Josh), 2026-10-05: GitHub is read on the first page after sign-in that shows it, not inside the callback.** Each sign-in
   discards the account's snapshot, in the transaction that adds the session, and the dashboard, `/me/add`, or
   checkout reads GitHub when it finds none. A read of 200 repositories takes a few seconds, which would hold every
   sign-in's redirect, whatever page the visitor returns to; most never open the dashboard. Refresh reads again at
   most once a minute.
-- **Proposed: a read lists repositories with GitHub's REST API, not its search.** Code search finds a repository only
+- **Decided (Josh), 2026-10-05: a read lists repositories with GitHub's REST API, not its search.** Code search finds a repository only
   once GitHub has indexed it, so a library pushed a minute ago would be missing; it allows 10 requests a minute, which a
   visitor in five organizations exceeds; and it can't see what an installation reads. The REST read costs one request
   per repository, a listing of its root, plus its release tags or provenance file only where the root holds
   `rule-library.yaml` or `.code-rules`, eight at a time, within `domain.MaxRepositories`, the 200 most recently pushed
   across the visitor and their organizations (at most `domain.MaxOrganizations`, 100), and a 25-second deadline.
-- **Proposed: provenance is parsed by Rulemart, in `accounts/domain`, from the fields Code Rules writes.** Code Rules
+- **Decided (Josh), 2026-10-05: provenance is parsed by Rulemart, in `accounts/domain`, from the fields Code Rules writes.** Code Rules
   has no provenance parser to copy, only the writer in `internal/build/output.go`; the reader takes each source's
   name, repository, release, and groups, and each rule's ID, origin, and version, with the vendored
   `coderules.ParseRuleVersion` and `ValidateRuleID`, and skips a local or forked rule, which holds no library's
   version. A file it can't parse makes no project rather than failing the read. Its test reads Rulemart's own
   `provenance.json`. Replace it with Code Rules' parser once one ships.
-- **Proposed: an update is a rule the library has since published a newer version of, or retired.** Rules a library
+- **Decided (Josh), 2026-10-05: an update is a rule the library has since published a newer version of, or retired.** Rules a library
   added to a group the project imports aren't counted: the project's configuration may exclude them, which provenance
   doesn't record, so counting them would show updates that never come. Counts are computed as the dashboard reads,
   from the catalog's current versions, so a new library release shows at once without another read of GitHub.
-- **Proposed: a failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves
+- **Decided (Josh), 2026-10-05: a failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves
   the snapshot that was, with "Rulemart couldn't read your repositories on GitHub just now", when that one was read,
   and Try again, and the next read waits a minute, so a broken GitHub isn't asked on every page. A token GitHub
   refuses, a session without one, or one sealed under a key since rotated asks the visitor to sign in again, at
   `/signin?again=1`, since only the sign-in page's content security policy lets a form lead to GitHub.
-- **Proposed: the webhook is at `/account/github/webhook`.** `/github/webhook` has two segments under `github`, a GitHub
+- **Decided (Josh), 2026-10-05: the webhook is at `/account/github/webhook`.** `/github/webhook` has two segments under `github`, a GitHub
   account, so the route takes the address of a library `github/webhook`, which the routes' tests refuse; `account` is
   reserved and GitHub has no account by that name. The OAuth callback stays at `/account/github/callback`, the OAuth
   app's registered URL, and the dev sign-in at `/account/dev-sign-in`, since neither is a page. The visitor's pages are
   under `/me`, which takes the pages of an owner named `me`'s libraries, as `libraryPageTaken` records.
-- **Proposed: an organization's installation is the visitor's only when GitHub says they own the organization.**
+- **Decided (Josh), 2026-10-05: an organization's installation is the visitor's only when GitHub says they own the organization.**
   Rulemart checks the installation's account with the app's JWT, and for an organization, the visitor's membership
   role with their own token: only an owner can install an app on an organization, and only an owner can see every
   repository it may read, so a member who reached `/me/github/installed` with an owner's installation ID can't list
   repositories GitHub hides from them. Installations are recorded per account, so each owner who connects an
   organization's installation reads through it.
-- **Proposed: the webhook acts on removals and changes, not new installations.** `installation.deleted` and `suspend`
+- **Decided (Josh), 2026-10-05: the webhook acts on removals and changes, not new installations.** `installation.deleted` and `suspend`
   forget the installation for every account and discard their snapshots; `installation_repositories`, `unsuspend`,
   and `new_permissions_accepted` discard the snapshots; anything else, including another app's deliveries, answers
   204. A new installation is recorded when GitHub returns its installer to Rulemart, the one moment Rulemart knows
   which account it's for. A read that finds an installation GitHub no longer knows forgets it too, for a missed
   delivery.
-- **Proposed: Remove access forgets the installations, and the page says how to uninstall the app on GitHub.**
+- **Decided (Josh), 2026-10-05: Remove access forgets the installations, and the page says how to uninstall the app on GitHub.**
   Redirecting a POST to GitHub's settings breaks `form-action 'self'`, so the button forgets them and returns to `/me`
   with the prototype's toast "Private repo access removed"; the Manage view beside the button links each
   installation's settings on GitHub, where the visitor uninstalls it.
-- **Proposed: an account keeps its GitHub profile's name**, refreshed at each sign-in, for the menu and the dashboard's
+- **Decided (Josh), 2026-10-05: an account keeps its GitHub profile's name**, refreshed at each sign-in, for the menu and the dashboard's
   head, as the prototype shows "Josh Padnick" above "@josh-padnick". Control and formatting characters are dropped.
   Without a name, both show the login.
-- **Proposed: the listings page stays, at `/me/listings`**, linked from the Account section, since the dashboard lists
+- **Decided (Josh), 2026-10-05: the listings page stays, at `/me/listings`**, linked from the Account section, since the dashboard lists
   only libraries the visitor and their organizations own, and a visitor can add anyone's public library: without it,
   a listing of another owner's repository could be neither seen nor removed once its check page was left.
-- **Proposed: the run page's checklist ticks every step at once, when Rulemart has the library.** The worker's check
+- **Decided (Josh), 2026-10-05: the run page's checklist ticks every step at once, when Rulemart has the library.** The worker's check
   isn't observable step by step, so while it runs the first step reads "Looking for rule-library.yaml in …" with a
   spinner; once the listing is listed or vetted, each step says what Rulemart found, from the library's page; a
   failed check shows the reason under the first step, with Try again, which stays on the page, Remove, and Back to
@@ -151,7 +151,7 @@ The spec's Proposed decisions are built as written, except where an entry here s
   page does, with Refresh status, and the page stops following it, since the next check is the worker's hourly poll. Following a
   library already on Rulemart, which the visitor didn't list, shows it done. The prototype's "within minutes" reads
   "within the hour", the worker's poll.
-- **Proposed: the picker shows a repository's latest release, not its group count**: "Public · release/3". The read
+- **Decided (Josh), 2026-10-05: the picker shows a repository's latest release, not its group count**: "Public · release/3". The read
   learns a repository is publishable from its root listing, which shows `rule-library.yaml` is there without reading
   it, and from its tags. Groups are the folders under `techs/` and `practices/` at the latest release, so counting
   them costs up to two more requests per publishable repository, at a tag the read doesn't otherwise visit, against
@@ -159,14 +159,14 @@ The spec's Proposed decisions are built as written, except where an entry here s
   Rulemart is adding (linked to its check), what Rulemart has, then private ones; a library the visitor's organizations
   publish on Rulemart that the read didn't reach is listed as on Rulemart too. The URL form keeps the listing's checks,
   in the prototype's words, and shows an address it accepts as a row to add, since a GET form can't post.
-- **Proposed: Starred rules' No longer counted names why**: the library is no longer on Rulemart, isn't vetted now,
+- **Decided (Josh), 2026-10-05: Starred rules' No longer counted names why**: the library is no longer on Rulemart, isn't vetted now,
   retired the rule without a replacement, or its replacements end at a rule that isn't current. Unstar posts to
   `/stars/remove`, which, for a rule it can't star, removes the visitor's own star on it.
-- **Proposed: GitHub sign-in refuses to start without `TOKEN_KEY` or `TOKEN_KEY_PARAMETER`**, since every session keeps
+- **Decided (Josh), 2026-10-05: GitHub sign-in refuses to start without `TOKEN_KEY` or `TOKEN_KEY_PARAMETER`**, since every session keeps
   a token, and a key given directly is checked at start. The GitHub App's five variables are all or nothing, and need
   GitHub sign-in. A local build without GitHub sign-in serves `githubtest.DevFake` in memory, with a GitHub App whose
   install page returns at once, and a random token key.
-- **Proposed: `robots.txt` keeps crawlers off `/me`, `/me/`, `/signin`, and the old `/sign-in` and `/list`**, as it did
+- **Decided (Josh), 2026-10-05: `robots.txt` keeps crawlers off `/me`, `/me/`, `/signin`, and the old `/sign-in` and `/list`**, as it did
   the account pages, alone and with a query, so it doesn't keep them off an owner such as `meta`.
 
 ## Infrastructure
