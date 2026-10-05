@@ -23,13 +23,14 @@ import (
 // TokenLifetime is how long a token the fake mints lasts, as GitHub's do.
 const TokenLifetime = time.Hour
 
-// Fake is a fake GitHub for one GitHub App. Set its exported fields before serving it; Handler serves it.
+// Fake is a fake GitHub for one GitHub App. Set its exported fields before serving it, and change its installations
+// with SetInstallations while it serves; Handler serves it.
 type Fake struct {
 	// Issuer is what the app's JWTs must name as their issuer: its client ID or its numeric ID. Key is what they must
 	// be signed with.
 	Issuer string
 	Key    *rsa.PrivateKey
-	// Installations are the app's installations.
+	// Installations are the app's installations; read them under mu once the fake serves.
 	Installations []Installation
 	// Now is the fake's clock, which checks JWTs and dates tokens; nil is time.Now.
 	Now func() time.Time
@@ -76,6 +77,20 @@ func (f *Fake) FailMints(fail bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failMints = fail
+}
+
+// SetInstallations replaces the app's installations, such as when it's reinstalled, while the fake serves.
+func (f *Fake) SetInstallations(installations []Installation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Installations = installations
+}
+
+// installations returns the app's installations.
+func (f *Fake) installations() []Installation {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.Installations
 }
 
 // Mints returns how many tokens the fake has minted.
@@ -125,7 +140,7 @@ func (f *Fake) accountInstallation(organization bool) http.HandlerFunc {
 		f.mu.Lock()
 		f.lookups++
 		f.mu.Unlock()
-		for _, in := range f.Installations {
+		for _, in := range f.installations() {
 			if strings.EqualFold(in.Account, r.PathValue("account")) && in.Organization == organization {
 				writeInstallation(w, in)
 				return
@@ -165,7 +180,7 @@ func (f *Fake) findInstallation(w http.ResponseWriter, r *http.Request) (Install
 		return Installation{}, false
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	for _, in := range f.Installations {
+	for _, in := range f.installations() {
 		if err == nil && in.ID == id {
 			return in, true
 		}
