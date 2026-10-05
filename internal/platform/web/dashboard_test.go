@@ -116,7 +116,7 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 
 	assertShows(t, page,
 		"Dashboard The Octocat @octocat · member of octo-org, example",
-		"Libraries you and your organizations publish rules ★ 1,235 1,235 stars in all example/rules · 2 rules",
+		"Libraries you and your organizations publish rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules",
 		"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule", "+ Add a library",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects")
 	if got := links(t, page, "Include private projects"); !slices.Equal(got, []string{"/me/private"}) {
@@ -163,7 +163,7 @@ func TestTheDashboardsListsHaveNoVisibleSectionHeadings(t *testing.T) {
 // with nothing at the row's far edge.
 func TestTheDashboardsRowsKeepTheirFiguresBesideTheirNames(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
-	for target, want := range map[string]string{"/me": "rules ★ 1,235 1,235 stars in all", "/me?tab=projects": "rules · 2 projects"} {
+	for target, want := range map[string]string{"/me": "rules ★ 1,235 1,235 stars in all Vetted", "/me?tab=projects": "rules · 2 projects"} {
 		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
 		if err != nil {
 			t.Fatal(err)
@@ -222,7 +222,7 @@ func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 // A tab the page doesn't know shows My libraries.
 func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
-	libraries := []string{"The Code Rules libraries you and your organizations have added to Rulemart.", "Libraries you and your organizations publish", "+ Add a library"}
+	libraries := []string{"The Code Rules libraries you and your organizations publish on Rulemart, and any you listed for others.", "Libraries you and your organizations publish", "+ Add a library"}
 	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Libraries your projects use", "provenance.json"}
 	stars := []string{"The rules you starred, so you can find them again.", "You haven't starred any rules yet."}
 	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
@@ -303,6 +303,39 @@ func currentTabs(t *testing.T, page string) []string {
 		}
 	}
 	return names
+}
+
+// My libraries shows the visitor's own listings in place: a listing of a library they or their organizations publish
+// joins its row, with Remove, a check under way or failed takes a row of its own, with Try again where it failed, and a
+// listing of anyone else's library goes under Listed by you, when there is one. With two groups, each has a heading.
+func TestMyLibrariesShowsTheVisitorsListingsInPlace(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	site.listings.byAccount[1] = []views.AccountListing{
+		{ID: 5, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking, ListedAt: time.Now(), RequestedAt: time.Now().Add(-time.Minute)},
+		{ID: 4, Owner: "Octocat", Name: "broken", State: domain.ListingFailed, Failure: "The repository has no release/<number> tags",
+			ListedAt: day(3), RequestedAt: day(3)},
+		{ID: 3, Owner: "stranger", Name: "rules", State: domain.ListingListed, Library: views.LibraryRef{Owner: "stranger", Name: "rules"},
+			ListedAt: day(2), RequestedAt: day(2)},
+		{ID: 1, Owner: "Example", Name: "Rules", State: domain.ListingVetted, Library: views.LibraryRef{Owner: "example", Name: "rules"},
+			ListedAt: day(1), RequestedAt: day(1)},
+	}
+
+	page := site.get(t, "/me")
+
+	assertShows(t, page, "My libraries , 5",
+		"Published by you and your orgs · 4 rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules Remove "+
+			"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule "+
+			"new-rules Checking octocat/new-rules · Rulemart is checking it on GitHub. You asked 1 minute ago. Remove "+
+			"broken Failed Octocat/broken · The repository has no release/<number> tags Try again Remove",
+		"+ Add a library Listed by you · 1 rules Unvetted stranger/rules · Listed 2 Sep 2026 Remove")
+	if got := links(t, page, "Remove"); !slices.Equal(got, []string{
+		"/me/listings/remove?listing=1", "/me/listings/remove?listing=5", "/me/listings/remove?listing=4", "/me/listings/remove?listing=3",
+	}) {
+		t.Errorf("the Remove links lead to %q", got)
+	}
+	if got := headings(t, page, "h2"); !slices.Equal(got, []string{"Published by you and your orgs · 4", "Listed by you · 1"}) {
+		t.Errorf("the tab's headings are %q", got)
+	}
 }
 
 // New marks a library that came to Rulemart within the last day, and only such a library.
@@ -466,7 +499,7 @@ func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 	for target, want := range map[string]string{
 		"/account":               "/me?tab=account",
 		"/account/stars":         "/me?tab=stars",
-		"/account/listings":      "/me/listings",
+		"/account/listings":      "/me",
 		"/list":                  "/me/add",
 		"/sign-in?return=%2Ffaq": "/signin?return=%2Ffaq",
 	} {

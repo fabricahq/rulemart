@@ -418,6 +418,16 @@ templ unvettedBadge() {
 	<span class="inline-flex items-center rounded-full border border-warn-border bg-warn-surface px-2 text-[11.5px] leading-[18px] font-medium text-warn-ink">Unvetted</span>
 }
 
+// vettedBadge marks a library Rulemart vets, with the check mark a vetted library's avatar carries.
+templ vettedBadge() {
+	<span class="inline-flex items-center gap-1 rounded-full border border-border-strong py-0 pr-2 pl-1 text-[11.5px] leading-[18px] font-medium text-ink" title={ vettedTitle }>
+		<span class="grid size-3 place-items-center rounded-full bg-vetted" aria-hidden="true">
+			<svg class="size-2" viewBox="0 0 12 12"><path d="M3.2 6.2 5.1 8l3.7-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+		</span>
+		Vetted
+	</span>
+}
+
 // retiredBadge marks a retired rule in a list, quieter than the rule's grayed title in both themes.
 templ retiredBadge() {
 	<span class="inline-flex items-center rounded-full border border-border-subtle px-2 text-[11.5px] leading-[18px] font-normal text-faint">Retired</span>

@@ -120,7 +120,7 @@ func (s *server) createListing(w http.ResponseWriter, r *http.Request) {
 	s.Log.InfoContext(r.Context(), "listed library", "route", s.route(r), "requestID", s.requestID(r),
 		"accountID", v.account.ID, "listingID", id)
 	owner, name, _ := domain.ParseGitHubRepository(text)
-	seeOther(w, r, runHref+"?"+url.Values{"repo": {owner + "/" + name}}.Encode())
+	seeOther(w, r, runPageHref(owner+"/"+name))
 }
 
 // explainRefusal sets view's problem to why the visitor can't add repo, by err, in the prototype's words, and reports
@@ -142,7 +142,7 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *ad
 		view.problem = "Enter a GitHub repository URL, like https://github.com/owner/repo."
 	case errors.As(err, &conflict) && conflict.Own:
 		view.problem = "You added " + listedName(conflict.Library, name) + " already."
-		view.problemLink, view.problemLinkText = runHref+"?"+url.Values{"repo": {listedName(conflict.Library, name)}}.Encode(), "See how it went"
+		view.problemLink, view.problemLinkText = runPageHref(listedName(conflict.Library, name)), "See how it went"
 	case errors.As(err, &conflict) && conflict.Checking && time.Since(conflict.RequestedAt) > checkingLonger:
 		view.problem = "Someone added " + name + ", and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour."
 	case errors.As(err, &conflict) && conflict.Checking:
@@ -156,7 +156,7 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *ad
 		view.problem = name + " is already on Rulemart."
 	case errors.Is(err, app.ErrAccountListingLimit):
 		view.problem = "You have " + strconv.Itoa(domain.MaxAccountListings) + " libraries Rulemart hasn't vetted, as many as an account may add. Remove one, such as one that failed, to add another."
-		view.problemLink, view.problemLinkText = listingsHref, "Your listings"
+		view.problemLink, view.problemLinkText = dashboardHref, "My libraries"
 	case errors.Is(err, app.ErrListingsFull):
 		view.problem = "Rulemart isn't taking new libraries right now. Try again later."
 	case errors.Is(err, app.ErrListingTooOften), errors.Is(err, app.ErrListingsBusy):
@@ -269,7 +269,7 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 		case on:
 			pick.state, pick.href, pick.vetted, pick.detail = pickOnRulemart, libraryHref(o.Library.Owner, o.Library.Name), o.Vetted, via(lib.Owner)
 		case isAdding:
-			pick.state, pick.href, pick.failed = pickAdding, runHref+"?"+url.Values{"repo": {lib.FullName()}}.Encode(), state == domain.ListingFailed
+			pick.state, pick.href, pick.failed = pickAdding, runPageHref(lib.FullName()), state == domain.ListingFailed
 		default:
 			pick.action = addAction(lib.FullName())
 		}
@@ -307,13 +307,13 @@ func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	view := runView{fullName: owner + "/" + name, here: runHref + "?" + url.Values{"repo": {owner + "/" + name}}.Encode()}
+	view := runView{fullName: owner + "/" + name, here: runPageHref(owner + "/" + name)}
 	listing, listed := findListing(listings, owner, name)
 	if listed {
 		view.fullName, view.state, view.failure = listing.Owner+"/"+listing.Name, listing.State, listing.Failure
 		query := "?" + url.Values{"listing": {strconv.FormatInt(listing.ID, 10)}}.Encode()
 		view.retry = retryListingHref + "?" + url.Values{
-			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runHref + "?" + url.Values{"repo": {view.fullName}}.Encode()},
+			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runPageHref(view.fullName)},
 		}.Encode()
 		view.remove = removeListingHref + query
 		if listing.State == domain.ListingChecking {
@@ -441,4 +441,9 @@ func (v runView) steps() []runStep {
 		steps[0].running = true
 	}
 	return steps
+}
+
+// runPageHref is the page that follows the check of the visitor's listing of repository, owner/name.
+func runPageHref(repository string) string {
+	return runHref + "?" + url.Values{"repo": {repository}}.Encode()
 }

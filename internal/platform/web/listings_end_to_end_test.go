@@ -67,8 +67,8 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	if listed.StatusCode != http.StatusSeeOther || len(queue.bodies) != 1 {
 		t.Fatalf("listing answered %d and queued %q", listed.StatusCode, queue.bodies)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
-		"example/rules Checking")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me", cookies: cookies})),
+		"Listed by you · 1 rules Checking example/rules · Rulemart is checking it on GitHub.")
 	run := body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
 	assertShows(t, run, "Adding example/rules", "In progress: Looking for rule-library.yaml in example/rules")
 	if !strings.Contains(run, "data-polling") || !strings.Contains(run, `http-equiv="refresh"`) {
@@ -87,8 +87,8 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		t.Fatalf("the worker's check: %+v, %v", check, err)
 	}
 
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
-		"example/rules Listed, unvetted")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me", cookies: cookies})),
+		"Listed by you · 1 rules Unvetted example/rules · Listed ")
 	run = body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
 	assertShows(t, run, "Done: Found rule-library.yaml in example/rules", "example/rules is live on Rulemart.", "View library page")
 	if strings.Contains(run, "data-polling") {

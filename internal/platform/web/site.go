@@ -334,7 +334,7 @@ func (s *server) handler() http.Handler {
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+runHref, s.runPage)
 			handle("GET "+legacyListHref, s.legacyList)
-			handle("GET "+listingsHref, s.listingsPage)
+			handle("GET "+listingsHref, s.legacyListings)
 			handle("GET "+legacyListingsHref, s.legacyListings)
 			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)

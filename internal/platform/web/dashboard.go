@@ -82,11 +82,19 @@ func dashboardTabHref(tab string) string {
 // every tab's count, and the tab's own rows.
 func (s *server) dashboardView(ctx context.Context, account accounts.Account, gitHub gitHubView, tab string) (dashboardView, error) {
 	view := dashboardView{account: newAccountView(account), gitHub: gitHub, tab: tab, starsAvailable: s.starsAvailable()}
-	libraries, err := s.catalog.Dashboard(ctx, gitHub.snapshot.Owners(account.Login), gitHub.snapshot.LibraryNames())
+	owners := gitHub.snapshot.Owners(account.Login)
+	libraries, err := s.catalog.Dashboard(ctx, owners, gitHub.snapshot.LibraryNames())
 	if err != nil {
 		return dashboardView{}, err
 	}
-	view.owned, view.used = newOwnedViews(libraries.Owned, time.Now()), newUsedViews(libraries.Imported, gitHub.snapshot)
+	var listings []views.AccountListing
+	if s.listingAvailable() {
+		if listings, err = s.Listings.AccountListings(ctx, account.ID); err != nil {
+			return dashboardView{}, err
+		}
+	}
+	view.mine, view.listedByYou = newMyLibraries(libraries.Owned, listings, owners, time.Now())
+	view.used = newUsedViews(libraries.Imported, gitHub.snapshot)
 	if s.Stars == nil {
 		return view, nil
 	}
@@ -127,9 +135,10 @@ type dashboardView struct {
 	starsAvailable bool
 	// starCount counts the rules the visitor's stars count toward, which Starred rules' tab shows.
 	starCount int
-	// owned are My libraries' rows, and used Projects'. Every tab holds them, for the tabs' counts.
-	owned []ownedView
-	used  []usedView
+	// mine and listedByYou are My libraries' two groups, as newMyLibraries makes them, and used Projects' rows. Every
+	// tab holds them, for the tabs' counts.
+	mine, listedByYou []myLibraryView
+	used              []usedView
 	// starred are the rules the visitor's stars count toward, and uncounted their stars that count toward none; both
 	// are empty except on Starred rules.
 	starred   []ruleRowView
@@ -139,24 +148,6 @@ type dashboardView struct {
 // orgs says which organizations the visitor belongs to, as the dashboard's head does, or is empty for none.
 func (d dashboardView) orgs() string {
 	return strings.Join(d.gitHub.snapshot.Organizations, ", ")
-}
-
-// ownedView is a library the visitor or one of their organizations publishes.
-type ownedView struct {
-	href, owner, name string
-	vetted, isNew     bool
-	rules, stars      int
-}
-
-func newOwnedViews(owned []views.OwnedLibrary, now time.Time) []ownedView {
-	rows := make([]ownedView, len(owned))
-	for i, o := range owned {
-		rows[i] = ownedView{
-			href: libraryHref(o.Library.Owner, o.Library.Name), owner: o.Library.Owner, name: o.Library.Name,
-			vetted: o.Vetted, isNew: now.Sub(o.AddedAt) < newWithin, rules: o.Rules, stars: o.Stars,
-		}
-	}
-	return rows
 }
 
 // usedView is a library the visitor's projects import, with each project that does.

@@ -326,10 +326,9 @@ var meActions = map[string]bool{refreshHref: true, retryListingHref: true, remov
 // signedInPages are what the sign-in page says to a visitor on their way to each of the visitor's own pages, under
 // /me, which only a signed-in visitor can see; one it doesn't name says signInToDashboard.
 var signedInPages = map[string]string{
-	listHref:     "Sign in to add a library.",
-	runHref:      "Sign in to see your library being added.",
-	listingsHref: "Sign in to see your listings.",
-	privateHref:  "Sign in to include your private projects.",
+	listHref:    "Sign in to add a library.",
+	runHref:     "Sign in to see your library being added.",
+	privateHref: "Sign in to include your private projects.",
 }
 
 // dashboardTabPurposes are what the sign-in page says to a visitor on their way to each of the dashboard's tabs but My
