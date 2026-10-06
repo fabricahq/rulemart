@@ -350,29 +350,50 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	}
 }
 
-// A snapshot saved before libraries recorded whether the visitor may push to them reads as absent, so the account
-// reads GitHub again instead of showing every library as one the visitor can't add.
+// A snapshot saved before libraries recorded whether the visitor may push to them reads as absent, to Snapshot and to
+// ClaimRead alike, so the account reads GitHub again instead of showing every library as one the visitor can't add:
+// neither a request that finds another read under way nor a read that fails falls back on it. That includes a format 2
+// snapshot a failed read saved from such a snapshot, before ClaimRead checked the format: failed, and without write
+// access.
 func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
-	ctx := context.Background()
-	s, connString := newStore(t)
-	_, account := signIn(t, s, octocat, "")
-	saved := domain.Snapshot{
-		ReadAt:    time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
-		Libraries: []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octocat", Name: "rules"}, Release: 1, Writable: true}},
-	}
-	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
-		t.Fatalf("saved %v, %v", ok, err)
-	}
-	postgrestest.Exec(t, connString, "UPDATE github_snapshots SET snapshot = snapshot - 'format' WHERE account_id = $1", account.ID)
+	for _, tc := range []struct {
+		name string
+		// change makes the saved snapshot's row one of the earlier format.
+		change string
+	}{
+		{"without a format", "UPDATE github_snapshots SET snapshot = snapshot - 'format' WHERE account_id = $1"},
+		{"re-saved as format 2 by a failed read", `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '2') ||
+			jsonb_build_object('failed', true, 'libraries', (SELECT jsonb_agg(l - 'writable') FROM jsonb_array_elements(snapshot->'libraries') l))
+			WHERE account_id = $1`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, connString := newStore(t)
+			_, account := signIn(t, s, octocat, "")
+			saved := domain.Snapshot{
+				ReadAt:    time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+				Libraries: []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octocat", Name: "rules"}, Release: 1, Writable: true}},
+			}
+			if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
+				t.Fatalf("saved %v, %v", ok, err)
+			}
+			postgrestest.Exec(t, connString, tc.change, account.ID)
 
-	_, found, err := s.Snapshot(ctx, account.ID)
+			_, found, err := s.Snapshot(ctx, account.ID)
 
-	if err != nil || found {
-		t.Errorf("a snapshot without a format: found %v, %v; want absent", found, err)
-	}
-	claim, err := s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
-	if err != nil || !claim.Found || len(claim.Snapshot.Libraries) != 1 {
-		t.Errorf("claiming a read found %v with %d libraries, %v; want the old snapshot kept for a failed read", claim.Found, len(claim.Snapshot.Libraries), err)
+			if err != nil || found {
+				t.Errorf("reading the snapshot: found %v, %v; want absent", found, err)
+			}
+			claim, err := s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
+			if err != nil || !claim.Claimed || claim.Found || len(claim.Snapshot.Libraries) != 0 {
+				t.Errorf("claiming a read: claimed %v, found %v with %d libraries, %v; want claimed and absent", claim.Claimed, claim.Found, len(claim.Snapshot.Libraries), err)
+			}
+			// A request within the minute finds the read under way, and still no snapshot to show.
+			claim, err = s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
+			if err != nil || claim.Claimed || claim.Found || len(claim.Snapshot.Libraries) != 0 {
+				t.Errorf("claiming a read under way: claimed %v, found %v with %d libraries, %v; want unclaimed and absent", claim.Claimed, claim.Found, len(claim.Snapshot.Libraries), err)
+			}
+		})
 	}
 }
 

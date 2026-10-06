@@ -997,6 +997,89 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	}
 }
 
+// Checkout says it found none of a signed-in visitor's projects only after a read that found none. Without a read to
+// show, it says why instead, as other pages do: the read failed, with Try again back to the cart; Rulemart is reading,
+// and the page refreshes itself; or the visitor must sign in again. Each still lets them enter a project.
+func TestCheckoutSaysHowItsReadOfGitHubWentWhenItHasNoProjects(t *testing.T) {
+	const noneFound = "We didn't find any of your projects using Code Rules"
+	for name, tc := range map[string]struct {
+		err     error
+		failed  bool
+		shows   string
+		link    string
+		refresh string
+	}{
+		"a failed read": {
+			err: fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead), failed: true,
+			shows: "Rulemart couldn't read your repositories on GitHub just now.",
+		},
+		"a read under way": {
+			err: accountsapp.ErrGitHubReading, refresh: "3",
+			shows: "Rulemart is reading your repositories on GitHub. This page will update in a moment.",
+		},
+		"a token GitHub refuses": {
+			err:   accountsapp.ErrNoGitHubToken,
+			shows: "Sign in again so Rulemart can read your repositories on GitHub.", link: "/signin?again=1&return=%2Fcart",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newDashboardSite(t, accounts.Snapshot{ReadFailed: tc.failed}, octocatsCatalog())
+			site.gitHub.err = tc.err
+
+			resp := send(t, site.handler, request{method: http.MethodGet, target: "/cart", cookies: []*http.Cookie{site.session}})
+			page := body(t, resp)
+
+			// The script shows the page's cards, so its markup holds what the visitor sees.
+			markup := strings.Join(strings.Fields(page), " ")
+			for _, want := range []string{tc.shows, "Enter your project"} {
+				if !strings.Contains(markup, want) {
+					t.Errorf("the page lacks %q", want)
+				}
+			}
+			if strings.Contains(markup, noneFound) {
+				t.Error("the page says Rulemart found no projects, without a read that found none")
+			}
+			if tc.failed && !strings.Contains(page, `action="/me/refresh?return=%2Fcart"`) {
+				t.Error("Try again doesn't read GitHub again and return to the cart")
+			}
+			if tc.link != "" {
+				if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{tc.link}) {
+					t.Errorf("Sign in again leads to %q, want %q", got, tc.link)
+				}
+			}
+			if got := resp.Header.Get("Refresh"); got != tc.refresh {
+				t.Errorf("Refresh %q, want %q", got, tc.refresh)
+			}
+		})
+	}
+
+	read := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now().Add(-3 * time.Minute)}, octocatsCatalog())
+	if page := strings.Join(strings.Fields(read.get(t, "/cart")), " "); !strings.Contains(page, noneFound) {
+		t.Error("after a read that found no projects, the page doesn't say so")
+	}
+}
+
+// When a read of GitHub fails after an earlier one found projects, checkout still offers them, and says they're what the
+// earlier read found, with Try again back to the cart, rather than presenting them as fresh.
+func TestCheckoutSaysItsReadFailedWhileItOffersTheProjectsAnEarlierReadFound(t *testing.T) {
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	site := newDashboardSite(t, failed, octocatsCatalog())
+	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+
+	// The script shows the page's cards, so its markup holds what the visitor sees.
+	page := strings.Join(strings.Fields(site.get(t, "/cart")), " ")
+
+	for _, want := range []string{
+		`value="octocat/api" data-cart-project`, "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago.",
+		`action="/me/refresh?return=%2Fcart"`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+}
+
 // A signed-in visitor's checkout is for one of their projects, the first unless they chose another, whose sources the
 // texts add to; or for a new project, which the repository field names; a forged project name falls back to the first.
 func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {
@@ -1030,6 +1113,38 @@ func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {
 		if got := checkout(tc.project, tc.repo); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: the checkout is for %+v, want %+v", name, got, tc.want)
 		}
+	}
+}
+
+// Without a read of GitHub to offer projects from, because it failed, another is under way, or the visitor must sign in
+// again, a signed-in visitor's checkout is for the repository they entered, as the page offers, not a failure.
+func TestCheckoutWithoutAReadOfGitHubIsForTheRepositoryEntered(t *testing.T) {
+	for name, err := range map[string]error{
+		"a failed read":          fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead),
+		"a read under way":       accountsapp.ErrGitHubReading,
+		"a token GitHub refuses": accountsapp.ErrNoGitHubToken,
+	} {
+		t.Run(name, func(t *testing.T) {
+			gitHub := newFakeGitHubAccounts(accounts.Snapshot{})
+			gitHub.err = err
+			carts := &fakeCarts{}
+			site := newAccountsSite(t, func(o *web.Options) { o.GitHubAccounts, o.Carts = gitHub, carts })
+			req := httptest.NewRequest(http.MethodPost, "/cart/checkout.json",
+				strings.NewReader(`{"cart":["example/rules::techs/go/return-errors"],"repo":"https://github.com/octocat/new-app"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			req.AddCookie(&http.Cookie{Name: sessionCookie, Value: string(site.accounts.signedIn(t, octocat))})
+			recorder := httptest.NewRecorder()
+
+			site.handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("checkout answered %d: %s", recorder.Code, recorder.Body)
+			}
+			if want := (domain.CheckoutTarget{Mode: domain.ProjectUnknown, Repository: "octocat/new-app"}); !reflect.DeepEqual(carts.target, want) {
+				t.Errorf("the checkout is for %+v, want %+v", carts.target, want)
+			}
+		})
 	}
 }
 

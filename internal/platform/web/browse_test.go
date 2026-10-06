@@ -543,25 +543,3 @@ func headings(t *testing.T, body, level string) []string {
 	}
 	return texts
 }
-
-// listItems counts the items of each list of kind, ul or ol, in an HTML body.
-func listItems(t *testing.T, body, kind string) []int {
-	t.Helper()
-	doc, err := html.Parse(strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var counts []int
-	for n := range doc.Descendants() {
-		if n.Type == html.ElementNode && n.Data == kind {
-			count := 0
-			for c := n.FirstChild; c != nil; c = c.NextSibling {
-				if c.Type == html.ElementNode && c.Data == "li" {
-					count++
-				}
-			}
-			counts = append(counts, count)
-		}
-	}
-	return counts
-}

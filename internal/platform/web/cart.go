@@ -279,7 +279,9 @@ var checkoutUnavailable = map[string]string{"error": "Rulemart can't check out r
 // checkoutTarget returns the project req's checkout is for, and whether what the visitor wrote as its repository names
 // none though it isn't empty: for a signed-in visitor with projects, the one req names, or the first, whose sources the
 // texts add to, unless req says it's a new project; otherwise the repository the visitor wrote, which Rulemart knows
-// nothing of. It answers the request with a failure, and returns false, when reading the visitor's projects fails.
+// nothing of, as it is when Rulemart has no read of their projects to offer: the read failed, another is under way, or
+// the visitor must sign in again, where the page offers to enter a repository instead. It answers the request with a
+// failure, and returns false, when reading the visitor's projects fails otherwise.
 func (s *server) checkoutTarget(w http.ResponseWriter, r *http.Request, req checkoutRequest) (domain.CheckoutTarget, bool, bool) {
 	v := visitorOf(r.Context())
 	if v.account == nil || s.GitHubAccounts == nil {
@@ -287,7 +289,8 @@ func (s *server) checkoutTarget(w http.ResponseWriter, r *http.Request, req chec
 		return target, invalid, true
 	}
 	snapshot, err := s.GitHubAccounts.Snapshot(r.Context(), *v.account, v.token)
-	if err != nil && !errors.Is(err, accountsapp.ErrNoGitHubToken) && !errors.Is(err, accountsapp.ErrGitHubRead) {
+	if err != nil && !errors.Is(err, accountsapp.ErrNoGitHubToken) && !errors.Is(err, accountsapp.ErrGitHubRead) &&
+		!errors.Is(err, accountsapp.ErrGitHubReading) {
 		s.logFailure(r, err)
 		s.writeJSON(w, r, http.StatusServiceUnavailable, checkoutUnavailable)
 		return domain.CheckoutTarget{}, false, false

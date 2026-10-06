@@ -238,6 +238,40 @@ func TestAFailedReadKeepsTheLastSnapshotAndSaysSo(t *testing.T) {
 	}
 }
 
+// When GitHub fails while Rulemart reads it again in place of a snapshot of an earlier format, the snapshot kept says
+// the read failed and holds no libraries, rather than the old ones, which don't say whether the visitor may push to
+// them. The next read once GitHub answers restores them.
+func TestAFailedReadOverAnOutdatedSnapshotKeepsNoLibrariesUntilTheNextRead(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	site.snapshot(t)
+	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = (snapshot - 'format') ||
+		jsonb_build_object('libraries', (SELECT jsonb_agg(l - 'writable') FROM jsonb_array_elements(snapshot->'libraries') l))`)
+
+	fake.Fail = func(path string) bool { return strings.Contains(path, "/contents/") }
+	site.now = site.now.Add(domain.RefreshInterval)
+	got, err := site.accounts.Snapshot(ctx, site.account, site.session)
+
+	if !errors.Is(err, ErrGitHubRead) {
+		t.Fatalf("got %v, want ErrGitHubRead", err)
+	}
+	if !got.ReadFailed || !got.ReadAt.IsZero() || len(got.Libraries) != 0 {
+		t.Errorf("after a failed read, the snapshot is %+v; want failed, never read, and no libraries", got)
+	}
+
+	fake.Fail = nil
+	site.now = site.now.Add(domain.RefreshInterval)
+	got, err = site.accounts.Refresh(ctx, site.account, site.session)
+
+	if err != nil || got.ReadFailed {
+		t.Fatalf("the next read: failed %v, %v", got.ReadFailed, err)
+	}
+	if !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "rules" && l.Writable }) {
+		t.Errorf("the next read's libraries are %+v; want mona/rules, which she may push to", got.Libraries)
+	}
+}
+
 // A visitor who revoked Rulemart on GitHub, or whose session keeps no token, is asked to sign in again, and nothing is
 // kept for them.
 func TestAReadWithATokenGitHubRefusesNeedsASignIn(t *testing.T) {
