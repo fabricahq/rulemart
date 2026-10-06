@@ -252,8 +252,9 @@ func (s *Store) inTransaction(ctx context.Context, work func(*accountsdb.Queries
 // snapshotFormat is the format of the snapshots this code writes. A snapshot of an earlier format lacks something
 // pages now show, so Snapshot and ClaimRead report it absent and the account reads GitHub again rather than showing
 // it wrong, even while another read is under way or after a read fails: the format rose to 2 when libraries gained
-// whether the visitor may push to them, which the picker dims a library without.
-const snapshotFormat = 2
+// whether the visitor may push to them, which the picker dims a library without, and to 3 when ClaimRead began
+// checking it too, since until then a failed read could save a snapshot of an earlier format again as format 2.
+const snapshotFormat = 3
 
 // snapshotRecord is a snapshot as github_snapshots keeps it, in JSON. Its field names are the stored format, so a
 // rename here needs a migration of the stored rows, or a read that accepts both.
