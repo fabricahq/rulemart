@@ -35,14 +35,11 @@ func (s *Store) Snapshot(ctx context.Context, accountID int64) (domain.Snapshot,
 	if err != nil {
 		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
 	}
-	var record snapshotRecord
-	if err := json.Unmarshal(data, &record); err != nil {
-		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: decode it: %v", accountID, err)
+	snapshot, current, err := decodeSnapshot(data)
+	if err != nil {
+		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
 	}
-	if record.Format < snapshotFormat {
-		return domain.Snapshot{}, false, nil
-	}
-	return record.snapshot(), true, nil
+	return snapshot, current, nil
 }
 
 // ClaimRead claims a read of the account's GitHub account beginning at now, and returns its generation and snapshot as
@@ -72,8 +69,7 @@ func (s *Store) ClaimRead(ctx context.Context, accountID int64, now time.Time, i
 		return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
 	}
 	if data != nil {
-		claim.Found = true
-		if claim.Snapshot, err = decodeSnapshot(data); err != nil {
+		if claim.Snapshot, claim.Found, err = decodeSnapshot(data); err != nil {
 			return store.ReadClaim{}, fmt.Errorf("claim a GitHub read accountID=%d: %v", accountID, err)
 		}
 	}
@@ -254,8 +250,9 @@ func (s *Store) inTransaction(ctx context.Context, work func(*accountsdb.Queries
 }
 
 // snapshotFormat is the format of the snapshots this code writes. A snapshot of an earlier format lacks something
-// pages now show, so Snapshot reports it absent and the account reads GitHub again rather than showing it wrong: the
-// format rose to 2 when libraries gained whether the visitor may push to them, which the picker dims a library without.
+// pages now show, so Snapshot and ClaimRead report it absent and the account reads GitHub again rather than showing
+// it wrong, even while another read is under way or after a read fails: the format rose to 2 when libraries gained
+// whether the visitor may push to them, which the picker dims a library without.
 const snapshotFormat = 2
 
 // snapshotRecord is a snapshot as github_snapshots keeps it, in JSON. Its field names are the stored format, so a
@@ -302,13 +299,17 @@ type ruleRecord struct {
 	Version coderules.RuleVersion `json:"version"`
 }
 
-// decodeSnapshot returns the snapshot data, a github_snapshots row, keeps.
-func decodeSnapshot(data []byte) (domain.Snapshot, error) {
+// decodeSnapshot returns the snapshot data, a github_snapshots row, keeps, and current true, or an empty snapshot and
+// current false when the row is of an earlier format than snapshotFormat, which every reader treats as no snapshot.
+func decodeSnapshot(data []byte) (snapshot domain.Snapshot, current bool, err error) {
 	var record snapshotRecord
 	if err := json.Unmarshal(data, &record); err != nil {
-		return domain.Snapshot{}, fmt.Errorf("decode the snapshot: %v", err)
+		return domain.Snapshot{}, false, fmt.Errorf("decode the snapshot: %v", err)
 	}
-	return record.snapshot(), nil
+	if record.Format < snapshotFormat {
+		return domain.Snapshot{}, false, nil
+	}
+	return record.snapshot(), true, nil
 }
 
 func newSnapshotRecord(s domain.Snapshot) snapshotRecord {

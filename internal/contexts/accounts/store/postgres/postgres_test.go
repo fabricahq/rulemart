@@ -350,8 +350,9 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	}
 }
 
-// A snapshot saved before libraries recorded whether the visitor may push to them reads as absent, so the account
-// reads GitHub again instead of showing every library as one the visitor can't add.
+// A snapshot saved before libraries recorded whether the visitor may push to them reads as absent, to Snapshot and to
+// ClaimRead alike, so the account reads GitHub again instead of showing every library as one the visitor can't add:
+// neither a request that finds another read under way nor a read that fails falls back on it.
 func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
 	ctx := context.Background()
 	s, connString := newStore(t)
@@ -371,8 +372,13 @@ func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
 		t.Errorf("a snapshot without a format: found %v, %v; want absent", found, err)
 	}
 	claim, err := s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
-	if err != nil || !claim.Found || len(claim.Snapshot.Libraries) != 1 {
-		t.Errorf("claiming a read found %v with %d libraries, %v; want the old snapshot kept for a failed read", claim.Found, len(claim.Snapshot.Libraries), err)
+	if err != nil || !claim.Claimed || claim.Found || len(claim.Snapshot.Libraries) != 0 {
+		t.Errorf("claiming a read: claimed %v, found %v with %d libraries, %v; want claimed and absent", claim.Claimed, claim.Found, len(claim.Snapshot.Libraries), err)
+	}
+	// A request within the minute finds the read under way, and still no snapshot to show.
+	claim, err = s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
+	if err != nil || claim.Claimed || claim.Found || len(claim.Snapshot.Libraries) != 0 {
+		t.Errorf("claiming a read under way: claimed %v, found %v with %d libraries, %v; want unclaimed and absent", claim.Claimed, claim.Found, len(claim.Snapshot.Libraries), err)
 	}
 }
 

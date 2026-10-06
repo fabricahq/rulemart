@@ -91,7 +91,7 @@ type ReadClaim struct {
 	// so, and what a request that didn't claim the read shows.
 	Snapshot domain.Snapshot
 	// Found is whether the account had a snapshot as of the claim, so Snapshot is a read's and not empty for want of
-	// one.
+	// one. A snapshot Snapshot reports absent, such as one of an earlier format, isn't found here either.
 	Found bool
 }
 
