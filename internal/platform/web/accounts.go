@@ -588,17 +588,35 @@ func (s *server) signedOutAlready(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, "/")
 }
 
+// confirmDeleteAccount shows the page that deletes the account without a script: the Account tab's disclosure sends
+// the login typed here, in its query, and the page says what deleting does above Delete my account, which posts the
+// login on in its query. A login that isn't the account's shows the Account tab with 400, saying so, as deleting would.
+func (s *server) confirmDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	account, ok := s.signedIn(w, r, dashboardAccountHref)
+	if !ok {
+		return
+	}
+	login := r.URL.Query().Get("login")
+	if login != account.Login {
+		s.showDashboard(w, r, account, dashboardView{tab: accountTab, deleteRefused: true}, http.StatusBadRequest)
+		return
+	}
+	s.renderPrivate(w, r, http.StatusOK, confirmDeletePage(s.chrome, login))
+}
+
 // deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. It takes the
-// account's GitHub login in the login field, typed exactly, as its final confirmation: any other value, whatever the
-// page's script let through, shows the Account tab with 400, saying so, and deletes nothing. A visitor whose session
-// has ended, even after this request began, may no longer act for the account, and goes home told they're signed out.
+// account's GitHub login, typed exactly, in its query's login, as its final confirmation: any other value, whatever the
+// page's script let through, shows the Account tab with 400, saying so, and deletes nothing. The login travels in the
+// query, as every input to a POST does, since CloudFront refuses a body a browser's form can't sign. A visitor whose
+// session has ended, even after this request began, may no longer act for the account, and goes home told they're
+// signed out.
 func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
 		s.signedOutAlready(w, r)
 		return
 	}
-	if r.PostFormValue("login") != v.account.Login {
+	if r.URL.Query().Get("login") != v.account.Login {
 		s.showDashboard(w, r, *v.account, dashboardView{tab: accountTab, deleteRefused: true}, http.StatusBadRequest)
 		return
 	}
@@ -615,6 +633,11 @@ func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	clearCookie(w, sessionCookie)
 	setNotice(w, "account-deleted")
 	seeOther(w, r, "/")
+}
+
+// deleteAccountAction is where deleting the account posts, with login, the account's as typed, in its query.
+func deleteAccountAction(login string) string {
+	return deleteAccountHref + "?" + url.Values{"login": {login}}.Encode()
 }
 
 // signedIn returns the signed-in account, or sends the visitor to sign in and return to back, and returns false.

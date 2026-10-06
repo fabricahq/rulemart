@@ -325,6 +325,7 @@ func (s *server) handler() http.Handler {
 		handle("GET "+dashboardHref, s.dashboard)
 		handle("GET "+legacyAccountHref, s.legacyAccount)
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
+		handle("GET "+deleteAccountHref, s.confirmDeleteAccount)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
 		if s.GitHubAccounts != nil {

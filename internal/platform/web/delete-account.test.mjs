@@ -1,5 +1,5 @@
 // Tests of static/delete-account.js, which asks for the account's login in a dialog before the Account tab's Delete my
-// account posts. make check runs them with node --test when Node is installed. They live outside static/, which the
+// account posts, with the login in the action's query. make check runs them with node --test when Node is installed. They live outside static/, which the
 // site embeds and serves.
 
 import assert from 'node:assert/strict';
@@ -35,10 +35,16 @@ function load() {
     field.focused = true;
   };
   const button = element({ disabled: true });
+  // The dialog's form posts to the delete address; the script adds the login to its action's query.
+  const form = element({
+    action: '/me/account/delete',
+    getAttribute: (name) => (name === 'action' ? '/me/account/delete' : null),
+    querySelector: (selector) => (selector === 'input' ? field : null),
+  });
   const dialog = element({
     dataset: { login: 'octocat' },
     open: false,
-    querySelector: (selector) => ({ 'input[name="login"]': field, 'button[data-delete-confirm]': button })[selector] ?? null,
+    querySelector: (selector) => ({ 'form[data-delete-form]': form, 'button[data-delete-confirm]': button })[selector] ?? null,
     getBoundingClientRect: () => ({ left: 0, right: 100, top: 0, bottom: 100 }),
   });
   dialog.showModal = () => {
@@ -52,7 +58,7 @@ function load() {
     querySelector: (selector) => ({ 'form[data-delete-inline]': inline, 'dialog[data-delete-dialog]': dialog })[selector] ?? null,
   };
   vm.runInNewContext(script, { document });
-  return { inline, inlineField, dialog, field, button };
+  return { inline, inlineField, dialog, form, field, button };
 }
 
 test('should hide the disclosure form\'s own login field when the dialog will ask for it', () => {
@@ -73,6 +79,16 @@ test('should enable Delete my account only while the field holds the login exact
     field.fire('input');
     assert.equal(button.disabled, !enabled, `typed ${JSON.stringify(value)}`);
   }
+});
+
+test('should put the typed login in the action\'s query, so the POST carries no body', () => {
+  const { form, field } = load();
+  field.value = 'octo cat';
+  field.fire('input');
+  assert.equal(form.action, '/me/account/delete?login=octo%20cat');
+  field.value = 'octocat';
+  field.fire('input');
+  assert.equal(form.action, '/me/account/delete?login=octocat');
 });
 
 test('should clear the field and disable Delete my account again when the dialog closes', () => {

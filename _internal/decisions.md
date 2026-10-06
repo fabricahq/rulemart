@@ -461,7 +461,9 @@ matters.
   pointing to the privacy page for what Rulemart keeps, Sign out, with Sign out everywhere beside it as a secondary text action, and Delete
   your account, a disclosure rather than a link. Deleting asks for the account's login, typed exactly, which the server checks and
   refuses with 400 otherwise, deleting nothing; with a script, a dialog says what goes, that nothing on GitHub changes,
-  and enables Delete my account only once the field holds the login.
+  and enables Delete my account only once the field holds the login. The login travels in the POST's query, never its
+  body, which CloudFront refuses from a browser's form: the dialog's script puts it in the action, and without a script
+  the disclosure's GET form leads to a page that says what deleting does and posts the login on.
 - **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
   A read lists their organizations, the public repositories of theirs and their organizations', and the private ones
   the GitHub App's installations read, the 200 most recently pushed, and finds the ones that publish a library

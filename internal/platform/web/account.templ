@@ -222,9 +222,11 @@ templ accountContent(account accountView, refused bool) {
 		</summary>
 		<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
 			<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
-			<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) } data-delete-inline>
+			// Without a script, the form leads to the page that deletes, with the login in its query: a browser's form can't
+			// sign a body for CloudFront, so no POST here carries one.
+			<form class="mt-4" method="get" action={ templ.SafeURL(deleteAccountHref) } data-delete-inline>
 				<div data-delete-field>
-					@deleteLoginField(account.login, "delete-login", refused)
+					@deleteLoginField(account.login, "delete-login", refused, true)
 				</div>
 				if refused {
 					<p class="mt-1.5 text-[13px] text-del-ink" id="delete-login-error">That isn't your username. Type { account.login } exactly to delete your account.</p>
@@ -237,13 +239,17 @@ templ accountContent(account accountView, refused bool) {
 }
 
 // deleteLoginField asks for the account's login, which deleting it takes, as the field id. invalid marks it as a login
-// the server refused, which delete-login-error says.
-templ deleteLoginField(login, id string, invalid bool) {
+// the server refused, which delete-login-error says. sent names the field login, so a GET form sends it in its query;
+// the dialog's field isn't sent, since its script puts the login in the action's query instead, keeping the POST's
+// body empty.
+templ deleteLoginField(login, id string, invalid, sent bool) {
 	<label class="block text-[13.5px] text-muted" for={ id }>Type your username, { "@" + login }, to confirm</label>
 	<input
 		class={ inputStyle, "mt-1.5" }
 		id={ id }
-		name="login"
+		if sent {
+			name="login"
+		}
 		autocomplete="off"
 		autocapitalize="none"
 		spellcheck="false"
@@ -268,12 +274,28 @@ templ deleteAccountDialog(account accountView) {
 			</form>
 		</div>
 		<p class="text-muted" id="delete-description">This deletes your Rulemart account, its stars, its listings, what Rulemart read of your GitHub account, and every session. Nothing on GitHub changes.</p>
-		<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
-			@deleteLoginField(account.login, "delete-dialog-login", false)
+		<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) } data-delete-form>
+			@deleteLoginField(account.login, "delete-dialog-login", false, false)
 			<div class="mt-5 flex flex-row-reverse flex-wrap justify-start gap-2.5">
 				<button class={ destructiveButtonStyle } type="submit" disabled data-delete-confirm>Delete my account</button>
 				<button class={ outlineButtonStyle, "min-h-11" } type="submit" formmethod="dialog" formnovalidate>Cancel</button>
 			</div>
 		</form>
 	</dialog>
+}
+
+// confirmDeletePage deletes the account without a script: the disclosure's form led here with the login typed, which
+// the server found to be the account's, and Delete my account posts it on in its query. Cancel returns to the Account
+// tab.
+templ confirmDeletePage(c chrome, login string) {
+	@layout(c, head{title: "Delete your account · Rulemart", noindex: true}) {
+		<div class="page wrap max-w-[640px]">
+			<h1 class="title-xl">Delete your account?</h1>
+			<p class="mt-2.5 text-muted">This deletes your Rulemart account, @{ login }, its stars, its listings, what Rulemart read of your GitHub account, and every session. Nothing on GitHub changes. Signing in again starts a new account.</p>
+			<form class="mt-6 flex flex-wrap items-center gap-2.5" method="post" action={ templ.SafeURL(deleteAccountAction(login)) }>
+				<button class={ destructiveButtonStyle } type="submit">Delete my account</button>
+				<a class={ outlineButtonStyle, "min-h-11" } href={ templ.SafeURL(dashboardAccountHref) }>Cancel</a>
+			</form>
+		</div>
+	}
 }
