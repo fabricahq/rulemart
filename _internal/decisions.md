@@ -425,15 +425,17 @@ matters.
   refuses to start on Lambda.
 - **Signed out, the dashboard's pages redirect to `/signin?return=`**, which says what for, such as "Sign in to add a
   library." "Sign in with GitHub" and Continue with GitHub show only when GitHub sign-in is configured. Deleting an
-  account removes its sessions, stars, listings, and GitHub snapshot, and the account menu reads name, @login,
-  Dashboard, Add a library, Starred rules, Account, Sign out.
+  account removes its sessions, stars, listings, and GitHub snapshot.
 
 ### The dashboard
 
 - **Decided (Josh), 2026-10-05: the dashboard has one tab per concern**: My libraries (N), Projects (N), Starred rules
   (N), and Account, at `/me`, `/me?tab=projects`, `/me?tab=stars`, and `/me?tab=account`, each showing only its own
-  content, each count its rows, under a one-sentence lede except Account. A tab the page doesn't know, or doesn't
-  offer, shows My libraries. On a phone, the tab bar scrolls sideways rather than wrapping.
+  content, each count its rows, with no lede, since the tab's name says what it shows. A tab the page doesn't know, or
+  doesn't offer, shows My libraries. On a phone, the tab bar scrolls sideways rather than wrapping.
+- **Decided (Josh), 2026-10-05: the account menu has three entries**: the visitor's name and @login, then Dashboard,
+  Add a library, and Sign out. Starred rules and Account are tabs of the dashboard, so the menu doesn't repeat them,
+  and Dashboard is marked current on every tab.
 - **My libraries is where a visitor's libraries and listings live.** It lists the libraries whose owner is the visitor
   or one of their organizations, vetted or listed, each with its state, Vetted, Unvetted, Checking, or Failed with why,
   its rule count, and its star total, and a "New" chip when listed today. A listing of the visitor's offers Remove, and
@@ -452,11 +454,11 @@ matters.
   star total or project count, sits beside its name, in the muted small style. The prompts to add more follow the
   list, never lead it.
 - **The dashboard's head and headings are quiet.** The eyebrow stands on its own line above the avatar, centered beside
-  the name and the login line; section headings are sentence case, never tracked uppercase, since the tab names and
-  ledes already say what a list is, and a second group, No longer counted, is a plain heading with its count inline.
+  the name and the login line; section headings are sentence case, never tracked uppercase, since the tab names already
+  say what a list is, and a second group, No longer counted, is a plain heading with its count inline.
 - **The Account tab shows the account's facts and its actions**: the facts in a two-column card capped at 36rem, a line
-  pointing to the privacy page for what Rulemart keeps, Sign out, Sign out everywhere, and Delete your account, a
-  disclosure rather than a link. Deleting asks for the account's login, typed exactly, which the server checks and
+  pointing to the privacy page for what Rulemart keeps, Sign out, with Sign out everywhere beside it as a secondary text action, and Delete
+  your account, a disclosure rather than a link. Deleting asks for the account's login, typed exactly, which the server checks and
   refuses with 400 otherwise, deleting nothing; with a script, a dialog says what goes, that nothing on GitHub changes,
   and enables Delete my account only once the field holds the login.
 - **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
@@ -495,6 +497,16 @@ matters.
   more requests than the number is worth. Rows order as what the visitor can add, what Rulemart is adding, what
   Rulemart has, then private ones, which show but can't be added. The URL form keeps the listing's checks, and shows an
   address it accepts as a row to add, since a GET form can't post.
+- **Decided (Josh), 2026-10-05: `/me/add` reads as the dashboard's lists do.** An intro in whole sentences says what the
+  page lists, repositories the visitor and their organizations own that publish a library, and that any public library
+  can be added by its URL. The repositories are a bordered card of rows, with no header: each name links to it on
+  GitHub, in the same tab as the site's other links to GitHub, with a small arrow and the accessible name "… on
+  GitHub", above "Public · release/6 · via the X organization", with the action at the row's right, Add this
+  library, "✓ On Rulemart", or, for a private repository, the dimmed row saying why it can't be added. One status line
+  under the card, in the dashboard's pattern and with its parts ("Public repos only · read from GitHub … · Refresh ·
+  Include private repos", or "Including private repos from the ones you selected · … · Manage"), replaces the dashed
+  note and the separate line on the read. "Add a library by URL" is a sentence-case heading, with one sentence under
+  it, above the field.
 - **`/me/add/run` follows a listing's check.** Its checklist ticks every step at once when Rulemart has the library,
   since the worker's check isn't observable step by step, and a failed check shows the reason with Try again, Remove,
   and Back to Dashboard. `poll.js` swaps the checklist every two seconds, and without it a `<noscript>` reload does the
