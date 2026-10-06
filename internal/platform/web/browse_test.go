@@ -418,7 +418,7 @@ func TestHeaderMenuComesBetweenTheLinksAndTheSearchIconInFocusOrder(t *testing.T
 		want    []string
 	}{
 		"signed out": {want: append(slices.Clone(start), "Sign in with GitHub")},
-		"signed in":  {cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, want: append(slices.Clone(start), "Account menu, signed in as octocat", "Dashboard", "Account", "Sign out")},
+		"signed in":  {cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, want: append(slices.Clone(start), "Account menu, signed in as octocat", "Dashboard", "Sign out")},
 	} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/faq", cookies: test.cookies}))
 		doc, err := html.Parse(strings.NewReader(page))

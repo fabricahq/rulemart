@@ -1027,15 +1027,15 @@ func TestTheSignInPageOpenedDirectlyGivesNoReason(t *testing.T) {
 	}
 }
 
-// On the dashboard's My libraries, the menu marks Dashboard as the current page, and on its Account tab, Account.
-func TestTheMenuMarksTheDashboardAndAccountCurrent(t *testing.T) {
+// On the dashboard, whichever its tab, the menu marks Dashboard as the current page, and it has no link to the tabs.
+func TestTheMenuMarksTheDashboardCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 	for path, want := range map[string]map[string]string{
-		"/me":              {"Dashboard": "page", "Account": ""},
-		"/me?tab=nonsense": {"Dashboard": "page", "Account": ""},
-		"/me?tab=account":  {"Dashboard": "", "Account": "page"},
-		"/browse/techs":    {"Dashboard": "", "Account": ""},
+		"/me":              {"Dashboard": "page"},
+		"/me?tab=nonsense": {"Dashboard": "page"},
+		"/me?tab=account":  {"Dashboard": "page"},
+		"/browse/techs":    {"Dashboard": ""},
 	} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 		doc, err := html.Parse(strings.NewReader(page))
@@ -1049,6 +1049,13 @@ func TestTheMenuMarksTheDashboardAndAccountCurrent(t *testing.T) {
 			})
 			if link == nil || attribute(link, "aria-current") != current {
 				t.Errorf("%s: the menu's %s link is %v, want aria-current %q", path, name, link, current)
+			}
+		}
+		for _, tab := range []string{"Account", "Starred rules"} {
+			if find(doc, func(n *html.Node) bool {
+				return n.Data == "a" && nodeText(n) == tab && n.Parent != nil && n.Parent.Data == "div" && n.Parent.Parent != nil && n.Parent.Parent.Data == "details"
+			}) != nil {
+				t.Errorf("%s: the menu links %s, a tab of the dashboard", path, tab)
 			}
 		}
 	}

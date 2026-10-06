@@ -733,12 +733,12 @@ func TestStarredRulesSayWhenThereAreNone(t *testing.T) {
 	}
 }
 
-// The account menu leads to Starred rules, and the account page says that deleting the account removes the visitor's
-// stars. Signing out from Starred rules returns home.
-func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
+// The account menu doesn't lead to Starred rules, a tab of the dashboard, and the account page says that deleting the
+// account removes the visitor's stars. Signing out from Starred rules returns home.
+func TestTheAccountPageNamesTheVisitorsStars(t *testing.T) {
 	site := newStarSite(t)
 
-	if got := links(t, body(t, site.signedInGet(t, "/")), "Starred rules"); !slices.Equal(got, []string{"/me?tab=stars"}) {
+	if got := links(t, body(t, site.signedInGet(t, "/")), "Starred rules"); len(got) > 0 {
 		t.Errorf("the menu's Starred rules leads to %q", got)
 	}
 	page := body(t, site.signedInGet(t, "/me?tab=account"))

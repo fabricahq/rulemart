@@ -533,16 +533,19 @@ func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	}
 }
 
-// The account menu names the visitor, then leads to the dashboard, adding a library, Starred rules, and Account, and
-// signs out, as the prototype's does, with Account added.
+// The account menu names the visitor, then has three entries: the dashboard, adding a library, and Sign out. The
+// dashboard's tabs, Starred rules and Account, are only on the dashboard.
 func TestTheAccountMenuReadsAsThePrototypes(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	page := site.get(t, "/faq")
-	assertShows(t, page, "The Octocat Signed in as @octocat Dashboard Add a library Starred rules Account Sign out")
-	for name, want := range map[string]string{"Dashboard": "/me", "Add a library": "/me/add", "Starred rules": "/me?tab=stars", "Account": "/me?tab=account"} {
-		if got := links(t, page, name); !slices.Equal(got, []string{want}) {
+	assertShows(t, page, "The Octocat Signed in as @octocat Dashboard Add a library Sign out")
+	for name, want := range map[string][]string{"Dashboard": {"/me"}, "Add a library": {"/me/add"}, "Starred rules": nil, "Account": nil} {
+		if got := links(t, page, name); !slices.Equal(got, want) {
 			t.Errorf("%s leads to %q, want %q", name, got, want)
 		}
+	}
+	if got := formActions(t, page); !slices.Equal(got, []string{"/signout?return=%2Ffaq"}) {
+		t.Errorf("the page's forms post to %q, want only Sign out", got)
 	}
 }
 

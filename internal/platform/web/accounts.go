@@ -104,12 +104,11 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onDashboard, onListPage, onStarredPage, and onAccountPage are true on the dashboard's My libraries, the page that
-	// adds a library, and the dashboard's Starred rules and Account, which the menu marks as current.
-	onDashboard, onListPage, onStarredPage, onAccountPage bool
-	// listings and stars are true when visitors can list libraries and star rules, so the menu links adding a library
-	// and Starred rules.
-	listings, stars bool
+	// onDashboard and onListPage are true on the dashboard, whichever its tab, and on the page that adds a library,
+	// which the menu marks as current.
+	onDashboard, onListPage bool
+	// listings is true when visitors can list libraries, so the menu links adding a library.
+	listings bool
 	// onSignInPage is true on the sign-in page, whose header marks its Sign in link as the current page.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
@@ -212,11 +211,9 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 // request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
 func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
 	back := returnPath(r.URL.RequestURI())
-	onDashboard, tab := r.URL.Path == dashboardHref, s.dashboardTab(r.URL.Query().Get("tab"))
 	v := visitor{
-		here: back, onDashboard: onDashboard && tab == "", onListPage: r.URL.Path == listHref,
-		onStarredPage: onDashboard && tab == starsTab, onAccountPage: onDashboard && tab == accountTab,
-		listings: s.listingAvailable(), stars: s.starsAvailable(),
+		here: back, onDashboard: r.URL.Path == dashboardHref, onListPage: r.URL.Path == listHref,
+		listings: s.listingAvailable(),
 	}
 	if s.signInAvailable() {
 		v.signIn = s.absolute(signInPageHref(back))
