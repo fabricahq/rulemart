@@ -38,7 +38,8 @@ templ signInLink(v visitor) {
 templ signInLabel(v visitor) {
 	if v.withGitHub {
 		@githubMark("size-[15px] flex-none")
-		<span>Sign in<span class="max-narrow:hidden"> with GitHub</span></span>
+		// templ trims a space that starts an element's text, so the space is an expression.
+		<span>Sign in<span class="max-narrow:hidden">{ " " }with GitHub</span></span>
 	} else {
 		<span>Sign in</span>
 	}

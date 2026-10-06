@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/fabricahq/rulemart/internal/lib/textdiff"
 )
 
@@ -52,6 +54,30 @@ func TestSegmentsSetApartOnlyAdjacentMarks(t *testing.T) {
 	}
 	if want := `Log <ins>them</ins> and <del>continue.</del><ins class="g">carry on.</ins>`; out.String() != want {
 		t.Errorf("got %s, want %s", out.String(), want)
+	}
+}
+
+// The header's Sign in with GitHub is split across elements, so a browser reads it as three words only if the space
+// before "with" is in the markup.
+func TestSignInWithGitHubKeepsTheSpaceBetweenItsWords(t *testing.T) {
+	var out strings.Builder
+	if err := signInLabel(visitor{withGitHub: true}).Render(context.Background(), &out); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := html.Parse(strings.NewReader(out.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var text strings.Builder
+	for n := range doc.Descendants() {
+		if n.Type == html.TextNode {
+			text.WriteString(n.Data)
+		}
+	}
+
+	if got := strings.TrimSpace(text.String()); got != "Sign in with GitHub" {
+		t.Errorf("the label reads %q", got)
 	}
 }
 
