@@ -27,6 +27,10 @@ type GitHubAccounts interface {
 	// when the read failed, and with accountsapp.ErrGitHubReading while another request makes the account's first read.
 	Snapshot(ctx context.Context, account accounts.Account, session accounts.SessionToken) (accounts.Snapshot, error)
 	Refresh(ctx context.Context, account accounts.Account, session accounts.SessionToken) (accounts.Snapshot, error)
+	// Maintains reports whether GitHub says session's token may push to repo, so the visitor may add it to Rulemart,
+	// asking GitHub now. It fails with accountsapp.ErrNoGitHubToken when the session keeps no token GitHub takes, and
+	// with another error when GitHub can't be read.
+	Maintains(ctx context.Context, session accounts.SessionToken, repo accounts.Repository) (bool, error)
 	// Installations returns the installations of the GitHub App the account reads private repositories through.
 	Installations(ctx context.Context, accountID int64) ([]accounts.Installation, error)
 	// PrivateRepositories reports whether there's a GitHub App for visitors to install, and InstallURL its install page.
@@ -175,13 +179,19 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, accountsapp.ErrGitHubReading):
 		// The page back says another request is reading GitHub, and loads again once it may have finished.
 	case errors.Is(err, accountsapp.ErrNoGitHubToken):
-		seeOther(w, r, s.absolute(signInAgainHref(back)))
+		s.signInAgain(w, r, back)
 		return
 	case err != nil:
 		s.fail(w, r, err)
 		return
 	}
 	seeOther(w, r, back)
+}
+
+// signInAgain sends the signed-in visitor, whose session keeps no token GitHub takes, to sign in again and return to
+// back.
+func (s *server) signInAgain(w http.ResponseWriter, r *http.Request, back string) {
+	seeOther(w, r, s.absolute(signInAgainHref(back)))
 }
 
 // installed records the installation of the GitHub App GitHub returned the signed-in visitor with, and returns to the
@@ -212,7 +222,7 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, accountsapp.ErrNoGitHubToken):
 		// The visitor is signed in, so the plain sign-in page would send them straight back here.
-		seeOther(w, r, s.absolute(signInAgainHref(returnPath(r.URL.RequestURI()))))
+		s.signInAgain(w, r, returnPath(r.URL.RequestURI()))
 		return
 	case errors.Is(err, accountsapp.ErrGitHubRead):
 		// The installation is recorded; the dashboard says the read failed.

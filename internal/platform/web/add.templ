@@ -16,7 +16,7 @@ const (
 
 // addPage is the prototype's Add a library: what the page lists and how to add one, the visitor's and their
 // organizations' repositories that publish a library, each with what adding it does, what Rulemart read of GitHub, and
-// the form that adds any public library by its address, with why it can't, or the repository to add.
+// the form that adds a library by its address, with why it can't, or the repository to add.
 templ addPage(c chrome, v addView) {
 	@layout(c, head{title: "Add a library · Rulemart", noindex: true, caret: v.problem != ""}) {
 		<div class="page wrap max-w-[780px]">
@@ -50,7 +50,7 @@ templ addPage(c chrome, v addView) {
 			@gitHubSummary(v.gitHub, repoWords, "mt-3")
 			<section class="mt-[30px]" aria-labelledby="add-by-url">
 				<h2 id="add-by-url" class={ subHeadStyle }>Add a library by URL</h2>
-				<p id="library-url-hint" class="mt-1.5 mb-2.5 text-[13px] text-muted">Anyone can add a public library. Its page shows that you added it.</p>
+				<p id="library-url-hint" class="mt-1.5 mb-2.5 text-[13px] text-muted">You can add a repository you have write access to. Its page shows that you added it.</p>
 				<form method="get" action={ templ.SafeURL(listHref) }>
 					<label class="sr-only" for="library-url">GitHub repository URL</label>
 					// Below the tiny breakpoint, the field takes the row and Add goes under it, so the placeholder reads whole.
@@ -103,11 +103,11 @@ templ addPage(c chrome, v addView) {
 
 // pickRow is a repository on the picker: its name, linking to it on GitHub, and what it is, then what adding it does:
 // Add this library, a link to its page once it's on Rulemart, to its check while Rulemart adds it, or, dimmed, why a
-// private one can't be added.
+// private one, or one the visitor may only read, can't be added.
 templ pickRow(p pickView) {
 	<li class={ pickRowStyle }>
 		<div class="min-w-0">
-			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", !p.private), templ.KV("font-medium text-faint", p.private) }>
+			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", p.note == ""), templ.KV("font-medium text-faint", p.note != "") }>
 				<a class="inline-flex items-baseline gap-1.5 no-underline hover:underline" href={ templ.SafeURL(domain.RepositoryURL(p.fullName)) }>
 					{ p.fullName }
 					@externalLinkIcon()
@@ -115,14 +115,14 @@ templ pickRow(p pickView) {
 				</a>
 			</p>
 			<p class="text-[12px] text-faint">{ p.detail }</p>
-			if p.state == pickPrivate {
+			if p.note != "" {
 				// Beside the name, on a phone, it would squeeze the name into a sliver.
-				<p class="mt-1 text-[13px] text-faint narrow:hidden">Private libraries can't be published on Rulemart</p>
+				<p class="mt-1 text-[13px] text-faint narrow:hidden">{ p.note }</p>
 			}
 		</div>
 		switch p.state {
-			case pickPrivate:
-				<span class="text-[13px] text-faint max-narrow:hidden">Private libraries can't be published on Rulemart</span>
+			case pickPrivate, pickReadOnly:
+				<span class="text-[13px] text-faint max-narrow:hidden">{ p.note }</span>
 			case pickOnRulemart:
 				<a
 					class={ chipOnStyle }

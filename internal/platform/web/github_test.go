@@ -36,13 +36,24 @@ type fakeGitHubAccounts struct {
 	delivered []string
 	// panics, when set, is what Deliver panics with, as a bug in acting on a delivery would.
 	panics any
+	// readOnly are the repositories, by lowercase full name, that no visitor may push to, so none may add; any other
+	// they may. maintainsErr, when set, is how asking GitHub fails, and maintained records the repositories asked of.
+	readOnly     map[string]bool
+	maintainsErr error
+	maintained   []string
 }
 
+// newFakeGitHubAccounts returns a fake whose GitHub agrees with snapshot: no visitor may push to a library it holds that
+// isn't writable.
 func newFakeGitHubAccounts(snapshot accounts.Snapshot) *fakeGitHubAccounts {
-	return &fakeGitHubAccounts{
+	f := &fakeGitHubAccounts{
 		snapshot: snapshot, kept: map[int64]accounts.Snapshot{}, installations: map[int64][]accounts.Installation{}, app: true,
-		owned: map[int64]bool{},
+		owned: map[int64]bool{}, readOnly: map[string]bool{},
 	}
+	for _, lib := range snapshot.Libraries {
+		f.readOnly[strings.ToLower(lib.FullName())] = !lib.Writable
+	}
+	return f
 }
 
 func (f *fakeGitHubAccounts) read(accountID int64) (accounts.Snapshot, error) {
@@ -67,6 +78,16 @@ func (f *fakeGitHubAccounts) Refresh(_ context.Context, account accounts.Account
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.read(account.ID)
+}
+
+func (f *fakeGitHubAccounts) Maintains(_ context.Context, _ accounts.SessionToken, repo accounts.Repository) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.maintained = append(f.maintained, repo.FullName())
+	if f.maintainsErr != nil {
+		return false, f.maintainsErr
+	}
+	return !f.readOnly[strings.ToLower(repo.FullName())], nil
 }
 
 func (f *fakeGitHubAccounts) Installations(_ context.Context, accountID int64) ([]accounts.Installation, error) {

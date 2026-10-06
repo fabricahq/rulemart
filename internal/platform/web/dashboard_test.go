@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -34,7 +35,8 @@ type dashboardSite struct {
 }
 
 // octocatsGitHub is what Rulemart reads of octocat's GitHub account: a member of octo-org, with a library to add, one
-// on Rulemart, a private one, and two projects, one private, that import example/rules, one behind it.
+// on Rulemart, a private one, a public one of octo-org's that octocat may only read, and two projects, one private, that
+// import example/rules, one behind it.
 func octocatsGitHub() accounts.Snapshot {
 	behind := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 1}}}
 	current := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 2}}}
@@ -42,9 +44,10 @@ func octocatsGitHub() accounts.Snapshot {
 		ReadAt:        time.Now().Add(-3 * time.Minute),
 		Organizations: []string{"octo-org", "example"},
 		Libraries: []accounts.PublishableRepository{
-			{Repository: accounts.Repository{Owner: "octocat", Name: "new-rules"}, Release: 2},
-			{Repository: accounts.Repository{Owner: "example", Name: "rules"}, Release: 3},
+			{Repository: accounts.Repository{Owner: "octocat", Name: "new-rules"}, Release: 2, Writable: true},
+			{Repository: accounts.Repository{Owner: "example", Name: "rules"}, Release: 3, Writable: true},
 			{Repository: accounts.Repository{Owner: "octocat", Name: "team-rules", Private: true}, Release: 1},
+			{Repository: accounts.Repository{Owner: "octo-org", Name: "readonly"}, Release: 1},
 		},
 		Projects: []accounts.Project{
 			{Repository: accounts.Repository{Owner: "octocat", Name: "api"}, Sources: []accounts.Source{{Name: "example", Library: "example/rules", Rules: behind}}},
@@ -567,8 +570,8 @@ func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 }
 
 // The page says what adding does and what a library is, then lists the repositories that publish a library in a card of rows
-// in their three kinds: one to add, one on Rulemart, by way of the visitor's organization, and a private one, dimmed,
-// that can't be added; a library being added leads to its check.
+// in their four kinds: one to add, one on Rulemart, by way of the visitor's organization, a public one the visitor may only
+// read, and a private one, both dimmed, that can't be added; a library being added leads to its check.
 func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
@@ -580,6 +583,7 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
 		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
 		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
+		"octo-org/readonly on GitHub Public · release/1 · via the octo-org organization Only someone with write access can add it",
 		"octo-org/new on GitHub Public · via the octo-org organization ✓ On Rulemart")
 	text := visibleText(t, page)
 	for _, gone := range []string{"Only public libraries can be published", "Or add any public library by URL", "Read from GitHub"} {
@@ -597,11 +601,158 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	if got := links(t, site.get(t, "/me/add"), "Adding…"); !slices.Equal(got, []string{"/me/add/run?repo=octocat%2Fnew-rules"}) {
 		t.Errorf("a library being added leads to %q", got)
 	}
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, dimmed := range map[string]bool{"octocat/new-rules": false, "octo-org/readonly": true, "octocat/team-rules": true, "example/rules": false} {
+		row := find(doc, func(n *html.Node) bool { return n.Data == "li" && strings.Contains(nodeText(n), name+" on GitHub") })
+		if row == nil {
+			t.Fatalf("no row for %s", name)
+		}
+		nameLine := find(row, func(n *html.Node) bool {
+			return n.Data == "p" && strings.Contains(attribute(n, "class"), "overflow-wrap")
+		})
+		if got := strings.Contains(attribute(nameLine, "class"), "text-faint"); got != dimmed {
+			t.Errorf("%s's name is dimmed: %v, want %v", name, got, dimmed)
+		}
+	}
 	private := site.get(t, "/me/add?url=octocat%2Fteam-rules")
 	assertShows(t, private, "octocat/team-rules is private. Private libraries can't be published on Rulemart.")
 	if got := formActions(t, private); slices.Contains(got, "/me/add?repository=octocat%2Fteam-rules") || strings.Contains(private, "Public library on GitHub") {
 		t.Errorf("the refusal of a private library offers to add it, with forms posting to %q", got)
 	}
+}
+
+// A repository's maintainers may add it, so the form that checks an address asks GitHub whether the visitor's token may
+// push to the repository it names: one it may is offered to add, one it may only read is refused with why, and offers
+// nothing to add, and an address that isn't a repository's is told so without asking GitHub.
+func TestTheAddPageOffersARepositoryOnlyToSomeoneWhoMayPushToIt(t *testing.T) {
+	const refusal = "Only someone with write access to octo-org/readonly on GitHub can add it to Rulemart."
+	addForm := "/me/add?repository=octo-org%2Freadonly"
+
+	t.Run("a repository the token may push to", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		page := site.get(t, "/me/add?url=https%3A%2F%2Fgithub.com%2Fsomeone%2Fnew")
+		assertShows(t, page, "someone/new on GitHub Public library on GitHub Add this library")
+		if !slices.Contains(formActions(t, page), "/me/add?repository=someone%2Fnew") || strings.Contains(visibleText(t, page), "write access to someone/new") {
+			t.Errorf("the page doesn't offer to add it: %q", formActions(t, page))
+		}
+		if !slices.Equal(site.gitHub.maintained, []string{"someone/new"}) {
+			t.Errorf("asked GitHub about %q, want someone/new", site.gitHub.maintained)
+		}
+	})
+	t.Run("a repository the token may only read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		page := site.get(t, "/me/add?url=octo-org%2Freadonly")
+		assertShows(t, page, refusal)
+		if slices.Contains(formActions(t, page), addForm) || strings.Contains(page, "Public library on GitHub") || strings.Contains(page, "The library to add") {
+			t.Errorf("the refusal offers to add it, with forms posting to %q", formActions(t, page))
+		}
+		if !strings.Contains(page, `aria-invalid="true"`) {
+			t.Error("the address field doesn't say the address is refused")
+		}
+	})
+	t.Run("an address that isn't a repository's", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		assertShows(t, site.get(t, "/me/add?url=not-a-repository"), "Enter a GitHub repository URL, like https://github.com/owner/repo.")
+		if len(site.gitHub.maintained) != 0 {
+			t.Errorf("asked GitHub about %q for an address that names no repository", site.gitHub.maintained)
+		}
+	})
+	t.Run("GitHub can't be read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = errors.New("check write access: GitHub answered 502")
+		page := site.get(t, "/me/add?url=octo-org%2Freadonly")
+		assertShows(t, page, "Rulemart couldn't read octo-org/readonly from GitHub just now. Try again.")
+		if slices.Contains(formActions(t, page), addForm) || strings.Contains(page, "The library to add") {
+			t.Errorf("the page offers to add a repository whose access is unknown: %q", formActions(t, page))
+		}
+		if !strings.Contains(site.logs.String(), "check of write access failed") || !strings.Contains(site.logs.String(), "GitHub answered 502") {
+			t.Errorf("didn't log the failed check: %s", site.logs)
+		}
+	})
+	t.Run("the session keeps no token GitHub takes", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = fmt.Errorf("read the session's token: %w", accountsapp.ErrNoGitHubToken)
+		target := "/me/add?url=octo-org%2Freadonly"
+		resp := send(t, site.handler, request{method: http.MethodGet, target: target, cookies: []*http.Cookie{site.session}})
+		want := "/signin?" + url.Values{"again": {"1"}, "return": {target}}.Encode()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
+			t.Errorf("answered %d to %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), want)
+		}
+	})
+}
+
+// Adding is refused for a repository the visitor may not push to, whatever the picker offered: asking GitHub comes
+// before the listing, so nothing is listed, and a refusal says so with a 403, whatever the repository's spelling.
+// GitHub failing to say refuses with a 502 and the same, and a token it refuses asks the visitor to sign in again.
+func TestAddingARepositoryTheVisitorMayNotPushToIsRefusedBeforeItIsListed(t *testing.T) {
+	post := func(site dashboardSite, repository string) *http.Response {
+		return send(t, site.handler, request{method: http.MethodPost, target: "/me/add?repository=" + url.QueryEscape(repository), cookies: []*http.Cookie{site.session}})
+	}
+	t.Run("a repository the token may only read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		// The refusal names the repository as the visitor spelled it.
+		for spelling, name := range map[string]string{
+			"octo-org/readonly": "octo-org/readonly", "Octo-Org/ReadOnly": "Octo-Org/ReadOnly", "https://github.com/octo-org/readonly.git": "octo-org/readonly",
+		} {
+			resp := post(site, spelling)
+			if resp.StatusCode != http.StatusForbidden || resp.Header.Get("Cache-Control") != "private, no-store" {
+				t.Fatalf("adding %s answered %d, cached as %q, want 403", spelling, resp.StatusCode, resp.Header.Get("Cache-Control"))
+			}
+			page := body(t, resp)
+			assertShows(t, page, "Only someone with write access to "+name+" on GitHub can add it to Rulemart.")
+			if slices.Contains(formActions(t, page), "/me/add?repository=octo-org%2Freadonly") {
+				t.Errorf("the refusal offers to add it: %q", formActions(t, page))
+			}
+		}
+		if len(site.listings.listed) != 0 {
+			t.Errorf("listed %q for a repository the visitor may not push to", site.listings.listed)
+		}
+	})
+	t.Run("a repository the token may push to", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		resp := post(site, "octocat/new-rules")
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me/add/run?repo=octocat%2Fnew-rules" {
+			t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		if !slices.Equal(site.listings.listed, []string{"1 octocat/new-rules"}) || !slices.Equal(site.gitHub.maintained, []string{"octocat/new-rules"}) {
+			t.Errorf("listed %q after asking GitHub about %q", site.listings.listed, site.gitHub.maintained)
+		}
+	})
+	t.Run("GitHub can't be read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = errors.New("check write access: GitHub answered 502")
+		resp := post(site, "octocat/new-rules")
+		if resp.StatusCode != http.StatusBadGateway {
+			t.Fatalf("answered %d, want 502", resp.StatusCode)
+		}
+		assertShows(t, body(t, resp), "Rulemart couldn't read octocat/new-rules from GitHub just now. Try again.")
+		if len(site.listings.listed) != 0 {
+			t.Errorf("listed %q for a repository whose access is unknown", site.listings.listed)
+		}
+	})
+	t.Run("the session keeps no token GitHub takes", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = fmt.Errorf("read the session's token: %w", accountsapp.ErrNoGitHubToken)
+		resp := post(site, "octocat/new-rules")
+		want := "/signin?" + url.Values{"again": {"1"}, "return": {"/me/add?url=octocat%2Fnew-rules"}}.Encode()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want || len(site.listings.listed) != 0 {
+			t.Errorf("answered %d to %q after listing %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), site.listings.listed, want)
+		}
+	})
+	t.Run("an address that isn't a repository's", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		resp := post(site, "not-a-repository")
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("answered %d, want 409", resp.StatusCode)
+		}
+		assertShows(t, body(t, resp), "Enter a GitHub repository URL, like https://github.com/owner/repo.")
+		if len(site.gitHub.maintained) != 0 || len(site.listings.listed) != 0 {
+			t.Errorf("asked GitHub about %q and listed %q", site.gitHub.maintained, site.listings.listed)
+		}
+	})
 }
 
 // Each repository's name on the picker leads to it on GitHub, in the same tab as the site's other links to GitHub, and
@@ -640,6 +791,7 @@ func TestTheAddPagesRowsLinkToTheirRepositoriesOnGitHub(t *testing.T) {
 		"octocat/new-rules on GitHub":  "https://github.com/octocat/new-rules",
 		"example/rules on GitHub":      "https://github.com/example/rules",
 		"octocat/team-rules on GitHub": "https://github.com/octocat/team-rules",
+		"octo-org/readonly on GitHub":  "https://github.com/octo-org/readonly",
 		"octo-org/new on GitHub":       "https://github.com/octo-org/new",
 	}
 	if !reflect.DeepEqual(got, want) {

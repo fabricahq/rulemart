@@ -338,6 +338,8 @@ func (f *fakeListings) change(accountID, id int64, changed *[]int64, ok func(vie
 type listingSite struct {
 	accountsSite
 	listings *fakeListings
+	// gitHubAccounts tells which repositories the visitor may add: every one unless it says otherwise.
+	gitHubAccounts *fakeGitHubAccounts
 	// session signs in as octocat, account 1.
 	session *http.Cookie
 }
@@ -345,9 +347,13 @@ type listingSite struct {
 func newListingSite(t *testing.T) listingSite {
 	t.Helper()
 	listings := &fakeListings{byAccount: map[int64][]views.AccountListing{}}
-	site := newAccountsSite(t, func(o *web.Options) { o.Listings = listings })
+	gitHubAccounts := newFakeGitHubAccounts(accounts.Snapshot{})
+	site := newAccountsSite(t, func(o *web.Options) { o.Listings, o.GitHubAccounts = listings, gitHubAccounts })
 	token := site.accounts.signedIn(t, octocat)
-	return listingSite{accountsSite: site, listings: listings, session: &http.Cookie{Name: sessionCookie, Value: string(token)}}
+	return listingSite{
+		accountsSite: site, listings: listings, gitHubAccounts: gitHubAccounts,
+		session: &http.Cookie{Name: sessionCookie, Value: string(token)},
+	}
 }
 
 // signedInGet requests target as the signed-in visitor.
@@ -402,7 +408,7 @@ func TestAddPageConfirmsARepositoryBeforeAddingIt(t *testing.T) {
 	if !strings.Contains(page, `name="url"`) || slices.Contains(formActions(t, page), "/me/add?repository=example%2Fnew") {
 		t.Fatal("the form doesn't ask for an address, or offers a repository before it's given")
 	}
-	assertShows(t, page, "Add a library", "Add a library by URL Anyone can add a public library. Its page shows that you added it.")
+	assertShows(t, page, "Add a library", "Add a library by URL You can add a repository you have write access to. Its page shows that you added it.")
 	resp := site.signedInGet(t, "/me/add?url="+url.QueryEscape("https://github.com/example/new.git"))
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
@@ -774,7 +780,8 @@ func TestRemovingAndRetryingActOnTheVisitorsOwnListing(t *testing.T) {
 	}
 }
 
-// The account menu leads to adding a library, and the libraries page to adding one, only where listing is available.
+// The account menu leads to adding a library, and the libraries page to adding one, only where listing is available:
+// where there are listings, and GitHub accounts to tell whether the visitor may push to the repository they add.
 func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 	site := newListingSite(t)
 	page := body(t, site.signedInGet(t, "/libraries"))
@@ -785,15 +792,22 @@ func TestListingIsOfferedOnlyWhereItsAvailable(t *testing.T) {
 		t.Errorf("the libraries page links listing at %q", got)
 	}
 
-	without := newAccountsSite(t, nil)
-	token := without.accounts.signedIn(t, accounts.Identity{GitHubUserID: 2, Login: "hubot"})
-	page = body(t, send(t, without.handler, request{method: http.MethodGet, target: "/libraries",
-		cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
-	if strings.Contains(page, "Add a library") || len(links(t, page, "list a public library")) > 0 {
-		t.Error("a site without listings offers them")
-	}
-	if resp := send(t, without.handler, request{method: http.MethodGet, target: "/me/add"}); resp.StatusCode != http.StatusNotFound {
-		t.Errorf("/me/add answered %d without listings, want 404", resp.StatusCode)
+	for name, adjust := range map[string]func(*web.Options){
+		"listings":        nil,
+		"GitHub accounts": func(o *web.Options) { o.Listings = &fakeListings{byAccount: map[int64][]views.AccountListing{}} },
+	} {
+		without := newAccountsSite(t, adjust)
+		token := without.accounts.signedIn(t, accounts.Identity{GitHubUserID: 2, Login: "hubot"})
+		cookies := []*http.Cookie{{Name: sessionCookie, Value: string(token)}}
+		page = body(t, send(t, without.handler, request{method: http.MethodGet, target: "/libraries", cookies: cookies}))
+		if strings.Contains(page, "Add a library") || len(links(t, page, "list a public library")) > 0 {
+			t.Errorf("a site without %s offers listing", name)
+		}
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			if resp := send(t, without.handler, request{method: method, target: "/me/add", cookies: cookies}); resp.StatusCode != http.StatusNotFound && resp.StatusCode != http.StatusMethodNotAllowed {
+				t.Errorf("%s /me/add answered %d without %s, want 404", method, resp.StatusCode, name)
+			}
+		}
 	}
 }
 

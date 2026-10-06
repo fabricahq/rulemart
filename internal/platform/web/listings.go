@@ -55,9 +55,10 @@ const (
 // a check takes seconds, so after a few minutes it waits for the hourly poll.
 const checkingLonger = 3 * time.Minute
 
-// listingAvailable reports whether visitors can list libraries: sign-in is available, and so are listings.
+// listingAvailable reports whether visitors can list libraries: sign-in is available, and so are listings and the
+// GitHub accounts that tell whether a visitor may add a repository.
 func (s *server) listingAvailable() bool {
-	return s.Listings != nil && s.signInAvailable()
+	return s.Listings != nil && s.GitHubAccounts != nil && s.signInAvailable()
 }
 
 // unvetted lists the libraries listings name that aren't vetted, under the warning. Like every unvetted page, it asks

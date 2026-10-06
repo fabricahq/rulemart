@@ -60,7 +60,8 @@ type Options struct {
 	Accounts Accounts
 	// GitHub signs visitors in with GitHub. Nil, with Accounts, leaves only a local build's test users to sign in as.
 	GitHub GitHub
-	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
+	// Listings lists libraries for signed-in visitors. Nil, or without GitHubAccounts, which tells whether a visitor may
+	// push to the repository they add, or a way to sign in, leaves listing out.
 	Listings Listings
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
@@ -329,7 +330,7 @@ func (s *server) handler() http.Handler {
 		if s.GitHubAccounts != nil {
 			handle("POST "+refreshHref, s.refresh)
 		}
-		if s.Listings != nil {
+		if s.Listings != nil && s.GitHubAccounts != nil {
 			handle("GET "+listHref, s.addPage)
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+runHref, s.runPage)
