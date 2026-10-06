@@ -3,9 +3,7 @@
 ## Set up
 
 You need the Go version in [go.mod](go.mod), Docker, Python 3.11 or later, and a C compiler for sqlc. Node is
-optional and needs no packages: with it, `make check` also runs the site scripts' tests, which CI always runs. Bash
-4 or later, such as Homebrew's, is optional too: with it, `make check` also checks that the conformance audit runs a
-browser of its own.
+optional and needs no packages: with it, `make check` also runs the site scripts' tests, which CI always runs.
 
 ```sh
 make db     # start Postgres 18 in Docker on 127.0.0.1:55432
@@ -65,7 +63,7 @@ doesn't vet it, so locally its pages answer 404 until you list it or vet it. Lis
 `make web-dev`, adding it at `/me/add`, and running `make worker`, its pages show under the unvetted warning. Vetted,
 by ingesting it with `make ingest URL=https://github.com/fabricahq/code-rules-test-library` and adding it to
 `vetted.yaml` in a change you don't commit, every page has two libraries to show: `/browse/techs` and a group such as
-`/g/techs/go` across both, and `/search?q=retry`. The conformance audit needs it vetted. It has six releases to
+`/g/techs/go` across both, and `/search?q=retry`. It has six releases to
 compare: its Library releases tab, `/fabricahq/code-rules-test-library?tab=releases`, compares two of them, and a
 rule's Versions tab compares two of its versions. Its `practices/testing/verify-retries` rule is retired, and its
 `techs/go/use-contexts` rule has assets of its own and shared ones, such as
@@ -93,17 +91,6 @@ Web Analytics, set `CLOUDFLARE_WEB_ANALYTICS_TOKEN` to a site's token: pages the
 security policy allows it. `/about` and `/privacy` describe Rulemart and what it keeps; when a change alters what
 Rulemart keeps, logs, or shares, update `/privacy` in `internal/platform/web/content/privacy.md` with it, as
 [Edit a content page](#edit-a-content-page) says.
-
-The `prototype` branch's click-through mock is the spec for every page, as
-[_internal/realignment.md](_internal/realignment.md) says. After changing a page, compare it with the prototype. With
-[chrome-devtools-axi](https://github.com/kunchenguid/chrome-devtools-axi) installed, the prototype served as that file
-says, and the site served with `make web-dev`, run:
-
-```sh
-_internal/audit/conformance.sh http://127.0.0.1:8766 http://127.0.0.1:8080 <directory>
-```
-
-The script's header says what it shoots and how to limit it.
 
 Pages show the libraries [catalog/vetted.yaml](catalog/vetted.yaml) lists, by code host and the host's
 repository ID, and on their own pages, under a warning, the ones a listing names. To see another library locally,

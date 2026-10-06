@@ -101,8 +101,6 @@ your agent review its rules and wait for your approval before adding them, pinne
 - [Code Rules documentation](https://code-rules.fabricahq.com): rules, groups, libraries, and the `code-rules`
   command.
 - [_internal/decisions.md](_internal/decisions.md): the decisions that shape Rulemart.
-- [_internal/realignment.md](_internal/realignment.md): the plan that brought the site to its intended design, and
-  how to check it still matches.
 
 ## Contributing
 

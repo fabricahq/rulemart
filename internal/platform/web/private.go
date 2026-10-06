@@ -58,7 +58,7 @@ func (w *privateWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 // Origin, which must then be this site's, or BaseURL. A request that names neither, such as from curl, isn't a
 // browser's, and so carries no visitor's cookies against their will. The session cookie's SameSite=Lax is a second
 // barrier. Writes carry no token in their bodies, because CloudFront can't forward a body a browser didn't sign to
-// the web function; _internal/slices/5-sign-in.md explains.
+// the web function; _internal/decisions.md explains.
 func (s *server) withSameOriginWrites(next http.Handler) http.Handler {
 	protection := http.NewCrossOriginProtection()
 	if s.BaseURL != nil {
