@@ -563,23 +563,34 @@ func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 	}
 }
 
-// The picker lists the repositories that publish a library in their three kinds: one to add, one on Rulemart, by way of
-// the visitor's organization, and a private one, dimmed, that can't be added; a library being added leads to its check.
+// The page says what it lists in whole sentences, then lists the repositories that publish a library in a card of rows
+// in their three kinds: one to add, one on Rulemart, by way of the visitor's organization, and a private one, dimmed,
+// that can't be added; a library being added leads to its check.
 func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
 	page := site.get(t, "/me/add")
 
-	assertShows(t, page, "Publish Add a library", "Your libraries on GitHub",
-		"octocat/new-rules Public · release/2 Add this library",
-		"example/rules Public · via the example organization ✓ On Rulemart",
-		"octocat/team-rules Private · release/1 Private libraries can't be published on Rulemart",
-		"octo-org/new Public · via the octo-org organization ✓ On Rulemart",
-		"Only public libraries can be published on Rulemart. Rulemart can only see your public repos right now. Include private repos")
+	assertShows(t, page, "Publish Add a library Rulemart lists Code Rules libraries from public GitHub repositories. "+
+		"Below are the repositories you and your organizations own that publish a library, meaning a rule-library.yaml "+
+		"and at least one release/<n> tag. Add one of them, or add any public library by its URL. "+
+		"The library's page shows that you added it.",
+		"octocat/new-rules on GitHub Public · release/2 Add this library",
+		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
+		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
+		"octo-org/new on GitHub Public · via the octo-org organization ✓ On Rulemart")
+	text := visibleText(t, page)
+	for _, gone := range []string{"Only public libraries can be published", "Or add any public library by URL", "Read from GitHub"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the page still says %q", gone)
+		}
+	}
+	if strings.Contains(page, "border-dashed") {
+		t.Error("the page still draws the dashed note on private repos")
+	}
 	if got := formActions(t, page); !slices.Equal(got, []string{"/signout", "/me/add?repository=octocat%2Fnew-rules", "/me/refresh?return=%2Fme%2Fadd"}) {
 		t.Errorf("the page's forms post to %q", got)
 	}
-
 	site.listings.byAccount[1] = []views.AccountListing{{ID: 3, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking}}
 	if got := links(t, site.get(t, "/me/add"), "Adding…"); !slices.Equal(got, []string{"/me/add/run?repo=octocat%2Fnew-rules"}) {
 		t.Errorf("a library being added leads to %q", got)
@@ -589,6 +600,94 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	if got := formActions(t, private); slices.Contains(got, "/me/add?repository=octocat%2Fteam-rules") || strings.Contains(private, "Public library on GitHub") {
 		t.Errorf("the refusal of a private library offers to add it, with forms posting to %q", got)
 	}
+}
+
+// Each repository's name on the picker leads to it on GitHub, in the same tab as the site's other links to GitHub, and
+// is followed by a small arrow, hidden from assistive technology, that says the link leaves the site; the link's
+// name says where it leads.
+func TestTheAddPagesRowsLinkToTheirRepositoriesOnGitHub(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/add")
+
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "a" || !strings.HasPrefix(attribute(n, "href"), "https://github.com/") ||
+			!strings.HasSuffix(nodeText(n), " on GitHub") {
+			continue
+		}
+		got[nodeText(n)] = attribute(n, "href")
+		if hasAttribute(n, "target") {
+			t.Errorf("%q opens another tab", nodeText(n))
+		}
+		arrows := 0
+		for child := range n.Descendants() {
+			if child.Type == html.ElementNode && child.Data == "svg" && attribute(child, "aria-hidden") == "true" {
+				arrows++
+			}
+		}
+		if arrows != 1 {
+			t.Errorf("%q has %d hidden arrows, want 1", nodeText(n), arrows)
+		}
+	}
+	want := map[string]string{
+		"octocat/new-rules on GitHub":  "https://github.com/octocat/new-rules",
+		"example/rules on GitHub":      "https://github.com/example/rules",
+		"octocat/team-rules on GitHub": "https://github.com/octocat/team-rules",
+		"octo-org/new on GitHub":       "https://github.com/octo-org/new",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the rows link to %v, want %v", got, want)
+	}
+}
+
+// Under its card the page says what Rulemart read of GitHub in one line, as the dashboard does, with Refresh back to the
+// page and the way to include private repos, or, once the visitor selected some, to manage them; while Rulemart can't
+// show a read, the line says why instead, and the card says it has nothing to list.
+func TestTheAddPageEndsItsListWithOneLineOnWhatRulemartRead(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/add")
+
+	assertShows(t, page, "Public repos only · read from GitHub 3 minutes ago · Refresh · Include private repos")
+	if got := links(t, page, "Include private repos"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Include private repos leads to %q", got)
+	}
+	if got := strings.Count(page, "data-github-status"); got != 1 {
+		t.Errorf("the page has %d lines on the read of GitHub, want 1", got)
+	}
+
+	site.gitHub.installations[1] = []accounts.Installation{{ID: 9, Account: "octocat"}}
+	private := site.get(t, "/me/add")
+	assertShows(t, private, "Including private repos from the ones you selected · read from GitHub 3 minutes ago · Refresh · Manage")
+	if got := links(t, private, "Manage"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Manage leads to %q", got)
+	}
+
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	broken := newDashboardSite(t, failed, octocatsCatalog())
+	broken.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+	broken.gitHub.snapshot = failed
+	assertShows(t, broken.get(t, "/me/add"), "octocat/new-rules on GitHub",
+		"Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again")
+
+	tokenless := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
+	tokenless.gitHub.err = accountsapp.ErrNoGitHubToken
+	signIn := tokenless.get(t, "/me/add")
+	assertShows(t, signIn, "Sign in again so Rulemart can read your repositories on GitHub. Sign in again", "Rulemart hasn't read your repositories yet.")
+	if got := links(t, signIn, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fme%2Fadd"}) {
+		t.Errorf("Sign in again leads to %q", got)
+	}
+
+	reading := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
+	reading.gitHub.err = accountsapp.ErrGitHubReading
+	assertShows(t, reading.get(t, "/me/add"), "Rulemart is reading your repositories.",
+		"Rulemart is reading your repositories on GitHub. This page will update in a moment.")
 }
 
 // The page that follows a listing's check shows it running, failed with why and what to do, or done with what Rulemart

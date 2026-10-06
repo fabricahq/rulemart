@@ -119,7 +119,7 @@ templ librariesContent(d dashboardView) {
 			</div>
 		</section>
 	}
-	@gitHubSummary(d.gitHub)
+	@gitHubSummary(d.gitHub, projectWords, "mt-[30px]")
 }
 
 // groupHeading heads one of a tab's groups, when it has more than one, as id: its name, then its count of rows.
@@ -241,45 +241,8 @@ templ projectsContent(d dashboardView) {
 			</div>
 		}
 	</section>
-	@gitHubSummary(d.gitHub) {
+	@gitHubSummary(d.gitHub, projectWords, "mt-[30px]") {
 		<p class="mt-1.5 text-[12px] text-faint">Read from each project's <span class="mono">.code-rules/generated/provenance.json</span>.</p>
-	}
-}
-
-// gitHubSummary ends My libraries and Projects, which both show what Rulemart read of the visitor's GitHub account, in
-// one line, a section's gap below the list: whether the read includes private projects, when it was, with Refresh, and
-// the way to include or manage private projects. While Rulemart can't show a read, the line says why instead, as
-// gitHubStatus does. Its children, such as a footnote, follow it.
-templ gitHubSummary(g gitHubView) {
-	if g.available {
-		<div class="mt-[30px]">
-			if g.signInAgain != "" || g.failed || g.reading {
-				@gitHubStatus(g, "")
-			} else {
-				<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-faint" data-github-status>
-					if g.private {
-						<span>Including private projects from the repos you selected</span>
-					} else {
-						<span>Public repos only</span>
-					}
-					if g.readAt != "" {
-						<span>·</span>
-						<span>read from GitHub { g.readAt }</span>
-						<span>·</span>
-						@refreshButton(g.refresh, "Refresh")
-					}
-					if g.private {
-						<span>·</span>
-						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>Manage</a>
-					} else if g.privateAvailable {
-						<span>·</span>
-						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>Include private projects</a>
-					}
-					@truncatedRead(g)
-				</div>
-			}
-			{ children... }
-		</div>
 	}
 }
 

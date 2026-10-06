@@ -249,25 +249,31 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 			adding[strings.ToLower(l.Owner+"/"+l.Name)] = l.State
 		}
 	}
-	via := func(owner string) string {
-		if strings.EqualFold(owner, login) {
-			return "Public"
+	// detail says whether a repository is public, which library release it published, if known, and, for an
+	// organization's, which organization it's via.
+	detail := func(visibility string, release int, owner string) string {
+		text := visibility
+		if release > 0 {
+			text += " · " + domain.ReleaseTag(release)
 		}
-		return "Public · via the " + owner + " organization"
+		if !strings.EqualFold(owner, login) {
+			text += " · via the " + owner + " organization"
+		}
+		return text
 	}
 	var picks []pickView
 	seen := map[string]bool{}
 	for _, lib := range snapshot.Libraries {
 		key := strings.ToLower(lib.FullName())
 		seen[key] = true
-		pick := pickView{fullName: lib.FullName(), detail: "Public · " + domain.ReleaseTag(lib.Release), private: lib.Private}
+		pick := pickView{fullName: lib.FullName(), detail: detail("Public", lib.Release, lib.Owner), private: lib.Private}
 		o, on := onRulemart[key]
 		state, isAdding := adding[key]
 		switch {
 		case lib.Private:
-			pick.state, pick.detail = pickPrivate, "Private · "+domain.ReleaseTag(lib.Release)
+			pick.state, pick.detail = pickPrivate, detail("Private", lib.Release, lib.Owner)
 		case on:
-			pick.state, pick.href, pick.vetted, pick.detail = pickOnRulemart, libraryHref(o.Library.Owner, o.Library.Name), o.Vetted, via(lib.Owner)
+			pick.state, pick.href, pick.vetted = pickOnRulemart, libraryHref(o.Library.Owner, o.Library.Name), o.Vetted
 		case isAdding:
 			pick.state, pick.href, pick.failed = pickAdding, runPageHref(lib.FullName()), state == domain.ListingFailed
 		default:
@@ -280,7 +286,7 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 	for _, o := range owned {
 		if !seen[strings.ToLower(o.Library.FullName())] {
 			picks = append(picks, pickView{
-				fullName: o.Library.FullName(), detail: via(o.Library.Owner), state: pickOnRulemart,
+				fullName: o.Library.FullName(), detail: detail("Public", 0, o.Library.Owner), state: pickOnRulemart,
 				href: libraryHref(o.Library.Owner, o.Library.Name), vetted: o.Vetted,
 			})
 		}

@@ -44,3 +44,51 @@ templ refreshButton(action, label string) {
 		<button class={ linkButtonStyle } type="submit">{ label }</button>
 	</form>
 }
+
+// summaryWords is how a gitHubSummary names what it reads: the sentence that says private ones are included, and the
+// link that includes them.
+type summaryWords struct{ including, include string }
+
+var (
+	// projectWords are the words of the dashboard's tabs, which read the visitor's projects.
+	projectWords = summaryWords{including: "Including private projects from the repos you selected", include: "Include private projects"}
+	// repoWords are the words of Add a library, which reads the visitor's libraries' repositories.
+	repoWords = summaryWords{including: "Including private repos from the ones you selected", include: "Include private repos"}
+)
+
+// gitHubSummary ends a page that shows what Rulemart read of the visitor's GitHub account, in one line, class places
+// it below what it describes: whether the read includes private repositories, when it was, with Refresh, and the way
+// to include or manage private ones, in words. While Rulemart can't show a read, the line says why instead, as
+// gitHubStatus does. Its children, such as a footnote, follow it.
+templ gitHubSummary(g gitHubView, words summaryWords, class string) {
+	if g.available {
+		<div class={ class }>
+			if g.signInAgain != "" || g.failed || g.reading {
+				@gitHubStatus(g, "")
+			} else {
+				<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-faint" data-github-status>
+					if g.private {
+						<span>{ words.including }</span>
+					} else {
+						<span>Public repos only</span>
+					}
+					if g.readAt != "" {
+						<span>·</span>
+						<span>read from GitHub { g.readAt }</span>
+						<span>·</span>
+						@refreshButton(g.refresh, "Refresh")
+					}
+					if g.private {
+						<span>·</span>
+						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>Manage</a>
+					} else if g.privateAvailable {
+						<span>·</span>
+						<a class={ linkButtonStyle } href={ templ.SafeURL(privateHref) }>{ words.include }</a>
+					}
+					@truncatedRead(g)
+				</div>
+			}
+			{ children... }
+		</div>
+	}
+}
