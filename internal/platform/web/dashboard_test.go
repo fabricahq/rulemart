@@ -133,8 +133,8 @@ func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 	}
 }
 
-// My libraries and Projects introduce their lists with their ledes, not a visible section heading repeating the tab:
-// each list's heading is for screen readers only, and the tab bar holds the counts.
+// My libraries and Projects show their lists directly under the tab bar, with no visible section heading repeating
+// the tab: each list's heading is for screen readers only, and the tab bar holds the counts.
 func TestTheDashboardsListsHaveNoVisibleSectionHeadings(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	for target, want := range map[string]string{"/me": "Libraries you and your organizations publish", "/me?tab=projects": "Libraries your projects use"} {
@@ -253,14 +253,14 @@ func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
 }
 
 // Each of the dashboard's tabs, My libraries, Projects, Starred rules, and Account, shows its own content and none of
-// the others', each but Account under a lede saying what it shows, under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
+// the others', under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
 // which both show what Rulemart read of GitHub, say how fresh the read is, and their Refresh returns to the same tab.
 // A tab the page doesn't know shows My libraries.
 func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
-	libraries := []string{"The Code Rules libraries you and your organizations publish on Rulemart, and any you listed for others.", "Libraries you and your organizations publish", "+ Add a library"}
-	projects := []string{"Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.", "Libraries your projects use", "provenance.json"}
-	stars := []string{"The rules you starred, so you can find them again.", "You haven't starred any rules yet."}
+	libraries := []string{"Libraries you and your organizations publish", "+ Add a library"}
+	projects := []string{"Libraries your projects use", "provenance.json"}
+	stars := []string{"You haven't starred any rules yet."}
 	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
 	gitHub := []string{"Public repos only", "read from GitHub"}
 	for _, tc := range []struct {

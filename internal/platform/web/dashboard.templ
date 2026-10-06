@@ -48,9 +48,6 @@ templ dashboardPage(c chrome, d dashboardView) {
 				</div>
 			</div>
 			@tabs(dashboardTabs(d))
-			if lede := dashboardLedes[d.tab]; lede != "" {
-				<p class="mb-[22px] max-w-[46rem] text-muted">{ lede }</p>
-			}
 			switch d.tab {
 				case projectsTab:
 					@projectsContent(d)
@@ -71,14 +68,6 @@ func nameOrLogin(a accountView) string {
 		return a.name
 	}
 	return a.login
-}
-
-// dashboardLedes say what each of the dashboard's tabs shows, under the tab bar, by the name dashboardTab gives it.
-// Account, whose name says it, has none.
-var dashboardLedes = map[string]string{
-	"":          "The Code Rules libraries you and your organizations publish on Rulemart, and any you listed for others.",
-	projectsTab: "Your GitHub projects that use Code Rules libraries from Rulemart, and whether rule updates are waiting for them.",
-	starsTab:    "The rules you starred, so you can find them again.",
 }
 
 // dashboardTabs are the dashboard's tabs, each but Account with the count of its rows: My libraries; Projects, where
