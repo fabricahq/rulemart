@@ -1116,6 +1116,38 @@ func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {
 	}
 }
 
+// Without a read of GitHub to offer projects from, because it failed, another is under way, or the visitor must sign in
+// again, a signed-in visitor's checkout is for the repository they entered, as the page offers, not a failure.
+func TestCheckoutWithoutAReadOfGitHubIsForTheRepositoryEntered(t *testing.T) {
+	for name, err := range map[string]error{
+		"a failed read":          fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead),
+		"a read under way":       accountsapp.ErrGitHubReading,
+		"a token GitHub refuses": accountsapp.ErrNoGitHubToken,
+	} {
+		t.Run(name, func(t *testing.T) {
+			gitHub := newFakeGitHubAccounts(accounts.Snapshot{})
+			gitHub.err = err
+			carts := &fakeCarts{}
+			site := newAccountsSite(t, func(o *web.Options) { o.GitHubAccounts, o.Carts = gitHub, carts })
+			req := httptest.NewRequest(http.MethodPost, "/cart/checkout.json",
+				strings.NewReader(`{"cart":["example/rules::techs/go/return-errors"],"repo":"https://github.com/octocat/new-app"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			req.AddCookie(&http.Cookie{Name: sessionCookie, Value: string(site.accounts.signedIn(t, octocat))})
+			recorder := httptest.NewRecorder()
+
+			site.handler.ServeHTTP(recorder, req)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("checkout answered %d: %s", recorder.Code, recorder.Body)
+			}
+			if want := (domain.CheckoutTarget{Mode: domain.ProjectUnknown, Repository: "octocat/new-app"}); !reflect.DeepEqual(carts.target, want) {
+				t.Errorf("the checkout is for %+v, want %+v", carts.target, want)
+			}
+		})
+	}
+}
+
 // A project's provenance file is written by anyone who can push to it, and a checkout for the project copies its
 // source names into commands, so a source name holding a newline or shell syntax never reaches them: the parser leaves
 // the source out, and the library is added under a name of Rulemart's.
