@@ -19,10 +19,10 @@ unless you choose <em>{{.UnvettedOptInLabel}}</em> beside the list. That choice 
 cover ongoing updates, so a malicious user could present a legitimate library, have it vetted, and then publish malicious rules.</p>
 <p>If vetting becomes labor-intensive in the future, we can add automatic rule scanning, but we don't currently support that.</p>
 <h2 id="unvetted">Who can submit a library for review?</h2>
-<p>Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a
-listed library appears under <a href="{{.UnvettedHref}}" rel="nofollow">unvetted libraries</a>, and in the lists,
-groups, and search only once you include unvetted libraries, tagged Unvetted. While unvetted, every page containing
-the library says &quot;{{.UnvettedWarningText}}&quot;, and search engines are asked not to index it.</p>
+<p>Anyone signed in with GitHub who has write access to a public repository that publishes a Code Rules library can list
+it. Until Fabrica vets it, a listed library appears under <a href="{{.UnvettedHref}}" rel="nofollow">unvetted libraries</a>,
+and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. While unvetted, every
+page containing the library says &quot;{{.UnvettedWarningText}}&quot;, and search engines are asked not to index it.</p>
 <h2 id="get-vetted">How to submit a library for consideration</h2>
 <ol>
 <li>Release the library with Code Rules, which tags each release, as

@@ -109,7 +109,9 @@ func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About", "Library vetting", "Report a problem", "Include unvetted libraries", unvettedWarning,
-		"List it on Rulemart")
+		"List it on Rulemart",
+		// Only a repository's maintainers may list it.
+		"Anyone signed in with GitHub who has write access to a public repository that publishes a Code Rules library can list it.")
 	for _, id := range []string{"vetting", "unvetted", "get-vetted", "report"} {
 		if !strings.Contains(page, `id="`+id+`"`) {
 			t.Errorf("the page has no %s section for links to land on", id)
@@ -169,7 +171,9 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"what it read of your GitHub account, and its record of the GitHub App's installations",
 			"only when you act: when you sign in, press Refresh, or return from installing the app",
 			"reads fail until the suspension is lifted", "It never reads in the background",
-			"What it did read stays until a later read replaces it")
+			"What it did read stays until a later read replaces it",
+			"whether you have write access to each repository, which decides whether you can add it to Rulemart",
+			"Rulemart reads it from GitHub with your token when you confirm its address and when you add it, and keeps nothing of that read beyond the listing")
 		// Without GitHubWebhook, GitHub's deliveries don't reach the webhook, so nothing discards a snapshot when an
 		// installation changes on GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading
 		// GitHub again.

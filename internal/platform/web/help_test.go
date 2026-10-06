@@ -25,7 +25,9 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 	}
 	assertShows(t, page, "FAQ Questions and answers", "Still have a question? Ask us .",
 		// What an account adds: the dashboard's project tracking and checkout's project picker.
-		"Easier checkout", "Project tracking")
+		"Easier checkout", "Project tracking",
+		// Only a repository's maintainers may list it.
+		"Anyone with write access to a public Code Rules library on GitHub can list it, signed in.")
 	questions := []string{
 		"What is Rulemart?", "Can I use Rulemart with any project?", "What is Code Rules?", "How do I use Rulemart?",
 		"What are rules, groups, and libraries?", "Should I stay in sync with a rule or fork it?", "How are rules versioned?",

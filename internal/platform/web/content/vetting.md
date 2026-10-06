@@ -29,10 +29,10 @@ If vetting becomes labor-intensive in the future, we can add automatic rule scan
 
 ## Who can submit a library for review? {#unvetted}
 
-Anyone signed in with GitHub can list a public repository that publishes a Code Rules library. Until Fabrica vets it, a
-listed library appears under <a href="{{.UnvettedHref}}" rel="nofollow">unvetted libraries</a>, and in the lists,
-groups, and search only once you include unvetted libraries, tagged Unvetted. While unvetted, every page containing
-the library says "{{.UnvettedWarningText}}", and search engines are asked not to index it.
+Anyone signed in with GitHub who has write access to a public repository that publishes a Code Rules library can list
+it. Until Fabrica vets it, a listed library appears under <a href="{{.UnvettedHref}}" rel="nofollow">unvetted libraries</a>,
+and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. While unvetted, every
+page containing the library says "{{.UnvettedWarningText}}", and search engines are asked not to index it.
 
 ## How to submit a library for consideration {#get-vetted}
 

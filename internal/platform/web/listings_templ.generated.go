@@ -50,7 +50,7 @@ func unvettedWarning(plural bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if plural {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">These libraries have not been vetted. Be sure to review their rules carefully.</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed these. Their rules are instructions your coding agent follows.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p class=\"text-[15px] leading-[1.5] font-semibold text-warn-ink\">These libraries have not been vetted. Be sure to review their rules carefully.</p><p class=\"mt-1 text-[14px] text-ink\">A library's maintainers can list it on Rulemart, and Rulemart hasn't reviewed these. Their rules are instructions your coding agent follows.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -68,7 +68,7 @@ func unvettedWarning(plural bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed this one. Its rules are instructions your coding agent follows.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</p><p class=\"mt-1 text-[14px] text-ink\">A library's maintainers can list it on Rulemart, and Rulemart hasn't reviewed this one. Its rules are instructions your coding agent follows.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

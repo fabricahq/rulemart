@@ -19,7 +19,7 @@ import (
 )
 
 // librariesPage lists every vetted library, and the unvetted ones too when unvetted is true, under a lede that says
-// anyone can list a public library, leading to listing one when canList is true, and where the unvetted ones are, and
+// a library's maintainers can list it, leading to listing one when canList is true, and where the unvetted ones are, and
 // the control that includes them.
 func librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -100,25 +100,25 @@ func librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) te
 				return templ_7745c5c3_Err
 			}
 			if canList {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "Anyone can <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "A library's maintainers can <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 templ.SafeURL
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(listHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages.templ`, Line: 30, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages.templ`, Line: 30, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">list a public library</a>. ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">list it on Rulemart</a>. ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "Anyone can list a public library. ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "A library's maintainers can list it on Rulemart. ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
