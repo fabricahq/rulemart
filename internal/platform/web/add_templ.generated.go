@@ -85,7 +85,7 @@ func addPage(c chrome, v addView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one. A library is a repository with a <span class=\"mono\">rule-library.yaml</span> and at least one <span class=\"mono\">release/&lt;number&gt;</span> tag.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -145,7 +145,7 @@ func addPage(c chrome, v addView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "Rulemart found no repository of yours or your organizations' with a <span class=\"mono\">rule-library.yaml</span> and a <span class=\"mono\">release/&lt;number&gt;</span> tag.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "None of your repositories or your organizations' publishes a library.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

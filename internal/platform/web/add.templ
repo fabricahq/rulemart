@@ -24,7 +24,7 @@ templ addPage(c chrome, v addView) {
 				Publish
 			}
 			<h1 class="title-xl mt-2.5 mb-1.5">Add a library</h1>
-			<p class="mb-5 text-muted">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one.</p>
+			<p class="mb-5 text-muted">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one. A library is a repository with a <span class="mono">rule-library.yaml</span> and at least one <span class="mono">release/&lt;number&gt;</span> tag.</p>
 			<section aria-labelledby="your-libraries">
 				<h2 id="your-libraries" class="sr-only">Your libraries on GitHub</h2>
 				<div class={ listCardStyle }>
@@ -35,7 +35,7 @@ templ addPage(c chrome, v addView) {
 							} else if v.gitHub.readAt == "" {
 								Rulemart hasn't read your repositories yet.
 							} else {
-								Rulemart found no repository of yours or your organizations' with a <span class="mono">rule-library.yaml</span> and a <span class="mono">release/&lt;number&gt;</span> tag.
+								None of your repositories or your organizations' publishes a library.
 							}
 						</p>
 					} else {

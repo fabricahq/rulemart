@@ -566,7 +566,7 @@ func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 	}
 }
 
-// The page says in one sentence what adding does, then lists the repositories that publish a library in a card of rows
+// The page says what adding does and what a library is, then lists the repositories that publish a library in a card of rows
 // in their three kinds: one to add, one on Rulemart, by way of the visitor's organization, and a private one, dimmed,
 // that can't be added; a library being added leads to its check.
 func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
@@ -575,7 +575,8 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	page := site.get(t, "/me/add")
 
 	assertShows(t, page, "Publish Add a library Add a Code Rules library from one of your GitHub repositories, "+
-		"or paste the URL of any public one.",
+		"or paste the URL of any public one. A library is a repository with a rule-library.yaml and at least one "+
+		"release/<number> tag.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
 		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
 		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
