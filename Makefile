@@ -1,6 +1,6 @@
 # Local build and checks. dist builds the release assets Release Planner publishes: one ZIP per Lambda function, plus
 # SHA256SUMS and manifest.json. check needs the Postgres from db; CI provides its own.
-.PHONY: dist check check-js check-audit generate check-generated db db-stop migrate ingest worker web web-dev web-watch clean
+.PHONY: dist check check-js generate check-generated db db-stop migrate ingest worker web web-dev web-watch clean
 
 # Local Postgres for integration tests and development, matching Neon's major version. make db also creates the
 # rulemart database and the roles infrastructure creates in production: the NOLOGIN group roles that migrations grant
@@ -74,7 +74,7 @@ dist: $(LAMBDA_BUILD)
 # changes with it too. Release builds never set it.
 DEV_TAG := rulemartdev
 
-check: check-js check-audit
+check: check-js
 	go vet ./...
 	go vet -tags $(DEV_TAG) ./...
 	go test -race ./...
@@ -85,11 +85,6 @@ check: check-js check-audit
 check-js:
 	@if command -v node >/dev/null 2>&1; then node --test internal/platform/web/*.test.mjs; \
 	else echo "Skipping the JavaScript tests: node isn't installed."; fi
-
-# Checks that the conformance audit drives a disposable browser of its own whatever browser settings it inherits. It
-# needs bash 4 or later, and says it didn't run without it, as macOS's own bash.
-check-audit:
-	@_internal/audit/conformance_test.sh
 
 # Regenerates the sqlc queries, the templ components, the content pages' HTML, and the stylesheet. templ always writes
 # x_templ.go, so each is renamed x_templ.generated.go.

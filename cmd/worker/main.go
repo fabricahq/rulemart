@@ -10,7 +10,7 @@
 // queue, whose alarm reports it; a listing that fails because of its repository isn't a failed job.
 //
 // It logs JSON lines: one per job, with its outcome and duration, one per SQS batch, and one per poll, as
-// _internal/slices/2-automatic-updates.md and 6-listing-and-unvetted.md describe.
+// _internal/decisions.md describes.
 //
 // Run anywhere else, it polls once: it sends the jobs to a queue in memory, handles each of them as on Lambda, and
 // exits, failing when a job failed.
