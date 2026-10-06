@@ -668,6 +668,26 @@ matters.
   underscores stops the web function at start.
 - **Static files share one CloudFront copy**: `/_static/*` and `/favicon.ico` have a cache behavior whose key holds no
   cookie or query string, so a signed-in visitor doesn't cache them per session.
+- **GitHub's deliveries reach the webhook through a public Lambda alias that answers nothing else.** CloudFront's
+  origin access control can't sign a body GitHub didn't hash, so the web function gets a second Function URL, on an
+  alias, with no authorization, and CloudFront sends only `/account/github/webhook` there. The function fails closed:
+  only an invocation Lambda identifies as the site's, by the qualifier of the invoked function ARN, which Lambda sets
+  from the URL, none, `$LATEST`, or a version, reaches the pages. Any alias, and a missing Lambda context, gets only
+  the webhook, whatever `GITHUB_APP_WEBHOOK_ALIAS` says, so a wrong value can't expose the site; the variable only
+  turns on the privacy page's paragraph and silences a start-up warning. The webhook answers a POST to its exact path
+  before the visitor and cross-origin checks, which are for browsers, and a plain, cookie-free, uncacheable 404 to
+  anything else there, a wrong method included, since through the alias it's the only resource.
+- **A delivery says which installation changed; GitHub says how.** HMAC proves GitHub signed a body, not that it's
+  fresh, so Rulemart doesn't apply what a delivery says happened: it asks GitHub for the installation's state, gone,
+  suspended, or active, applies that, and discards the snapshots of the accounts that read through it. Only GitHub's
+  404 means gone; a 403 refuses to say, so the delivery fails and GitHub sends it again. A captured suspension sent
+  again after a newer unsuspension, even once its record has expired, then changes nothing. The webhook also records
+  each delivery it acts on, by its ID and its body's SHA-256, since GitHub signs the body but not the ID, and ignores
+  a repeat for a week. One transaction takes a Postgres advisory lock on the installation, records the delivery, then
+  asks GitHub and applies the answer, so deliveries for one installation, across Lambda instances, act one at a time,
+  each reading GitHub after the last committed and none undoing a newer one; a repeat returns before asking GitHub,
+  which a replayed body can't make Rulemart spend requests on; and a failed read or application leaves no record.
+  The transaction holds a database connection while GitHub answers, within the GitHub client's five-second timeout.
 - **An AWS WAF rate rule on POSTs is ready but off**, at about $6 a month, since the function bounds each kind of
   write itself. Infrastructure turns it on if abuse appears.
 - **There is no synthetic check yet.** The 5xx alarm already sees any failure a visitor meets; a check would add only

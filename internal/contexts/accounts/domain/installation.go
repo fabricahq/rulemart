@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ErrNoSuchInstallation reports an installation of the GitHub App that GitHub doesn't know, such as one uninstalled
@@ -19,6 +20,44 @@ var ErrBadSignature = errors.New("the delivery's signature isn't the webhook sec
 // ErrIgnoredEvent reports a genuine delivery of the GitHub App's webhook that Rulemart has nothing to do for, such as a
 // new installation, which the visitor's return to Rulemart records, or one for another app.
 var ErrIgnoredEvent = errors.New("Rulemart does nothing for this delivery")
+
+// ErrRepeatedDelivery reports a genuine delivery of the GitHub App's webhook that Rulemart already acted on within
+// DeliveryMemory, by its ID or its body: GitHub redelivering it, or someone sending a copy of it again.
+var ErrRepeatedDelivery = errors.New("Rulemart already acted on this delivery")
+
+// ErrNoDeliveryID reports a genuine delivery of the GitHub App's webhook without an ID Rulemart can record, which GitHub
+// always sends.
+var ErrNoDeliveryID = errors.New("the delivery has no ID Rulemart can record")
+
+// DeliveryMemory is how long Rulemart remembers a delivery of the GitHub App's webhook it acted on, so that the same
+// delivery sent again changes nothing: longer than the three days GitHub lets a delivery be redelivered.
+const DeliveryMemory = 7 * 24 * time.Hour
+
+// Delivery is a delivery of the GitHub App's webhook, as it arrived.
+type Delivery struct {
+	// ID is its X-GitHub-Delivery header, unique to the delivery, and the same when GitHub redelivers it. Unlike Body,
+	// GitHub doesn't sign it.
+	ID string
+	// Event is its X-GitHub-Event header, such as installation, which GitHub doesn't sign either.
+	Event string
+	Body  []byte
+	// Signature is its X-Hub-Signature-256 header: sha256= and the hex HMAC-SHA256 of Body with the webhook's secret.
+	Signature string
+}
+
+// RecordableID reports whether the delivery's ID is one Rulemart can record: 1 to 100 printable ASCII characters, as
+// GitHub's GUIDs are.
+func (d Delivery) RecordableID() bool {
+	if len(d.ID) == 0 || len(d.ID) > 100 {
+		return false
+	}
+	for _, c := range []byte(d.ID) {
+		if c <= ' ' || c > '~' {
+			return false
+		}
+	}
+	return true
+}
 
 // Installation is an installation of the GitHub App that an account reads private repositories through.
 type Installation struct {
@@ -49,22 +88,16 @@ type InstallationAccount struct {
 	Organization bool
 }
 
-// InstallationChange is what GitHub's webhook says happened to an installation of the GitHub App.
-type InstallationChange struct {
-	ID     int64
-	Action InstallationAction
-}
-
-// InstallationAction is what happened to an installation of the GitHub App.
-type InstallationAction int
+// InstallationState is what GitHub says of an installation of the GitHub App when asked, which Rulemart applies when
+// a delivery of the app's webhook says the installation changed, rather than what the delivery says happened: anyone
+// holding a copy of a delivery can send it again, but GitHub's answer is always current.
+type InstallationState int
 
 const (
-	// RepositoriesChanged means the repositories the installation may read changed.
-	RepositoriesChanged InstallationAction = iota
-	// Uninstalled means the app was uninstalled, so the installation reads nothing for anyone, ever again.
-	Uninstalled
-	// Suspended means the account's owner suspended the app, so it reads nothing until they unsuspend it.
-	Suspended
-	// Unsuspended means the account's owner unsuspended the app, so it reads what it did before.
-	Unsuspended
+	// InstallationActive means the installation reads the repositories its account's owner chose.
+	InstallationActive InstallationState = iota
+	// InstallationSuspended means the account's owner suspended the app, so it reads nothing until they unsuspend it.
+	InstallationSuspended
+	// InstallationGone means the app was uninstalled, so the installation reads nothing for anyone, ever again.
+	InstallationGone
 )

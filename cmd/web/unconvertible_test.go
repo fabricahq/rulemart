@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -70,7 +69,7 @@ func TestHandleRejectsRequestsTheAdapterCantConvertWithoutLoggingThem(t *testing
 			}
 
 			printed := captureStdout(t, func() {
-				out, err = newFunction(pages).handle(context.Background(), raw)
+				out, err = newFunction(pages, http.NotFoundHandler()).handle(siteContext(), raw)
 			})
 
 			if err != nil {

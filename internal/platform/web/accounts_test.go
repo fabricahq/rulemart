@@ -199,7 +199,7 @@ var octocat = accounts.Identity{GitHubUserID: 583231, Login: "octocat", AvatarUR
 
 // accountsSite is the pages' handler with sign-in, its fakes, and its logs.
 type accountsSite struct {
-	handler  http.Handler
+	handler  *web.Site
 	accounts *fakeAccounts
 	gitHub   *fakeGitHub
 	logs     *bytes.Buffer

@@ -37,18 +37,18 @@ type GitHubAccounts interface {
 	Install(ctx context.Context, account accounts.Account, session accounts.SessionToken, id int64) (accounts.Snapshot, error)
 	ForgetInstallations(ctx context.Context, accountID int64) error
 	// Deliver acts on a delivery of the GitHub App's webhook, failing with accounts.ErrBadSignature for one GitHub didn't
-	// sign and accounts.ErrIgnoredEvent for one it does nothing for.
-	Deliver(ctx context.Context, event string, body []byte, signature string) error
+	// sign, accounts.ErrNoDeliveryID for a signed one without an ID it can record, even one it would do nothing for,
+	// accounts.ErrIgnoredEvent for one it does nothing for, and accounts.ErrRepeatedDelivery for one it already acted on.
+	Deliver(ctx context.Context, delivery accounts.Delivery) error
 }
 
-const (
-	// installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and
-	// setup_action: the app's setup URL.
-	installedHref = "/me/github/installed"
-	// webhookHref is the GitHub App's webhook URL. GitHub, which has no account named account, POSTs to it, and a path
-	// under account takes no library's page.
-	webhookHref = accountHref + "/github/webhook"
-)
+// installedHref is where GitHub returns a visitor who installed the GitHub App, with installation_id and setup_action:
+// the app's setup URL.
+const installedHref = "/me/github/installed"
+
+// WebhookHref is the GitHub App's webhook URL. GitHub, which has no account named account, POSTs to it, and a path under
+// account takes no library's page. The web function's webhook alias answers nothing else.
+const WebhookHref = accountHref + "/github/webhook"
 
 // maxWebhookBytes bounds a delivery the webhook reads: GitHub caps a payload at 25 MB, but an installation's events,
 // even naming every repository it changed, are far smaller, and a Lambda function's request holds at most 6 MB.
@@ -228,9 +228,44 @@ func (s *server) installed(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, dashboardHref)
 }
 
+// delivering reports whether there's a webhook for GitHub's deliveries: with sign-in, since visitors sign in before
+// installing the GitHub App, and the app.
+func (s *server) delivering() bool {
+	return s.Accounts != nil && s.privateAvailable()
+}
+
+// webhookHandler returns what Site.Webhook does: GitHub's deliveries aren't a visitor's, so no session, no check that a
+// browser started them here, and no page, even when one fails.
+func (s *server) webhookHandler() http.Handler {
+	mux := http.NewServeMux()
+	if s.delivering() {
+		mux.HandleFunc("POST "+WebhookHref, s.webhook)
+		s.routes["POST "+WebhookHref] = true
+	}
+	return s.logRequests(withSecurityHeaders(s.policies.page, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.delivering() || !isDelivery(r) {
+			notWebhook(w)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})), notWebhookFailed)
+}
+
+// notWebhook answers a request the webhook alone doesn't take: a plain 404 that sets no cookie and can't be cached.
+func notWebhook(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "Not found", http.StatusNotFound)
+}
+
+// notWebhookFailed answers a delivery the webhook failed on by panicking, as it does any it can't take right now.
+func notWebhookFailed(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "Rulemart can't take this delivery right now", http.StatusServiceUnavailable)
+}
+
 // webhook acts on a delivery of the GitHub App's webhook, which GitHub signs with the webhook's secret. It answers 204
-// for a delivery it acted on or has nothing to do for, so GitHub doesn't send it again, and 401 for one GitHub didn't
-// sign.
+// for a delivery it acted on or has nothing to do for, so GitHub doesn't send it again, 200 for one it already acted
+// on, which it ignores, 401 for one GitHub didn't sign, and 400 for a signed one without an ID.
 func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", privateCache)
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBytes))
@@ -238,10 +273,19 @@ func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the delivery is too large", http.StatusRequestEntityTooLarge)
 		return
 	}
-	err = s.GitHubAccounts.Deliver(r.Context(), r.Header.Get("X-GitHub-Event"), body, r.Header.Get("X-Hub-Signature-256"))
+	err = s.GitHubAccounts.Deliver(r.Context(), accounts.Delivery{
+		ID: r.Header.Get("X-GitHub-Delivery"), Event: r.Header.Get("X-GitHub-Event"), Body: body,
+		Signature: r.Header.Get("X-Hub-Signature-256"),
+	})
 	switch {
 	case err == nil, errors.Is(err, accounts.ErrIgnoredEvent):
 		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, accounts.ErrRepeatedDelivery):
+		s.Log.InfoContext(r.Context(), "webhook ignored", "route", s.route(r), "requestID", s.requestID(r), "reason", "repeated delivery")
+		w.WriteHeader(http.StatusOK)
+	case errors.Is(err, accounts.ErrNoDeliveryID):
+		s.Log.WarnContext(r.Context(), "webhook refused", "route", s.route(r), "requestID", s.requestID(r), "reason", "no delivery ID")
+		http.Error(w, "the delivery has no X-GitHub-Delivery ID", http.StatusBadRequest)
 	case errors.Is(err, accounts.ErrBadSignature):
 		s.Log.WarnContext(r.Context(), "webhook refused", "route", s.route(r), "requestID", s.requestID(r), "reason", "bad signature")
 		http.Error(w, "the signature isn't the webhook's", http.StatusUnauthorized)

@@ -26,16 +26,20 @@ type contentValues struct {
 	CanList bool
 	// Analytics is true when this server counts visits with Cloudflare Web Analytics, which the privacy page names.
 	Analytics bool
+	// GitHubWebhook is true when GitHub's deliveries reach the GitHub App's webhook, so the privacy page says what a
+	// delivery discards.
+	GitHubWebhook bool
 
 	CodeRulesURL, CodeRulesLibrariesURL, RepositoryURL, VettedFileURL, AskToVetURL, ReportFormsURL string
 	UnvettedHref, ListHref, VettingHref, PrivacyHref, FeedbackHref, DashboardHref                  string
 	UnvettedOptInLabel, UnvettedWarningText                                                        string
 }
 
-// newContentValues returns the values content pages name, on a server where canList and analytics say what it offers.
-func newContentValues(canList, analytics bool) contentValues {
+// newContentValues returns the values content pages name, on a server where canList, analytics, and gitHubWebhook say
+// what it offers.
+func newContentValues(canList, analytics, gitHubWebhook bool) contentValues {
 	return contentValues{
-		CanList: canList, Analytics: analytics,
+		CanList: canList, Analytics: analytics, GitHubWebhook: gitHubWebhook,
 		CodeRulesURL: codeRulesURL, CodeRulesLibrariesURL: codeRulesLibrariesURL, RepositoryURL: repositoryURL,
 		VettedFileURL: vettedFileURL, AskToVetURL: askToVetURL, ReportFormsURL: reportFormsURL,
 		UnvettedHref: unvettedHref, ListHref: listHref, VettingHref: vettingHref, PrivacyHref: privacyHref,
@@ -138,14 +142,16 @@ func runContentTemplate(name, text string, values contentValues) (string, error)
 	var html string
 	for _, canList := range []bool{false, true} {
 		for _, analytics := range []bool{false, true} {
-			variant := values
-			variant.CanList, variant.Analytics = canList, analytics
-			var out strings.Builder
-			if err := t.Execute(&out, variant); err != nil {
-				return "", fmt.Errorf("run %s: %v", name, err)
-			}
-			if variant == values {
-				html = strings.TrimSpace(out.String())
+			for _, gitHubWebhook := range []bool{false, true} {
+				variant := values
+				variant.CanList, variant.Analytics, variant.GitHubWebhook = canList, analytics, gitHubWebhook
+				var out strings.Builder
+				if err := t.Execute(&out, variant); err != nil {
+					return "", fmt.Errorf("run %s: %v", name, err)
+				}
+				if variant == values {
+					html = strings.TrimSpace(out.String())
+				}
 			}
 		}
 	}

@@ -59,14 +59,7 @@ func (a *App) InstallURL() string {
 
 // Installation returns the GitHub account installation id is on, or fails with domain.ErrNoSuchInstallation.
 func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAccount, error) {
-	var installation struct {
-		Account struct {
-			Login string `json:"login"`
-			ID    int64  `json:"id"`
-			Type  string `json:"type"`
-		} `json:"account"`
-	}
-	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
+	installation, found, err := a.installation(ctx, id)
 	if err == nil && !found {
 		err = domain.ErrNoSuchInstallation
 	}
@@ -77,6 +70,39 @@ func (a *App) Installation(ctx context.Context, id int64) (domain.InstallationAc
 	return domain.InstallationAccount{Login: account.Login, ID: account.ID, Organization: account.Type == "Organization"}, nil
 }
 
+// InstallationState returns what GitHub says of installation id now: gone, suspended, or active.
+func (a *App) InstallationState(ctx context.Context, id int64) (domain.InstallationState, error) {
+	installation, found, err := a.installation(ctx, id)
+	switch {
+	case err != nil:
+		return 0, fmt.Errorf("read the state of installation id=%d: %w", id, err)
+	case !found:
+		return domain.InstallationGone, nil
+	case installation.SuspendedAt != nil:
+		return domain.InstallationSuspended, nil
+	}
+	return domain.InstallationActive, nil
+}
+
+// installationRecord is what GitHub says of an installation that Installation and InstallationState read.
+type installationRecord struct {
+	Account struct {
+		Login string `json:"login"`
+		ID    int64  `json:"id"`
+		Type  string `json:"type"`
+	} `json:"account"`
+	// SuspendedAt is when the account's owner suspended the app there, or nil while they haven't.
+	SuspendedAt *time.Time `json:"suspended_at"`
+}
+
+// installation reads installation id, reporting whether GitHub knows it: GitHub answers 404 for one it doesn't, and a
+// 403, which refuses to say, fails.
+func (a *App) installation(ctx context.Context, id int64) (installationRecord, bool, error) {
+	var installation installationRecord
+	found, err := a.asApp(ctx, http.MethodGet, "/app/installations/"+strconv.FormatInt(id, 10), &installation)
+	return installation, found, err
+}
+
 // InstallationToken returns a token that reads the repositories installation id may, for an hour, or fails with
 // domain.ErrNoSuchInstallation.
 func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
@@ -85,7 +111,7 @@ func (a *App) InstallationToken(ctx context.Context, id int64) (string, error) {
 	}
 	found, err := a.asApp(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(id, 10)+"/access_tokens", &token)
 	switch {
-	case err == nil && !found:
+	case errors.Is(err, errForbidden), err == nil && !found:
 		err = domain.ErrNoSuchInstallation
 	case err == nil && token.Token == "":
 		err = errors.New("GitHub returned no token")
@@ -116,7 +142,8 @@ func (a *App) InstallationRepositories(ctx context.Context, token string, limit 
 	return repos, more, nil
 }
 
-// asApp sends a request to path, signed as the app, and decodes its JSON into v, as API.get does.
+// asApp sends a request to path, signed as the app, and decodes its JSON into v, as API.get does, except that it fails
+// with errForbidden for a 403 that isn't a rate limit's, which only the caller can tell the meaning of.
 func (a *App) asApp(ctx context.Context, method, path string, v any) (bool, error) {
 	jwt, err := a.jwt(ctx)
 	if err != nil {

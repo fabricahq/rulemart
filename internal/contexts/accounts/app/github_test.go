@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -329,13 +331,13 @@ func signature(secret, body string) string {
 	return "sha256=" + mac
 }
 
-// GitHub's webhook says when the app is uninstalled, which forgets it for every account and discards their snapshots,
-// or when the repositories it reads change, which discards them, so the next page reads GitHub again. A delivery
-// GitHub didn't sign, or for another app, changes nothing.
+// GitHub's webhook says when the app is uninstalled, which, once GitHub confirms the installation is gone, forgets it
+// for every account and discards their snapshots, or when the repositories it reads change, which discards them, so
+// the next page reads GitHub again. A delivery GitHub didn't sign, or for another app, changes nothing.
 func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t *testing.T) {
 	ctx := context.Background()
 	deliver := func(site *gitHubSite, event, body, sig string) error {
-		return site.accounts.Deliver(ctx, event, []byte(body), sig)
+		return site.accounts.Deliver(ctx, domain.Delivery{ID: "72d3162e-cc78-11e3-81ab-4c9367dc0958", Event: event, Body: []byte(body), Signature: sig})
 	}
 	count := func(site *gitHubSite, table string) int {
 		var n int
@@ -355,6 +357,7 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 
 	t.Run("removed", func(t *testing.T) {
 		site := installed(t)
+		site.fake.Installations = nil
 		if err := deliver(site, "installation", removed, signature(webhookSecret, removed)); err != nil {
 			t.Fatal(err)
 		}
@@ -398,6 +401,329 @@ func TestWebhookDeliveriesForgetRemovedInstallationsAndDiscardChangedSnapshots(t
 			}
 		})
 	}
+	// GitHub always sends a delivery's ID, which Rulemart records to recognize the delivery sent again, but checks the
+	// signature first, so a delivery GitHub didn't sign learns nothing more, and the ID next, so a signed one without
+	// it is refused even when Rulemart would do nothing for it, such as a ping.
+	created := `{"action":"created","installation":{"id":5,"app_id":42}}`
+	ping := `{"zen":"Keep it logically awesome.","hook_id":1,"installation":{"id":5,"app_id":42}}`
+	for name, tc := range map[string]struct {
+		id, event, body, signature string
+		want                       error
+	}{
+		"signed without an ID":            {"", "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with an ID too long":      {strings.Repeat("a", 101), "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"signed with a space in its ID":   {"72d3162e cc78", "installation", removed, signature(webhookSecret, removed), domain.ErrNoDeliveryID},
+		"a signed ping without an ID":     {"", "ping", ping, signature(webhookSecret, ping), domain.ErrNoDeliveryID},
+		"an ignored action without an ID": {"", "installation", created, signature(webhookSecret, created), domain.ErrNoDeliveryID},
+		"unsigned without an ID":          {"", "installation", removed, "", domain.ErrBadSignature},
+		"an unsigned ping without an ID":  {"", "ping", ping, signature("another-secret", ping), domain.ErrBadSignature},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := installed(t)
+			err := site.accounts.Deliver(ctx, domain.Delivery{ID: tc.id, Event: tc.event, Body: []byte(tc.body), Signature: tc.signature})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+			if count(site, "github_installations") != 1 || count(site, "github_snapshots") != 1 {
+				t.Error("a delivery without an ID changed what Rulemart keeps")
+			}
+		})
+	}
+}
+
+// suspendable returns mona's site with the app installed on her account, and functions that deliver a signed
+// installation event with the action and ID given, and that report whether her installation is suspended. GitHub's
+// installation, site.fake.Installations[0], stays as it is: a test suspends it there as its owner would.
+func suspendable(t *testing.T) (site *gitHubSite, deliver func(id, action string) error, suspended func() bool) {
+	t.Helper()
+	ctx := context.Background()
+	fake := monasGitHub()
+	fake.Installations = []githubtest.Installation{{ID: 5, Account: "mona", AccountID: monaID, Repositories: []string{"mona/billing"}}}
+	site = newGitHubSite(t, fake, true)
+	if _, err := site.accounts.Install(ctx, site.account, site.session, 5); err != nil {
+		t.Fatal(err)
+	}
+	deliver = func(id, action string) error {
+		body := `{"action":"` + action + `","installation":{"id":5,"app_id":42}}`
+		return site.accounts.Deliver(ctx, domain.Delivery{ID: id, Event: "installation", Body: []byte(body), Signature: signature(webhookSecret, body)})
+	}
+	suspended = func() bool {
+		t.Helper()
+		installations, err := site.accounts.Installations(ctx, site.account.ID)
+		if err != nil || len(installations) != 1 {
+			t.Fatalf("installations %+v, %v, want installation 5", installations, err)
+		}
+		return installations[0].Suspended
+	}
+	return site, deliver, suspended
+}
+
+// A delivery Rulemart acted on changes nothing when it arrives again: by its ID, as GitHub redelivers it, or by its
+// body, since only the body is signed, so a copy of an old suspension can't suspend the app again under a new ID.
+func TestARepeatedDeliveryChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	site, deliver, suspended := suspendable(t)
+	site.fake.Installations[0].Suspended = true
+	if err := deliver("delivery-1", "suspend"); err != nil || !suspended() {
+		t.Fatalf("a first suspension: %v, suspended %t", err, suspended())
+	}
+	site.fake.Installations[0].Suspended = false
+	if err := deliver("delivery-2", "unsuspend"); err != nil || suspended() {
+		t.Fatalf("a new delivery, unsuspending: %v, suspended %t", err, suspended())
+	}
+
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the suspension again: got %v, want ErrRepeatedDelivery", err)
+	}
+	if err := deliver("delivery-3", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the suspension's body under a new ID: got %v, want ErrRepeatedDelivery", err)
+	}
+	other := `{"action":"suspend","installation":{"id":5,"app_id":42},"sender":{"login":"mona"}}`
+	err := site.accounts.Deliver(ctx, domain.Delivery{ID: "delivery-2", Event: "installation", Body: []byte(other), Signature: signature(webhookSecret, other)})
+	if !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("another body under a recorded ID: got %v, want ErrRepeatedDelivery", err)
+	}
+	if suspended() {
+		t.Error("a repeated delivery suspended the installation again")
+	}
+}
+
+// Rulemart applies what GitHub says of the installation when a delivery arrives, not what the delivery says happened,
+// so a copy of an old suspension can't undo the unsuspension that followed it, even once Rulemart has forgotten the
+// delivery after domain.DeliveryMemory.
+func TestAnOldSuspensionCantUndoANewerUnsuspension(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	start := site.now
+	site.fake.Installations[0].Suspended = true
+	if err := deliver("delivery-1", "suspend"); err != nil || !suspended() {
+		t.Fatalf("the suspension: %v, suspended %t", err, suspended())
+	}
+	site.fake.Installations[0].Suspended = false
+	if err := deliver("delivery-2", "unsuspend"); err != nil || suspended() {
+		t.Fatalf("the unsuspension: %v, suspended %t", err, suspended())
+	}
+
+	site.now = start.Add(domain.DeliveryMemory)
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) || suspended() {
+		t.Fatalf("exactly DeliveryMemory later: got %v, suspended %t, want ErrRepeatedDelivery", err, suspended())
+	}
+	site.now = start.Add(domain.DeliveryMemory + time.Second)
+	if err := deliver("delivery-1", "suspend"); err != nil || suspended() {
+		t.Fatalf("after DeliveryMemory: got %v, suspended %t, want it acted on and the installation still unsuspended", err, suspended())
+	}
+	var remembered int
+	postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_deliveries", &remembered)
+	if remembered != 1 {
+		t.Errorf("remembers %d deliveries, want only the latest", remembered)
+	}
+}
+
+// A delivery only says which installation changed: Rulemart applies what GitHub says of it now, whatever the delivery
+// says happened, and discards the snapshots of the accounts that read through it, so their next page reads GitHub.
+func TestADeliveryAppliesWhatGitHubSaysOfTheInstallationNow(t *testing.T) {
+	for name, tc := range map[string]struct {
+		event, action     string
+		gone, isSuspended bool
+		wantKept          bool
+		wantSuspended     bool
+	}{
+		"a suspension of an active installation":    {"installation", "suspend", false, false, true, false},
+		"an unsuspension of a suspended one":        {"installation", "unsuspend", false, true, true, true},
+		"a removal of an active one":                {"installation", "deleted", false, false, true, false},
+		"a change of repositories of a removed one": {"installation_repositories", "added", true, false, false, false},
+		"a suspension of a removed one":             {"installation", "suspend", true, false, false, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			site, _, _ := suspendable(t)
+			site.fake.Installations[0].Suspended = tc.isSuspended
+			if tc.gone {
+				site.fake.Installations = nil
+			}
+			body := `{"action":"` + tc.action + `","installation":{"id":5,"app_id":42}}`
+
+			err := site.accounts.Deliver(ctx, domain.Delivery{ID: "delivery-1", Event: tc.event, Body: []byte(body), Signature: signature(webhookSecret, body)})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			installations, err := site.accounts.Installations(ctx, site.account.ID)
+			if err != nil || (len(installations) == 1) != tc.wantKept || (tc.wantKept && installations[0].Suspended != tc.wantSuspended) {
+				t.Errorf("installations %+v, %v; want kept: %t, suspended: %t", installations, err, tc.wantKept, tc.wantSuspended)
+			}
+			var snapshots int
+			postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_snapshots", &snapshots)
+			if snapshots != 0 {
+				t.Error("kept the snapshot")
+			}
+		})
+	}
+}
+
+// Copies of one delivery that arrive together act once between them, and ask GitHub once: the account's GitHub
+// generation, which each application advances, advances once.
+func TestSimultaneousCopiesOfADeliveryActOnce(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	site.fake.Installations[0].Suspended = true
+	generation := func() int64 {
+		t.Helper()
+		var generation int64
+		postgrestest.QueryRow(t, site.connString, fmt.Sprintf("SELECT github_generation FROM accounts WHERE id = %d", site.account.ID), &generation)
+		return generation
+	}
+	before, readsBefore := generation(), site.fake.Requests(installationRoute)
+	errs := make([]error, 8)
+	var wg sync.WaitGroup
+	for i := range errs {
+		wg.Go(func() { errs[i] = deliver("delivery-1", "suspend") })
+	}
+	wg.Wait()
+
+	applied := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			applied++
+		case !errors.Is(err, domain.ErrRepeatedDelivery):
+			t.Errorf("a copy failed: %v", err)
+		}
+	}
+	if applied != 1 || !suspended() {
+		t.Errorf("%d copies acted, suspended %t, want one", applied, suspended())
+	}
+	if after := generation(); after != before+1 {
+		t.Errorf("the generation advanced from %d to %d, want once", before, after)
+	}
+	if reads := site.fake.Requests(installationRoute) - readsBefore; reads != 1 {
+		t.Errorf("the copies asked GitHub about the installation %d times, want once", reads)
+	}
+}
+
+// GitHub answers 404 for an installation it doesn't know, but 403 when it refuses to say, which doesn't mean the app
+// was uninstalled: a delivery whose read GitHub refuses fails, keeping the installation and its snapshot and recording
+// nothing, so GitHub's redelivery of it is acted on once GitHub answers.
+func TestAnInstallationGitHubRefusesToDescribeIsntTakenForRemoved(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	snapshots := func() int {
+		var n int
+		postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_snapshots", &n)
+		return n
+	}
+	site.fake.Fail = func(path string) bool { return strings.HasPrefix(path, "/app/installations/") }
+	site.fake.FailStatus = http.StatusForbidden
+	site.fake.Installations[0].Suspended = true
+
+	if err := deliver("delivery-1", "deleted"); err == nil {
+		t.Fatal("a delivery whose read GitHub refused succeeded")
+	}
+	if suspended() || snapshots() != 1 {
+		t.Fatalf("a refused read changed the installation or discarded the snapshot")
+	}
+
+	site.fake.Fail = nil
+	if err := deliver("delivery-1", "deleted"); err != nil || !suspended() {
+		t.Fatalf("GitHub's redelivery once GitHub answers: got %v, suspended %t, want it acted on", err, suspended())
+	}
+	site.fake.Installations = nil
+	if err := deliver("delivery-2", "suspend"); err != nil {
+		t.Fatalf("a delivery for an installation GitHub doesn't know: %v", err)
+	}
+	if installations, err := site.accounts.Installations(context.Background(), site.account.ID); err != nil || len(installations) != 0 {
+		t.Errorf("installations %+v, %v, want the one GitHub doesn't know forgotten", installations, err)
+	}
+}
+
+// installationRoute is the fake GitHub's route that says what GitHub says of an installation now.
+const installationRoute = "GET /app/installations/{id}"
+
+// A delivery Rulemart already acted on is answered as a repeat without asking GitHub, even while GitHub fails, so a
+// copy sent again costs GitHub nothing; but one whose read of GitHub failed is recorded nowhere, so GitHub's
+// redelivery of it is acted on, not taken for a repeat.
+func TestARepeatedDeliveryDoesntAskGitHub(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	site.fake.Installations[0].Suspended = true
+	if err := deliver("delivery-1", "suspend"); err != nil {
+		t.Fatal(err)
+	}
+	reads := site.fake.Requests(installationRoute)
+	site.fake.Fail = func(path string) bool { return strings.HasPrefix(path, "/app/installations/") }
+
+	if err := deliver("delivery-1", "suspend"); !errors.Is(err, domain.ErrRepeatedDelivery) {
+		t.Errorf("the delivery again while GitHub fails: got %v, want ErrRepeatedDelivery", err)
+	}
+	if got := site.fake.Requests(installationRoute); got != reads {
+		t.Errorf("the repeat asked GitHub about the installation %d times, want none", got-reads)
+	}
+
+	site.fake.Installations[0].Suspended = false
+	if err := deliver("delivery-2", "unsuspend"); err == nil || errors.Is(err, domain.ErrRepeatedDelivery) || !suspended() {
+		t.Fatalf("a new delivery while GitHub fails: got %v, suspended %t, want it to fail and change nothing", err, suspended())
+	}
+	site.fake.Fail = nil
+	if err := deliver("delivery-2", "unsuspend"); err != nil || suspended() {
+		t.Errorf("GitHub's redelivery once GitHub answers: got %v, suspended %t, want it acted on", err, suspended())
+	}
+}
+
+// Deliveries for one installation act one at a time, each asking GitHub once the one before it committed, so a read
+// GitHub answers slowly, from before a newer change, can't commit after the newer delivery's and undo it.
+func TestASlowReadOfAnInstallationCantUndoANewerDeliverys(t *testing.T) {
+	site, deliver, suspended := suspendable(t)
+	held, release := make(chan struct{}), make(chan struct{})
+	var holding atomic.Bool
+	site.fake.Answering = func(string) {
+		if holding.CompareAndSwap(false, true) {
+			close(held)
+			<-release
+		}
+	}
+	site.fake.Installations[0].Suspended = true
+	older := make(chan error, 1)
+	go func() { older <- deliver("delivery-1", "suspend") }()
+	<-held
+
+	site.fake.Installations[0].Suspended = false
+	newerDone := make(chan struct{})
+	var newer error
+	go func() {
+		defer close(newerDone)
+		newer = deliver("delivery-2", "unsuspend")
+	}()
+	// The newer delivery either acts while the older one's read is held, or waits for the older one to commit.
+	waitFor(t, "the newer delivery to act or wait for the older one", func() bool {
+		select {
+		case <-newerDone:
+			return true
+		default:
+			var waiting int
+			postgrestest.QueryRow(t, site.connString, `SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database() AND wait_event_type = 'Lock'`, &waiting)
+			return waiting > 0
+		}
+	})
+	close(release)
+
+	if err := <-older; err != nil {
+		t.Errorf("the older delivery: %v", err)
+	}
+	<-newerDone
+	if newer != nil {
+		t.Errorf("the newer delivery: %v", newer)
+	}
+	if suspended() {
+		t.Error("the older delivery's read of a suspension outlasted the newer unsuspension")
+	}
+}
+
+// waitFor waits until done reports true, failing the test after ten seconds.
+func waitFor(t *testing.T, what string, done func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); !done(); {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // Suspending the app on GitHub hides the private repositories it reads, without forgetting the installation, and
@@ -414,7 +740,8 @@ func TestASuspendedInstallationsRepositoriesDisappearAndReturnWhenUnsuspended(t 
 		t.Helper()
 		fake.Installations[0].Suspended = suspended
 		body := `{"action":"` + action + `","installation":{"id":5,"app_id":42}}`
-		if err := site.accounts.Deliver(ctx, "installation", []byte(body), signature(webhookSecret, body)); err != nil {
+		delivery := domain.Delivery{ID: action, Event: "installation", Body: []byte(body), Signature: signature(webhookSecret, body)}
+		if err := site.accounts.Deliver(ctx, delivery); err != nil {
 			t.Fatalf("deliver %s: %v", action, err)
 		}
 	}
@@ -499,7 +826,7 @@ func TestInstallWithoutTheAppFails(t *testing.T) {
 	if _, err := site.accounts.Install(context.Background(), site.account, site.session, 1); !errors.Is(err, ErrNoApp) {
 		t.Errorf("got %v, want ErrNoApp", err)
 	}
-	if err := site.accounts.Deliver(context.Background(), "installation", nil, ""); !errors.Is(err, ErrNoApp) {
+	if err := site.accounts.Deliver(context.Background(), domain.Delivery{ID: "delivery-1", Event: "installation"}); !errors.Is(err, ErrNoApp) {
 		t.Errorf("a delivery: got %v, want ErrNoApp", err)
 	}
 }

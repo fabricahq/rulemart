@@ -170,12 +170,19 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"only when you act: when you sign in, press Refresh, or return from installing the app",
 			"reads fail until the suspension is lifted", "It never reads in the background",
 			"What it did read stays until a later read replaces it")
-		// The GitHub App's webhook isn't wired at launch, so nothing discards a snapshot when an installation changes on
-		// GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading GitHub again.
+		// Without GitHubWebhook, GitHub's deliveries don't reach the webhook, so nothing discards a snapshot when an
+		// installation changes on GitHub, and opening the dashboard shows the snapshot Rulemart keeps without reading
+		// GitHub again.
 		for _, promise := range []string{"installation on GitHub discards it", "when you open your dashboard"} {
 			if strings.Contains(visibleText(t, resp.body), promise) {
 				t.Errorf("the page promises %q", promise)
 			}
+		}
+	}
+	webhook := "GitHub also tells Rulemart when an installation you read through is uninstalled"
+	for _, resp := range []*httptestResponse{{without.Code, without.Body.String()}, {with.Code, with.Body.String()}} {
+		if strings.Contains(visibleText(t, resp.body), webhook) {
+			t.Error("without the webhook, the page says GitHub's deliveries reach Rulemart")
 		}
 	}
 	assertShows(t, without.Body.String(), "Rulemart uses no analytics service.")
@@ -183,6 +190,23 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 		t.Error("without a token, the page names Cloudflare Web Analytics")
 	}
 	assertShows(t, with.Body.String(), "Cloudflare Web Analytics", "sets no cookie", "on every page, signed in or not")
+}
+
+// Once GitHub's deliveries reach the webhook, the privacy page says a change to an installation on GitHub discards
+// what Rulemart read through it, instead of saying what Rulemart read stays after such a change.
+func TestPrivacyPageSaysWhatTheWebhookDiscardsOnceDeliveriesArrive(t *testing.T) {
+	resp := get(t, newSiteWith(t, web.Options{GitHubWebhook: true}), "/privacy")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("answered %d", resp.Code)
+	}
+	assertShows(t, resp.Body.String(),
+		"GitHub also tells Rulemart when an installation you read through is uninstalled, suspended, or unsuspended, or changes which repositories it reads",
+		"Rulemart then asks GitHub about the installation, forgets it if it's uninstalled",
+		"Otherwise, what it did read stays until a later read replaces it")
+	if strings.Contains(visibleText(t, resp.Body.String()), "What it did read stays") {
+		t.Error("the page says what Rulemart read outlives a change on GitHub")
+	}
 }
 
 // httptestResponse is a response's status and body, for tests that check two at once.

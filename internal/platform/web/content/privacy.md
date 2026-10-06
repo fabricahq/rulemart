@@ -59,9 +59,12 @@ everything it read through it. If you lose ownership of an organization, it forg
 too. If GitHub suspends the app, reads fail until the suspension is lifted.
 
 **How long, and how to delete.** Rulemart reads your GitHub account only when you act: when you sign in, press
-Refresh, or return from installing the app. It never reads in the background. What it did read stays until a later
-read replaces it, until you choose Remove access to private repos, which discards it and forgets the installations, or
-until you delete your account.
+Refresh, or return from installing the app. It never reads in the background. {{if .GitHubWebhook}}GitHub also tells
+Rulemart when an installation you read through is uninstalled, suspended, or unsuspended, or changes which
+repositories it reads. Rulemart then asks GitHub about the installation, forgets it if it's uninstalled, and discards
+what it read through it, so the next page that shows your account reads it again. Otherwise, what it did
+read{{else}}What it did read{{end}} stays until a later read replaces it, until you choose Remove access to private
+repos, which discards it and forgets the installations, or until you delete your account.
 
 ## What you add while signed in {#adds}
 

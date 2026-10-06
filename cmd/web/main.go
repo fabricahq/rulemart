@@ -21,6 +21,13 @@
 // webhook's secret. Set all of them or none; unset, the dashboard reads public repositories only. A build with the
 // rulemartdev tag and no GitHub sign-in reads a fake GitHub in memory instead, with an app of its own.
 //
+// GITHUB_APP_WEBHOOK_ALIAS names the Lambda alias whose Function URL takes the app's webhook deliveries from anyone,
+// since GitHub can't sign them as CloudFront's origin access control asks, and the privacy page then says what a
+// delivery discards; on Lambda, the app without it warns at start. Whatever it names, through any alias, and without
+// Lambda's context, the function answers only a POST to the webhook, /account/github/webhook, whose own signature check
+// authenticates GitHub, and a plain 404 to everything else, before any page could set a cookie or render. Only the
+// function's own URL, unqualified or through $LATEST or a version, reaches the pages.
+//
 // Signed-in visitors can list libraries. QUEUE_URL names the worker's jobs queue, where each new listing's check is
 // sent at once; unset, as locally, listings wait for the worker's next poll, such as make worker.
 //
@@ -74,17 +81,21 @@ func main() {
 	if err != nil {
 		exit(logger, err)
 	}
-	handler, err := newHandler(context.Background(), logger, schemaVersion)
+	webhookAlias, err := newWebhookAlias(os.Getenv)
+	if err != nil {
+		exit(logger, err)
+	}
+	site, err := newSite(context.Background(), logger, schemaVersion, webhookAlias)
 	if err != nil {
 		exit(logger, err)
 	}
 	logging.Ready(logger, schemaVersion, time.Since(start))
 	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
-		lambda.Start(newFunction(handler).handle)
+		lambda.Start(newFunction(site, site.Webhook()).handle)
 		return
 	}
 	addr := listenAddr(os.Getenv)
-	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	server := &http.Server{Addr: addr, Handler: site, ReadHeaderTimeout: 10 * time.Second}
 	logger.Info("serving Rulemart", "url", "http://"+addr)
 	err = server.ListenAndServe()
 	logger.Error("server stopped", "error", err.Error())
@@ -97,10 +108,11 @@ func exit(logger *slog.Logger, err error) {
 	os.Exit(1)
 }
 
-// newHandler returns the pages' handler, reading the catalog from the database the environment names, which must
-// be at schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
-// the function's start.
-func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (http.Handler, error) {
+// newSite returns the site, reading the catalog from the database the environment names, which must be at
+// schemaVersion. It connects on the first request, so a misconfigured database fails requests rather than
+// the function's start. webhookAlias names the alias GitHub's webhook deliveries arrive through, or is empty without
+// one.
+func newSite(ctx context.Context, logger *slog.Logger, schemaVersion int64, webhookAlias string) (*web.Site, error) {
 	baseURL, err := newBaseURL(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -168,6 +180,11 @@ func newHandler(ctx context.Context, logger *slog.Logger, schemaVersion int64) (
 		accounts := accountsapp.GitHubAccounts{Store: accountsStore, Sessions: sessions, GitHub: reader}
 		if gitHubApp != nil {
 			accounts.App = gitHubApp
+			options.GitHubWebhook = webhookAlias != ""
+			if onLambda && webhookAlias == "" {
+				logger.Warn("GITHUB_APP_WEBHOOK_ALIAS is unset, so the privacy page doesn't say what the GitHub App's webhook " +
+					"discards: name the alias whose Function URL takes its deliveries, once there is one")
+			}
 		}
 		options.GitHubAccounts = accounts
 	}
@@ -320,12 +337,13 @@ func lambdaRequestID(r *http.Request) string {
 
 // function answers the web function's Lambda invocations.
 type function struct {
-	// adapter turns Function URL requests into requests for the pages' handler.
-	adapter *httpadapter.HandlerAdapterV2
+	// site turns Function URL requests into requests for the site, and webhook into requests for the GitHub App's
+	// webhook alone, which answers nothing else.
+	site, webhook *httpadapter.HandlerAdapterV2
 }
 
-func newFunction(handler http.Handler) *function {
-	return &function{adapter: httpadapter.NewV2(handler)}
+func newFunction(site, webhook http.Handler) *function {
+	return &function{site: httpadapter.NewV2(site), webhook: httpadapter.NewV2(webhook)}
 }
 
 // invocation holds the field handle uses to recognize a Function URL request.
@@ -338,7 +356,8 @@ type invocation struct {
 }
 
 // handle serves Function URL requests, and rejects anything else. The schedule invokes the worker function, not this
-// one.
+// one. Unless Lambda invoked it as the site, as throughSite says, such as through the webhook alias, only the webhook
+// answers, which takes nothing but GitHub's deliveries, before any page could set a cookie or render.
 func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error) {
 	var event invocation
 	if err := json.Unmarshal(raw, &event); err != nil {
@@ -355,5 +374,8 @@ func (f *function) handle(ctx context.Context, raw json.RawMessage) (any, error)
 	if !convertible(request) {
 		return rejectUnconvertible(ctx, request), nil
 	}
-	return f.adapter.ProxyWithContext(ctx, request)
+	if !throughSite(ctx) {
+		return f.webhook.ProxyWithContext(ctx, request)
+	}
+	return f.site.ProxyWithContext(ctx, request)
 }

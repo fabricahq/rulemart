@@ -4,6 +4,7 @@
 package githubtest
 
 import (
+	"cmp"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -13,7 +14,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"maps"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strconv"
@@ -36,8 +39,13 @@ type Fake struct {
 	// GitHub sends them to the app's setup URL. InstallAs is the installation it names.
 	InstalledURL string
 	InstallAs    int64
-	// Fail, when it returns true for a request's path, answers it with 502, as GitHub failing does.
-	Fail func(path string) bool
+	// Fail, when it returns true for a request's path, answers it with FailStatus, or 502 when that's zero, as GitHub
+	// failing does.
+	Fail       func(path string) bool
+	FailStatus int
+	// Answering, when set, is called with each request's path once Fake has decided its answer and before it sends it,
+	// as when GitHub is slow to send what it read: a test may hold an answer there while GitHub changes.
+	Answering func(path string)
 
 	mu sync.Mutex
 	// requests counts the requests each route answered, by its pattern.
@@ -121,10 +129,20 @@ func (f *Fake) Handler() http.Handler {
 			f.requests[pattern]++
 			f.mu.Unlock()
 			if f.Fail != nil && f.Fail(r.URL.Path) {
-				http.Error(w, `{"message":"Server Error"}`, http.StatusBadGateway)
+				status := cmp.Or(f.FailStatus, http.StatusBadGateway)
+				http.Error(w, `{"message":"`+http.StatusText(status)+`"}`, status)
 				return
 			}
-			handler(w, r)
+			if f.Answering == nil {
+				handler(w, r)
+				return
+			}
+			answer := httptest.NewRecorder()
+			handler(answer, r)
+			f.Answering(r.URL.Path)
+			maps.Copy(w.Header(), answer.Header())
+			w.WriteHeader(answer.Code)
+			_, _ = w.Write(answer.Body.Bytes())
 		})
 	}
 	route("GET /user/orgs", f.organizations)
@@ -320,7 +338,14 @@ func (f *Fake) installation(w http.ResponseWriter, r *http.Request) {
 	if in.Organization {
 		kind = "Organization"
 	}
-	writeJSON(w, map[string]any{"id": in.ID, "account": map[string]any{"login": in.Account, "id": in.AccountID, "type": kind}})
+	// GitHub says when the account's owner suspended the app there, and null while they haven't.
+	var suspendedAt any
+	if in.Suspended {
+		suspendedAt = "2026-09-01T00:00:00Z"
+	}
+	writeJSON(w, map[string]any{
+		"id": in.ID, "account": map[string]any{"login": in.Account, "id": in.AccountID, "type": kind}, "suspended_at": suspendedAt,
+	})
 }
 
 func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {

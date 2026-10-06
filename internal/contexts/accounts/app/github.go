@@ -47,16 +47,18 @@ type GitHubApp interface {
 	InstallURL() string
 	// Installation returns the account installation id is on, or fails with domain.ErrNoSuchInstallation.
 	Installation(ctx context.Context, id int64) (domain.InstallationAccount, error)
+	// InstallationState returns what GitHub says of installation id now: gone, suspended, or active.
+	InstallationState(ctx context.Context, id int64) (domain.InstallationState, error)
 	// InstallationToken returns a token that reads what installation id may, or fails with
 	// domain.ErrNoSuchInstallation.
 	InstallationToken(ctx context.Context, id int64) (string, error)
 	// InstallationRepositories returns the private repositories an installation's token reads, the most recently
 	// pushed first, at most limit, and whether it left some out.
 	InstallationRepositories(ctx context.Context, token string, limit int) (repos []domain.GitHubRepository, more bool, err error)
-	// WebhookChange returns the change to an installation a webhook delivery reports, after checking its signature. It
-	// fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for one that changes
-	// nothing Rulemart keeps.
-	WebhookChange(ctx context.Context, event string, body []byte, signature string) (domain.InstallationChange, error)
+	// WebhookInstallation returns the ID of the installation a webhook delivery says changed, after checking its
+	// signature. It fails with domain.ErrBadSignature for a delivery GitHub didn't sign, and domain.ErrIgnoredEvent for
+	// one that changes nothing Rulemart keeps.
+	WebhookInstallation(ctx context.Context, event string, body []byte, signature string) (int64, error)
 }
 
 // ErrNoApp reports that Rulemart has no GitHub App to read private repositories with.
@@ -490,27 +492,42 @@ func (g GitHubAccounts) ForgetInstallations(ctx context.Context, accountID int64
 	return g.Store.RemoveInstallations(ctx, accountID)
 }
 
-// Deliver acts on a delivery of the GitHub App's webhook: an installation uninstalled is forgotten for every account,
-// one suspended is kept but read through by none until it's unsuspended, and each of these, like a change to the
-// repositories one reads, discards the snapshots of the accounts that read through it, so their next page reads GitHub
-// again. It fails with ErrNoApp without a GitHub App, and as GitHubApp.WebhookChange does for a delivery it doesn't act
-// on.
-func (g GitHubAccounts) Deliver(ctx context.Context, event string, body []byte, signature string) error {
+// Deliver acts on a delivery of the GitHub App's webhook that says an installation changed by applying what GitHub
+// says of it now, not what the delivery says happened, so a copy of an old delivery sent again can't undo a newer
+// change: an installation gone is forgotten for every account, one suspended is kept but read through by none until
+// it's unsuspended, and either, like an active one, has the snapshots of the accounts that read through it discarded,
+// so their next page reads GitHub again. It fails with ErrNoApp without a GitHub App, as GitHubApp.WebhookInstallation
+// does for a delivery it doesn't act on, with domain.ErrNoDeliveryID for a signed one without an ID it can record, and
+// with domain.ErrRepeatedDelivery, changing nothing and without asking GitHub, for one it acted on within
+// domain.DeliveryMemory, by its ID or its body. It checks the signature, then the ID, then what the delivery is.
+// Deliveries for one installation act one at a time, each asking GitHub once the one before it committed, so a read
+// GitHub answered slowly can't undo a newer one, and a delivery whose read fails is recorded nowhere, so GitHub can
+// send it again.
+func (g GitHubAccounts) Deliver(ctx context.Context, delivery domain.Delivery) error {
 	if g.App == nil {
 		return ErrNoApp
 	}
-	change, err := g.App.WebhookChange(ctx, event, body, signature)
+	id, err := g.App.WebhookInstallation(ctx, delivery.Event, delivery.Body, delivery.Signature)
+	// Only once the signature is GitHub's may the answer say more, and GitHub always sends an ID, even with a delivery
+	// Rulemart does nothing for, such as a ping.
+	if err != nil && !errors.Is(err, domain.ErrIgnoredEvent) {
+		return err
+	}
+	if !delivery.RecordableID() {
+		return domain.ErrNoDeliveryID
+	}
 	if err != nil {
 		return err
 	}
-	switch change.Action {
-	case domain.Uninstalled:
-		return g.Store.InstallationRemoved(ctx, change.ID)
-	case domain.Suspended, domain.Unsuspended:
-		return g.Store.InstallationSuspended(ctx, change.ID, change.Action == domain.Suspended)
-	default:
-		return g.Store.InstallationChanged(ctx, change.ID)
+	readState := func(ctx context.Context) (domain.InstallationState, error) { return g.App.InstallationState(ctx, id) }
+	applied, err := g.Store.ApplyDelivery(ctx, delivery, id, g.now(), domain.DeliveryMemory, readState)
+	if err != nil {
+		return err
 	}
+	if !applied {
+		return domain.ErrRepeatedDelivery
+	}
+	return nil
 }
 
 func (g GitHubAccounts) now() time.Time {

@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,11 +167,7 @@ func (s *Store) RemoveInstallation(ctx context.Context, accountID, id int64) err
 // InstallationRemoved forgets the installation for every account and discards their snapshots, in one transaction.
 func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
-			return err
-		}
-		_, err := q.DeleteInstallation(ctx, id)
-		return err
+		return applyState(ctx, q, id, domain.InstallationGone)
 	})
 	if err != nil {
 		return fmt.Errorf("forget GitHub installation installationID=%d: %v", id, err)
@@ -178,38 +175,61 @@ func (s *Store) InstallationRemoved(ctx context.Context, id int64) error {
 	return nil
 }
 
-// InstallationChanged discards the snapshots of the accounts that read through the installation, in one transaction.
-func (s *Store) InstallationChanged(ctx context.Context, id int64) error {
-	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
-			return err
-		}
-		_, err := q.DiscardInstallationSnapshots(ctx, id)
-		return err
+// ApplyDelivery acts on a delivery of the GitHub App's webhook, as store.Store describes. Copies of one delivery, and
+// deliveries for one installation, that arrive together wait for each other on the installation's lock, so each finds
+// what the one before it committed, and only the first copy asks GitHub. It forgets old deliveries in a statement of
+// its own, so the transaction, which holds a lock while GitHub answers, locks no other installation's rows.
+func (s *Store) ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, at time.Time, memory time.Duration, readState func(context.Context) (domain.InstallationState, error)) (bool, error) {
+	before := at.Add(-memory)
+	err := s.db.Run(ctx, func(pool *pgxpool.Pool) error {
+		return accountsdb.New(pool).ForgetDeliveries(ctx, pgtype.Timestamptz{Time: before, Valid: true})
 	})
 	if err != nil {
-		return fmt.Errorf("discard snapshots of GitHub installation installationID=%d: %v", id, err)
+		return false, fmt.Errorf("forget GitHub webhook deliveries appliedBefore=%s: %v", before.Format(time.RFC3339), err)
 	}
-	return nil
+	digest := sha256.Sum256(delivery.Body)
+	var applied bool
+	err = s.inTransaction(ctx, func(q *accountsdb.Queries) error {
+		applied = false
+		if err := q.LockInstallation(ctx, id); err != nil {
+			return err
+		}
+		recorded, err := q.RecordDelivery(ctx, accountsdb.RecordDeliveryParams{
+			DeliveryID: delivery.ID, BodySha256: digest[:], AppliedAt: pgtype.Timestamptz{Time: at, Valid: true},
+		})
+		if err != nil || recorded == 0 {
+			return err
+		}
+		state, err := readState(ctx)
+		if err != nil {
+			return err
+		}
+		applied = true
+		return applyState(ctx, q, id, state)
+	})
+	if err != nil {
+		return false, fmt.Errorf("apply GitHub webhook delivery deliveryID=%q installationID=%d: %v", delivery.ID, id, err)
+	}
+	return applied, nil
 }
 
-// InstallationSuspended records whether the installation is suspended, and discards the snapshots of the accounts that
-// read through it, in one transaction.
-func (s *Store) InstallationSuspended(ctx context.Context, id int64, suspended bool) error {
-	err := s.inTransaction(ctx, func(q *accountsdb.Queries) error {
-		if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
-			return err
-		}
-		if err := q.SetInstallationSuspended(ctx, accountsdb.SetInstallationSuspendedParams{InstallationID: id, Suspended: suspended}); err != nil {
-			return err
-		}
-		_, err := q.DiscardInstallationSnapshots(ctx, id)
+// applyState applies state, what GitHub says of installation id, for every account that reads through it, within a
+// transaction: one gone is forgotten, which discards those accounts' snapshots, and one suspended or active is marked
+// so, and those accounts' snapshots discarded, after advancing their GitHub generations either way.
+func applyState(ctx context.Context, q *accountsdb.Queries, id int64, state domain.InstallationState) error {
+	if err := q.AdvanceInstallationGenerations(ctx, id); err != nil {
 		return err
-	})
-	if err != nil {
-		return fmt.Errorf("mark GitHub installation installationID=%d suspended=%t: %v", id, suspended, err)
 	}
-	return nil
+	if state == domain.InstallationGone {
+		_, err := q.DeleteInstallation(ctx, id)
+		return err
+	}
+	params := accountsdb.SetInstallationSuspendedParams{InstallationID: id, Suspended: state == domain.InstallationSuspended}
+	if err := q.SetInstallationSuspended(ctx, params); err != nil {
+		return err
+	}
+	_, err := q.DiscardInstallationSnapshots(ctx, id)
+	return err
 }
 
 // discardSnapshot discards the account's snapshot within a transaction, after advancing its GitHub generation, so a

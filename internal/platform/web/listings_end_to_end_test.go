@@ -45,7 +45,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	}
 	queue := &memoryQueue{}
 	gitHub := &fakeGitHub{identity: octocat}
-	site := func(vetted []domain.LibraryKey) http.Handler {
+	site := func(vetted []domain.LibraryKey) *web.Site {
 		handler, err := web.New(app.Pages{Store: webStore, Vetted: vetted, Groups: groups}, web.Options{
 			Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 			Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), TokenKeys: testTokenKeys},

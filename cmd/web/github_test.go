@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -121,6 +122,33 @@ func TestNewGitHubReadersNeedsTheAppsVariablesTogether(t *testing.T) {
 			if (reader != nil) != tc.reader || (gitHubApp != nil) != tc.app || (err == nil) != (tc.wantErr == "") ||
 				(err != nil && !strings.Contains(err.Error(), tc.wantErr)) {
 				t.Errorf("got %v, %v, %v; want a reader: %v, an app: %v, an error saying %q", reader, gitHubApp, err, tc.reader, tc.app, tc.wantErr)
+			}
+		})
+	}
+}
+
+// On Lambda, the GitHub App's deliveries reach the webhook only through the alias GITHUB_APP_WEBHOOK_ALIAS names, so
+// the app without it starts, since the webhook comes later, as the launch runbook's step 9 says, but warns.
+func TestStartupOnLambdaWarnsWhenTheAppHasNoWebhookAlias(t *testing.T) {
+	if web.DevSignIn {
+		t.Skip("a build with the dev sign-in refuses Lambda first")
+	}
+	for alias, warns := range map[string]bool{"": true, "webhook": false} {
+		t.Run(alias, func(t *testing.T) {
+			lines, _ := runMain(t, "DATABASE_URL=postgres://localhost/rulemart", "AWS_LAMBDA_RUNTIME_API=127.0.0.1:1",
+				"RULEMART_BASE_URL=https://rulemart.example", "GITHUB_CLIENT_ID=id", "GITHUB_CLIENT_SECRET=secret",
+				"TOKEN_KEY="+base64.StdEncoding.EncodeToString(make([]byte, 32)), "GITHUB_APP_ID=123",
+				"GITHUB_APP_CLIENT_ID=Iv1.abc", "GITHUB_APP_SLUG=rulemart-by-fabrica", "GITHUB_APP_PRIVATE_KEY=pem",
+				"GITHUB_APP_WEBHOOK_SECRET=secret", "GITHUB_APP_WEBHOOK_ALIAS="+alias)
+
+			warned := false
+			for _, line := range lines {
+				if line["level"] == "WARN" && strings.Contains(fmt.Sprint(line["msg"]), "GITHUB_APP_WEBHOOK_ALIAS") {
+					warned = true
+				}
+			}
+			if warned != warns {
+				t.Errorf("warned: %v, want %v; logged %v", warned, warns, lines)
 			}
 		})
 	}

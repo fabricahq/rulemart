@@ -59,6 +59,7 @@ func TestStartupFailureIsLoggedAndStopsTheCommand(t *testing.T) {
 		"an analytics token that isn't one": {
 			"DATABASE_URL=postgres://localhost/rulemart", `CLOUDFLARE_WEB_ANALYTICS_TOKEN={"token": "x"}`,
 		},
+		"a webhook alias Lambda can't name": {"DATABASE_URL=postgres://localhost/rulemart", "GITHUB_APP_WEBHOOK_ALIAS=$LATEST"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			lines, code := runMain(t, append(env, "RULEMART_RELEASE=v9.9.9")...)

@@ -66,11 +66,16 @@ type Store interface {
 	// InstallationRemoved forgets the installation id for every account, and discards their snapshots, in one
 	// transaction.
 	InstallationRemoved(ctx context.Context, id int64) error
-	// InstallationChanged discards the snapshots of the accounts that read through the installation id.
-	InstallationChanged(ctx context.Context, id int64) error
-	// InstallationSuspended records whether the installation id is suspended for every account that reads through it,
-	// and discards their snapshots, in one transaction.
-	InstallationSuspended(ctx context.Context, id int64, suspended bool) error
+	// ApplyDelivery acts on delivery of the GitHub App's webhook, which said installation id changed, in one
+	// transaction that holds a lock on the installation, so deliveries for one installation act one at a time, each
+	// once the one before it committed. When a delivery with its ID or body was applied within memory before at, it
+	// changes nothing and returns false without calling readState. Otherwise it records delivery as applied at, calls
+	// readState for what GitHub says of the installation now, and applies that: an installation gone is forgotten as
+	// InstallationRemoved forgets it; one suspended or active is marked so for every account that reads through it,
+	// and has those accounts' snapshots discarded. When readState fails, it records and changes nothing, and returns
+	// readState's error, so the delivery can be sent again. First, it forgets the deliveries applied more than memory
+	// before at.
+	ApplyDelivery(ctx context.Context, delivery domain.Delivery, id int64, at time.Time, memory time.Duration, readState func(context.Context) (domain.InstallationState, error)) (applied bool, err error)
 }
 
 // ReadClaim is what ClaimRead found as it claimed a read, or declined to.
