@@ -58,7 +58,9 @@ templ privatePage(c chrome, v privateView) {
 						@githubMark("size-[15px] flex-none")
 						Continue to GitHub
 					</a>
-					<a class={ outlineButtonStyle, "no-underline" } href={ templ.SafeURL(dashboardHref) }>Skip, public repos only</a>
+					<form method="post" action={ templ.SafeURL(skipPrivateHref) }>
+						<button class={ outlineButtonStyle } type="submit">Skip, public repos only</button>
+					</form>
 				}
 				<span class="text-[13px] text-faint">You can change this anytime.</span>
 			</div>

@@ -30,13 +30,13 @@ const (
 )
 
 // DevFake returns a fake GitHub for a local build: test_user belongs to the fabricahq organization, which publishes the
-// two libraries a local catalog holds, and test_user has two projects that import them, with rule versions behind
+// two libraries a local catalog holds, and a third that test_user may only read, and test_user has two projects that import them, with rule versions behind
 // them, and, once the GitHub App is installed, a private library and a private project. test_user_2 has nothing. The
 // app's install page sends the visitor back to installedURL, as GitHub sends them to the app's setup URL.
 func DevFake(installedURL string) *Fake {
 	day := func(n int) time.Time { return time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC).AddDate(0, 0, -n) }
 	// Its public libraries are ones real GitHub has, since the worker that checks a library added at /me/add reads real
-	// GitHub, not this fake.
+	// GitHub, not this fake, except the one test_user may only read, which they can't add.
 	manifest := "schemaVersion: 1\nname: Experimental rules\n"
 	publicRules := "https://github.com/fabricahq/public-rules.git"
 	testLibrary := "https://github.com/fabricahq/code-rules-test-library.git"
@@ -66,6 +66,8 @@ func DevFake(installedURL string) *Fake {
 				Owner: "fabricahq", Name: "code-rules-test-library", PushedAt: day(20), Files: map[string]string{"rule-library.yaml": manifest},
 				Tags: []string{"release/1", "release/2", "release/3", "release/4", "release/5", "release/6"},
 			},
+			// test_user belongs to fabricahq but may only read this one, so the picker shows a library they can't add.
+			{Owner: "fabricahq", Name: "partner-rules", PushedAt: day(8), ReadOnly: true, Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{Owner: devUser, Name: "team-rules", Private: true, PushedAt: day(5), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{
 				Owner: devUser, Name: "billing-service", Private: true, PushedAt: day(6),

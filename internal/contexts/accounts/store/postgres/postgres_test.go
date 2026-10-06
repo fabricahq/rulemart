@@ -323,7 +323,7 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	saved := domain.Snapshot{
 		ReadAt:        readAt,
 		Organizations: []string{"octo-org"},
-		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3}},
+		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3, Writable: true}},
 		Projects: []domain.Project{{
 			Repository: domain.Repository{Owner: "octocat", Name: "app", Private: true},
 			Sources: []domain.Source{{
@@ -347,6 +347,32 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	got.ReadAt = saved.ReadAt
 	if !reflect.DeepEqual(got, saved) {
 		t.Errorf("read back\n%+v\nwant\n%+v", got, saved)
+	}
+}
+
+// A snapshot saved before libraries recorded whether the visitor may push to them reads as absent, so the account
+// reads GitHub again instead of showing every library as one the visitor can't add.
+func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	saved := domain.Snapshot{
+		ReadAt:    time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+		Libraries: []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octocat", Name: "rules"}, Release: 1, Writable: true}},
+	}
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
+		t.Fatalf("saved %v, %v", ok, err)
+	}
+	postgrestest.Exec(t, connString, "UPDATE github_snapshots SET snapshot = snapshot - 'format' WHERE account_id = $1", account.ID)
+
+	_, found, err := s.Snapshot(ctx, account.ID)
+
+	if err != nil || found {
+		t.Errorf("a snapshot without a format: found %v, %v; want absent", found, err)
+	}
+	claim, err := s.ClaimRead(ctx, account.ID, time.Now(), time.Minute)
+	if err != nil || !claim.Found || len(claim.Snapshot.Libraries) != 1 {
+		t.Errorf("claiming a read found %v with %d libraries, %v; want the old snapshot kept for a failed read", claim.Found, len(claim.Snapshot.Libraries), err)
 	}
 }
 

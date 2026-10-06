@@ -266,8 +266,8 @@ func TestFilterSidebarExplainsUnvettedLibraries(t *testing.T) {
 
 	for _, path := range []string{"/g/techs/go", "/search"} {
 		page := get(t, handler, path).Body.String()
-		assertShows(t, page, "Include unvetted libraries Libraries anyone listed that Rulemart hasn't reviewed")
-		if got := links(t, page, "Libraries anyone listed that Rulemart hasn't reviewed"); !slices.Equal(got, []string{"/about/vetting#vetting"}) {
+		assertShows(t, page, "Include unvetted libraries Libraries their maintainers listed that Rulemart hasn't reviewed")
+		if got := links(t, page, "Libraries their maintainers listed that Rulemart hasn't reviewed"); !slices.Equal(got, []string{"/about/vetting#vetting"}) {
 			t.Errorf("%s: the hint leads to %q", path, got)
 		}
 	}

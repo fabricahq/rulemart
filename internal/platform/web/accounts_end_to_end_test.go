@@ -36,7 +36,7 @@ func TestAVisitorSignsInBrowsesAndSignsOutWithStoredSessions(t *testing.T) {
 	}
 	page := send(t, handler, request{method: http.MethodGet, target: library, cookies: []*http.Cookie{session}})
 	assertShows(t, body(t, page), "Signed in as @octocat")
-	account := send(t, handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{session}})
+	account := send(t, handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{session}})
 	assertShows(t, body(t, account), "GitHub user ID 583231")
 
 	out := send(t, handler, request{method: http.MethodPost, target: "/signout", cookies: []*http.Cookie{session}})

@@ -28,6 +28,7 @@ never sign out of ends on its own after 30 days.</p>
 <ul>
 <li>the names of your organizations;</li>
 <li>the names of the public repositories you and your organizations own, at most 200 of them, most recently pushed first;</li>
+<li>whether you have write access to each repository, which decides whether you can add it to Rulemart;</li>
 <li>once you install the GitHub App &quot;Rulemart by Fabrica&quot;, the private repositories you chose, read the same way.</li>
 </ul>
 <p><strong>What it looks for in each repository:</strong></p>
@@ -59,8 +60,10 @@ repos, which discards it and forgets the installations, or until you delete your
 <ul>
 <li><strong>Stars:</strong> which rules you starred, and when. Others see only how many stars a rule has.</li>
 <li><strong>Listings:</strong> which repositories you listed, and when you listed or retried them. A library's page shows the username
-you last signed in with as who added it, while your listing stands. To limit how often anyone lists, Rulemart also
-notes when each account lists or retries, and deletes each note once it's a day old.</li>
+you last signed in with as who added it, while your listing stands. To check that you may add a repository, Rulemart
+reads it from GitHub with your token when you confirm its address and when you add it, and keeps nothing of that read
+beyond the listing. To limit how often anyone lists, Rulemart also notes when each account lists or retries, and
+deletes each note once it's a day old.</li>
 </ul>
 <h2 id="cookies">Cookies</h2>
 <p>Rulemart sets only cookies that signing in needs, never for advertising or tracking:</p>

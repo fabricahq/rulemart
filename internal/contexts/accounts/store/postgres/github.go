@@ -35,11 +35,14 @@ func (s *Store) Snapshot(ctx context.Context, accountID int64) (domain.Snapshot,
 	if err != nil {
 		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
 	}
-	snapshot, err := decodeSnapshot(data)
-	if err != nil {
-		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: %v", accountID, err)
+	var record snapshotRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		return domain.Snapshot{}, false, fmt.Errorf("read GitHub snapshot accountID=%d: decode it: %v", accountID, err)
 	}
-	return snapshot, true, nil
+	if record.Format < snapshotFormat {
+		return domain.Snapshot{}, false, nil
+	}
+	return record.snapshot(), true, nil
 }
 
 // ClaimRead claims a read of the account's GitHub account beginning at now, and returns its generation and snapshot as
@@ -250,9 +253,16 @@ func (s *Store) inTransaction(ctx context.Context, work func(*accountsdb.Queries
 	})
 }
 
+// snapshotFormat is the format of the snapshots this code writes. A snapshot of an earlier format lacks something
+// pages now show, so Snapshot reports it absent and the account reads GitHub again rather than showing it wrong: the
+// format rose to 2 when libraries gained whether the visitor may push to them, which the picker dims a library without.
+const snapshotFormat = 2
+
 // snapshotRecord is a snapshot as github_snapshots keeps it, in JSON. Its field names are the stored format, so a
 // rename here needs a migration of the stored rows, or a read that accepts both.
 type snapshotRecord struct {
+	// Format is snapshotFormat as of the save, or 0 for a snapshot saved before formats were numbered.
+	Format int `json:"format,omitempty"`
 	// ReadAt is nil when no read has succeeded.
 	ReadAt        *time.Time      `json:"readAt,omitempty"`
 	Organizations []string        `json:"organizations"`
@@ -270,7 +280,8 @@ type repositoryRecord struct {
 
 type libraryRecord struct {
 	repositoryRecord
-	Release int `json:"release"`
+	Release  int  `json:"release"`
+	Writable bool `json:"writable,omitempty"`
 }
 
 type projectRecord struct {
@@ -302,6 +313,7 @@ func decodeSnapshot(data []byte) (domain.Snapshot, error) {
 
 func newSnapshotRecord(s domain.Snapshot) snapshotRecord {
 	record := snapshotRecord{
+		Format:        snapshotFormat,
 		Organizations: append([]string{}, s.Organizations...), Libraries: []libraryRecord{}, Projects: []projectRecord{},
 		Truncated: s.Truncated, Failed: s.ReadFailed,
 	}
@@ -309,7 +321,7 @@ func newSnapshotRecord(s domain.Snapshot) snapshotRecord {
 		record.ReadAt = &s.ReadAt
 	}
 	for _, l := range s.Libraries {
-		record.Libraries = append(record.Libraries, libraryRecord{repositoryRecord: newRepositoryRecord(l.Repository), Release: l.Release})
+		record.Libraries = append(record.Libraries, libraryRecord{repositoryRecord: newRepositoryRecord(l.Repository), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range s.Projects {
 		project := projectRecord{repositoryRecord: newRepositoryRecord(p.Repository), Sources: []sourceRecord{}}
@@ -339,7 +351,7 @@ func (r snapshotRecord) snapshot() domain.Snapshot {
 		s.ReadAt = *r.ReadAt
 	}
 	for _, l := range r.Libraries {
-		s.Libraries = append(s.Libraries, domain.PublishableRepository{Repository: l.repository(), Release: l.Release})
+		s.Libraries = append(s.Libraries, domain.PublishableRepository{Repository: l.repository(), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range r.Projects {
 		project := domain.Project{Repository: p.repository()}

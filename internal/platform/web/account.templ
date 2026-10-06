@@ -1,5 +1,5 @@
 // The pages and header parts of accounts: the header's account menu or sign-in link, the sign-in page, and the
-// dashboard's Account section.
+// dashboard's Account tab.
 
 package web
 
@@ -45,9 +45,9 @@ templ signInLabel(v visitor) {
 }
 
 // accountMenu is the signed-in visitor's avatar, a button that opens the prototype's menu: their name and @login, then
-// links to their dashboard, adding a library, and their Starred rules, and Sign out. Sign-out is a form, since it
-// changes state. The button is as wide as the avatar and as tall as a tap,
-// so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's
+// links to their dashboard and adding a library, and Sign out; the dashboard's tabs, Starred rules and Account among
+// them, aren't in it. Sign-out is a form, since it changes state. The button is as wide as the avatar and as tall as a
+// tap, so the avatar, the button, and the menu's right edge all sit at the page's edge. Hovered or open, the avatar's
 // border darkens, and its focus ring is drawn just inside its circle, so nothing reaches past the edge. menus.js
 // closes the menu when focus or a click leaves it.
 templ accountMenu(v visitor) {
@@ -63,9 +63,6 @@ templ accountMenu(v visitor) {
 			@menuLink(dashboardHref, "Dashboard", v.onDashboard)
 			if v.listings {
 				@menuLink(listHref, "Add a library", v.onListPage)
-			}
-			if v.stars {
-				@menuLink(starredHref, "Starred rules", v.onStarredPage)
 			}
 			<form method="post" action={ templ.SafeURL(v.signOut) }>
 				<button class={ menuItemStyle, "w-full cursor-pointer text-left" } type="submit">Sign out</button>
@@ -97,6 +94,10 @@ const outlineButtonStyle = "inline-flex min-h-10 cursor-pointer items-center jus
 
 // dangerButtonStyle is an action that can't be undone, outlined in the color of deletion.
 const dangerButtonStyle = "inline-flex min-h-10 cursor-pointer items-center justify-center rounded-full border border-del-ink px-4 text-[14px] font-medium whitespace-nowrap text-del-ink transition-colors duration-[160ms] hover:bg-surface"
+
+// destructiveButtonStyle is the last step of an action that can't be undone: dangerButtonStyle filled with the color of
+// deletion, as large as a page's main action, and dimmed while disabled.
+const destructiveButtonStyle = "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full border border-del-ink bg-del-ink px-5 text-[15px] font-medium whitespace-nowrap text-paper transition-opacity duration-[160ms] hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:opacity-40"
 
 // signInPerks are what a free account lets a visitor do, as the sign-in page lists them.
 var signInPerks = []string{
@@ -162,70 +163,139 @@ templ signInPage(c chrome, view signInView) {
 	}
 }
 
-// accountSection ends the dashboard's My libraries: what Rulemart keeps about the visitor, their listings, and the
-// ways to sign out, everywhere at once, or delete their account. Deleting asks first, by opening a disclosure, so it
-// takes two deliberate clicks.
-templ accountSection(account accountView, listings, stars bool) {
-	<section class="mt-14 border-t border-border pt-8" aria-labelledby="account">
-		<h2 id="account" class="text-[1.15rem] font-semibold tracking-[-.03em]">Account</h2>
-		<dl class="mt-4 grid gap-2.5 rounded-card border border-border px-4 py-3.5 text-[14px]">
-			@fact("GitHub user ID") {
-				<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
-			}
-			@fact("Username") {
-				if account.testUser {
-					{ account.login } <span class="text-faint">(local test user)</span>
-				} else {
-					<a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a>
-				}
-			}
-			@fact("Name") {
-				if account.name != "" {
-					{ account.name }
-				} else {
-					<span class="text-faint">None</span>
-				}
-			}
-			@fact("Avatar") {
-				if account.avatar != "" {
-					Your GitHub avatar
-				} else {
-					<span class="text-faint">None</span>
-				}
-			}
-			@fact("Account created") {
-				{ account.since }
-			}
-		</dl>
-		<p class="mt-3 text-[13.5px] text-muted">Rulemart updates your username, name, and avatar each time you sign in. Each browser keeps the token GitHub gave it, encrypted, and stays signed in for 30 days, or until you sign out, which deletes the token. What Rulemart reads of your repositories stays until you delete your account. <a href={ templ.SafeURL(privacyHref) }>Privacy</a></p>
-		if stars {
-			<p class="mt-2 text-[13.5px] text-muted">For your stars, it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.</p>
+// accountContent is the dashboard's Account tab: what Rulemart keeps about the visitor, where the privacy page says
+// the rest, and the ways to sign out, everywhere at once, or delete their account. Deleting asks
+// first, by opening a disclosure, so it takes two deliberate clicks, and then for the account's login, typed again in a
+// dialog where scripts run; the disclosure's summary reads as one, a muted chevron and label, rather than as a link that
+// acts. refused opens the disclosure saying the server refused the login typed.
+templ accountContent(account accountView, refused bool) {
+	<dl class={ factsStyle }>
+		@fact("GitHub user ID") {
+			<span class="font-mono text-[.86em]">{ account.gitHubUserID }</span>
 		}
-		if listings {
-			<p class="mt-2 text-[13.5px] text-muted">It also keeps which libraries you added, and when you added or retried them. <a href={ templ.SafeURL(listingsHref) }>Your listings</a></p>
+		@fact("Username") {
+			if account.testUser {
+				{ account.login } <span class="text-faint">(local test user)</span>
+			} else {
+				<a class="rounded-[3px]" href={ templ.SafeURL(account.profileURL) }>{ account.login }</a>
+			}
 		}
-		<div class="mt-6 flex flex-wrap gap-2.5">
-			<form method="post" action={ templ.SafeURL(signOutHref) }>
-				<button class={ outlineButtonStyle } type="submit">Sign out</button>
-			</form>
-			<form method="post" action={ templ.SafeURL(signOutEverywhereHref) }>
-				<button class={ outlineButtonStyle } type="submit">Sign out everywhere</button>
+		@fact("Name") {
+			if account.name != "" {
+				{ account.name }
+			} else {
+				<span class="text-faint">None</span>
+			}
+		}
+		@fact("Avatar") {
+			if account.avatar != "" {
+				Your GitHub avatar
+			} else {
+				<span class="text-faint">None</span>
+			}
+		}
+		@fact("Account created") {
+			{ account.since }
+		}
+	</dl>
+	<p class="mt-3 text-[13.5px] text-muted">What Rulemart keeps about you, and for how long, is on the <a href={ templ.SafeURL(privacyHref) }>privacy page</a>.</p>
+	<div class="mt-6 flex flex-wrap items-center gap-4">
+		<form method="post" action={ templ.SafeURL(signOutHref) }>
+			<button class={ outlineButtonStyle } type="submit">Sign out</button>
+		</form>
+		<form method="post" action={ templ.SafeURL(signOutEverywhereHref) }>
+			<button class={ rowActionStyle } type="submit">Sign out everywhere</button>
+		</form>
+	</div>
+	<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
+	<details
+		class="group mt-6"
+		if refused {
+			open
+		}
+	>
+		<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink focus-visible:text-ink [&::-webkit-details-marker]:hidden">
+			<svg class="size-3.5 shrink-0 text-muted group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="m6 3.5 4.5 4.5L6 12.5"></path>
+			</svg>
+			<span>Delete your account</span>
+		</summary>
+		<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
+			<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
+			// Without a script, the form leads to the page that deletes, with the login in its query: a browser's form can't
+			// sign a body for CloudFront, so no POST here carries one.
+			<form class="mt-4" method="get" action={ templ.SafeURL(deleteAccountHref) } data-delete-inline>
+				<div data-delete-field>
+					@deleteLoginField(account.login, "delete-login", refused, true)
+				</div>
+				if refused {
+					<p class="mt-1.5 text-[13px] text-del-ink" id="delete-login-error">That isn't your username. Type { account.login } exactly to delete your account.</p>
+				}
+				<button class={ dangerButtonStyle, "mt-4" } type="submit">Delete my account</button>
 			</form>
 		</div>
-		<p class="mt-3 text-[13.5px] text-muted">Signing out everywhere signs you out of Rulemart in every browser, this one too.</p>
-		<details class="group mt-6">
-			<summary class="-mx-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-[14px] text-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-				<svg class="size-3.5 shrink-0 group-open:rotate-90" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="m6 3.5 4.5 4.5L6 12.5"></path>
-				</svg>
-				<span class="underline underline-offset-4">Delete your account</span>
-			</summary>
-			<div class="mt-3 rounded-card border border-border-strong px-4 py-4">
-				<p class="text-[14px] text-ink">Rulemart deletes your account and everything it keeps about you, and signs you out everywhere. It removes your stars, your listings, what it read of your repositories, and its record of the GitHub App, so libraries you added that Rulemart hasn't vetted leave it. Your GitHub account doesn't change. Signing in again starts a new account.</p>
-				<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) }>
-					<button class={ dangerButtonStyle } type="submit">Delete my account</button>
-				</form>
+	</details>
+	@deleteAccountDialog(account)
+}
+
+// deleteLoginField asks for the account's login, which deleting it takes, as the field id. invalid marks it as a login
+// the server refused, which delete-login-error says. sent names the field login, so a GET form sends it in its query;
+// the dialog's field isn't sent, since its script puts the login in the action's query instead, keeping the POST's
+// body empty.
+templ deleteLoginField(login, id string, invalid, sent bool) {
+	<label class="block text-[13.5px] text-muted" for={ id }>Type your username, { "@" + login }, to confirm</label>
+	<input
+		class={ inputStyle, "mt-1.5" }
+		id={ id }
+		if sent {
+			name="login"
+		}
+		autocomplete="off"
+		autocapitalize="none"
+		spellcheck="false"
+		if invalid {
+			aria-invalid="true"
+			aria-describedby="delete-login-error"
+		}
+	/>
+}
+
+// deleteAccountDialog is the final confirmation delete-account.js opens when the visitor presses Delete my account in
+// the disclosure, as a shadcn AlertDialog does: what deleting takes, the login typed again, and Delete my account,
+// which the script enables only once the field holds the login, beside Cancel, which closes the dialog through its
+// form's dialog method. Delete my account comes first, so pressing Enter in the field never cancels, and row-reverse
+// sets Cancel at its left.
+templ deleteAccountDialog(account accountView) {
+	<dialog class={ dialogStyle } aria-labelledby="delete-title" aria-describedby="delete-description" data-delete-dialog data-login={ account.login }>
+		<div class="mb-[14px] flex items-start justify-between gap-3">
+			<h2 class="text-[1.35rem] tracking-[-.035em]" id="delete-title">Delete your account?</h2>
+			<form method="dialog">
+				<button class={ dialogCloseStyle } aria-label="Close">×</button>
+			</form>
+		</div>
+		<p class="text-muted" id="delete-description">This deletes your Rulemart account, its stars, its listings, what Rulemart read of your GitHub account, and every session. Nothing on GitHub changes.</p>
+		<form class="mt-4" method="post" action={ templ.SafeURL(deleteAccountHref) } data-delete-form>
+			@deleteLoginField(account.login, "delete-dialog-login", false, false)
+			<div class="mt-5 flex flex-row-reverse flex-wrap justify-start gap-2.5">
+				<button class={ destructiveButtonStyle } type="submit" disabled data-delete-confirm>Delete my account</button>
+				<button class={ outlineButtonStyle, "min-h-11" } type="submit" formmethod="dialog" formnovalidate>Cancel</button>
 			</div>
-		</details>
-	</section>
+		</form>
+	</dialog>
+}
+
+// confirmDeletePage deletes the account without a script: the disclosure's form led here with the login typed, which
+// the server found to be the account's, and Delete my account posts it on in its query. Cancel returns to the Account
+// tab.
+templ confirmDeletePage(c chrome, login string) {
+	@layout(c, head{title: "Delete your account · Rulemart", noindex: true}) {
+		<div class="page wrap max-w-[640px]">
+			<h1 class="title-xl">Delete your account?</h1>
+			<p class="mt-2.5 text-muted">This deletes your Rulemart account, @{ login }, its stars, its listings, what Rulemart read of your GitHub account, and every session. Nothing on GitHub changes. Signing in again starts a new account.</p>
+			<form class="mt-6 flex flex-wrap items-center gap-2.5" method="post" action={ templ.SafeURL(deleteAccountAction(login)) }>
+				<button class={ destructiveButtonStyle } type="submit">Delete my account</button>
+				<a class={ outlineButtonStyle, "min-h-11" } href={ templ.SafeURL(dashboardAccountHref) }>Cancel</a>
+			</form>
+		</div>
+	}
 }

@@ -50,7 +50,7 @@ templ faqPage(c chrome) {
 				<p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change, with each version's summary, and applies them once you confirm.</p>
 			}
 			@faqItem("Who can publish a library?") {
-				<p>Anyone with a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses { unvettedOptInLabel }. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
+				<p>Anyone with write access to a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses { unvettedOptInLabel }. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
 			}
 			@faqItem("Do I need a Rulemart account?") {
 				<p>No. You can browse, read rules, and check out without one.</p>

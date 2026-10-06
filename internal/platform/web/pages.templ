@@ -10,7 +10,7 @@ import (
 )
 
 // librariesPage lists every vetted library, and the unvetted ones too when unvetted is true, under a lede that says
-// anyone can list a public library, leading to listing one when canList is true, and where the unvetted ones are, and
+// a library's maintainers can list it, leading to listing one when canList is true, and where the unvetted ones are, and
 // the control that includes them.
 templ librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) {
 	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref, noindex: unvetted, filters: true}) {
@@ -27,9 +27,9 @@ templ librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) {
 			</h1>
 			<p class="mb-[22px] max-w-[46rem] text-muted">
 				if canList {
-					Anyone can <a href={ templ.SafeURL(listHref) }>list a public library</a>.
+					A library's maintainers can <a href={ templ.SafeURL(listHref) }>list it on Rulemart</a>.
 				} else {
-					Anyone can list a public library.
+					A library's maintainers can list it on Rulemart.
 				}
 				It shows, with a warning, under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a> until Rulemart reviews and vets it. Each library shows its owner and repository, so you can see who stands behind it.
 			</p>

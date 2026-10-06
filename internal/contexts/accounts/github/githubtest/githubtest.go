@@ -75,6 +75,9 @@ type Repository struct {
 	Files map[string]string
 	// Tags are its tags' names, such as release/1.
 	Tags []string
+	// ReadOnly is true when no user may push to it. Otherwise a user may push to it when they own it or belong to the
+	// organization that does, as GitHub lets a member of an organization push to the repositories it gives them.
+	ReadOnly bool
 }
 
 // FullName returns the repository as owner/name.
@@ -149,6 +152,7 @@ func (f *Fake) Handler() http.Handler {
 	route("GET /user/memberships/orgs/{org}", f.membership)
 	route("GET /users/{owner}/repos", f.ownerRepositories(false))
 	route("GET /orgs/{owner}/repos", f.ownerRepositories(true))
+	route("GET /repos/{owner}/{repo}", f.repositoryPage)
 	route("GET /repos/{owner}/{repo}/contents/{path...}", f.contents)
 	route("GET /repos/{owner}/{repo}/git/matching-refs/tags/release/", f.releaseTags)
 	route("GET /app/installations/{id}", f.installation)
@@ -201,7 +205,8 @@ func (f *Fake) membership(w http.ResponseWriter, r *http.Request) {
 // recently pushed first, a page at a time.
 func (f *Fake) ownerRepositories(organization bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := f.user(w, r); !ok {
+		u, ok := f.user(w, r)
+		if !ok {
 			return
 		}
 		if f.isOrganization(r.PathValue("owner")) != organization {
@@ -214,8 +219,14 @@ func (f *Fake) ownerRepositories(organization bool) http.HandlerFunc {
 				repos = append(repos, repo)
 			}
 		}
-		writeJSON(w, page(sortedByPush(repos), r.URL.Query()))
+		writeJSON(w, page(sortedByPush(repos), r.URL.Query(), u.canPush))
 	}
+}
+
+// canPush reports whether u may push to repo: it isn't read-only, and u owns it or belongs to the organization that does.
+func (u User) canPush(repo Repository) bool {
+	return !repo.ReadOnly && (strings.EqualFold(u.Login, repo.Owner) ||
+		slices.ContainsFunc(u.Organizations, func(m Membership) bool { return strings.EqualFold(m.Organization, repo.Owner) }))
 }
 
 // isOrganization reports whether login is an organization's: one a user is a member of, or an installation is on.
@@ -254,6 +265,32 @@ func (f *Fake) repository(w http.ResponseWriter, r *http.Request) (Repository, b
 	}
 	notFound(w)
 	return Repository{}, false
+}
+
+// knowsToken reports whether token is a user's or an installation's.
+func (f *Fake) knowsToken(token string) bool {
+	return token != "" && (slices.ContainsFunc(f.Users, func(u User) bool { return u.Token == token }) ||
+		slices.ContainsFunc(f.Installations, func(in Installation) bool { return installationToken(in.ID) == token }))
+}
+
+// repositoryPage describes the repository r names, with what r's user may do in it, when r's token may read it.
+func (f *Fake) repositoryPage(w http.ResponseWriter, r *http.Request) {
+	if !f.knowsToken(bearer(r)) {
+		unauthorized(w)
+		return
+	}
+	repo, ok := f.repository(w, r)
+	if !ok {
+		return
+	}
+	// A user's token tells their permissions; an installation's reads, and pushes nothing, for Rulemart.
+	push := false
+	for _, u := range f.Users {
+		if u.Token != "" && u.Token == bearer(r) {
+			push = u.canPush(repo)
+		}
+	}
+	writeJSON(w, repositoryJSON(repo, push))
 }
 
 // contents lists the root of a repository's default branch, or returns one of its files, raw.
@@ -374,7 +411,7 @@ func (f *Fake) installationRepositories(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 		// GitHub documents no order for this list and no way to sort it, so the fake keeps the order it holds them in.
-		paged := page(repos, r.URL.Query())
+		paged := page(repos, r.URL.Query(), func(Repository) bool { return false })
 		writeJSON(w, map[string]any{"total_count": len(repos), "repositories": paged})
 		return
 	}
@@ -426,11 +463,12 @@ func (f *Fake) checkJWT(token string) error {
 	return nil
 }
 
-// repositoryJSON describes repo as GitHub's lists do.
-func repositoryJSON(repo Repository) map[string]any {
+// repositoryJSON describes repo as GitHub's lists do, with push saying whether the requesting user may push to it.
+func repositoryJSON(repo Repository, push bool) map[string]any {
 	return map[string]any{
 		"name": repo.Name, "full_name": repo.FullName(), "private": repo.Private,
 		"pushed_at": repo.PushedAt.UTC().Format(time.RFC3339), "owner": map[string]string{"login": repo.Owner},
+		"permissions": map[string]bool{"pull": true, "push": push, "admin": false, "maintain": false},
 	}
 }
 
@@ -440,12 +478,13 @@ func sortedByPush(repos []Repository) []Repository {
 	return sorted
 }
 
-// page returns the page of repos query's page and per_page parameters name, as pageBounds reads them.
-func page(repos []Repository, query url.Values) []map[string]any {
+// page returns the page of repos query's page and per_page parameters name, as pageBounds reads them, each with
+// whether canPush says the requesting user may push to it.
+func page(repos []Repository, query url.Values, canPush func(Repository) bool) []map[string]any {
 	size, first := pageBounds(query)
 	out := []map[string]any{}
 	for i := first; i < min(first+size, len(repos)); i++ {
-		out = append(out, repositoryJSON(repos[i]))
+		out = append(out, repositoryJSON(repos[i], canPush(repos[i])))
 	}
 	return out
 }

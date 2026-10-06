@@ -46,6 +46,9 @@ type GitHubRepository struct {
 	// Installation is the installation of the GitHub App that reads it, for a private repository, or 0 for one the
 	// visitor's own token reads.
 	Installation int64
+	// Writable is true when the visitor's token may push to it, so they may add it to Rulemart. It is always false
+	// for a repository read with an installation's token, which Rulemart never lists.
+	Writable bool
 }
 
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
@@ -79,6 +82,8 @@ type PublishableRepository struct {
 	Repository
 	// Release is the number of its latest library release.
 	Release int
+	// Writable is true when the visitor's token may push to it, so they may add it to Rulemart.
+	Writable bool
 }
 
 // Project is a repository that uses Code Rules: its .code-rules/generated/provenance.json names its sources.

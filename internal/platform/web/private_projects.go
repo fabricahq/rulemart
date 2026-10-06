@@ -5,9 +5,10 @@ package web
 import "net/http"
 
 const (
-	// privateHref is the page that offers to include the visitor's private projects, by installing the GitHub App, and
-	// removePrivateHref forgets the visitor's installations, with POST.
+	// privateHref is the page that offers to include the visitor's private projects, by installing the GitHub App;
+	// skipPrivateHref declines it, and removePrivateHref forgets the visitor's installations, both with POST.
 	privateHref       = dashboardHref + "/private"
+	skipPrivateHref   = privateHref + "/skip"
 	removePrivateHref = dashboardHref + "/github/remove"
 )
 
@@ -45,6 +46,18 @@ type privateView struct {
 
 // installationSettings is an installation's settings page on GitHub, for the account it's on.
 type installationSettings struct{ account, href string }
+
+// skipPrivate returns the signed-in visitor, who chose to keep to their public repos, to the dashboard, saying so, as the
+// prototype's Skip does. It changes nothing, but takes POST, so the notice it leaves follows the visitor's choice rather
+// than a link anyone could send.
+func (s *server) skipPrivate(w http.ResponseWriter, r *http.Request) {
+	if visitorOf(r.Context()).account == nil {
+		seeOther(w, r, s.absolute(signInPageHref(privateHref)))
+		return
+	}
+	setNotice(w, "private-skipped")
+	seeOther(w, r, dashboardHref)
+}
 
 // removePrivate stops reading the signed-in visitor's private repositories, and returns to the dashboard, saying so,
 // as the prototype's disconnect does. The page about them said, beside the button, how to uninstall the app on GitHub

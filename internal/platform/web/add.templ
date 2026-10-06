@@ -3,19 +3,20 @@
 
 package web
 
-// The panel the picker and the checklist sit in, as the prototype draws it: a rounded box in the surface color, with a
-// shaded head.
+import "github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
+
+// The panel the checklist sits in, as the prototype draws it: a rounded box in the surface color, and its body; a row of
+// the picker, which its card divides; and the small filled button that adds a library.
 const (
-	panelStyle     = "overflow-hidden rounded-panel border border-border bg-surface"
-	panelHeadStyle = "flex items-center justify-between gap-2.5 border-b border-border bg-surface-header px-[18px] py-3"
-	panelBodyStyle = "px-[18px] py-4"
-	pickRowStyle   = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 border-t border-border-subtle py-3.5 first:border-t-0 max-tiny:grid-cols-1 max-tiny:justify-items-start max-tiny:gap-2"
+	panelStyle        = "overflow-hidden rounded-panel border border-border bg-surface"
+	panelBodyStyle    = "px-[18px] py-4"
+	pickRowStyle      = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 px-4 py-[13px] max-tiny:grid-cols-1 max-tiny:justify-items-start max-tiny:gap-2"
 	smallPrimaryStyle = "inline-flex min-h-8 cursor-pointer items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[13px] py-1 text-[13px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85"
 )
 
-// addPage is the prototype's Add a library: the visitor's and their organizations' repositories that publish a
-// library, each with what adding it does, the note on private repositories, and the form that adds any public library
-// by its address, with why it can't, or the repository to add.
+// addPage is the prototype's Add a library: what the page lists and how to add one, the visitor's and their
+// organizations' repositories that publish a library, each with what adding it does, what Rulemart read of GitHub, and
+// the form that adds a library by its address, with why it can't, or the repository to add.
 templ addPage(c chrome, v addView) {
 	@layout(c, head{title: "Add a library · Rulemart", noindex: true, caret: v.problem != ""}) {
 		<div class="page wrap max-w-[780px]">
@@ -23,82 +24,76 @@ templ addPage(c chrome, v addView) {
 				Publish
 			}
 			<h1 class="title-xl mt-2.5 mb-1.5">Add a library</h1>
-			<p class="mb-5 text-muted">Your repos and your organizations' repos that contain a <span class="mono">rule-library.yaml</span> and have published a library release. The library's page will show its owner, its repository, and that you added it.</p>
-			<section class={ panelStyle } aria-labelledby="your-libraries">
-				<div class={ panelHeadStyle }>
-					<h2 id="your-libraries" class={ labelStyle }>Your libraries on GitHub</h2>
-				</div>
-				<div class={ panelBodyStyle }>
+			<p class="mb-5 text-muted">Add a Code Rules library from a GitHub repository you have write access to, from the list below or by its URL. A library is a repository with a <span class="mono">rule-library.yaml</span> and at least one <span class="mono">release/&lt;number&gt;</span> tag.</p>
+			<section aria-labelledby="your-libraries">
+				<h2 id="your-libraries" class="sr-only">Your libraries on GitHub</h2>
+				<div class={ listCardStyle }>
 					if len(v.picks) == 0 {
-						<p class="text-[13.5px] text-muted">
+						<p class={ cardRowStyle, "text-[13.5px] text-muted" }>
 							if v.gitHub.reading {
 								Rulemart is reading your repositories.
 							} else if v.gitHub.readAt == "" {
 								Rulemart hasn't read your repositories yet.
 							} else {
-								Rulemart found no repository of yours or your organizations' with a <span class="mono">rule-library.yaml</span> and a <span class="mono">release/&lt;number&gt;</span> tag.
+								None of your repositories or your organizations' publishes a library.
 							}
 						</p>
-					}
-					for _, p := range v.picks {
-						@pickRow(p)
+					} else {
+						<ul class="divide-y divide-border-subtle">
+							for _, p := range v.picks {
+								@pickRow(p)
+							}
+						</ul>
 					}
 				</div>
 			</section>
-			@gitHubStatus(v.gitHub, "mt-2.5")
-			<div class={ noteStyle, "mt-3.5" }>
-				<span>
-					Only public libraries can be published on Rulemart.
-					if v.gitHub.available && !v.gitHub.private {
-						Rulemart can only see your public repos right now.
+			@gitHubSummary(v.gitHub, repoWords, "mt-3")
+			<section class="mt-[30px]" aria-labelledby="add-by-url">
+				<h2 id="add-by-url" class={ subHeadStyle }>Add a library by URL</h2>
+				<p id="library-url-hint" class="mt-1.5 mb-2.5 text-[13px] text-muted">For a repository the list above misses. Its page shows that you added it.</p>
+				<form method="get" action={ templ.SafeURL(listHref) }>
+					<label class="sr-only" for="library-url">GitHub repository URL</label>
+					// Below the tiny breakpoint, the field takes the row and Add goes under it, so the placeholder reads whole.
+					<div class="flex items-start gap-2.5 max-tiny:flex-wrap">
+						<input
+							id="library-url"
+							class={ inputStyle }
+							type="text"
+							name="url"
+							value={ v.address }
+							placeholder="https://github.com/owner/repo"
+							autocomplete="off"
+							autocapitalize="off"
+							spellcheck="false"
+							maxlength="300"
+							required
+							if v.problem != "" {
+								aria-invalid="true"
+								aria-describedby="library-url-problem"
+								autofocus
+							} else {
+								aria-describedby="library-url-hint"
+							}
+						/>
+						<button class={ outlineButtonStyle } type="submit">Add</button>
+					</div>
+					if v.problem != "" {
+						<p id="library-url-problem" class="mt-2.5 border-l-2 border-ink pl-2.5 text-[13px] text-ink" role="alert">
+							{ v.problem }
+							if v.problemLink != "" {
+								<a href={ templ.SafeURL(v.problemLink) }>{ v.problemLinkText }</a>
+							}
+						</p>
 					}
-				</span>
-				if v.gitHub.privateAvailable && !v.gitHub.private {
-					<a href={ templ.SafeURL(privateHref) }>Include private repos</a>
-				}
-			</div>
-			<form class="mt-7" method="get" action={ templ.SafeURL(listHref) }>
-				<label class={ labelStyle, "mb-2 block" } for="library-url">Or add any public library by URL</label>
-				// Below the tiny breakpoint, the field takes the row and Add goes under it, so the placeholder reads whole.
-				<div class="flex items-start gap-2.5 max-tiny:flex-wrap">
-					<input
-						id="library-url"
-						class={ inputStyle }
-						type="text"
-						name="url"
-						value={ v.address }
-						placeholder="https://github.com/owner/repo"
-						autocomplete="off"
-						autocapitalize="off"
-						spellcheck="false"
-						maxlength="300"
-						required
-						if v.problem != "" {
-							aria-invalid="true"
-							aria-describedby="library-url-problem"
-							autofocus
-						} else {
-							aria-describedby="library-url-hint"
-						}
-					/>
-					<button class={ outlineButtonStyle } type="submit">Add</button>
-				</div>
-				if v.problem != "" {
-					<p id="library-url-problem" class="mt-2.5 border-l-2 border-ink pl-2.5 text-[13px] text-ink" role="alert">
-						{ v.problem }
-						if v.problemLink != "" {
-							<a href={ templ.SafeURL(v.problemLink) }>{ v.problemLinkText }</a>
-						}
-					</p>
-				} else {
-					<p id="library-url-hint" class="mt-2 text-[12px] text-faint">Anyone can add a public library. It will show that you added it.</p>
-				}
-			</form>
+				</form>
+			</section>
 			if v.confirm != nil {
-				<section class={ panelStyle, "mt-4" } aria-label="The library to add">
-					<div class={ panelBodyStyle }>
-						@pickRow(*v.confirm)
-						<p class="mt-1 text-[12.5px] text-faint">Rulemart reads its release tags on GitHub, and shows it, unvetted, until Rulemart's maintainers vet it.</p>
+				<section class="mt-4" aria-label="The library to add">
+					<div class={ listCardStyle }>
+						<ul>
+							@pickRow(*v.confirm)
+						</ul>
+						<p class="border-t border-border-subtle px-4 py-2.5 text-[12.5px] text-faint">Rulemart reads its release tags on GitHub, and shows it, unvetted, until Rulemart's maintainers vet it.</p>
 					</div>
 				</section>
 			}
@@ -106,21 +101,28 @@ templ addPage(c chrome, v addView) {
 	}
 }
 
-// pickRow is a repository on the picker: its name and what it is, then what adding it does: Add this library, a link
-// to its page once it's on Rulemart, to its check while Rulemart adds it, or, dimmed, why a private one can't be added.
+// pickRow is a repository on the picker: its name, linking to it on GitHub, and what it is, then what adding it does:
+// Add this library, a link to its page once it's on Rulemart, to its check while Rulemart adds it, or, dimmed, why a
+// private one, or one the visitor may only read, can't be added.
 templ pickRow(p pickView) {
-	<div class={ pickRowStyle }>
+	<li class={ pickRowStyle }>
 		<div class="min-w-0">
-			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", !p.private), templ.KV("font-medium text-faint", p.private) }>{ p.fullName }</p>
+			<p class={ "[overflow-wrap:anywhere]", templ.KV("font-semibold", p.note == ""), templ.KV("font-medium text-faint", p.note != "") }>
+				<a class="inline-flex items-baseline gap-1.5 no-underline hover:underline" href={ templ.SafeURL(domain.RepositoryURL(p.fullName)) }>
+					{ p.fullName }
+					@externalLinkIcon()
+					<span class="sr-only">on GitHub</span>
+				</a>
+			</p>
 			<p class="text-[12px] text-faint">{ p.detail }</p>
-			if p.state == pickPrivate {
+			if p.note != "" {
 				// Beside the name, on a phone, it would squeeze the name into a sliver.
-				<p class="mt-1 text-[13px] text-faint narrow:hidden">Private libraries can't be published on Rulemart</p>
+				<p class="mt-1 text-[13px] text-faint narrow:hidden">{ p.note }</p>
 			}
 		</div>
 		switch p.state {
-			case pickPrivate:
-				<span class="text-[13px] text-faint max-narrow:hidden">Private libraries can't be published on Rulemart</span>
+			case pickPrivate, pickReadOnly:
+				<span class="text-[13px] text-faint max-narrow:hidden">{ p.note }</span>
 			case pickOnRulemart:
 				<a
 					class={ chipOnStyle }
@@ -142,7 +144,12 @@ templ pickRow(p pickView) {
 					<button class={ smallPrimaryStyle } type="submit" aria-label={ "Add this library: " + p.fullName }>Add this library</button>
 				</form>
 		}
-	</div>
+	</li>
+}
+
+// externalLinkIcon is the small arrow that marks a link to another site, in the muted color.
+templ externalLinkIcon() {
+	<svg class="size-3 flex-none self-center text-muted" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2.5h5.5V8M9.2 2.8 2.8 9.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
 }
 
 // runPage follows a listing's check, as the prototype's: the checklist ticks once Rulemart has the library, saying what

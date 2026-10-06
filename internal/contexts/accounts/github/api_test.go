@@ -214,3 +214,60 @@ func TestInstallationRepositoriesAreItsPrivateOnesTheMostRecentlyPushedFirst(t *
 		t.Errorf("past the page budget, got %d repositories, more %v; want %d and more", len(got), more, maxInstallationPages*perPage)
 	}
 }
+
+// A repository read by name, and the repositories of a list, say whether the token's user may push to them: GitHub's
+// permissions object, where push, maintain, or admin is enough, and one without any, as for a token that reads nothing
+// of the user's, says no.
+func TestAPIReadsWhetherTheTokenMayPushToARepository(t *testing.T) {
+	for name, tc := range map[string]struct {
+		permissions string
+		writable    bool
+	}{
+		"push":         {`{"pull":true,"push":true}`, true},
+		"maintain":     {`{"pull":true,"maintain":true}`, true},
+		"admin":        {`{"pull":true,"admin":true}`, true},
+		"only pull":    {`{"pull":true,"push":false,"admin":false}`, false},
+		"no object":    {``, false},
+		"empty object": {`{}`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			described := `{"name":"rules","private":false,"owner":{"login":"octo-org"}`
+			if tc.permissions != "" {
+				described += `,"permissions":` + tc.permissions
+			}
+			described += `}`
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/repos/octo-org/rules" {
+					fmt.Fprint(w, described)
+					return
+				}
+				fmt.Fprint(w, "["+described+"]")
+			}))
+			defer server.Close()
+			api := NewAPI(server.URL)
+
+			repo, found, err := api.Repository(context.Background(), "gho_x", domain.Repository{Owner: "octo-org", Name: "rules"})
+			if err != nil || !found || repo.Writable != tc.writable || repo.FullName() != "octo-org/rules" {
+				t.Errorf("Repository: got %+v, found %v, %v; want writable %v", repo, found, err, tc.writable)
+			}
+			listed, _, err := api.Repositories(context.Background(), "gho_x", "octo-org", true, 10)
+			if err != nil || len(listed) != 1 || listed[0].Writable != tc.writable {
+				t.Errorf("Repositories: got %+v, %v; want writable %v", listed, err, tc.writable)
+			}
+		})
+	}
+}
+
+// A repository GitHub answers 404 or 403 for is not found rather than a failure, and a token it refuses fails as such.
+func TestAPIRepositoryIsNotFoundWhereGitHubAnswers404Or403(t *testing.T) {
+	for status, want := range map[int]error{404: nil, 403: nil, 401: domain.ErrGitHubTokenRefused} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"message":"no"}`, status)
+		}))
+		_, found, err := NewAPI(server.URL).Repository(context.Background(), "gho_x", domain.Repository{Owner: "o", Name: "r"})
+		server.Close()
+		if found || !errors.Is(err, want) || (want == nil && err != nil) {
+			t.Errorf("%d: got found %v, %v; want %v", status, found, err, want)
+		}
+	}
+}

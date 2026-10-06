@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -59,7 +60,8 @@ type Options struct {
 	Accounts Accounts
 	// GitHub signs visitors in with GitHub. Nil, with Accounts, leaves only a local build's test users to sign in as.
 	GitHub GitHub
-	// Listings lists libraries for signed-in visitors. Nil, or without a way to sign in, leaves listing out.
+	// Listings lists libraries for signed-in visitors. Nil, or without GitHubAccounts, which tells whether a visitor may
+	// push to the repository they add, or a way to sign in, leaves listing out.
 	Listings Listings
 	// Stars stars the current rules of vetted libraries for signed-in visitors. Nil, or without a way to sign in,
 	// leaves starring out; pages still show the stars the catalog counts.
@@ -76,6 +78,20 @@ type Options struct {
 	// GitHubWebhook is true when GitHub's deliveries reach the GitHub App's webhook, as through the web function's
 	// webhook alias, so the privacy page says a delivery discards what Rulemart read through an installation.
 	GitHubWebhook bool
+	// Release is the release serving the pages, such as v0.2.1, which every page's footer names, linking a release
+	// tag to its page on GitHub. Empty is a build without one, such as a local one, which the footer calls dev.
+	Release string
+}
+
+// releaseTag matches a release's tag, such as v0.2.1, which names its page on GitHub.
+var releaseTag = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// releaseURL returns the page on GitHub of release, when it's a release's tag, or empty.
+func releaseURL(release string) string {
+	if !releaseTag.MatchString(release) {
+		return ""
+	}
+	return repositoryURL + "/releases/tag/" + release
 }
 
 // ParseBaseURL parses text as Options.BaseURL: an https origin, or an http one on a loopback host, with no path,
@@ -237,10 +253,11 @@ func newServer(catalog Catalog, options Options) (*server, error) {
 			beacon:     beacon,
 			stylesheet: assets.url("generated/app.css"), script: assets.url("theme.js"), menuScript: assets.url("menus.js"),
 			caretScript: assets.url("caret.js"), cartPageScript: assets.url("cart-page.js"), cartCheckoutScript: assets.url("cart-checkout.js"),
-			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), starScript: assets.url("star.js"), compareScript: assets.url("compare.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
+			toastScript: assets.url("toast.js"), pollScript: assets.url("poll.js"), starScript: assets.url("star.js"), compareScript: assets.url("compare.js"), deleteAccountScript: assets.url("delete-account.js"), cartScript: assets.url("cart.js"), filtersScript: assets.url("filters.js"),
 			icon: assets.url("favicon.svg"), touchIcon: assets.url("apple-touch-icon.png"),
 			logo: assets.url("rulemart-horizontal-dark.svg"), darkLogo: assets.url("rulemart-horizontal-white.svg"),
-			font: assets.url("fonts/inter-latin.woff2"),
+			font:    assets.url("fonts/inter-latin.woff2"),
+			release: cmp.Or(options.Release, "dev"), releaseURL: releaseURL(options.Release),
 		},
 	}
 	s.content, err = loadContentPages(contentFiles, newContentValues(s.listingAvailable(), options.AnalyticsToken != "", options.GitHubWebhook))
@@ -308,17 +325,18 @@ func (s *server) handler() http.Handler {
 		handle("GET "+dashboardHref, s.dashboard)
 		handle("GET "+legacyAccountHref, s.legacyAccount)
 		handle("POST "+signOutEverywhereHref, s.signOutEverywhere)
+		handle("GET "+deleteAccountHref, s.confirmDeleteAccount)
 		handle("POST "+deleteAccountHref, s.deleteAccount)
 		s.registerDevSignIn(handle)
 		if s.GitHubAccounts != nil {
 			handle("POST "+refreshHref, s.refresh)
 		}
-		if s.Listings != nil {
+		if s.Listings != nil && s.GitHubAccounts != nil {
 			handle("GET "+listHref, s.addPage)
 			handle("POST "+listHref, s.createListing)
 			handle("GET "+runHref, s.runPage)
 			handle("GET "+legacyListHref, s.legacyList)
-			handle("GET "+listingsHref, s.listingsPage)
+			handle("GET "+listingsHref, s.legacyListings)
 			handle("GET "+legacyListingsHref, s.legacyListings)
 			handle("GET "+removeListingHref, s.removeListingPage)
 			handle("POST "+removeListingHref, s.removeListing)
@@ -327,6 +345,7 @@ func (s *server) handler() http.Handler {
 		if s.privateAvailable() {
 			handle("GET "+privateHref, s.privatePage)
 			handle("POST "+removePrivateHref, s.removePrivate)
+			handle("POST "+skipPrivateHref, s.skipPrivate)
 			handle("GET "+installedHref, s.installed)
 		}
 		if s.Stars != nil {

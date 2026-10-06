@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
@@ -12,6 +13,8 @@ import (
 
 	shipped "github.com/fabricahq/rulemart/catalog"
 	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
+	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 	accountspostgres "github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -45,12 +48,25 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	}
 	queue := &memoryQueue{}
 	gitHub := &fakeGitHub{identity: octocat}
+	// octocat belongs to example, which publishes the library, so GitHub says their token may push to it.
+	fakeGitHubSite := httptest.NewServer((&githubtest.Fake{
+		Users: []githubtest.User{{
+			Token: issuedToken, ID: octocat.GitHubUserID, Login: octocat.Login,
+			Organizations: []githubtest.Membership{{Organization: "example", Role: "member"}},
+		}},
+		Repositories: []githubtest.Repository{{Owner: "example", Name: "rules"}},
+	}).Handler())
+	t.Cleanup(fakeGitHubSite.Close)
 	site := func(vetted []domain.LibraryKey) *web.Site {
+		sessions := accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), TokenKeys: testTokenKeys}
 		handler, err := web.New(app.Pages{Store: webStore, Vetted: vetted, Groups: groups}, web.Options{
 			Log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
-			Accounts: accountsapp.Sessions{Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), TokenKeys: testTokenKeys},
+			Accounts: sessions,
 			GitHub:   gitHub,
 			Listings: app.Listings{Store: webStore, Vetted: vetted, Queue: queue},
+			GitHubAccounts: accountsapp.GitHubAccounts{
+				Store: accountspostgres.New(databasetest.AsWebRole(t, connString)), Sessions: sessions, GitHub: github.NewAPI(fakeGitHubSite.URL),
+			},
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -67,8 +83,8 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	if listed.StatusCode != http.StatusSeeOther || len(queue.bodies) != 1 {
 		t.Fatalf("listing answered %d and queued %q", listed.StatusCode, queue.bodies)
 	}
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
-		"example/rules Checking")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me", cookies: cookies})),
+		"My libraries , 1", "Checking example/rules · Rulemart is checking it on GitHub.")
 	run := body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
 	assertShows(t, run, "Adding example/rules", "In progress: Looking for rule-library.yaml in example/rules")
 	if !strings.Contains(run, "data-polling") || !strings.Contains(run, `http-equiv="refresh"`) {
@@ -87,8 +103,8 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 		t.Fatalf("the worker's check: %+v, %v", check, err)
 	}
 
-	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me/listings", cookies: cookies})),
-		"example/rules Listed, unvetted")
+	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me", cookies: cookies})),
+		"My libraries , 1", "Unvetted example/rules · 1 rule")
 	run = body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
 	assertShows(t, run, "Done: Found rule-library.yaml in example/rules", "example/rules is live on Rulemart.", "View library page")
 	if strings.Contains(run, "data-polling") {

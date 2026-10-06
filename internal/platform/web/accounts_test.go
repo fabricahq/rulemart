@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -221,17 +222,26 @@ func newAccountsSite(t *testing.T, adjust func(*web.Options)) accountsSite {
 	return site
 }
 
-// request is a request to send to a site: a method and target, the cookies the browser holds, and its headers.
+// request is a request to send to a site: a method and target, the cookies the browser holds, its headers, and the
+// form it posts, if any.
 type request struct {
 	method, target string
 	cookies        []*http.Cookie
 	header         http.Header
+	form           url.Values
 }
 
 // send sends r to handler as a browser would on the same site, unless r's header says otherwise.
 func send(t *testing.T, handler http.Handler, r request) *http.Response {
 	t.Helper()
-	req := httptest.NewRequest(r.method, r.target, nil)
+	var form io.Reader
+	if r.form != nil {
+		form = strings.NewReader(r.form.Encode())
+	}
+	req := httptest.NewRequest(r.method, r.target, form)
+	if r.form != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	}
 	if r.method != http.MethodGet && r.method != http.MethodHead {
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 	}
@@ -548,6 +558,7 @@ func TestSignInAndOutReturnOnlyToPathsOnThisSite(t *testing.T) {
 		"/account/github/callback?x=1":    "/",
 		"/me/account/delete":              "/",
 		"/me/account/sign-out-everywhere": "/",
+		"/me/private/skip":                "/",
 		"/" + strings.Repeat("a", 2000):   "/",
 	} {
 		t.Run(target, func(t *testing.T) {
@@ -620,9 +631,10 @@ func TestStateChangingRequestsFromAnotherSiteAreRefused(t *testing.T) {
 			site := newAccountsSite(t, func(o *web.Options) { o.BaseURL = baseURL })
 			token := site.accounts.signedIn(t, octocat)
 			for _, target := range []string{"/signout", "/me/account/sign-out-everywhere", "/me/account/delete", "/signin"} {
-				// Every request to the function arrives at the Function URL's host, not the public origin.
+				// Every request to the function arrives at the Function URL's host, not the public origin. Deleting
+				// takes the account's login, which the other actions ignore.
 				resp := send(t, site.handler, request{method: http.MethodPost, target: "https://abc.lambda-url.us-west-2.on.aws" + target,
-					cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, header: tc.header})
+					cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}, header: tc.header, form: url.Values{"login": {"octocat"}}})
 				if resp.StatusCode != tc.want {
 					t.Errorf("POST %s answered %d, want %d", target, resp.StatusCode, tc.want)
 				}
@@ -781,14 +793,18 @@ func TestTheAccountPageShowsWhatRulemartKeepsOnlyToItsOwner(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
 
-	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me"})
-	signedIn := send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account"})
+	signedIn := send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
-	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/signin?return=%2Fme" {
+	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/signin?return=%2Fme%3Ftab%3Daccount" {
 		t.Errorf("signed out, the account page answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
 	}
 	page := body(t, signedIn)
-	assertShows(t, page, "octocat", "GitHub user ID 583231", "Username octocat", "Account created 2 Oct 2026", "Sign out everywhere", "Delete my account")
+	assertShows(t, page, "octocat", "GitHub user ID 583231", "Username octocat", "Account created 2 Oct 2026",
+		"What Rulemart keeps about you, and for how long, is on the privacy page .", "Sign out everywhere", "Delete my account")
+	if got := links(t, page, "privacy page"); !slices.Equal(got, []string{"/privacy"}) {
+		t.Errorf("the privacy page is at %q", got)
+	}
 	if !strings.Contains(page, `<meta name="robots" content="noindex">`) {
 		t.Error("the account page can be indexed")
 	}
@@ -819,7 +835,7 @@ func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
 	token := site.accounts.signedIn(t, octocat)
 
 	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete"})
-	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete?login=octocat", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}})
 
 	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signed out, deleting answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
@@ -832,6 +848,140 @@ func TestDeleteAccountDeletesOnlyTheSignedInAccount(t *testing.T) {
 	assertShows(t, page, "Rulemart deleted your account and signed you out everywhere.", "Sign in")
 	if strings.Contains(visibleText(t, page), "Signed in as") {
 		t.Error("the page still shows the deleted account signed in")
+	}
+}
+
+// Deleting an account takes the account's GitHub login, typed exactly, in the request's query, which is what stops it,
+// whatever the page's script does: a missing, wrong, or differently cased login is refused, with the Account tab open
+// at Delete your account saying why, and deletes nothing. A login in the body alone is missing, since CloudFront
+// refuses a body a browser's form can't sign, so no form of the site's sends one.
+func TestDeleteAccountTakesTheAccountsExactLogin(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	session := []*http.Cookie{{Name: sessionCookie, Value: string(token)}}
+
+	for name, r := range map[string]request{
+		"missing":           {target: "/me/account/delete"},
+		"empty":             {target: "/me/account/delete?login="},
+		"another account's": {target: "/me/account/delete?login=hubot"},
+		"differently cased": {target: "/me/account/delete?login=Octocat"},
+		"with a space":      {target: "/me/account/delete?login=octocat+"},
+		"with an @":         {target: "/me/account/delete?login=%40octocat"},
+		"in the body only":  {target: "/me/account/delete", form: url.Values{"login": {"octocat"}}},
+	} {
+		r.method, r.cookies = http.MethodPost, session
+		resp := send(t, site.handler, r)
+		if resp.StatusCode != http.StatusBadRequest || resp.Header.Get("Cache-Control") != "private, no-store" {
+			t.Errorf("%s: answered %d, cached as %q, want 400, private", name, resp.StatusCode, resp.Header.Get("Cache-Control"))
+		}
+		if len(site.accounts.deleted) != 0 || !site.accounts.live(token) {
+			t.Fatalf("%s: deleted %v, or ended the session", name, site.accounts.deleted)
+		}
+		page := body(t, resp)
+		assertShows(t, page, "That isn't your username. Type octocat exactly to delete your account.")
+		doc, err := html.Parse(strings.NewReader(page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		disclosure := find(doc, func(n *html.Node) bool {
+			return n.Data == "details" && strings.Contains(nodeText(n), "Delete your account")
+		})
+		if disclosure == nil || !hasAttribute(disclosure, "open") {
+			t.Errorf("%s: the refusal doesn't open Delete your account", name)
+		}
+		if got := currentTabs(t, page); !slices.Equal(got, []string{"Account"}) {
+			t.Errorf("%s: the refusal shows the tab %q, want Account", name, got)
+		}
+	}
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/account/delete?login=octocat", cookies: session})
+	if resp.StatusCode != http.StatusSeeOther || len(site.accounts.deleted) != 1 {
+		t.Errorf("the exact login answered %d, deleting %v", resp.StatusCode, site.accounts.deleted)
+	}
+}
+
+// The Account tab's Delete your account asks for the login, labeled, in its own form, which works without a script by
+// leading, with the login in its query, to the page that deletes; and it holds the dialog the script opens instead,
+// which asks for the login again, in a field the browser never sends, behind a Delete my account that starts disabled,
+// and a Cancel that closes it.
+func TestDeleteAccountAsksForTheLogin(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=account", cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
+
+	assertShows(t, page, "Type your username, @octocat, to confirm", "Delete your account?", "Cancel")
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fields, disabled int
+	for n := range doc.Descendants() {
+		switch {
+		case n.Data == "input" && strings.HasPrefix(attribute(n, "id"), "delete-"):
+			id := attribute(n, "id")
+			if find(doc, func(l *html.Node) bool { return l.Data == "label" && attribute(l, "for") == id }) == nil {
+				t.Errorf("the login field %q has no label", id)
+			}
+			form := n.Parent
+			for form != nil && form.Data != "form" {
+				form = form.Parent
+			}
+			switch {
+			case form == nil:
+				t.Errorf("the login field %q is in no form", id)
+			case hasAttribute(form, "data-delete-inline") && (attribute(form, "method") != "get" || attribute(form, "action") != "/me/account/delete" || attribute(n, "name") != "login"):
+				t.Errorf("the disclosure's form is a %s to %q sending %q; want a GET to /me/account/delete sending login", attribute(form, "method"), attribute(form, "action"), attribute(n, "name"))
+			case hasAttribute(form, "data-delete-form") && (attribute(form, "method") != "post" || hasAttribute(n, "name")):
+				t.Errorf("the dialog's form is a %s whose field is named %q; want a POST whose field the browser never sends", attribute(form, "method"), attribute(n, "name"))
+			}
+			fields++
+		case n.Data == "button" && nodeText(n) == "Delete my account" && hasAttribute(n, "disabled"):
+			disabled++
+		}
+	}
+	dialog := find(doc, func(n *html.Node) bool { return n.Data == "dialog" && hasAttribute(n, "data-delete-dialog") })
+	if fields != 2 || disabled != 1 || dialog == nil || attribute(dialog, "data-login") != "octocat" {
+		t.Errorf("the page has %d login fields, %d disabled Delete my account, and the dialog %v, want 2, 1, and one for octocat", fields, disabled, dialog)
+	}
+}
+
+// Without a script, the disclosure's form leads to a page that says what deleting does and posts the login on in its
+// query, with an empty body, as CloudFront requires of a request a browser can't sign; a login that isn't the
+// account's is refused there as deleting refuses it, and a visitor who isn't signed in is sent to sign in.
+func TestDeleteAccountConfirmsOnAPageWithoutAScript(t *testing.T) {
+	site := newAccountsSite(t, nil)
+	token := site.accounts.signedIn(t, octocat)
+	session := []*http.Cookie{{Name: sessionCookie, Value: string(token)}}
+
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me/account/delete?login=octocat", cookies: session})
+
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("answered %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+	page := body(t, resp)
+	assertShows(t, page, "Delete your account?", "This deletes your Rulemart account, @octocat,", "Delete my account", "Cancel")
+	if got := formActions(t, page); !slices.Contains(got, "/me/account/delete?login=octocat") {
+		t.Errorf("the page's forms post to %q, want one to /me/account/delete?login=octocat", got)
+	}
+	if strings.Contains(page, `name="login"`) {
+		t.Error("the page's form sends a field, which CloudFront would refuse")
+	}
+	if got := links(t, page, "Cancel"); !slices.Equal(got, []string{"/me?tab=account"}) {
+		t.Errorf("Cancel leads to %q", got)
+	}
+	if len(site.accounts.deleted) != 0 {
+		t.Errorf("showing the page deleted %v", site.accounts.deleted)
+	}
+
+	refused := send(t, site.handler, request{method: http.MethodGet, target: "/me/account/delete?login=hubot", cookies: session})
+	if refused.StatusCode != http.StatusBadRequest {
+		t.Errorf("another login answered %d, want 400", refused.StatusCode)
+	}
+	assertShows(t, body(t, refused), "That isn't your username. Type octocat exactly to delete your account.")
+
+	signedOut := send(t, site.handler, request{method: http.MethodGet, target: "/me/account/delete?login=octocat"})
+	if signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != "/signin?return=%2Fme%3Ftab%3Daccount" {
+		t.Errorf("signed out, the page answered %d to %q", signedOut.StatusCode, signedOut.Header.Get("Location"))
 	}
 }
 
@@ -906,11 +1056,21 @@ func TestSigningOutFromTheAccountPageReturnsHome(t *testing.T) {
 	assertShows(t, followNotice(t, site, stale, "/"), "You're signed out.")
 }
 
-// Sent to sign in from the account page, a visitor is told why.
-func TestTheSignInPageSaysWhySignInIsNeededForTheAccount(t *testing.T) {
+// Sent to sign in from a tab of the dashboard, a visitor is told why; a tab the dashboard doesn't know is its first.
+func TestTheSignInPageSaysWhySignInIsNeededForTheDashboard(t *testing.T) {
 	site := newAccountsSite(t, nil)
-	page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=%2Fme"}))
-	assertShows(t, page, "Sign in to see your dashboard.")
+	for back, want := range map[string]string{
+		"/me":              "Sign in to see your dashboard.",
+		"/me?tab=projects": "Sign in to see your projects.",
+		"/me?tab=stars":    "Sign in to see your starred rules.",
+		"/me?tab=account":  "Sign in to see your account.",
+		"/me?tab=nonsense": "Sign in to see your dashboard.",
+	} {
+		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/signin?return=" + url.QueryEscape(back)}))
+		if got := visibleText(t, page); !strings.Contains(got, want) {
+			t.Errorf("on the way to %s, the sign-in page doesn't say %q:\n%s", back, want, got)
+		}
+	}
 }
 
 // Opened directly, with nowhere to return to, the sign-in page gives no reason: the visitor wasn't on their way to
@@ -923,19 +1083,36 @@ func TestTheSignInPageOpenedDirectlyGivesNoReason(t *testing.T) {
 	}
 }
 
-// On the account page, the menu marks Account as the current page.
-func TestTheMenuMarksTheAccountPageCurrent(t *testing.T) {
+// On the dashboard, whichever its tab, the menu marks Dashboard as the current page, and it has no link to the tabs.
+func TestTheMenuMarksTheDashboardCurrent(t *testing.T) {
 	site := newAccountsSite(t, nil)
 	token := site.accounts.signedIn(t, octocat)
-	for path, want := range map[string]string{"/me": "page", "/browse/techs": ""} {
+	for path, want := range map[string]map[string]string{
+		"/me":              {"Dashboard": "page"},
+		"/me?tab=nonsense": {"Dashboard": "page"},
+		"/me?tab=account":  {"Dashboard": "page"},
+		"/browse/techs":    {"Dashboard": ""},
+	} {
 		page := body(t, send(t, site.handler, request{method: http.MethodGet, target: path, cookies: []*http.Cookie{{Name: sessionCookie, Value: string(token)}}}))
 		doc, err := html.Parse(strings.NewReader(page))
 		if err != nil {
 			t.Fatal(err)
 		}
-		link := find(doc, func(n *html.Node) bool { return n.Data == "a" && attribute(n, "href") == "/me" })
-		if link == nil || attribute(link, "aria-current") != want {
-			t.Errorf("%s: the menu's Account link is %v, want aria-current %q", path, link, want)
+		for name, current := range want {
+			// The menu's links are its details' only links; the dashboard's tab bar has its own.
+			link := find(doc, func(n *html.Node) bool {
+				return n.Data == "a" && nodeText(n) == name && n.Parent != nil && n.Parent.Data == "div" && n.Parent.Parent != nil && n.Parent.Parent.Data == "details"
+			})
+			if link == nil || attribute(link, "aria-current") != current {
+				t.Errorf("%s: the menu's %s link is %v, want aria-current %q", path, name, link, current)
+			}
+		}
+		for _, tab := range []string{"Account", "Starred rules"} {
+			if find(doc, func(n *html.Node) bool {
+				return n.Data == "a" && nodeText(n) == tab && n.Parent != nil && n.Parent.Data == "div" && n.Parent.Parent != nil && n.Parent.Parent.Data == "details"
+			}) != nil {
+				t.Errorf("%s: the menu links %s, a tab of the dashboard", path, tab)
+			}
 		}
 	}
 }

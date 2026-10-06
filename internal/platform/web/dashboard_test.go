@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"slices"
 	"strings"
@@ -34,7 +35,8 @@ type dashboardSite struct {
 }
 
 // octocatsGitHub is what Rulemart reads of octocat's GitHub account: a member of octo-org, with a library to add, one
-// on Rulemart, a private one, and two projects, one private, that import example/rules, one behind it.
+// on Rulemart, a private one, a public one of octo-org's that octocat may only read, and two projects, one private, that
+// import example/rules, one behind it.
 func octocatsGitHub() accounts.Snapshot {
 	behind := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 1}}}
 	current := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 2}}}
@@ -42,9 +44,10 @@ func octocatsGitHub() accounts.Snapshot {
 		ReadAt:        time.Now().Add(-3 * time.Minute),
 		Organizations: []string{"octo-org", "example"},
 		Libraries: []accounts.PublishableRepository{
-			{Repository: accounts.Repository{Owner: "octocat", Name: "new-rules"}, Release: 2},
-			{Repository: accounts.Repository{Owner: "example", Name: "rules"}, Release: 3},
+			{Repository: accounts.Repository{Owner: "octocat", Name: "new-rules"}, Release: 2, Writable: true},
+			{Repository: accounts.Repository{Owner: "example", Name: "rules"}, Release: 3, Writable: true},
 			{Repository: accounts.Repository{Owner: "octocat", Name: "team-rules", Private: true}, Release: 1},
+			{Repository: accounts.Repository{Owner: "octo-org", Name: "readonly"}, Release: 1},
 		},
 		Projects: []accounts.Project{
 			{Repository: accounts.Repository{Owner: "octocat", Name: "api"}, Sources: []accounts.Source{{Name: "example", Library: "example/rules", Rules: behind}}},
@@ -107,30 +110,287 @@ func (s dashboardSite) get(t *testing.T, target string) string {
 	return body(t, resp)
 }
 
-// The dashboard shows the visitor, their organizations, the libraries they and their organizations publish, with
-// their stars and New on one listed today, and the libraries their projects use, with the updates waiting for each
-// project, as the prototype's does.
-func TestTheDashboardShowsTheVisitorsLibrariesAndProjects(t *testing.T) {
+// The dashboard shows the visitor and their organizations, then My libraries: the libraries they and their organizations
+// publish, with their stars and New on one listed today, as the prototype's does.
+func TestTheDashboardShowsTheVisitorsLibraries(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
 	page := site.get(t, "/me")
 
 	assertShows(t, page,
-		"Dashboard The Octocat @octocat · member of octo-org, example", "My libraries Starred rules , 0",
-		"Showing public repos only. Include private projects", "Read from GitHub 3 minutes ago. Refresh",
-		"Published by you and your orgs 2 rules example/rules · 2 rules ★ 1,235 1,235 stars in all",
-		"new New Unvetted octo-org/new · 1 rule ★ 0 0 stars in all", "+ Add a library",
-		"Used in your projects 1 rules octocat/api · 1 rule update · octocat/billing (private) · up to date 2 projects",
-		"Read from each project's .code-rules/generated/provenance.json .",
-		"Account GitHub user ID 583231", "Sign out everywhere", "Delete my account")
+		"Dashboard The Octocat @octocat · member of octo-org, example",
+		"Libraries you and your organizations publish rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules",
+		"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule", "+ Add a library",
+		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects")
+	if got := links(t, page, "Include private projects"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Include private projects leads to %q", got)
+	}
+	if strings.Contains(page, "border-dashed") {
+		t.Error("the dashboard still draws the dashed note on private projects")
+	}
 	if got := rels(t, page, "/octo-org/new"); !slices.Equal(got, []string{"nofollow"}) {
 		t.Errorf("the unvetted library links with rel %q", got)
 	}
 	if content, _ := robots(t, page); content != "noindex" {
 		t.Errorf("robots %q, want noindex", content)
 	}
-	if got := formActions(t, page); !slices.Contains(got, "/me/refresh?return=%2Fme") {
-		t.Errorf("the page's forms post to %q, want Refresh's", got)
+}
+
+// My libraries and Projects show their lists directly under the tab bar, with no visible section heading repeating
+// the tab: each list's heading is for screen readers only, and the tab bar holds the counts.
+func TestTheDashboardsListsHaveNoVisibleSectionHeadings(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, want := range map[string]string{"/me": "Libraries you and your organizations publish", "/me?tab=projects": "Libraries your projects use"} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var visible, hidden []string
+		for n := range doc.Descendants() {
+			if n.Type != html.ElementNode || n.Data != "h2" {
+				continue
+			}
+			if strings.Contains(" "+attribute(n, "class")+" ", " sr-only ") {
+				hidden = append(hidden, nodeText(n))
+			} else {
+				visible = append(visible, nodeText(n))
+			}
+		}
+		if len(visible) > 0 || !slices.Equal(hidden, []string{want}) {
+			t.Errorf("%s has visible headings %q and screen-reader headings %q, want none and %q", target, visible, hidden, want)
+		}
+	}
+}
+
+// My libraries and Projects each show their rows as a list in one card, and My libraries' + Add a library sits in that
+// card, after the list, so the list and its action read as one object; the line on the read of GitHub follows the card.
+func TestTheDashboardsListsAreCards(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, last := range map[string]string{"/me": "+ Add a library", "/me?tab=projects": ""} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := find(doc, func(n *html.Node) bool {
+			return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p"
+		})
+		if name == nil {
+			t.Fatalf("%s lists no example/rules", target)
+		}
+		item := name
+		for item != nil && item.Data != "li" {
+			item = item.Parent
+		}
+		if item == nil || item.Parent.Data != "ul" {
+			t.Fatalf("%s: example/rules isn't an item of a list", target)
+		}
+		card := item.Parent.Parent
+		if !strings.Contains(attribute(card, "class"), "rounded-card") || !strings.Contains(attribute(card, "class"), "border") {
+			t.Errorf("%s: the list isn't in a card: %q", target, attribute(card, "class"))
+		}
+		text := nodeText(card)
+		if last != "" && !strings.HasSuffix(text, last) {
+			t.Errorf("%s: the card ends %q, want %q", target, text[max(0, len(text)-40):], last)
+		}
+		if strings.Contains(text, "read from GitHub") {
+			t.Errorf("%s: the line on the read of GitHub is inside the card", target)
+		}
+	}
+}
+
+// Each row of My libraries and Projects keeps its figure, the stars or the projects, on its title line beside the name,
+// with nothing at the row's far edge.
+func TestTheDashboardsRowsKeepTheirFiguresBesideTheirNames(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, want := range map[string]string{"/me": "rules ★ 1,235 1,235 stars in all Vetted", "/me?tab=projects": "rules · 2 projects"} {
+		doc, err := html.Parse(strings.NewReader(site.get(t, target)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := find(doc, func(n *html.Node) bool {
+			return n.Data == "a" && attribute(n, "href") == "/example/rules" && n.Parent != nil && n.Parent.Data == "p"
+		})
+		if name == nil {
+			t.Fatalf("%s lists no example/rules", target)
+		}
+		if got := nodeText(name.Parent); got != want {
+			t.Errorf("%s: example/rules' title line reads %q, want %q", target, got, want)
+		}
+		if row := name.Parent.Parent.Parent; row.FirstChild != row.LastChild && strings.TrimSpace(nodeText(row.LastChild)) != "" && row.LastChild != name.Parent.Parent {
+			t.Errorf("%s: example/rules' row holds something beside its text: %q", target, nodeText(row.LastChild))
+		}
+	}
+}
+
+// Projects shows the libraries the visitor's projects use, with the updates waiting for each project, as the
+// prototype's My libraries does below the visitor's own libraries.
+func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me?tab=projects")
+
+	assertShows(t, page,
+		"Libraries your projects use rules · 2 projects octocat/api · 1 rule update · octocat/billing (private) · up to date",
+		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects",
+		"Read from each project's .code-rules/generated/provenance.json .")
+}
+
+// My libraries and Projects lead with their lists, then what adds to them, and end with one line on the read of GitHub:
+// whether it includes private projects, and how fresh it is.
+func TestTheDashboardsListsComeBeforeTheirPrompts(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	for target, order := range map[string][]string{
+		"/me":              {"Libraries you and your organizations publish", "+ Add a library", "Public repos only · read from GitHub"},
+		"/me?tab=projects": {"Libraries your projects use", "Public repos only · read from GitHub", "provenance.json"},
+	} {
+		text := visibleText(t, site.get(t, target))
+		last := -1
+		for _, part := range order {
+			at := strings.Index(text, part)
+			if at <= last {
+				t.Errorf("%s shows %q out of the order %q:\n%s", target, part, order, text)
+			}
+			last = at
+		}
+	}
+}
+
+// Each of the dashboard's tabs, My libraries, Projects, Starred rules, and Account, shows its own content and none of
+// the others', under the tab bar, which counts each tab's rows and marks the tab shown; My libraries and Projects,
+// which both show what Rulemart read of GitHub, say how fresh the read is, and their Refresh returns to the same tab.
+// A tab the page doesn't know shows My libraries.
+func TestEachDashboardTabShowsOnlyItsOwnContent(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	libraries := []string{"Libraries you and your organizations publish", "+ Add a library"}
+	projects := []string{"Libraries your projects use", "provenance.json"}
+	stars := []string{"You haven't starred any rules yet."}
+	account := []string{"GitHub user ID", "Account created", "Sign out everywhere", "Delete my account"}
+	gitHub := []string{"Public repos only", "read from GitHub"}
+	for _, tc := range []struct {
+		target, tab string
+		shows       [][]string
+		hides       [][]string
+		// refresh is where the tab's Refresh posts, or empty when the tab has none.
+		refresh string
+	}{
+		{"/me", "My libraries", [][]string{gitHub, libraries}, [][]string{projects, stars, account}, "/me/refresh?return=%2Fme"},
+		{"/me?tab=projects", "Projects", [][]string{gitHub, projects}, [][]string{libraries, stars, account}, "/me/refresh?return=%2Fme%3Ftab%3Dprojects"},
+		{"/me?tab=stars", "Starred rules", [][]string{stars}, [][]string{gitHub, libraries, projects, account}, ""},
+		{"/me?tab=account", "Account", [][]string{account}, [][]string{gitHub, libraries, projects, stars}, ""},
+		{"/me?tab=nonsense", "My libraries", [][]string{gitHub, libraries}, [][]string{projects, stars, account}, "/me/refresh?return=%2Fme"},
+	} {
+		page := site.get(t, tc.target)
+		text := visibleText(t, page)
+
+		assertShows(t, page, "My libraries , 2 Projects , 1 Starred rules , 0 Account")
+		if got := currentTabs(t, page); !slices.Equal(got, []string{tc.tab}) {
+			t.Errorf("%s marks %q as the current tab, want %q", tc.target, got, tc.tab)
+		}
+		for _, shown := range tc.shows {
+			for _, want := range shown {
+				if !strings.Contains(text, want) {
+					t.Errorf("%s doesn't show %q", tc.target, want)
+				}
+			}
+		}
+		for _, hidden := range tc.hides {
+			for _, unwanted := range hidden {
+				if strings.Contains(text, unwanted) {
+					t.Errorf("%s shows %q, which another tab holds", tc.target, unwanted)
+				}
+			}
+		}
+		refreshes := slices.DeleteFunc(formActions(t, page), func(action string) bool { return !strings.HasPrefix(action, "/me/refresh") })
+		if want := []string{tc.refresh}; tc.refresh == "" && len(refreshes) > 0 || tc.refresh != "" && !slices.Equal(refreshes, want) {
+			t.Errorf("%s's Refresh posts to %q, want %q", tc.target, refreshes, tc.refresh)
+		}
+	}
+	// The tab is its own heading.
+	if got := headings(t, site.get(t, "/me?tab=account"), "h2"); slices.Contains(got, "Account") {
+		t.Errorf("the Account tab repeats its name as a heading: %q", got)
+	}
+}
+
+// Where Rulemart can't read visitors' GitHub accounts, the dashboard has no Projects tab, and its address shows My
+// libraries.
+func TestTheDashboardHasNoProjectsTabWithoutGitHub(t *testing.T) {
+	site := newDashboardSiteWith(t, accounts.Snapshot{}, octocatsCatalog(), func(o *web.Options) { o.GitHubAccounts = nil })
+
+	page := site.get(t, "/me?tab=projects")
+
+	assertShows(t, page, "My libraries , 0 Starred rules , 0 Account", "Libraries you and your organizations publish")
+	if text := visibleText(t, page); strings.Contains(text, "Projects") || strings.Contains(text, "Libraries your projects use") {
+		t.Errorf("without GitHub, the dashboard offers projects:\n%s", text)
+	}
+	if got := currentTabs(t, page); !slices.Equal(got, []string{"My libraries"}) {
+		t.Errorf("marks %q as the current tab, want My libraries", got)
+	}
+}
+
+// currentTabs returns the name of each tab a page's tab bar, marked data-tabs, marks current.
+func currentTabs(t *testing.T, page string) []string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "a" && attribute(n, "aria-current") == "page" && n.Parent != nil && hasAttribute(n.Parent, "data-tabs") {
+			name, _, _ := strings.Cut(nodeText(n), " ,")
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// My libraries shows the visitor's own listings in place: a listing of a library they or their organizations publish
+// joins its row, with Remove, a check under way or failed takes a row of its own, with Try again where it failed, and a
+// listing of anyone else's library goes under Listed by you, when there is one. With two groups, each has a heading.
+func TestMyLibrariesShowsTheVisitorsListingsInPlace(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+	site.listings.byAccount[1] = []views.AccountListing{
+		{ID: 5, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking, ListedAt: time.Now(), RequestedAt: time.Now().Add(-time.Minute)},
+		{ID: 4, Owner: "Octocat", Name: "broken", State: domain.ListingFailed, Failure: "The repository has no release/<number> tags",
+			ListedAt: day(3), RequestedAt: day(3)},
+		{ID: 3, Owner: "stranger", Name: "rules", State: domain.ListingListed, Library: views.LibraryRef{Owner: "stranger", Name: "rules"},
+			ListedAt: day(2), RequestedAt: day(2)},
+		{ID: 1, Owner: "Example", Name: "Rules", State: domain.ListingVetted, Library: views.LibraryRef{Owner: "example", Name: "rules"},
+			ListedAt: day(1), RequestedAt: day(1)},
+	}
+
+	page := site.get(t, "/me")
+
+	assertShows(t, page, "My libraries , 5",
+		"Published by you and your orgs · 4 rules ★ 1,235 1,235 stars in all Vetted example/rules · 2 rules · Remove "+
+			"new ★ 0 0 stars in all New Unvetted octo-org/new · 1 rule "+
+			"new-rules Checking octocat/new-rules · Rulemart is checking it on GitHub. You asked 1 minute ago. · Remove "+
+			"broken Failed Octocat/broken · The repository has no release/<number> tags · Try again · Remove",
+		"+ Add a library Listed by you · 1 rules Unvetted stranger/rules · Listed 2 Sep 2026 · Remove")
+	if got := links(t, page, "Remove"); !slices.Equal(got, []string{
+		"/me/listings/remove?listing=1", "/me/listings/remove?listing=5", "/me/listings/remove?listing=4", "/me/listings/remove?listing=3",
+	}) {
+		t.Errorf("the Remove links lead to %q", got)
+	}
+	// Try again and Remove follow the status they act on, on the row's second line, with nothing at the row's edge.
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || !(n.Data == "a" && nodeText(n) == "Remove" || n.Data == "button" && nodeText(n) == "Try again") {
+			continue
+		}
+		line := n.Parent
+		for line != nil && (line.Data == "form" || line.Data == "span") {
+			line = line.Parent
+		}
+		if line == nil || !strings.Contains(nodeText(line), " · ") || line.Parent == nil || line.Parent.Parent == nil || line.Parent.Parent.LastChild != line.Parent && strings.TrimSpace(nodeText(line.Parent.Parent.LastChild)) != "" {
+			t.Errorf("%s isn't on its row's second line, after the status", nodeText(n))
+		}
+	}
+	if got := headings(t, page, "h2"); !slices.Equal(got, []string{"Published by you and your orgs · 4", "Listed by you · 1"}) {
+		t.Errorf("the tab's headings are %q", got)
 	}
 }
 
@@ -145,31 +405,32 @@ func TestTheDashboardMarksALibraryNewOnlyWithinADayOfItsListing(t *testing.T) {
 
 	page := site.get(t, "/me")
 
-	assertShows(t, page, "fresh New Unvetted octo-org/fresh", "stale Unvetted octo-org/stale")
+	assertShows(t, page, "fresh ★ 0 0 stars in all New Unvetted octo-org/fresh", "stale ★ 0 0 stars in all Unvetted octo-org/stale")
 }
 
-// A visitor in no organization, with no projects and nothing published, sees each section say so.
+// A visitor in no organization, with no projects and nothing published, sees each tab say so.
 func TestTheDashboardSaysWhenTheVisitorHasNothingYet(t *testing.T) {
 	site := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now()}, newCatalog())
 
 	page := site.get(t, "/me")
 
-	assertShows(t, page, "The Octocat @octocat My libraries",
-		"Published by you and your orgs 0 No library of yours or your organizations' is on Rulemart yet.",
-		"Used in your projects 0 None of your projects imports a library that's on Rulemart.")
+	assertShows(t, page, "The Octocat @octocat My libraries , 0 Projects , 0",
+		"Libraries you and your organizations publish No library of yours or your organizations' is on Rulemart yet.")
 	if strings.Contains(visibleText(t, page), "member of") {
 		t.Error("the head names organizations the visitor isn't in")
 	}
+	assertShows(t, site.get(t, "/me?tab=projects"), "Libraries your projects use None of your projects imports a library that's on Rulemart.")
 }
 
-// Once the visitor installed the GitHub App, the note says private projects are included, and leads to managing them.
+// Once the visitor installed the GitHub App, the line on the read says private projects are included, and leads to
+// managing them.
 func TestTheDashboardSaysWhenItIncludesPrivateProjects(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	site.gitHub.installations[1] = []accounts.Installation{{ID: 9, Account: "octocat"}}
 
 	page := site.get(t, "/me")
 
-	assertShows(t, page, "Including private projects from the repos you selected. Private projects are only visible to you. Manage")
+	assertShows(t, page, "Including private projects from the repos you selected · read from GitHub 3 minutes ago · Refresh · Manage")
 	if got := links(t, page, "Manage"); !slices.Equal(got, []string{"/me/private"}) {
 		t.Errorf("Manage leads to %q", got)
 	}
@@ -183,7 +444,7 @@ func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 	site := newDashboardSite(t, failed, octocatsCatalog())
 	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
 	site.gitHub.snapshot = failed
-	assertShows(t, site.get(t, "/me"), "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again",
+	assertShows(t, site.get(t, "/me?tab=projects"), "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again",
 		"octocat/api · 1 rule update")
 	if !strings.Contains(site.logs.String(), "GitHub answered 502") {
 		t.Errorf("didn't log the failed read: %s", site.logs)
@@ -191,9 +452,9 @@ func TestTheDashboardSaysHowItsReadOfGitHubWent(t *testing.T) {
 
 	tokenless := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
 	tokenless.gitHub.err = accountsapp.ErrNoGitHubToken
-	page := tokenless.get(t, "/me")
+	page := tokenless.get(t, "/me?tab=projects")
 	assertShows(t, page, "Sign in again so Rulemart can read your repositories on GitHub. Sign in again", "Rulemart hasn't read your projects yet.")
-	if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fme"}) {
+	if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fme%3Ftab%3Dprojects"}) {
 		t.Errorf("Sign in again leads to %q", got)
 	}
 	again := body(t, send(t, tokenless.handler, request{method: http.MethodGet, target: "/signin?again=1&return=%2Fme", cookies: []*http.Cookie{tokenless.session}}))
@@ -218,7 +479,7 @@ func TestTheDashboardSaysItsReadingGitHubAndRefreshesWhileAFirstReadIsUnderWay(t
 	site := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
 	site.gitHub.err = accountsapp.ErrGitHubReading
 
-	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session}})
+	resp := send(t, site.handler, request{method: http.MethodGet, target: "/me?tab=projects", cookies: []*http.Cookie{site.session}})
 	page := body(t, resp)
 
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Refresh") != "3" {
@@ -242,17 +503,18 @@ func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	site.get(t, "/me")
 
 	for target, want := range map[string]string{
-		"/me/refresh":                    "/me",
-		"/me/refresh?return=%2Fme%2Fadd": "/me/add",
-		"/me/refresh?return=%2Fcart":     "/cart",
-		"/me/refresh?return=%2Ffaq":      "/me",
+		"/me/refresh": "/me",
+		"/me/refresh?return=%2Fme%3Ftab%3Dprojects": "/me?tab=projects",
+		"/me/refresh?return=%2Fme%2Fadd":            "/me/add",
+		"/me/refresh?return=%2Fcart":                "/cart",
+		"/me/refresh?return=%2Ffaq":                 "/me",
 	} {
 		resp := send(t, site.handler, request{method: http.MethodPost, target: target, cookies: []*http.Cookie{site.session}})
 		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
 			t.Errorf("%s answered %d to %q, want %q", target, resp.StatusCode, resp.Header.Get("Location"), want)
 		}
 	}
-	if site.gitHub.reads != 5 {
+	if site.gitHub.reads != 6 {
 		t.Errorf("read GitHub %d times, want once for the page and once a refresh", site.gitHub.reads)
 	}
 	// A refresh says when Rulemart last read GitHub, which it does at most once a minute, so a second press within the
@@ -274,16 +536,19 @@ func TestRefreshReadsGitHubAgainAndReturns(t *testing.T) {
 	}
 }
 
-// The account menu names the visitor, then leads to the dashboard, adding a library, and Starred rules, and signs out,
-// as the prototype's does.
+// The account menu names the visitor, then has three entries: the dashboard, adding a library, and Sign out. The
+// dashboard's tabs, Starred rules and Account, are only on the dashboard.
 func TestTheAccountMenuReadsAsThePrototypes(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	page := site.get(t, "/faq")
-	assertShows(t, page, "The Octocat Signed in as @octocat Dashboard Add a library Starred rules Sign out")
-	for name, want := range map[string]string{"Dashboard": "/me", "Add a library": "/me/add", "Starred rules": "/me?tab=stars"} {
-		if got := links(t, page, name); !slices.Equal(got, []string{want}) {
+	assertShows(t, page, "The Octocat Signed in as @octocat Dashboard Add a library Sign out")
+	for name, want := range map[string][]string{"Dashboard": {"/me"}, "Add a library": {"/me/add"}, "Starred rules": nil, "Account": nil} {
+		if got := links(t, page, name); !slices.Equal(got, want) {
 			t.Errorf("%s leads to %q, want %q", name, got, want)
 		}
+	}
+	if got := formActions(t, page); !slices.Equal(got, []string{"/signout?return=%2Ffaq"}) {
+		t.Errorf("the page's forms post to %q, want only Sign out", got)
 	}
 }
 
@@ -291,9 +556,9 @@ func TestTheAccountMenuReadsAsThePrototypes(t *testing.T) {
 func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 	for target, want := range map[string]string{
-		"/account":               "/me",
+		"/account":               "/me?tab=account",
 		"/account/stars":         "/me?tab=stars",
-		"/account/listings":      "/me/listings",
+		"/account/listings":      "/me",
 		"/list":                  "/me/add",
 		"/sign-in?return=%2Ffaq": "/signin?return=%2Ffaq",
 	} {
@@ -304,32 +569,279 @@ func TestTheAccountsOldAddressesRedirect(t *testing.T) {
 	}
 }
 
-// The picker lists the repositories that publish a library in their three kinds: one to add, one on Rulemart, by way of
-// the visitor's organization, and a private one, dimmed, that can't be added; a library being added leads to its check.
+// The page says what adding does and what a library is, then lists the repositories that publish a library in a card of rows
+// in their four kinds: one to add, one on Rulemart, by way of the visitor's organization, a public one the visitor may only
+// read, and a private one, both dimmed, that can't be added; a library being added leads to its check.
 func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
 	page := site.get(t, "/me/add")
 
-	assertShows(t, page, "Publish Add a library", "Your libraries on GitHub",
-		"octocat/new-rules Public · release/2 Add this library",
-		"example/rules Public · via the example organization ✓ On Rulemart",
-		"octocat/team-rules Private · release/1 Private libraries can't be published on Rulemart",
-		"octo-org/new Public · via the octo-org organization ✓ On Rulemart",
-		"Only public libraries can be published on Rulemart. Rulemart can only see your public repos right now. Include private repos")
+	assertShows(t, page, "Publish Add a library Add a Code Rules library from a GitHub repository you have write access to, "+
+		"from the list below or by its URL. A library is a repository with a rule-library.yaml and at least one "+
+		"release/<number> tag.",
+		"octocat/new-rules on GitHub Public · release/2 Add this library",
+		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
+		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
+		"octo-org/readonly on GitHub Public · release/1 · via the octo-org organization Only someone with write access can add it",
+		"octo-org/new on GitHub Public · via the octo-org organization ✓ On Rulemart")
+	text := visibleText(t, page)
+	for _, gone := range []string{"Only public libraries can be published", "Or add any public library by URL", "Read from GitHub"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("the page still says %q", gone)
+		}
+	}
+	if strings.Contains(page, "border-dashed") {
+		t.Error("the page still draws the dashed note on private repos")
+	}
 	if got := formActions(t, page); !slices.Equal(got, []string{"/signout", "/me/add?repository=octocat%2Fnew-rules", "/me/refresh?return=%2Fme%2Fadd"}) {
 		t.Errorf("the page's forms post to %q", got)
 	}
-
 	site.listings.byAccount[1] = []views.AccountListing{{ID: 3, Owner: "octocat", Name: "new-rules", State: domain.ListingChecking}}
 	if got := links(t, site.get(t, "/me/add"), "Adding…"); !slices.Equal(got, []string{"/me/add/run?repo=octocat%2Fnew-rules"}) {
 		t.Errorf("a library being added leads to %q", got)
+	}
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, dimmed := range map[string]bool{"octocat/new-rules": false, "octo-org/readonly": true, "octocat/team-rules": true, "example/rules": false} {
+		row := find(doc, func(n *html.Node) bool { return n.Data == "li" && strings.Contains(nodeText(n), name+" on GitHub") })
+		if row == nil {
+			t.Fatalf("no row for %s", name)
+		}
+		nameLine := find(row, func(n *html.Node) bool {
+			return n.Data == "p" && strings.Contains(attribute(n, "class"), "overflow-wrap")
+		})
+		if got := strings.Contains(attribute(nameLine, "class"), "text-faint"); got != dimmed {
+			t.Errorf("%s's name is dimmed: %v, want %v", name, got, dimmed)
+		}
 	}
 	private := site.get(t, "/me/add?url=octocat%2Fteam-rules")
 	assertShows(t, private, "octocat/team-rules is private. Private libraries can't be published on Rulemart.")
 	if got := formActions(t, private); slices.Contains(got, "/me/add?repository=octocat%2Fteam-rules") || strings.Contains(private, "Public library on GitHub") {
 		t.Errorf("the refusal of a private library offers to add it, with forms posting to %q", got)
 	}
+}
+
+// A repository's maintainers may add it, so the form that checks an address asks GitHub whether the visitor's token may
+// push to the repository it names: one it may is offered to add, one it may only read is refused with why, and offers
+// nothing to add, and an address that isn't a repository's is told so without asking GitHub.
+func TestTheAddPageOffersARepositoryOnlyToSomeoneWhoMayPushToIt(t *testing.T) {
+	const refusal = "Only someone with write access to octo-org/readonly on GitHub can add it to Rulemart."
+	addForm := "/me/add?repository=octo-org%2Freadonly"
+
+	t.Run("a repository the token may push to", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		page := site.get(t, "/me/add?url=https%3A%2F%2Fgithub.com%2Fsomeone%2Fnew")
+		assertShows(t, page, "someone/new on GitHub Public library on GitHub Add this library")
+		if !slices.Contains(formActions(t, page), "/me/add?repository=someone%2Fnew") || strings.Contains(visibleText(t, page), "write access to someone/new") {
+			t.Errorf("the page doesn't offer to add it: %q", formActions(t, page))
+		}
+		if !slices.Equal(site.gitHub.maintained, []string{"someone/new"}) {
+			t.Errorf("asked GitHub about %q, want someone/new", site.gitHub.maintained)
+		}
+	})
+	t.Run("a repository the token may only read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		page := site.get(t, "/me/add?url=octo-org%2Freadonly")
+		assertShows(t, page, refusal)
+		if slices.Contains(formActions(t, page), addForm) || strings.Contains(page, "Public library on GitHub") || strings.Contains(page, "The library to add") {
+			t.Errorf("the refusal offers to add it, with forms posting to %q", formActions(t, page))
+		}
+		if !strings.Contains(page, `aria-invalid="true"`) {
+			t.Error("the address field doesn't say the address is refused")
+		}
+	})
+	t.Run("an address that isn't a repository's", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		assertShows(t, site.get(t, "/me/add?url=not-a-repository"), "Enter a GitHub repository URL, like https://github.com/owner/repo.")
+		if len(site.gitHub.maintained) != 0 {
+			t.Errorf("asked GitHub about %q for an address that names no repository", site.gitHub.maintained)
+		}
+	})
+	t.Run("GitHub can't be read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = errors.New("check write access: GitHub answered 502")
+		page := site.get(t, "/me/add?url=octo-org%2Freadonly")
+		assertShows(t, page, "Rulemart couldn't read octo-org/readonly from GitHub just now. Try again.")
+		if slices.Contains(formActions(t, page), addForm) || strings.Contains(page, "The library to add") {
+			t.Errorf("the page offers to add a repository whose access is unknown: %q", formActions(t, page))
+		}
+		if !strings.Contains(site.logs.String(), "check of write access failed") || !strings.Contains(site.logs.String(), "GitHub answered 502") {
+			t.Errorf("didn't log the failed check: %s", site.logs)
+		}
+	})
+	t.Run("the session keeps no token GitHub takes", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = fmt.Errorf("read the session's token: %w", accountsapp.ErrNoGitHubToken)
+		target := "/me/add?url=octo-org%2Freadonly"
+		resp := send(t, site.handler, request{method: http.MethodGet, target: target, cookies: []*http.Cookie{site.session}})
+		want := "/signin?" + url.Values{"again": {"1"}, "return": {target}}.Encode()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want {
+			t.Errorf("answered %d to %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), want)
+		}
+	})
+}
+
+// Adding is refused for a repository the visitor may not push to, whatever the picker offered: asking GitHub comes
+// before the listing, so nothing is listed, and a refusal says so with a 403, whatever the repository's spelling.
+// GitHub failing to say refuses with a 502 and the same, and a token it refuses asks the visitor to sign in again.
+func TestAddingARepositoryTheVisitorMayNotPushToIsRefusedBeforeItIsListed(t *testing.T) {
+	post := func(site dashboardSite, repository string) *http.Response {
+		return send(t, site.handler, request{method: http.MethodPost, target: "/me/add?repository=" + url.QueryEscape(repository), cookies: []*http.Cookie{site.session}})
+	}
+	t.Run("a repository the token may only read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		// The refusal names the repository as the visitor spelled it.
+		for spelling, name := range map[string]string{
+			"octo-org/readonly": "octo-org/readonly", "Octo-Org/ReadOnly": "Octo-Org/ReadOnly", "https://github.com/octo-org/readonly.git": "octo-org/readonly",
+		} {
+			resp := post(site, spelling)
+			if resp.StatusCode != http.StatusForbidden || resp.Header.Get("Cache-Control") != "private, no-store" {
+				t.Fatalf("adding %s answered %d, cached as %q, want 403", spelling, resp.StatusCode, resp.Header.Get("Cache-Control"))
+			}
+			page := body(t, resp)
+			assertShows(t, page, "Only someone with write access to "+name+" on GitHub can add it to Rulemart.")
+			if slices.Contains(formActions(t, page), "/me/add?repository=octo-org%2Freadonly") {
+				t.Errorf("the refusal offers to add it: %q", formActions(t, page))
+			}
+		}
+		if len(site.listings.listed) != 0 {
+			t.Errorf("listed %q for a repository the visitor may not push to", site.listings.listed)
+		}
+	})
+	t.Run("a repository the token may push to", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		resp := post(site, "octocat/new-rules")
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me/add/run?repo=octocat%2Fnew-rules" {
+			t.Fatalf("answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+		}
+		if !slices.Equal(site.listings.listed, []string{"1 octocat/new-rules"}) || !slices.Equal(site.gitHub.maintained, []string{"octocat/new-rules"}) {
+			t.Errorf("listed %q after asking GitHub about %q", site.listings.listed, site.gitHub.maintained)
+		}
+	})
+	t.Run("GitHub can't be read", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = errors.New("check write access: GitHub answered 502")
+		resp := post(site, "octocat/new-rules")
+		if resp.StatusCode != http.StatusBadGateway {
+			t.Fatalf("answered %d, want 502", resp.StatusCode)
+		}
+		assertShows(t, body(t, resp), "Rulemart couldn't read octocat/new-rules from GitHub just now. Try again.")
+		if len(site.listings.listed) != 0 {
+			t.Errorf("listed %q for a repository whose access is unknown", site.listings.listed)
+		}
+	})
+	t.Run("the session keeps no token GitHub takes", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		site.gitHub.maintainsErr = fmt.Errorf("read the session's token: %w", accountsapp.ErrNoGitHubToken)
+		resp := post(site, "octocat/new-rules")
+		want := "/signin?" + url.Values{"again": {"1"}, "return": {"/me/add?url=octocat%2Fnew-rules"}}.Encode()
+		if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != want || len(site.listings.listed) != 0 {
+			t.Errorf("answered %d to %q after listing %q, want a redirect to %q", resp.StatusCode, resp.Header.Get("Location"), site.listings.listed, want)
+		}
+	})
+	t.Run("an address that isn't a repository's", func(t *testing.T) {
+		site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+		resp := post(site, "not-a-repository")
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("answered %d, want 409", resp.StatusCode)
+		}
+		assertShows(t, body(t, resp), "Enter a GitHub repository URL, like https://github.com/owner/repo.")
+		if len(site.gitHub.maintained) != 0 || len(site.listings.listed) != 0 {
+			t.Errorf("asked GitHub about %q and listed %q", site.gitHub.maintained, site.listings.listed)
+		}
+	})
+}
+
+// Each repository's name on the picker leads to it on GitHub, in the same tab as the site's other links to GitHub, and
+// is followed by a small arrow, hidden from assistive technology, that says the link leaves the site; the link's
+// name says where it leads.
+func TestTheAddPagesRowsLinkToTheirRepositoriesOnGitHub(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/add")
+
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "a" || !strings.HasPrefix(attribute(n, "href"), "https://github.com/") ||
+			!strings.HasSuffix(nodeText(n), " on GitHub") {
+			continue
+		}
+		got[nodeText(n)] = attribute(n, "href")
+		if hasAttribute(n, "target") {
+			t.Errorf("%q opens another tab", nodeText(n))
+		}
+		arrows := 0
+		for child := range n.Descendants() {
+			if child.Type == html.ElementNode && child.Data == "svg" && attribute(child, "aria-hidden") == "true" {
+				arrows++
+			}
+		}
+		if arrows != 1 {
+			t.Errorf("%q has %d hidden arrows, want 1", nodeText(n), arrows)
+		}
+	}
+	want := map[string]string{
+		"octocat/new-rules on GitHub":  "https://github.com/octocat/new-rules",
+		"example/rules on GitHub":      "https://github.com/example/rules",
+		"octocat/team-rules on GitHub": "https://github.com/octocat/team-rules",
+		"octo-org/readonly on GitHub":  "https://github.com/octo-org/readonly",
+		"octo-org/new on GitHub":       "https://github.com/octo-org/new",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("the rows link to %v, want %v", got, want)
+	}
+}
+
+// Under its card the page says what Rulemart read of GitHub in one line, as the dashboard does, with Refresh back to the
+// page and the way to include private repos, or, once the visitor selected some, to manage them; while Rulemart can't
+// show a read, the line says why instead, and the card says it has nothing to list.
+func TestTheAddPageEndsItsListWithOneLineOnWhatRulemartRead(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/add")
+
+	assertShows(t, page, "Public repos only · read from GitHub 3 minutes ago · Refresh · Include private repos")
+	if got := links(t, page, "Include private repos"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Include private repos leads to %q", got)
+	}
+	if got := strings.Count(page, "data-github-status"); got != 1 {
+		t.Errorf("the page has %d lines on the read of GitHub, want 1", got)
+	}
+
+	site.gitHub.installations[1] = []accounts.Installation{{ID: 9, Account: "octocat"}}
+	private := site.get(t, "/me/add")
+	assertShows(t, private, "Including private repos from the ones you selected · read from GitHub 3 minutes ago · Refresh · Manage")
+	if got := links(t, private, "Manage"); !slices.Equal(got, []string{"/me/private"}) {
+		t.Errorf("Manage leads to %q", got)
+	}
+
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	broken := newDashboardSite(t, failed, octocatsCatalog())
+	broken.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+	broken.gitHub.snapshot = failed
+	assertShows(t, broken.get(t, "/me/add"), "octocat/new-rules on GitHub",
+		"Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago. Try again")
+
+	tokenless := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
+	tokenless.gitHub.err = accountsapp.ErrNoGitHubToken
+	signIn := tokenless.get(t, "/me/add")
+	assertShows(t, signIn, "Sign in again so Rulemart can read your repositories on GitHub. Sign in again", "Rulemart hasn't read your repositories yet.")
+	if got := links(t, signIn, "Sign in again"); !slices.Equal(got, []string{"/signin?again=1&return=%2Fme%2Fadd"}) {
+		t.Errorf("Sign in again leads to %q", got)
+	}
+
+	reading := newDashboardSite(t, accounts.Snapshot{}, octocatsCatalog())
+	reading.gitHub.err = accountsapp.ErrGitHubReading
+	assertShows(t, reading.get(t, "/me/add"), "Rulemart is reading your repositories.",
+		"Rulemart is reading your repositories on GitHub. This page will update in a moment.")
 }
 
 // The page that follows a listing's check shows it running, failed with why and what to do, or done with what Rulemart
@@ -432,6 +944,35 @@ func TestThePrivateProjectsPageOffersTheAppOrItsRemoval(t *testing.T) {
 	dashboard := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
 	if got, kind := toastText(t, dashboard), noticeToast(t, dashboard); got != "Private repo access removed" || kind != "status" {
 		t.Errorf("the dashboard toasts %q as a %q toast, want a status toast", got, kind)
+	}
+}
+
+// Skip, public repos only, confirms the choice as the prototype does: it returns to the dashboard, which says, once, in
+// a status toast, that Rulemart only looks at public repos. Signed out, it asks to sign in first, and signing in never
+// returns to it.
+func TestSkippingPrivateProjectsSaysSo(t *testing.T) {
+	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
+
+	page := site.get(t, "/me/private")
+	if got := formActions(t, page); !slices.Contains(got, "/me/private/skip") {
+		t.Errorf("the page's forms post to %q, want Skip's", got)
+	}
+	if got := links(t, page, "Skip, public repos only"); len(got) != 0 {
+		t.Errorf("Skip is a link to %q, which says nothing", got)
+	}
+
+	resp := send(t, site.handler, request{method: http.MethodPost, target: "/me/private/skip", cookies: []*http.Cookie{site.session}})
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/me" || len(site.gitHub.installations[1]) != 0 {
+		t.Fatalf("skipping answered %d to %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	dashboard := body(t, send(t, site.handler, request{method: http.MethodGet, target: "/me", cookies: []*http.Cookie{site.session, cookie(resp, noticeCookie)}}))
+	if got, kind := toastText(t, dashboard), noticeToast(t, dashboard); got != "Okay. Rulemart will only look at your public repos." || kind != "status" {
+		t.Errorf("the dashboard toasts %q as a %q toast, want a status toast", got, kind)
+	}
+
+	signedOut := send(t, site.handler, request{method: http.MethodPost, target: "/me/private/skip"})
+	if want := "/signin?return=%2Fme%2Fprivate"; signedOut.StatusCode != http.StatusSeeOther || signedOut.Header.Get("Location") != want {
+		t.Errorf("signed out, skipping answered %d to %q, want %q", signedOut.StatusCode, signedOut.Header.Get("Location"), want)
 	}
 }
 

@@ -94,7 +94,7 @@ func TestARulesPageOffersTheRuleOrItsGroup(t *testing.T) {
 		"Just this rule Adds only “Return errors with context.” It stays in sync with example/rules, and nothing else from the group is added.",
 		"The whole Go group Adds this rule and the 1 other Go rule from example/rules.",
 		"At checkout, you'll pick which project these go into, and you can fork a rule instead of staying in sync.")
-	if strings.Contains(visibleText(t, body), unvettedWarning+" Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed example/rules") {
+	if strings.Contains(visibleText(t, body), unvettedWarning+" A library's maintainers can list it on Rulemart, and Rulemart hasn't reviewed example/rules") {
 		t.Error("a vetted library's dialog warns that it isn't vetted")
 	}
 }

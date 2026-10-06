@@ -84,7 +84,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	assertShows(t, get(errorsRule, first), "Starred 2")
 	assertShows(t, get("/me?tab=stars", second), "Return errors HIGH example/rules · Go")
 
-	if resp := send(t, handler, request{method: http.MethodPost, target: "/me/account/delete", cookies: first}); resp.StatusCode != http.StatusSeeOther {
+	if resp := send(t, handler, request{method: http.MethodPost, target: "/me/account/delete?login=first", cookies: first}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("deleting the account answered %d", resp.StatusCode)
 	}
 	if got := accessibleNames(t, get(errorsRule, nil), "/signin"); !slices.Contains(got, "Sign in to star Return errors, 1 star") {

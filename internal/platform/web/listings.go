@@ -1,4 +1,4 @@
-// List a library, see one's listings, remove or retry them, and browse the unvetted libraries.
+// List a library, remove or retry one's listings, which My libraries shows, and browse the unvetted libraries.
 
 package web
 
@@ -41,8 +41,9 @@ const (
 	// unvettedWarningText heads every page of an unvetted library and the dialog that confirms adding its rules, and
 	// the about page quotes it.
 	unvettedWarningText = "This library has not been vetted. Be sure to review these rules carefully."
-	// listingsHref is the signed-in visitor's listings, and removeListingHref and retryListingHref act on the one its
-	// listing parameter names, with POST.
+	// listingsHref was the signed-in visitor's listings, which My libraries holds now, and redirects there.
+	// removeListingHref and retryListingHref act on the listing their listing parameter names, with POST; GET of
+	// removeListingHref asks first.
 	listingsHref      = dashboardHref + "/listings"
 	removeListingHref = listingsHref + "/remove"
 	retryListingHref  = listingsHref + "/retry"
@@ -54,9 +55,10 @@ const (
 // a check takes seconds, so after a few minutes it waits for the hourly poll.
 const checkingLonger = 3 * time.Minute
 
-// listingAvailable reports whether visitors can list libraries: sign-in is available, and so are listings.
+// listingAvailable reports whether visitors can list libraries: sign-in is available, and so are listings and the
+// GitHub accounts that tell whether a visitor may add a repository.
 func (s *server) listingAvailable() bool {
-	return s.Listings != nil && s.signInAvailable()
+	return s.Listings != nil && s.GitHubAccounts != nil && s.signInAvailable()
 }
 
 // unvetted lists the libraries listings name that aren't vetted, under the warning. Like every unvetted page, it asks
@@ -80,29 +82,16 @@ func tooOften(err error) string {
 	return "Rulemart is checking many listings right now. Try again in an hour."
 }
 
-// listingsPage shows the signed-in visitor's listings, or sends anyone else to sign in first.
-func (s *server) listingsPage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r, listingsHref)
-	if !ok {
-		return
-	}
-	listings, err := s.Listings.AccountListings(r.Context(), account.ID)
-	if err != nil {
-		s.fail(w, r, err)
-		return
-	}
-	s.renderPrivate(w, r, http.StatusOK, listingsPage(s.chrome, newListingsView(listings, time.Now())))
-}
-
-// legacyListings redirects the listings page's old address to its new one.
+// legacyListings redirects the listings page's addresses, now and before, to My libraries, which holds the visitor's
+// listings.
 func (s *server) legacyListings(w http.ResponseWriter, r *http.Request) {
-	redirect(w, r, listingsHref)
+	redirect(w, r, dashboardHref)
 }
 
 // removeListingPage asks the signed-in visitor to confirm removing their listing that the listing parameter names,
 // saying what removing it does, or sends anyone else to sign in first.
 func (s *server) removeListingPage(w http.ResponseWriter, r *http.Request) {
-	account, ok := s.signedIn(w, r, listingsHref)
+	account, ok := s.signedIn(w, r, dashboardHref)
 	if !ok {
 		return
 	}
@@ -111,7 +100,7 @@ func (s *server) removeListingPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	for _, l := range newListingsView(listings, time.Now()).listings {
+	for _, l := range newListingViews(listings) {
 		if l.id == r.URL.Query().Get("listing") {
 			s.renderPrivate(w, r, http.StatusOK, removeListingPage(s.chrome, l))
 			return
@@ -126,8 +115,8 @@ func (s *server) noSuchListing(w http.ResponseWriter, r *http.Request) {
 		"You have no such listing. It may have been removed already."))
 }
 
-// removeListing removes the signed-in visitor's listing that the listing parameter names, and returns to their
-// listings, saying so.
+// removeListing removes the signed-in visitor's listing that the listing parameter names, and returns to My
+// libraries, saying so.
 func (s *server) removeListing(w http.ResponseWriter, r *http.Request) {
 	notice := "listing-removed"
 	s.changeListing(w, r, &notice, func(ctx context.Context, accountID, id int64) error {
@@ -145,7 +134,7 @@ func (s *server) removeListing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// removedNotices are what the listings page says once a listing in each state is removed.
+// removedNotices are what My libraries says once a listing in each state is removed.
 var removedNotices = map[domain.ListingState]string{
 	domain.ListingChecking: "listing-removed-checking",
 	domain.ListingListed:   "listing-removed-listed",
@@ -154,7 +143,7 @@ var removedNotices = map[domain.ListingState]string{
 }
 
 // retryListing asks the worker to check the signed-in visitor's failed listing that the listing parameter names
-// again, and returns to their listings, where it's being checked, or to the run page the return parameter names, which
+// again, and returns to My libraries, where it's being checked, or to the run page the return parameter names, which
 // follows the check.
 func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 	notice := "listing-retried"
@@ -175,25 +164,26 @@ func (s *server) retryListing(w http.ResponseWriter, r *http.Request) {
 }
 
 // listingReturn returns where a change to a listing returns to: the run page target names, as returnPath checks it,
-// or else the listings page.
+// or else My libraries.
 func listingReturn(target string) string {
 	back := returnPath(target)
 	if u, err := url.Parse(back); err == nil && u.Path == runHref {
 		return back
 	}
-	return listingsHref
+	return dashboardHref
 }
 
-// changeListing applies change to the signed-in visitor's listing that the listing parameter names, and returns to
-// their listings, or the run page listingReturn allows, with the notice notices names by *notice, which change may replace. A visitor who isn't signed in
-// is sent to sign in and return to their listings, and a listing they don't have is missing.
+// changeListing applies change to the signed-in visitor's listing that the listing parameter names, and returns to My
+// libraries, or the run page listingReturn allows, with the notice notices names by *notice, which change may replace.
+// A visitor who isn't signed in is sent to sign in and return to My libraries, and a listing they don't have is
+// missing.
 func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *string, change func(ctx context.Context, accountID, id int64) error) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
 		if hasCookie(r, sessionCookie) {
 			clearCookie(w, sessionCookie)
 		}
-		seeOther(w, r, s.absolute(signInPageHref(listingsHref)))
+		seeOther(w, r, s.absolute(signInPageHref(dashboardHref)))
 		return
 	}
 	id, err := strconv.ParseInt(r.URL.Query().Get("listing"), 10, 64)
@@ -217,63 +207,27 @@ func (s *server) changeListing(w http.ResponseWriter, r *http.Request, notice *s
 	seeOther(w, r, listingReturn(r.URL.Query().Get("return")))
 }
 
-// listingsView is what the listings page shows.
-type listingsView struct {
-	listings []listingView
-	// held counts the visitor's listings that aren't vetted, each of which takes one of their places.
-	held int
-}
-
-// listingView is one listing on the listings page, and on the page that confirms removing it.
+// listingView is a listing of the visitor's on the page that confirms removing it.
 type listingView struct {
 	id string
-	// fullName is the repository as its lister gave it, and repositoryURL its GitHub page.
-	fullName, repositoryURL string
-	state                   domain.ListingState
-	// library is the library the listing names while the catalog stores it, or nil.
-	library *libraryCard
-	failure string
-	listed  string
-	// requested says when the listing last asked for a check, for one being checked, and longer is true once that
-	// check is taking longer than checkingLonger, so it waits for the hourly poll.
-	requested string
-	longer    bool
-	// removeConfirm is the page that confirms removing it, remove where that page's button posts, and retry where the
-	// Try again button posts, empty unless its last check failed.
-	removeConfirm, remove, retry string
+	// fullName is the repository as its lister gave it.
+	fullName string
+	state    domain.ListingState
+	// remove is where the page's button posts.
+	remove string
 }
 
-// newListingsView describes listings as of now.
-func newListingsView(listings []views.AccountListing, now time.Time) listingsView {
-	var v listingsView
-	for _, l := range listings {
+// newListingViews describes listings.
+func newListingViews(listings []views.AccountListing) []listingView {
+	rows := make([]listingView, len(listings))
+	for i, l := range listings {
 		id := strconv.FormatInt(l.ID, 10)
-		query := "?" + url.Values{"listing": {id}}.Encode()
-		item := listingView{
-			id: id, fullName: l.Owner + "/" + l.Name, repositoryURL: domain.RepositoryURL(l.Owner + "/" + l.Name),
-			state: l.State, failure: l.Failure, listed: date(l.ListedAt), removeConfirm: removeListingHref + query,
-			remove: removeListingHref + query,
+		rows[i] = listingView{
+			id: id, fullName: l.Owner + "/" + l.Name, state: l.State,
+			remove: removeListingHref + "?" + url.Values{"listing": {id}}.Encode(),
 		}
-		if l.Library.Owner != "" {
-			item.library = &libraryCard{
-				href: libraryHref(l.Library.Owner, l.Library.Name), owner: l.Library.Owner, name: l.Library.Name,
-				avatar: l.Library.OwnerAvatarURL, vetted: l.State == domain.ListingVetted,
-			}
-			item.repositoryURL = domain.RepositoryURL(l.Library.FullName())
-		}
-		if l.Failure != "" {
-			item.retry = retryListingHref + query
-		}
-		if l.State == domain.ListingChecking {
-			item.requested = moment(l.RequestedAt, now)
-			item.longer = now.Sub(l.RequestedAt) > checkingLonger
-		}
-		if l.State != domain.ListingVetted {
-			v.held++
-		}
-		v.listings = append(v.listings, item)
 	}
-	return v
+	return rows
 }
 
 // moment says when t was, as of now: how many minutes ago within the hour, and otherwise its time, and its date

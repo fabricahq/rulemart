@@ -1106,7 +1106,7 @@ func unvettedConfirmation(library string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</p><p class=\"mt-1 text-[14px] text-ink\">Anyone signed in can list a library on Rulemart, and Rulemart hasn't reviewed ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "</p><p class=\"mt-1 text-[14px] text-ink\">A library's maintainers can list it on Rulemart, and Rulemart hasn't reviewed ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

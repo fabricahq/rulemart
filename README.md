@@ -72,12 +72,12 @@ overriding a library's, and updating to newer versions.
 
 ## List your library
 
-Anyone can list a public Code Rules library on Rulemart.
+A library's maintainers can list it on Rulemart: anyone with write access to its public repository on GitHub.
 
 1. Release your library with Code Rules, which tags each release, as
    [Code Rules' guide to libraries](https://code-rules.fabricahq.com/concepts/libraries/) explains.
 2. Choose **List your library** on Rulemart's home page and sign in with GitHub. Pick the library from the
-   repositories you and your organizations own, or enter any public library's GitHub URL.
+   repositories you and your organizations own, or enter the GitHub URL of one you have write access to.
 3. Rulemart reads the library's release tags, usually within seconds, while a checklist shows its progress, then
    shows its pages under **Unvetted libraries**, with a warning. Rulemart checks for new releases every hour from then
    on.

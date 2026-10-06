@@ -1,5 +1,6 @@
 // Add a library: the picker over the visitor's and their organizations' repositories that publish one, the form that
-// adds any public library by its address, and the page that follows the listing's check.
+// adds a library by its address, once GitHub says the visitor may push to it, and the page that follows the listing's
+// check.
 
 package web
 
@@ -17,6 +18,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	accountsapp "github.com/fabricahq/rulemart/internal/contexts/accounts/app"
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
@@ -34,8 +36,9 @@ const (
 )
 
 // addPage shows the add-a-library page: the visitor's and their organizations' repositories that publish a library,
-// each with what adding it would do, and the form that adds any public library by its address, with what checking the
-// address its url parameter names found. A visitor who isn't signed in is asked to sign in first.
+// each with what adding it would do, and the form that adds a public library by its address, with what checking the
+// address its url parameter names found, including whether GitHub says the visitor may push to it. A visitor who isn't
+// signed in is asked to sign in first.
 func (s *server) addPage(w http.ResponseWriter, r *http.Request) {
 	account, ok := s.signedIn(w, r, returnPath(r.URL.RequestURI()))
 	if !ok {
@@ -52,8 +55,16 @@ func (s *server) addPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err == nil && view.problem == "" {
-			// A refusal, such as of a private library, offers nothing to add.
-			view.confirm = &pickView{fullName: repo.FullName(), detail: "Public library on GitHub", action: addAction(repo.FullName())}
+			access, ok := s.writeAccess(w, r, account, repo, returnPath(r.URL.RequestURI()))
+			if !ok {
+				return
+			}
+			// A refusal, such as of a private library or one the visitor can't push to, offers nothing to add.
+			if access != mayAdd {
+				view.problem = access.problem(repo)
+			} else {
+				view.confirm = &pickView{fullName: repo.FullName(), detail: "Public library on GitHub", action: addAction(repo.FullName())}
+			}
 		}
 	}
 	s.renderPrivate(w, r, http.StatusOK, addPage(s.chrome, view))
@@ -89,17 +100,40 @@ func (s *server) addView(w http.ResponseWriter, r *http.Request, account account
 	return addView{gitHub: gitHub, picks: newPickViews(gitHub.snapshot, libraries.Owned, listings, account.Login)}, true
 }
 
-// createListing lists the repository the repository parameter names for the signed-in visitor, and follows its check.
-// A refusal shows the add-a-library page saying why. A visitor who isn't signed in is sent to sign in and return to the
-// page, with the repository in its form.
+// createListing lists the repository the repository parameter names for the signed-in visitor, and follows its check,
+// once GitHub says the visitor may push to it: the picker only offers what they may add, so this is the gate. A refusal
+// shows the add-a-library page saying why. A visitor who isn't signed in is sent to sign in and return to the page, with
+// the repository in its form.
 func (s *server) createListing(w http.ResponseWriter, r *http.Request) {
 	text := r.URL.Query().Get("repository")
 	v := visitorOf(r.Context())
+	back := listHref + "?" + url.Values{"url": {text}}.Encode()
 	if v.account == nil {
-		seeOther(w, r, s.absolute(signInPageHref(listHref+"?"+url.Values{"url": {text}}.Encode())))
+		seeOther(w, r, s.absolute(signInPageHref(back)))
 		return
 	}
-	id, err := s.Listings.List(r.Context(), v.account.ID, text)
+	// The listing's own checks come before the one that asks GitHub, so an address that isn't a repository's, or one
+	// Rulemart already has, is told so without a request to GitHub.
+	repo, err := s.Listings.Check(r.Context(), v.account.ID, text)
+	if err == nil {
+		access, ok := s.writeAccess(w, r, *v.account, repo, back)
+		if !ok {
+			return
+		}
+		if access != mayAdd {
+			view, ok := s.addView(w, r, *v.account)
+			if !ok {
+				return
+			}
+			view.address, view.problem = text, access.problem(repo)
+			s.renderPrivate(w, r, access.status(), addPage(s.chrome, view))
+			return
+		}
+	}
+	var id int64
+	if err == nil {
+		id, err = s.Listings.List(r.Context(), v.account.ID, text)
+	}
 	if errors.Is(err, app.ErrNotQueued) {
 		// The listing stands, and the hourly poll checks it.
 		s.Log.WarnContext(r.Context(), "listing not queued", "route", s.route(r), "requestID", s.requestID(r),
@@ -120,7 +154,53 @@ func (s *server) createListing(w http.ResponseWriter, r *http.Request) {
 	s.Log.InfoContext(r.Context(), "listed library", "route", s.route(r), "requestID", s.requestID(r),
 		"accountID", v.account.ID, "listingID", id)
 	owner, name, _ := domain.ParseGitHubRepository(text)
-	seeOther(w, r, runHref+"?"+url.Values{"repo": {owner + "/" + name}}.Encode())
+	seeOther(w, r, runPageHref(owner+"/"+name))
+}
+
+// writeAccess is what GitHub says of whether the visitor may add a repository.
+type writeAccess int
+
+const (
+	// mayAdd is that the visitor's token may push to the repository.
+	mayAdd writeAccess = iota
+	// notMaintainer is that it may not, or can't see the repository.
+	notMaintainer
+	// gitHubUnreadable is that GitHub couldn't say.
+	gitHubUnreadable
+)
+
+// problem says why the visitor can't add repo, as the add-a-library page says it.
+func (a writeAccess) problem(repo app.Repository) string {
+	if a == gitHubUnreadable {
+		return "Rulemart couldn't read " + repo.FullName() + " from GitHub just now. Try again."
+	}
+	return "Only someone with write access to " + repo.FullName() + " on GitHub can add it to Rulemart."
+}
+
+// status is the HTTP status of the page that refuses a request to add a repository the visitor may not.
+func (a writeAccess) status() int {
+	if a == gitHubUnreadable {
+		return http.StatusBadGateway
+	}
+	return http.StatusForbidden
+}
+
+// writeAccess asks GitHub whether the signed-in visitor, whose session r carries, may push to repo, so may add it. When
+// the session keeps no token GitHub takes it sends the visitor to sign in again and return to back, and returns false.
+func (s *server) writeAccess(w http.ResponseWriter, r *http.Request, account accounts.Account, repo app.Repository, back string) (writeAccess, bool) {
+	maintains, err := s.GitHubAccounts.Maintains(r.Context(), visitorOf(r.Context()).token, accounts.Repository{Owner: repo.Owner, Name: repo.Name})
+	switch {
+	case errors.Is(err, accountsapp.ErrNoGitHubToken):
+		s.signInAgain(w, r, back)
+		return mayAdd, false
+	case err != nil:
+		s.Log.WarnContext(r.Context(), "check of write access failed", "route", s.route(r), "requestID", s.requestID(r),
+			"accountID", account.ID, "repository", repo.FullName(), "error", err.Error())
+		return gitHubUnreadable, true
+	case !maintains:
+		return notMaintainer, true
+	}
+	return mayAdd, true
 }
 
 // explainRefusal sets view's problem to why the visitor can't add repo, by err, in the prototype's words, and reports
@@ -142,7 +222,7 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *ad
 		view.problem = "Enter a GitHub repository URL, like https://github.com/owner/repo."
 	case errors.As(err, &conflict) && conflict.Own:
 		view.problem = "You added " + listedName(conflict.Library, name) + " already."
-		view.problemLink, view.problemLinkText = runHref+"?"+url.Values{"repo": {listedName(conflict.Library, name)}}.Encode(), "See how it went"
+		view.problemLink, view.problemLinkText = runPageHref(listedName(conflict.Library, name)), "See how it went"
 	case errors.As(err, &conflict) && conflict.Checking && time.Since(conflict.RequestedAt) > checkingLonger:
 		view.problem = "Someone added " + name + ", and Rulemart's check of it is taking longer than usual. Rulemart checks it again within the hour."
 	case errors.As(err, &conflict) && conflict.Checking:
@@ -156,7 +236,7 @@ func (s *server) explainRefusal(w http.ResponseWriter, r *http.Request, view *ad
 		view.problem = name + " is already on Rulemart."
 	case errors.Is(err, app.ErrAccountListingLimit):
 		view.problem = "You have " + strconv.Itoa(domain.MaxAccountListings) + " libraries Rulemart hasn't vetted, as many as an account may add. Remove one, such as one that failed, to add another."
-		view.problemLink, view.problemLinkText = listingsHref, "Your listings"
+		view.problemLink, view.problemLinkText = dashboardHref, "My libraries"
 	case errors.Is(err, app.ErrListingsFull):
 		view.problem = "Rulemart isn't taking new libraries right now. Try again later."
 	case errors.Is(err, app.ErrListingTooOften), errors.Is(err, app.ErrListingsBusy):
@@ -215,18 +295,28 @@ const (
 	pickOnRulemart
 	// pickAdding is one whose listing the visitor made, which Rulemart is checking, or whose check failed.
 	pickAdding
+	// pickReadOnly is a public repository the visitor may read but not push to, so can't add.
+	pickReadOnly
 	// pickPrivate is a private repository, which Rulemart can't publish.
 	pickPrivate
 )
 
+// The reasons a dimmed row of the picker gives for why its repository can't be added.
+const (
+	privateNote  = "Private libraries can't be published on Rulemart"
+	readOnlyNote = "Only someone with write access can add it"
+)
+
 // pickOrder orders the picker's rows by state.
-var pickOrder = map[pickState]int{pickAdd: 0, pickAdding: 1, pickOnRulemart: 2, pickPrivate: 3}
+var pickOrder = map[pickState]int{pickAdd: 0, pickAdding: 1, pickOnRulemart: 2, pickReadOnly: 3, pickPrivate: 4}
 
 // pickView is a repository on the picker.
 type pickView struct {
 	fullName, detail string
 	state            pickState
 	private          bool
+	// note is why the visitor can't add it, for a dimmed row, or is empty.
+	note string
 	// href is the library's page, or the page that follows its listing's check; action is where Add this library posts.
 	href, action string
 	// vetted is false for a library on Rulemart that isn't vetted, whose page link carries nofollow.
@@ -235,7 +325,8 @@ type pickView struct {
 	failed bool
 }
 
-// newPickViews returns the picker's rows: each library snapshot found, by what adding it would do, then each library
+// newPickViews returns the picker's rows: each library snapshot found, by what adding it would do, which for a public one
+// the visitor may only read is nothing, then each library
 // owned holds that snapshot didn't find, such as one too old for the read, as on Rulemart. login is the visitor's, whose
 // own libraries name no organization.
 func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listings []views.AccountListing, login string) []pickView {
@@ -249,27 +340,35 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 			adding[strings.ToLower(l.Owner+"/"+l.Name)] = l.State
 		}
 	}
-	via := func(owner string) string {
-		if strings.EqualFold(owner, login) {
-			return "Public"
+	// detail says whether a repository is public, which library release it published, if known, and, for an
+	// organization's, which organization it's via.
+	detail := func(visibility string, release int, owner string) string {
+		text := visibility
+		if release > 0 {
+			text += " · " + domain.ReleaseTag(release)
 		}
-		return "Public · via the " + owner + " organization"
+		if !strings.EqualFold(owner, login) {
+			text += " · via the " + owner + " organization"
+		}
+		return text
 	}
 	var picks []pickView
 	seen := map[string]bool{}
 	for _, lib := range snapshot.Libraries {
 		key := strings.ToLower(lib.FullName())
 		seen[key] = true
-		pick := pickView{fullName: lib.FullName(), detail: "Public · " + domain.ReleaseTag(lib.Release), private: lib.Private}
+		pick := pickView{fullName: lib.FullName(), detail: detail("Public", lib.Release, lib.Owner), private: lib.Private}
 		o, on := onRulemart[key]
 		state, isAdding := adding[key]
 		switch {
 		case lib.Private:
-			pick.state, pick.detail = pickPrivate, "Private · "+domain.ReleaseTag(lib.Release)
+			pick.state, pick.detail, pick.note = pickPrivate, detail("Private", lib.Release, lib.Owner), privateNote
 		case on:
-			pick.state, pick.href, pick.vetted, pick.detail = pickOnRulemart, libraryHref(o.Library.Owner, o.Library.Name), o.Vetted, via(lib.Owner)
+			pick.state, pick.href, pick.vetted = pickOnRulemart, libraryHref(o.Library.Owner, o.Library.Name), o.Vetted
 		case isAdding:
-			pick.state, pick.href, pick.failed = pickAdding, runHref+"?"+url.Values{"repo": {lib.FullName()}}.Encode(), state == domain.ListingFailed
+			pick.state, pick.href, pick.failed = pickAdding, runPageHref(lib.FullName()), state == domain.ListingFailed
+		case !lib.Writable:
+			pick.state, pick.note = pickReadOnly, readOnlyNote
 		default:
 			pick.action = addAction(lib.FullName())
 		}
@@ -280,7 +379,7 @@ func newPickViews(snapshot accounts.Snapshot, owned []views.OwnedLibrary, listin
 	for _, o := range owned {
 		if !seen[strings.ToLower(o.Library.FullName())] {
 			picks = append(picks, pickView{
-				fullName: o.Library.FullName(), detail: via(o.Library.Owner), state: pickOnRulemart,
+				fullName: o.Library.FullName(), detail: detail("Public", 0, o.Library.Owner), state: pickOnRulemart,
 				href: libraryHref(o.Library.Owner, o.Library.Name), vetted: o.Vetted,
 			})
 		}
@@ -307,13 +406,13 @@ func (s *server) runPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	view := runView{fullName: owner + "/" + name, here: runHref + "?" + url.Values{"repo": {owner + "/" + name}}.Encode()}
+	view := runView{fullName: owner + "/" + name, here: runPageHref(owner + "/" + name)}
 	listing, listed := findListing(listings, owner, name)
 	if listed {
 		view.fullName, view.state, view.failure = listing.Owner+"/"+listing.Name, listing.State, listing.Failure
 		query := "?" + url.Values{"listing": {strconv.FormatInt(listing.ID, 10)}}.Encode()
 		view.retry = retryListingHref + "?" + url.Values{
-			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runHref + "?" + url.Values{"repo": {view.fullName}}.Encode()},
+			"listing": {strconv.FormatInt(listing.ID, 10)}, "return": {runPageHref(view.fullName)},
 		}.Encode()
 		view.remove = removeListingHref + query
 		if listing.State == domain.ListingChecking {
@@ -441,4 +540,9 @@ func (v runView) steps() []runStep {
 		steps[0].running = true
 	}
 	return steps
+}
+
+// runPageHref is the page that follows the check of the visitor's listing of repository, owner/name.
+func runPageHref(repository string) string {
+	return runHref + "?" + url.Values{"repo": {repository}}.Encode()
 }

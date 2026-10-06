@@ -711,7 +711,7 @@ func TestStarredRulesListTheVisitorsRules(t *testing.T) {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 	page := body(t, resp)
-	assertShows(t, page, "My libraries Starred rules , 2",
+	assertShows(t, page, "My libraries , 0 Starred rules , 2 Account",
 		"Return errors with context HIGH E example/rules · Go 1,234 1,234 stars "+
 			"Verify retry limits HIGH You starred practices/testing/check-retry-backoff , which this rule replaced. "+
 			"E example/rules · Testing 1 1 star")
@@ -733,19 +733,16 @@ func TestStarredRulesSayWhenThereAreNone(t *testing.T) {
 	}
 }
 
-// The account menu leads to Starred rules, and the account page says Rulemart keeps which rules the visitor
-// starred, and that deleting the account removes them. Signing out from Starred rules returns home.
-func TestTheAccountMenuAndPageNameTheVisitorsStars(t *testing.T) {
+// The account menu doesn't lead to Starred rules, a tab of the dashboard, and the account page says that deleting the
+// account removes the visitor's stars. Signing out from Starred rules returns home.
+func TestTheAccountPageNamesTheVisitorsStars(t *testing.T) {
 	site := newStarSite(t)
 
-	if got := links(t, body(t, site.signedInGet(t, "/")), "Starred rules"); !slices.Equal(got, []string{"/me?tab=stars"}) {
+	if got := links(t, body(t, site.signedInGet(t, "/")), "Starred rules"); len(got) > 0 {
 		t.Errorf("the menu's Starred rules leads to %q", got)
 	}
-	page := body(t, site.signedInGet(t, "/me"))
-	assertShows(t, page, "it keeps which rules you starred, and when. Only you see the list; everyone sees how many stars each rule has.", "It removes your stars, your listings")
-	if text := visibleText(t, page); strings.Count(text, " also ") > 1 {
-		t.Errorf("the account page says also more than once: %s", text)
-	}
+	page := body(t, site.signedInGet(t, "/me?tab=account"))
+	assertShows(t, page, "It removes your stars, your listings")
 	signedOut := site.signedInPost(t, "/signout?return=%2Fme%3Ftab%3Dstars")
 	if signedOut.Header.Get("Location") != "/" {
 		t.Errorf("signing out of Starred rules returns to %q, want home", signedOut.Header.Get("Location"))
@@ -788,7 +785,7 @@ func TestWithoutStarringPagesOnlyCountStars(t *testing.T) {
 		})
 	}
 	site := newStarSiteWith(t, func(o *web.Options) { o.Stars = nil })
-	if page := body(t, site.signedInGet(t, "/me?tab=stars")); strings.Contains(page, "Starred rules") || !strings.Contains(page, "Published by you and your orgs") {
+	if page := body(t, site.signedInGet(t, "/me?tab=stars")); strings.Contains(page, "Starred rules") || !strings.Contains(page, "Libraries you and your organizations publish") {
 		t.Error("without stars, the dashboard offers Starred rules")
 	}
 }
@@ -805,7 +802,7 @@ func TestStarredRulesListStarsThatNoLongerCount(t *testing.T) {
 
 	page := body(t, site.signedInGet(t, "/me?tab=stars"))
 
-	assertShows(t, page, "No longer counted 2",
+	assertShows(t, page, "No longer counted · 2",
 		"Retry forever example/rules · practices/testing/retry-forever · Its library retired it without a replacement. Unstar",
 		"techs/go/old gone/rules · techs/go/old · Its library is no longer on Rulemart. Unstar")
 	want := "/stars/remove?" + url.Values{"library": {"example/rules"}, "return": {"/me?tab=stars"}, "rule": {"practices/testing/retry-forever"}}.Encode()

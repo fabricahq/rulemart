@@ -104,12 +104,11 @@ type visitor struct {
 	signOut string
 	// here is the page's own address, as a return path, which its forms return to.
 	here string
-	// onDashboard, onListPage, and onStarredPage are true on the dashboard's My libraries, the page that adds a
-	// library, and the dashboard's Starred rules, which the menu marks as current.
-	onDashboard, onListPage, onStarredPage bool
-	// listings and stars are true when visitors can list libraries and star rules, so the menu links adding a library
-	// and Starred rules.
-	listings, stars bool
+	// onDashboard and onListPage are true on the dashboard, whichever its tab, and on the page that adds a library,
+	// which the menu marks as current.
+	onDashboard, onListPage bool
+	// listings is true when visitors can list libraries, so the menu links adding a library.
+	listings bool
 	// onSignInPage is true on the sign-in page, whose header marks its Sign in link as the current page.
 	onSignInPage bool
 	// notice is a notice for this page to show once, from noticeCookie, or empty, and noticeKey is the key of notices
@@ -133,6 +132,7 @@ var notices = map[string]string{
 	"refreshed":                "Read from GitHub less than a minute ago",
 	"private-added":            "Rulemart can now see the private repos you selected.",
 	"private-removed":          "Private repo access removed",
+	"private-skipped":          "Okay. Rulemart will only look at your public repos.",
 	"private-requested":        "GitHub asked your organization's owners to approve Rulemart by Fabrica. Once they do, refresh to include its private repos.",
 	"signed-out-everywhere":    "You're signed out of every browser.",
 	"account-deleted":          "Rulemart deleted your account and signed you out everywhere. Signing in again starts a new account.",
@@ -211,10 +211,9 @@ func (s *server) withVisitor(next http.HandlerFunc) http.HandlerFunc {
 // request, rather than showing a signed-in visitor a page as if they weren't: visit answers it and returns false.
 func (s *server) visit(w http.ResponseWriter, r *http.Request) (*http.Request, bool) {
 	back := returnPath(r.URL.RequestURI())
-	starsTab := r.URL.Path == dashboardHref && r.URL.Query().Get("tab") == starsTab
 	v := visitor{
-		here: back, onDashboard: r.URL.Path == dashboardHref && !starsTab, onListPage: r.URL.Path == listHref,
-		onStarredPage: starsTab, listings: s.listingAvailable(), stars: s.starsAvailable(),
+		here: back, onDashboard: r.URL.Path == dashboardHref, onListPage: r.URL.Path == listHref,
+		listings: s.listingAvailable(),
 	}
 	if s.signInAvailable() {
 		v.signIn = s.absolute(signInPageHref(back))
@@ -320,15 +319,22 @@ func signInReturn(target string) string {
 }
 
 // meActions are the addresses under /me that take POST, which signing in never returns to.
-var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true}
+var meActions = map[string]bool{refreshHref: true, retryListingHref: true, removePrivateHref: true, skipPrivateHref: true}
 
 // signedInPages are what the sign-in page says to a visitor on their way to each of the visitor's own pages, under
 // /me, which only a signed-in visitor can see; one it doesn't name says signInToDashboard.
 var signedInPages = map[string]string{
-	listHref:     "Sign in to add a library.",
-	runHref:      "Sign in to see your library being added.",
-	listingsHref: "Sign in to see your listings.",
-	privateHref:  "Sign in to include your private projects.",
+	listHref:    "Sign in to add a library.",
+	runHref:     "Sign in to see your library being added.",
+	privateHref: "Sign in to include your private projects.",
+}
+
+// dashboardTabPurposes are what the sign-in page says to a visitor on their way to each of the dashboard's tabs but My
+// libraries, which says signInToDashboard.
+var dashboardTabPurposes = map[string]string{
+	projectsTab: "Sign in to see your projects.",
+	starsTab:    "Sign in to see your starred rules.",
+	accountTab:  "Sign in to see your account.",
 }
 
 // signInToDashboard is what the sign-in page says to a visitor on their way to their dashboard.
@@ -398,8 +404,8 @@ func signInPurpose(back string) string {
 	if err != nil {
 		return signInToDashboard
 	}
-	if u.Path == dashboardHref && u.Query().Get("tab") == starsTab {
-		return "Sign in to see your starred rules."
+	if u.Path == dashboardHref {
+		return cmp.Or(dashboardTabPurposes[u.Query().Get("tab")], signInToDashboard)
 	}
 	return cmp.Or(signedInPages[u.Path], signInToDashboard)
 }
@@ -582,13 +588,36 @@ func (s *server) signedOutAlready(w http.ResponseWriter, r *http.Request) {
 	seeOther(w, r, "/")
 }
 
-// deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. A visitor whose
+// confirmDeleteAccount shows the page that deletes the account without a script: the Account tab's disclosure sends
+// the login typed here, in its query, and the page says what deleting does above Delete my account, which posts the
+// login on in its query. A login that isn't the account's shows the Account tab with 400, saying so, as deleting would.
+func (s *server) confirmDeleteAccount(w http.ResponseWriter, r *http.Request) {
+	account, ok := s.signedIn(w, r, dashboardAccountHref)
+	if !ok {
+		return
+	}
+	login := r.URL.Query().Get("login")
+	if login != account.Login {
+		s.showDashboard(w, r, account, dashboardView{tab: accountTab, deleteRefused: true}, http.StatusBadRequest)
+		return
+	}
+	s.renderPrivate(w, r, http.StatusOK, confirmDeletePage(s.chrome, login))
+}
+
+// deleteAccount deletes the signed-in account and ends its sessions, then returns home, saying so. It takes the
+// account's GitHub login, typed exactly, in its query's login, as its final confirmation: any other value, whatever the
+// page's script let through, shows the Account tab with 400, saying so, and deletes nothing. The login travels in the
+// query, as every input to a POST does, since CloudFront refuses a body a browser's form can't sign. A visitor whose
 // session has ended, even after this request began, may no longer act for the account, and goes home told they're
 // signed out.
 func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	v := visitorOf(r.Context())
 	if v.account == nil {
 		s.signedOutAlready(w, r)
+		return
+	}
+	if r.URL.Query().Get("login") != v.account.Login {
+		s.showDashboard(w, r, *v.account, dashboardView{tab: accountTab, deleteRefused: true}, http.StatusBadRequest)
 		return
 	}
 	err := s.Accounts.DeleteAccount(r.Context(), v.token)
@@ -604,6 +633,11 @@ func (s *server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	clearCookie(w, sessionCookie)
 	setNotice(w, "account-deleted")
 	seeOther(w, r, "/")
+}
+
+// deleteAccountAction is where deleting the account posts, with login, the account's as typed, in its query.
+func deleteAccountAction(login string) string {
+	return deleteAccountHref + "?" + url.Values{"login": {login}}.Encode()
 }
 
 // signedIn returns the signed-in account, or sends the visitor to sign in and return to back, and returns false.
@@ -684,7 +718,7 @@ type testUserView struct {
 	login, action string
 }
 
-// accountView is what the dashboard's Account section shows of the signed-in account.
+// accountView is what the dashboard's Account tab shows of the signed-in account.
 type accountView struct {
 	login, name, avatar, profileURL, gitHubUserID, since string
 	// testUser is true for a local build's test user, which isn't a GitHub user, so the page links no profile.
