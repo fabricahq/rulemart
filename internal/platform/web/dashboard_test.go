@@ -1059,6 +1059,27 @@ func TestCheckoutSaysHowItsReadOfGitHubWentWhenItHasNoProjects(t *testing.T) {
 	}
 }
 
+// When a read of GitHub fails after an earlier one found projects, checkout still offers them, and says they're what the
+// earlier read found, with Try again back to the cart, rather than presenting them as fresh.
+func TestCheckoutSaysItsReadFailedWhileItOffersTheProjectsAnEarlierReadFound(t *testing.T) {
+	failed := octocatsGitHub()
+	failed.ReadFailed = true
+	site := newDashboardSite(t, failed, octocatsCatalog())
+	site.gitHub.err = fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead)
+
+	// The script shows the page's cards, so its markup holds what the visitor sees.
+	page := strings.Join(strings.Fields(site.get(t, "/cart")), " ")
+
+	for _, want := range []string{
+		`value="octocat/api" data-cart-project`, "Rulemart couldn't read your repositories on GitHub just now. Showing what it read 3 minutes ago.",
+		`action="/me/refresh?return=%2Fcart"`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+}
+
 // A signed-in visitor's checkout is for one of their projects, the first unless they chose another, whose sources the
 // texts add to; or for a new project, which the repository field names; a forged project name falls back to the first.
 func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {
