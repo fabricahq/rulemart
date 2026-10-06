@@ -997,6 +997,68 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	}
 }
 
+// Checkout says it found none of a signed-in visitor's projects only after a read that found none. Without a read to
+// show, it says why instead, as other pages do: the read failed, with Try again back to the cart; Rulemart is reading,
+// and the page refreshes itself; or the visitor must sign in again. Each still lets them enter a project.
+func TestCheckoutSaysHowItsReadOfGitHubWentWhenItHasNoProjects(t *testing.T) {
+	const noneFound = "We didn't find any of your projects using Code Rules"
+	for name, tc := range map[string]struct {
+		err     error
+		failed  bool
+		shows   string
+		link    string
+		refresh string
+	}{
+		"a failed read": {
+			err: fmt.Errorf("read GitHub: %w: GitHub answered 502", accountsapp.ErrGitHubRead), failed: true,
+			shows: "Rulemart couldn't read your repositories on GitHub just now.",
+		},
+		"a read under way": {
+			err: accountsapp.ErrGitHubReading, refresh: "3",
+			shows: "Rulemart is reading your repositories on GitHub. This page will update in a moment.",
+		},
+		"a token GitHub refuses": {
+			err:   accountsapp.ErrNoGitHubToken,
+			shows: "Sign in again so Rulemart can read your repositories on GitHub.", link: "/signin?again=1&return=%2Fcart",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			site := newDashboardSite(t, accounts.Snapshot{ReadFailed: tc.failed}, octocatsCatalog())
+			site.gitHub.err = tc.err
+
+			resp := send(t, site.handler, request{method: http.MethodGet, target: "/cart", cookies: []*http.Cookie{site.session}})
+			page := body(t, resp)
+
+			// The script shows the page's cards, so its markup holds what the visitor sees.
+			markup := strings.Join(strings.Fields(page), " ")
+			for _, want := range []string{tc.shows, "Enter your project"} {
+				if !strings.Contains(markup, want) {
+					t.Errorf("the page lacks %q", want)
+				}
+			}
+			if strings.Contains(markup, noneFound) {
+				t.Error("the page says Rulemart found no projects, without a read that found none")
+			}
+			if tc.failed && !strings.Contains(page, `action="/me/refresh?return=%2Fcart"`) {
+				t.Error("Try again doesn't read GitHub again and return to the cart")
+			}
+			if tc.link != "" {
+				if got := links(t, page, "Sign in again"); !slices.Equal(got, []string{tc.link}) {
+					t.Errorf("Sign in again leads to %q, want %q", got, tc.link)
+				}
+			}
+			if got := resp.Header.Get("Refresh"); got != tc.refresh {
+				t.Errorf("Refresh %q, want %q", got, tc.refresh)
+			}
+		})
+	}
+
+	read := newDashboardSite(t, accounts.Snapshot{ReadAt: time.Now().Add(-3 * time.Minute)}, octocatsCatalog())
+	if page := strings.Join(strings.Fields(read.get(t, "/cart")), " "); !strings.Contains(page, noneFound) {
+		t.Error("after a read that found no projects, the page doesn't say so")
+	}
+}
+
 // A signed-in visitor's checkout is for one of their projects, the first unless they chose another, whose sources the
 // texts add to; or for a new project, which the repository field names; a forged project name falls back to the first.
 func TestCheckoutWritesForTheVisitorsProject(t *testing.T) {

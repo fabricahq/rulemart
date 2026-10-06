@@ -437,7 +437,11 @@ templ projectSection(v projectsView) {
 		</div>
 		@projectsFootnote(v.gitHub)
 	} else {
-		if v.signedIn {
+		if v.signedIn && (v.gitHub.signInAgain != "" || v.gitHub.failed || v.gitHub.reading) {
+			// Without a read to show, say why rather than that the read found no projects.
+			@gitHubStatus(v.gitHub, "-mt-0.5 mb-4 border-b border-border-subtle pb-4")
+			<b class="mb-2.5 block text-[13px] font-semibold">Enter your project</b>
+		} else if v.signedIn {
 			<p class="-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted">
 				if v.gitHub.available && !v.gitHub.private && v.gitHub.privateAvailable {
 					We didn't find any of your projects using Code Rules in your public repos. <a href={ templ.SafeURL(privateHref) }>Include private projects</a>.
