@@ -971,7 +971,7 @@ func accountContent(account accountView, refused bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "\">privacy page</a>.</p><div class=\"mt-6 flex flex-wrap gap-2.5\"><form method=\"post\" action=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "\">privacy page</a>.</p><div class=\"mt-6 flex flex-wrap items-center gap-4\"><form method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1023,7 +1023,7 @@ func accountContent(account accountView, refused bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var52 = []any{outlineButtonStyle}
+		var templ_7745c5c3_Var52 = []any{rowActionStyle}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var52...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
