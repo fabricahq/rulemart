@@ -113,12 +113,23 @@ func monasGitHub() *githubtest.Fake {
 	}
 }
 
+// readOnlyOrgRules is a library of octo-org that its members may read but not push to.
+func readOnlyOrgRules() githubtest.Repository {
+	return githubtest.Repository{
+		Owner: "octo-org", Name: "readonly", PushedAt: pushed.Add(-8 * time.Hour), ReadOnly: true,
+		Files: map[string]string{"rule-library.yaml": "schemaVersion: 1\n"}, Tags: []string{"release/1"},
+	}
+}
+
 // A read finds the visitor's organizations, the repositories of theirs and their organizations' that hold a
 // rule-library.yaml and a release tag, with the latest release, and the projects whose provenance names their sources,
 // and leaves out a manifest without a release, a provenance file Rulemart can't parse, and private repositories its
-// token can't see.
+// token can't see. It marks each library the visitor may push to, which is the ones they own or their organization gives
+// them, and not one of the organization's that they may only read.
 func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
-	site := newGitHubSite(t, monasGitHub(), false)
+	fake := monasGitHub()
+	fake.Repositories = append(fake.Repositories, readOnlyOrgRules())
+	site := newGitHubSite(t, fake, false)
 
 	got := site.snapshot(t)
 
@@ -126,8 +137,9 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 		t.Errorf("read %+v", got)
 	}
 	wantLibraries := []domain.PublishableRepository{
-		{Repository: domain.Repository{Owner: "mona", Name: "rules"}, Release: 12},
-		{Repository: domain.Repository{Owner: "octo-org", Name: "Org-Rules"}, Release: 2},
+		{Repository: domain.Repository{Owner: "mona", Name: "rules"}, Release: 12, Writable: true},
+		{Repository: domain.Repository{Owner: "octo-org", Name: "Org-Rules"}, Release: 2, Writable: true},
+		{Repository: domain.Repository{Owner: "octo-org", Name: "readonly"}, Release: 1},
 	}
 	if !slices.Equal(got.Libraries, wantLibraries) {
 		t.Errorf("libraries %+v, want %+v", got.Libraries, wantLibraries)
@@ -239,6 +251,71 @@ func TestAReadWithATokenGitHubRefusesNeedsASignIn(t *testing.T) {
 	postgrestest.QueryRow(t, site.connString, "SELECT count(*) FROM github_snapshots", &kept)
 	if kept != 0 {
 		t.Errorf("kept %d snapshots", kept)
+	}
+}
+
+// A repository's maintainers may add it: the visitor does when GitHub says their token may push to it, now, whatever the
+// snapshot last read, and not for a repository they may only read, one that doesn't exist, or one they can't see.
+func TestMaintainsIsWhetherTheVisitorsTokenMayPushToTheRepository(t *testing.T) {
+	fake := monasGitHub()
+	fake.Repositories = append(fake.Repositories, readOnlyOrgRules(),
+		githubtest.Repository{Owner: "stranger", Name: "rules", PushedAt: pushed})
+	site := newGitHubSite(t, fake, false)
+
+	for name, tc := range map[string]struct {
+		repo domain.Repository
+		want bool
+	}{
+		"their own repository":                    {domain.Repository{Owner: "mona", Name: "rules"}, true},
+		"an organization's they may push to":      {domain.Repository{Owner: "octo-org", Name: "Org-Rules"}, true},
+		"a spelling that differs only in case":    {domain.Repository{Owner: "MONA", Name: "Rules"}, true},
+		"an organization's they may only read":    {domain.Repository{Owner: "octo-org", Name: "readonly"}, false},
+		"a stranger's public repository":          {domain.Repository{Owner: "stranger", Name: "rules"}, false},
+		"a repository that doesn't exist":         {domain.Repository{Owner: "mona", Name: "nothing"}, false},
+		"a private repository only the app reads": {domain.Repository{Owner: "mona", Name: "billing"}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := site.accounts.Maintains(context.Background(), site.session, tc.repo)
+			if err != nil || got != tc.want {
+				t.Errorf("Maintains(%s) = %v, %v; want %v", tc.repo.FullName(), got, err, tc.want)
+			}
+		})
+	}
+}
+
+// The check asks GitHub when it's made, so a visitor who just lost their access to a repository no longer maintains it.
+func TestMaintainsReadsGitHubEachTime(t *testing.T) {
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	repo := domain.Repository{Owner: "mona", Name: "rules"}
+	site.snapshot(t)
+
+	for i, want := range []bool{true, false} {
+		if i == 1 {
+			fake.Repositories[0].ReadOnly = true
+		}
+		if got, err := site.accounts.Maintains(context.Background(), site.session, repo); err != nil || got != want {
+			t.Errorf("check %d: got %v, %v; want %v", i+1, got, err, want)
+		}
+	}
+}
+
+// A token GitHub refuses asks the visitor to sign in again, and a GitHub that fails is an error that isn't that, so a
+// page can tell the visitor to try again.
+func TestMaintainsFailsWhenTheTokenIsRefusedOrGitHubFails(t *testing.T) {
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	repo := domain.Repository{Owner: "mona", Name: "rules"}
+
+	fake.Fail = func(path string) bool { return strings.HasPrefix(path, "/repos/") }
+	if got, err := site.accounts.Maintains(context.Background(), site.session, repo); err == nil || errors.Is(err, ErrNoGitHubToken) || got {
+		t.Errorf("with GitHub failing: got %v, %v; want another error", got, err)
+	}
+
+	fake.Fail = nil
+	fake.Users[0].Token = "gho_rotated"
+	if got, err := site.accounts.Maintains(context.Background(), site.session, repo); !errors.Is(err, ErrNoGitHubToken) || got {
+		t.Errorf("with a refused token: got %v, %v; want ErrNoGitHubToken", got, err)
 	}
 }
 

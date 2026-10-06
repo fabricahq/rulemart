@@ -31,6 +31,9 @@ type GitHubReader interface {
 	// Repositories returns owner's public repositories, an organization's when organization is true, the most recently
 	// pushed first, at most limit, and whether owner has more.
 	Repositories(ctx context.Context, token, owner string, organization bool, limit int) (repos []domain.GitHubRepository, more bool, err error)
+	// Repository returns the repository as the token's user may see it, with whether they may push to it, or found false
+	// when they can't see it or it doesn't exist.
+	Repository(ctx context.Context, token string, repo domain.Repository) (found domain.GitHubRepository, ok bool, err error)
 	// RootEntries returns what the root of the repository's default branch holds, nothing for one the token can't see.
 	RootEntries(ctx context.Context, token string, repo domain.Repository) (domain.RootEntries, error)
 	// ReleaseTags returns the names of the repository's tags that start with release/.
@@ -277,7 +280,7 @@ func (g GitHubAccounts) scan(ctx context.Context, token, login string, installat
 	for i, repo := range candidates {
 		group.Go(func() error {
 			var err error
-			libraries[i], projects[i], err = g.inspect(groupCtx, tokens[repo.Installation], repo.Repository)
+			libraries[i], projects[i], err = g.inspect(groupCtx, tokens[repo.Installation], repo)
 			return err
 		})
 	}
@@ -366,6 +369,8 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 	}
 	for i := range repos {
 		repos[i].Installation = installation.ID
+		// An installation's token reads private repositories for Rulemart, which doesn't list them, so it may push to none.
+		repos[i].Writable = false
 	}
 	return repos, token, more, nil
 }
@@ -373,7 +378,8 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 // inspect returns repo as a library when its root holds rule-library.yaml and it has a library release tag, and as a
 // project when its provenance file parses, reading it with token. A provenance file Rulemart can't parse makes no
 // project, rather than failing the read.
-func (g GitHubAccounts) inspect(ctx context.Context, token string, repo domain.Repository) (*domain.PublishableRepository, *domain.Project, error) {
+func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
+	repo := listed.Repository
 	root, err := g.GitHub.RootEntries(ctx, token, repo)
 	if err != nil {
 		return nil, nil, err
@@ -385,7 +391,7 @@ func (g GitHubAccounts) inspect(ctx context.Context, token string, repo domain.R
 			return nil, nil, err
 		}
 		if release := latestRelease(tags); release > 0 {
-			library = &domain.PublishableRepository{Repository: repo, Release: release}
+			library = &domain.PublishableRepository{Repository: repo, Release: release, Writable: listed.Writable}
 		}
 	}
 	var project *domain.Project
@@ -415,6 +421,24 @@ func latestRelease(tags []string) int {
 // compareRepositories orders repositories by owner and name, without regard to case.
 func compareRepositories(a, b domain.Repository) int {
 	return cmp.Compare(strings.ToLower(a.FullName()), strings.ToLower(b.FullName()))
+}
+
+// Maintains reports whether the visitor may add repo to Rulemart: whether their GitHub token, which session keeps, may
+// push to it, as GitHub tells now, rather than as the snapshot last read. It fails with ErrNoGitHubToken when the
+// session keeps no token GitHub takes, and with another error when GitHub can't be read.
+func (g GitHubAccounts) Maintains(ctx context.Context, session domain.SessionToken, repo domain.Repository) (bool, error) {
+	token, err := g.Sessions.GitHubToken(ctx, session)
+	if err != nil {
+		return false, err
+	}
+	read, found, err := g.GitHub.Repository(ctx, token, repo)
+	if errors.Is(err, domain.ErrGitHubTokenRefused) {
+		return false, ErrNoGitHubToken
+	}
+	if err != nil {
+		return false, fmt.Errorf("check write access repository=%q: %v", repo.FullName(), err)
+	}
+	return found && read.Writable, nil
 }
 
 // Installations returns the installations of the GitHub App the account reads private repositories through.

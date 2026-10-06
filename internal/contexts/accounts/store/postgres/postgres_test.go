@@ -323,7 +323,7 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	saved := domain.Snapshot{
 		ReadAt:        readAt,
 		Organizations: []string{"octo-org"},
-		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3}},
+		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3, Writable: true}},
 		Projects: []domain.Project{{
 			Repository: domain.Repository{Owner: "octocat", Name: "app", Private: true},
 			Sources: []domain.Source{{

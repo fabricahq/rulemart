@@ -270,7 +270,8 @@ type repositoryRecord struct {
 
 type libraryRecord struct {
 	repositoryRecord
-	Release int `json:"release"`
+	Release  int  `json:"release"`
+	Writable bool `json:"writable,omitempty"`
 }
 
 type projectRecord struct {
@@ -309,7 +310,7 @@ func newSnapshotRecord(s domain.Snapshot) snapshotRecord {
 		record.ReadAt = &s.ReadAt
 	}
 	for _, l := range s.Libraries {
-		record.Libraries = append(record.Libraries, libraryRecord{repositoryRecord: newRepositoryRecord(l.Repository), Release: l.Release})
+		record.Libraries = append(record.Libraries, libraryRecord{repositoryRecord: newRepositoryRecord(l.Repository), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range s.Projects {
 		project := projectRecord{repositoryRecord: newRepositoryRecord(p.Repository), Sources: []sourceRecord{}}
@@ -339,7 +340,7 @@ func (r snapshotRecord) snapshot() domain.Snapshot {
 		s.ReadAt = *r.ReadAt
 	}
 	for _, l := range r.Libraries {
-		s.Libraries = append(s.Libraries, domain.PublishableRepository{Repository: l.repository(), Release: l.Release})
+		s.Libraries = append(s.Libraries, domain.PublishableRepository{Repository: l.repository(), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range r.Projects {
 		project := domain.Project{Repository: p.repository()}

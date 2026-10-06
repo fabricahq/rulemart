@@ -127,6 +127,12 @@ type repositoryJSON struct {
 	Owner    struct {
 		Login string `json:"login"`
 	} `json:"owner"`
+	// Permissions is what the token's user may do in it, which GitHub includes when the request names a user's token.
+	Permissions struct {
+		Push     bool `json:"push"`
+		Admin    bool `json:"admin"`
+		Maintain bool `json:"maintain"`
+	} `json:"permissions"`
 }
 
 // repository returns r as Rulemart reads it, or false when it isn't a repository GitHub would describe.
@@ -136,7 +142,26 @@ func (r repositoryJSON) repository() (domain.GitHubRepository, bool) {
 	}
 	return domain.GitHubRepository{
 		Repository: domain.Repository{Owner: r.Owner.Login, Name: r.Name, Private: r.Private}, PushedAt: r.PushedAt,
+		Writable: r.Permissions.Push || r.Permissions.Admin || r.Permissions.Maintain,
 	}, true
+}
+
+// Repository returns repo as the token's user may see it, with whether they may push to it, or found false when they
+// can't see it or it doesn't exist, which GitHub answers with 404 or 403.
+func (a *API) Repository(ctx context.Context, token string, repo domain.Repository) (domain.GitHubRepository, bool, error) {
+	var described repositoryJSON
+	found, err := a.get(ctx, token, repositoryPath(repo), "", maxResponseBytes, &described)
+	if err != nil {
+		return domain.GitHubRepository{}, false, fmt.Errorf("read repository=%q: %w", repo.FullName(), err)
+	}
+	if !found {
+		return domain.GitHubRepository{}, false, nil
+	}
+	read, ok := described.repository()
+	if !ok {
+		return domain.GitHubRepository{}, false, fmt.Errorf("read repository=%q: GitHub described it without a name or owner", repo.FullName())
+	}
+	return read, true, nil
 }
 
 // RootEntries returns what the root of repo's default branch holds that a read looks for: nothing, for an empty
