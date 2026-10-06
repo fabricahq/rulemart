@@ -3,8 +3,6 @@ package github
 import (
 	"cmp"
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 )
 
 // GitHub answers 404, or 403, for a repository the token can't see, which a read skips; but a 403 or 429 for a rate
@@ -63,39 +62,16 @@ func TestAPITellsWhatATokenCantSeeFromAFailure(t *testing.T) {
 	}
 }
 
-// GitHub gives an app's key as PKCS #1, and tools convert it to PKCS #8; both sign. Anything else is refused without
-// repeating it.
-func TestParsePrivateKeyTakesPKCS1AndPKCS8(t *testing.T) {
-	key := githubtest.NewAppKey()
-	pkcs8, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for name, text := range map[string]string{
-		"PKCS #1": githubtest.AppKeyPEM(key),
-		"PKCS #8": string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8})),
-	} {
-		if got, err := ParsePrivateKey([]byte(text)); err != nil || !got.Equal(key) {
-			t.Errorf("%s: got %v", name, err)
-		}
-	}
-	for name, text := range map[string]string{"not PEM": "a key", "not a key": "-----BEGIN RSA PRIVATE KEY-----\nAAAA\n-----END RSA PRIVATE KEY-----\n"} {
-		if _, err := ParsePrivateKey([]byte(text)); err == nil || strings.Contains(err.Error(), "AAAA") {
-			t.Errorf("%s: got %v", name, err)
-		}
-	}
-}
-
 // The app's requests carry a JWT the fake checks as GitHub does; a key GitHub doesn't know gets a refusal that names
 // the configuration, not the key.
 func TestTheAppSignsItsRequestsWithAJWTFromItsKey(t *testing.T) {
 	fake := &githubtest.Fake{
-		AppClientID: "Iv1.app", AppKey: githubtest.NewAppKey(),
+		AppClientID: "Iv1.app", AppKey: githubapptest.NewKey(),
 		Installations: []githubtest.Installation{{ID: 9, Account: "octo-org", AccountID: 3, Organization: true}},
 	}
 	server := httptest.NewServer(fake.Handler())
 	defer server.Close()
-	app := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubtest.AppKeyPEM(fake.AppKey))}, NewAPI(server.URL))
+	app := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubapptest.KeyPEM(fake.AppKey))}, NewAPI(server.URL))
 
 	got, err := app.Installation(context.Background(), 9)
 	if err != nil || got != (domain.InstallationAccount{Login: "octo-org", ID: 3, Organization: true}) {
@@ -104,7 +80,7 @@ func TestTheAppSignsItsRequestsWithAJWTFromItsKey(t *testing.T) {
 	if _, err := app.Installation(context.Background(), 10); !errors.Is(err, domain.ErrNoSuchInstallation) {
 		t.Errorf("an unknown installation: got %v", err)
 	}
-	stranger := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubtest.AppKeyPEM(githubtest.NewAppKey()))}, NewAPI(server.URL))
+	stranger := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubapptest.KeyPEM(githubapptest.NewKey()))}, NewAPI(server.URL))
 	if _, err := stranger.InstallationToken(context.Background(), 9); err == nil || !strings.Contains(err.Error(), "JWT") {
 		t.Errorf("another key: got %v", err)
 	}
@@ -133,7 +109,7 @@ func TestAnInstallationIsGoneOnlyWhenGitHubAnswers404(t *testing.T) {
 				http.Error(w, `{"message":"`+tc.message+`"}`, tc.status)
 			}))
 			defer server.Close()
-			app := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubtest.AppKeyPEM(githubtest.NewAppKey()))}, NewAPI(server.URL))
+			app := NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubapptest.KeyPEM(githubapptest.NewKey()))}, NewAPI(server.URL))
 
 			state, err := app.InstallationState(context.Background(), 9)
 			if tc.gone && (err != nil || state != domain.InstallationGone) {
@@ -168,10 +144,10 @@ func TestInstallationRepositoriesAreItsPrivateOnesTheMostRecentlyPushedFirst(t *
 		for _, r := range repos {
 			in.Repositories = append(in.Repositories, r.FullName())
 		}
-		fake := &githubtest.Fake{AppClientID: "Iv1.app", AppKey: githubtest.NewAppKey(), Repositories: repos, Installations: []githubtest.Installation{in}}
+		fake := &githubtest.Fake{AppClientID: "Iv1.app", AppKey: githubapptest.NewKey(), Repositories: repos, Installations: []githubtest.Installation{in}}
 		server := httptest.NewServer(fake.Handler())
 		t.Cleanup(server.Close)
-		return NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubtest.AppKeyPEM(fake.AppKey))}, NewAPI(server.URL))
+		return NewApp(AppConfig{ClientID: "Iv1.app", PrivateKey: fixedSecret(githubapptest.KeyPEM(fake.AppKey))}, NewAPI(server.URL))
 	}
 	read := func(app *App, limit int) ([]string, bool) {
 		t.Helper()

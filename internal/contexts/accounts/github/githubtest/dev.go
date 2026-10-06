@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 )
 
 // DevToken returns the GitHub token a local build's test user login signs in with, which DevFake knows.
@@ -79,7 +80,7 @@ func DevFake(installedURL string) *Fake {
 			{ID: DevInstallation, Account: devUser, AccountID: devUserID, Repositories: []string{devUser + "/team-rules", devUser + "/billing-service"}},
 		},
 		AppClientID:  "Iv1.devfake",
-		AppKey:       NewAppKey(),
+		AppKey:       githubapptest.NewKey(),
 		AppSlug:      "rulemart-by-fabrica",
 		InstalledURL: installedURL,
 		InstallAs:    DevInstallation,

@@ -13,6 +13,7 @@ import (
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
+	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
@@ -24,7 +25,7 @@ func devGitHub(keys accountsapp.TokenKeys) (*github.API, *github.App, accountsap
 	api := github.NewAPI(server.URL)
 	app := github.NewApp(github.AppConfig{
 		ID: 1, ClientID: fake.AppClientID, Slug: fake.AppSlug, WebURL: server.URL,
-		PrivateKey: secret.FromValue(githubtest.AppKeyPEM(fake.AppKey)), WebhookSecret: secret.FromValue("dev-webhook-secret"),
+		PrivateKey: secret.FromValue(githubapptest.KeyPEM(fake.AppKey)), WebhookSecret: secret.FromValue("dev-webhook-secret"),
 	}, api)
 	if keys == nil {
 		keys = accountsapp.FixedTokenKey{Key: accounts.NewTokenKey()}

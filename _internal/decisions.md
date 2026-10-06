@@ -644,6 +644,14 @@ matters.
 - **The worker may authenticate to GitHub's API with a token from SSM**, which raises its limit from 60 requests an
   hour, shared with other Lambda functions on the same address. It calls the API once per new listing, and once per
   library whose tags changed; listing tags uses Git.
+- **After launch, the worker reads GitHub as the GitHub App "Rulemart by Fabrica" instead of with a personal token**,
+  decided by Josh on 2026-10-05. A fine-grained personal token expires within a year and can't be rotated through
+  GitHub's API, while the app's installation tokens are minted hourly from its private key, which SSM already holds
+  for the web function. The worker uses the app's installation on fabricahq, since an installation token reads any
+  public repository, not only the installation's, as `internal/lib/githubapp`'s live test checks. `GITHUB_APP_ID` and
+  `GITHUB_APP_PRIVATE_KEY_PARAMETER` switch it, and replace `GITHUB_TOKEN_PARAMETER` once set, so the launch runs with
+  the personal token, and the switch, and its rollback, are configuration changes in infra-live, whose
+  `OPERATIONS.md` describes the switch once it is made.
 - **Code is organized by bounded context first, and by layer only within a context**, following fabricahq/greenfield's
   ADR 0002 (backend bounded contexts). `internal/contexts/catalog` owns the catalog: `domain` for its values and
   rules, with no I/O; `render` for rules' Markdown and assets, which assembly takes as an interface,
@@ -652,7 +660,10 @@ matters.
   `store/postgres` as its only implementation and the catalog's only SQL; and `views` for what pages read.
   `internal/platform` holds runtime that contexts share, such as the database, migrations, and the web server, which
   stays in platform as greenfield's transports do.
-  `internal/lib` holds narrow libraries that own no product concept, such as the parser copy.
+  `internal/lib` holds narrow libraries that own no product concept, such as the parser copy, and `githubapp`, which
+  acts as a GitHub App: it signs the app's JWT and mints and keeps installation tokens, for accounts' adapter, which
+  reads private repositories, and for the worker, which `cmd/worker` composes, since the catalog can't import
+  accounts.
   `internal/contexts/accounts` owns accounts, sessions, and what Rulemart read of visitors' GitHub accounts, with the
   same layout, plus `github`, its adapter for GitHub: the OAuth app that signs visitors in, the REST API reads of a
   visitor's organizations and repositories, and the GitHub App that reads private repositories, with its webhook.

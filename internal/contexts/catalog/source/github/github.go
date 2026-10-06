@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/platform/secret"
 )
 
 // Client looks up repositories in GitHub's REST API.
@@ -22,8 +21,16 @@ type Client struct {
 	// BaseURL is the API's root: https://api.github.com, unless a test serves its own.
 	BaseURL string
 	// Token authenticates requests when it's set, which raises GitHub's rate limit from 60 requests an hour, shared by
-	// every function on the same address, to 5,000 for the token. Nil sends requests without one.
-	Token *secret.Secret
+	// every function on the same address, to at least 5,000 for the token. Nil sends requests without one.
+	Token Token
+}
+
+// Token gives the token that authenticates a request: a personal access token, such as a secret.Secret holds, or a
+// GitHub App installation's, which changes hourly. Forget drops one GitHub refused, so the next request gets another,
+// such as after a rotation.
+type Token interface {
+	Value(ctx context.Context) (string, error)
+	Forget()
 }
 
 // githubRepository is the part of GitHub's repository resource ingestion uses.
@@ -113,7 +120,7 @@ func (g Client) get(ctx context.Context, path string) (githubRepository, error) 
 	case resp.StatusCode == http.StatusNotFound:
 		return githubRepository{}, fmt.Errorf("GitHub has %w", domain.ErrNoPublicRepository)
 	case resp.StatusCode == http.StatusUnauthorized && g.Token != nil:
-		// A rotated token reads again on the next request.
+		// The next request gets another token, such as a rotated one.
 		g.Token.Forget()
 		return githubRepository{}, errors.New("GitHub refused the token")
 	case resp.StatusCode != http.StatusOK:

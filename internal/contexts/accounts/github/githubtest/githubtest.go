@@ -5,15 +5,8 @@ package githubtest
 
 import (
 	"cmp"
-	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
-	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 )
 
 // Fake is a fake GitHub. Set its fields before serving it; Handler serves it.
@@ -98,20 +93,6 @@ type Installation struct {
 
 // installationToken is the token Fake gives installation id.
 func installationToken(id int64) string { return "ghs_fake_" + strconv.FormatInt(id, 10) }
-
-// NewAppKey returns a new RSA key for a fake GitHub App.
-func NewAppKey() *rsa.PrivateKey {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		panic(err)
-	}
-	return key
-}
-
-// AppKeyPEM returns key in PKCS #1 PEM, as GitHub gives an app's private key.
-func AppKeyPEM(key *rsa.PrivateKey) string {
-	return string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}))
-}
 
 // Requests returns how many requests the route pattern answered, such as "GET /repos/{owner}/{repo}/contents/".
 func (f *Fake) Requests(pattern string) int {
@@ -352,7 +333,7 @@ func (f *Fake) releaseTags(w http.ResponseWriter, r *http.Request) {
 // findInstallation returns the installation r's id names, after checking r is signed with the app's JWT, or answers
 // and returns false.
 func (f *Fake) findInstallation(w http.ResponseWriter, r *http.Request) (Installation, bool) {
-	if err := f.checkJWT(bearer(r)); err != nil {
+	if err := githubapptest.CheckJWT(bearer(r), f.AppClientID, f.AppKey, time.Now()); err != nil {
 		http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusUnauthorized)
 		return Installation{}, false
 	}
@@ -395,7 +376,7 @@ func (f *Fake) accessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]string{"token": installationToken(in.ID)})
+	writeJSON(w, map[string]string{"token": installationToken(in.ID), "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
 }
 
 func (f *Fake) installationRepositories(w http.ResponseWriter, r *http.Request) {
@@ -427,40 +408,6 @@ func (f *Fake) installPage(w http.ResponseWriter, r *http.Request) {
 	}
 	query := url.Values{"installation_id": {strconv.FormatInt(f.InstallAs, 10)}, "setup_action": {"install"}}
 	http.Redirect(w, r, f.InstalledURL+"?"+query.Encode(), http.StatusFound)
-}
-
-// checkJWT reports why token isn't a JWT the app signed, as GitHub checks one: RS256, signed with AppKey, issued by
-// AppClientID, and not expired.
-func (f *Fake) checkJWT(token string) error {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 || f.AppKey == nil {
-		return fmt.Errorf("a JWT could not be decoded")
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
-	if err != nil {
-		return err
-	}
-	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
-	if err := rsa.VerifyPKCS1v15(&f.AppKey.PublicKey, crypto.SHA256, digest[:], signature); err != nil {
-		return fmt.Errorf("a JWT signature does not match")
-	}
-	claims, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return err
-	}
-	var c struct {
-		Iss string `json:"iss"`
-		Exp int64  `json:"exp"`
-		Iat int64  `json:"iat"`
-	}
-	if err := json.Unmarshal(claims, &c); err != nil {
-		return err
-	}
-	now := time.Now().Unix()
-	if c.Iss != f.AppClientID || c.Exp <= now || c.Iat > now || c.Exp-c.Iat > 600 {
-		return fmt.Errorf("the JWT's claims aren't the app's")
-	}
-	return nil
 }
 
 // repositoryJSON describes repo as GitHub's lists do, with push saying whether the requesting user may push to it.
