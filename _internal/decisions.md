@@ -6,17 +6,18 @@ matters.
 
 ## Vetting and listings
 
-- **Anyone signed in can list a public library.** New libraries are unvetted until vetted. Adding one at `/me/add`
-  picks it from the visitor's and their organizations' repositories that publish one, or checks the address a GET
-  form names, then POSTs with the repository in its action; the worker looks the repository up and ingests it within
-  seconds, which `/me/add/run` follows, and the lister can try a failed listing again or remove one from My libraries
-  on the dashboard.
-- **The web function checks only what it can without GitHub, and the worker checks the rest.** The web function checks
-  that the input names a GitHub repository, as `owner/name` or an address, including a page inside the repository,
-  with one trailing `.git` dropped and owner names GitHub refuses, or keeps for its own pages, refused; that it's
-  within the limits below; and that no listing or visible library has that name. It never calls GitHub, whose
-  unauthenticated limit of 60 API requests an hour Lambda functions share. The worker looks the repository up, which
-  catches a missing or private one, and ingests it, which catches one that isn't a Code Rules library. The web
+- **A public library's maintainers can list it.** New libraries are unvetted until vetted. Adding one at `/me/add` picks
+  it from the visitor's and their organizations' repositories that publish one, or checks the address a GET form names,
+  then POSTs with the repository in its action, for a repository the visitor may push to, as decided below; the worker
+  looks the repository up and ingests it within seconds, which `/me/add/run` follows, and the lister can try a failed
+  listing again or remove one from My libraries on the dashboard.
+- **The web function checks the input and the visitor's write access, and the worker checks the rest.** The web function
+  checks that the input names a GitHub repository, as `owner/name` or an address, including a page inside the
+  repository, with one trailing `.git` dropped and owner names GitHub refuses, or keeps for its own pages, refused; that
+  it's within the limits below; that no listing or visible library has that name; and, by asking GitHub with the
+  visitor's own token, that they may push to it. That is the one call it makes to GitHub, never as Rulemart itself,
+  whose unauthenticated limit of 60 API requests an hour Lambda functions share. The worker looks the repository up,
+  which catches a missing or private one, and ingests it, which catches one that isn't a Code Rules library. The web
   function queues the listing's job at once; if that fails, the failure is logged and alarmed, and the hourly poll
   queues it again.
 - **A listed library's failure is the lister's to see, not an alarm.** A job for a listing records why its check
@@ -492,21 +493,28 @@ matters.
   says how to uninstall the app on GitHub, since redirecting a POST there breaks `form-action 'self'`; Skip, public
   repos only, is a POST that returns to the dashboard with the toast "Okay. Rulemart will only look at your public
   repos.", changing nothing.
-- **`/me/add` lists publishable repositories from the snapshot**, and "Add this library" posts the same listing flow.
-  A row shows the repository's latest release, "Public · release/3", not its group count, since counting groups costs
-  more requests than the number is worth. Rows order as what the visitor can add, what Rulemart is adding, what
-  Rulemart has, then private ones, which show but can't be added. The URL form keeps the listing's checks, and shows an
-  address it accepts as a row to add, since a GET form can't post.
+- **`/me/add` lists publishable repositories from the snapshot**, and "Add this library" posts the same listing flow. A
+  row shows the repository's latest release, "Public · release/3", not its group count, since counting groups costs more
+  requests than the number is worth. Rows order as what the visitor can add, what Rulemart is adding, what Rulemart has,
+  then the ones that show but can't be added: a public library the visitor may only read, then private ones. The URL
+  form keeps the listing's checks and the write-access check, and shows an address it accepts as a row to add, since a
+  GET form can't post.
 - **Decided (Josh), 2026-10-05: `/me/add` reads as the dashboard's lists do.** An intro in whole sentences says what the
-  page lists, repositories the visitor and their organizations own that publish a library, and that any public library
+  page lists, repositories the visitor and their organizations own that publish a library, and that a public repository
   can be added by its URL. The repositories are a bordered card of rows, with no header: each name links to it on
-  GitHub, in the same tab as the site's other links to GitHub, with a small arrow and the accessible name "… on
-  GitHub", above "Public · release/6 · via the X organization", with the action at the row's right, Add this
-  library, "✓ On Rulemart", or, for a private repository, the dimmed row saying why it can't be added. One status line
-  under the card, in the dashboard's pattern and with its parts ("Public repos only · read from GitHub … · Refresh ·
-  Include private repos", or "Including private repos from the ones you selected · … · Manage"), replaces the dashed
-  note and the separate line on the read. "Add a library by URL" is a sentence-case heading, with one sentence under
-  it, above the field.
+  GitHub, in the same tab as the site's other links to GitHub, with a small arrow and the accessible name "… on GitHub",
+  above "Public · release/6 · via the X organization", with the action at the row's right, Add this library, "✓ On
+  Rulemart", or, for a private repository or a public one the visitor can't write to, the dimmed row saying why it can't
+  be added. One status line under the card, in the dashboard's pattern and with its parts ("Public repos only · read
+  from GitHub … · Refresh · Include private repos", or "Including private repos from the ones you selected · … ·
+  Manage"), replaces the dashed note and the separate line on the read. "Add a library by URL" is a sentence-case
+  heading, with one sentence under it, above the field.
+- **Decided (Josh), 2026-10-05: only a repository's maintainers can add it.** An account lists a repository only when
+  the visitor's GitHub token has write access to it, checked by reading the repository from GitHub when the visitor
+  confirms the address and again when the listing is created, so the picker and "My libraries" name the same set and
+  the people who can fix or remove a listing are the people who own the code. A public library in the picker that the
+  visitor can't write to shows dimmed, saying only someone with write access can add it. Discovery of libraries nobody
+  listed is a later worker job, not a URL form.
 - **`/me/add/run` follows a listing's check.** Its checklist ticks every step at once when Rulemart has the library,
   since the worker's check isn't observable step by step, and a failed check shows the reason with Try again, Remove,
   and Back to Dashboard. `poll.js` swaps the checklist every two seconds, and without it a `<noscript>` reload does the
