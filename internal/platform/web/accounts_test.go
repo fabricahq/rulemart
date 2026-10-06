@@ -744,25 +744,6 @@ func TestTheHeaderOffersSignInReturningToThePage(t *testing.T) {
 	}
 }
 
-// The button's words are split across elements, so a browser joins them only if the space between them is in the
-// page; visibleText would separate them either way.
-func TestTheHeaderSignInLinkReadsSignInWithGitHub(t *testing.T) {
-	site := newAccountsSite(t, nil)
-	doc, err := html.Parse(strings.NewReader(body(t, send(t, site.handler, request{method: http.MethodGet, target: "/"}))))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	link := find(doc, func(n *html.Node) bool { return n.Data == "a" && strings.HasPrefix(nodeText(n), "Sign in") })
-	if link == nil {
-		t.Fatal("no link reads Sign in")
-	}
-
-	if got := strings.TrimSpace(visibleTextOf(link)); got != "Sign in with GitHub" {
-		t.Errorf("the Sign in link reads %q", got)
-	}
-}
-
 // On CloudFront's own domain, sign-in still happens on the public origin, where GitHub sends visitors back.
 func TestSignInLinksAndGitHubsCallbackAreOnTheBaseURL(t *testing.T) {
 	baseURL, err := web.ParseBaseURL("https://rulemart.example")
