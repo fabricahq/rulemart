@@ -124,11 +124,12 @@ func TestACartOfRulesWithVeryLongTitlesChecksOutWithinAResponse(t *testing.T) {
 		id := fmt.Sprintf("techs/go/rule-%02d", i)
 		title := fmt.Sprintf("Rule %02d ", i) + strings.Repeat("and a title that goes on ", 8_400)
 		lib.Write(id+".md", "---\ntitle: "+title+"\nwhenToRead: When writing Go.\nimpact: HIGH\nimpactDescription: Prevents mistakes.\n---\n\nWrite Go.\n")
-		record.WriteString("  " + id + ": 1.0.0\n")
-		changes.WriteString("  " + id + ": {change: new, summaries: [Add the rule.]}\n")
+		fmt.Fprintf(&record, "  %s: 1.0.0\n", id)
+		fmt.Fprintf(&changes, "  %s: {change: new, summaries: [Add the rule.]}\n", id)
 		cart = append(cart, `"example/rules::`+id+`"`)
 	}
-	record.WriteString("changes:\n" + changes.String())
+	record.WriteString("changes:\n")
+	record.WriteString(changes.String())
 	lib.Release(1, record.String())
 	handler := newCheckoutSite(t, lib)
 

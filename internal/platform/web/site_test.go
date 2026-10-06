@@ -386,7 +386,8 @@ func visibleText(t *testing.T, body string) string {
 func writeText(text *strings.Builder, n *html.Node) {
 	switch {
 	case n.Type == html.TextNode:
-		text.WriteString(n.Data + " ")
+		text.WriteString(n.Data)
+		text.WriteString(" ")
 	case n.Type == html.ElementNode && n.Data == "wbr":
 		trimmed := strings.TrimSuffix(text.String(), " ")
 		text.Reset()
