@@ -408,7 +408,7 @@ func TestAddPageConfirmsARepositoryBeforeAddingIt(t *testing.T) {
 	if !strings.Contains(page, `name="url"`) || slices.Contains(formActions(t, page), "/me/add?repository=example%2Fnew") {
 		t.Fatal("the form doesn't ask for an address, or offers a repository before it's given")
 	}
-	assertShows(t, page, "Add a library", "Add a library by URL You can add a repository you have write access to. Its page shows that you added it.")
+	assertShows(t, page, "Add a library", "Add a library by URL For a repository the list above misses. Its page shows that you added it.")
 	resp := site.signedInGet(t, "/me/add?url="+url.QueryEscape("https://github.com/example/new.git"))
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "private, no-store" {
 		t.Fatalf("got %d, cached as %q", resp.StatusCode, resp.Header.Get("Cache-Control"))

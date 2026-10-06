@@ -577,8 +577,8 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 
 	page := site.get(t, "/me/add")
 
-	assertShows(t, page, "Publish Add a library Add a Code Rules library from one of your GitHub repositories, "+
-		"or paste the URL of any public one. A library is a repository with a rule-library.yaml and at least one "+
+	assertShows(t, page, "Publish Add a library Add a Code Rules library from a GitHub repository you have write access to, "+
+		"from the list below or by its URL. A library is a repository with a rule-library.yaml and at least one "+
 		"release/<number> tag.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
 		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",

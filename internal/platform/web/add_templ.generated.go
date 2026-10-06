@@ -85,7 +85,7 @@ func addPage(c chrome, v addView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one. A library is a repository with a <span class=\"mono\">rule-library.yaml</span> and at least one <span class=\"mono\">release/&lt;number&gt;</span> tag.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a Code Rules library from a GitHub repository you have write access to, from the list below or by its URL. A library is a repository with a <span class=\"mono\">rule-library.yaml</span> and at least one <span class=\"mono\">release/&lt;number&gt;</span> tag.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -200,7 +200,7 @@ func addPage(c chrome, v addView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">Add a library by URL</h2><p id=\"library-url-hint\" class=\"mt-1.5 mb-2.5 text-[13px] text-muted\">You can add a repository you have write access to. Its page shows that you added it.</p><form method=\"get\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">Add a library by URL</h2><p id=\"library-url-hint\" class=\"mt-1.5 mb-2.5 text-[13px] text-muted\">For a repository the list above misses. Its page shows that you added it.</p><form method=\"get\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

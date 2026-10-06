@@ -24,7 +24,7 @@ templ addPage(c chrome, v addView) {
 				Publish
 			}
 			<h1 class="title-xl mt-2.5 mb-1.5">Add a library</h1>
-			<p class="mb-5 text-muted">Add a Code Rules library from one of your GitHub repositories, or paste the URL of any public one. A library is a repository with a <span class="mono">rule-library.yaml</span> and at least one <span class="mono">release/&lt;number&gt;</span> tag.</p>
+			<p class="mb-5 text-muted">Add a Code Rules library from a GitHub repository you have write access to, from the list below or by its URL. A library is a repository with a <span class="mono">rule-library.yaml</span> and at least one <span class="mono">release/&lt;number&gt;</span> tag.</p>
 			<section aria-labelledby="your-libraries">
 				<h2 id="your-libraries" class="sr-only">Your libraries on GitHub</h2>
 				<div class={ listCardStyle }>
@@ -50,7 +50,7 @@ templ addPage(c chrome, v addView) {
 			@gitHubSummary(v.gitHub, repoWords, "mt-3")
 			<section class="mt-[30px]" aria-labelledby="add-by-url">
 				<h2 id="add-by-url" class={ subHeadStyle }>Add a library by URL</h2>
-				<p id="library-url-hint" class="mt-1.5 mb-2.5 text-[13px] text-muted">You can add a repository you have write access to. Its page shows that you added it.</p>
+				<p id="library-url-hint" class="mt-1.5 mb-2.5 text-[13px] text-muted">For a repository the list above misses. Its page shows that you added it.</p>
 				<form method="get" action={ templ.SafeURL(listHref) }>
 					<label class="sr-only" for="library-url">GitHub repository URL</label>
 					// Below the tiny breakpoint, the field takes the row and Add goes under it, so the placeholder reads whole.
