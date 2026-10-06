@@ -37,7 +37,8 @@ type Store interface {
 	// sessions, or fails with ErrNotFound when that session has ended or expired, in one statement as EndSessions.
 	DeleteAccount(ctx context.Context, tokenHash []byte) error
 
-	// Snapshot returns the account's GitHub snapshot, or found false when it has none.
+	// Snapshot returns the account's GitHub snapshot, or found false when it has none, or has one saved in an earlier
+	// format that lacks what pages now show, which a new read replaces.
 	Snapshot(ctx context.Context, accountID int64) (snapshot domain.Snapshot, found bool, err error)
 	// ClaimRead claims a read of the account's GitHub account beginning at now, unless one began within interval before
 	// now and its snapshot hasn't been discarded since, so of requests that arrive together, one reads GitHub. In the
