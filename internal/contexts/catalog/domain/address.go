@@ -1,4 +1,5 @@
-// Where things live: a library release's tag, the files in a library, and the GitHub URLs that show them.
+// Where things live: a library release's tag, the files in a library by their library paths, and the GitHub URLs that
+// show them.
 
 package domain
 
@@ -11,9 +12,6 @@ import (
 	"strings"
 	"unicode/utf8"
 )
-
-// ManifestFile is the file every Syllabus library has at its root.
-const ManifestFile = "rule-library.yaml"
 
 // ReleaseTag returns the tag of library release number, such as release/3.
 func ReleaseTag(number int) string { return "release/" + strconv.Itoa(number) }
@@ -32,7 +30,8 @@ func RuleAssetDir(rulePath string) string {
 	return dir + "assets/" + name + "/"
 }
 
-// SharedAssetDir is the library-root directory of the files a library's rules share, which no rule's version covers.
+// SharedAssetDir is the directory, by its library path, of the files a library's rules share, which no rule's version
+// covers.
 const SharedAssetDir = "assets/"
 
 // AssetPagePath returns the path of the page Rulemart shows an asset of the rule at rulePath in the library fullName

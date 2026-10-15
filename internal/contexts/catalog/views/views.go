@@ -56,6 +56,8 @@ type Library struct {
 	// from 1 without gaps, so it's also how many there are.
 	LatestRelease  int
 	LatestTaggedAt time.Time
+	// Layouts says where each release keeps the library's files, which its files' addresses on GitHub follow.
+	Layouts domain.ReleaseLayouts
 	// Groups counts the groups that hold current rules, and Rules the current rules.
 	Groups, Rules int
 	// AddedBy is the login of the account whose listing named the library, as it last signed in, or empty for a

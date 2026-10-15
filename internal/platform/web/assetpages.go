@@ -166,7 +166,7 @@ func newAssetViews(r ruleView, assets []views.Asset) []assetView {
 		v := assetView{
 			path: a.Path, href: assetPagePath(r.library, r.id, a.Path), size: formatSize(a.Size),
 			kind: domain.AssetKindOf(a.MediaType), kept: a.Kept, release: tag,
-			githubURL: domain.BlobURL(r.library.fullName(), tag, a.Path), rawURL: domain.RawURL(r.library.fullName(), tag, a.Path),
+			githubURL: r.library.fileAtVersionURL(a.Path, a.Release), rawURL: r.library.rawFileAtVersionURL(a.Path, a.Release),
 		}
 		v.name, v.shared = strings.CutPrefix(a.Path, domain.SharedAssetDir)
 		if !v.shared {

@@ -48,6 +48,47 @@ func TestLinkURLLeadsASharedFilesLinksToTheLatestRelease(t *testing.T) {
 	}
 }
 
+// A library that moved into .syllabus/ links each file on GitHub where the release that holds it keeps it: a rule's
+// own files where its release kept them, and library-wide files where the latest release keeps them.
+func TestLinkURLLeadsToFilesWhereEachReleasesLayoutKeepsThem(t *testing.T) {
+	const blob = "https://github.com/example/rules/blob/"
+	beforeTheMove := MarkdownSource{
+		Repository: "example/rules", File: "techs/go/return-errors.md", Rule: "techs/go/return-errors",
+		Tag: "release/2", LatestTag: "release/5", Layout: RootLayout, LatestLayout: SyllabusLayout,
+	}
+	afterTheMove := beforeTheMove
+	afterTheMove.Tag, afterTheMove.Layout = "release/4", SyllabusLayout
+	for _, tc := range []struct {
+		source            MarkdownSource
+		destination, want string
+	}{
+		{beforeTheMove, "assets/return-errors/example.go", blob + "release/2/techs/go/assets/return-errors/example.go"},
+		{beforeTheMove, "../../assets/glossary.md", blob + "release/5/.syllabus/assets/glossary.md"},
+		{beforeTheMove, "../../LICENSE", blob + "release/5/LICENSE"},
+		{beforeTheMove, "wrap-errors.md", blob + "release/5/.syllabus/rules/techs/go/wrap-errors.md"},
+		{afterTheMove, "assets/return-errors/example.go", blob + "release/4/.syllabus/rules/techs/go/assets/return-errors/example.go"},
+		{afterTheMove, "return-errors.md#why", blob + "release/4/.syllabus/rules/techs/go/return-errors.md#why"},
+		{afterTheMove, "../../../assets/glossary.md", blob + "release/5/.syllabus/assets/glossary.md"},
+		{afterTheMove, "/assets/glossary.md", blob + "release/5/.syllabus/assets/glossary.md"},
+		{afterTheMove, "../../../../LICENSE", blob + "release/5/LICENSE"},
+		// A file the library doesn't publish stays at the release whose tree the link was written against.
+		{afterTheMove, "../../../vendor/team/config.yaml", blob + "release/4/.syllabus/vendor/team/config.yaml"},
+		{afterTheMove, "../../../../..", "https://github.com/example/rules/tree/release/5"},
+	} {
+		if got := tc.source.LinkURL(tc.destination); got != tc.want {
+			t.Errorf("LinkURL(%q) from %s in %q = %q, want %q", tc.destination, tc.source.Tag, tc.source.Layout, got, tc.want)
+		}
+	}
+	withAsset := afterTheMove
+	withAsset.Assets = map[string]AssetAddress{"assets/glossary.md": {Page: "/example/rules/assets/glossary.md"}}
+	if got, want := withAsset.LinkURL("../../../assets/glossary.md"), "/example/rules/assets/glossary.md"; got != want {
+		t.Errorf("a link to a shared asset leads to %q, want its page %q", got, want)
+	}
+	if got, want := afterTheMove.ImageURL("/assets/lifecycle.svg"), "https://raw.githubusercontent.com/example/rules/refs/tags/release/5/.syllabus/assets/lifecycle.svg"; got != want {
+		t.Errorf("an image loads from %q, want %q", got, want)
+	}
+}
+
 func TestImageURLLoadsAKeptImageFromRulemartAndOthersFromGitHub(t *testing.T) {
 	const raw = "https://raw.githubusercontent.com/example/rules/refs/tags/"
 	for destination, want := range map[string]string{

@@ -2,7 +2,10 @@
 package gittest
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,21 +27,69 @@ type Library struct {
 	dir  string
 	repo *git.Repository
 	tags int
+	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the Syllabus
+	// directory's rules/.
+	rules string
 }
 
-// NewLibrary returns a repository whose working tree holds only rule-library.yaml, declaring an MIT license, and
-// its LICENSE file.
+// syllabusConfig is the configuration of a library in the Syllabus directory, whose library section declares an MIT
+// license in LICENSE.
+const syllabusConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+
+// NewLibrary returns a repository in the earlier layout, which Syllabus libraries had before they moved into
+// .syllabus/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
+// file, and Group and Rule write at the root.
 func NewLibrary(t *testing.T) *Library {
+	t.Helper()
+	l := newRepository(t)
+	l.Write("rule-library.yaml", "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n")
+	l.Write("LICENSE", "MIT License\n")
+	return l
+}
+
+// NewSyllabusLibrary returns a repository that keeps its library in the Syllabus directory: its working tree holds
+// only .syllabus/config.yaml, whose library section declares an MIT license, and its LICENSE file at the root, and
+// Group and Rule write in .syllabus/rules/.
+func NewSyllabusLibrary(t *testing.T) *Library {
+	t.Helper()
+	l := newRepository(t)
+	l.Write(".syllabus/config.yaml", syllabusConfig)
+	l.Write("LICENSE", "MIT License\n")
+	l.rules = ".syllabus/rules/"
+	return l
+}
+
+// newRepository returns an empty repository in a directory the test removes.
+func newRepository(t *testing.T) *Library {
 	t.Helper()
 	dir := t.TempDir()
 	repo, err := git.PlainInit(dir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := &Library{t: t, dir: dir, repo: repo}
-	l.Write("rule-library.yaml", "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n")
-	l.Write("LICENSE", "MIT License\n")
-	return l
+	return &Library{t: t, dir: dir, repo: repo}
+}
+
+// MoveToSyllabusDirectory moves a library in the earlier layout into the Syllabus directory, as its maintainer
+// would: rule-library.yaml becomes .syllabus/config.yaml's library section, techs/ and practices/ move into
+// .syllabus/rules/, and assets/ and changes/ into .syllabus/. Group and Rule write in .syllabus/rules/ after it.
+func (l *Library) MoveToSyllabusDirectory() {
+	l.t.Helper()
+	l.Remove("rule-library.yaml")
+	l.Write(".syllabus/config.yaml", syllabusConfig)
+	for from, to := range map[string]string{
+		"techs": ".syllabus/rules/techs", "practices": ".syllabus/rules/practices",
+		"assets": ".syllabus/assets", "changes": ".syllabus/changes",
+	} {
+		if err := os.MkdirAll(filepath.Join(l.dir, filepath.FromSlash(path.Dir(to))), 0o755); err != nil {
+			l.t.Fatal(err)
+		}
+		err := os.Rename(filepath.Join(l.dir, from), filepath.Join(l.dir, filepath.FromSlash(to)))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			l.t.Fatal(err)
+		}
+	}
+	l.rules = ".syllabus/rules/"
 }
 
 // Write puts content at path in the working tree.
@@ -64,7 +115,7 @@ func (l *Library) Remove(path string) {
 // Group writes group id's _group.yaml, describing it as name.
 func (l *Library) Group(id, name string) {
 	l.t.Helper()
-	l.Write(id+"/_group.yaml", "name: "+name+"\ndescription: "+name+" rules.\nwhenToRead: When the work involves "+
+	l.Write(l.rules+id+"/_group.yaml", "name: "+name+"\ndescription: "+name+" rules.\nwhenToRead: When the work involves "+
 		strings.ToLower(name)+".\n")
 }
 
@@ -72,7 +123,7 @@ func (l *Library) Group(id, name string) {
 // Rules' template does, followed by body.
 func (l *Library) Rule(id, title, body string) {
 	l.t.Helper()
-	l.Write(id+".md", "---\ntitle: "+title+"\nwhenToRead: When changing "+strings.ToLower(title)+".\nimpact: HIGH\n"+
+	l.Write(l.rules+id+".md", "---\ntitle: "+title+"\nwhenToRead: When changing "+strings.ToLower(title)+".\nimpact: HIGH\n"+
 		"impactDescription: Prevents mistakes in "+strings.ToLower(title)+".\n---\n\n## "+title+"\n\n"+body+"\n")
 }
 

@@ -518,14 +518,15 @@ func (q *Queries) UpsertLibrary(ctx context.Context, arg UpsertLibraryParams) (i
 }
 
 const upsertRelease = `-- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files, layout)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (library_id, number) DO UPDATE SET
     tag_object_id = excluded.tag_object_id, commit_id = excluded.commit_id, tagged_at = excluded.tagged_at,
-    updates_shared_files = excluded.updates_shared_files
+    updates_shared_files = excluded.updates_shared_files, layout = excluded.layout
 WHERE (library_releases.tag_object_id, library_releases.commit_id, library_releases.tagged_at,
-       library_releases.updates_shared_files)
-    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files)
+       library_releases.updates_shared_files, library_releases.layout)
+    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files,
+       excluded.layout)
 `
 
 type UpsertReleaseParams struct {
@@ -535,6 +536,7 @@ type UpsertReleaseParams struct {
 	CommitID           string
 	TaggedAt           pgtype.Timestamptz
 	UpdatesSharedFiles bool
+	Layout             string
 }
 
 func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (int64, error) {
@@ -545,6 +547,7 @@ func (q *Queries) UpsertRelease(ctx context.Context, arg UpsertReleaseParams) (i
 		arg.CommitID,
 		arg.TaggedAt,
 		arg.UpdatesSharedFiles,
+		arg.Layout,
 	)
 	if err != nil {
 		return 0, err

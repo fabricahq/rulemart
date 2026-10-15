@@ -18,16 +18,16 @@ type ReleaseSnapshot struct {
 	// CommitID is the hash of the commit the release tags.
 	CommitID string
 	Record   coderules.ReleaseRecord
-	// Files reads the tagged commit's files. Assembly reads only the ones it needs.
+	// Files reads the tagged commit's files, by their paths in the repository. Assembly reads only the ones it needs.
 	Files Files
 }
 
-// release returns the release as the catalog stores it. Syllabus's release notes say a release updated shared
-// files for every release after the first that lists library files; a first release lists every file, which it
-// adds rather than updates.
-func (s ReleaseSnapshot) release() Release {
+// release returns the release, which keeps the library's files in layout, as the catalog stores it. Syllabus's
+// release notes say a release updated shared files for every release after the first that lists library files; a
+// first release lists every file, which it adds rather than updates.
+func (s ReleaseSnapshot) release(layout Layout) Release {
 	return Release{
-		Number: s.Number, TagID: s.TagID, CommitID: s.CommitID, TaggedAt: s.TaggedAt,
+		Number: s.Number, TagID: s.TagID, CommitID: s.CommitID, TaggedAt: s.TaggedAt, Layout: layout,
 		UpdatesSharedFiles: s.Number > 1 && len(s.Record.LibraryFiles) > 0,
 	}
 }

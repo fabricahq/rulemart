@@ -9,8 +9,8 @@ import (
 // Library is everything the catalog stores about one library, as its release tags publish it.
 type Library struct {
 	Repository Repository
-	// LicenseExpression and LicenseFile are what rule-library.yaml declares at the latest release; each is empty
-	// when it declares none.
+	// LicenseExpression and LicenseFile are what the manifest declares at the latest release; each is empty when it
+	// declares none. LicenseFile is the file's path in the repository.
 	LicenseExpression, LicenseFile string
 	// Releases are in number order, from 1.
 	Releases []Release
@@ -42,6 +42,8 @@ type Release struct {
 	// CommitID is the hash of the commit the release tags.
 	CommitID string
 	TaggedAt time.Time
+	// Layout is where the release keeps the library's files, which its files' paths in the repository follow.
+	Layout Layout
 	// UpdatesSharedFiles reports whether the release changed library-wide files, such as group metadata or shared
 	// assets, which Syllabus's release notes say for every release after the first that lists library files. A
 	// first release lists every file, which it adds rather than updates.

@@ -327,7 +327,7 @@ func TestAssembleRefusesALibraryMissingAFileItPublishes(t *testing.T) {
 		// The library page links to the license file, so a release whose manifest names a missing one is refused
 		// rather than stored as a broken link.
 		"the declared license file": {"LICENSE", "release/1: rule-library.yaml declares the license file LICENSE, which is missing"},
-		"the manifest":              {"rule-library.yaml", "release/1: rule-library.yaml is missing"},
+		"the manifest":              {"rule-library.yaml", "release/1: the library's manifest is missing"},
 		"a current rule's file":     {"techs/go/return-errors.md", "release/1: techs/go/return-errors.md: the file doesn't exist"},
 		"a current group's file":    {"techs/go/_group.yaml", "release/1: techs/go/_group.yaml: the file doesn't exist"},
 	} {
@@ -597,5 +597,139 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 	}
 	if !slices.IsSortedFunc(allowances, func(a, b int64) int { return int(b - a) }) || allowances[0] >= limits.ContentBytes {
 		t.Errorf("allowances are %v, want what's left of the budget, shrinking", allowances)
+	}
+}
+
+// syllabusManifest is a configuration whose library section declares an MIT license, as a library in the Syllabus
+// directory's layout has.
+const syllabusManifest = "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE.md\n    notices: [NOTICE.md]\n"
+
+// A library that moved its files into .syllabus/ keeps its history: rule IDs and versions don't change, a version
+// published before the move is read where that release kept it, and everything else from where the latest release
+// keeps it.
+func TestAssembleReadsALibraryThatMovedIntoTheSyllabusDirectory(t *testing.T) {
+	before := snapshot(t, 1, `formatVersion: 1
+release: 1
+rules: {practices/testing/verify-retry-limits: 1.0.0, techs/go/return-errors: 1.0.0}
+changes:
+  practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
+  techs/go/return-errors: {change: new, summaries: [Add the rule.]}
+libraryFiles: [LICENSE, assets/lifecycle.svg, practices/testing/_group.yaml, rule-library.yaml, techs/go/_group.yaml]
+`, library(files{
+		"practices/testing/_group.yaml":            group("Testing"),
+		"techs/go/_group.yaml":                     group("Go"),
+		"practices/testing/verify-retry-limits.md": rule("Verify retry limits", "Stop after a fixed number of attempts."),
+		"techs/go/return-errors.md":                rule("Return errors", "See [the lifecycle](../../assets/lifecycle.svg)."),
+		"assets/lifecycle.svg":                     "<svg>before</svg>",
+	}))
+	moved := snapshot(t, 2, `formatVersion: 1
+release: 2
+rules: {practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
+changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
+libraryFiles: [LICENSE.md, NOTICE.md, practices/testing/_group.yaml]
+`, files{
+		".syllabus/config.yaml":                         syllabusManifest,
+		".syllabus/rules/practices/testing/_group.yaml": group("Testing practices"),
+		".syllabus/rules/techs/go/_group.yaml":          group("Go"),
+		".syllabus/rules/practices/testing/verify-retry-limits.md": rule("Verify retry limits",
+			"Stop after a fixed number of attempts, timeouts included. See [the lifecycle](../../../assets/lifecycle.svg) "+
+				"and [an example](assets/verify-retry-limits/example.go)."),
+		".syllabus/rules/practices/testing/assets/verify-retry-limits/example.go": "package retry\n",
+		".syllabus/rules/techs/go/return-errors.md":                               rule("Return errors", "See [the lifecycle](../../../assets/lifecycle.svg)."),
+		".syllabus/assets/lifecycle.svg":                                          "<svg>after</svg>",
+		".syllabus/vendor/team/config.yaml":                                       "schemaVersion: 2\nsources: {}\n",
+		"LICENSE.md":                                                              "MIT License\n",
+		"NOTICE.md":                                                               "Notices.\n",
+	})
+	var pages []MarkdownSource
+	record := rendering{markdown: func(body string, page MarkdownSource, allowance int64) (string, int64, error) {
+		pages = append(pages, page)
+		return markup{}.Markdown(body, page, allowance)
+	}}
+
+	lib, err := Assemble(repo, []ReleaseSnapshot{before, moved}, linkLimits, record)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := []Layout{lib.Releases[0].Layout, lib.Releases[1].Layout}; !slices.Equal(got, []Layout{RootLayout, SyllabusLayout}) {
+		t.Errorf("the releases' layouts are %q, want the root and then .syllabus", got)
+	}
+	if lib.LicenseExpression != "MIT" || lib.LicenseFile != "LICENSE.md" {
+		t.Errorf("the license is %q in %q, want the latest configuration's MIT in LICENSE.md", lib.LicenseExpression, lib.LicenseFile)
+	}
+	if got := lib.Groups[0]; got.Path != "practices/testing" || got.Name != "Testing practices" {
+		t.Errorf("the first group is %+v, want release/2's practices/testing", got)
+	}
+	if got := describe(lib.Rules); !slices.Equal(got, []string{
+		"practices/testing/verify-retry-limits in practices/testing: 1.0.0 release/1 new [Add the rule.] Verify retry limits, 1.1.0 release/2 minor [Count timeouts.] Verify retry limits; current",
+		"techs/go/return-errors in techs/go: 1.0.0 release/1 new [Add the rule.] Return errors; current",
+	}) {
+		t.Errorf("rules are %q", got)
+	}
+	retryLimits, returnErrors := lib.Rules[0], lib.Rules[1]
+	if older := retryLimits.Versions[0].Content.Markdown; strings.Contains(older, "timeouts") {
+		t.Errorf("verify-retry-limits 1.0.0 is %q, want release/1's file at the repository root", older)
+	}
+	if current := retryLimits.Current().Content.Markdown; !strings.Contains(current, "timeouts included") {
+		t.Errorf("verify-retry-limits 1.1.0 is %q, want release/2's file in .syllabus/rules/", current)
+	}
+	// Assets keep their library paths. The rule published before the move links to the shared file where the
+	// root kept it, which the latest release keeps in .syllabus/assets/.
+	if want := []string{"practices/testing/assets/verify-retry-limits/example.go", "assets/lifecycle.svg"}; !slices.Equal(retryLimits.Assets, want) {
+		t.Errorf("verify-retry-limits lists %q, want %q", retryLimits.Assets, want)
+	}
+	if want := []string{"assets/lifecycle.svg"}; !slices.Equal(returnErrors.Assets, want) {
+		t.Errorf("return-errors lists %q, want %q", returnErrors.Assets, want)
+	}
+	assets := assetsOf(lib)
+	if a := assets["assets/lifecycle.svg"]; string(a.Content) != "<svg>after</svg>" || a.Release != 2 {
+		t.Errorf("the shared file is %+v, want release/2's .syllabus/assets/lifecycle.svg", a)
+	}
+	if a := assets["practices/testing/assets/verify-retry-limits/example.go"]; string(a.Content) != "package retry\n" || a.Release != 2 {
+		t.Errorf("the rule's own file is %+v", a)
+	}
+	// Each rule renders with the layout of the release that published it, and the latest release's for links to
+	// library-wide files.
+	if got := []Layout{pages[0].Layout, pages[0].LatestLayout, pages[2].Layout, pages[2].LatestLayout}; !slices.Equal(got,
+		[]Layout{SyllabusLayout, SyllabusLayout, RootLayout, SyllabusLayout}) {
+		t.Errorf("rendered verify-retry-limits and return-errors in layouts %q", got)
+	}
+}
+
+// A release in the Syllabus directory's layout is a library only when its configuration has a library section.
+func TestAssembleRefusesALatestReleaseInTheSyllabusDirectoryWithoutAManifest(t *testing.T) {
+	for name, tc := range map[string]struct {
+		manifest, want string
+	}{
+		"no configuration": {"", "release/1: .syllabus/config.yaml is missing; every Syllabus library has one"},
+		"no library section": {"schemaVersion: 2\nsources: {}\n",
+			"release/1: .syllabus/config.yaml has no library section, which makes a repository a Syllabus library"},
+		"a license file that's missing": {"schemaVersion: 2\nsources: {}\nlibrary:\n  license: {file: COPYING, notices: []}\n",
+			"release/1: .syllabus/config.yaml declares the license file COPYING, which is missing"},
+		"an invalid library section": {"schemaVersion: 2\nsources: {}\nlibrary:\n  skills: {}\n",
+			"release/1: example/rules/.syllabus/config.yaml: library.skills: skill levels aren't supported yet"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := files{
+				".syllabus/rules/techs/go/_group.yaml":      group("Go"),
+				".syllabus/rules/techs/go/return-errors.md": rule("Return errors", "Return errors instead of panicking."),
+			}
+			if tc.manifest != "" {
+				f[".syllabus/config.yaml"] = tc.manifest
+			}
+			release := snapshot(t, 1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+libraryFiles: [techs/go/_group.yaml]
+`, f)
+
+			_, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{})
+
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("got error %v, want one containing %q", err, tc.want)
+			}
+		})
 	}
 }

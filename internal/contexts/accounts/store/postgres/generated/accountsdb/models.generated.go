@@ -90,6 +90,7 @@ type LibraryRelease struct {
 	TaggedAt           pgtype.Timestamptz
 	UpdatesSharedFiles bool
 	TagObjectID        pgtype.Text
+	Layout             string
 }
 
 type Listing struct {
