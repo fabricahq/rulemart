@@ -318,4 +318,4 @@ publishes.
 
 ## Engineering rules
 
-Agents and people follow the rules in [.code-rules](.code-rules), as [AGENTS.md](AGENTS.md) explains.
+Agents and people follow the rules in [.syllabus](.syllabus), as [AGENTS.md](AGENTS.md) explains.
