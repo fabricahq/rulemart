@@ -1,4 +1,4 @@
-Set up Syllabus (0.2.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
+Set up Syllabus (0.4.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
 
 From fabricahq/public-rules:
 - The whole group techs/golang, including rules the library adds to it later
@@ -14,10 +14,10 @@ curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
 syllabus project init
 
 # Add your rules
-syllabus project add library fabrica \
+syllabus project add source fabrica \
   --repository https://github.com/fabricahq/public-rules.git \
-  --groups techs/golang \
-  --groups practices/testing
+  --rules 'techs/golang/*' \
+  --rules 'practices/testing/*'
 
 syllabus project sync
 

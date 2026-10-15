@@ -88,7 +88,7 @@ type commandStepJSON struct {
 }
 
 // pinJSON is a library's latest release, which a project could pin it to: the library, as owner/name, the release's
-// tag, and the option of the library's add library command that pins it.
+// tag, and the option of the library's add source command that pins it.
 type pinJSON struct {
 	Library string `json:"library"`
 	Release string `json:"release"`

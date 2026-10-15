@@ -70,8 +70,8 @@ changes:
 	if group.Title != "Go" || len(group.Rules) != 2 || group.RuleCount != 2 || group.Href != "/example/rules/techs/go" {
 		t.Errorf("got the group %+v, want Go with its two rules", group)
 	}
-	commands := "syllabus project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
-		"  --groups techs/go \\\n  --rules practices/testing/verify-retries\n\nsyllabus project sync\n\n" +
+	commands := "syllabus project add source example \\\n  --repository https://github.com/example/rules.git \\\n" +
+		"  --rules 'techs/go/*' \\\n  --rules practices/testing/verify-retries\n\nsyllabus project sync\n\n" +
 		"# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md " +
 		"if the project keeps its files in .code-rules/"
 	if got := oneStep(t, answer); !strings.HasSuffix(got, commands) {
@@ -158,7 +158,7 @@ func TestACartOfRulesWithVeryLongTitlesChecksOutWithinAResponse(t *testing.T) {
 	for _, it := range items[1:] {
 		assertShortTitle(t, it.Title)
 	}
-	if commands := oneStep(t, answer); len(items) != rules+1 || !strings.Contains(commands, "--groups techs/go") {
+	if commands := oneStep(t, answer); len(items) != rules+1 || !strings.Contains(commands, "--rules 'techs/go/*'") {
 		t.Errorf("got %d items and the commands\n%s\nwant the group and its %d rules, importing the group", len(items), commands, rules)
 	}
 }

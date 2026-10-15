@@ -11,9 +11,10 @@ import (
 	"strings"
 )
 
-// minSyllabusVersion is the oldest Syllabus whose commands checkout writes: project add library --rules, and
-// project add rule --from.
-const minSyllabusVersion = "0.2.0"
+// minSyllabusVersion is the oldest Syllabus whose commands and configuration checkout writes: project add source
+// --rules, which takes selectors such as techs/go/*, project add rule --from, and a version 2 configuration's
+// rules.include.
+const minSyllabusVersion = "0.4.0"
 
 // syllabusInstall is the command Syllabus's documentation gives to install it.
 const syllabusInstall = "curl -fsSL https://code-rules.fabricahq.com/install.sh | sh"
@@ -140,7 +141,7 @@ func (s checkoutSource) forkFrom() string {
 	return s.Repository()
 }
 
-// refOption is the option of project add library that pins the library to ref, a release's tag or a commit, which
+// refOption is the option of project add source that pins the library to ref, a release's tag or a commit, which
 // Syllabus writes to the source's configuration.
 func refOption(ref string) string { return "--ref " + ref }
 
@@ -152,7 +153,7 @@ type ReleasePin struct {
 	Release int
 }
 
-// Option returns the option of the library's add library command that pins it to the release.
+// Option returns the option of the library's add source command that pins it to the release.
 func (p ReleasePin) Option() string { return refOption(ReleaseTag(p.Release)) }
 
 // PinExample returns the release a project could pin the first vetted library the checkout imports from to, rather
@@ -401,20 +402,25 @@ func (c Checkout) sourceBlocks() []string {
 }
 
 // addCommand returns the command that adds the source's library with the groups and rules it selects, pinned to the
-// reviewed commit when Rulemart doesn't vet it.
+// reviewed commit when Rulemart doesn't vet it. Each group is selected by its selector, quoted so the shell doesn't
+// expand its *.
 func (s checkoutSource) addCommand() string {
-	lines := []string{"syllabus project add library " + s.Alias, "--repository " + s.Repository()}
+	lines := []string{"syllabus project add source " + s.Alias, "--repository " + s.Repository()}
 	if !s.Vetted {
 		lines = append(lines, refOption(s.ref()))
 	}
 	for _, g := range s.Groups {
-		lines = append(lines, "--groups "+g.ID)
+		lines = append(lines, "--rules '"+groupSelector(g.ID)+"'")
 	}
 	for _, r := range s.Rules {
 		lines = append(lines, "--rules "+r.ID)
 	}
 	return continued(lines)
 }
+
+// groupSelector returns the selector that includes the group id whole, as Syllabus's rules.include takes it, such as
+// techs/go/* for techs/go.
+func groupSelector(id string) string { return id + "/*" }
 
 // syncBlocks returns the sync that forks need before them, or none: a fork from a source the project imports needs the
 // source's record, which syncing writes, and the build after the forks doesn't fetch what the new sources select.
@@ -471,26 +477,28 @@ func continued(lines []string) string {
 }
 
 // configurationNote says, as comments, what to add to the known project's source for the library, which it imports
-// already: Syllabus adds a library once, so its groups and rules go in the configuration.
+// already: Syllabus adds a source once, so its groups and rules go in the configuration, as selectors in the source's
+// rules.include. A configuration from before Syllabus 0.4.0 is version 1, which Syllabus no longer reads, so the note
+// says where to read how to rewrite one.
 func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	lines := []string{
 		"# " + target.Repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
-		"# In " + target.directory() + "/config.yaml, add to sources." + s.Alias + ":",
+		"# In " + target.directory() + "/config.yaml, add to sources." + s.Alias + ".rules.include:",
 	}
-	if len(s.Groups) > 0 {
-		lines = append(lines, "#   groups:")
-		for _, g := range s.Groups {
-			lines = append(lines, "#     - "+g.ID)
-		}
+	for _, g := range s.Groups {
+		lines = append(lines, "#   - "+groupSelector(g.ID))
 	}
-	if len(s.Rules) > 0 {
-		lines = append(lines, "#   rules:")
-		for _, r := range s.Rules {
-			lines = append(lines, "#     - "+r.ID)
-		}
+	for _, r := range s.Rules {
+		lines = append(lines, "#   - "+r.ID)
 	}
+	lines = append(lines,
+		"# If it has schemaVersion: 1, rewrite it as version 2 first:",
+		"# "+configurationVersion1Docs)
 	return strings.Join(lines, "\n")
 }
+
+// configurationVersion1Docs is Syllabus's guide to rewriting a version 1 configuration as version 2.
+const configurationVersion1Docs = "https://code-rules.fabricahq.com/reference/configuration/#version-1-configuration"
 
 // Prompt returns what a visitor gives their coding agent to import the checkout into its target, or "" when there's
 // nothing to import: what to import from each library, a review of each library Rulemart doesn't vet before its

@@ -46,7 +46,7 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex, or a
 terminal to run them yourself. The prompt installs [Syllabus](https://code-rules.fabricahq.com/start-here/install/)
-0.2.0 or later if the project doesn't use it yet.
+0.4.0 or later if the project doesn't use it yet.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
    **Techs** and **Practices**.
@@ -58,13 +58,13 @@ terminal to run them yourself. The prompt installs [Syllabus](https://code-rules
    and enter your project's GitHub repository if you like, so the prompt names it. Signed in, pick one of your
    projects instead, each listed with the libraries it uses.
 5. Copy the prompt into your coding agent, in your project's repository, or copy the commands and run them yourself.
-   They set up Syllabus if the project needs it, add each library with `syllabus project add library`, fork
+   They set up Syllabus if the project needs it, add each library with `syllabus project add source`, fork
    rules with `syllabus project add rule --from`, and sync. The prompt also points your agent instructions, such as
    `AGENTS.md`, at the rules.
 
 Checkout pins nothing by default: the rules you keep in sync move to newer versions only when your project runs
 `syllabus project update`, which previews each change first. To hold a library at one release instead, the Commands
-tab's footnote says how to add `--ref release/<number>` to its `add library` command.
+tab's footnote says how to add `--ref release/<number>` to its `add source` command.
 
 Your project now has `.syllabus/generated/RULES.md`, the index your agent reads before it works, listing the rules
 you picked. [Syllabus's guide](https://code-rules.fabricahq.com) covers what comes next: adding your own rules,

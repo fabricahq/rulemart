@@ -5,10 +5,10 @@ curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
 syllabus project init
 
 # Add your rules
-syllabus project add library fabrica \
+syllabus project add source fabrica \
   --repository https://github.com/fabricahq/public-rules.git \
-  --groups techs/golang \
-  --groups practices/testing
+  --rules 'techs/golang/*' \
+  --rules 'practices/testing/*'
 
 syllabus project sync
 

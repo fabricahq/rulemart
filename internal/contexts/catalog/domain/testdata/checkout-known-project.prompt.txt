@@ -1,4 +1,4 @@
-Add these engineering rules to acme/api with the Syllabus CLI (0.2.0 or later).
+Add these engineering rules to acme/api with the Syllabus CLI (0.4.0 or later).
 
 From fabricahq/public-rules:
 - The whole Testing group (practices/testing), including rules the library adds to it later
@@ -12,11 +12,11 @@ Run:
 # From the root of acme/api
 
 # acme/api already imports fabricahq/public-rules as team.
-# In .syllabus/config.yaml, add to sources.team:
-#   groups:
-#     - practices/testing
-#   rules:
-#     - techs/go/return-errors
+# In .syllabus/config.yaml, add to sources.team.rules.include:
+#   - practices/testing/*
+#   - techs/go/return-errors
+# If it has schemaVersion: 1, rewrite it as version 2 first:
+# https://code-rules.fabricahq.com/reference/configuration/#version-1-configuration
 
 syllabus project sync
 

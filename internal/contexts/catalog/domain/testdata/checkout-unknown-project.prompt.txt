@@ -1,4 +1,4 @@
-Add these engineering rules to the acme/api repository with the Syllabus CLI (0.2.0 or later). If it has neither a .syllabus/ directory nor a .code-rules/ one, from before Code Rules was renamed Syllabus, install the CLI and run syllabus project init first.
+Add these engineering rules to the acme/api repository with the Syllabus CLI (0.4.0 or later). If it has neither a .syllabus/ directory nor a .code-rules/ one, from before Code Rules was renamed Syllabus, install the CLI and run syllabus project init first.
 
 From fabricahq/public-rules:
 - The whole Go group (techs/go), including rules the library adds to it later
@@ -24,16 +24,16 @@ curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
 syllabus project init
 
 # Add your rules
-syllabus project add library fabrica-public-rules \
+syllabus project add source fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
-  --groups techs/go \
+  --rules 'techs/go/*' \
   --rules practices/testing/keep-tests-independent
 
-syllabus project add library fabrica-code-rules-test-library \
+syllabus project add source fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-syllabus project add library stranger \
+syllabus project add source stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go

@@ -130,7 +130,7 @@ func TestCheckoutResolvesEachItemsState(t *testing.T) {
 		t.Errorf("got %+v, want the Testing group with its two rules", group)
 	}
 	// Only the ready items are imported, and the unvetted library is named nowhere until it's confirmed.
-	for _, want := range []string{"--groups practices/testing", "--rules techs/go/return-errors"} {
+	for _, want := range []string{"--rules 'practices/testing/*'", "--rules techs/go/return-errors"} {
 		if !strings.Contains(commandsOf(checkout), want) {
 			t.Errorf("the commands lack %q:\n%s", want, commandsOf(checkout))
 		}
@@ -228,7 +228,7 @@ func TestCheckoutForksAndOffersTheRestOfTheGroup(t *testing.T) {
 	if lib := checkout.Libraries[0]; !lib.RestOfGroupsAdded || lib.RestOfGroupsRules != 0 || len(lib.RestOfGroups) != 1 {
 		t.Errorf("got added %t, %d more, groups %+v, want the offer taken", lib.RestOfGroupsAdded, lib.RestOfGroupsRules, lib.RestOfGroups)
 	}
-	if !strings.Contains(commandsOf(checkout), "--groups techs/go") || !strings.Contains(commandsOf(checkout), "--reason") {
+	if !strings.Contains(commandsOf(checkout), "--rules 'techs/go/*'") || !strings.Contains(commandsOf(checkout), "--reason") {
 		t.Errorf("the group isn't imported whole, with the fork's reason:\n%s", commandsOf(checkout))
 	}
 }
@@ -298,7 +298,7 @@ func TestCheckoutResolvesKeysThatDifferOnlyInCaseToOneItem(t *testing.T) {
 				t.Errorf("got\n%q\nwant\n%q", got, want)
 			}
 			if strings.Count(commandsOf(checkout), "close-bodies") != 1 || !strings.Contains(commandsOf(checkout), c.want) ||
-				strings.Count(commandsOf(checkout), "--groups practices/testing") != 1 {
+				strings.Count(commandsOf(checkout), "--rules 'practices/testing/*'") != 1 {
 				t.Errorf("want close-bodies once, as %q, and the group once:\n%s", c.want, commandsOf(checkout))
 			}
 		})

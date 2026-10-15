@@ -1188,7 +1188,7 @@ func TestCheckoutNeverCopiesAnUnsafeSourceNameFromAProjectsProvenance(t *testing
 			t.Errorf("the texts hold %q:\n%s", unsafe, text)
 		}
 	}
-	if !strings.Contains(text, "syllabus project add library example \\\n") {
+	if !strings.Contains(text, "syllabus project add source example \\\n") {
 		t.Errorf("the texts don't add the library as example:\n%s", text)
 	}
 }
