@@ -86,7 +86,7 @@ changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 	assertShows(t, body(t, send(t, handler, request{method: http.MethodGet, target: "/me", cookies: cookies})),
 		"My libraries , 1", "Checking example/rules · Rulemart is checking it on GitHub.")
 	run := body(t, send(t, handler, request{method: http.MethodGet, target: listed.Header.Get("Location"), cookies: cookies}))
-	assertShows(t, run, "Adding example/rules", "In progress: Looking for rule-library.yaml in example/rules")
+	assertShows(t, run, "Adding example/rules", "In progress: Looking for the library manifest in example/rules")
 	if !strings.Contains(run, "data-polling") || !strings.Contains(run, `http-equiv="refresh"`) {
 		t.Errorf("the check's page doesn't follow the check: %s", visibleText(t, run))
 	}

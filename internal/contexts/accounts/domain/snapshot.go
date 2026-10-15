@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
 // MaxRepositories is how many repositories one read looks into, the most recently pushed first, so a visitor in many
@@ -21,6 +23,11 @@ const MaxOrganizations = 100
 // rule, so this holds a thousand.
 const MaxProvenanceBytes = 1 << 20
 
+// MaxConfigBytes bounds the configuration a read parses to learn whether a repository is a library. A
+// configuration names its sources and their groups and rules, so a real one is a few kilobytes: one larger than this
+// makes no library, rather than failing the read.
+const MaxConfigBytes = 64 << 10
+
 // RefreshInterval is how often a visitor may read their GitHub account again: a refresh within a minute of the last
 // read keeps it.
 const RefreshInterval = time.Minute
@@ -28,6 +35,9 @@ const RefreshInterval = time.Minute
 // ErrGitHubTokenRefused reports a token GitHub refused, such as one whose user revoked Rulemart's authorization:
 // signing in again gives a new one.
 var ErrGitHubTokenRefused = errors.New("GitHub refused the token")
+
+// ErrFileTooLarge reports a file larger than the most a read asked for.
+var ErrFileTooLarge = errors.New("the file is larger than the read allows")
 
 // Repository is a GitHub repository, as owner/name, and whether it's private.
 type Repository struct {
@@ -53,8 +63,10 @@ type GitHubRepository struct {
 
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
-	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Syllabus library.
-	Manifest bool
+	// LegacyManifest is true when it holds rule-library.yaml, the manifest of a library in the layout from before
+	// Syllabus kept a library's files in its directory. Syllabus reads such a repository as that layout's library,
+	// whatever else it holds.
+	LegacyManifest bool
 	// ProjectDirectory is the directory where a project keeps its files, as Syllabus chooses it: ProjectDirectory when
 	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
 	// ProjectDirectory, or empty when it holds neither.
@@ -79,7 +91,19 @@ type Snapshot struct {
 	ReadFailed bool
 }
 
-// PublishableRepository is a repository that holds a rule-library.yaml and a library release tag, release/<n>.
+// ConfigPath returns where a repository whose Syllabus directory is directory, ProjectDirectory or
+// LegacyProjectDirectory, keeps its configuration, whose library section makes it a library, from its root.
+func ConfigPath(directory string) string { return directory + "/" + coderules.Manifest }
+
+// DeclaresLibrary reports whether config, a repository's configuration, has a library section, the manifest that
+// makes the repository a library, as Syllabus validates it. A configuration Syllabus would refuse declares none.
+func DeclaresLibrary(config []byte) bool {
+	library, err := coderules.ParseLibraryManifest(config, "config.yaml")
+	return err == nil && library != nil
+}
+
+// PublishableRepository is a repository that holds a library manifest, rule-library.yaml or a library section in
+// its configuration, and a library release tag, release/<n>.
 type PublishableRepository struct {
 	Repository
 	// Release is the number of its latest library release.

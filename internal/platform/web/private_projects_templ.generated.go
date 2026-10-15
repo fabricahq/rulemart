@@ -177,7 +177,7 @@ func privatePage(c chrome, v privateView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono [overflow-wrap:anywhere]\">.syllabus/generated/provenance.json</span> (or <span class=\"mono [overflow-wrap:anywhere]\">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Syllabus) and <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use Syllabus and which libraries they import.</td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono [overflow-wrap:anywhere]\">.syllabus/generated/provenance.json</span> (or <span class=\"mono [overflow-wrap:anywhere]\">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Syllabus), and the library manifest, <span class=\"mono [overflow-wrap:anywhere]\">.syllabus/config.yaml</span> or <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use Syllabus, which libraries they import, and which repos are libraries.</td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

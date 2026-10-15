@@ -516,7 +516,7 @@ func runStrong(text string) runPart { return runPart{text: text, strong: true} }
 // steps returns the checklist, as the prototype words it: what the check found, once it found it.
 func (v runView) steps() []runStep {
 	steps := []runStep{
-		{parts: []runPart{runText("Looking for "), runStrong("rule-library.yaml"), runText(" in " + v.fullName)}},
+		{parts: []runPart{runText("Looking for the library manifest in " + v.fullName)}},
 		{parts: []runPart{runText("Read the latest library release · its rules at their published versions")}},
 		{parts: []runPart{runText("Groups and rules indexed")}},
 		{parts: []runPart{runText("Watching for new library releases")}},
@@ -525,7 +525,8 @@ func (v runView) steps() []runStep {
 	case v.library != nil:
 		lib := v.library
 		rules := plural(lib.Rules, "rule", "rules")
-		steps[0].parts = []runPart{runText("Found "), runStrong("rule-library.yaml"), runText(" in " + v.fullName)}
+		manifest := lib.Layouts.Of(lib.LatestRelease).ManifestFile()
+		steps[0].parts = []runPart{runText("Found "), runStrong(manifest), runText(" in " + v.fullName)}
 		steps[1].parts = []runPart{runText("Read library release "), runStrong(domain.ReleaseTag(lib.LatestRelease)), runText(" · " + rules + " at their published versions")}
 		steps[2].parts = []runPart{runStrong(plural(lib.Groups, "group", "groups")), runText(", "), runStrong(rules), runText(" indexed")}
 		if lib.LicenseExpression != "" {

@@ -190,6 +190,65 @@ func TestSnapshotFindsProjectsInTheDirectorySyllabusReads(t *testing.T) {
 	}
 }
 
+// A read finds a library whose manifest is where Syllabus reads it: rule-library.yaml at the root, or else a library
+// section in the configuration in the Syllabus directory, .syllabus, or .code-rules while the repository has no
+// .syllabus. A configuration without a library section, one Syllabus would refuse, one too large to read, or one in
+// .code-rules beside .syllabus makes no library, and fails no read.
+func TestSnapshotFindsLibrariesWhoseManifestSyllabusReads(t *testing.T) {
+	library := "schemaVersion: 2\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+	project := "schemaVersion: 2\nsources: {}\n"
+	syllabusConfig := domain.ConfigPath(domain.ProjectDirectory)
+	legacyConfig := domain.ConfigPath(domain.LegacyProjectDirectory)
+	repository := func(name string, files map[string]string) githubtest.Repository {
+		return githubtest.Repository{Owner: "mona", Name: name, PushedAt: pushed, Files: files, Tags: []string{"release/4"}}
+	}
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			repository("root", map[string]string{"rule-library.yaml": "schemaVersion: 1\n"}),
+			repository("syllabus", map[string]string{syllabusConfig: library}),
+			repository("not-renamed", map[string]string{legacyConfig: library}),
+			repository("project", map[string]string{syllabusConfig: project}),
+			repository("refused", map[string]string{syllabusConfig: "schemaVersion: 2\nlibrary:\n  skills: {}\n"}),
+			repository("too-large", map[string]string{syllabusConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes) + "\n"}),
+			repository("beside-syllabus", map[string]string{syllabusConfig: project, legacyConfig: library}),
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	got := site.snapshot(t)
+
+	var names []string
+	for _, l := range got.Libraries {
+		names = append(names, l.Name)
+	}
+	if want := []string{"not-renamed", "root", "syllabus"}; !slices.Equal(names, want) || got.ReadFailed {
+		t.Errorf("libraries %v (read failed %v), want %v", names, got.ReadFailed, want)
+	}
+}
+
+// A read asks for a repository's configuration only when its root has a Syllabus directory and no rule-library.yaml,
+// so repositories that can't hold one cost no extra request.
+func TestAReadAsksForAConfigurationOnlyWhereALibraryCouldDeclareOne(t *testing.T) {
+	library := "schemaVersion: 2\nlibrary: {}\n"
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			{Owner: "mona", Name: "root", PushedAt: pushed, Files: map[string]string{"rule-library.yaml": "schemaVersion: 1\n", domain.ConfigPath(domain.ProjectDirectory): library}},
+			{Owner: "mona", Name: "notes", PushedAt: pushed, Files: map[string]string{"README.md": "notes"}},
+			{Owner: "mona", Name: "syllabus", PushedAt: pushed, Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): library}},
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	site.snapshot(t)
+
+	// Three root listings, mona/root's provenance file, and mona/syllabus's configuration and provenance file.
+	if got := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}"); got != 6 {
+		t.Errorf("asked for contents %d times, want 6", got)
+	}
+}
+
 // The snapshot is kept, so pages after the first read nothing from GitHub, and a refresh within a minute keeps it
 // too; a minute later, a refresh reads again.
 func TestASnapshotIsReadOnceAndRefreshedAtMostOnceAMinute(t *testing.T) {
@@ -234,8 +293,9 @@ func TestAReadLooksIntoAtMostTheMostRecentlyPushedRepositories(t *testing.T) {
 
 	got := site.snapshot(t)
 
-	// Each repository read costs a listing of its root, and mona/api and mona/broken a provenance file too.
-	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 2; inspected != domain.MaxRepositories {
+	// Each repository read costs a listing of its root, and mona/api and mona/broken, which have a Syllabus directory
+	// and no rule-library.yaml, a configuration and a provenance file too.
+	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 4; inspected != domain.MaxRepositories {
 		t.Errorf("looked into %d repositories, want %d", inspected, domain.MaxRepositories)
 	}
 	if !got.Truncated || slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "old-rules" }) {

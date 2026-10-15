@@ -467,7 +467,8 @@ matters.
 - **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
   A read lists their organizations, the public repositories of theirs and their organizations', and the private ones
   the GitHub App's installations read, the 200 most recently pushed, and finds the ones that publish a library
-  (`rule-library.yaml` and a `release/<n>` tag) and the projects (`.syllabus/generated/provenance.json`, of which it
+  (a manifest, `rule-library.yaml` at the root or a `library` section in the Syllabus directory's `config.yaml`, and a
+  `release/<n>` tag) and the projects (`.syllabus/generated/provenance.json`, of which it
   keeps each source and its rules' versions). It's kept per account in `github_snapshots`, refreshed at most once a
   minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
   sees it. GitHub returns a visitor who installed the app to `/me/github/installed`, which records the installation
@@ -477,7 +478,8 @@ matters.
 - **A read uses GitHub's REST API, not its search, and is bounded.** Code search finds a repository only once GitHub
   has indexed it, allows 10 requests a minute, and can't see what an installation reads. The read costs one request
   per repository, plus its tags or provenance file only where the root holds `rule-library.yaml`, or `.syllabus` or
-  `.code-rules`, eight at a time, within 200 repositories, 100 organizations, and a 25-second deadline; GitHub isn't
+  `.code-rules`, and its `config.yaml`, at most 64 KiB, only where the root has that directory and no
+  `rule-library.yaml`, so only repositories that could declare a library there pay for it, eight at a time, within 200 repositories, 100 organizations, and a 25-second deadline; GitHub isn't
   read inside the sign-in callback, which would hold every sign-in's redirect. Each sign-in discards the account's snapshot, and the
   first page that needs one reads GitHub.
 - **A failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves the
