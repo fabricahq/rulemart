@@ -72,7 +72,8 @@ changes:
 	}
 	commands := "syllabus project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
 		"  --groups techs/go \\\n  --rules practices/testing/verify-retries\n\nsyllabus project sync\n\n" +
-		"# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md"
+		"# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md " +
+		"if the project keeps its files in .code-rules/"
 	if got := oneStep(t, answer); !strings.HasSuffix(got, commands) {
 		t.Errorf("the commands end\n%s\nwant\n%s", got, commands)
 	}

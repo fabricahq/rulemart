@@ -46,4 +46,4 @@ syllabus project add rule techs/go/errors-include-useful-diagnostic-data \
 
 syllabus project build
 
-Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md. The rules move to newer versions only when someone runs syllabus project update and confirms.
+Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/. The rules move to newer versions only when someone runs syllabus project update and confirms.

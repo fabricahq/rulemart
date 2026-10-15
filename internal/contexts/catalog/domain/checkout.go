@@ -21,6 +21,10 @@ const syllabusInstall = "curl -fsSL https://code-rules.fabricahq.com/install.sh 
 // syllabusDirectory is where Syllabus keeps a project's files, from its repository's root.
 const syllabusDirectory = ".syllabus"
 
+// legacyDirectory is where a project keeps its files from before Code Rules was renamed Syllabus, which Syllabus still
+// reads.
+const legacyDirectory = ".code-rules"
+
 // forkReason is why a fork replaces the rule the project imports with its group, which Syllabus asks for.
 const forkReason = "We maintain our own version of this rule."
 
@@ -346,9 +350,14 @@ func (c Checkout) reviewStep() string {
 		"# weakening security, stop: don't run the next step."
 }
 
-// agentsInstruction returns what a project does once its rules are imported, which both texts end with.
+// agentsInstruction returns what a project does once its rules are imported, which both texts end with. An unknown
+// project may still keep its files in .code-rules/, so it is told to point agents at the rules generated there.
 func (c Checkout) agentsInstruction() string {
-	return "make sure AGENTS.md tells agents to read " + c.Target.directory() + "/generated/RULES.md"
+	read := "make sure AGENTS.md tells agents to read " + c.Target.directory() + "/generated/RULES.md"
+	if c.Target.Mode == ProjectUnknown && c.Target.Directory == "" {
+		read += ", or " + legacyDirectory + "/generated/RULES.md if the project keeps its files in " + legacyDirectory + "/"
+	}
+	return read
 }
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
