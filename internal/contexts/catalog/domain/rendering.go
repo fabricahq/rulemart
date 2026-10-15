@@ -113,6 +113,15 @@ func (s MarkdownSource) LinkURL(destination string) string {
 	if target == "" {
 		return TreeURL(s.Repository, s.LatestTag) + suffix
 	}
+	if s.Layout != RootLayout && target == string(s.Layout) {
+		// The directory that holds the library, such as a destination of / names, opens where the latest release
+		// keeps it.
+		root := TreeURL(s.Repository, s.LatestTag)
+		if s.LatestLayout != RootLayout {
+			root += "/" + EscapePath(string(s.LatestLayout))
+		}
+		return root + suffix
+	}
 	tag, file := s.locate(target)
 	return BlobURL(s.Repository, tag, file) + suffix
 }

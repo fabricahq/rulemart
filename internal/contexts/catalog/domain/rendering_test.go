@@ -74,6 +74,8 @@ func TestLinkURLLeadsToFilesWhereEachReleasesLayoutKeepsThem(t *testing.T) {
 		// A file the library doesn't publish stays at the release whose tree the link was written against.
 		{afterTheMove, "../../../vendor/team/config.yaml", blob + "release/4/.syllabus/vendor/team/config.yaml"},
 		{afterTheMove, "../../../../..", "https://github.com/example/rules/tree/release/5"},
+		{afterTheMove, "/", "https://github.com/example/rules/tree/release/5/.syllabus"},
+		{afterTheMove, "/#rules", "https://github.com/example/rules/tree/release/5/.syllabus#rules"},
 	} {
 		if got := tc.source.LinkURL(tc.destination); got != tc.want {
 			t.Errorf("LinkURL(%q) from %s in %q = %q, want %q", tc.destination, tc.source.Tag, tc.source.Layout, got, tc.want)
