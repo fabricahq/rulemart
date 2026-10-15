@@ -579,7 +579,7 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 
 	assertShows(t, page, "Publish Add a library Add a Syllabus library from a GitHub repository you have write access to, "+
 		"from the list below or by its URL. A library is a repository with at least one release/<number> tag and a "+
-		"library manifest: a library section in .syllabus/config.yaml , or a rule-library.yaml.",
+		"library manifest: a library section in its .syllabus/config.yaml file or a rule-library.yaml file.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
 		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
 		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
