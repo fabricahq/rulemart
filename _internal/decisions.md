@@ -371,8 +371,9 @@ matters.
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
   A group is selected whole by its selector, such as `--rules 'techs/go/*'`, quoted so the shell doesn't expand it.
   A known project gets no `add source` for a library it imports already, since Syllabus adds a source once; a note
-  says which selectors to add to the source's `rules.include` instead, as a version 2 configuration holds them, and
-  links Syllabus's guide to rewriting a version 1 configuration, which Syllabus 0.4.0 no longer reads.
+  says which selectors to add to the source's `rules.include` instead, as a version 2 configuration holds them.
+  Syllabus 0.4.0 reads no version 1 configuration, so the commands for a project that may use Syllabus already,
+  known or unknown, first say to rewrite one as version 2, linking Syllabus's guide.
   Every command is checked against the real CLI.
 - **An unvetted library is reviewed outside the project, and its items are pinned, not synced.** Its `add source`
   command carries `--ref <commit>`, and the Commands tab shows two blocks, "1. Fetch and review", which fetches each

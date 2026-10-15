@@ -23,6 +23,9 @@ Run:
 curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
 syllabus project init
 
+# If the project uses Syllabus already and its config.yaml has schemaVersion: 1,
+# rewrite it as version 2 first: https://code-rules.fabricahq.com/reference/configuration/#version-1-configuration
+
 # Add your rules
 syllabus project add source fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \

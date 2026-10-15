@@ -362,14 +362,34 @@ func (c Checkout) agentsInstruction() string {
 }
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
-// says in its own words, as it asks for the review in its own words first.
+// says in its own words, as it asks for the review in its own words first. A project that may use Syllabus already is
+// told to rewrite a version 1 configuration before any project command runs, since none reads one.
 func (c Checkout) commands() string {
 	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
 	rules := strings.Join(slices.Concat(c.sourceBlocks(), c.syncBlocks(), c.forkBlocks(), []string{c.finalBlock()}), "\n\n")
+	blocks := []string{root}
 	if setup := c.setupBlock(); setup != "" {
-		return strings.Join([]string{root, setup, "# Add your rules\n" + rules}, "\n\n")
+		blocks, rules = append(blocks, setup), "# Add your rules\n"+rules
 	}
-	return root + "\n\n" + rules
+	if note := c.version1Note(); note != "" {
+		blocks = append(blocks, note)
+	}
+	return strings.Join(append(blocks, rules), "\n\n")
+}
+
+// version1Note says, as comments, to rewrite the project's configuration as version 2 when it's version 1, which
+// Syllabus 0.4.0 no longer reads, or returns "" for a new project, whose configuration init writes as version 2.
+func (c Checkout) version1Note() string {
+	var where string
+	switch c.Target.Mode {
+	case ProjectKnown:
+		where = "# If " + c.Target.directory() + "/config.yaml"
+	case ProjectUnknown:
+		where = "# If the project uses Syllabus already and its config.yaml"
+	default:
+		return ""
+	}
+	return where + " has schemaVersion: 1,\n# rewrite it as version 2 first: " + configurationVersion1Docs
 }
 
 // setupBlock returns the commands that set Syllabus up in a new project, or in one that may not use it yet, or ""
@@ -478,8 +498,7 @@ func continued(lines []string) string {
 
 // configurationNote says, as comments, what to add to the known project's source for the library, which it imports
 // already: Syllabus adds a source once, so its groups and rules go in the configuration, as selectors in the source's
-// rules.include. A configuration from before Syllabus 0.4.0 is version 1, which Syllabus no longer reads, so the note
-// says where to read how to rewrite one.
+// rules.include of a version 2 configuration, which version1Note asks for first.
 func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	lines := []string{
 		"# " + target.Repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
@@ -491,9 +510,6 @@ func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	for _, r := range s.Rules {
 		lines = append(lines, "#   - "+r.ID)
 	}
-	lines = append(lines,
-		"# If it has schemaVersion: 1, rewrite it as version 2 first:",
-		"# "+configurationVersion1Docs)
 	return strings.Join(lines, "\n")
 }
 

@@ -214,6 +214,36 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 	}
 }
 
+// Syllabus 0.4.0 reads no version 1 configuration, so a project that may have one, whether Rulemart knows nothing of
+// it or knows it and only forks, is told to rewrite it before the first project command that reads it; a new
+// project's init writes version 2.
+func TestCheckoutAsksAProjectThatMayUseSyllabusToRewriteAVersion1ConfigurationFirst(t *testing.T) {
+	selects := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1, Groups: []CheckoutGroup{goGroup}}
+	forksOnly := CheckoutLibrary{Owner: "fabricahq", Name: "public-rules", Vetted: true, Release: 1,
+		Forks: []CheckoutRule{checkoutRule(goGroup, "return-errors")}}
+	known := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Sources: map[string]string{"fabricahq/public-rules": "team"}}
+	for _, tc := range []struct {
+		name      string
+		target    CheckoutTarget
+		library   CheckoutLibrary
+		wantsNote bool
+	}{
+		{"an unknown project", CheckoutTarget{Mode: ProjectUnknown}, selects, true},
+		{"a known project that only forks", known, forksOnly, true},
+		{"a new project", CheckoutTarget{Mode: ProjectNew}, selects, false},
+	} {
+		checkout := NewCheckout(tc.target, []CheckoutLibrary{tc.library})
+		for name, text := range map[string]string{"commands": stepsText(checkout.Commands()), "prompt": checkout.Prompt()} {
+			note := strings.Index(text, "schemaVersion: 1,\n# rewrite it as version 2 first: "+configurationVersion1Docs)
+			first := strings.Index(strings.ReplaceAll(text, "syllabus project init", ""), "syllabus project ")
+			if tc.wantsNote && (note < 0 || note > first) || !tc.wantsNote && note >= 0 {
+				t.Errorf("%s: want the version 1 note %v, before any project command but init, in the %s:\n%s",
+					tc.name, tc.wantsNote, name, text)
+			}
+		}
+	}
+}
+
 func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
 	checkout := NewCheckout(CheckoutTarget{Mode: ProjectUnknown}, []CheckoutLibrary{{Owner: "a", Name: "b", Vetted: true}})
 
