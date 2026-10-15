@@ -45,7 +45,7 @@ jobs:
       - name: Check the Syllabus files
         env:
           SYLLABUS_VERSION: 0.4.0
-          SYLLABUS_SHA256: 0000000000000000000000000000000000000000000000000000000000000000
+          SYLLABUS_SHA256: '0000000000000000000000000000000000000000000000000000000000000000'
         run: |
           archive="syllabus_${SYLLABUS_VERSION}_linux_arm64.tar.gz"
           curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/fabricahq/code-rules/releases/download/v${SYLLABUS_VERSION}/$archive"
