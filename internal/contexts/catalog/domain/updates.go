@@ -16,7 +16,7 @@ type PinnedVersion struct {
 	Version coderules.RuleVersion
 }
 
-// Updates counts the rules of pinned that code-rules project update would change: each the library has since published
+// Updates counts the rules of pinned that syllabus project update would change: each the library has since published
 // a newer version of, and each it has retired. A rule the library doesn't hold, such as one it dropped from its
 // history, counts as neither. Rules the library added to a group the project imports aren't counted: the project's
 // configuration may exclude them, which its provenance file doesn't record.

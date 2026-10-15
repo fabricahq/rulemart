@@ -14,7 +14,7 @@ import (
 // room for every group of several libraries; a visitor who wants more rules of a group adds the group.
 const MaxCartItems = 100
 
-// MaxCartKeyLength bounds a cart key. Code Rules' IDs and GitHub's names are far shorter.
+// MaxCartKeyLength bounds a cart key. Syllabus's IDs and GitHub's names are far shorter.
 const MaxCartKeyLength = 400
 
 // CartItemKind is what a cart item holds of its library.
@@ -63,7 +63,7 @@ func (i CartItem) Key() string {
 // ErrNotCartItem reports a key that names no item a cart can hold.
 var ErrNotCartItem = errors.New("not a cart item")
 
-// idPart matches one part of a group's or rule's ID as pages spell it: Code Rules' IDs are lowercase, and Rulemart
+// idPart matches one part of a group's or rule's ID as pages spell it: Syllabus's IDs are lowercase, and Rulemart
 // matches them without regard to case.
 var idPart = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
@@ -87,7 +87,7 @@ func ParseCartKey(key string) (CartItem, error) {
 }
 
 // validCartPath reports whether path can be the ID of an item of kind: a group's two parts, or a rule's three or
-// more, as Code Rules lays them out.
+// more, as Syllabus lays them out.
 func validCartPath(kind CartItemKind, path string) bool {
 	parts := strings.Split(path, "/")
 	if (kind == CartGroup && len(parts) != 2) || (kind == CartRule && len(parts) < 3) {

@@ -20,7 +20,7 @@ import (
 type Stars struct {
 	Store  store.Stars
 	Vetted []domain.LibraryKey
-	// Groups is Code Rules' canonical group list, which decides how the starred list shows each rule's group.
+	// Groups is Syllabus's canonical group list, which decides how the starred list shows each rule's group.
 	Groups domain.CanonicalGroups
 }
 

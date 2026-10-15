@@ -1,21 +1,21 @@
 # From the root of acme/api
 
 # acme/api already imports fabricahq/public-rules as team.
-# In .code-rules/config.yaml, add to sources.team:
+# In .syllabus/config.yaml, add to sources.team:
 #   groups:
 #     - practices/testing
 #   rules:
 #     - techs/go/return-errors
 
-code-rules project sync
+syllabus project sync
 
-code-rules project add rule practices/testing/keep-tests-independent \
+syllabus project add rule practices/testing/keep-tests-independent \
   --from team@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-code-rules project add rule techs/go/close-bodies \
+syllabus project add rule techs/go/close-bodies \
   --from https://github.com/fabricahq/code-rules-test-library.git@1.0.0
 
-code-rules project build
+syllabus project build
 
-# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md

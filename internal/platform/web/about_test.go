@@ -14,7 +14,7 @@ import (
 
 // Every page's footer leads to Fabrica, to what Rulemart is, the feedback page, and how Rulemart treats visitors'
 // data, in that order, and, by GitHub's mark, to Rulemart's source. It doesn't repeat the header's sections, and the
-// about page, not the footer, leads to Code Rules.
+// about page, not the footer, leads to Syllabus.
 func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
 	want := []string{
@@ -43,11 +43,11 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says, in about one screen, why Rulemart exists, what Code Rules is, and that Rulemart is a visual
+// The about page says, in about one screen, why Rulemart exists, what Syllabus is, and that Rulemart is a visual
 // interface over its libraries, and leads to the vetting page for the rest. Its prose is Josh's to edit, so the test
 // checks the page's shape and links, not the words. It has an address of its
 // own for search engines.
-func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T) {
+func TestAboutPageSaysWhatRulemartAndSyllabusAreAndLeadsToVetting(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
 
 	resp := get(t, handler, "/about")
@@ -57,8 +57,8 @@ func TestAboutPageSaysWhatRulemartAndCodeRulesAreAndLeadsToVetting(t *testing.T)
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About", "About Rulemart")
-	if got := proseParagraphs(t, page); len(got) < 4 || !strings.Contains(got[0], "agents") || !strings.Contains(strings.Join(got, " "), "Code Rules") {
-		t.Errorf("the body is\n%s\nwant at least four paragraphs, opening with why agents need rules and naming Code Rules", strings.Join(got, "\n"))
+	if got := proseParagraphs(t, page); len(got) < 4 || !strings.Contains(got[0], "agents") || !strings.Contains(strings.Join(got, " "), "Syllabus") {
+		t.Errorf("the body is\n%s\nwant at least four paragraphs, opening with why agents need rules and naming Syllabus", strings.Join(got, "\n"))
 	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
@@ -111,7 +111,7 @@ func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	assertShows(t, page, "About", "Library vetting", "Report a problem", "Include unvetted libraries", unvettedWarning,
 		"List it on Rulemart",
 		// Only a repository's maintainers may list it.
-		"Anyone signed in with GitHub who has write access to a public repository that publishes a Code Rules library can list it.")
+		"Anyone signed in with GitHub who has write access to a public repository that publishes a Syllabus library can list it.")
 	for _, id := range []string{"vetting", "unvetted", "get-vetted", "report"} {
 		if !strings.Contains(page, `id="`+id+`"`) {
 			t.Errorf("the page has no %s section for links to land on", id)
@@ -164,7 +164,7 @@ func TestPrivacyPageSaysWhatRulemartKeepsAndWhetherItCountsVisits(t *testing.T) 
 			"the organizations you belong to", "GitHub gives Rulemart a token for your account", "encrypted with a key that only its server holds",
 			"Signing out deletes the token along with the session", "whether you sign out of this browser or everywhere",
 			"Rulemart is run by Fabrica", "What Rulemart reads from GitHub", "the names of your organizations",
-			"at most 200 of them, most recently pushed first", ".code-rules/generated/provenance.json",
+			"at most 200 of them, most recently pushed first", ".syllabus/generated/provenance.json",
 			"which rule versions it holds", "Rulemart keeps nothing else about your repositories, and none of their code",
 			"No other visitor ever sees any information about your private repositories",
 			"It never reads their code", "until you delete your account",

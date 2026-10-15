@@ -126,15 +126,15 @@ func faqPage(c chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var7 templ.SafeURL
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(codeRulesURL))
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(syllabusURL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 18, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 18, Col: 103}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Code Rules</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Code Rules adds them to your project and keeps them in sync.</p><p>If your project doesn't use Code Rules yet, the checkout prompt has your agent set it up.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Syllabus</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Syllabus adds them to your project and keeps them in sync.</p><p>If your project doesn't use Syllabus yet, the checkout prompt has your agent set it up.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -161,21 +161,21 @@ func faqPage(c chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var9 templ.SafeURL
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(codeRulesURL))
+				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(syllabusURL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 22, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 22, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">Code Rules</a> to add the rules you pick to your project and keep them in sync.</p><p>Code Rules is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.code-rules/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p><p>Teams manage this guidance rule by rule, for a single repo or across their organization. They can share one library of rules between repos and still add or exclude rules where a project differs.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">Syllabus</a> to add the rules you pick to your project and keep them in sync.</p><p>Syllabus is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.syllabus/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p><p>Teams manage this guidance rule by rule, for a single repo or across their organization. They can share one library of rules between repos and still add or exclude rules where a project differs.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = faqItem("What is Code Rules?").Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = faqItem("What is Syllabus?").Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -235,7 +235,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p>When you check out, you choose this for each rule in your cart.</p><p><b>Stay in sync</b> to let Code Rules keep the rule current. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p><b>Fork</b> to manage the rule yourself. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p>When you check out, you choose this for each rule in your cart.</p><p><b>Stay in sync</b> to let Syllabus keep the rule current. When the library publishes a new version, <code>syllabus project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p><p><b>Fork</b> to manage the rule yourself. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -270,7 +270,7 @@ func faqPage(c chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p><p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change, with each version's summary, and applies them once you confirm.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p><p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Syllabus previews every change, with each version's summary, and applies them once you confirm.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -292,14 +292,14 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<p>Anyone with write access to a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<p>Anyone with write access to a public Syllabus library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var16 templ.SafeURL
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(unvettedHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 53, Col: 276}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 53, Col: 274}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -312,7 +312,7 @@ func faqPage(c chrome) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(unvettedOptInLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 53, Col: 424}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 53, Col: 422}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -340,7 +340,7 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<p>No. You can browse, read rules, and check out without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>Easier checkout</b>, since Rulemart knows which of your GitHub projects use Code Rules</li><li><b>Project tracking</b>, so you see when rule updates are available for your projects that use Code Rules</li><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<p>No. You can browse, read rules, and check out without one.</p><p>A free account, using GitHub sign-in, adds:</p><ul><li><b>Easier checkout</b>, since Rulemart knows which of your GitHub projects use Syllabus</li><li><b>Project tracking</b>, so you see when rule updates are available for your projects that use Syllabus</li><li><b>Stars</b> to save rules and help others find good ones</li><li><b>Library listing</b>, so you can list your own libraries on Rulemart</li></ul>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -362,14 +362,14 @@ func faqPage(c chrome) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<p>For Rulemart or Code Rules itself, use the <a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<p>For Rulemart or Syllabus itself, use the <a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var20 templ.SafeURL
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(feedbackHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 66, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `help.templ`, Line: 66, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -404,7 +404,7 @@ func faqPage(c chrome) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "FAQ · Rulemart", description: "What Rulemart and Code Rules are, how rules, groups, and libraries work, and how to use them in your project.", section: faqHref}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "FAQ · Rulemart", description: "What Rulemart and Syllabus are, how rules, groups, and libraries work, and how to use them in your project.", section: faqHref}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -525,7 +525,7 @@ func feedbackPage(c chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<h1 class=\"title-xl mt-2.5 mb-2.5\">Give us feedback</h1><p class=\"mb-[26px] text-muted\">Rulemart and Code Rules are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<h1 class=\"title-xl mt-2.5 mb-2.5\">Give us feedback</h1><p class=\"mb-[26px] text-muted\">Rulemart and Syllabus are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -635,7 +635,7 @@ func feedbackPage(c chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if group.name == "Code Rules" {
+				if group.name == "Syllabus" {
 					templ_7745c5c3_Var32 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -670,7 +670,7 @@ func feedbackPage(c chrome) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Feedback · Rulemart", description: "Tell us what to change about Rulemart or Code Rules: pick a topic to open an issue on GitHub."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Feedback · Rulemart", description: "Tell us what to change about Rulemart or Syllabus: pick a topic to open an issue on GitHub."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var25), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

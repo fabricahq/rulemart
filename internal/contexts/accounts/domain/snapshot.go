@@ -53,10 +53,12 @@ type GitHubRepository struct {
 
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
-	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Code Rules library.
+	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Syllabus library.
 	Manifest bool
-	// CodeRules is true when it holds the .code-rules directory, where a project keeps its rules.
-	CodeRules bool
+	// ProjectDirectory is the directory where a project keeps its files, as Syllabus chooses it: ProjectDirectory when
+	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
+	// ProjectDirectory, or empty when it holds neither.
+	ProjectDirectory string
 }
 
 // Snapshot is what one read found in a visitor's GitHub account, and the visitor's organizations'.
@@ -65,7 +67,7 @@ type Snapshot struct {
 	ReadAt time.Time
 	// Organizations are the logins of the visitor's organizations, in the order GitHub listed them.
 	Organizations []string
-	// Libraries are the repositories that publish a Code Rules library, by full name.
+	// Libraries are the repositories that publish a Syllabus library, by full name.
 	Libraries []PublishableRepository
 	// Projects are the repositories whose provenance file names the libraries they import, by full name.
 	Projects []Project
@@ -86,9 +88,12 @@ type PublishableRepository struct {
 	Writable bool
 }
 
-// Project is a repository that uses Code Rules: its .code-rules/generated/provenance.json names its sources.
+// Project is a repository that uses Syllabus: the provenance file in its project directory names its sources.
 type Project struct {
 	Repository
+	// Directory is where it keeps its files: ProjectDirectory, or LegacyProjectDirectory for a project not yet
+	// renamed.
+	Directory string
 	// Sources are the libraries it imports, by source name.
 	Sources []Source
 }

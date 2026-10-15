@@ -13,7 +13,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/textdiff"
 )
 
-// Text Code Rules' generated release notes use, which a library's releases show the same way.
+// Text Syllabus's generated release notes use, which a library's releases show the same way.
 const (
 	majorWarning      = "Code that complied with the previous rule version could fail the new one, so review these before updating."
 	sharedFilesNote   = "This library release also updates shared files, such as group descriptions or shared assets."
@@ -25,8 +25,8 @@ const (
 	majorExplanation = "Major change: work that complied with the previous version could fail this one."
 )
 
-// changeKinds are the kinds of change, in the order Code Rules' release notes list them, with each section's title
-// and the word its count uses. Code Rules records a rename as a new rule and a retired one; Rulemart lists it once,
+// changeKinds are the kinds of change, in the order Syllabus's release notes list them, with each section's title
+// and the word its count uses. Syllabus records a rename as a new rule and a retired one; Rulemart lists it once,
 // after the new rules.
 var changeKinds = []struct {
 	change      coderules.Change
@@ -306,7 +306,7 @@ func hasMajor(changes []views.RuleChange) bool {
 	return false
 }
 
-// countPhrase counts changes by kind, in the order Code Rules' release notes use, such as "1 major and 2 new".
+// countPhrase counts changes by kind, in the order Syllabus's release notes use, such as "1 major and 2 new".
 func countPhrase(changes []views.RuleChange) string {
 	var parts []string
 	for _, kind := range changeKinds {
@@ -336,7 +336,7 @@ func joinAnd(parts []string) string {
 	return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
 }
 
-// newChangeSections sorts changes into sections by kind, in the order Code Rules' release notes use, folding a long
+// newChangeSections sorts changes into sections by kind, in the order Syllabus's release notes use, folding a long
 // one. A first release's rules are all new, and its notes don't repeat each one's "Add the rule.", so firstRelease
 // leaves out their notes. release is the release a card shows, whose comparison with the one before shows a rename's
 // text, or 0 on a comparison's page, which shows it itself.
@@ -401,7 +401,7 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 }
 
 // diffAnchor is the fragment of a rule's diff on a comparison of releases. Its slashes become underscores, which a
-// Code Rules ID never holds, so IDs that differ in where a slash or hyphen is, such as techs/go-a/b and techs/go/a-b,
+// Syllabus ID never holds, so IDs that differ in where a slash or hyphen is, such as techs/go-a/b and techs/go/a-b,
 // stay apart.
 func diffAnchor(rulePath string) string { return "diff-" + strings.ReplaceAll(rulePath, "/", "_") }
 

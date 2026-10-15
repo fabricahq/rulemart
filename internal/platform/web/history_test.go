@@ -221,7 +221,7 @@ func TestReleasesAnswerNotFoundWithinTheLibrary(t *testing.T) {
 	}
 }
 
-// One release can hold as many rules as Code Rules allows a library, 10,000, and a page shows a release whole, so its
+// One release can hold as many rules as Syllabus allows a library, 10,000, and a page shows a release whole, so its
 // card must stay well within what one response can hold: its changes take short markup, and its table of every
 // rule's version leads to GitHub instead.
 func TestReleasesTabShowsTheLargestReleaseWithinAResponse(t *testing.T) {

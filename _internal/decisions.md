@@ -17,7 +17,7 @@ matters.
   it's within the limits below; that no listing or visible library has that name; and, by asking GitHub with the
   visitor's own token, that they may push to it. That is the one call it makes to GitHub, never as Rulemart itself,
   whose unauthenticated limit of 60 API requests an hour Lambda functions share. The worker looks the repository up,
-  which catches a missing or private one, and ingests it, which catches one that isn't a Code Rules library. The web
+  which catches a missing or private one, and ingests it, which catches one that isn't a Syllabus library. The web
   function queues the listing's job at once; if that fails, the failure is logged and alarmed, and the hourly poll
   queues it again.
 - **A listed library's failure is the lister's to see, not an alarm.** A job for a listing records why its check
@@ -151,7 +151,7 @@ matters.
   its owner's avatar, and `owner/name`, in the one rule row every list shows: title, impact, library, and stars, and
   the starred list adds the group. A group page's count under its title counts current rules only, and the libraries
   they come from, even while retired ones show.
-- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. A Code Rules
+- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. A Syllabus
   library declares no display name, so pages name it by its repository, such as `public-rules`, or `owner/name`
   beside rules. The libraries page is titled "Libraries Rulemart has vetted", and "Every library on Rulemart" while
   it includes unvetted ones.
@@ -188,9 +188,9 @@ matters.
 
 ## Groups
 
-- **Code Rules owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
-  Code Rules' file at a pinned release, copied unchanged, and the vendored parser in `internal/lib/coderules` reads
-  it, so Rulemart and Code Rules can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
+- **Syllabus owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
+  Syllabus's file at a pinned release, copied unchanged, and the vendored parser in `internal/lib/coderules` reads
+  it, so Rulemart and Syllabus can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
   in its own pull request.
 - **A group is canonical only when its ID is on the list exactly. The list has no aliases**: a library's
   `techs/golang` is a group of its own, never `techs/go`.
@@ -241,7 +241,7 @@ matters.
 
 - **A rule's page** has crumbs that lead its group to the group across libraries, the title, the impact badge, the
   version, and `#tag` links to search; the engage row; Rule and Versions tabs; and About, Assets, and facts panels.
-  The impact label leads to Code Rules' explanation of the levels, named by what its level means, so touch and
+  The impact label leads to Syllabus's explanation of the levels, named by what its level means, so touch and
   keyboard visitors reach it too. A rule's reading guidance can hold inline Markdown, so ingestion renders it with the
   body's renderer, and pages that show text, such as results and descriptions, show its text without the syntax.
 - **Discussion and Discuss launch later**, tracked in [rulemart#27](https://github.com/fabricahq/rulemart/issues/27).
@@ -250,7 +250,7 @@ matters.
   on GitHub, a specific rule's feedback goes to the library's repository, and the FAQ's answers that mention Discuss
   say so.
 - **A retired rule has a page**: its retirement, its chain of replacements to a current rule, its last text, and its
-  versions. A rename, which Code Rules records as a retirement and a new rule under the same title, shows as one.
+  versions. A rename, which Syllabus records as a retirement and a new rule under the same title, shows as one.
   The text's headings sit a level below the section that holds it.
 
 ### Assets
@@ -287,7 +287,7 @@ matters.
   current version keeps the HTML its page shows, and a retired rule's last version keeps its body's HTML in
   `retired_html`. The worker ingests again a library stored before this, so production fills in older versions by
   itself, and a comparison says it doesn't have the text yet until then.
-- **A library's releases are built from their stored release records**, laid out as Code Rules' generated release
+- **A library's releases are built from their stored release records**, laid out as Syllabus's generated release
   notes are, rather than from the tags' Markdown notes, which a library could fill with text Rulemart can't check.
   They're paged, newest first, at most 2,000 rows a page, since each release lists every rule's version again, and a
   release of more than 1,000 rules leaves out its table of every rule's version and links its GitHub Release page.
@@ -358,16 +358,16 @@ matters.
   "+N more", and every title the checkout sends is cut to 200 characters, so its answer always fits a Lambda
   function's response.
 - **Checkout is a page that asks a JSON endpoint for the cart's items, each library's latest release, and the
-  texts.** It shows a Prompt tab and a Commands tab, both built from `code-rules project add library`,
-  `code-rules project add rule --from`, and `code-rules project sync`; each rule can stay in sync or be forked, and
+  texts.** It shows a Prompt tab and a Commands tab, both built from `syllabus project add library`,
+  `syllabus project add rule --from`, and `syllabus project sync`; each rule can stay in sync or be forked, and
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
-  `code-rules project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
+  `syllabus project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it: it names rules by ID, not title, a group by its canonical
-  name or ID, and a library by `owner/name`. It says it needs Code Rules 0.2.0 or later, and it names each unvetted
+  name or ID, and a library by `owner/name`. It says it needs Syllabus 0.2.0 or later, and it names each unvetted
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
-  `code-rules project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
-  that AGENTS.md tells agents to read `.code-rules/generated/RULES.md`. A library's alias is its owner lowercased
+  `syllabus project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
+  that AGENTS.md tells agents to read `.syllabus/generated/RULES.md`. A library's alias is its owner lowercased
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
   Every command is checked against the real CLI.
 - **An unvetted library is reviewed outside the project, and its items are pinned, not synced.** Its `add library`
@@ -384,7 +384,7 @@ matters.
   The content security policy allows `connect-src 'self'` for it.
 - **Signed in, checkout offers the visitor's projects**, the same as the dashboard's Projects tab, so the prompt names
   the repository and says which libraries it already imports. A line says when the projects were read, with a link to
-  include private ones, and "+ Or use a project that doesn't use Code Rules yet" opens the same box for a new project.
+  include private ones, and "+ Or use a project that doesn't use Syllabus yet" opens the same box for a new project.
   Signed out, checkout asks for the repository the visitor writes, so the prompt names it.
 
 ## Accounts and dashboard
@@ -444,7 +444,7 @@ matters.
   under "Listed by you", shown only when there are any. + Add a library ends the list. `/me/listings` redirects to
   `/me`, since there is one place for a visitor's libraries.
 - **Projects lists the visitor's repositories that use Rulemart libraries**, read from each repository's
-  `.code-rules/generated/provenance.json`: per library, each repository that imports it, with "(private)", and "N rule
+  `.syllabus/generated/provenance.json`: per library, each repository that imports it, with "(private)", and "N rule
   updates" or "up to date". An update is a rule the library has since published a newer version of, or retired. Rules
   a library added to a group the project imports aren't counted, since the project's configuration may exclude them,
   which provenance doesn't record. Counts are computed as the dashboard reads, so a new release shows at once.
@@ -467,7 +467,7 @@ matters.
 - **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
   A read lists their organizations, the public repositories of theirs and their organizations', and the private ones
   the GitHub App's installations read, the 200 most recently pushed, and finds the ones that publish a library
-  (`rule-library.yaml` and a `release/<n>` tag) and the projects (`.code-rules/generated/provenance.json`, of which it
+  (`rule-library.yaml` and a `release/<n>` tag) and the projects (`.syllabus/generated/provenance.json`, of which it
   keeps each source and its rules' versions). It's kept per account in `github_snapshots`, refreshed at most once a
   minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
   sees it. GitHub returns a visitor who installed the app to `/me/github/installed`, which records the installation
@@ -476,17 +476,23 @@ matters.
   infra-catalog#29 do; until then the visitor's next read notices.
 - **A read uses GitHub's REST API, not its search, and is bounded.** Code search finds a repository only once GitHub
   has indexed it, allows 10 requests a minute, and can't see what an installation reads. The read costs one request
-  per repository, plus its tags or provenance file only where the root holds `rule-library.yaml` or `.code-rules`,
-  eight at a time, within 200 repositories, 100 organizations, and a 25-second deadline; GitHub isn't read inside the
-  sign-in callback, which would hold every sign-in's redirect. Each sign-in discards the account's snapshot, and the
+  per repository, plus its tags or provenance file only where the root holds `rule-library.yaml`, or `.syllabus` or
+  `.code-rules`, eight at a time, within 200 repositories, 100 organizations, and a 25-second deadline; GitHub isn't
+  read inside the sign-in callback, which would hold every sign-in's redirect. Each sign-in discards the account's snapshot, and the
   first page that needs one reads GitHub.
 - **A failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves the
   snapshot that was, with when it was read and Try again, and the next read waits a minute. A token GitHub refuses, a
   session without one, or one sealed under a key since rotated asks the visitor to sign in again, at `/signin?again=1`.
-- **Provenance is parsed by Rulemart, in `accounts/domain`, from the fields Code Rules writes**, taking each source's
+- **Provenance is parsed by Rulemart, in `accounts/domain`, from the fields Syllabus writes**, taking each source's
   name, repository, release, and groups, and each rule's ID, origin, and version, and skipping a local or forked rule.
-  A file it can't parse makes no project rather than failing the read. Replace it with Code Rules' parser once one
+  A file it can't parse makes no project rather than failing the read. Replace it with Syllabus's parser once one
   ships.
+- **A project's files are where Syllabus reads them: `.syllabus/`, or else `.code-rules/`.** Code Rules was renamed
+  Syllabus, and Syllabus still reads a project's `.code-rules/` while its repository has no `.syllabus`, so a read
+  takes the provenance file from `.syllabus/` when the root holds `.syllabus`, and from `.code-rules/` only when it
+  doesn't, and records which. Checkout names that directory for a known project, in its configuration note and the
+  reminder about `RULES.md`, and `.syllabus/` otherwise. A snapshot saved before projects recorded it reads them as in
+  `.code-rules/`, the only directory reads looked in then.
 - **An installation is the visitor's only when GitHub says they own the account or organization.** Rulemart checks the
   installation's account with the app's JWT and, for an organization, the visitor's membership role: only an owner can
   install an app there and see every repository it may read. The webhook, at `/account/github/webhook`, acts on
@@ -526,16 +532,16 @@ matters.
 ## Content pages
 
 - **`/about`, `/about/vetting`, and `/privacy` say what Rulemart is, what vetting means, and what it keeps.**
-  Decided (Josh), 2026-10-05: `/about` stays one screen about Rulemart and Code Rules, and what vetting means, unvetted
+  Decided (Josh), 2026-10-05: `/about` stays one screen about Rulemart and Syllabus, and what vetting means, unvetted
   libraries, getting a library vetted, and reporting a problem live on the vetting page. Getting a library vetted is:
-  release it with Code Rules, list it, then ask on GitHub. About, vetting, privacy, and FAQ share one layout under an
+  release it with Syllabus, list it, then ask on GitHub. About, vetting, privacy, and FAQ share one layout under an
   About label. The privacy notice states only what the code and infrastructure do, makes no legal claim, names
   `legal@fabricahq.com` for questions, and changes with them: a change to what Rulemart keeps, logs, or shares updates
   it in the same pull request.
 - **The FAQ's answers describe Rulemart as it is**, naming real rules from fabricahq/public-rules and groups that hold
   rules today. "Still have a question? Ask us." leads to feedback.
 - **Feedback topics open prefilled GitHub issues**: Rulemart topics, and "Anything else", in fabricahq/rulemart, and
-  Code Rules topics in fabricahq/code-rules, with a title prefix naming the topic and the labels `feedback` and
+  Syllabus topics in fabricahq/code-rules, with a title prefix naming the topic and the labels `feedback` and
   `topic:<key>`. "Something broken on Rulemart" leads to the Report a problem issue form.
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
   lists the site's own pages, the page of each group a vetted library holds, canonical or not, each owner's page, and
@@ -606,8 +612,8 @@ matters.
   template actions name the shared links and strings and switch on what the server offers; `make generate` renders
   the Markdown with goldmark, so the web function still links no Markdown renderer, and the server runs the templates
   at start, refusing to start on a missing value. The FAQ and feedback pages stay templ: their structure is markup.
-- **Ingestion reads library repositories with go-git over HTTPS**, the way Code Rules reads them, and parses
-  release records with Code Rules' own parser: a copy in `internal/lib/coderules` until Code Rules publishes a
+- **Ingestion reads library repositories with go-git over HTTPS**, the way Syllabus reads them, and parses
+  release records with Syllabus's own parser: a copy in `internal/lib/coderules` until Syllabus publishes a
   public parsing package. It replaces a library's rows in one transaction, so running it again changes nothing, and
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet

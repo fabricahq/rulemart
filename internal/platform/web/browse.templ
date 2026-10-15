@@ -8,7 +8,7 @@ import "strconv"
 // browsePage lists a kind's canonical groups, one row each, by icon, name, and for a practice, description, with tabs
 // between the kinds, and leads to the kind's other groups when any library declares one.
 templ browsePage(c chrome, v browseView) {
-	@layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse Code Rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href(), noindex: v.unvetted, filters: true}) {
+	@layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse Syllabus rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href(), noindex: v.unvetted, filters: true}) {
 		<div class="page wrap">
 			@label("") {
 				Browse
@@ -64,7 +64,7 @@ templ browsePage(c chrome, v browseView) {
 // otherGroupsPage lists a kind's groups that aren't canonical, one row per group ID with the libraries that chose
 // it, each leading to the group's page, and says why they stand apart.
 templ otherGroupsPage(c chrome, v otherGroupsView) {
-	@layout(c, head{title: "Other " + v.kind.noun() + " groups · Rulemart", description: "The " + v.kind.noun() + " groups vetted libraries declare that aren't on Code Rules' canonical list, each holding the rules of the libraries that chose its ID.", section: v.kind.href(), noindex: v.unvetted, filters: true}) {
+	@layout(c, head{title: "Other " + v.kind.noun() + " groups · Rulemart", description: "The " + v.kind.noun() + " groups vetted libraries declare that aren't on Syllabus's canonical list, each holding the rules of the libraries that chose its ID.", section: v.kind.href(), noindex: v.unvetted, filters: true}) {
 		<div class="page wrap">
 			<div class="mb-[14px] flex flex-wrap items-center gap-1.5 text-[13px] text-faint">
 				<a class="text-muted no-underline hover:text-ink hover:underline" href={ templ.SafeURL(withUnvetted(v.kind.href(), v.unvetted)) }>{ v.kind.name() }</a>

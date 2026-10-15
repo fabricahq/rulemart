@@ -10,31 +10,31 @@ d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https:
 [After you've reviewed, import]
 # From the root of acme/api
 
-# Only if it doesn't use Code Rules yet
+# Only if it doesn't use Syllabus yet
 curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-code-rules project init
+syllabus project init
 
 # Add your rules
-code-rules project add library fabrica-public-rules \
+syllabus project add library fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
   --groups techs/go \
   --rules practices/testing/keep-tests-independent
 
-code-rules project add library fabrica-code-rules-test-library \
+syllabus project add library fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-code-rules project add library stranger \
+syllabus project add library stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go
 
-code-rules project sync
+syllabus project sync
 
-code-rules project add rule techs/go/errors-include-useful-diagnostic-data \
+syllabus project add rule techs/go/errors-include-useful-diagnostic-data \
   --from fabrica-public-rules@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-code-rules project build
+syllabus project build
 
-# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md

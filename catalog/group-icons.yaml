@@ -1,5 +1,5 @@
 # The icon Rulemart shows beside each canonical group, as a file under internal/platform/web/static/icons. Rulemart
-# owns this file; Code Rules owns the list of canonical groups, in canonical-groups.yaml. Only a group on that list
+# owns this file; Syllabus owns the list of canonical groups, in canonical-groups.yaml. Only a group on that list
 # may have an icon here. A canonical group without one, such as one Devicon has no logo for, shows its initial
 # instead, and a group that isn't canonical never shows an icon.
 #

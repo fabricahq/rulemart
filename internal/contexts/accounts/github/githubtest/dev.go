@@ -49,7 +49,7 @@ func DevFake(installedURL string) *Fake {
 		Repositories: []Repository{
 			{
 				Owner: devUser, Name: "api-server", PushedAt: day(2),
-				Files: map[string]string{domain.ProvenancePath: Provenance(
+				Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): Provenance(
 					ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1, Groups: []string{"techs/go", "practices/testing"},
 						Rules: map[string]string{"techs/go/errors-include-useful-diagnostic-data": "1.0.0", "practices/testing/keep-tests-independent": "1.0.0"}},
 					ProvenanceSource{Name: "test-library", Repository: testLibrary, Release: 3, Groups: []string{"techs/go"},
@@ -58,7 +58,7 @@ func DevFake(installedURL string) *Fake {
 			},
 			{
 				Owner: devUser, Name: "site", PushedAt: day(4),
-				Files: map[string]string{domain.ProvenancePath: Provenance(ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1,
+				Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): Provenance(ProvenanceSource{Name: "fabrica", Repository: publicRules, Release: 1,
 					Groups: []string{"practices/testing"}, Rules: map[string]string{"practices/testing/keep-tests-independent": "1.0.0"}})},
 			},
 			{Owner: devUser, Name: "notes", PushedAt: day(9), Files: map[string]string{"README.md": "Notes"}},
@@ -72,7 +72,7 @@ func DevFake(installedURL string) *Fake {
 			{Owner: devUser, Name: "team-rules", Private: true, PushedAt: day(5), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{
 				Owner: devUser, Name: "billing-service", Private: true, PushedAt: day(6),
-				Files: map[string]string{domain.ProvenancePath: Provenance(ProvenanceSource{Name: "testing", Repository: testLibrary, Release: 5,
+				Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): Provenance(ProvenanceSource{Name: "testing", Repository: testLibrary, Release: 5,
 					Groups: []string{"practices/testing"}, Rules: map[string]string{"practices/testing/verify-retry-limits": "2.1.0"}})},
 			},
 		},

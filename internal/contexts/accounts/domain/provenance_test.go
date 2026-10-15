@@ -9,8 +9,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// Rulemart's own provenance file, as Code Rules 0.2.0 wrote it, names one source from GitHub, its release and groups,
-// and every rule it holds at version 1.0.0.
+// Rulemart's own provenance file, as Code Rules 0.2.0 wrote it before Code Rules was renamed Syllabus, names one source
+// from GitHub, its release and groups, and every rule it holds at version 1.0.0.
 func TestParseProvenanceReadsAFileCodeRulesWrote(t *testing.T) {
 	data, err := os.ReadFile("testdata/rulemart-provenance.json")
 	if err != nil {
@@ -33,7 +33,7 @@ func TestParseProvenanceReadsAFileCodeRulesWrote(t *testing.T) {
 	}
 }
 
-// A fork's rule, a local rule, and a rule whose ID or version Code Rules wouldn't write hold no library's version, so
+// A fork's rule, a local rule, and a rule whose ID or version Syllabus wouldn't write hold no library's version, so
 // update counts leave them out; a source elsewhere than GitHub keeps no library.
 func TestParseProvenanceKeepsOnlyRulesAtALibrarysPublishedVersion(t *testing.T) {
 	sources, err := ParseProvenance([]byte(`{
@@ -100,9 +100,9 @@ func TestInstallationSettingsAreTheVisitorsOrTheOrganizations(t *testing.T) {
 }
 
 // A source name is copied into the commands a visitor runs, and any repository's contributor can write one, so a name
-// Code Rules' configuration wouldn't take, such as one holding a newline or shell syntax, or local, which it reserves,
+// Syllabus's configuration wouldn't take, such as one holding a newline or shell syntax, or local, which it reserves,
 // is left out with its rules.
-func TestParseProvenanceLeavesOutASourceWhoseNameCodeRulesWouldNotTake(t *testing.T) {
+func TestParseProvenanceLeavesOutASourceWhoseNameSyllabusWouldNotTake(t *testing.T) {
 	sources, err := ParseProvenance([]byte(`{
 		"sources": [
 			{"name": "fabrica\nprintf injected\n#", "repository": "https://github.com/fabricahq/public-rules"},

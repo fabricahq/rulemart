@@ -18,7 +18,7 @@ func TestListReleaseTagsNamesTheTagObjectsFetchReads(t *testing.T) {
 	lib := twoReleases(t)
 	head := lib.Commit("Work after the releases")
 	lib.Tag("v1.0.0", head, "Not a library release.")
-	lib.Tag("release/01", head, "Code Rules skips a number with a leading zero.")
+	lib.Tag("release/01", head, "Syllabus skips a number with a leading zero.")
 
 	listed, err := git.ListReleaseTags(context.Background(), lib.URL(), limits)
 	if err != nil {

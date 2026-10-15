@@ -10,7 +10,7 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// heroLogo is Rulemart's horizontal logo, centered atop the hero as Code Rules' home page has its own: the ink logo
+// heroLogo is Rulemart's horizontal logo, centered atop the hero as Syllabus's home page has its own: the ink logo
 // in the light theme and the white one in the dark.
 func heroLogo(c chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -283,7 +283,7 @@ func homePage(c chrome, v homeView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<h3 class=\"text-[1.35rem] tracking-[-.035em]\">Have a public Code Rules library?</h3><p class=\"mt-1.5 text-muted\">List it on Rulemart in a minute. Rulemart updates with every library release.</p></div><a class=\"inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[18px] py-2 text-[14px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85\" href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<h3 class=\"text-[1.35rem] tracking-[-.035em]\">Have a public Syllabus library?</h3><p class=\"mt-1.5 text-muted\">List it on Rulemart in a minute. Rulemart updates with every library release.</p></div><a class=\"inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-primary bg-primary px-[18px] py-2 text-[14px] font-medium whitespace-nowrap text-on-primary no-underline transition-opacity hover:opacity-85\" href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -302,7 +302,7 @@ func homePage(c chrome, v homeView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Rulemart: Code Rules libraries", description: "Find and adopt Code Rules libraries: the engineering rules coding agents follow while they write and review your code."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Rulemart: Syllabus libraries", description: "Find and adopt Syllabus libraries: the engineering rules coding agents follow while they write and review your code."}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

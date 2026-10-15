@@ -94,7 +94,7 @@ func (l libraryView) summary() string {
 	if l.description != "" {
 		return l.description
 	}
-	return l.fullName() + ": " + plural(l.rules, "rule", "rules") + " for coding agents, in a Code Rules library on Rulemart."
+	return l.fullName() + ": " + plural(l.rules, "rule", "rules") + " for coding agents, in a Syllabus library on Rulemart."
 }
 
 // newLibraryView describes lib.
@@ -192,7 +192,7 @@ func (l groupLabel) initial() string {
 }
 
 // notCanonicalExplanation is the hover text of a group's "not canonical" flag.
-const notCanonicalExplanation = "Not on Code Rules' canonical group list, which names the groups libraries share, " +
+const notCanonicalExplanation = "Not on Syllabus's canonical group list, which names the groups libraries share, " +
 	"so this group stands alone."
 
 // groupIcon is the icon beside a group.
@@ -520,7 +520,7 @@ func (r ruleView) summary() string {
 	if r.whenToRead != "" {
 		return r.whenToRead
 	}
-	return r.title + ": a rule for coding agents in " + r.library.fullName() + ", a Code Rules library on Rulemart."
+	return r.title + ": a rule for coding agents in " + r.library.fullName() + ", a Syllabus library on Rulemart."
 }
 
 // newRuleView describes the rule on page, a rule of lib.
@@ -613,10 +613,10 @@ func pluralWord(n int, one, many string) string {
 	return many
 }
 
-// impactLevelsDocs is Code Rules' explanation of impact levels.
+// impactLevelsDocs is Syllabus's explanation of impact levels.
 const impactLevelsDocs = "https://code-rules.fabricahq.com/reference/rule-authoring/#describe-impact-through-consequences"
 
-// impactExplanations say what each impact level means, following Code Rules' rule-authoring reference: how serious
+// impactExplanations say what each impact level means, following Syllabus's rule-authoring reference: how serious
 // the problem is that a rule helps prevent, not how much code applying it changes.
 var impactExplanations = map[string]string{
 	"CRITICAL":    "Critical impact: this rule helps prevent severe harm, such as irreversible data loss or a major security breach.",
@@ -627,7 +627,7 @@ var impactExplanations = map[string]string{
 	"LOW":         "Low impact: this rule improves local clarity or consistency, with limited consequences.",
 }
 
-// impactExplanation returns the hover text for an impact label, and a plain one for a level Code Rules doesn't
+// impactExplanation returns the hover text for an impact label, and a plain one for a level Syllabus doesn't
 // define.
 func impactExplanation(level string) string {
 	if explanation, ok := impactExplanations[level]; ok {

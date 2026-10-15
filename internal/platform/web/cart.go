@@ -69,7 +69,7 @@ type checkoutResponse struct {
 	// true when the visitor wrote one that names no GitHub repository.
 	Repository        string `json:"repository"`
 	RepositoryInvalid bool   `json:"repositoryInvalid"`
-	// Mode is known for one of the visitor's projects, new for one that doesn't use Code Rules yet, and unknown for one
+	// Mode is known for one of the visitor's projects, new for one that doesn't use Syllabus yet, and unknown for one
 	// Rulemart knows nothing of.
 	Mode string `json:"mode"`
 	// Prompt and Commands import every ready item, and are empty when none is. Commands are steps the Commands tab
@@ -314,7 +314,7 @@ func (s *server) checkoutTarget(w http.ResponseWriter, r *http.Request, req chec
 
 // knownTarget returns the checkout target of the visitor's project p, which imports its sources under their names.
 func knownTarget(p accounts.Project) domain.CheckoutTarget {
-	target := domain.CheckoutTarget{Mode: domain.ProjectKnown, Repository: p.FullName(), Sources: map[string]string{}}
+	target := domain.CheckoutTarget{Mode: domain.ProjectKnown, Repository: p.FullName(), Sources: map[string]string{}, Directory: p.Directory}
 	for _, source := range p.Sources {
 		if source.Library != "" {
 			target.Sources[strings.ToLower(source.Library)] = source.Name

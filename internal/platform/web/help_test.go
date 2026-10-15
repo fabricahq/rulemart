@@ -27,9 +27,9 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 		// What an account adds: the dashboard's project tracking and checkout's project picker.
 		"Easier checkout", "Project tracking",
 		// Only a repository's maintainers may list it.
-		"Anyone with write access to a public Code Rules library on GitHub can list it, signed in.")
+		"Anyone with write access to a public Syllabus library on GitHub can list it, signed in.")
 	questions := []string{
-		"What is Rulemart?", "Can I use Rulemart with any project?", "What is Code Rules?", "How do I use Rulemart?",
+		"What is Rulemart?", "Can I use Rulemart with any project?", "What is Syllabus?", "How do I use Rulemart?",
 		"What are rules, groups, and libraries?", "Should I stay in sync with a rule or fork it?", "How are rules versioned?",
 		"Who can publish a library?", "Do I need a Rulemart account?", "How do I give feedback?",
 	}
@@ -54,7 +54,7 @@ func TestFAQAnswersEachQuestionAndLeadsToFeedback(t *testing.T) {
 		"Ask us":              "/feedback",
 		"feedback page":       "/feedback",
 		"unvetted libraries":  "/unvetted",
-		"Code Rules":          "https://code-rules.fabricahq.com",
+		"Syllabus":            "https://code-rules.fabricahq.com",
 		"semantic versioning": "https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change",
 	} {
 		if got := links(t, page, text); !slices.Contains(got, want) {
@@ -87,7 +87,7 @@ func summaries(t *testing.T, body string) []string {
 }
 
 // Each feedback topic opens a new issue, prefilled, in the repository that owns the topic: Rulemart's for Rulemart,
-// Code Rules' for Code Rules, titled with the topic and labeled feedback and topic:<key>. Something broken leads to
+// Syllabus's for Syllabus, titled with the topic and labeled feedback and topic:<key>. Something broken leads to
 // the Report a problem form, and feedback about one rule goes to its library.
 func TestFeedbackTopicsOpenPrefilledIssuesInTheRepositoryThatOwnsThem(t *testing.T) {
 	handler := newSiteAt(t, newCatalog(), "https://rulemart.example")
@@ -102,7 +102,7 @@ func TestFeedbackTopicsOpenPrefilledIssuesInTheRepositoryThatOwnsThem(t *testing
 		"Feedback Give us feedback",
 		"Rulemart Using Rulemart Finding rules, library and rule pages, checking out, and anything missing. ↗ GitHub",
 		"Something broken on Rulemart A page that's wrong, empty, or won't load. ↗ GitHub",
-		"Code Rules The tool The code-rules CLI: commands, syncing, error messages, and config. ↗ GitHub",
+		"Syllabus The tool The syllabus CLI: commands, syncing, error messages, and config. ↗ GitHub",
 		"Rule format Frontmatter fields, groups, impact levels, and how rules are written. ↗ GitHub",
 		"Documentation Anything unclear, wrong, or hard to find. ↗ GitHub",
 		"A specific rule Open an issue in the library's repository, which the rule's page links.",

@@ -1,6 +1,6 @@
 # Rulemart agent guide
 
-Rulemart is a catalog of public [Code Rules](https://code-rules.fabricahq.com)
+Rulemart is a catalog of public [Syllabus](https://code-rules.fabricahq.com)
 libraries. See [CONTRIBUTING.md](CONTRIBUTING.md) to build, test, migrate, and
 release it, and [_internal/decisions.md](_internal/decisions.md), the one
 document of the decisions that shape it, for what the product does and why.

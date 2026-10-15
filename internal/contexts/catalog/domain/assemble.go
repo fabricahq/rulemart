@@ -130,7 +130,7 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 	latest := a.releases[len(a.releases)-1]
 	manifest, err := a.open(latest, ManifestFile)
 	if errors.Is(err, ErrFileMissing) {
-		return "", "", fmt.Errorf("%s: %s is missing; every Code Rules library has one", latest.Tag, ManifestFile)
+		return "", "", fmt.Errorf("%s: %s is missing; every Syllabus library has one", latest.Tag, ManifestFile)
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, ManifestFile, err)

@@ -70,9 +70,9 @@ changes:
 	if group.Title != "Go" || len(group.Rules) != 2 || group.RuleCount != 2 || group.Href != "/example/rules/techs/go" {
 		t.Errorf("got the group %+v, want Go with its two rules", group)
 	}
-	commands := "code-rules project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
-		"  --groups techs/go \\\n  --rules practices/testing/verify-retries\n\ncode-rules project sync\n\n" +
-		"# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
+	commands := "syllabus project add library example \\\n  --repository https://github.com/example/rules.git \\\n" +
+		"  --groups techs/go \\\n  --rules practices/testing/verify-retries\n\nsyllabus project sync\n\n" +
+		"# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md"
 	if got := oneStep(t, answer); !strings.HasSuffix(got, commands) {
 		t.Errorf("the commands end\n%s\nwant\n%s", got, commands)
 	}

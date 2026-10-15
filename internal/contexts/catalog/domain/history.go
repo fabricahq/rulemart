@@ -14,7 +14,7 @@ import (
 // order. records are a library's
 // release records in release order, and must be numbered from 1 without gaps.
 //
-// Each record must follow from the one before it, as Code Rules publishes them: a rule it doesn't change keeps its
+// Each record must follow from the one before it, as Syllabus publishes them: a rule it doesn't change keeps its
 // version, a change starts from the rule's previous version, a new rule has none, a retirement retires the rule's
 // current version, every rule the previous record listed is either still listed or retired, and a retired ID never
 // returns. Errors name the release and field that broke the history.
@@ -55,7 +55,7 @@ func buildHistory(records []coderules.ReleaseRecord) ([]Rule, error) {
 }
 
 // followsFrom checks that record follows from the rule versions the previous record listed, given the histories
-// built so far. Code Rules' parser has already checked that each change leads to the version record lists.
+// built so far. Syllabus's parser has already checked that each change leads to the version record lists.
 func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*Rule, tag string) error {
 	for _, id := range slices.Sorted(maps.Keys(record.Rules)) {
 		version := record.Rules[id]

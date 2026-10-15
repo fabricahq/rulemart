@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -284,7 +285,10 @@ type libraryRecord struct {
 
 type projectRecord struct {
 	repositoryRecord
-	Sources []sourceRecord `json:"sources"`
+	// Directory is empty for a snapshot saved before Rulemart read projects in domain.ProjectDirectory, when every
+	// project it found kept its files in domain.LegacyProjectDirectory.
+	Directory string         `json:"directory,omitempty"`
+	Sources   []sourceRecord `json:"sources"`
 }
 
 type sourceRecord struct {
@@ -326,7 +330,7 @@ func newSnapshotRecord(s domain.Snapshot) snapshotRecord {
 		record.Libraries = append(record.Libraries, libraryRecord{repositoryRecord: newRepositoryRecord(l.Repository), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range s.Projects {
-		project := projectRecord{repositoryRecord: newRepositoryRecord(p.Repository), Sources: []sourceRecord{}}
+		project := projectRecord{repositoryRecord: newRepositoryRecord(p.Repository), Directory: p.Directory, Sources: []sourceRecord{}}
 		for _, source := range p.Sources {
 			sr := sourceRecord{Name: source.Name, Library: source.Library, Release: source.Release, Groups: source.Groups}
 			for _, r := range source.Rules {
@@ -356,7 +360,7 @@ func (r snapshotRecord) snapshot() domain.Snapshot {
 		s.Libraries = append(s.Libraries, domain.PublishableRepository{Repository: l.repository(), Release: l.Release, Writable: l.Writable})
 	}
 	for _, p := range r.Projects {
-		project := domain.Project{Repository: p.repository()}
+		project := domain.Project{Repository: p.repository(), Directory: cmp.Or(p.Directory, domain.LegacyProjectDirectory)}
 		for _, source := range p.Sources {
 			ds := domain.Source{Name: source.Name, Library: source.Library, Release: source.Release, Groups: source.Groups}
 			for _, rule := range source.Rules {

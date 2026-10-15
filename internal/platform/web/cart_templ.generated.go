@@ -2130,7 +2130,7 @@ func cartPage(c chrome, projects projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "\" type=\"button\" data-cart-copy>Copy prompt for agent</button><p class=\"mt-2.5 text-[12px] text-faint\" data-cart-footnote>Rules move to newer versions only when your project runs <code>code-rules project update</code>.</p></div></aside></div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "\" type=\"button\" data-cart-copy>Copy prompt for agent</button><p class=\"mt-2.5 text-[12px] text-faint\" data-cart-footnote>Rules move to newer versions only when your project runs <code>syllabus project update</code>.</p></div></aside></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2364,7 +2364,7 @@ func checkoutStep(n, title, id string) templ.Component {
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
 // entering one; signed in, the visitor's projects as radios, each saying what it uses, with a way to use a project that
-// doesn't use Code Rules yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
+// doesn't use Syllabus yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
 // field. cart.js keeps the choice and the field, and cart-page.js shows them.
 func projectSection(v projectsView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -2496,7 +2496,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, "\" type=\"button\" data-cart-new-project>+ Or use a project that doesn't use Code Rules yet</button><div class=\"mt-3 rounded-card border border-border bg-paper px-[18px] py-4\" data-cart-new-box hidden><div class=\"mb-3 flex items-center justify-between gap-3\"><b class=\"text-[13px] font-semibold\">A new project</b> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, "\" type=\"button\" data-cart-new-project>+ Or use a project that doesn't use Syllabus yet</button><div class=\"mt-3 rounded-card border border-border bg-paper px-[18px] py-4\" data-cart-new-box hidden><div class=\"mb-3 flex items-center justify-between gap-3\"><b class=\"text-[13px] font-semibold\">A new project</b> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2526,7 +2526,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<p class=\"mt-3 text-[13px] text-muted\">The prompt sets up Code Rules there first.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<p class=\"mt-3 text-[13px] text-muted\">The prompt sets up Syllabus there first.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2565,14 +2565,14 @@ func projectSection(v projectsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if v.gitHub.available && !v.gitHub.private && v.gitHub.privateAvailable {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 196, "We didn't find any of your projects using Code Rules in your public repos. <a href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 196, "We didn't find any of your projects using Syllabus in your public repos. <a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var146 templ.SafeURL
 					templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privateHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 452, Col: 116}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 452, Col: 114}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 					if templ_7745c5c3_Err != nil {
@@ -2583,7 +2583,7 @@ func projectSection(v projectsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 198, "We didn't find any of your projects using Code Rules: repositories with <code>.code-rules/generated/provenance.json</code>. Enter the project below, and the prompt names it.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 198, "We didn't find any of your projects using Syllabus: repositories with <code>.syllabus/generated/provenance.json</code>. Enter the project below, and the prompt names it.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2660,7 +2660,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, " <p class=\"mt-3.5 text-[13px] text-muted\"><b class=\"font-semibold text-ink\">New to Code Rules?</b> The prompt sets it up for you.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, " <p class=\"mt-3.5 text-[13px] text-muted\"><b class=\"font-semibold text-ink\">New to Syllabus?</b> The prompt sets it up for you.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2721,7 +2721,7 @@ func projectsFootnote(g gitHubView) templ.Component {
 			templ_7745c5c3_Var151 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 210, "<p class=\"mt-3.5 text-[12px] text-faint\">Read from each project's <span class=\"mono\">.code-rules/generated/provenance.json</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 210, "<p class=\"mt-3.5 text-[12px] text-faint\">Read from each project's <span class=\"mono\">.syllabus/generated/provenance.json</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

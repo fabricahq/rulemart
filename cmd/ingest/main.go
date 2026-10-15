@@ -1,4 +1,4 @@
-// Command ingest stores what a Code Rules library's release tags published in Rulemart's catalog:
+// Command ingest stores what a Syllabus library's release tags published in Rulemart's catalog:
 //
 //	ingest https://github.com/<owner>/<repository>
 //

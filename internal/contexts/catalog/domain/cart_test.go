@@ -10,7 +10,7 @@ func TestParseCartKeyReadsTheKeysPagesWrite(t *testing.T) {
 	for key, want := range map[string]CartItem{
 		"fabricahq/public-rules::techs/go/return-errors":                          {Owner: "fabricahq", Name: "public-rules", Kind: CartRule, Path: "techs/go/return-errors"},
 		"group::fabricahq/public-rules::techs/go":                                 {Owner: "fabricahq", Name: "public-rules", Kind: CartGroup, Path: "techs/go"},
-		"acme/.code-rules::practices/testing/a/b":                                 {Owner: "acme", Name: ".code-rules", Kind: CartRule, Path: "practices/testing/a/b"},
+		"acme/.syllabus::practices/testing/a/b":                                   {Owner: "acme", Name: ".syllabus", Kind: CartRule, Path: "practices/testing/a/b"},
 		"Old-Name/rules_v2.x::Techs/Go/Return-Errors":                             {Owner: "Old-Name", Name: "rules_v2.x", Kind: CartRule, Path: "Techs/Go/Return-Errors"},
 		"group::a/b::techs/" + strings.Repeat("g", 400-len("group::a/b::techs/")): {Owner: "a", Name: "b", Kind: CartGroup, Path: "techs/" + strings.Repeat("g", 400-len("group::a/b::techs/"))},
 	} {

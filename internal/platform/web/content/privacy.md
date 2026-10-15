@@ -42,9 +42,10 @@ never sign out of ends on its own after 30 days.
 **What it looks for in each repository:**
 
 - A `rule-library.yaml` file and `release/<number>` tags. Together they make a library you could add to Rulemart.
-- A `.code-rules/generated/provenance.json` file, which marks the repository as a project. From it, Rulemart keeps
-  which libraries the project imports and under what names, which groups it imports, and which rule versions it holds,
-  so it can count the updates waiting for the project.
+- A `.syllabus/generated/provenance.json` file, which marks the repository as a project, or, in a repository without
+  `.syllabus`, `.code-rules/generated/provenance.json`, from before Code Rules was renamed Syllabus. From it, Rulemart
+  keeps which libraries the project imports and under what names, which groups it imports, and which rule versions it
+  holds, so it can count the updates waiting for the project.
 
 Rulemart keeps nothing else about your repositories, and none of their code.
 

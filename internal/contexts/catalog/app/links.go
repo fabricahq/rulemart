@@ -57,7 +57,7 @@ func (l ruleLinks) replacements(path string) []views.RuleRef {
 }
 
 // renamed reports whether the rule at path was renamed: retired by the release that added its replacement, which
-// had the title the retired rule last had. Code Rules records a rename as a retirement and a new rule.
+// had the title the retired rule last had. Syllabus records a rename as a retirement and a new rule.
 func (l ruleLinks) renamed(path string) bool {
 	old, ok := l[path]
 	if !ok || old.RetiredIn == 0 || old.ReplacedBy == "" {

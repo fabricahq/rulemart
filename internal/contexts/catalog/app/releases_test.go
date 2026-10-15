@@ -150,7 +150,7 @@ func describeChanges(changes []views.RuleChange) []string {
 	return result
 }
 
-// Each release lists what it changed since the release before it, as Code Rules' release notes do, newest first, and
+// Each release lists what it changed since the release before it, as Syllabus's release notes do, newest first, and
 // the version of every rule after it. Each rule shows by the title it had after the release, not a later one.
 func TestReleasesPageListsWhatEachReleaseChanged(t *testing.T) {
 	pages := app.Pages{Store: &histories{history: fourReleases}}

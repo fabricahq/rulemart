@@ -1,5 +1,5 @@
 // Read a visitor's GitHub account: their organizations, the repositories of theirs and their organizations' that publish
-// a Code Rules library, and the projects that import one, kept as the account's snapshot; and the installations of the
+// a Syllabus library, and the projects that import one, kept as the account's snapshot; and the installations of the
 // GitHub App that reads their private repositories.
 
 package app
@@ -376,7 +376,8 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 }
 
 // inspect returns repo as a library when its root holds rule-library.yaml and it has a library release tag, and as a
-// project when its provenance file parses, reading it with token. A provenance file Rulemart can't parse makes no
+// project when the provenance file in its project directory, .syllabus or, before it's renamed, .code-rules, parses,
+// reading it with token. A provenance file Rulemart can't parse makes no
 // project, rather than failing the read.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
 	repo := listed.Repository
@@ -395,13 +396,13 @@ func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain
 		}
 	}
 	var project *domain.Project
-	if root.CodeRules {
-		data, found, err := g.GitHub.File(ctx, token, repo, domain.ProvenancePath, domain.MaxProvenanceBytes)
+	if root.ProjectDirectory != "" {
+		data, found, err := g.GitHub.File(ctx, token, repo, domain.ProvenancePath(root.ProjectDirectory), domain.MaxProvenanceBytes)
 		if err != nil {
 			return nil, nil, err
 		}
 		if sources, err := domain.ParseProvenance(data); found && err == nil {
-			project = &domain.Project{Repository: repo, Sources: sources}
+			project = &domain.Project{Repository: repo, Directory: root.ProjectDirectory, Sources: sources}
 		}
 	}
 	return library, project, nil

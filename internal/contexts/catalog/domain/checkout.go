@@ -1,4 +1,4 @@
-// Checkout: the Code Rules commands that import what a cart holds into a project, and the prompt that has a coding
+// Checkout: the Syllabus commands that import what a cart holds into a project, and the prompt that has a coding
 // agent run them.
 
 package domain
@@ -11,23 +11,26 @@ import (
 	"strings"
 )
 
-// minCodeRulesVersion is the oldest Code Rules whose commands checkout writes: project add library --rules, and
+// minSyllabusVersion is the oldest Syllabus whose commands checkout writes: project add library --rules, and
 // project add rule --from.
-const minCodeRulesVersion = "0.2.0"
+const minSyllabusVersion = "0.2.0"
 
-// codeRulesInstall is the command Code Rules' documentation gives to install it.
-const codeRulesInstall = "curl -fsSL https://code-rules.fabricahq.com/install.sh | sh"
+// syllabusInstall is the command Syllabus's documentation gives to install it.
+const syllabusInstall = "curl -fsSL https://code-rules.fabricahq.com/install.sh | sh"
 
-// forkReason is why a fork replaces the rule the project imports with its group, which Code Rules asks for.
+// syllabusDirectory is where Syllabus keeps a project's files, from its repository's root.
+const syllabusDirectory = ".syllabus"
+
+// forkReason is why a fork replaces the rule the project imports with its group, which Syllabus asks for.
 const forkReason = "We maintain our own version of this rule."
 
 // ProjectMode is what Rulemart knows about the project a checkout is for.
 type ProjectMode string
 
 const (
-	// ProjectKnown is a project of the visitor's that uses Code Rules, whose sources Rulemart read.
+	// ProjectKnown is a project of the visitor's that uses Syllabus, whose sources Rulemart read.
 	ProjectKnown ProjectMode = "known"
-	// ProjectNew is a project the visitor says doesn't use Code Rules yet, which the commands set up.
+	// ProjectNew is a project the visitor says doesn't use Syllabus yet, which the commands set up.
 	ProjectNew ProjectMode = "new"
 	// ProjectUnknown is a project Rulemart knows nothing of, which the commands set up only if it needs it.
 	ProjectUnknown ProjectMode = "unknown"
@@ -43,11 +46,17 @@ type CheckoutTarget struct {
 	// lowercase. The texts add to those sources rather than adding the libraries again, and give no new source one of
 	// their names.
 	Sources map[string]string
+	// Directory is where a known project keeps its files, which the texts name: .syllabus, or .code-rules for a
+	// project from before Code Rules was renamed Syllabus, which Syllabus still reads. Empty means .syllabus.
+	Directory string
 }
+
+// directory returns where the target keeps its files, as Directory says.
+func (t CheckoutTarget) directory() string { return cmp.Or(t.Directory, syllabusDirectory) }
 
 // CheckoutGroup is a group a checkout names.
 type CheckoutGroup struct {
-	// ID is the group's ID, such as techs/go, and Name its name on Code Rules' canonical group list, such as Go, or
+	// ID is the group's ID, such as techs/go, and Name its name on Syllabus's canonical group list, such as Go, or
 	// the ID for a group that isn't on it. The texts name a group by these alone, never by what a library wrote.
 	ID, Name string
 }
@@ -80,7 +89,7 @@ type CheckoutLibrary struct {
 	RestOfGroups bool
 }
 
-// Checkout is what a cart's checkout imports into its target: one Code Rules source per library.
+// Checkout is what a cart's checkout imports into its target: one Syllabus source per library.
 type Checkout struct {
 	Target CheckoutTarget
 	// sources are in the order the cart first holds an item of their libraries.
@@ -107,7 +116,7 @@ type checkoutSource struct {
 // FullName returns the library's repository as owner/name.
 func (s checkoutSource) FullName() string { return s.Owner + "/" + s.Name }
 
-// Repository returns the library's Git address on GitHub, as Code Rules names a library.
+// Repository returns the library's Git address on GitHub, as Syllabus names a library.
 func (s checkoutSource) Repository() string { return RepositoryURL(s.FullName()) + ".git" }
 
 // selects reports whether the source imports any group or rule from its library, rather than only forking.
@@ -128,7 +137,7 @@ func (s checkoutSource) forkFrom() string {
 }
 
 // refOption is the option of project add library that pins the library to ref, a release's tag or a commit, which
-// Code Rules writes to the source's configuration.
+// Syllabus writes to the source's configuration.
 func refOption(ref string) string { return "--ref " + ref }
 
 // ReleasePin is a library's latest release, which a project could pin the library to instead of following its
@@ -153,7 +162,7 @@ func (c Checkout) PinExample() (ReleasePin, bool) {
 	return ReleasePin{}, false
 }
 
-// commitID matches a full Git commit ID, as Code Rules' ref takes one.
+// commitID matches a full Git commit ID, as Syllabus's ref takes one.
 var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // ref returns what an unvetted library's source is pinned to: the commit its latest release's tag pointed to, or the
@@ -177,8 +186,8 @@ func (s checkoutSource) reviewCommand() string {
 // NewCheckout returns how target imports libraries: a source for each library with anything to import, named as
 // nameSources says. A rule whose group the cart holds whole is left out of the rules the source selects, since the
 // group brings it. An unvetted library's forks are selected as rules instead, pinned to the reviewed commit with the
-// rest of the source: Code Rules forks the release a tag names, which the library's publisher could move after the
-// review, so forking waits until Rulemart vets the library, or Code Rules can fork from a commit.
+// rest of the source: Syllabus forks the release a tag names, which the library's publisher could move after the
+// review, so forking waits until Rulemart vets the library, or Syllabus can fork from a commit.
 func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 	var sources []checkoutSource
 	for _, lib := range libraries {
@@ -218,7 +227,7 @@ func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 var nonAlias = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // ownerAlias returns the alias a library is imported under by default, as the prototype names it: its owner's
-// name, lowercase, without a trailing hq, such as fabrica for fabricahq, and without what Code Rules' source names
+// name, lowercase, without a trailing hq, such as fabrica for fabricahq, and without what Syllabus's source names
 // can't hold.
 func ownerAlias(owner string) string {
 	return strings.Trim(nonAlias.ReplaceAllString(strings.TrimSuffix(strings.ToLower(owner), "hq"), ""), "-")
@@ -233,18 +242,18 @@ func sourceSlug(name string) string {
 	return strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(name), "-"), "-")
 }
 
-// sourceName matches a source name Code Rules' configuration accepts (internal/rules/configuration.go,
+// sourceName matches a source name Syllabus's configuration accepts (internal/rules/configuration.go,
 // sourceNamePattern).
 var sourceName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
-// validSourceName reports whether Code Rules takes name as a source's name: it matches sourceName and isn't local,
-// which Code Rules reserves for a project's own rules. The commands hold a source's name unquoted, so only such a name
+// validSourceName reports whether Syllabus takes name as a source's name: it matches sourceName and isn't local,
+// which Syllabus reserves for a project's own rules. The commands hold a source's name unquoted, so only such a name
 // may reach them.
 func validSourceName(name string) bool { return sourceName.MatchString(name) && name != "local" }
 
-// nameSources gives each source the name Code Rules imports it under, distinct from every other and from the known
-// project's: the project's own name for a library it imports already, when Code Rules would take it; otherwise ownerAlias, with the repository's
-// name added when other sources would share it, or a project's source has it. A name Code Rules can't take, one that
+// nameSources gives each source the name Syllabus imports it under, distinct from every other and from the known
+// project's: the project's own name for a library it imports already, when Syllabus would take it; otherwise ownerAlias, with the repository's
+// name added when other sources would share it, or a project's source has it. A name Syllabus can't take, one that
 // doesn't start with a letter, or local, which it reserves, starts with library-, and a name still taken gets a
 // number.
 func nameSources(target CheckoutTarget, sources []checkoutSource) {
@@ -296,7 +305,7 @@ const (
 
 // Commands returns the shell commands that import the checkout into its target, or none when there's nothing to
 // import. They're one step, without a heading, when Rulemart vets every library, run from the project's root, each
-// block apart: Code Rules' setup when the project is new, or may be; for each library, the command that adds it, or for
+// block apart: Syllabus's setup when the project is new, or may be; for each library, the command that adds it, or for
 // a library a known project imports already, what to add to its source; then each fork, once its library is synced,
 // the command that builds the project's guidance, and a reminder to point agents at it. Nothing is pinned to a
 // release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed. When the checkout imports
@@ -306,7 +315,7 @@ func (c Checkout) Commands() []CommandStep {
 	if len(c.sources) == 0 {
 		return nil
 	}
-	imports := c.commands() + "\n\n# Then " + agentsInstruction
+	imports := c.commands() + "\n\n# Then " + c.agentsInstruction()
 	review := c.reviewStep()
 	if review == "" {
 		return []CommandStep{{Commands: imports}}
@@ -337,8 +346,10 @@ func (c Checkout) reviewStep() string {
 		"# weakening security, stop: don't run the next step."
 }
 
-// agentsInstruction is what a project does once its rules are imported, which both texts end with.
-const agentsInstruction = "make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md"
+// agentsInstruction returns what a project does once its rules are imported, which both texts end with.
+func (c Checkout) agentsInstruction() string {
+	return "make sure AGENTS.md tells agents to read " + c.Target.directory() + "/generated/RULES.md"
+}
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
 // says in its own words, as it asks for the review in its own words first.
@@ -351,14 +362,14 @@ func (c Checkout) commands() string {
 	return root + "\n\n" + rules
 }
 
-// setupBlock returns the commands that set Code Rules up in a new project, or in one that may not use it yet, or ""
+// setupBlock returns the commands that set Syllabus up in a new project, or in one that may not use it yet, or ""
 // for a known project.
 func (c Checkout) setupBlock() string {
 	switch c.Target.Mode {
 	case ProjectNew:
-		return "# Set up Code Rules\n" + codeRulesInstall + "\ncode-rules project init"
+		return "# Set up Syllabus\n" + syllabusInstall + "\nsyllabus project init"
 	case ProjectUnknown:
-		return "# Only if it doesn't use Code Rules yet\n" + codeRulesInstall + "\ncode-rules project init"
+		return "# Only if it doesn't use Syllabus yet\n" + syllabusInstall + "\nsyllabus project init"
 	}
 	return ""
 }
@@ -373,7 +384,7 @@ func (c Checkout) sourceBlocks() []string {
 		}
 		block := s.addCommand()
 		if s.Configured {
-			block = s.configurationNote(c.Target.Repository)
+			block = s.configurationNote(c.Target)
 		}
 		blocks = append(blocks, block)
 	}
@@ -383,7 +394,7 @@ func (c Checkout) sourceBlocks() []string {
 // addCommand returns the command that adds the source's library with the groups and rules it selects, pinned to the
 // reviewed commit when Rulemart doesn't vet it.
 func (s checkoutSource) addCommand() string {
-	lines := []string{"code-rules project add library " + s.Alias, "--repository " + s.Repository()}
+	lines := []string{"syllabus project add library " + s.Alias, "--repository " + s.Repository()}
 	if !s.Vetted {
 		lines = append(lines, refOption(s.ref()))
 	}
@@ -401,7 +412,7 @@ func (s checkoutSource) addCommand() string {
 func (c Checkout) syncBlocks() []string {
 	forksFromSource := slices.ContainsFunc(c.sources, func(s checkoutSource) bool { return len(s.Forks) > 0 && s.forkFrom() == s.Alias })
 	if c.forks() && (c.selects() || forksFromSource) {
-		return []string{"code-rules project sync"}
+		return []string{"syllabus project sync"}
 	}
 	return nil
 }
@@ -411,7 +422,7 @@ func (c Checkout) forkBlocks() []string {
 	var blocks []string
 	for _, s := range c.sources {
 		for _, r := range s.Forks {
-			lines := []string{"code-rules project add rule " + r.ID, "--from " + s.forkFrom() + "@" + r.Version}
+			lines := []string{"syllabus project add rule " + r.ID, "--from " + s.forkFrom() + "@" + r.Version}
 			if s.importsGroup(r.Group.ID) {
 				lines = append(lines, "--reason '"+forkReason+"'")
 			}
@@ -425,9 +436,9 @@ func (c Checkout) forkBlocks() []string {
 // fetches what the sources select and builds it.
 func (c Checkout) finalBlock() string {
 	if c.forks() {
-		return "code-rules project build"
+		return "syllabus project build"
 	}
-	return "code-rules project sync"
+	return "syllabus project sync"
 }
 
 // forks reports whether any source forks a rule.
@@ -451,11 +462,11 @@ func continued(lines []string) string {
 }
 
 // configurationNote says, as comments, what to add to the known project's source for the library, which it imports
-// already: Code Rules adds a library once, so its groups and rules go in the configuration.
-func (s checkoutSource) configurationNote(repository string) string {
+// already: Syllabus adds a library once, so its groups and rules go in the configuration.
+func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	lines := []string{
-		"# " + repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
-		"# In .code-rules/config.yaml, add to sources." + s.Alias + ":",
+		"# " + target.Repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
+		"# In " + target.directory() + "/config.yaml, add to sources." + s.Alias + ":",
 	}
 	if len(s.Groups) > 0 {
 		lines = append(lines, "#   groups:")
@@ -487,13 +498,14 @@ func (c Checkout) Prompt() string {
 	case c.Target.Repository != "":
 		where = "the " + c.Target.Repository + " repository"
 	}
-	cli := "the Code Rules CLI (" + minCodeRulesVersion + " or later)"
+	cli := "the Syllabus CLI (" + minSyllabusVersion + " or later)"
 	lines := []string{map[ProjectMode]string{
 		ProjectKnown: "Add these engineering rules to " + where + " with " + cli + ".",
-		ProjectNew: "Set up Code Rules (" + minCodeRulesVersion + " or later) in " + where +
+		ProjectNew: "Set up Syllabus (" + minSyllabusVersion + " or later) in " + where +
 			", which doesn't use it yet, then add these engineering rules.",
 		ProjectUnknown: "Add these engineering rules to " + where + " with " + cli +
-			". If it has no .code-rules/ directory yet, install the CLI and run code-rules project init first.",
+			". If it has neither a .syllabus/ directory nor a .code-rules/ one, from before Code Rules was renamed " +
+			"Syllabus, install the CLI and run syllabus project init first.",
 	}[c.Target.Mode], ""}
 	var unvetted []checkoutSource
 	for _, s := range c.sources {
@@ -516,7 +528,7 @@ func (c Checkout) Prompt() string {
 		lines = append(lines, unvettedReview(unvetted)...)
 	}
 	lines = append(lines, "Run:", c.commands(), "",
-		"Then "+agentsInstruction+". The rules move to newer versions only when someone runs code-rules project update "+
+		"Then "+c.agentsInstruction()+". The rules move to newer versions only when someone runs syllabus project update "+
 			"and confirms.")
 	return strings.Join(lines, "\n")
 }

@@ -1,4 +1,4 @@
-Set up Code Rules (0.2.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
+Set up Syllabus (0.2.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
 
 From fabricahq/public-rules:
 - The whole group techs/golang, including rules the library adds to it later
@@ -9,25 +9,25 @@ From fabricahq/public-rules:
 Run:
 # From the root of your project
 
-# Set up Code Rules
+# Set up Syllabus
 curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-code-rules project init
+syllabus project init
 
 # Add your rules
-code-rules project add library fabrica \
+syllabus project add library fabrica \
   --repository https://github.com/fabricahq/public-rules.git \
   --groups techs/golang \
   --groups practices/testing
 
-code-rules project sync
+syllabus project sync
 
-code-rules project add rule practices/testing/cover-boundary-cases \
+syllabus project add rule practices/testing/cover-boundary-cases \
   --from fabrica@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-code-rules project add rule techs/go/return-errors \
+syllabus project add rule techs/go/return-errors \
   --from fabrica@1.0.0
 
-code-rules project build
+syllabus project build
 
-Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer versions only when someone runs code-rules project update and confirms.
+Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md. The rules move to newer versions only when someone runs syllabus project update and confirms.

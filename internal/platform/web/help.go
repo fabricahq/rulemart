@@ -13,9 +13,9 @@ const (
 	feedbackHref = "/feedback"
 )
 
-// codeRulesRepositoryURL is Code Rules' public repository, whose issues take feedback about the tool, the rule
+// syllabusRepositoryURL is Syllabus's public repository, whose issues take feedback about the tool, the rule
 // format, and the documentation.
-const codeRulesRepositoryURL = "https://github.com/fabricahq/code-rules"
+const syllabusRepositoryURL = "https://github.com/fabricahq/code-rules"
 
 // feedbackTopic is one row of the feedback page: what the feedback is about, and the repository whose issues take it.
 type feedbackTopic struct {
@@ -32,15 +32,15 @@ type feedbackGroup struct {
 }
 
 // feedbackGroups are the feedback page's topics, in its order. Rulemart topics open issues in Rulemart's repository,
-// and Code Rules topics in Code Rules'.
+// and Syllabus topics in Syllabus's repository.
 var feedbackGroups = []feedbackGroup{
 	{name: "Rulemart", topics: []feedbackTopic{
 		{key: "hub", label: "Using Rulemart", example: "Finding rules, library and rule pages, checking out, and anything missing.", repository: repositoryURL},
 	}},
-	{name: "Code Rules", topics: []feedbackTopic{
-		{key: "cli", label: "The tool", example: "The code-rules CLI: commands, syncing, error messages, and config.", repository: codeRulesRepositoryURL},
-		{key: "format", label: "Rule format", example: "Frontmatter fields, groups, impact levels, and how rules are written.", repository: codeRulesRepositoryURL},
-		{key: "docs", label: "Documentation", example: "Anything unclear, wrong, or hard to find.", repository: codeRulesRepositoryURL},
+	{name: "Syllabus", topics: []feedbackTopic{
+		{key: "cli", label: "The tool", example: "The syllabus CLI: commands, syncing, error messages, and config.", repository: syllabusRepositoryURL},
+		{key: "format", label: "Rule format", example: "Frontmatter fields, groups, impact levels, and how rules are written.", repository: syllabusRepositoryURL},
+		{key: "docs", label: "Documentation", example: "Anything unclear, wrong, or hard to find.", repository: syllabusRepositoryURL},
 	}},
 	{name: "Anything else", topics: []feedbackTopic{
 		{key: "other", label: "Ideas and questions", example: "Anything that doesn't fit above.", repository: repositoryURL},

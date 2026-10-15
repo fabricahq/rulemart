@@ -22,7 +22,7 @@ func TestHomeListsTheLibraries(t *testing.T) {
 	assertShows(t, resp.Body.String(), "Libraries", "rules Vetted by Rulemart Example rules for tests.", "example/rules · 2 rules")
 }
 
-// The hero opens with Rulemart's horizontal logo, in place of an eyebrow, as Code Rules' home page does: one image for
+// The hero opens with Rulemart's horizontal logo, in place of an eyebrow, as Syllabus's home page does: one image for
 // each theme, both named Rulemart, both served.
 func TestHomeHeroOpensWithRulemartsLogo(t *testing.T) {
 	handler := newSite(t, newBrowsingCatalog())
@@ -105,7 +105,7 @@ func TestHomeShowsTheFirstFourLibraries(t *testing.T) {
 
 	page := get(t, newSite(t, c), "/").Body.String()
 
-	if got := headings(t, page, "h3"); !slices.Equal(got, []string{"rules", "second", "third", "fourth", "Have a public Code Rules library?"}) {
+	if got := headings(t, page, "h3"); !slices.Equal(got, []string{"rules", "second", "third", "fourth", "Have a public Syllabus library?"}) {
 		t.Errorf("the home page's headings are %q", got)
 	}
 	if got := links(t, page, "All libraries"); !slices.Equal(got, []string{"/libraries"}) {
@@ -118,7 +118,7 @@ func TestHomeShowsTheFirstFourLibraries(t *testing.T) {
 func TestHomeLeadsToGettingVettedWhenListingIsntAvailable(t *testing.T) {
 	page := get(t, newSite(t, newBrowsingCatalog()), "/").Body.String()
 
-	assertShows(t, page, "Stock the shelves Have a public Code Rules library? List it on Rulemart in a minute.")
+	assertShows(t, page, "Stock the shelves Have a public Syllabus library? List it on Rulemart in a minute.")
 	if got := links(t, page, "List your library"); !slices.Equal(got, []string{"/about/vetting#get-vetted"}) {
 		t.Errorf("List your library leads to %q", got)
 	}
