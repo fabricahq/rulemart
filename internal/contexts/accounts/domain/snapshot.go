@@ -23,10 +23,11 @@ const MaxOrganizations = 100
 // rule, so this holds a thousand.
 const MaxProvenanceBytes = 1 << 20
 
-// MaxConfigBytes bounds the configuration a read parses to learn whether a repository is a library. A
-// configuration names its sources and their groups and rules, so a real one is a few kilobytes: one larger than this
-// makes no library, rather than failing the read.
-const MaxConfigBytes = 64 << 10
+// MaxConfigBytes bounds the configuration a read parses to learn whether a repository is a library: the most the
+// catalog reads of a library's manifest, its ContentLimits.FileBytes, so a library the catalog would take is one the
+// picker finds. The contexts don't import each other, so the web server's tests check the two agree. A larger
+// configuration makes no library, rather than failing the read.
+const MaxConfigBytes = 1 << 20
 
 // RefreshInterval is how often a visitor may read their GitHub account again: a refresh within a minute of the last
 // read keeps it.

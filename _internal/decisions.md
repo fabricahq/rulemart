@@ -478,7 +478,7 @@ matters.
 - **A read uses GitHub's REST API, not its search, and is bounded.** Code search finds a repository only once GitHub
   has indexed it, allows 10 requests a minute, and can't see what an installation reads. The read costs one request
   per repository, plus its tags or provenance file only where the root holds `rule-library.yaml`, or `.syllabus` or
-  `.code-rules`, and its `config.yaml`, at most 64 KiB, only where the root has that directory and no
+  `.code-rules`, and its `config.yaml`, at most 1 MiB, the most ingestion reads of a manifest, only where the root has that directory and no
   `rule-library.yaml`, so only repositories that could declare a library there pay for it, eight at a time, within 200 repositories, 100 organizations, and a 25-second deadline; GitHub isn't
   read inside the sign-in callback, which would hold every sign-in's redirect. Each sign-in discards the account's snapshot, and the
   first page that needs one reads GitHub.

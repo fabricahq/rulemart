@@ -192,8 +192,9 @@ func TestSnapshotFindsProjectsInTheDirectorySyllabusReads(t *testing.T) {
 
 // A read finds a library whose manifest is where Syllabus reads it: rule-library.yaml at the root, or else a library
 // section in the configuration in the Syllabus directory, .syllabus, or .code-rules while the repository has no
-// .syllabus. A configuration without a library section, one Syllabus would refuse, one too large to read, or one in
-// .code-rules beside .syllabus makes no library, and fails no read.
+// .syllabus, even one of hundreds of kilobytes, within what the catalog reads of a manifest. A configuration without a
+// library section, one Syllabus would refuse, one larger than the catalog reads, or one in .code-rules beside
+// .syllabus makes no library, and fails no read.
 func TestSnapshotFindsLibrariesWhoseManifestSyllabusReads(t *testing.T) {
 	library := "schemaVersion: 2\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
 	project := "schemaVersion: 2\nsources: {}\n"
@@ -210,6 +211,7 @@ func TestSnapshotFindsLibrariesWhoseManifestSyllabusReads(t *testing.T) {
 			repository("not-renamed", map[string]string{legacyConfig: library}),
 			repository("project", map[string]string{syllabusConfig: project}),
 			repository("refused", map[string]string{syllabusConfig: "schemaVersion: 2\nlibrary:\n  skills: {}\n"}),
+			repository("large", map[string]string{syllabusConfig: library + "# " + strings.Repeat("x", 512<<10) + "\n"}),
 			repository("too-large", map[string]string{syllabusConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes) + "\n"}),
 			repository("beside-syllabus", map[string]string{syllabusConfig: project, legacyConfig: library}),
 		},
@@ -222,7 +224,7 @@ func TestSnapshotFindsLibrariesWhoseManifestSyllabusReads(t *testing.T) {
 	for _, l := range got.Libraries {
 		names = append(names, l.Name)
 	}
-	if want := []string{"not-renamed", "root", "syllabus"}; !slices.Equal(names, want) || got.ReadFailed {
+	if want := []string{"large", "not-renamed", "root", "syllabus"}; !slices.Equal(names, want) || got.ReadFailed {
 		t.Errorf("libraries %v (read failed %v), want %v", names, got.ReadFailed, want)
 	}
 }
@@ -330,6 +332,29 @@ func TestAFailedReadKeepsTheLastSnapshotAndSaysSo(t *testing.T) {
 	}
 	if _, err := site.accounts.Refresh(ctx, site.account, site.session); err != nil {
 		t.Errorf("a refresh within the minute after the failure: %v", err)
+	}
+}
+
+// A snapshot kept before reads found libraries whose manifest is in the Syllabus directory's config.yaml isn't shown:
+// the next page that needs one reads GitHub again, where it would show a current snapshot, and finds such a library.
+func TestASnapshotFromBeforeConfigManifestsIsReadAgain(t *testing.T) {
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	site.snapshot(t)
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "mona", Name: "moved-rules", PushedAt: pushed, Tags: []string{"release/5"},
+		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nlibrary: {}\n"},
+	})
+	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3')`)
+	site.now = site.now.Add(domain.RefreshInterval)
+
+	got := site.snapshot(t)
+
+	if reads := site.fake.Requests("GET /user/orgs"); reads != 2 {
+		t.Errorf("read GitHub %d times, want twice", reads)
+	}
+	if !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "moved-rules" && l.Release == 5 }) {
+		t.Errorf("libraries %+v, want mona/moved-rules at release 5", got.Libraries)
 	}
 }
 
