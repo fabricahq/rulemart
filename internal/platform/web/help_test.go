@@ -110,9 +110,9 @@ func TestFeedbackTopicsOpenPrefilledIssuesInTheRepositoryThatOwnsThem(t *testing
 	)
 	for label, want := range map[string]struct{ repository, key string }{
 		"Using Rulemart":      {"fabricahq/rulemart", "hub"},
-		"The tool":            {"fabricahq/code-rules", "cli"},
-		"Rule format":         {"fabricahq/code-rules", "format"},
-		"Documentation":       {"fabricahq/code-rules", "docs"},
+		"The tool":            {"fabricahq/syllabus", "cli"},
+		"Rule format":         {"fabricahq/syllabus", "format"},
+		"Documentation":       {"fabricahq/syllabus", "docs"},
 		"Ideas and questions": {"fabricahq/rulemart", "other"},
 	} {
 		got := links(t, page, label)

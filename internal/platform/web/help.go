@@ -15,7 +15,7 @@ const (
 
 // syllabusRepositoryURL is Syllabus's public repository, whose issues take feedback about the tool, the rule
 // format, and the documentation.
-const syllabusRepositoryURL = "https://github.com/fabricahq/code-rules"
+const syllabusRepositoryURL = "https://github.com/fabricahq/syllabus"
 
 // feedbackTopic is one row of the feedback page: what the feedback is about, and the repository whose issues take it.
 type feedbackTopic struct {

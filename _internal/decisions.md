@@ -541,7 +541,7 @@ matters.
 - **The FAQ's answers describe Rulemart as it is**, naming real rules from fabricahq/public-rules and groups that hold
   rules today. "Still have a question? Ask us." leads to feedback.
 - **Feedback topics open prefilled GitHub issues**: Rulemart topics, and "Anything else", in fabricahq/rulemart, and
-  Syllabus topics in fabricahq/code-rules, with a title prefix naming the topic and the labels `feedback` and
+  Syllabus topics in fabricahq/syllabus, with a title prefix naming the topic and the labels `feedback` and
   `topic:<key>`. "Something broken on Rulemart" leads to the Report a problem issue form.
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
   lists the site's own pages, the page of each group a vetted library holds, canonical or not, each owner's page, and
