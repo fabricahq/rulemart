@@ -13,7 +13,7 @@ people adopt for its own sake, so its README presents it as one.
 
 Before planning, implementing, reviewing, testing, or debugging a change:
 
-1. Read `.syllabus/generated/RULES.md` and follow its instructions to
+1. Read `.trailguide/generated/RULES.md` and follow its instructions to
    select relevant groups and read their rules in full, including linked
    files and additional index pages.
 2. Follow the applicable rules and their exceptions while doing the work.
@@ -23,7 +23,7 @@ Before planning, implementing, reviewing, testing, or debugging a change:
 If required rule files are unavailable or give conflicting instructions,
 report the issue rather than silently skipping them or choosing a policy.
 
-To add, change, or update rules, follow [.syllabus/README.md](.syllabus/README.md).
+To add, change, or update rules, follow [.trailguide/README.md](.trailguide/README.md).
 
 <!-- release-planner:begin v0.5.0 sha256:5911c1f9642cb6bb -->
 ## Releases
