@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/test-at-the-lowest-layer`
 
+Version: 1.0.1
+
 **When to read:** Before planning, writing, or reviewing a test and choosing whether it should be a unit, integration, or end-to-end test, including regression tests for bug fixes.
 
 **Impact:** MEDIUM-HIGH
@@ -89,7 +91,7 @@ An end-to-end test that passes through logic unit-tested elsewhere is not a viol
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/fb82915de3b3720fd2269b02b82caa72bce6ff29/.trailguide/rules/practices/testing/test-at-the-lowest-layer.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/e0dede7473bf7af98ccc465147e180acbc923d24/.trailguide/rules/practices/testing/test-at-the-lowest-layer.md)
 
 **Declared license:** MIT
 

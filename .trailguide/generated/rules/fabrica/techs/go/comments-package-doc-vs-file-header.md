@@ -80,7 +80,7 @@ A file header separated from `package` by a blank line is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comments-package-doc-vs-file-header.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comments-package-doc-vs-file-header.md)
 
 **Declared license:** MIT
 

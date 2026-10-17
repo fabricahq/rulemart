@@ -1,10 +1,10 @@
 {
   "formatVersion": 3,
-  "checksum": "2a73193d1bdf94c2d47662ddd5de72b29473153188f3fc7ed1b51e5f3b6ea370",
+  "checksum": "3d02ddaab6c526640c63ab7f1ca6b690171a9159a4afeb2aaaae70b10a04b9d2",
   "kind": "library",
-  "repository": "https://github.com/fabricahq/public-rules.git",
-  "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-  "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+  "repository": "https://github.com/fabricahq/public-library.git",
+  "release": 3,
+  "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
   "groupSelection": [
     "practices/code-design",
     "practices/performance",
@@ -77,44 +77,44 @@
       "legacyLayout": true
     },
     "practices/testing/choose-tests-by-risk": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/cover-boundary-cases": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/keep-tests-independent": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/name-tests-for-behavior-and-condition": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/run-focused-tests-while-iterating": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/test-at-the-lowest-layer": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/test-bug-fixes-before-fixing": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "practices/testing/test-observable-behavior": {
-      "version": null,
-      "release": null,
-      "commit": "fb82915de3b3720fd2269b02b82caa72bce6ff29"
+      "version": "1.0.1",
+      "release": 3,
+      "commit": "e0dede7473bf7af98ccc465147e180acbc923d24"
     },
     "techs/go/comment-non-obvious-struct-fields": {
       "version": "1.0.0",

@@ -1,8 +1,7 @@
 schemaVersion: 2
 sources:
   fabrica:
-    repository: https://github.com/fabricahq/public-rules.git
-    ref: fb82915de3b3720fd2269b02b82caa72bce6ff29
+    repository: https://github.com/fabricahq/public-library.git
     rules:
       include:
         - practices/code-design/*

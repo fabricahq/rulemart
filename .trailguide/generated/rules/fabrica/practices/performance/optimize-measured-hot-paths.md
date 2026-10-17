@@ -112,7 +112,7 @@ Straightforward code in paths that are not hot is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/performance/optimize-measured-hot-paths.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/performance/optimize-measured-hot-paths.md)
 
 **Attribution:** [Adapted from nine Vercel Agent Skills React best-practice rules \(js-set-map-lookups, js-index-maps, js-combine-iterations, js-early-exit, js-hoist-regexp, js-length-check-first, js-min-max-loop, js-cache-function-results, and js-cache-storage\), merged into one language-neutral practice with a measure-first requirement and without claims that depend on engine details.](<https://github.com/vercel-labs/agent-skills/tree/4ec6f84b61cd3c931046c3e6e398f3ae7de372f7/skills/react-best-practices/rules>)
 

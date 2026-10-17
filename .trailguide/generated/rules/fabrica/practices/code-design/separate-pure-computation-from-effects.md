@@ -66,7 +66,7 @@ A function whose purpose is an effect, such as writing to storage, is not a viol
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/code-design/separate-pure-computation-from-effects.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/practices/code-design/separate-pure-computation-from-effects.md)
 
 **Attribution:** [Adapted from mkosir TypeScript Style Guide guidance \(keep-functions-pure-and-focused; MIT, notice retained in NOTICE.md\): moved from the TypeScript group to code design, restructured to the rule template with a code example.](<https://github.com/mkosir/typescript-style-guide/blob/86bebd58a987e23277dba02028c0ee2d6ffb5073/website/src/pages/index.mdx>)
 

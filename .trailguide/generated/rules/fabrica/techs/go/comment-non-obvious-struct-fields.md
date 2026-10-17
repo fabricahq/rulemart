@@ -82,7 +82,7 @@ A self-describing field without a comment is not a violation.
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comment-non-obvious-struct-fields.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/comment-non-obvious-struct-fields.md)
 
 **Declared license:** MIT
 

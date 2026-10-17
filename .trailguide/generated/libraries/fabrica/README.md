@@ -5,13 +5,11 @@
 
 This folder retains byte-for-byte copies of declared library license and notice files. Do not edit these copies; change the upstream library and run `trailguide project sync`.
 
-**Repository:** https://github.com/fabricahq/public-rules.git
+**Repository:** https://github.com/fabricahq/public-library.git
 
-**Requested revision:** fb82915de3b3720fd2269b02b82caa72bce6ff29
+**Library release:** release/3
 
-**Resolved commit:** `fb82915de3b3720fd2269b02b82caa72bce6ff29`
-
-**Imported from unreleased changes.** This source's ref isn't a library release, so the source doesn't follow rule versions: rules with unreleased changes have no version to cite.
+**Resolved commit:** `e0dede7473bf7af98ccc465147e180acbc923d24`
 
 ## Rule versions
 
@@ -26,14 +24,14 @@ This folder retains byte-for-byte copies of declared library license and notice 
 | `practices/readmes/match-presentation-to-product-tier` | 1.0.0 | release/1 | Active |
 | `practices/readmes/open-with-what-the-product-does` | 1.0.0 | release/1 | Active |
 | `practices/readmes/state-what-the-product-does-not-do` | 1.0.0 | release/1 | Active |
-| `practices/testing/choose-tests-by-risk` | No version | Unreleased | Active |
-| `practices/testing/cover-boundary-cases` | No version | Unreleased | Active |
-| `practices/testing/keep-tests-independent` | No version | Unreleased | Active |
-| `practices/testing/name-tests-for-behavior-and-condition` | No version | Unreleased | Active |
-| `practices/testing/run-focused-tests-while-iterating` | No version | Unreleased | Active |
-| `practices/testing/test-at-the-lowest-layer` | No version | Unreleased | Active |
-| `practices/testing/test-bug-fixes-before-fixing` | No version | Unreleased | Active |
-| `practices/testing/test-observable-behavior` | No version | Unreleased | Active |
+| `practices/testing/choose-tests-by-risk` | 1.0.1 | release/3 | Active |
+| `practices/testing/cover-boundary-cases` | 1.0.1 | release/3 | Active |
+| `practices/testing/keep-tests-independent` | 1.0.1 | release/3 | Active |
+| `practices/testing/name-tests-for-behavior-and-condition` | 1.0.1 | release/3 | Active |
+| `practices/testing/run-focused-tests-while-iterating` | 1.0.1 | release/3 | Active |
+| `practices/testing/test-at-the-lowest-layer` | 1.0.1 | release/3 | Active |
+| `practices/testing/test-bug-fixes-before-fixing` | 1.0.1 | release/3 | Active |
+| `practices/testing/test-observable-behavior` | 1.0.1 | release/3 | Active |
 | `techs/go/comment-non-obvious-struct-fields` | 1.0.0 | release/1 | Active |
 | `techs/go/comments-package-doc-vs-file-header` | 1.0.0 | release/1 | Active |
 | `techs/go/errors-include-useful-diagnostic-data` | 1.0.0 | release/1 | Active |

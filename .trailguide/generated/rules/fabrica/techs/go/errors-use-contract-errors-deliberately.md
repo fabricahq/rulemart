@@ -68,7 +68,7 @@ Wrapping with `%w` inside one package, where the error does not cross its bounda
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/errors-use-contract-errors-deliberately.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/errors-use-contract-errors-deliberately.md)
 
 **Declared license:** MIT
 

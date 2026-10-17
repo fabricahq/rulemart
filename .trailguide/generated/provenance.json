@@ -5,9 +5,9 @@
     {
       "name": "fabrica",
       "kind": "library",
-      "repository": "https://github.com/fabricahq/public-rules.git",
-      "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-      "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+      "repository": "https://github.com/fabricahq/public-library.git",
+      "release": 3,
+      "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
       "groups": [
         "practices/code-design",
         "practices/performance",
@@ -152,8 +152,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/code-design/express-operations-as-meaningful-steps.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -185,8 +185,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/code-design/organize-code-by-feature.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -223,8 +223,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/code-design/separate-pure-computation-from-effects.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -261,8 +261,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/performance/optimize-measured-hot-paths.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -299,8 +299,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/readmes/give-a-quick-start-that-runs-as-written.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -332,8 +332,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/readmes/keep-the-readme-an-entry-point.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -365,8 +365,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/readmes/match-presentation-to-product-tier.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -398,8 +398,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/readmes/open-with-what-the-product-does.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -431,8 +431,8 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/readmes/state-what-the-product-does-not-do.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -464,11 +464,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/choose-tests-by-risk.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -497,11 +497,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/cover-boundary-cases.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -530,11 +530,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/keep-tests-independent.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -563,11 +563,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/name-tests-for-behavior-and-condition.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -601,11 +601,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/run-focused-tests-while-iterating.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -639,11 +639,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/test-at-the-lowest-layer.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -672,11 +672,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/test-bug-fixes-before-fixing.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -705,11 +705,11 @@
       "origin": {
         "source": "fabrica",
         "file": "practices/testing/test-observable-behavior.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "resolvedCommit": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
-        "version": null,
-        "release": null
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
+        "resolvedCommit": "e0dede7473bf7af98ccc465147e180acbc923d24",
+        "version": "1.0.1",
+        "release": 3
       },
       "upstream": null,
       "replacementReason": null,
@@ -743,8 +743,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/comment-non-obvious-struct-fields.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -776,8 +776,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/comments-package-doc-vs-file-header.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -809,8 +809,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/errors-include-useful-diagnostic-data.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -842,8 +842,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/errors-use-contract-errors-deliberately.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -875,8 +875,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/go/one-owner-for-text-and-parsed-form.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1
@@ -908,8 +908,8 @@
       "origin": {
         "source": "fabrica",
         "file": "techs/goose/migrations-directory-contains-only-sql.md",
-        "repository": "https://github.com/fabricahq/public-rules.git",
-        "ref": "fb82915de3b3720fd2269b02b82caa72bce6ff29",
+        "repository": "https://github.com/fabricahq/public-library.git",
+        "ref": null,
         "resolvedCommit": "568e32f46cc3bf557ab90e82b8df6d661b839112",
         "version": "1.0.0",
         "release": 1

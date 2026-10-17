@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/test-observable-behavior`
 
+Version: 1.0.1
+
 **When to read:** Before planning, writing, changing, or reviewing automated tests, or refactoring code that has tests, such as deciding what a test should assert or which dependencies to replace with test doubles.
 
 **Impact:** HIGH
@@ -108,7 +110,7 @@ Testing an internal module through its own documented contract is not a violatio
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/fb82915de3b3720fd2269b02b82caa72bce6ff29/.trailguide/rules/practices/testing/test-observable-behavior.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/e0dede7473bf7af98ccc465147e180acbc923d24/.trailguide/rules/practices/testing/test-observable-behavior.md)
 
 **Attribution:** [Underlying TypeScript Style Guide material by mkosir, including its snapshot-testing guidance, adapted under MIT; copyright and permission notice retained in NOTICE.md.](<https://github.com/mkosir/typescript-style-guide/blob/86bebd58a987e23277dba02028c0ee2d6ffb5073/website/src/pages/index.mdx>)
 

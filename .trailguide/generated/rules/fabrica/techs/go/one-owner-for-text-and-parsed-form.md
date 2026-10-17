@@ -174,7 +174,7 @@ These aren't violations:
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/one-owner-for-text-and-parsed-form.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/go/one-owner-for-text-and-parsed-form.md)
 
 **Declared license:** MIT
 

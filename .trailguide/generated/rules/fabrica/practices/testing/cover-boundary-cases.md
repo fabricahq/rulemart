@@ -5,6 +5,8 @@
 
 Rule ID: `fabrica:practices/testing/cover-boundary-cases`
 
+Version: 1.0.1
+
 **When to read:** Before planning, writing, changing, or reviewing code or tests that process collections, check ranges or thresholds, compute positions, or relate two items, such as validation limits, pagination, sorting, or moving items in a list or tree.
 
 **Impact:** MEDIUM
@@ -110,7 +112,7 @@ A missing case is not a violation when the contract treats the input the same as
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/fb82915de3b3720fd2269b02b82caa72bce6ff29/.trailguide/rules/practices/testing/cover-boundary-cases.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/e0dede7473bf7af98ccc465147e180acbc923d24/.trailguide/rules/practices/testing/cover-boundary-cases.md)
 
 **Declared license:** MIT
 

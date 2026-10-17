@@ -61,7 +61,7 @@ A project that deliberately keeps SQL and Go migrations together, with one versi
 
 ## Source and attribution
 
-**Rule source:** [Original rule](https://github.com/fabricahq/public-rules/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/goose/migrations-directory-contains-only-sql.md)
+**Rule source:** [Original rule](https://github.com/fabricahq/public-library/blob/568e32f46cc3bf557ab90e82b8df6d661b839112/techs/goose/migrations-directory-contains-only-sql.md)
 
 **Declared license:** MIT
 
