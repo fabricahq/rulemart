@@ -67,8 +67,12 @@ func DevFake(installedURL string) *Fake {
 				Owner: "fabricahq", Name: "code-rules-test-library", PushedAt: day(20), Files: map[string]string{"rule-library.yaml": manifest},
 				Tags: []string{"release/1", "release/2", "release/3", "release/4", "release/5", "release/6"},
 			},
-			// test_user belongs to fabricahq but may only read this one, so the picker shows a library they can't add.
-			{Owner: "fabricahq", Name: "partner-rules", PushedAt: day(8), ReadOnly: true, Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
+			// test_user belongs to fabricahq but may only read this one, so the picker shows a library they can't add. It
+			// keeps its manifest in .trailguide/config.yaml, as Trail Guide lays a library out.
+			{
+				Owner: "fabricahq", Name: "partner-rules", PushedAt: day(8), ReadOnly: true,
+				Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nlibrary: {}\n"}, Tags: []string{"release/2"},
+			},
 			{Owner: devUser, Name: "team-rules", Private: true, PushedAt: day(5), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{
 				Owner: devUser, Name: "billing-service", Private: true, PushedAt: day(6),

@@ -381,7 +381,8 @@ func TestASnapshotSavedBeforeProjectsRecordedTheirDirectoryReadsThemAsInCodeRule
 // ClaimRead alike, so the account reads GitHub again instead of showing every library as one the visitor can't add:
 // neither a request that finds another read under way nor a read that fails falls back on it. That includes a format 2
 // snapshot a failed read saved from such a snapshot, before ClaimRead checked the format: failed, and without write
-// access.
+// access. So does a format 3 snapshot, from before reads found libraries whose manifest is in the Trail Guide
+// directory's config.yaml.
 func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -392,6 +393,7 @@ func TestASnapshotOfAnEarlierFormatReadsAsAbsent(t *testing.T) {
 		{"re-saved as format 2 by a failed read", `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '2') ||
 			jsonb_build_object('failed', true, 'libraries', (SELECT jsonb_agg(l - 'writable') FROM jsonb_array_elements(snapshot->'libraries') l))
 			WHERE account_id = $1`},
+		{"format 3, before reads found manifests in config.yaml", `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3') WHERE account_id = $1`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()

@@ -22,7 +22,7 @@ templ privatePage(c chrome, v privateView) {
 					<tbody>
 						<tr>
 							<th class={ dataRowHeadStyle } scope="row">Contents: read-only</th>
-							<td class={ dataCellStyle }>To read <span class="mono [overflow-wrap:anywhere]">.trailguide/generated/provenance.json</span> (or <span class="mono [overflow-wrap:anywhere]">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Trail Guide) and <span class="mono">rule-library.yaml</span>, so we can see which of your private projects use Trail Guide and which libraries they import.</td>
+							<td class={ dataCellStyle }>To read <span class="mono [overflow-wrap:anywhere]">.trailguide/generated/provenance.json</span> (or <span class="mono [overflow-wrap:anywhere]">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Trail Guide), and the library manifest, <span class="mono [overflow-wrap:anywhere]">.trailguide/config.yaml</span> or <span class="mono">rule-library.yaml</span>, so we can see which of your private projects use Trail Guide, which libraries they import, and which repos are libraries.</td>
 							<td class={ dataCellStyle }>We only look at your public repos.</td>
 						</tr>
 						<tr>
@@ -44,7 +44,7 @@ templ privatePage(c chrome, v privateView) {
 				</div>
 				<div class="min-w-0 rounded-card border border-border bg-paper p-4">
 					<b class="font-semibold">Worth knowing</b>
-					<p class="mt-2 text-[13px] text-muted">GitHub can't limit an app to one folder, so “Contents” technically covers each repo you select. Rulemart only reads the two files above. Choose <b class="font-semibold text-ink">Only select repositories</b> on GitHub to keep the scope small.</p>
+					<p class="mt-2 text-[13px] text-muted">GitHub can't limit an app to one folder, so “Contents” technically covers each repo you select. Rulemart only reads the files above. Choose <b class="font-semibold text-ink">Only select repositories</b> on GitHub to keep the scope small.</p>
 				</div>
 			</div>
 			<div class="mt-[26px] flex flex-wrap items-center gap-2.5">
