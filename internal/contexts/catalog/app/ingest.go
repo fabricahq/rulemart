@@ -1,7 +1,7 @@
 // Package app holds the catalog's operations: Ingester ingests a library, or updates one whose release tags changed,
 // and Pages reads what the pages show.
 //
-// Ingest builds the catalog from a Syllabus library's release/<number> tags: it looks the library's repository
+// Ingest builds the catalog from a Trail Guide library's release/<number> tags: it looks the library's repository
 // up on its code host, fetches the release tags, assembles the library they publish, and replaces what the catalog
 // stores about it in one transaction: its releases, groups, rules, and every rule version, with the current
 // version's content rendered for the web, and each current rule's assets.

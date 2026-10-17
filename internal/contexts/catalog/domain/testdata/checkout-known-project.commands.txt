@@ -1,22 +1,22 @@
 # From the root of acme/api
 
-# If .syllabus/config.yaml has schemaVersion: 1,
-# rewrite it as version 2 first: https://code-rules.fabricahq.com/reference/configuration/#version-1-configuration
+# If .trailguide/config.yaml has schemaVersion: 1,
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#version-1-configuration
 
 # acme/api already imports fabricahq/public-rules as team.
-# In .syllabus/config.yaml, add to sources.team.rules.include:
+# In .trailguide/config.yaml, add to sources.team.rules.include:
 #   - practices/testing/*
 #   - techs/go/return-errors
 
-syllabus project sync
+trailguide project sync
 
-syllabus project add rule practices/testing/keep-tests-independent \
+trailguide project add rule practices/testing/keep-tests-independent \
   --from team@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-syllabus project add rule techs/go/close-bodies \
+trailguide project add rule techs/go/close-bodies \
   --from https://github.com/fabricahq/code-rules-test-library.git@1.0.0
 
-syllabus project build
+trailguide project build
 
-# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md

@@ -244,7 +244,7 @@
     const preview = $('[data-cart-preview]');
     const repo = $('[data-cart-repo]');
     const repoNote = $('[data-cart-repo-note]');
-    // The signed-in visitor's projects, as radios, and the box that names a project that doesn't use Syllabus yet,
+    // The signed-in visitor's projects, as radios, and the box that names a project that doesn't use Trail Guide yet,
     // where the repository field is then; neither is there for a visitor Rulemart knows no project of.
     const projects = [...root.querySelectorAll('[data-cart-project]')];
     const newProject = $('[data-cart-new-project]');
@@ -322,7 +322,7 @@
     }
 
     /** Show which of the visitor's projects checkout is for: the one the cart names, or the first, or with the new
-     * project's box open, none, for one that doesn't use Syllabus yet. */
+     * project's box open, none, for one that doesn't use Trail Guide yet. */
     function showProject() {
       if (!projects.length) return;
       const { project } = store.state();
@@ -413,7 +413,7 @@
       const pinned = (answer?.libraries || [])
         .filter((lib) => !lib.vetted && lib.items.some((item) => item.state === 'ready' && cart.includes(item.key)))
         .map((lib) => lib.fullName);
-      const parts = ['Rules move to newer versions only when your project runs ', code('syllabus project update'),
+      const parts = ['Rules move to newer versions only when your project runs ', code('trailguide project update'),
         pinned.length ? `, except those from ${listed(pinned)}, which stay at the commit you review.` : '.'];
       const pin = answer?.pin;
       if (!prompt && pin) {

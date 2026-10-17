@@ -154,7 +154,7 @@ ORDER BY r.path COLLATE "C";
 SELECT number, tagged_at, updates_shared_files FROM library_releases WHERE library_id = @library_id ORDER BY number;
 
 -- ListRuleHistories returns every version of every rule in the library, current or retired: one row per version, by
--- rule path, in code point order as Syllabus's release notes list rules, and then release, with the rule's retirement, whether the version has its Markdown, which a release that
+-- rule path, in code point order as Trail Guide's release notes list rules, and then release, with the rule's retirement, whether the version has its Markdown, which a release that
 -- stored only current versions' content left out, and how many bytes it holds.
 -- name: ListRuleHistories :many
 SELECT r.path, retired.number AS retired_in, r.replaced_by, r.retirement_summaries, v.id, v.major, v.minor, v.patch,

@@ -10,34 +10,34 @@ d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https:
 [After you've reviewed, import]
 # From the root of acme/api
 
-# Only if it doesn't use Syllabus yet
-curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-syllabus project init
+# Only if it doesn't use Trail Guide yet
+curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
+trailguide project init
 
-# If the project uses Syllabus already and its config.yaml has schemaVersion: 1,
-# rewrite it as version 2 first: https://code-rules.fabricahq.com/reference/configuration/#version-1-configuration
+# If the project uses Trail Guide already and its config.yaml has schemaVersion: 1,
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#version-1-configuration
 
 # Add your rules
-syllabus project add source fabrica-public-rules \
+trailguide project add source fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
   --rules 'techs/go/*' \
   --rules practices/testing/keep-tests-independent
 
-syllabus project add source fabrica-code-rules-test-library \
+trailguide project add source fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-syllabus project add source stranger \
+trailguide project add source stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go
 
-syllabus project sync
+trailguide project sync
 
-syllabus project add rule techs/go/errors-include-useful-diagnostic-data \
+trailguide project add rule techs/go/errors-include-useful-diagnostic-data \
   --from fabrica-public-rules@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-syllabus project build
+trailguide project build
 
-# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/
+# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/
