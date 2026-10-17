@@ -13,7 +13,7 @@ import (
 // a library's maintainers can list it, leading to listing one when canList is true, and where the unvetted ones are, and
 // the control that includes them.
 templ librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) {
-	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Syllabus library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref, noindex: unvetted, filters: true}) {
+	@layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Trail Guide library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref, noindex: unvetted, filters: true}) {
 		<div class="page wrap">
 			@label("") {
 				Libraries
@@ -189,7 +189,7 @@ templ groupList(kind string, lib libraryView, groups []groupView, selection grou
 // name, its rules, the way back to the library's groups, and the Whole group box that adds the group to the cart.
 // selection is the groups the library's Groups tab ticks, which its links back carry.
 templ libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSelection) {
-	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Syllabus library on Rulemart."}, lib)) {
+	@layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Trail Guide library on Rulemart."}, lib)) {
 		<div class="page wrap">
 			if !lib.vetted {
 				@unvettedWarning(false)

@@ -191,7 +191,7 @@ func (a *API) RootEntries(ctx context.Context, token string, repo domain.Reposit
 }
 
 // projectDirectory returns the directory a project keeps its files in, given the types of the root's entries by
-// name, as Syllabus chooses it: domain.ProjectDirectory whenever the root holds an entry of that name, which Syllabus
+// name, as Trail Guide chooses it: domain.ProjectDirectory whenever the root holds an entry of that name, which Trail Guide
 // reads only as a directory, or else domain.LegacyProjectDirectory when that's a directory, or empty.
 func projectDirectory(types map[string]string) string {
 	if kind, ok := types[domain.ProjectDirectory]; ok {

@@ -151,10 +151,10 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 	manifestFile := layout.ManifestFile()
 	manifest, err := a.openFile(latest, manifestFile)
 	if errors.Is(err, ErrFileMissing) && layout == RootLayout {
-		return "", "", fmt.Errorf("%s: the library's manifest is missing: Syllabus reads it from the library section of %s, or from %s at the repository root in the earlier layout", latest.Tag, SyllabusLayout.ManifestFile(), manifestFile)
+		return "", "", fmt.Errorf("%s: the library's manifest is missing: Trail Guide reads it from the library section of %s, or from %s at the repository root in the earlier layout", latest.Tag, TrailGuideLayout.ManifestFile(), manifestFile)
 	}
 	if errors.Is(err, ErrFileMissing) {
-		return "", "", fmt.Errorf("%s: %s is missing; every Syllabus library has one", latest.Tag, manifestFile)
+		return "", "", fmt.Errorf("%s: %s is missing; every Trail Guide library has one", latest.Tag, manifestFile)
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, manifestFile, err)
@@ -196,7 +196,7 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*coderules.LicenseD
 		return nil, err
 	}
 	if library == nil {
-		return nil, fmt.Errorf("%s has no library section, which makes a repository a Syllabus library", manifestFile)
+		return nil, fmt.Errorf("%s has no library section, which makes a repository a Trail Guide library", manifestFile)
 	}
 	return library.License, nil
 }

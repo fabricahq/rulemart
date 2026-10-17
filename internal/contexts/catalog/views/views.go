@@ -85,7 +85,7 @@ type LibraryPage struct {
 type RetiredRuleCard struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group string
-	// CanonicalGroup is nil when Group isn't on Syllabus's canonical group list.
+	// CanonicalGroup is nil when Group isn't on Trail Guide's canonical group list.
 	CanonicalGroup *CanonicalGroup
 	// Title and Impact are its last version's, or empty when the catalog doesn't have them yet.
 	Title, Impact string
@@ -120,7 +120,7 @@ type RuleLink struct {
 type Group struct {
 	// Path is the group's ID, such as techs/go.
 	Path string
-	// Canonical is nil when Path isn't on Syllabus's canonical group list.
+	// Canonical is nil when Path isn't on Trail Guide's canonical group list.
 	Canonical *CanonicalGroup
 	// Description and WhenToRead are what the library declares about the group.
 	Description, WhenToRead string
@@ -128,7 +128,7 @@ type Group struct {
 	Rules int
 }
 
-// CanonicalGroup is how pages show a group whose ID is on Syllabus's canonical group list: by the list's display
+// CanonicalGroup is how pages show a group whose ID is on Trail Guide's canonical group list: by the list's display
 // name, which every library using the ID shares, rather than the name a library declares. Pages show any other
 // group by its ID, flagged as not canonical.
 type CanonicalGroup struct {
@@ -194,7 +194,7 @@ func (p RulePage) GroupRuleCount() int {
 type Rule struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group string
-	// CanonicalGroup is nil when Group isn't on Syllabus's canonical group list.
+	// CanonicalGroup is nil when Group isn't on Trail Guide's canonical group list.
 	CanonicalGroup *CanonicalGroup
 	// Title, Impact, and WhenToRead are the version's, and empty for a retired rule whose last version's content the
 	// catalog doesn't have yet.
@@ -401,7 +401,7 @@ type GroupIndex struct {
 type GroupSummary struct {
 	// Path is the group's ID, such as techs/go.
 	Path string
-	// Canonical is nil when Path isn't on Syllabus's canonical group list.
+	// Canonical is nil when Path isn't on Trail Guide's canonical group list.
 	Canonical *CanonicalGroup
 	// Rules counts the current rules the group holds in Libraries.
 	Rules int
@@ -415,7 +415,7 @@ type GroupSummary struct {
 type GroupPage struct {
 	// Path is the group's ID, such as techs/go.
 	Path string
-	// Canonical is nil when Path isn't on Syllabus's canonical group list.
+	// Canonical is nil when Path isn't on Trail Guide's canonical group list.
 	Canonical *CanonicalGroup
 	Rules     RuleResults
 }
@@ -458,7 +458,7 @@ type RuleRow struct {
 	Vetted bool
 	// Rule is the rule's newest version; its Stars are 0 for a retired rule, or one of a library that isn't vetted.
 	Rule RuleCard
-	// CanonicalGroup is nil when Rule.Group isn't on Syllabus's canonical group list.
+	// CanonicalGroup is nil when Rule.Group isn't on Trail Guide's canonical group list.
 	CanonicalGroup *CanonicalGroup
 	// Retired marks a rule a library release retired. Replacement is the last rule of its chain of replacements to now,
 	// the one current now unless the chain ends at a rule retired without one, or nil when its retirement named none;
@@ -487,7 +487,7 @@ type ReleasesPage struct {
 	AllReleases []Release
 }
 
-// ReleaseNotes is what one library release published, as Syllabus's release notes describe it: how each rule changed
+// ReleaseNotes is what one library release published, as Trail Guide's release notes describe it: how each rule changed
 // since the release before it, and every rule's version after it.
 type ReleaseNotes struct {
 	Release Release
@@ -517,7 +517,7 @@ type ReleaseComparison struct {
 }
 
 // ChangeRenamed is how a rule changed when a release retired it and added it under a new ID, with the same title.
-// Syllabus records a rename as a retirement and a new rule; pages show the two as one change.
+// Trail Guide records a rename as a retirement and a new rule; pages show the two as one change.
 const ChangeRenamed coderules.Change = "renamed"
 
 // RuleChange is how one rule changed between two library releases.
@@ -575,7 +575,7 @@ type AccountListing struct {
 type StarredRule struct {
 	Library LibraryRef
 	Rule    RuleCard
-	// CanonicalGroup is nil when Rule.Group isn't on Syllabus's canonical group list.
+	// CanonicalGroup is nil when Rule.Group isn't on Trail Guide's canonical group list.
 	CanonicalGroup *CanonicalGroup
 	// StarredAs is the ID of the retired rule the account starred, which Rule replaced, directly or through other
 	// retired rules; it's empty when the account starred Rule itself.
@@ -650,7 +650,7 @@ type ResolvedLibrary struct {
 
 // ResolvedGroup is a group as checkout names it.
 type ResolvedGroup struct {
-	// Path is the group's ID, as the library spells it. Canonical is nil when it isn't on Syllabus's canonical group
+	// Path is the group's ID, as the library spells it. Canonical is nil when it isn't on Trail Guide's canonical group
 	// list.
 	Path      string
 	Canonical *CanonicalGroup

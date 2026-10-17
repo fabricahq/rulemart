@@ -11,12 +11,13 @@ applies when it publishes them, so the two can't disagree about what a library r
   from the rule-versioning work, which they were first copied from.
 - **Changes:** the package is renamed `coderules`, files and functions Rulemart doesn't use are left out, and
   imports they needed are removed. The logic is unchanged.
-- **The Syllabus directory's layout:** `library_manifest.go` is copied from fabricahq/code-rules#126's branch, commit
+- **The Trail Guide directory's layout:** `library_manifest.go` is copied from fabricahq/trailguide#126's branch, commit
   `9d11c960575f49727804da70169c0612e31d3def`: `RepositoryPath`, `LibraryPath`, and their constants from
   `internal/librarytree/layout.go`, and the library section's parser from `internal/rules/licenses.go`, with that
   branch's `decode` helpers spelled as this copy names them, and its `termsPath` renamed `libraryTermsPath` beside
   the earlier layout's. Its `ParseLibraryManifest` reads only the configuration's `schemaVersion` and `library`
-  fields, where Syllabus parses the whole configuration, whose other fields configure the repository as a project.
+  fields, where Trail Guide parses the whole configuration, whose other fields configure the repository as a project.
+  Its names and messages say Trail Guide and `.trailguide/`, as fabricahq/trailguide#138 renamed them there.
 - **License:** MIT, in [LICENSE.md](LICENSE.md).
 
 Replace this copy with Code Rules' public parsing package once it ships, and delete this directory. Until then,

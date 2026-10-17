@@ -65,10 +65,10 @@ type GitHubRepository struct {
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
 	// LegacyManifest is true when it holds rule-library.yaml, the manifest of a library in the layout from before
-	// Syllabus kept a library's files in its directory. Syllabus reads such a repository as that layout's library,
+	// Trail Guide kept a library's files in its directory. Trail Guide reads such a repository as that layout's library,
 	// whatever else it holds.
 	LegacyManifest bool
-	// ProjectDirectory is the directory where a project keeps its files, as Syllabus chooses it: ProjectDirectory when
+	// ProjectDirectory is the directory where a project keeps its files, as Trail Guide chooses it: ProjectDirectory when
 	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
 	// ProjectDirectory, or empty when it holds neither.
 	ProjectDirectory string
@@ -80,7 +80,7 @@ type Snapshot struct {
 	ReadAt time.Time
 	// Organizations are the logins of the visitor's organizations, in the order GitHub listed them.
 	Organizations []string
-	// Libraries are the repositories that publish a Syllabus library, by full name.
+	// Libraries are the repositories that publish a Trail Guide library, by full name.
 	Libraries []PublishableRepository
 	// Projects are the repositories whose provenance file names the libraries they import, by full name.
 	Projects []Project
@@ -92,12 +92,12 @@ type Snapshot struct {
 	ReadFailed bool
 }
 
-// ConfigPath returns where a repository whose Syllabus directory is directory, ProjectDirectory or
+// ConfigPath returns where a repository whose Trail Guide directory is directory, ProjectDirectory or
 // LegacyProjectDirectory, keeps its configuration, whose library section makes it a library, from its root.
 func ConfigPath(directory string) string { return directory + "/" + coderules.Manifest }
 
 // DeclaresLibrary reports whether config, a repository's configuration, has a library section, the manifest that
-// makes the repository a library, as Syllabus validates it. A configuration Syllabus would refuse declares none.
+// makes the repository a library, as Trail Guide validates it. A configuration Trail Guide would refuse declares none.
 func DeclaresLibrary(config []byte) bool {
 	library, err := coderules.ParseLibraryManifest(config, "config.yaml")
 	return err == nil && library != nil
@@ -113,7 +113,7 @@ type PublishableRepository struct {
 	Writable bool
 }
 
-// Project is a repository that uses Syllabus: the provenance file in its project directory names its sources.
+// Project is a repository that uses Trail Guide: the provenance file in its project directory names its sources.
 type Project struct {
 	Repository
 	// Directory is where it keeps its files: ProjectDirectory, or LegacyProjectDirectory for a project not yet

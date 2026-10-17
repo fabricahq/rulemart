@@ -1,5 +1,5 @@
 // A library's supporting files, its assets: the files in a current rule's own asset directory, and the files in the
-// library-root assets/ directory that its text, or a Markdown file among its assets, links to, as Syllabus copies
+// library-root assets/ directory that its text, or a Markdown file among its assets, links to, as Trail Guide copies
 // them with the rule. Assembly reads each once, keeping its bytes within the caps.
 
 package domain

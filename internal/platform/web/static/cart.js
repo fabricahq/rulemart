@@ -2,7 +2,7 @@
  * the pages stay the same for everyone. It keeps localStorage's rulemart-cart: cart, the ordered keys of whole groups,
  * group::owner/repo::kind/group, and rules, owner/repo::kind/group/slug, at most 100; fork, the rules the visitor
  * forks; restOfGroups, the libraries whose picked rules' groups they add the rest of; repo, where checkout's texts go;
- * project, the signed-in visitor's project checkout is for, as owner/name, new for one that doesn't use Syllabus yet,
+ * project, the signed-in visitor's project checkout is for, as owner/name, new for one that doesn't use Trail Guide yet,
  * or empty for the first the picker lists; and confirmed, the unvetted libraries they confirmed adding from.
  * restOfGroups and confirmed name each library by its owner/name in lowercase. Each choice lasts only while the cart
  * holds its rule or an item of its library, so the choices stay as small as the cart, which the server bounds. It
@@ -19,7 +19,7 @@
   const MAX_ITEMS = Number(link.dataset.cartMaxItems);
   const MAX_KEY = Number(link.dataset.cartMaxKeyLength);
   // A key as the server's ParseCartKey reads it: a library's owner and name, then a group's ID, two parts, or a
-  // rule's, three or more, each part as Syllabus spells IDs.
+  // rule's, three or more, each part as Trail Guide spells IDs.
   const NAME = '[A-Za-z0-9_.-]+';
   const PART = '[A-Za-z0-9][A-Za-z0-9._-]*';
   const RULE_KEY = new RegExp(`^${NAME}/${NAME}::${PART}(?:/${PART}){2,}$`);

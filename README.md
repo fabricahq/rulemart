@@ -22,17 +22,17 @@
   <a href="https://rulemart.fabricahq.com">Rulemart</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#list-your-library">List your library</a> ·
-  <a href="https://code-rules.fabricahq.com">Syllabus docs</a>
+  <a href="https://trailguide.fabricahq.com">Trail Guide docs</a>
 </p>
 
 ## Why Rulemart?
 
 Coding agents write code fast, but not the way your team would: they skip the error handling you expect, test the
-wrong things, and repeat mistakes you have already corrected in review. [Syllabus](https://code-rules.fabricahq.com)
+wrong things, and repeat mistakes you have already corrected in review. [Trail Guide](https://trailguide.fabricahq.com)
 fixes that by giving your agent your team's rules before it writes code. But writing a good set of rules from scratch,
 for every technology you use, is slow work that other teams have already done.
 
-Rulemart is the catalog of those rules. Teams publish their rules as Syllabus libraries on GitHub, and Rulemart
+Rulemart is the catalog of those rules. Teams publish their rules as Trail Guide libraries on GitHub, and Rulemart
 shows each library's rules, who publishes it, and how each rule changed over time.
 
 | Without Rulemart | With Rulemart |
@@ -45,7 +45,7 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 ## Quick start
 
 You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex, or a
-terminal to run them yourself. The prompt installs [Syllabus](https://code-rules.fabricahq.com/start-here/install/)
+terminal to run them yourself. The prompt installs [Trail Guide](https://trailguide.fabricahq.com/start-here/install/)
 0.2.0 or later if the project doesn't use it yet.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
@@ -58,24 +58,24 @@ terminal to run them yourself. The prompt installs [Syllabus](https://code-rules
    and enter your project's GitHub repository if you like, so the prompt names it. Signed in, pick one of your
    projects instead, each listed with the libraries it uses.
 5. Copy the prompt into your coding agent, in your project's repository, or copy the commands and run them yourself.
-   They set up Syllabus if the project needs it, add each library with `syllabus project add library`, fork
-   rules with `syllabus project add rule --from`, and sync. The prompt also points your agent instructions, such as
+   They set up Trail Guide if the project needs it, add each library with `trailguide project add library`, fork
+   rules with `trailguide project add rule --from`, and sync. The prompt also points your agent instructions, such as
    `AGENTS.md`, at the rules.
 
 Checkout pins nothing by default: the rules you keep in sync move to newer versions only when your project runs
-`syllabus project update`, which previews each change first. To hold a library at one release instead, the Commands
+`trailguide project update`, which previews each change first. To hold a library at one release instead, the Commands
 tab's footnote says how to add `--ref release/<number>` to its `add library` command.
 
-Your project now has `.syllabus/generated/RULES.md`, the index your agent reads before it works, listing the rules
-you picked. [Syllabus's guide](https://code-rules.fabricahq.com) covers what comes next: adding your own rules,
+Your project now has `.trailguide/generated/RULES.md`, the index your agent reads before it works, listing the rules
+you picked. [Trail Guide's guide](https://trailguide.fabricahq.com) covers what comes next: adding your own rules,
 overriding a library's, and updating to newer versions.
 
 ## List your library
 
 A library's maintainers can list it on Rulemart: anyone with write access to its public repository on GitHub.
 
-1. Release your library with Syllabus, which tags each release, as
-   [Syllabus's guide to libraries](https://code-rules.fabricahq.com/concepts/libraries/) explains.
+1. Release your library with Trail Guide, which tags each release, as
+   [Trail Guide's guide to libraries](https://trailguide.fabricahq.com/concepts/libraries/) explains.
 2. Choose **List your library** on Rulemart's home page and sign in with GitHub. Pick the library from the
    repositories you and your organizations own, or enter the GitHub URL of one you have write access to.
 3. Rulemart reads the library's release tags, usually within seconds, while a checklist shows its progress, then
@@ -87,7 +87,7 @@ A library's maintainers can list it on Rulemart: anyone with write access to its
 ## How it works
 
 Rulemart builds every page from the libraries' release tags on GitHub. Every hour, it checks each library for a new
-release and reads what changed, so each rule's version history matches what Syllabus installs.
+release and reads what changed, so each rule's version history matches what Trail Guide installs.
 
 Fabrica vets the libraries Rulemart shows by default. Vetting is a reviewed change to
 [catalog/vetted.yaml](catalog/vetted.yaml), so its history shows when each library was vetted, and why. A listed
@@ -98,7 +98,7 @@ your agent review its rules and wait for your approval before adding them, pinne
 
 ## Learn more
 
-- [Syllabus documentation](https://code-rules.fabricahq.com): rules, groups, libraries, and the `syllabus`
+- [Trail Guide documentation](https://trailguide.fabricahq.com): rules, groups, libraries, and the `trailguide`
   command.
 - [_internal/decisions.md](_internal/decisions.md): the decisions that shape Rulemart.
 

@@ -79,7 +79,7 @@ func RawURL(fullName, tag, file string) string {
 	return "https://raw.githubusercontent.com/" + fullName + "/refs/tags/" + tag + "/" + EscapePath(file)
 }
 
-// ReleaseNotesURL returns the GitHub Release page Syllabus creates for library release number of the repository
+// ReleaseNotesURL returns the GitHub Release page Trail Guide creates for library release number of the repository
 // fullName.
 func ReleaseNotesURL(fullName string, number int) string {
 	return RepositoryURL(fullName) + "/releases/tag/" + ReleaseTag(number)

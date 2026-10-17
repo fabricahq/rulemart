@@ -9,7 +9,7 @@ templ privatePage(c chrome, v privateView) {
 		<div class="page wrap max-w-[820px]">
 			<span class={ quietChipStyle }>Optional</span>
 			<h1 class="title-xl mt-3 mb-2">Include your private projects?</h1>
-			<p class="mb-[22px] text-muted">Rulemart already sees your public repos. To also list private projects that use Syllabus, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p>
+			<p class="mb-[22px] text-muted">Rulemart already sees your public repos. To also list private projects that use Trail Guide, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p>
 			<div>
 				<table class="w-full border-collapse text-[13.5px]">
 					<thead>
@@ -22,7 +22,7 @@ templ privatePage(c chrome, v privateView) {
 					<tbody>
 						<tr>
 							<th class={ dataRowHeadStyle } scope="row">Contents: read-only</th>
-							<td class={ dataCellStyle }>To read <span class="mono [overflow-wrap:anywhere]">.syllabus/generated/provenance.json</span> (or <span class="mono [overflow-wrap:anywhere]">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Syllabus), and the library manifest, <span class="mono [overflow-wrap:anywhere]">.syllabus/config.yaml</span> or <span class="mono">rule-library.yaml</span>, so we can see which of your private projects use Syllabus, which libraries they import, and which repos are libraries.</td>
+							<td class={ dataCellStyle }>To read <span class="mono [overflow-wrap:anywhere]">.trailguide/generated/provenance.json</span> (or <span class="mono [overflow-wrap:anywhere]">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Trail Guide), and the library manifest, <span class="mono [overflow-wrap:anywhere]">.trailguide/config.yaml</span> or <span class="mono">rule-library.yaml</span>, so we can see which of your private projects use Trail Guide, which libraries they import, and which repos are libraries.</td>
 							<td class={ dataCellStyle }>We only look at your public repos.</td>
 						</tr>
 						<tr>

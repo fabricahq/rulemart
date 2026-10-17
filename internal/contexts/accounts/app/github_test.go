@@ -156,13 +156,13 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 	}
 }
 
-// A read finds a project's provenance file where Syllabus reads it: in .syllabus/, or in .code-rules/, as the project
-// kept it before Code Rules was renamed Syllabus, while it has no .syllabus; never in .code-rules/ beside .syllabus/,
-// or beside a .syllabus that isn't a directory, which Syllabus wouldn't read. Each project records its directory.
-func TestSnapshotFindsProjectsInTheDirectorySyllabusReads(t *testing.T) {
+// A read finds a project's provenance file where Trail Guide reads it: in .trailguide/, or in .code-rules/, as the project
+// kept it before Code Rules was renamed Trail Guide, while it has no .trailguide; never in .code-rules/ beside .trailguide/,
+// or beside a .trailguide that isn't a directory, which Trail Guide wouldn't read. Each project records its directory.
+func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 	current := githubtest.Provenance(githubtest.ProvenanceSource{Name: "current", Repository: "https://github.com/fabricahq/public-rules.git"})
 	legacy := githubtest.Provenance(githubtest.ProvenanceSource{Name: "legacy", Repository: "https://github.com/fabricahq/public-rules.git"})
-	syllabusProvenance := domain.ProvenancePath(domain.ProjectDirectory)
+	trailGuideProvenance := domain.ProvenancePath(domain.ProjectDirectory)
 	legacyProvenance := domain.ProvenancePath(domain.LegacyProjectDirectory)
 	repository := func(name string, files map[string]string) githubtest.Repository {
 		return githubtest.Repository{Owner: "mona", Name: name, PushedAt: pushed, Files: files}
@@ -170,11 +170,11 @@ func TestSnapshotFindsProjectsInTheDirectorySyllabusReads(t *testing.T) {
 	fake := &githubtest.Fake{
 		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
 		Repositories: []githubtest.Repository{
-			repository("renamed", map[string]string{syllabusProvenance: current}),
+			repository("renamed", map[string]string{trailGuideProvenance: current}),
 			repository("not-renamed", map[string]string{legacyProvenance: legacy}),
-			repository("both", map[string]string{syllabusProvenance: current, legacyProvenance: legacy}),
-			repository("syllabus-without-provenance", map[string]string{".syllabus/config.yaml": "version: 2\n", legacyProvenance: legacy}),
-			repository("syllabus-file", map[string]string{".syllabus": "not a directory", legacyProvenance: legacy}),
+			repository("both", map[string]string{trailGuideProvenance: current, legacyProvenance: legacy}),
+			repository("trailguide-without-provenance", map[string]string{".trailguide/config.yaml": "version: 2\n", legacyProvenance: legacy}),
+			repository("trailguide-file", map[string]string{".trailguide": "not a directory", legacyProvenance: legacy}),
 		},
 	}
 	site := newGitHubSite(t, fake, false)
@@ -184,7 +184,7 @@ func TestSnapshotFindsProjectsInTheDirectorySyllabusReads(t *testing.T) {
 		got[p.Name] = p.Directory + " " + p.Sources[0].Name
 	}
 
-	want := map[string]string{"renamed": ".syllabus current", "not-renamed": ".code-rules legacy", "both": ".syllabus current"}
+	want := map[string]string{"renamed": ".trailguide current", "not-renamed": ".code-rules legacy", "both": ".trailguide current"}
 	if !maps.Equal(got, want) {
 		t.Errorf("projects by directory and source %v, want %v", got, want)
 	}

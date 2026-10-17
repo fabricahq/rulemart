@@ -468,7 +468,7 @@ func TestRulePageSaysWhatItsImpactMeans(t *testing.T) {
 	page := get(t, newSite(t, newCatalog()), errorsRule).Body.String()
 
 	impact := find(parsePage(t, page), func(n *html.Node) bool { return n.Data == "a" && strings.Contains(nodeText(n), "HIGH") })
-	if impact == nil || !strings.HasPrefix(attribute(impact, "href"), "https://code-rules.fabricahq.com/") ||
+	if impact == nil || !strings.HasPrefix(attribute(impact, "href"), "https://trailguide.fabricahq.com/") ||
 		attribute(impact, "aria-label") != "High impact: this rule helps prevent substantial correctness, reliability, or maintainability problems. Impact levels." {
 		t.Errorf("the impact is %+v, want a link to the levels named by what HIGH means", impact)
 	}
@@ -806,7 +806,7 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	}
 }
 
-// Hovering an impact label explains what the level means, in Syllabus's terms: how serious the problem is that
+// Hovering an impact label explains what the level means, in Trail Guide's terms: how serious the problem is that
 // the rule helps prevent, not how much code applying it changes.
 func TestImpactLabelsExplainTheirLevel(t *testing.T) {
 	handler := newSite(t, newCatalog())

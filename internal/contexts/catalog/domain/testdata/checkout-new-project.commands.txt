@@ -1,24 +1,24 @@
 # From the root of your project
 
-# Set up Syllabus
-curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-syllabus project init
+# Set up Trail Guide
+curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
+trailguide project init
 
 # Add your rules
-syllabus project add library fabrica \
+trailguide project add library fabrica \
   --repository https://github.com/fabricahq/public-rules.git \
   --groups techs/golang \
   --groups practices/testing
 
-syllabus project sync
+trailguide project sync
 
-syllabus project add rule practices/testing/cover-boundary-cases \
+trailguide project add rule practices/testing/cover-boundary-cases \
   --from fabrica@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-syllabus project add rule techs/go/return-errors \
+trailguide project add rule techs/go/return-errors \
   --from fabrica@1.0.0
 
-syllabus project build
+trailguide project build
 
-# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md

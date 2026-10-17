@@ -11,15 +11,15 @@ import (
 	"unicode/utf8"
 )
 
-// Directory is the Syllabus directory at the repository root. It holds a library's manifest, rules, shared
+// Directory is the Trail Guide directory at the repository root. It holds a library's manifest, rules, shared
 // assets, and change notes, beside the project files of the same repository.
-const Directory = ".syllabus"
+const Directory = ".trailguide"
 
-// LegacyDirectory is the Syllabus directory's name from before Code Rules was renamed Syllabus. Projects that
+// LegacyDirectory is the Trail Guide directory's name from before Code Rules was renamed Trail Guide. Projects that
 // haven't renamed it, and every library release published before the rename, keep their files there.
 const LegacyDirectory = ".code-rules"
 
-// Manifest is the library path of the library's manifest: the repository's configuration, .syllabus/config.yaml,
+// Manifest is the library path of the library's manifest: the repository's configuration, .trailguide/config.yaml,
 // whose library section makes the repository a library.
 const Manifest = "config.yaml"
 
@@ -28,8 +28,8 @@ const Manifest = "config.yaml"
 const LegacyManifest = "rule-library.yaml"
 
 // RepositoryPath returns where the library file at library path file lives in its repository. The manifest is
-// .syllabus/config.yaml; groups, at techs/ and practices/, live in .syllabus/rules/; shared assets, at assets/,
-// and change notes, at changes/, live in .syllabus/. Any other path is a license or notice file, at the same path
+// .trailguide/config.yaml; groups, at techs/ and practices/, live in .trailguide/rules/; shared assets, at assets/,
+// and change notes, at changes/, live in .trailguide/. Any other path is a license or notice file, at the same path
 // relative to the repository root.
 func RepositoryPath(file string) string {
 	if file == Manifest {
@@ -45,8 +45,8 @@ func RepositoryPath(file string) string {
 }
 
 // LibraryPath returns the library path of the file or directory at repository path file, the inverse of
-// RepositoryPath. It reports false for a path that holds no library file: anything else in .syllabus/, such as
-// vendor/, generated/, or rules/README.md, and a path outside .syllabus/ whose library path would be one of a
+// RepositoryPath. It reports false for a path that holds no library file: anything else in .trailguide/, such as
+// vendor/, generated/, or rules/README.md, and a path outside .trailguide/ whose library path would be one of a
 // file inside it, such as assets/logo.svg or config.yaml at the repository root.
 func LibraryPath(file string) (string, bool) {
 	inside, found := strings.CutPrefix(file, Directory+"/")
@@ -74,10 +74,10 @@ type Library struct {
 	License *LicenseDeclaration `json:"license"`
 }
 
-// skillLevelsProblem rejects library.skills, which a later version of Syllabus reads.
-const skillLevelsProblem = "skill levels aren't supported yet in this version of Syllabus; remove library.skills"
+// skillLevelsProblem rejects library.skills, which a later version of Trail Guide reads.
+const skillLevelsProblem = "skill levels aren't supported yet in this version of Trail Guide; remove library.skills"
 
-// ParseLibraryManifest validates text, a library's whole .syllabus/config.yaml, and returns its library section,
+// ParseLibraryManifest validates text, a library's whole .trailguide/config.yaml, and returns its library section,
 // or nil when the configuration has none, which means the repository isn't a library. Errors prefix their location
 // with location, such as team/config.yaml. It checks syntax only; callers read the declared files themselves.
 // Rulemart's copy reads only the configuration's schemaVersion and library fields: the rest configures the
@@ -111,7 +111,7 @@ func ParseLibraryManifest(text []byte, location string) (*Library, error) {
 }
 
 // parseLibrary validates a configuration's library section. Its only field is license; skill levels are rejected
-// until Syllabus supports them.
+// until Trail Guide supports them.
 func parseLibrary(input json.RawMessage) (*Library, error) {
 	fields, err := jsonObject(input, "library")
 	if err != nil {
@@ -185,7 +185,7 @@ func parseLicense(input json.RawMessage, location string) (*LicenseDeclaration, 
 }
 
 // libraryTermsPath reads a declared license or notice path, relative to the repository root, and returns its library
-// path. The file must be library-wide: outside .syllabus/, or in its assets/ or a group in its rules/. A rule's
+// path. The file must be library-wide: outside .trailguide/, or in its assets/ or a group in its rules/. A rule's
 // Markdown file or a file in an asset directory inside a group belongs to that rule's version, so declaring it would
 // let a library release replace a rule version's content.
 func libraryTermsPath(input json.RawMessage, location string) (string, error) {
@@ -195,7 +195,7 @@ func libraryTermsPath(input json.RawMessage, location string) (string, error) {
 	}
 	path, ok := LibraryPath(declared)
 	if !ok || path == Manifest || strings.HasPrefix(path, "changes/") {
-		return "", invalid(location, quote(declared)+" can't hold a license or notice file; keep it outside .syllabus/, such as LICENSE.md at the repository root, or in .syllabus/assets/. At the repository root, config.yaml and the assets/, changes/, practices/, and techs/ folders are reserved for the library's own files")
+		return "", invalid(location, quote(declared)+" can't hold a license or notice file; keep it outside .trailguide/, such as LICENSE.md at the repository root, or in .trailguide/assets/. At the repository root, config.yaml and the assets/, changes/, practices/, and techs/ folders are reserved for the library's own files")
 	}
 	if isRuleContent(path) {
 		return "", invalid(location, quote(declared)+" belongs to a rule's version; keep license and notice files outside rules and their asset directories, such as LICENSE.md at the repository root")

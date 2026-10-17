@@ -1,5 +1,5 @@
 // Read a visitor's GitHub account: their organizations, the repositories of theirs and their organizations' that publish
-// a Syllabus library, and the projects that import one, kept as the account's snapshot; and the installations of the
+// a Trail Guide library, and the projects that import one, kept as the account's snapshot; and the installations of the
 // GitHub App that reads their private repositories.
 
 package app
@@ -377,7 +377,7 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 }
 
 // inspect returns repo as a library when it holds a library manifest and has a library release tag, and as a project
-// when the provenance file in its Syllabus directory, .syllabus or, before it's renamed, .code-rules, parses, reading it
+// when the provenance file in its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, parses, reading it
 // with token. A provenance file or configuration Rulemart can't parse, or one too large to read, makes no project or
 // library, rather than failing the read.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
@@ -413,9 +413,9 @@ func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain
 	return library, project, nil
 }
 
-// holdsManifest reports whether repo, whose root holds root, holds a library manifest, as Syllabus finds it:
-// rule-library.yaml at the root, or else a library section in the configuration in its Syllabus directory. It reads
-// the configuration only for a repository with a Syllabus directory and no rule-library.yaml, at most
+// holdsManifest reports whether repo, whose root holds root, holds a library manifest, as Trail Guide finds it:
+// rule-library.yaml at the root, or else a library section in the configuration in its Trail Guide directory. It reads
+// the configuration only for a repository with a Trail Guide directory and no rule-library.yaml, at most
 // domain.MaxConfigBytes of it, so a read makes one more request only for those.
 func (g GitHubAccounts) holdsManifest(ctx context.Context, token string, repo domain.Repository, root domain.RootEntries) (bool, error) {
 	if root.LegacyManifest {

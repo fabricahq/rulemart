@@ -34,11 +34,11 @@ never sign out of ends on its own after 30 days.</p>
 <p><strong>What it looks for in each repository:</strong></p>
 <ul>
 <li>A library manifest and <code>release/&lt;number&gt;</code> tags, which together make a library you could add to Rulemart. The
-manifest is a <code>library</code> section in <code>.syllabus/config.yaml</code>, or in <code>.code-rules/config.yaml</code> in a repository without
-<code>.syllabus</code>, or a <code>rule-library.yaml</code> file at the repository's root. Rulemart reads the configuration only to see
+manifest is a <code>library</code> section in <code>.trailguide/config.yaml</code>, or in <code>.code-rules/config.yaml</code> in a repository without
+<code>.trailguide</code>, or a <code>rule-library.yaml</code> file at the repository's root. Rulemart reads the configuration only to see
 whether it has that section, and keeps nothing from it.</li>
-<li>A <code>.syllabus/generated/provenance.json</code> file, which marks the repository as a project, or, in a repository without
-<code>.syllabus</code>, <code>.code-rules/generated/provenance.json</code>, from before Code Rules was renamed Syllabus. From it, Rulemart
+<li>A <code>.trailguide/generated/provenance.json</code> file, which marks the repository as a project, or, in a repository without
+<code>.trailguide</code>, <code>.code-rules/generated/provenance.json</code>, from before Code Rules was renamed Trail Guide. From it, Rulemart
 keeps which libraries the project imports and under what names, which groups it imports, and which rule versions it
 holds, so it can count the updates waiting for the project.</li>
 </ul>

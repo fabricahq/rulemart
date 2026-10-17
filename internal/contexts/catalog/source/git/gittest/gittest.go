@@ -1,4 +1,4 @@
-// Package gittest builds Syllabus library repositories on disk for tests that fetch and ingest them.
+// Package gittest builds Trail Guide library repositories on disk for tests that fetch and ingest them.
 package gittest
 
 import (
@@ -21,23 +21,23 @@ import (
 // FirstTagged is when a fixture's first tag is made; each later tag is a day after the one before.
 var FirstTagged = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
-// Library is a Syllabus library's Git repository, built on disk for a test. Its methods fail the test on error.
+// Library is a Trail Guide library's Git repository, built on disk for a test. Its methods fail the test on error.
 type Library struct {
 	t    *testing.T
 	dir  string
 	repo *git.Repository
 	tags int
-	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the Syllabus
+	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the Trail Guide
 	// directory's rules/.
 	rules string
 }
 
-// syllabusConfig is the configuration of a library in the Syllabus directory, whose library section declares an MIT
+// trailGuideConfig is the configuration of a library in the Trail Guide directory, whose library section declares an MIT
 // license in LICENSE.
-const syllabusConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+const trailGuideConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
 
-// NewLibrary returns a repository in the earlier layout, which Syllabus libraries had before they moved into
-// .syllabus/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
+// NewLibrary returns a repository in the earlier layout, which Trail Guide libraries had before they moved into
+// .trailguide/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
 // file, and Group and Rule write at the root.
 func NewLibrary(t *testing.T) *Library {
 	t.Helper()
@@ -47,15 +47,15 @@ func NewLibrary(t *testing.T) *Library {
 	return l
 }
 
-// NewSyllabusLibrary returns a repository that keeps its library in the Syllabus directory: its working tree holds
-// only .syllabus/config.yaml, whose library section declares an MIT license, and its LICENSE file at the root, and
-// Group and Rule write in .syllabus/rules/.
-func NewSyllabusLibrary(t *testing.T) *Library {
+// NewTrailGuideLibrary returns a repository that keeps its library in the Trail Guide directory: its working tree holds
+// only .trailguide/config.yaml, whose library section declares an MIT license, and its LICENSE file at the root, and
+// Group and Rule write in .trailguide/rules/.
+func NewTrailGuideLibrary(t *testing.T) *Library {
 	t.Helper()
 	l := newRepository(t)
-	l.Write(".syllabus/config.yaml", syllabusConfig)
+	l.Write(".trailguide/config.yaml", trailGuideConfig)
 	l.Write("LICENSE", "MIT License\n")
-	l.rules = ".syllabus/rules/"
+	l.rules = ".trailguide/rules/"
 	return l
 }
 
@@ -70,16 +70,16 @@ func newRepository(t *testing.T) *Library {
 	return &Library{t: t, dir: dir, repo: repo}
 }
 
-// MoveToSyllabusDirectory moves a library in the earlier layout into the Syllabus directory, as its maintainer
-// would: rule-library.yaml becomes .syllabus/config.yaml's library section, techs/ and practices/ move into
-// .syllabus/rules/, and assets/ and changes/ into .syllabus/. Group and Rule write in .syllabus/rules/ after it.
-func (l *Library) MoveToSyllabusDirectory() {
+// MoveToTrailGuideDirectory moves a library in the earlier layout into the Trail Guide directory, as its maintainer
+// would: rule-library.yaml becomes .trailguide/config.yaml's library section, techs/ and practices/ move into
+// .trailguide/rules/, and assets/ and changes/ into .trailguide/. Group and Rule write in .trailguide/rules/ after it.
+func (l *Library) MoveToTrailGuideDirectory() {
 	l.t.Helper()
 	l.Remove("rule-library.yaml")
-	l.Write(".syllabus/config.yaml", syllabusConfig)
+	l.Write(".trailguide/config.yaml", trailGuideConfig)
 	for from, to := range map[string]string{
-		"techs": ".syllabus/rules/techs", "practices": ".syllabus/rules/practices",
-		"assets": ".syllabus/assets", "changes": ".syllabus/changes",
+		"techs": ".trailguide/rules/techs", "practices": ".trailguide/rules/practices",
+		"assets": ".trailguide/assets", "changes": ".trailguide/changes",
 	} {
 		if err := os.MkdirAll(filepath.Join(l.dir, filepath.FromSlash(path.Dir(to))), 0o755); err != nil {
 			l.t.Fatal(err)
@@ -89,7 +89,7 @@ func (l *Library) MoveToSyllabusDirectory() {
 			l.t.Fatal(err)
 		}
 	}
-	l.rules = ".syllabus/rules/"
+	l.rules = ".trailguide/rules/"
 }
 
 // Write puts content at path in the working tree.

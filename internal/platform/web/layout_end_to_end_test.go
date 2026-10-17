@@ -8,7 +8,7 @@ import (
 )
 
 // movedLibrary returns a library whose release/1 keeps its files at the repository's root, in the earlier layout,
-// and whose release/2 moved them into .syllabus/, changing one rule and adding a shared file the other links to.
+// and whose release/2 moved them into .trailguide/, changing one rule and adding a shared file the other links to.
 func movedLibrary(t *testing.T) *gittest.Library {
 	t.Helper()
 	lib := gittest.NewLibrary(t)
@@ -22,10 +22,10 @@ changes:
   practices/testing/test-changed-behavior: {change: new, summaries: [Add the rule.]}
   practices/testing/verify-retry-limits: {change: new, summaries: [Add the rule.]}
 `)
-	lib.MoveToSyllabusDirectory()
+	lib.MoveToTrailGuideDirectory()
 	lib.Rule("practices/testing/verify-retry-limits", "Verify retry limits",
 		"Stop after a fixed number of attempts. See [the lifecycle](../../../assets/lifecycle.svg).")
-	lib.Write(".syllabus/assets/lifecycle.svg", loopSVG)
+	lib.Write(".trailguide/assets/lifecycle.svg", loopSVG)
 	lib.Release(2, `formatVersion: 1
 release: 2
 rules: {practices/testing/test-changed-behavior: 1.0.0, practices/testing/verify-retry-limits: 1.1.0}
@@ -36,13 +36,13 @@ libraryFiles: [assets/lifecycle.svg]
 }
 
 // Pages link each file on GitHub where the release that holds it keeps it: a rule's file at the root for a version
-// published before the move, and in .syllabus/ after it, and a shared file in .syllabus/assets/.
+// published before the move, and in .trailguide/ after it, and a shared file in .trailguide/assets/.
 func TestPagesLinkFilesOnGitHubWhereEachReleaseKeepsThem(t *testing.T) {
 	handler := ingest(t, movedLibrary(t))
 	const blob = "https://github.com/example/rules/blob/"
 
 	for rule, want := range map[string]string{
-		"verify-retry-limits":   blob + "release/2/.syllabus/rules/practices/testing/verify-retry-limits.md",
+		"verify-retry-limits":   blob + "release/2/.trailguide/rules/practices/testing/verify-retry-limits.md",
 		"test-changed-behavior": blob + "release/1/practices/testing/test-changed-behavior.md",
 	} {
 		page := get(t, handler, library+"/practices/testing/"+rule).Body.String()
@@ -51,10 +51,10 @@ func TestPagesLinkFilesOnGitHubWhereEachReleaseKeepsThem(t *testing.T) {
 		}
 	}
 	asset := get(t, handler, library+"/assets/lifecycle.svg?rule=practices/testing/verify-retry-limits").Body.String()
-	if got, want := links(t, asset, "View on GitHub"), blob+"release/2/.syllabus/assets/lifecycle.svg"; !slices.Contains(got, want) {
+	if got, want := links(t, asset, "View on GitHub"), blob+"release/2/.trailguide/assets/lifecycle.svg"; !slices.Contains(got, want) {
 		t.Errorf("the shared file leads to %q, want %q", got, want)
 	}
-	if got, want := links(t, asset, "Raw"), "https://raw.githubusercontent.com/example/rules/refs/tags/release/2/.syllabus/assets/lifecycle.svg"; !slices.Contains(got, want) {
+	if got, want := links(t, asset, "Raw"), "https://raw.githubusercontent.com/example/rules/refs/tags/release/2/.trailguide/assets/lifecycle.svg"; !slices.Contains(got, want) {
 		t.Errorf("the shared file's raw copy is %q, want %q", got, want)
 	}
 }
