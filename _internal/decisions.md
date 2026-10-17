@@ -623,6 +623,15 @@ matters.
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.
+- **Ingestion reads each release in the layout it was published in, so a library that moved keeps its history.**
+  Trail Guide moved a library's files from the repository's root, `rule-library.yaml` and `techs/`, `practices/`,
+  `assets/`, into its Trail Guide directory: the library section of `.trailguide/config.yaml`, `.trailguide/rules/`, and
+  `.trailguide/assets/`, or `.code-rules/` before the rename. A release is in the earlier layout when its root holds
+  `rule-library.yaml`, as Trail Guide decides. Rule IDs, release records, and the asset paths pages use are library paths,
+  the same in every layout, so the catalog stores them unchanged and records each release's layout; ingestion reads
+  each rule version where its release kept it, the license, groups, and shared files where the latest release keeps
+  them, and resolves a rule's links from where its release kept it, and pages link a file on GitHub where its
+  release keeps it. The license's file is stored as its path in the repository, as the manifest declares it.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
   `rulemart_accounts_writer`, which writes only accounts, sessions, what Rulemart read of visitors' GitHub accounts,

@@ -17,7 +17,7 @@ type MarkdownSource struct {
 	// Repository is the library's GitHub repository, as owner/name, which links to its pages on Rulemart and its files
 	// on GitHub name. Assembly renders with LibraryPlaceholder in its place.
 	Repository string
-	// File is the Markdown file, such as practices/testing/verify-retry-limits.md.
+	// File is the Markdown file's library path, such as practices/testing/verify-retry-limits.md.
 	File string
 	// Rule is the path of the rule whose version covers File, such as practices/testing/verify-retry-limits: File is
 	// the rule's own file, or one of its own assets. It's empty for a shared asset, which no rule's version covers.
@@ -28,8 +28,11 @@ type MarkdownSource struct {
 	// Tag published the rule's version, and LatestTag is the library's latest release. Files the rule's version
 	// covers, its Markdown and its own assets, link to Tag; library-wide files link to LatestTag.
 	Tag, LatestTag string
-	// Assets are the files Rulemart shows on pages of their own, by their paths in the repository: a link to one
-	// leads to its page, and an image of one loads from Rulemart when Rulemart keeps its bytes.
+	// Layout is where the release Tag keeps the library's files, which File's links resolve in, and LatestLayout
+	// where LatestTag does, which links to library-wide files lead to. Both are RootLayout when they're zero.
+	Layout, LatestLayout Layout
+	// Assets are the files Rulemart shows on pages of their own, by their library paths: a link to one leads to its
+	// page, and an image of one loads from Rulemart when Rulemart keeps its bytes.
 	Assets map[string]AssetAddress
 }
 
@@ -63,15 +66,15 @@ type Renderer interface {
 // ErrOverAllowance reports a render that would build more than its allowance.
 var ErrOverAllowance = errors.New("the HTML needs more bytes than its allowance")
 
-// ResolveLink returns the repository file that destination, a link or image in the Markdown file from, names, and the
-// query and fragment to keep after it. A relative destination resolves against from's directory, and one that starts
-// with / against the repository's root. target is empty for the root, including for destinations that climb above
-// it. ok is false for a destination that isn't a path in the repository: one with a scheme or host, or only a query
-// or fragment.
-func ResolveLink(from, destination string) (target, suffix string, ok bool) {
+// resolveLink returns the repository file that destination, a link or image in the repository file from, names, and
+// the query and fragment to keep after it. A relative destination resolves against from's directory, and one that
+// starts with / against the root, which rooted reports, so a layout can place it. target is empty for the root,
+// including for destinations that climb above it. ok is false for a destination that isn't a path in the
+// repository: one with a scheme or host, or only a query or fragment.
+func resolveLink(from, destination string) (target, suffix string, rooted, ok bool) {
 	u, err := url.Parse(destination)
 	if err != nil || u.Scheme != "" || u.Host != "" || u.Opaque != "" || u.Path == "" {
-		return "", "", false
+		return "", "", false, false
 	}
 	if u.RawQuery != "" {
 		suffix += "?" + u.RawQuery
@@ -79,57 +82,79 @@ func ResolveLink(from, destination string) (target, suffix string, ok bool) {
 	if u.Fragment != "" {
 		suffix += "#" + u.EscapedFragment()
 	}
+	rooted = strings.HasPrefix(u.Path, "/")
 	target = path.Clean(u.Path)
-	if !strings.HasPrefix(u.Path, "/") {
+	if !rooted {
 		target = path.Join(path.Dir(from), u.Path)
 	}
 	target = strings.TrimPrefix(target, "/")
 	if target == "." || target == ".." || strings.HasPrefix(target, "../") {
 		target = ""
 	}
-	return target, suffix, true
+	return target, suffix, rooted, true
 }
 
 // LinkURL returns where a link in the file leads: a relative destination opens an asset's page on Rulemart, keeping its
 // fragment, or the file on GitHub at the release that holds it, and anything else, such as an absolute URL or a
 // fragment, stays as written.
 func (s MarkdownSource) LinkURL(destination string) string {
-	file, suffix, ok := ResolveLink(s.File, destination)
+	target, suffix, ok := s.Layout.ResolveLink(s.File, destination)
 	if !ok {
 		return destination
 	}
-	if asset, ok := s.Assets[file]; ok {
-		if _, fragment, _ := strings.Cut(suffix, "#"); fragment != "" {
-			return asset.Page + "#" + fragment
+	if library, ok := s.Layout.LibraryPath(target); ok {
+		if asset, ok := s.Assets[library]; ok {
+			if _, fragment, _ := strings.Cut(suffix, "#"); fragment != "" {
+				return asset.Page + "#" + fragment
+			}
+			return asset.Page
 		}
-		return asset.Page
 	}
-	if file == "" {
-		return TreeURL(s.Repository, s.tagFor(file)) + suffix
+	if target == "" {
+		return TreeURL(s.Repository, s.LatestTag) + suffix
 	}
-	return BlobURL(s.Repository, s.tagFor(file), file) + suffix
+	if s.Layout != RootLayout && target == string(s.Layout) {
+		// The directory that holds the library, such as a destination of / names, opens where the latest release
+		// keeps it.
+		root := TreeURL(s.Repository, s.LatestTag)
+		if s.LatestLayout != RootLayout {
+			root += "/" + EscapePath(string(s.LatestLayout))
+		}
+		return root + suffix
+	}
+	tag, file := s.locate(target)
+	return BlobURL(s.Repository, tag, file) + suffix
 }
 
 // ImageURL returns where an image in the file loads from: an asset Rulemart keeps loads from Rulemart, another relative
 // source from GitHub at the release that holds it, and an absolute one stays as written.
 func (s MarkdownSource) ImageURL(destination string) string {
-	file, suffix, ok := ResolveLink(s.File, destination)
-	if !ok || file == "" {
+	target, suffix, ok := s.Layout.ResolveLink(s.File, destination)
+	if !ok || target == "" {
 		return destination
 	}
-	if asset, ok := s.Assets[file]; ok && asset.Image != "" {
-		return asset.Image
+	if library, ok := s.Layout.LibraryPath(target); ok {
+		if asset, ok := s.Assets[library]; ok && asset.Image != "" {
+			return asset.Image
+		}
 	}
-	return RawURL(s.Repository, s.tagFor(file), file) + suffix
+	tag, file := s.locate(target)
+	return RawURL(s.Repository, tag, file) + suffix
 }
 
-// tagFor returns the release whose tree holds file as the page shows it: the rule's own release for its file and its
-// asset directory, and the latest release for everything else.
-func (s MarkdownSource) tagFor(file string) string {
-	if s.Rule != "" && (file == RuleFile(s.Rule) || strings.HasPrefix(file, RuleAssetDir(s.Rule))) {
-		return s.Tag
+// locate returns the release whose tree holds target, a repository file a link names as Tag's layout places it, as
+// the page shows it, and its path there: the rule's own release for its file and its asset directory, and the latest
+// release, where LatestLayout places it, for every other library file. A file that isn't the library's stays at Tag,
+// whose tree its link was written against.
+func (s MarkdownSource) locate(target string) (tag, file string) {
+	library, ok := s.Layout.LibraryPath(target)
+	switch {
+	case !ok:
+		return s.Tag, target
+	case s.Rule != "" && (library == RuleFile(s.Rule) || strings.HasPrefix(library, RuleAssetDir(s.Rule))):
+		return s.Tag, target
 	}
-	return s.LatestTag
+	return s.LatestTag, s.LatestLayout.RepositoryPath(library)
 }
 
 // LibraryPlaceholder stands in for a library's owner/name in the links assembly renders, which LinksForLibrary

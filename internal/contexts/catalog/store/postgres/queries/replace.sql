@@ -16,14 +16,15 @@ WHERE (libraries.owner, libraries.name, libraries.description, libraries.owner_a
 SELECT id FROM libraries WHERE host = @host AND host_repository_id = @host_repository_id;
 
 -- name: UpsertRelease :execrows
-INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files)
-VALUES (@library_id, @number, @tag_object_id, @commit_id, @tagged_at, @updates_shared_files)
+INSERT INTO library_releases (library_id, number, tag_object_id, commit_id, tagged_at, updates_shared_files, layout)
+VALUES (@library_id, @number, @tag_object_id, @commit_id, @tagged_at, @updates_shared_files, @layout)
 ON CONFLICT (library_id, number) DO UPDATE SET
     tag_object_id = excluded.tag_object_id, commit_id = excluded.commit_id, tagged_at = excluded.tagged_at,
-    updates_shared_files = excluded.updates_shared_files
+    updates_shared_files = excluded.updates_shared_files, layout = excluded.layout
 WHERE (library_releases.tag_object_id, library_releases.commit_id, library_releases.tagged_at,
-       library_releases.updates_shared_files)
-    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files);
+       library_releases.updates_shared_files, library_releases.layout)
+    IS DISTINCT FROM (excluded.tag_object_id, excluded.commit_id, excluded.tagged_at, excluded.updates_shared_files,
+       excluded.layout);
 
 -- name: ListReleaseIDs :many
 SELECT id, number FROM library_releases WHERE library_id = @library_id;

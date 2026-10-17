@@ -16,8 +16,9 @@ import (
 
 // Asset is a supporting file of a library's current rules, as pages show it.
 type Asset struct {
-	// Path is the file's path in the repository: in a rule's asset directory, such as
-	// practices/testing/assets/verify-retry-limits/loop.svg, or in SharedAssetDir, such as assets/glossary.md.
+	// Path is the file's library path: in a rule's asset directory, such as
+	// practices/testing/assets/verify-retry-limits/loop.svg, or in SharedAssetDir, such as assets/glossary.md. Its
+	// path in the repository is where the Layout of Release places it.
 	Path string
 	// Release is the number of the library release whose commit the copy is from: the one that published the current
 	// version of the rule a file of its own belongs to, which covers it, or the latest, for a shared file.
@@ -125,7 +126,7 @@ func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead stri
 	}
 	var queue []string
 	for _, source := range sources {
-		targets, err := a.sharedTargets(source.from, source.body)
+		targets, err := a.sharedTargets(a.layout(r), source.from, source.body)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -156,28 +157,35 @@ func (a *assembly) readAssets(r ReleaseSnapshot, rulePath, body, whenToRead stri
 }
 
 // readOwnAssets reads every file in the asset directory of the rule at rulePath, at release r, which published the
-// rule's current version, keeping their bytes within the caps in path order, and returns their paths.
+// rule's current version, keeping their bytes within the caps in path order, and returns their library paths.
 func (a *assembly) readOwnAssets(r ReleaseSnapshot, rulePath string) ([]string, error) {
-	dir := RuleAssetDir(rulePath)
+	layout := a.layout(r)
+	dir := layout.RepositoryPath(RuleAssetDir(rulePath))
 	// Listing stops past the assets the limit leaves room for, so a directory of more files than memory holds is
 	// refused without listing them all.
 	room := a.limits.Assets - len(a.read.assets)
-	paths, err := r.Files.List(dir, room)
+	listed, err := r.Files.List(dir, room)
 	if err != nil {
 		return nil, fmt.Errorf("list %s: %v", dir, err)
 	}
-	if len(paths) > room {
+	if len(listed) > room {
 		return nil, a.tooManyAssets()
 	}
+	paths := make([]string, len(listed))
 	var kept int64
-	for _, p := range paths {
-		file, err := r.Files.Open(p)
+	for i, listedPath := range listed {
+		p, ok := layout.LibraryPath(listedPath)
+		if !ok {
+			return nil, fmt.Errorf("%s: listing %s found a file outside it", listedPath, dir)
+		}
+		file, err := r.Files.Open(listedPath)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", p, err)
+			return nil, fmt.Errorf("%s: %v", listedPath, err)
 		}
 		if a.read.assets[p], err = a.readAsset(r.Number, p, file, &kept); err != nil {
 			return nil, err
 		}
+		paths[i] = p
 	}
 	return paths, nil
 }
@@ -192,8 +200,8 @@ func (a *assembly) readSharedAsset(p string) (bool, error) {
 	if a.read.missing[p] {
 		return false, nil
 	}
-	latest := a.releases[len(a.releases)-1]
-	file, err := latest.Files.Open(p)
+	latest := a.latest()
+	file, err := latest.Files.Open(a.layout(latest).RepositoryPath(p))
 	if errors.Is(err, ErrFileMissing) {
 		a.read.missing[p] = true
 		return false, nil
@@ -210,7 +218,7 @@ func (a *assembly) readSharedAsset(p string) (bool, error) {
 	}
 	a.read.assets[p] = asset
 	if AssetKindOf(asset.MediaType) == AssetMarkdown && asset.Content != nil {
-		if a.read.sharedLinks[p], err = a.sharedTargets(p, string(asset.Content)); err != nil {
+		if a.read.sharedLinks[p], err = a.sharedTargets(a.layout(latest), p, string(asset.Content)); err != nil {
 			return false, err
 		}
 	}
@@ -255,16 +263,17 @@ func (a *assembly) readAsset(release int, p string, file File, kept *int64) (*As
 	return asset, nil
 }
 
-// sharedTargets returns the shared files that the Markdown body of the file from links to, or shows as images. The
-// links it finds spend the budget, so a body can't hold more of them than the budget, even before it's rendered.
-func (a *assembly) sharedTargets(from, body string) ([]string, error) {
+// sharedTargets returns the library paths of the shared files that the Markdown body of the file from, at a release
+// in layout, links to, or shows as images. The links it finds spend the budget, so a body can't hold more of them
+// than the budget, even before it's rendered.
+func (a *assembly) sharedTargets(layout Layout, from, body string) ([]string, error) {
 	destinations, used, err := a.renderer.Links(body, a.budget.remaining())
 	if err := a.spendAllowance(used, err); err != nil {
 		return nil, fmt.Errorf("%s: %v", from, err)
 	}
 	var targets []string
 	for _, destination := range destinations {
-		if target, _, ok := ResolveLink(from, destination); ok && strings.HasPrefix(target, SharedAssetDir) {
+		if target, ok := layout.ResolveLibraryLink(from, destination); ok && strings.HasPrefix(target, SharedAssetDir) {
 			targets = append(targets, target)
 		}
 	}
@@ -324,9 +333,11 @@ func (a *assembly) renderSharedAssets() error {
 		}
 	}
 	slices.Sort(shared)
-	latest := a.releases[len(a.releases)-1].Tag
+	latest := a.latest()
+	layout := a.layout(latest)
 	return a.renderAssets(shared, MarkdownSource{
-		Repository: LibraryPlaceholder, Tag: latest, LatestTag: latest, Assets: a.addresses("", shared),
+		Repository: LibraryPlaceholder, Tag: latest.Tag, LatestTag: latest.Tag, Layout: layout, LatestLayout: layout,
+		Assets: a.addresses("", shared),
 	})
 }
 

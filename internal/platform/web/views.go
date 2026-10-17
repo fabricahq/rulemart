@@ -44,14 +44,23 @@ type libraryView struct {
 	// addedBy is the login of the account whose listing named the library, or empty for a library Rulemart vetted
 	// without one, and addedOn when the library came to Rulemart.
 	addedBy, addedOn string
+	// layouts says where each release keeps the library's files, which links to them on GitHub follow.
+	layouts domain.ReleaseLayouts
 }
 
 // fullName returns the library's repository as owner/name.
 func (l libraryView) fullName() string { return l.owner + "/" + l.name }
 
-// fileAtVersionURL returns file on GitHub at library release n.
+// fileAtVersionURL returns the library file at library path file on GitHub at library release n, where that release
+// keeps it.
 func (l libraryView) fileAtVersionURL(file string, n int) string {
-	return domain.BlobURL(l.fullName(), domain.ReleaseTag(n), file)
+	return domain.BlobURL(l.fullName(), domain.ReleaseTag(n), l.layouts.Of(n).RepositoryPath(file))
+}
+
+// rawFileAtVersionURL returns where GitHub serves the library file at library path file at library release n, where
+// that release keeps it.
+func (l libraryView) rawFileAtVersionURL(file string, n int) string {
+	return domain.RawURL(l.fullName(), domain.ReleaseTag(n), l.layouts.Of(n).RepositoryPath(file))
 }
 
 // maxSummary is the most characters a page's description holds: search engines show about 160, and cut the rest.
@@ -105,6 +114,7 @@ func newLibraryView(lib views.Library) libraryView {
 		latestTag: domain.ReleaseTag(lib.LatestRelease), updated: date(lib.LatestTaggedAt),
 		license: lib.LicenseExpression, licenseFile: lib.LicenseFile,
 		groups: lib.Groups, rules: lib.Rules, releases: lib.LatestRelease, addedBy: lib.AddedBy, addedOn: date(lib.AddedAt),
+		layouts: lib.Layouts,
 	}
 	v.latestHref = releaseHref(v, lib.LatestRelease)
 	if lib.Vetted {
@@ -532,7 +542,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 		group:      newGroupLabel(r.Group, r.CanonicalGroup),
 		acrossHref: withUnvetted(groupHref(r.Group), !lib.vetted),
 		updated:    date(r.PublishedAt), fileName: path.Base(file),
-		fileURL: domain.BlobURL(page.Library.FullName(), domain.ReleaseTag(r.Release), file),
+		fileURL: lib.fileAtVersionURL(file, r.Release),
 	}
 	for i, version := range page.Versions {
 		row := versionView{

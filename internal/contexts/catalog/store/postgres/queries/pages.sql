@@ -30,13 +30,16 @@ WHERE NOT l.host || ':' || l.host_repository_id = ANY (@vetted::text[])
 ORDER BY lower(l.owner), lower(l.name);
 
 -- GetLibrary returns the library owner/name that vetted holds or a listing names, with whether vetted holds it, its
--- latest release, how many current rules it holds and in how many groups, and when it came to Rulemart: when its
--- listing was made, with the login of the account that made it, or when it was first ingested, without a listing.
+-- latest release, how many current rules it holds and in how many groups, when it came to Rulemart: when its
+-- listing was made, with the login of the account that made it, or when it was first ingested, without a listing, and
+-- where its releases keep their files: the layout of each release whose layout differs from the release before's,
+-- the first included, in layout_releases and layouts, in number order.
 -- name: GetLibrary :one
 SELECT l.id, l.owner, l.name, l.description, l.owner_avatar_url, l.license_expression, l.license_file,
        latest.number AS latest_release, latest.tagged_at AS latest_tagged_at, current.rule_count, current.group_count,
        (l.host || ':' || l.host_repository_id = ANY (@vetted::text[]))::boolean AS vetted,
-       coalesce(listing.github_login, '')::text AS added_by, coalesce(listing.created_at, l.created_at)::timestamptz AS added_at
+       coalesce(listing.github_login, '')::text AS added_by, coalesce(listing.created_at, l.created_at)::timestamptz AS added_at,
+       moves.layout_releases, moves.layouts
 FROM libraries l
 LEFT JOIN LATERAL (
     SELECT a.github_login, s.created_at
@@ -50,6 +53,15 @@ JOIN LATERAL (
     SELECT count(*) AS rule_count, count(DISTINCT group_id) AS group_count
     FROM rules WHERE library_id = l.id AND retired_in_release_id IS NULL
 ) current ON true
+JOIN LATERAL (
+    SELECT coalesce(array_agg(number ORDER BY number), '{}')::integer[] AS layout_releases,
+           coalesce(array_agg(layout ORDER BY number), '{}')::text[] AS layouts
+    FROM (
+        SELECT number, layout, lag(layout) OVER (ORDER BY number) AS previous
+        FROM library_releases WHERE library_id = l.id
+    ) r
+    WHERE previous IS DISTINCT FROM layout
+) moves ON true
 WHERE l.host = @host AND lower(l.owner) = lower(@owner) AND lower(l.name) = lower(@name)
   AND (
       l.host || ':' || l.host_repository_id = ANY (@vetted::text[])

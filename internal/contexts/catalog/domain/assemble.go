@@ -14,11 +14,12 @@ import (
 )
 
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
-// number order. It checks that their records form one history, then reads rule-library.yaml at the latest
-// release, each group's _group.yaml at the latest release that has it, each rule's file at the release that
-// published each of its versions, and each current rule's assets, rendering with renderer each rule's newest version,
-// a current rule's body and reading guidance and a retired rule's last body, and the Markdown and text among the
-// assets. Errors name the release and file at fault.
+// number order. It checks that their records form one history, finds where each release keeps the library's files,
+// its Layout, then reads the manifest at the latest release, each group's _group.yaml at the latest release that has
+// it, each rule's file at the release that published each of its versions, and each current rule's assets, rendering
+// with renderer each rule's newest version, a current rule's body and reading guidance and a retired rule's last
+// body, and the Markdown and text among the assets. Files are named by their library paths, which are the same in
+// every layout. Errors name the release and file at fault.
 func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits, renderer Renderer) (Library, error) {
 	if len(releases) == 0 {
 		return Library{}, errors.New("the library has no releases")
@@ -32,12 +33,16 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 		return Library{}, err
 	}
 	a := assembly{
-		repo: repo, releases: releases, limits: limits, renderer: renderer, budget: contentBudget{limit: limits.ContentBytes},
-		read: assetReader{assets: map[string]*Asset{}, missing: map[string]bool{}, sharedLinks: map[string][]string{}},
+		repo: repo, releases: releases, layouts: make([]Layout, len(releases)), limits: limits, renderer: renderer,
+		budget: contentBudget{limit: limits.ContentBytes},
+		read:   assetReader{assets: map[string]*Asset{}, missing: map[string]bool{}, sharedLinks: map[string][]string{}},
 	}
 	lib := Library{Repository: repo}
-	for _, r := range releases {
-		lib.Releases = append(lib.Releases, r.release())
+	for i, r := range releases {
+		if a.layouts[i], err = DetectLayout(r.Files); err != nil {
+			return Library{}, fmt.Errorf("%s: %v", r.Tag, err)
+		}
+		lib.Releases = append(lib.Releases, r.release(a.layouts[i]))
 	}
 	if lib.LicenseExpression, lib.LicenseFile, err = a.readLicense(); err != nil {
 		return Library{}, err
@@ -60,7 +65,7 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 		lib.Groups = append(lib.Groups, g)
 	}
 	if err := a.renderSharedAssets(); err != nil {
-		return Library{}, fmt.Errorf("%s: %v", a.releases[len(a.releases)-1].Tag, err)
+		return Library{}, fmt.Errorf("%s: %v", a.latest().Tag, err)
 	}
 	lib.Assets = a.libraryAssets()
 	return lib, nil
@@ -70,7 +75,9 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 type assembly struct {
 	repo     Repository
 	releases []ReleaseSnapshot
-	limits   ContentLimits
+	// layouts holds where each of releases keeps the library's files, in the same order.
+	layouts []Layout
+	limits  ContentLimits
 	// renderer renders rules' Markdown, and their assets' Markdown and code.
 	renderer Renderer
 	budget   contentBudget
@@ -99,9 +106,20 @@ func (b *contentBudget) exceeded() error {
 	return fmt.Errorf("the library's rules and groups hold more than %d bytes of content, which ingestion won't hold", b.limit)
 }
 
-// open returns the file at path in release r, without reading it. It fails with ErrFileMissing when there's none,
-// and refuses a file larger than ContentLimits.FileBytes.
+// layout returns where release r, one of the library's releases, keeps the library's files.
+func (a *assembly) layout(r ReleaseSnapshot) Layout { return a.layouts[r.Number-1] }
+
+// latest returns the library's latest release.
+func (a *assembly) latest() ReleaseSnapshot { return a.releases[len(a.releases)-1] }
+
+// open returns the file at library path path in release r, without reading it, as openFile does.
 func (a *assembly) open(r ReleaseSnapshot, path string) (File, error) {
+	return a.openFile(r, a.layout(r).RepositoryPath(path))
+}
+
+// openFile returns the file at repository path path in release r, without reading it. It fails with ErrFileMissing
+// when there's none, and refuses a file larger than ContentLimits.FileBytes.
+func (a *assembly) openFile(r ReleaseSnapshot, path string) (File, error) {
 	file, err := r.Files.Open(path)
 	if err != nil {
 		return nil, err
@@ -124,22 +142,28 @@ func (a *assembly) readContent(r ReleaseSnapshot, path string) ([]byte, error) {
 	return file.Read()
 }
 
-// readLicense returns the license expression and file that rule-library.yaml declares at the latest release, each
-// empty when it declares none. It refuses a declared file the release doesn't hold.
+// readLicense returns the license expression and file that the manifest declares at the latest release, each empty
+// when it declares none. The file is its path in the repository, as the latest release holds it. It refuses a
+// declared file the release doesn't hold.
 func (a *assembly) readLicense() (expression, file string, err error) {
-	latest := a.releases[len(a.releases)-1]
-	manifest, err := a.open(latest, ManifestFile)
+	latest := a.latest()
+	layout := a.layout(latest)
+	manifestFile := layout.ManifestFile()
+	manifest, err := a.openFile(latest, manifestFile)
+	if errors.Is(err, ErrFileMissing) && layout == RootLayout {
+		return "", "", fmt.Errorf("%s: the library's manifest is missing: Trail Guide reads it from the library section of %s, or from %s at the repository root in the earlier layout", latest.Tag, TrailGuideLayout.ManifestFile(), manifestFile)
+	}
 	if errors.Is(err, ErrFileMissing) {
-		return "", "", fmt.Errorf("%s: %s is missing; every Trail Guide library has one", latest.Tag, ManifestFile)
+		return "", "", fmt.Errorf("%s: %s is missing; every Trail Guide library has one", latest.Tag, manifestFile)
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, ManifestFile, err)
+		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, manifestFile, err)
 	}
 	text, err := manifest.Read()
 	if err != nil {
-		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, ManifestFile, err)
+		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, manifestFile, err)
 	}
-	license, err := coderules.ParseLibraryLicense(text, a.repo.FullName())
+	license, err := a.parseLicense(layout, text)
 	if err != nil {
 		return "", "", fmt.Errorf("%s: %v", latest.Tag, err)
 	}
@@ -147,9 +171,9 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 		return "", "", nil
 	}
 	// The library page links to the license file at this release, so it must be there.
-	file = license.Files[0]
-	if _, err := a.open(latest, file); errors.Is(err, ErrFileMissing) {
-		return "", "", fmt.Errorf("%s: %s declares the license file %s, which is missing", latest.Tag, ManifestFile, file)
+	file = layout.RepositoryPath(license.Files[0])
+	if _, err := a.openFile(latest, file); errors.Is(err, ErrFileMissing) {
+		return "", "", fmt.Errorf("%s: %s declares the license file %s, which is missing", latest.Tag, manifestFile, file)
 	} else if err != nil {
 		return "", "", fmt.Errorf("%s: %s: %v", latest.Tag, file, err)
 	}
@@ -157,6 +181,24 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 		expression = *license.SPDXExpression
 	}
 	return expression, file, nil
+}
+
+// parseLicense returns the license that text, the manifest of a release in layout, declares, or nil when it declares
+// none: rule-library.yaml's license in RootLayout, and otherwise the license in the library section of the
+// configuration, which must have one.
+func (a *assembly) parseLicense(layout Layout, text []byte) (*coderules.LicenseDeclaration, error) {
+	if layout == RootLayout {
+		return coderules.ParseLibraryLicense(text, a.repo.FullName())
+	}
+	manifestFile := layout.ManifestFile()
+	library, err := coderules.ParseLibraryManifest(text, a.repo.FullName()+"/"+manifestFile)
+	if err != nil {
+		return nil, err
+	}
+	if library == nil {
+		return nil, fmt.Errorf("%s has no library section, which makes a repository a Trail Guide library", manifestFile)
+	}
+	return library.License, nil
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that
@@ -198,11 +240,11 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 
 // readVersion reads and parses the rule file at path in release r, spending the budget on what the catalog keeps of
 // it: the file, and its title, impact description, and reading guidance, which are decoded into copies of their own.
-// Errors name the file.
+// Errors name the file, by its path in the repository.
 func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, error) {
 	text, err := a.readContent(r, path)
 	if err != nil {
-		return coderules.Rule{}, fmt.Errorf("%s: %v", path, err)
+		return coderules.Rule{}, fmt.Errorf("%s: %v", a.layout(r).RepositoryPath(path), err)
 	}
 	parsed, err := coderules.Parse(string(text), path, a.repo.FullName())
 	if err != nil {
@@ -224,9 +266,10 @@ func (a *assembly) renderRule(r Rule, published ReleaseSnapshot, parsed coderule
 		return Rule{}, err
 	}
 	whenToRead := strings.TrimSpace(parsed.WhenToRead)
+	latest := a.latest()
 	source := MarkdownSource{
 		Repository: LibraryPlaceholder, File: file, Rule: r.Path, Title: parsed.Title,
-		Tag: published.Tag, LatestTag: a.releases[len(a.releases)-1].Tag,
+		Tag: published.Tag, LatestTag: latest.Tag, Layout: a.layout(published), LatestLayout: a.layout(latest),
 	}
 	if r.IsCurrent() {
 		own, shared, err := a.readAssets(published, r.Path, document.Body, whenToRead)
@@ -296,7 +339,7 @@ func (a *assembly) readGroup(path string, current bool) (Group, error) {
 			continue
 		}
 		if err != nil {
-			return Group{}, fmt.Errorf("%s: %s: %v", r.Tag, file, err)
+			return Group{}, fmt.Errorf("%s: %s: %v", r.Tag, a.layout(r).RepositoryPath(file), err)
 		}
 		meta, err := coderules.ParseGroupMetadataYAML(text, file)
 		if err != nil {

@@ -2,7 +2,10 @@
 package gittest
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,21 +27,69 @@ type Library struct {
 	dir  string
 	repo *git.Repository
 	tags int
+	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the Trail Guide
+	// directory's rules/.
+	rules string
 }
 
-// NewLibrary returns a repository whose working tree holds only rule-library.yaml, declaring an MIT license, and
-// its LICENSE file.
+// trailGuideConfig is the configuration of a library in the Trail Guide directory, whose library section declares an MIT
+// license in LICENSE.
+const trailGuideConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+
+// NewLibrary returns a repository in the earlier layout, which Trail Guide libraries had before they moved into
+// .trailguide/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
+// file, and Group and Rule write at the root.
 func NewLibrary(t *testing.T) *Library {
+	t.Helper()
+	l := newRepository(t)
+	l.Write("rule-library.yaml", "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n")
+	l.Write("LICENSE", "MIT License\n")
+	return l
+}
+
+// NewTrailGuideLibrary returns a repository that keeps its library in the Trail Guide directory: its working tree holds
+// only .trailguide/config.yaml, whose library section declares an MIT license, and its LICENSE file at the root, and
+// Group and Rule write in .trailguide/rules/.
+func NewTrailGuideLibrary(t *testing.T) *Library {
+	t.Helper()
+	l := newRepository(t)
+	l.Write(".trailguide/config.yaml", trailGuideConfig)
+	l.Write("LICENSE", "MIT License\n")
+	l.rules = ".trailguide/rules/"
+	return l
+}
+
+// newRepository returns an empty repository in a directory the test removes.
+func newRepository(t *testing.T) *Library {
 	t.Helper()
 	dir := t.TempDir()
 	repo, err := git.PlainInit(dir, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := &Library{t: t, dir: dir, repo: repo}
-	l.Write("rule-library.yaml", "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: LICENSE\n  notices: []\n")
-	l.Write("LICENSE", "MIT License\n")
-	return l
+	return &Library{t: t, dir: dir, repo: repo}
+}
+
+// MoveToTrailGuideDirectory moves a library in the earlier layout into the Trail Guide directory, as its maintainer
+// would: rule-library.yaml becomes .trailguide/config.yaml's library section, techs/ and practices/ move into
+// .trailguide/rules/, and assets/ and changes/ into .trailguide/. Group and Rule write in .trailguide/rules/ after it.
+func (l *Library) MoveToTrailGuideDirectory() {
+	l.t.Helper()
+	l.Remove("rule-library.yaml")
+	l.Write(".trailguide/config.yaml", trailGuideConfig)
+	for from, to := range map[string]string{
+		"techs": ".trailguide/rules/techs", "practices": ".trailguide/rules/practices",
+		"assets": ".trailguide/assets", "changes": ".trailguide/changes",
+	} {
+		if err := os.MkdirAll(filepath.Join(l.dir, filepath.FromSlash(path.Dir(to))), 0o755); err != nil {
+			l.t.Fatal(err)
+		}
+		err := os.Rename(filepath.Join(l.dir, from), filepath.Join(l.dir, filepath.FromSlash(to)))
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			l.t.Fatal(err)
+		}
+	}
+	l.rules = ".trailguide/rules/"
 }
 
 // Write puts content at path in the working tree.
@@ -64,7 +115,7 @@ func (l *Library) Remove(path string) {
 // Group writes group id's _group.yaml, describing it as name.
 func (l *Library) Group(id, name string) {
 	l.t.Helper()
-	l.Write(id+"/_group.yaml", "name: "+name+"\ndescription: "+name+" rules.\nwhenToRead: When the work involves "+
+	l.Write(l.rules+id+"/_group.yaml", "name: "+name+"\ndescription: "+name+" rules.\nwhenToRead: When the work involves "+
 		strings.ToLower(name)+".\n")
 }
 
@@ -72,7 +123,7 @@ func (l *Library) Group(id, name string) {
 // Rules' template does, followed by body.
 func (l *Library) Rule(id, title, body string) {
 	l.t.Helper()
-	l.Write(id+".md", "---\ntitle: "+title+"\nwhenToRead: When changing "+strings.ToLower(title)+".\nimpact: HIGH\n"+
+	l.Write(l.rules+id+".md", "---\ntitle: "+title+"\nwhenToRead: When changing "+strings.ToLower(title)+".\nimpact: HIGH\n"+
 		"impactDescription: Prevents mistakes in "+strings.ToLower(title)+".\n---\n\n## "+title+"\n\n"+body+"\n")
 }
 

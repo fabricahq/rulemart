@@ -114,6 +114,7 @@ func (w *writer) write(lib domain.Library) {
 			return w.q.UpsertRelease(w.ctx, catalogdb.UpsertReleaseParams{
 				LibraryID: w.library, Number: numbers[i], TagObjectID: optionalText(r.TagID), CommitID: r.CommitID,
 				TaggedAt: pgtype.Timestamptz{Time: r.TaggedAt, Valid: true}, UpdatesSharedFiles: r.UpdatesSharedFiles,
+				Layout: string(r.Layout),
 			})
 		})
 	}

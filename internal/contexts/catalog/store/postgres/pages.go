@@ -619,12 +619,29 @@ func library(ctx context.Context, q *catalogdb.Queries, vetted []domain.LibraryK
 	if err != nil {
 		return views.Library{}, 0, err
 	}
+	layouts, err := releaseLayouts(row.LayoutReleases, row.Layouts)
+	if err != nil {
+		return views.Library{}, 0, fmt.Errorf("library %s/%s: %v", row.Owner, row.Name, err)
+	}
 	return views.Library{
 		Vetted: row.Vetted, Owner: row.Owner, Name: row.Name, Description: row.Description, OwnerAvatarURL: row.OwnerAvatarUrl,
 		LicenseExpression: row.LicenseExpression.String, LicenseFile: row.LicenseFile.String,
-		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time,
+		LatestRelease: int(row.LatestRelease), LatestTaggedAt: row.LatestTaggedAt.Time, Layouts: layouts,
 		Groups: int(row.GroupCount), Rules: int(row.RuleCount), AddedBy: row.AddedBy, AddedAt: row.AddedAt.Time,
 	}, row.ID, nil
+}
+
+// releaseLayouts returns the layouts that GetLibrary lists, each release's in layouts beside its number in releases.
+func releaseLayouts(releases []int32, layouts []string) (domain.ReleaseLayouts, error) {
+	result := make(domain.ReleaseLayouts, len(releases))
+	for i, number := range releases {
+		layout, err := domain.ParseLayout(layouts[i])
+		if err != nil {
+			return nil, fmt.Errorf("release/%d: %v", number, err)
+		}
+		result[int(number)] = layout
+	}
+	return result, nil
 }
 
 func version(major, minor, patch int32) coderules.RuleVersion {

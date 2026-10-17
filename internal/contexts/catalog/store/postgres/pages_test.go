@@ -280,6 +280,8 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 	wantLibrary := views.Library{
 		Vetted: true, Owner: "example", Name: "rules", Description: "Example rules.", OwnerAvatarURL: exampleRules.Repository.OwnerAvatarURL,
 		LicenseExpression: "MIT", LicenseFile: "LICENSE", LatestRelease: 3, LatestTaggedAt: day(3), Groups: 2, Rules: 2,
+		// Every release keeps its files at the repository's root, as the first does.
+		Layouts: domain.ReleaseLayouts{1: domain.RootLayout},
 	}
 	if !page.Library.LatestTaggedAt.Equal(day(3)) {
 		t.Errorf("latest release tagged at %s, want %s", page.Library.LatestTaggedAt, day(3))
@@ -289,7 +291,7 @@ func TestLibraryPageListsCurrentRulesAndTheirGroups(t *testing.T) {
 		t.Errorf("the library came to Rulemart at %s, want when it was ingested", page.Library.AddedAt)
 	}
 	page.Library.LatestTaggedAt, page.Library.AddedAt = day(3), time.Time{}
-	if page.Library != wantLibrary {
+	if !reflect.DeepEqual(page.Library, wantLibrary) {
 		t.Errorf("library is %+v, want %+v", page.Library, wantLibrary)
 	}
 	wantGroups := []views.Group{
