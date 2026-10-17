@@ -45,7 +45,7 @@ jobs:
       - name: Check the Trail Guide files
         env:
           TRAILGUIDE_VERSION: 0.4.0
-          TRAILGUIDE_SHA256: '0000000000000000000000000000000000000000000000000000000000000000'
+          TRAILGUIDE_SHA256: '9682be17e3e7a5ec5d60e2879894221d18d7d79128cd28278554bdbd9f8cc594'
         run: |
           archive="trailguide_${TRAILGUIDE_VERSION}_linux_arm64.tar.gz"
           curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/fabricahq/trailguide/releases/download/v${TRAILGUIDE_VERSION}/$archive"
