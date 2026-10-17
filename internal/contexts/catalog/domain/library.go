@@ -45,7 +45,7 @@ type Release struct {
 	// Layout is where the release keeps the library's files, which its files' paths in the repository follow.
 	Layout Layout
 	// UpdatesSharedFiles reports whether the release changed library-wide files, such as group metadata or shared
-	// assets, which Syllabus's release notes say for every release after the first that lists library files. A
+	// assets, which Trail Guide's release notes say for every release after the first that lists library files. A
 	// first release lists every file, which it adds rather than updates.
 	UpdatesSharedFiles bool
 }

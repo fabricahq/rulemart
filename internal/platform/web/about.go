@@ -22,9 +22,9 @@ const (
 	// reportFormsURL lets a visitor choose which report to file, and reportProblemURL opens the Report a problem form.
 	reportFormsURL   = repositoryURL + "/issues/new/choose"
 	reportProblemURL = repositoryURL + "/issues/new?template=report-a-problem.yml"
-	// syllabusURL is Syllabus's documentation, and syllabusLibrariesURL its page on libraries and their releases.
-	syllabusURL          = "https://code-rules.fabricahq.com"
-	syllabusLibrariesURL = syllabusURL + "/concepts/libraries/"
+	// trailGuideURL is Trail Guide's documentation, and trailGuideLibrariesURL its page on libraries and their releases.
+	trailGuideURL          = "https://trailguide.fabricahq.com"
+	trailGuideLibrariesURL = trailGuideURL + "/concepts/libraries/"
 )
 
 // issueFormURL returns the address that opens a new issue in Rulemart's repository with the issue form template,
@@ -45,7 +45,7 @@ func reportLibraryURL(fullName string) string {
 // askToVetURL is where a visitor asks Fabrica to vet a library.
 var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
 
-// about shows what Rulemart and Syllabus are, and how Rulemart is meant to be used.
+// about shows what Rulemart and Trail Guide are, and how Rulemart is meant to be used.
 func (s *server) about(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, contentPageView(s.pageChrome(aboutHref), s.content.about))
 }

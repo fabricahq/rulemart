@@ -1,5 +1,5 @@
 // Read a visitor's GitHub account: their organizations, the repositories of theirs and their organizations' that publish
-// a Syllabus library, and the projects that import one, kept as the account's snapshot; and the installations of the
+// a Trail Guide library, and the projects that import one, kept as the account's snapshot; and the installations of the
 // GitHub App that reads their private repositories.
 
 package app
@@ -376,7 +376,7 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 }
 
 // inspect returns repo as a library when its root holds rule-library.yaml and it has a library release tag, and as a
-// project when the provenance file in its project directory, .syllabus or, before it's renamed, .code-rules, parses,
+// project when the provenance file in its project directory, .trailguide or, before it's renamed, .code-rules, parses,
 // reading it with token. A provenance file Rulemart can't parse makes no
 // project, rather than failing the read.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {

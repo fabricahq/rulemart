@@ -101,8 +101,8 @@ func TestCheckoutSyncsAnUnvettedLibrarysForkFromTheReviewedCommit(t *testing.T) 
 	if strings.Contains(commands, "add rule") || strings.Contains(prompt, "forked") {
 		t.Errorf("the texts fork an unvetted library's rule:\n%s\n\n%s", commands, prompt)
 	}
-	want := "syllabus project add library stranger \\\n  --repository https://github.com/stranger/rules.git \\\n" +
-		"  --ref " + strings.Repeat("3", 40) + " \\\n  --groups practices/testing \\\n  --rules techs/go/use-go\n\nsyllabus project sync"
+	want := "trailguide project add library stranger \\\n  --repository https://github.com/stranger/rules.git \\\n" +
+		"  --ref " + strings.Repeat("3", 40) + " \\\n  --groups practices/testing \\\n  --rules techs/go/use-go\n\ntrailguide project sync"
 	if !strings.Contains(commands, want) {
 		t.Errorf("got\n%s\nwant the rule synced from the reviewed commit, and the one its group brings left out:\n%s", commands, want)
 	}
@@ -129,7 +129,7 @@ func TestCheckoutCommandsReviewAnUnvettedLibraryInAStepBeforeTheImport(t *testin
 			t.Errorf("the review doesn't fetch %s/rules as a command of its own:\n%s", library, review)
 		}
 	}
-	if !strings.HasSuffix(review, "stop: don't run the next step.") || strings.Contains(review, "syllabus") {
+	if !strings.HasSuffix(review, "stop: don't run the next step.") || strings.Contains(review, "trailguide") {
 		t.Errorf("the review should only fetch, and end by saying to stop on an unsafe rule:\n%s", review)
 	}
 	if strings.Contains(imports, "mktemp") || !strings.Contains(imports, "add library stranger") || !strings.Contains(imports, "add library fabrica") {
@@ -159,7 +159,7 @@ func TestCheckoutForANewProjectAddsTheRestOfTheGroups(t *testing.T) {
 // configuration, a fork copies from it after a sync, and a library with only a fork copies from its address, then
 // the guidance is built.
 func TestCheckoutForAKnownProjectAddsToItsSources(t *testing.T) {
-	target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Directory: ".syllabus", Sources: map[string]string{
+	target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Directory: ".trailguide", Sources: map[string]string{
 		"fabricahq/public-rules": "team", "other/lib": "fabrica",
 	}}
 	checkout := NewCheckout(target, []CheckoutLibrary{
@@ -178,8 +178,8 @@ func TestCheckoutForAKnownProjectAddsToItsSources(t *testing.T) {
 	assertCheckout(t, "known-project", checkout)
 }
 
-// A known project that still keeps its files in .code-rules/, from before Code Rules was renamed Syllabus, which
-// Syllabus still reads, is told to change its configuration there and to point agents at the rules generated there.
+// A known project that still keeps its files in .code-rules/, from before Code Rules was renamed Trail Guide, which
+// Trail Guide still reads, is told to change its configuration there and to point agents at the rules generated there.
 func TestCheckoutForAKnownProjectNamesTheDirectoryItKeepsItsFilesIn(t *testing.T) {
 	target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Directory: ".code-rules", Sources: map[string]string{
 		"fabricahq/public-rules": "team",
@@ -190,7 +190,7 @@ func TestCheckoutForAKnownProjectNamesTheDirectoryItKeepsItsFilesIn(t *testing.T
 
 	for name, text := range map[string]string{"commands": stepsText(checkout.Commands()), "prompt": checkout.Prompt()} {
 		if !strings.Contains(text, "# In .code-rules/config.yaml, add to sources.team:") ||
-			!strings.Contains(text, "tells agents to read .code-rules/generated/RULES.md") || strings.Contains(text, ".syllabus") {
+			!strings.Contains(text, "tells agents to read .code-rules/generated/RULES.md") || strings.Contains(text, ".trailguide") {
 			t.Errorf("the %s name another directory than .code-rules:\n%s", name, text)
 		}
 	}
@@ -206,8 +206,8 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 
 	got := stepsText(checkout.Commands())
 
-	want := "syllabus project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\nsyllabus project build\n\n" +
-		"# Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md " +
+	want := "trailguide project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ntrailguide project build\n\n" +
+		"# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md " +
 		"if the project keeps its files in .code-rules/"
 	if !strings.HasSuffix(got, want) || strings.Contains(got, "project sync") {
 		t.Errorf("got\n%s\nwant it to end with\n%s\nand never sync", got, want)
@@ -222,8 +222,8 @@ func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
 	}
 }
 
-// Each library gets an alias Syllabus accepts, its owner's name without a trailing hq, distinct from every other
-// source and from the known project's own: libraries of one owner add their repository's name, and a name Syllabus
+// Each library gets an alias Trail Guide accepts, its owner's name without a trailing hq, distinct from every other
+// source and from the known project's own: libraries of one owner add their repository's name, and a name Trail Guide
 // can't take starts with library-.
 func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	library := func(owner, name string) CheckoutLibrary {
@@ -235,7 +235,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 		library("Acme-Corp", "rules"),
 		library("2fa", "rules"),
 		library("local", "rules"),
-		library("hq", ".syllabus"),
+		library("hq", ".trailguide"),
 		library("taken", "rules"),
 		library("x", "y"),
 		library("solo", "a"),
@@ -246,7 +246,7 @@ func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	}
 	want := []string{
 		"fabricahq/public-rules fabrica-public-rules", "FabricaHQ/Code.Rules fabrica-code-rules", "Acme-Corp/rules acme-corp",
-		"2fa/rules library-2fa", "local/rules library-local", "hq/.syllabus library", "taken/rules taken-rules",
+		"2fa/rules library-2fa", "local/rules library-local", "hq/.trailguide library", "taken/rules taken-rules",
 		"x/y taken", "solo/a solo",
 	}
 	if !slices.Equal(names, want) {
@@ -271,10 +271,10 @@ func TestCheckoutPinExampleIsTheFirstVettedLibraryItImportsFrom(t *testing.T) {
 	}
 }
 
-// A known project's source name reaches the commands as the visitor's GitHub account reported it, so a name Syllabus
+// A known project's source name reaches the commands as the visitor's GitHub account reported it, so a name Trail Guide
 // wouldn't take, such as one holding a newline or shell syntax, is never written: the library is added under a name of
 // Rulemart's, and every line the data could reach stays a comment or one command.
-func TestCheckoutNeverWritesASourceNameSyllabusWouldNotTake(t *testing.T) {
+func TestCheckoutNeverWritesASourceNameTrailGuideWouldNotTake(t *testing.T) {
 	for _, name := range []string{"fabrica\nprintf injected\n#", "$(touch pwned)", "a;b", "Fabrica", "local", ""} {
 		target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Sources: map[string]string{"fabricahq/public-rules": name}}
 		checkout := NewCheckout(target, []CheckoutLibrary{{
@@ -288,7 +288,7 @@ func TestCheckoutNeverWritesASourceNameSyllabusWouldNotTake(t *testing.T) {
 				t.Errorf("%q: the texts hold it:\n%s", name, text)
 			}
 		}
-		if !strings.Contains(commands, "syllabus project add library fabrica \\\n") || strings.Contains(commands, "already imports") {
+		if !strings.Contains(commands, "trailguide project add library fabrica \\\n") || strings.Contains(commands, "already imports") {
 			t.Errorf("%q: got commands\n%s\nwant the library added as fabrica", name, commands)
 		}
 	}

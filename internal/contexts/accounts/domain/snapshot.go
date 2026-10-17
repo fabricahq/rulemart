@@ -53,9 +53,9 @@ type GitHubRepository struct {
 
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
-	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Syllabus library.
+	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Trail Guide library.
 	Manifest bool
-	// ProjectDirectory is the directory where a project keeps its files, as Syllabus chooses it: ProjectDirectory when
+	// ProjectDirectory is the directory where a project keeps its files, as Trail Guide chooses it: ProjectDirectory when
 	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
 	// ProjectDirectory, or empty when it holds neither.
 	ProjectDirectory string
@@ -67,7 +67,7 @@ type Snapshot struct {
 	ReadAt time.Time
 	// Organizations are the logins of the visitor's organizations, in the order GitHub listed them.
 	Organizations []string
-	// Libraries are the repositories that publish a Syllabus library, by full name.
+	// Libraries are the repositories that publish a Trail Guide library, by full name.
 	Libraries []PublishableRepository
 	// Projects are the repositories whose provenance file names the libraries they import, by full name.
 	Projects []Project
@@ -88,7 +88,7 @@ type PublishableRepository struct {
 	Writable bool
 }
 
-// Project is a repository that uses Syllabus: the provenance file in its project directory names its sources.
+// Project is a repository that uses Trail Guide: the provenance file in its project directory names its sources.
 type Project struct {
 	Repository
 	// Directory is where it keeps its files: ProjectDirectory, or LegacyProjectDirectory for a project not yet

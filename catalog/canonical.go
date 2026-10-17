@@ -1,4 +1,4 @@
-// Read Syllabus's canonical group list and Rulemart's icons for its groups, which ship with each release.
+// Read Trail Guide's canonical group list and Rulemart's icons for its groups, which ship with each release.
 
 package catalog
 
@@ -17,7 +17,7 @@ import (
 )
 
 // canonicalGroupsYAML is canonical-groups.yaml from fabricahq/code-rules at v0.2.0, commit
-// 6a63c7173bb5ae8b37cf22f30b8a4aede1d6b435, copied unchanged. Syllabus owns the list, so update it only by
+// 6a63c7173bb5ae8b37cf22f30b8a4aede1d6b435, copied unchanged. Trail Guide owns the list, so update it only by
 // copying the file from a newer commit, and update the checksum its test pins with it.
 //
 //go:embed canonical-groups.yaml
@@ -26,7 +26,7 @@ var canonicalGroupsYAML []byte
 //go:embed group-icons.yaml
 var groupIconsYAML []byte
 
-// CanonicalGroups returns Syllabus's canonical group list, as the vendored parser reads it, with the icons
+// CanonicalGroups returns Trail Guide's canonical group list, as the vendored parser reads it, with the icons
 // group-icons.yaml gives its groups.
 func CanonicalGroups() (domain.CanonicalGroups, error) {
 	list, err := coderules.ParseCanonicalGroups(canonicalGroupsYAML, "canonical-groups.yaml")
