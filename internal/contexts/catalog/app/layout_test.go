@@ -10,17 +10,17 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/source/git/gittest"
 )
 
-// A library that keeps its files in .syllabus/ ingests as one at the root did: the manifest's license, its groups
+// A library that keeps its files in .trailguide/ ingests as one at the root did: the manifest's license, its groups
 // and rules by their IDs, and their assets by their library paths.
-func TestIngestStoresALibraryInTheSyllabusDirectory(t *testing.T) {
+func TestIngestStoresALibraryInTheTrailGuideDirectory(t *testing.T) {
 	ingester, pages := newCatalog(t)
-	lib := gittest.NewSyllabusLibrary(t)
+	lib := gittest.NewTrailGuideLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule(returnErrors, "Return errors", "See [an example](assets/return-errors/example.go) and [the lifecycle](/assets/lifecycle.md).")
-	lib.Write(".syllabus/rules/techs/go/assets/return-errors/example.go", "package errors\n")
-	lib.Write(".syllabus/assets/lifecycle.md", "# Lifecycle\n\nErrors return to the caller.\n")
+	lib.Write(".trailguide/rules/techs/go/assets/return-errors/example.go", "package errors\n")
+	lib.Write(".trailguide/assets/lifecycle.md", "# Lifecycle\n\nErrors return to the caller.\n")
 	// A project's files beside the library's aren't the library's.
-	lib.Write(".syllabus/generated/RULES.md", "# Rules\n")
+	lib.Write(".trailguide/generated/RULES.md", "# Rules\n")
 	lib.Release(1, `formatVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
@@ -36,8 +36,8 @@ libraryFiles: [LICENSE, assets/lifecycle.md, config.yaml, techs/go/_group.yaml]
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l := page.Library; l.LicenseExpression != "MIT" || l.LicenseFile != "LICENSE" || l.Layouts.Of(1) != domain.SyllabusLayout {
-		t.Errorf("the library is %+v, want MIT in LICENSE, with release/1 in .syllabus/", l)
+	if l := page.Library; l.LicenseExpression != "MIT" || l.LicenseFile != "LICENSE" || l.Layouts.Of(1) != domain.TrailGuideLayout {
+		t.Errorf("the library is %+v, want MIT in LICENSE, with release/1 in .trailguide/", l)
 	}
 	if len(page.Groups) != 1 || page.Groups[0].Path != "techs/go" || len(page.Rules) != 1 || page.Rules[0].Path != returnErrors {
 		t.Errorf("the library holds %+v and %+v, want techs/go with %s", page.Groups, page.Rules, returnErrors)
@@ -59,12 +59,12 @@ libraryFiles: [LICENSE, assets/lifecycle.md, config.yaml, techs/go/_group.yaml]
 	}
 }
 
-// A library that moved into .syllabus/ keeps its history: the releases before the move, which kept their files at
-// the root, still give their rule versions, and the releases after it give theirs from .syllabus/.
-func TestIngestKeepsTheHistoryOfALibraryThatMovedIntoTheSyllabusDirectory(t *testing.T) {
+// A library that moved into .trailguide/ keeps its history: the releases before the move, which kept their files at
+// the root, still give their rule versions, and the releases after it give theirs from .trailguide/.
+func TestIngestKeepsTheHistoryOfALibraryThatMovedIntoTheTrailGuideDirectory(t *testing.T) {
 	ingester, pages := newCatalog(t)
 	lib := firstRelease(t)
-	lib.MoveToSyllabusDirectory()
+	lib.MoveToTrailGuideDirectory()
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, including timeouts.")
 	lib.Release(2, `formatVersion: 1
 release: 2
@@ -84,9 +84,9 @@ changes:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if l := page.Library; l.LatestRelease != 2 || l.Layouts.Of(1) != domain.RootLayout || l.Layouts.Of(2) != domain.SyllabusLayout ||
+	if l := page.Library; l.LatestRelease != 2 || l.Layouts.Of(1) != domain.RootLayout || l.Layouts.Of(2) != domain.TrailGuideLayout ||
 		l.LicenseFile != "LICENSE" || len(page.Groups) != 2 || len(page.Rules) != 3 {
-		t.Errorf("the library page is %+v, want release/1 at the root, release/2 in .syllabus/, and three rules in two groups", page)
+		t.Errorf("the library page is %+v, want release/1 at the root, release/2 in .trailguide/, and three rules in two groups", page)
 	}
 	rule, err := pages.RulePage(context.Background(), "example", "rules", retryLimits)
 	if err != nil {
@@ -101,7 +101,7 @@ changes:
 	}
 	if text := comparison.Text; strings.Contains(text.Old, "timeouts") || !strings.Contains(text.Old, "fixed number of attempts") ||
 		!strings.Contains(text.New, "including timeouts") {
-		t.Errorf("%s 1.0.0...1.1.0 compares %+v, want release/1's file at the root and release/2's in .syllabus/", retryLimits, text)
+		t.Errorf("%s 1.0.0...1.1.0 compares %+v, want release/1's file at the root and release/2's in .trailguide/", retryLimits, text)
 	}
 	unchanged, err := pages.RulePage(context.Background(), "example", "rules", returnErrors)
 	if err != nil || unchanged.Rule.Release != 1 || !strings.Contains(unchanged.Rule.HTML, "instead of panicking") {

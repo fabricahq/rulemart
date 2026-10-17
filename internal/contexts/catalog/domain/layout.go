@@ -18,29 +18,29 @@ import (
 type Layout string
 
 const (
-	// RootLayout keeps a library at its repository's root, as Syllabus did before it moved libraries into
-	// .syllabus/: rule-library.yaml, and the techs/, practices/, assets/, and changes/ directories. Every repository
+	// RootLayout keeps a library at its repository's root, as Trail Guide did before it moved libraries into
+	// .trailguide/: rule-library.yaml, and the techs/, practices/, assets/, and changes/ directories. Every repository
 	// path is the library path of the same name.
 	RootLayout Layout = ""
-	// SyllabusLayout keeps a library in .syllabus/: its manifest is the library section of .syllabus/config.yaml,
-	// its groups are in .syllabus/rules/, and its shared assets and change notes in .syllabus/assets/ and
-	// .syllabus/changes/. License and notice files stay at their paths from the repository root.
-	SyllabusLayout Layout = coderules.Directory
-	// CodeRulesLayout is SyllabusLayout in the directory's name from before Code Rules was renamed Syllabus.
+	// TrailGuideLayout keeps a library in .trailguide/: its manifest is the library section of .trailguide/config.yaml,
+	// its groups are in .trailguide/rules/, and its shared assets and change notes in .trailguide/assets/ and
+	// .trailguide/changes/. License and notice files stay at their paths from the repository root.
+	TrailGuideLayout Layout = coderules.Directory
+	// CodeRulesLayout is TrailGuideLayout in the directory's name from before Code Rules was renamed Trail Guide.
 	CodeRulesLayout Layout = coderules.LegacyDirectory
 )
 
 // ParseLayout returns the layout whose directory is text, as the catalog stores it.
 func ParseLayout(text string) (Layout, error) {
 	switch layout := Layout(text); layout {
-	case RootLayout, SyllabusLayout, CodeRulesLayout:
+	case RootLayout, TrailGuideLayout, CodeRulesLayout:
 		return layout, nil
 	}
 	return "", fmt.Errorf("unknown library layout %q", text)
 }
 
-// DetectLayout returns the layout of the release whose commit holds files, as Syllabus reads it: RootLayout when the
-// root holds rule-library.yaml, or else the Syllabus directory the commit has, .syllabus, or before the rename,
+// DetectLayout returns the layout of the release whose commit holds files, as Trail Guide reads it: RootLayout when the
+// root holds rule-library.yaml, or else the Trail Guide directory the commit has, .trailguide, or before the rename,
 // .code-rules. A commit that has neither is read in RootLayout, the layout every library had before.
 func DetectLayout(files Files) (Layout, error) {
 	if _, err := files.Open(coderules.LegacyManifest); err == nil {
@@ -48,8 +48,8 @@ func DetectLayout(files Files) (Layout, error) {
 	} else if !errors.Is(err, ErrFileMissing) {
 		return "", fmt.Errorf("%s: %v", coderules.LegacyManifest, err)
 	}
-	for _, layout := range []Layout{SyllabusLayout, CodeRulesLayout} {
-		// One file shows the directory is there; Syllabus reads a commit's .code-rules/ only while it has no .syllabus/.
+	for _, layout := range []Layout{TrailGuideLayout, CodeRulesLayout} {
+		// One file shows the directory is there; Trail Guide reads a commit's .code-rules/ only while it has no .trailguide/.
 		held, err := files.List(string(layout)+"/", 0)
 		if err != nil {
 			return "", fmt.Errorf("list %s/: %v", layout, err)
@@ -70,7 +70,7 @@ func (l Layout) ManifestFile() string {
 }
 
 // RepositoryPath returns where the library file, or directory, at library path file lives in the repository, such as
-// .syllabus/rules/techs/go/return-errors.md for techs/go/return-errors.md in SyllabusLayout.
+// .trailguide/rules/techs/go/return-errors.md for techs/go/return-errors.md in TrailGuideLayout.
 func (l Layout) RepositoryPath(file string) string {
 	if l == RootLayout {
 		return file
@@ -83,7 +83,7 @@ func (l Layout) RepositoryPath(file string) string {
 }
 
 // LibraryPath returns the library path of the repository file, or directory, at file, the inverse of RepositoryPath.
-// It reports false for a path that holds no library file, such as a project's files in the Syllabus directory.
+// It reports false for a path that holds no library file, such as a project's files in the Trail Guide directory.
 func (l Layout) LibraryPath(file string) (string, bool) {
 	switch l {
 	case RootLayout:
@@ -101,7 +101,7 @@ func (l Layout) LibraryPath(file string) (string, bool) {
 // ResolveLink returns the repository file that destination, a link or image in the library file at library path
 // from, names, and the query and fragment to keep after it. A relative destination resolves against the directory of
 // from's repository path, and one that starts with / against the directory that holds the library: the repository's
-// root in RootLayout, and the Syllabus directory otherwise, as Syllabus resolves it. target is empty for the root,
+// root in RootLayout, and the Trail Guide directory otherwise, as Trail Guide resolves it. target is empty for the root,
 // including for destinations that climb above it. ok is false for a destination that isn't a path in the repository:
 // one with a scheme or host, or only a query or fragment.
 func (l Layout) ResolveLink(from, destination string) (target, suffix string, ok bool) {
