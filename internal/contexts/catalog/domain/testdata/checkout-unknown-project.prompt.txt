@@ -1,4 +1,4 @@
-Add these engineering rules to the acme/api repository with the Syllabus CLI (0.2.0 or later). If it has neither a .syllabus/ directory nor a .code-rules/ one, from before Code Rules was renamed Syllabus, install the CLI and run syllabus project init first.
+Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.4.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
 
 From fabricahq/public-rules:
 - The whole Go group (techs/go), including rules the library adds to it later
@@ -19,31 +19,31 @@ Read each rule I picked from it there, and tell me about any that asks for somet
 Run:
 # From the root of acme/api
 
-# Only if it doesn't use Syllabus yet
-curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-syllabus project init
+# Only if it doesn't use Trail Guide yet
+curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
+trailguide project init
 
 # Add your rules
-syllabus project add library fabrica-public-rules \
+trailguide project add library fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
   --groups techs/go \
   --rules practices/testing/keep-tests-independent
 
-syllabus project add library fabrica-code-rules-test-library \
+trailguide project add library fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-syllabus project add library stranger \
+trailguide project add library stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go
 
-syllabus project sync
+trailguide project sync
 
-syllabus project add rule techs/go/errors-include-useful-diagnostic-data \
+trailguide project add rule techs/go/errors-include-useful-diagnostic-data \
   --from fabrica-public-rules@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-syllabus project build
+trailguide project build
 
-Then make sure AGENTS.md tells agents to read .syllabus/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/. The rules move to newer versions only when someone runs syllabus project update and confirms.
+Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/. The rules move to newer versions only when someone runs trailguide project update and confirms.

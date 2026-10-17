@@ -1,6 +1,6 @@
 // The pages whose words are written in Markdown, in content/<page>.md, which make generate renders as
 // content/generated/<page>.generated.html: each page's front matter, then its body as HTML. Both may hold template actions, such
-// as {{.SyllabusURL}}, which run when the server starts.
+// as {{.TrailGuideURL}}, which run when the server starts.
 
 package web
 
@@ -20,7 +20,7 @@ import (
 //go:embed content/generated/*.generated.html
 var contentFiles embed.FS
 
-// contentValues are what a content page's template actions can name, as {{.SyllabusURL}} or {{if .CanList}}.
+// contentValues are what a content page's template actions can name, as {{.TrailGuideURL}} or {{if .CanList}}.
 type contentValues struct {
 	// CanList is true when visitors can list a library on this server, so the vetting page leads to the form.
 	CanList bool
@@ -30,9 +30,9 @@ type contentValues struct {
 	// delivery discards.
 	GitHubWebhook bool
 
-	SyllabusURL, SyllabusLibrariesURL, RepositoryURL, VettedFileURL, AskToVetURL, ReportFormsURL string
-	UnvettedHref, ListHref, VettingHref, PrivacyHref, FeedbackHref, DashboardHref                string
-	UnvettedOptInLabel, UnvettedWarningText                                                      string
+	TrailGuideURL, TrailGuideLibrariesURL, RepositoryURL, VettedFileURL, AskToVetURL, ReportFormsURL string
+	UnvettedHref, ListHref, VettingHref, PrivacyHref, FeedbackHref, DashboardHref                    string
+	UnvettedOptInLabel, UnvettedWarningText                                                          string
 }
 
 // newContentValues returns the values content pages name, on a server where canList, analytics, and gitHubWebhook say
@@ -40,7 +40,7 @@ type contentValues struct {
 func newContentValues(canList, analytics, gitHubWebhook bool) contentValues {
 	return contentValues{
 		CanList: canList, Analytics: analytics, GitHubWebhook: gitHubWebhook,
-		SyllabusURL: syllabusURL, SyllabusLibrariesURL: syllabusLibrariesURL, RepositoryURL: repositoryURL,
+		TrailGuideURL: trailGuideURL, TrailGuideLibrariesURL: trailGuideLibrariesURL, RepositoryURL: repositoryURL,
 		VettedFileURL: vettedFileURL, AskToVetURL: askToVetURL, ReportFormsURL: reportFormsURL,
 		UnvettedHref: unvettedHref, ListHref: listHref, VettingHref: vettingHref, PrivacyHref: privacyHref,
 		FeedbackHref: feedbackHref, DashboardHref: dashboardHref,

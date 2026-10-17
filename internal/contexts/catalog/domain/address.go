@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 )
 
-// ManifestFile is the file every Syllabus library has at its root.
+// ManifestFile is the file every Trail Guide library has at its root.
 const ManifestFile = "rule-library.yaml"
 
 // ReleaseTag returns the tag of library release number, such as release/3.
@@ -80,7 +80,7 @@ func RawURL(fullName, tag, file string) string {
 	return "https://raw.githubusercontent.com/" + fullName + "/refs/tags/" + tag + "/" + EscapePath(file)
 }
 
-// ReleaseNotesURL returns the GitHub Release page Syllabus creates for library release number of the repository
+// ReleaseNotesURL returns the GitHub Release page Trail Guide creates for library release number of the repository
 // fullName.
 func ReleaseNotesURL(fullName string, number int) string {
 	return RepositoryURL(fullName) + "/releases/tag/" + ReleaseTag(number)

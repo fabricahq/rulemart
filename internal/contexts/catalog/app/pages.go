@@ -36,7 +36,7 @@ const MaxSearchPage = 200
 type Pages struct {
 	Store  store.Reader
 	Vetted []domain.LibraryKey
-	// Groups is Syllabus's canonical group list, which decides how pages show each group. Pages apply it as they
+	// Groups is Trail Guide's canonical group list, which decides how pages show each group. Pages apply it as they
 	// read, rather than ingestion as it stores, so a release that updates the list shows every library by it at once.
 	Groups domain.CanonicalGroups
 }

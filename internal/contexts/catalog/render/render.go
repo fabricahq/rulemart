@@ -50,7 +50,7 @@ var (
 	refusedKey   = parser.NewContextKey()
 )
 
-// extensions are the Markdown Rulemart reads beyond CommonMark: GitHub's, as Syllabus's documentation renders it.
+// extensions are the Markdown Rulemart reads beyond CommonMark: GitHub's, as Trail Guide's documentation renders it.
 var extensions = []goldmark.Extender{extension.GFM}
 
 // markdown parses rule bodies, adapted to the rule's page, and linkParser parses them as they're written, to find their
@@ -455,7 +455,7 @@ func writeHighlighted(w util.BufWriter, lexer chroma.Lexer, code string, until t
 // lineEndings turns \r\n and \r into \n, as chroma does before it lexes.
 var lineEndings = strings.NewReplacer("\r\n", "\n", "\r", "\n")
 
-// highlightClass maps a chroma token to one of the five colors Syllabus's documentation uses for code, or to none.
+// highlightClass maps a chroma token to one of the five colors Trail Guide's documentation uses for code, or to none.
 func highlightClass(token chroma.TokenType) string {
 	switch {
 	case token == chroma.KeywordConstant, token == chroma.Literal, token.InSubCategory(chroma.LiteralNumber),
