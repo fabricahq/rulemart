@@ -68,7 +68,7 @@ func DevFake(installedURL string) *Fake {
 				Tags: []string{"release/1", "release/2", "release/3", "release/4", "release/5", "release/6"},
 			},
 			// test_user belongs to fabricahq but may only read this one, so the picker shows a library they can't add. It
-			// keeps its manifest in .syllabus/config.yaml, as Syllabus lays a library out.
+			// keeps its manifest in .trailguide/config.yaml, as Trail Guide lays a library out.
 			{
 				Owner: "fabricahq", Name: "partner-rules", PushedAt: day(8), ReadOnly: true,
 				Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nlibrary: {}\n"}, Tags: []string{"release/2"},

@@ -8,14 +8,14 @@ import (
 )
 
 // Once a check is done, its first step names the manifest it found where the latest library release keeps it:
-// .syllabus/config.yaml for a library in Syllabus's directory, and rule-library.yaml for one at the root.
+// .trailguide/config.yaml for a library in Trail Guide's directory, and rule-library.yaml for one at the root.
 func TestADoneCheckNamesTheManifestOfTheLatestRelease(t *testing.T) {
 	for _, c := range []struct {
 		layouts domain.ReleaseLayouts
 		want    string
 	}{
-		{domain.ReleaseLayouts{1: domain.RootLayout, 3: domain.SyllabusLayout}, ".syllabus/config.yaml"},
-		{domain.ReleaseLayouts{1: domain.SyllabusLayout, 3: domain.RootLayout}, "rule-library.yaml"},
+		{domain.ReleaseLayouts{1: domain.RootLayout, 3: domain.TrailGuideLayout}, ".trailguide/config.yaml"},
+		{domain.ReleaseLayouts{1: domain.TrailGuideLayout, 3: domain.RootLayout}, "rule-library.yaml"},
 		{domain.ReleaseLayouts{1: domain.RootLayout, 2: domain.CodeRulesLayout}, ".code-rules/config.yaml"},
 	} {
 		layouts, want := c.layouts, c.want
