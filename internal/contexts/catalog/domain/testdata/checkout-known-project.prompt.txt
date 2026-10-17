@@ -1,4 +1,4 @@
-Add these engineering rules to acme/api with the Trail Guide CLI (0.2.0 or later).
+Add these engineering rules to acme/api with the Trail Guide CLI (0.4.0 or later).
 
 From fabricahq/public-rules:
 - The whole Testing group (practices/testing), including rules the library adds to it later
@@ -11,12 +11,13 @@ From fabricahq/code-rules-test-library:
 Run:
 # From the root of acme/api
 
+# If .trailguide/config.yaml has schemaVersion: 1,
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
+
 # acme/api already imports fabricahq/public-rules as team.
-# In .trailguide/config.yaml, add to sources.team:
-#   groups:
-#     - practices/testing
-#   rules:
-#     - techs/go/return-errors
+# In .trailguide/config.yaml, add to sources.team.rules.include:
+#   - practices/testing/*
+#   - techs/go/return-errors
 
 trailguide project sync
 

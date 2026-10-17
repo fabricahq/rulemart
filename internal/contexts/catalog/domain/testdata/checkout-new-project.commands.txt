@@ -5,10 +5,10 @@ curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 
 # Add your rules
-trailguide project add library fabrica \
+trailguide project add source fabrica \
   --repository https://github.com/fabricahq/public-rules.git \
-  --groups techs/golang \
-  --groups practices/testing
+  --rules 'techs/golang/*' \
+  --rules 'practices/testing/*'
 
 trailguide project sync
 

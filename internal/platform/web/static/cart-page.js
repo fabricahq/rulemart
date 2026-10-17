@@ -417,7 +417,7 @@
         pinned.length ? `, except those from ${listed(pinned)}, which stay at the commit you review.` : '.'];
       const pin = answer?.pin;
       if (!prompt && pin) {
-        parts.push(' To pin a library to one release instead, add ', code(pin.option), ` to its add library command; ${pin.release} is the latest release of ${pin.library}.`);
+        parts.push(' To pin a library to one release instead, add ', code(pin.option), ` to its add source command; ${pin.release} is the latest release of ${pin.library}.`);
       }
       $('[data-cart-footnote]').replaceChildren(...parts);
     }
