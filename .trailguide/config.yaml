@@ -1,0 +1,12 @@
+schemaVersion: 2
+sources:
+  fabrica:
+    repository: https://github.com/fabricahq/public-library.git
+    rules:
+      include:
+        - practices/code-design/*
+        - practices/performance/*
+        - practices/readmes/*
+        - practices/testing/*
+        - techs/go/*
+        - techs/goose/*
