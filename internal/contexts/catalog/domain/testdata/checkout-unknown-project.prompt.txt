@@ -1,4 +1,4 @@
-Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.4.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
+Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.2.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
 
 From fabricahq/public-rules:
 - The whole Go group (techs/go), including rules the library adds to it later

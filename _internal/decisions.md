@@ -363,7 +363,7 @@ matters.
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
   `trailguide project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it: it names rules by ID, not title, a group by its canonical
-  name or ID, and a library by `owner/name`. It says it needs Trail Guide 0.4.0 or later, and it names each unvetted
+  name or ID, and a library by `owner/name`. It says it needs Trail Guide 0.2.0 or later, and it names each unvetted
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
   `trailguide project build`, since `add rule --from` refuses until its source is synced, and end with a reminder

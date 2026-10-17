@@ -46,7 +46,7 @@ shows each library's rules, who publishes it, and how each rule changed over tim
 
 You need a Git repository and a coding agent that can run commands in it, such as Claude Code or Codex, or a
 terminal to run them yourself. The prompt installs [Trail Guide](https://trailguide.fabricahq.com/start-here/install/)
-0.4.0 or later if the project doesn't use it yet.
+0.2.0 or later if the project doesn't use it yet.
 
 1. Open [rulemart.fabricahq.com](https://rulemart.fabricahq.com) and search for what your project uses, or browse
    **Techs** and **Practices**.

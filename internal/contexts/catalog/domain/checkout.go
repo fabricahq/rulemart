@@ -13,7 +13,7 @@ import (
 
 // minTrailGuideVersion is the oldest Trail Guide whose commands checkout writes: project add library --rules, and
 // project add rule --from.
-const minTrailGuideVersion = "0.4.0"
+const minTrailGuideVersion = "0.2.0"
 
 // trailGuideInstall is the command Trail Guide's documentation gives to install it.
 const trailGuideInstall = "curl -fsSL https://trailguide.fabricahq.com/install.sh | sh"
