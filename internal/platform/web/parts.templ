@@ -74,7 +74,7 @@ const (
 	flagMD flagSize = "text-[10.5px] leading-[15px]"
 )
 
-// notCanonical flags a group that isn't on Syllabus's canonical group list, explained on hover.
+// notCanonical flags a group that isn't on Trail Guide's canonical group list, explained on hover.
 templ notCanonical(size flagSize) {
 	<span class={ "inline-block flex-none rounded-[4px] border border-dashed border-border-strong px-1.5 align-middle font-mono font-normal tracking-normal whitespace-nowrap text-faint normal-case", string(size) } title={ notCanonicalExplanation }>not canonical</span>
 }
@@ -93,7 +93,7 @@ templ labelHeading(class string) {
 	</h2>
 }
 
-// impactLink is a rule's declared impact in its page's head, explained on hover, which leads to Syllabus's
+// impactLink is a rule's declared impact in its page's head, explained on hover, which leads to Trail Guide's
 // explanation of the levels, so a touch or a keyboard reaches what it means too, and screen readers hear it.
 templ impactLink(level string) {
 	<a class="no-underline hover:[&>span]:border-border-strong" href={ templ.SafeURL(impactLevelsDocs) } aria-label={ impactExplanation(level) + " Impact levels." }>

@@ -1,4 +1,4 @@
-// Package gittest builds Syllabus library repositories on disk for tests that fetch and ingest them.
+// Package gittest builds Trail Guide library repositories on disk for tests that fetch and ingest them.
 package gittest
 
 import (
@@ -18,7 +18,7 @@ import (
 // FirstTagged is when a fixture's first tag is made; each later tag is a day after the one before.
 var FirstTagged = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
-// Library is a Syllabus library's Git repository, built on disk for a test. Its methods fail the test on error.
+// Library is a Trail Guide library's Git repository, built on disk for a test. Its methods fail the test on error.
 type Library struct {
 	t    *testing.T
 	dir  string
