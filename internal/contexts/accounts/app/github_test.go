@@ -192,9 +192,9 @@ func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 
 // A read finds a library whose manifest is where Trail Guide reads it: rule-library.yaml at the root, or else a library
 // section in the configuration in the Trail Guide directory, .trailguide, or .code-rules while the repository has no
-// .trailguide, even one of hundreds of kilobytes, within what the catalog reads of a manifest. A configuration without a
-// library section, one Trail Guide would refuse, one larger than the catalog reads, or one in .code-rules beside
-// .trailguide makes no library, and fails no read.
+// .trailguide, even one of hundreds of kilobytes, or exactly as large as the catalog reads of a manifest. A configuration
+// without a library section, one Trail Guide would refuse, one a byte larger than the catalog reads, or one in
+// .code-rules beside .trailguide makes no library, and fails no read.
 func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 	library := "schemaVersion: 2\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
 	project := "schemaVersion: 2\nsources: {}\n"
@@ -212,7 +212,8 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 			repository("project", map[string]string{trailGuideConfig: project}),
 			repository("refused", map[string]string{trailGuideConfig: "schemaVersion: 2\nlibrary:\n  skills: {}\n"}),
 			repository("large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", 512<<10) + "\n"}),
-			repository("too-large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes) + "\n"}),
+			repository("at-limit", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-3) + "\n"}),
+			repository("too-large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-2) + "\n"}),
 			repository("beside-trailguide", map[string]string{trailGuideConfig: project, legacyConfig: library}),
 		},
 	}
@@ -224,7 +225,7 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 	for _, l := range got.Libraries {
 		names = append(names, l.Name)
 	}
-	if want := []string{"large", "not-renamed", "root", "trailguide"}; !slices.Equal(names, want) || got.ReadFailed {
+	if want := []string{"at-limit", "large", "not-renamed", "root", "trailguide"}; !slices.Equal(names, want) || got.ReadFailed {
 		t.Errorf("libraries %v (read failed %v), want %v", names, got.ReadFailed, want)
 	}
 }
