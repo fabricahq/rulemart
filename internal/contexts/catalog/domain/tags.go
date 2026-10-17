@@ -11,7 +11,7 @@ import (
 )
 
 // ruleTags returns the topics a rule's file, document, lists under tags in its frontmatter, in its order, each once,
-// trimmed: an array's strings, or text's parts between commas, as Code Rules' template writes them. Code Rules' parser
+// trimmed: an array's strings, or text's parts between commas, as Trail Guide's template writes them. Trail Guide's parser
 // accepted the file, which checks that tags is one or the other; frontmatter this decoder can't read gives none, since
 // tags only lead to search.
 func ruleTags(document string) []string {

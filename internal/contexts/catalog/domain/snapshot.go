@@ -22,7 +22,7 @@ type ReleaseSnapshot struct {
 	Files Files
 }
 
-// release returns the release as the catalog stores it. Code Rules' release notes say a release updated shared
+// release returns the release as the catalog stores it. Trail Guide's release notes say a release updated shared
 // files for every release after the first that lists library files; a first release lists every file, which it
 // adds rather than updates.
 func (s ReleaseSnapshot) release() Release {

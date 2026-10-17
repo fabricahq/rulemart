@@ -24,7 +24,7 @@ import (
 )
 
 // errNoReleases reports a repository without library releases.
-var errNoReleases = errors.New("the repository has no release/<number> tags; publish a library release with Code Rules first")
+var errNoReleases = errors.New("the repository has no release/<number> tags; publish a library release with Trail Guide first")
 
 // Fetch returns the release snapshots of the repository at url, in number order: one for each release/<number>
 // tag, whose record it has parsed and whose files it reads when asked. url is any address go-git can fetch from,
@@ -78,7 +78,7 @@ func fetchReleaseTags(ctx context.Context, url string, limits domain.FetchLimits
 	return repo, nil
 }
 
-// listReleaseTags lists the remote's references and returns its release/<number> tags, the names Code Rules
+// listReleaseTags lists the remote's references and returns its release/<number> tags, the names Trail Guide
 // accepts, with the IDs they point to. It fails when there are none, or more than limits allow.
 func listReleaseTags(ctx context.Context, remote *gogit.Remote, limits domain.FetchLimits) (domain.ReleaseTags, error) {
 	refs, err := remote.ListContext(ctx, &gogit.ListOptions{})

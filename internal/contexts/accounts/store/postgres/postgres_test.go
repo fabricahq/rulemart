@@ -326,6 +326,7 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 		Libraries:     []domain.PublishableRepository{{Repository: domain.Repository{Owner: "octo-org", Name: "rules"}, Release: 3, Writable: true}},
 		Projects: []domain.Project{{
 			Repository: domain.Repository{Owner: "octocat", Name: "app", Private: true},
+			Directory:  domain.ProjectDirectory,
 			Sources: []domain.Source{{
 				Name: "octo", Library: "octo-org/rules", Release: 3, Groups: []string{"techs/go"},
 				Rules: []domain.PinnedRule{{Path: "techs/go/return-errors", Version: version}},
@@ -347,6 +348,32 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	got.ReadAt = saved.ReadAt
 	if !reflect.DeepEqual(got, saved) {
 		t.Errorf("read back\n%+v\nwant\n%+v", got, saved)
+	}
+}
+
+// A snapshot saved before projects recorded the directory they keep their files in, when Rulemart found projects only
+// in .code-rules/, reads each project as keeping them there.
+func TestASnapshotSavedBeforeProjectsRecordedTheirDirectoryReadsThemAsInCodeRules(t *testing.T) {
+	ctx := context.Background()
+	s, connString := newStore(t)
+	_, account := signIn(t, s, octocat, "")
+	saved := domain.Snapshot{
+		ReadAt: time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC),
+		Projects: []domain.Project{{
+			Repository: domain.Repository{Owner: "octocat", Name: "app"}, Directory: domain.ProjectDirectory,
+			Sources: []domain.Source{{Name: "octo", Library: "octo-org/rules"}},
+		}},
+	}
+	if ok, err := s.SaveSnapshot(ctx, account.ID, generation(t, connString, account.ID), saved); err != nil || !ok {
+		t.Fatalf("saved %v, %v", ok, err)
+	}
+	postgrestest.Exec(t, connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{projects}',
+		(SELECT jsonb_agg(p - 'directory') FROM jsonb_array_elements(snapshot->'projects') p)) WHERE account_id = $1`, account.ID)
+
+	got, found, err := s.Snapshot(ctx, account.ID)
+
+	if err != nil || !found || len(got.Projects) != 1 || got.Projects[0].Directory != domain.LegacyProjectDirectory {
+		t.Errorf("read back %+v, found %v, %v; want the project in %s", got.Projects, found, err, domain.LegacyProjectDirectory)
 	}
 }
 

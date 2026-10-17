@@ -1,4 +1,4 @@
-Add these engineering rules to acme/api with the Code Rules CLI (0.2.0 or later).
+Add these engineering rules to acme/api with the Trail Guide CLI (0.2.0 or later).
 
 From fabricahq/public-rules:
 - The whole Testing group (practices/testing), including rules the library adds to it later
@@ -12,21 +12,21 @@ Run:
 # From the root of acme/api
 
 # acme/api already imports fabricahq/public-rules as team.
-# In .code-rules/config.yaml, add to sources.team:
+# In .trailguide/config.yaml, add to sources.team:
 #   groups:
 #     - practices/testing
 #   rules:
 #     - techs/go/return-errors
 
-code-rules project sync
+trailguide project sync
 
-code-rules project add rule practices/testing/keep-tests-independent \
+trailguide project add rule practices/testing/keep-tests-independent \
   --from team@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-code-rules project add rule techs/go/close-bodies \
+trailguide project add rule techs/go/close-bodies \
   --from https://github.com/fabricahq/code-rules-test-library.git@1.0.0
 
-code-rules project build
+trailguide project build
 
-Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md. The rules move to newer versions only when someone runs code-rules project update and confirms.
+Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md. The rules move to newer versions only when someone runs trailguide project update and confirms.

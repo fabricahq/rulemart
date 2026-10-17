@@ -62,7 +62,7 @@ func (v groupPageView) summary() string {
 	if v.description != "" {
 		return v.description
 	}
-	return v.label.id + ": rules for coding agents from the Code Rules libraries that chose this group, on Rulemart."
+	return v.label.id + ": rules for coding agents from the Trail Guide libraries that chose this group, on Rulemart."
 }
 
 // group shows the page of the group of kind that the path names, with the choices its address holds that the visitor

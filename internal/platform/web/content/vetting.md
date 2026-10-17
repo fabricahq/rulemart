@@ -1,7 +1,7 @@
 ---
 title: Library vetting · Rulemart
 heading: Library vetting
-description: What vetting a Code Rules library means, what an unvetted library is, and how to get a library vetted.
+description: What vetting a Trail Guide library means, what an unvetted library is, and how to get a library vetted.
 eyebrow: About
 ---
 
@@ -29,15 +29,15 @@ If vetting becomes labor-intensive in the future, we can add automatic rule scan
 
 ## Who can submit a library for review? {#unvetted}
 
-Anyone signed in with GitHub who has write access to a public repository that publishes a Code Rules library can list
+Anyone signed in with GitHub who has write access to a public repository that publishes a Trail Guide library can list
 it. Until Fabrica vets it, a listed library appears under <a href="{{.UnvettedHref}}" rel="nofollow">unvetted libraries</a>,
 and in the lists, groups, and search only once you include unvetted libraries, tagged Unvetted. While unvetted, every
 page containing the library says "{{.UnvettedWarningText}}", and search engines are asked not to index it.
 
 ## How to submit a library for consideration {#get-vetted}
 
-1. Release the library with Code Rules, which tags each release, as
-   [Code Rules' guide to libraries]({{.CodeRulesLibrariesURL}}) explains.
+1. Release the library with Trail Guide, which tags each release, as
+   [Trail Guide's guide to libraries]({{.TrailGuideLibrariesURL}}) explains.
 2. {{if .CanList}}[List it on Rulemart]({{.ListHref}}){{else}}List it on Rulemart{{end}}, so its pages show, under a
    warning, and Rulemart keeps them current.
 3. [Ask to vet a library]({{.AskToVetURL}}) on GitHub. 

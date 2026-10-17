@@ -1,4 +1,4 @@
-// Package catalog holds the data the catalog ships with each release: the vetted libraries, Code Rules' canonical
+// Package catalog holds the data the catalog ships with each release: the vetted libraries, Trail Guide's canonical
 // group list, and Rulemart's icons for its groups.
 package catalog
 

@@ -10,31 +10,31 @@ d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https:
 [After you've reviewed, import]
 # From the root of acme/api
 
-# Only if it doesn't use Code Rules yet
-curl -fsSL https://code-rules.fabricahq.com/install.sh | sh
-code-rules project init
+# Only if it doesn't use Trail Guide yet
+curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
+trailguide project init
 
 # Add your rules
-code-rules project add library fabrica-public-rules \
+trailguide project add library fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
   --groups techs/go \
   --rules practices/testing/keep-tests-independent
 
-code-rules project add library fabrica-code-rules-test-library \
+trailguide project add library fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-code-rules project add library stranger \
+trailguide project add library stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go
 
-code-rules project sync
+trailguide project sync
 
-code-rules project add rule techs/go/errors-include-useful-diagnostic-data \
+trailguide project add rule techs/go/errors-include-useful-diagnostic-data \
   --from fabrica-public-rules@1.0.0 \
   --reason 'We maintain our own version of this rule.'
 
-code-rules project build
+trailguide project build
 
-# Then make sure AGENTS.md tells agents to read .code-rules/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md if the project keeps its files in .code-rules/

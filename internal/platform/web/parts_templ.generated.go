@@ -284,7 +284,7 @@ const (
 	flagMD flagSize = "text-[10.5px] leading-[15px]"
 )
 
-// notCanonical flags a group that isn't on Code Rules' canonical group list, explained on hover.
+// notCanonical flags a group that isn't on Trail Guide's canonical group list, explained on hover.
 func notCanonical(size flagSize) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -457,7 +457,7 @@ func labelHeading(class string) templ.Component {
 	})
 }
 
-// impactLink is a rule's declared impact in its page's head, explained on hover, which leads to Code Rules'
+// impactLink is a rule's declared impact in its page's head, explained on hover, which leads to Trail Guide's
 // explanation of the levels, so a touch or a keyboard reaches what it means too, and screen readers hear it.
 func impactLink(level string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

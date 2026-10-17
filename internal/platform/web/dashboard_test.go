@@ -232,7 +232,7 @@ func TestTheDashboardsProjectsTabShowsTheLibrariesTheVisitorsProjectsUse(t *test
 	assertShows(t, page,
 		"Libraries your projects use rules · 2 projects octocat/api · 1 rule update · octocat/billing (private) · up to date",
 		"Public repos only · read from GitHub 3 minutes ago · Refresh · Include private projects",
-		"Read from each project's .code-rules/generated/provenance.json .")
+		"Read from each project's .trailguide/generated/provenance.json .")
 }
 
 // My libraries and Projects lead with their lists, then what adds to them, and end with one line on the read of GitHub:
@@ -577,7 +577,7 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 
 	page := site.get(t, "/me/add")
 
-	assertShows(t, page, "Publish Add a library Add a Code Rules library from a GitHub repository you have write access to, "+
+	assertShows(t, page, "Publish Add a library Add a Trail Guide library from a GitHub repository you have write access to, "+
 		"from the list below or by its URL. A library is a repository with a rule-library.yaml and at least one "+
 		"release/<number> tag.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
@@ -977,7 +977,7 @@ func TestSkippingPrivateProjectsSaysSo(t *testing.T) {
 }
 
 // Checkout's Where it goes offers a signed-in visitor their projects, each saying what it uses, private ones marked,
-// and a way to use a project that doesn't use Code Rules yet; and the checkout writes for the project chosen.
+// and a way to use a project that doesn't use Trail Guide yet; and the checkout writes for the project chosen.
 func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
@@ -986,7 +986,7 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	for _, want := range []string{
 		`value="octocat/api" data-cart-project`, "octocat/api</b>", "Uses example/rules", `value="octocat/billing" data-cart-project`,
 		">Private</span>", "Or use a project that doesn", "data-cart-new-box hidden", "A new project",
-		"The prompt sets up Code Rules there first.",
+		"The prompt sets up Trail Guide there first.",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %q", want)
@@ -1001,7 +1001,7 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 // show, it says why instead, as other pages do: the read failed, with Try again back to the cart; Rulemart is reading,
 // and the page refreshes itself; or the visitor must sign in again. Each still lets them enter a project.
 func TestCheckoutSaysHowItsReadOfGitHubWentWhenItHasNoProjects(t *testing.T) {
-	const noneFound = "We didn't find any of your projects using Code Rules"
+	const noneFound = "We didn't find any of your projects using Trail Guide"
 	for name, tc := range map[string]struct {
 		err     error
 		failed  bool
@@ -1188,7 +1188,7 @@ func TestCheckoutNeverCopiesAnUnsafeSourceNameFromAProjectsProvenance(t *testing
 			t.Errorf("the texts hold %q:\n%s", unsafe, text)
 		}
 	}
-	if !strings.Contains(text, "code-rules project add library example \\\n") {
+	if !strings.Contains(text, "trailguide project add library example \\\n") {
 		t.Errorf("the texts don't add the library as example:\n%s", text)
 	}
 }

@@ -1,5 +1,6 @@
-// Provenance: the file Code Rules generates in a project, .code-rules/generated/provenance.json, which names the
-// libraries the project imports and the version of each rule it holds.
+// Provenance: the file Trail Guide generates in a project, .trailguide/generated/provenance.json, or under .code-rules/ in a
+// project from before Code Rules was renamed Trail Guide, which names the libraries the project imports and the version
+// of each rule it holds.
 
 package domain
 
@@ -15,8 +16,16 @@ import (
 	"github.com/fabricahq/rulemart/internal/lib/coderules"
 )
 
-// ProvenancePath is where a project keeps the provenance file Code Rules generates, from its repository's root.
-const ProvenancePath = ".code-rules/generated/provenance.json"
+// ProjectDirectory is the directory at a repository's root where Trail Guide keeps a project's files.
+const ProjectDirectory = ".trailguide"
+
+// LegacyProjectDirectory is where a project kept its files when Trail Guide was named Code Rules. Trail Guide still reads a
+// project's files there while its repository has no ProjectDirectory, so Rulemart does too.
+const LegacyProjectDirectory = ".code-rules"
+
+// ProvenancePath returns where a project whose files are in directory, ProjectDirectory or LegacyProjectDirectory,
+// keeps the provenance file Trail Guide generates, from its repository's root.
+func ProvenancePath(directory string) string { return directory + "/generated/provenance.json" }
 
 // Source is a library a project imports, as its provenance file records it.
 type Source struct {
@@ -40,8 +49,8 @@ type PinnedRule struct {
 	Version coderules.RuleVersion
 }
 
-// provenanceFile is the part of provenance.json a read needs, as Code Rules' build writes it (internal/build/output.go,
-// renderProvenance): each source's name, repository, release, and groups, and each rule's ID and origin. Code Rules
+// provenanceFile is the part of provenance.json a read needs, as Trail Guide's build writes it (internal/build/output.go,
+// renderProvenance): each source's name, repository, release, and groups, and each rule's ID and origin. Trail Guide
 // publishes no parser for it yet, so this reads only those fields, and ignores the rest.
 type provenanceFile struct {
 	Sources []struct {
@@ -60,15 +69,15 @@ type provenanceFile struct {
 	} `json:"rules"`
 }
 
-// sourceName matches a source name Code Rules' configuration accepts (internal/rules/configuration.go,
+// sourceName matches a source name Trail Guide's configuration accepts (internal/rules/configuration.go,
 // sourceNamePattern), which also reserves local for a project's own rules.
 var sourceName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // ParseProvenance returns the sources a provenance file names, by name, each with the groups it imports and the rules
-// the project holds of it at a published version. A source whose name Code Rules' configuration wouldn't take is left
+// the project holds of it at a published version. A source whose name Trail Guide's configuration wouldn't take is left
 // out with its rules: anyone who can write to a repository can write its provenance file, and checkout copies a
 // source's name into commands a visitor runs. A rule whose origin is local, such as a fork, holds no library's
-// version, so it's left out, as is one whose ID or version Code Rules wouldn't write. It fails for a file larger than
+// version, so it's left out, as is one whose ID or version Trail Guide wouldn't write. It fails for a file larger than
 // MaxProvenanceBytes, one that isn't a provenance file's JSON, or one that names no sources.
 func ParseProvenance(data []byte) ([]Source, error) {
 	if len(data) > MaxProvenanceBytes {

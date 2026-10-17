@@ -1,4 +1,4 @@
-/* Rulemart's styles: Tailwind, with the design tokens of the Rulemart prototype, which mirror Code Rules'
+/* Rulemart's styles: Tailwind, with the design tokens of the Rulemart prototype, which mirror Trail Guide's
    documentation site. make generate builds static/generated/app.css from this file and the templ components. */
 
 @import "tailwindcss" source(none);

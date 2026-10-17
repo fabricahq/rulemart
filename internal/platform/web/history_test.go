@@ -221,7 +221,7 @@ func TestReleasesAnswerNotFoundWithinTheLibrary(t *testing.T) {
 	}
 }
 
-// One release can hold as many rules as Code Rules allows a library, 10,000, and a page shows a release whole, so its
+// One release can hold as many rules as Trail Guide allows a library, 10,000, and a page shows a release whole, so its
 // card must stay well within what one response can hold: its changes take short markup, and its table of every
 // rule's version leads to GitHub instead.
 func TestReleasesTabShowsTheLargestReleaseWithinAResponse(t *testing.T) {
@@ -699,7 +699,7 @@ func TestReleasesFoldALongListOfChanges(t *testing.T) {
 func TestMajorMarksExplainThemselves(t *testing.T) {
 	page := get(t, newSite(t, historyCatalog()), errorsRule+"?tab=versions").Body.String()
 
-	if !strings.Contains(page, `href="https://code-rules.fabricahq.com/reference/rule-versions/#choose-a-version-change" title="Major change: work that complied with the previous version could fail this one." aria-label="Major change: work that complied with the previous version could fail this one. How versions work.">Major</a>`) {
+	if !strings.Contains(page, `href="https://trailguide.fabricahq.com/reference/rule-versions/#choose-a-version-change" title="Major change: work that complied with the previous version could fail this one." aria-label="Major change: work that complied with the previous version could fail this one. How versions work.">Major</a>`) {
 		t.Error("the Major mark doesn't explain itself")
 	}
 }

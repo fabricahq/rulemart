@@ -1,7 +1,7 @@
 ---
 title: About Rulemart
 heading: About Rulemart
-description: Why Rulemart exists, what Code Rules is, and how Rulemart helps you pick the rules your project follows.
+description: Why Rulemart exists, what Trail Guide is, and how Rulemart helps you pick the rules your project follows.
 eyebrow: About
 ---
 
@@ -33,18 +33,18 @@ version may no longer comply, or only improves it.
 Rules are published in **libraries**, plain Git repositories, from which a project imports exactly the rules it wants,
 inside an organization or with everyone.
 
-## Introducing Code Rules
+## Introducing Trail Guide
 
-We wrote [Code Rules]({{.CodeRulesURL}}), an MIT-licensed open source tool by [Fabrica](https://fabricahq.com) to implement
-this concept of rules. Code Rules is a package manager for your agent rules.
+We wrote [Trail Guide]({{.TrailGuideURL}}), an MIT-licensed open source tool by [Fabrica](https://fabricahq.com) to implement
+this concept of rules. Trail Guide is a package manager for your agent rules.
 
 ## Introducing Rulemart
 
-Rulemart is a way to visually browse the rules available from many Code Rules libraries so you can pick and choose exactly the rules you want,
+Rulemart is a way to visually browse the rules available from many Trail Guide libraries so you can pick and choose exactly the rules you want,
 add them to your project, and get clean, versioned updates as their authors make changes (or you can fork the rules to maintain
 them yourself).
 
-Rulemart is free and open source [on GitHub]({{.RepositoryURL}}). Anyone is free to publish their own Code Rules library on Rulemart so that 
+Rulemart is free and open source [on GitHub]({{.RepositoryURL}}). Anyone is free to publish their own Trail Guide library on Rulemart so that 
 we can all benefit from your insights about how best to guide agents. Note that all new libraries are [manually vetted]({{.VettingHref}}) to
 ensure that Rulemart users are embedding safe guidance in their projects.
 

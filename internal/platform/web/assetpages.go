@@ -32,7 +32,7 @@ const ruleParam = "rule"
 // requestedAsset returns the path in the repository of the asset r's path names, and whether it names one: a shared
 // asset, under the library's shared asset directory, or one of a rule's own, under the rule's ID, which then names
 // rulePath. A rule's own asset's path spells the rule's asset directory as r's path spells the rule, which the catalog
-// matches without regard to case. Code Rules reserves assets, so no group or rule's ID holds it.
+// matches without regard to case. Trail Guide reserves assets, so no group or rule's ID holds it.
 func requestedAsset(r *http.Request) (rulePath, assetPath string, ok bool) {
 	if r.PathValue("kind")+"/" == domain.SharedAssetDir {
 		return "", domain.SharedAssetDir + r.PathValue("group"), true

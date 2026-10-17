@@ -203,7 +203,7 @@ func librariesPage(c chrome, libraries []libraryCard, unvetted, canList bool) te
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Code Rules library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref, noindex: unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Libraries · Rulemart", description: "Every vetted Trail Guide library: the engineering rules coding agents follow while they write and review your code.", section: librariesHref, noindex: unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1062,7 +1062,7 @@ func libraryGroupPage(c chrome, lib libraryView, g groupView, selection groupSel
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Code Rules library on Rulemart."}, lib)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, libraryHead(head{title: g.label.display() + " · " + lib.fullName() + " · Rulemart", description: lib.fullName() + ": " + plural(len(g.rules), g.label.display()+" rule", g.label.display()+" rules") + " for coding agents, in a Trail Guide library on Rulemart."}, lib)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

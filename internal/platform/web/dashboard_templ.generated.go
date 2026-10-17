@@ -1227,7 +1227,7 @@ func projectsContent(d dashboardView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<p class=\"mt-1.5 text-[12px] text-faint\">Read from each project's <span class=\"mono\">.code-rules/generated/provenance.json</span>.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<p class=\"mt-1.5 text-[12px] text-faint\">Read from each project's <span class=\"mono\">.trailguide/generated/provenance.json</span>.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

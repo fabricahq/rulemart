@@ -87,7 +87,7 @@ func TestPageDescriptionsFallBackAndStayShort(t *testing.T) {
 	c.rules["example/rules/techs/go/return-errors"] = rule
 	handler := newSite(t, c)
 
-	if got := metas(t, get(t, handler, library).Body.String())["description"]; got != "example/rules: 2 rules for coding agents, in a Code Rules library on Rulemart." {
+	if got := metas(t, get(t, handler, library).Body.String())["description"]; got != "example/rules: 2 rules for coding agents, in a Trail Guide library on Rulemart." {
 		t.Errorf("the library's description is %q", got)
 	}
 	got := metas(t, get(t, handler, errorsRule).Body.String())["description"]

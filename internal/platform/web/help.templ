@@ -4,7 +4,7 @@ package web
 
 // faqPage answers the questions visitors ask most, each a disclosure, and leads to feedback for any other.
 templ faqPage(c chrome) {
-	@layout(c, head{title: "FAQ · Rulemart", description: "What Rulemart and Code Rules are, how rules, groups, and libraries work, and how to use them in your project.", section: faqHref}) {
+	@layout(c, head{title: "FAQ · Rulemart", description: "What Rulemart and Trail Guide are, how rules, groups, and libraries work, and how to use them in your project.", section: faqHref}) {
 		<div class="page wrap max-w-[760px]">
 			@label("") {
 				FAQ
@@ -15,12 +15,12 @@ templ faqPage(c chrome) {
 				<p>Think of it as shopping for best practices instead of writing every rule yourself. To learn more, see <a href={ templ.SafeURL(aboutHref) }>About Rulemart</a>.</p>
 			}
 			@faqItem("Can I use Rulemart with any project?") {
-				<p>Yes, in any language, public or private, as long as it uses <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Code Rules adds them to your project and keeps them in sync.</p>
-				<p>If your project doesn't use Code Rules yet, the checkout prompt has your agent set it up.</p>
+				<p>Yes, in any language, public or private, as long as it uses <a href={ templ.SafeURL(trailGuideURL) }>Trail Guide</a>, Fabrica's open-source tool for managing agent rules. Rulemart is where you find rules, and Trail Guide adds them to your project and keeps them in sync.</p>
+				<p>If your project doesn't use Trail Guide yet, the checkout prompt has your agent set it up.</p>
 			}
-			@faqItem("What is Code Rules?") {
-				<p>Rulemart uses <a href={ templ.SafeURL(codeRulesURL) }>Code Rules</a> to add the rules you pick to your project and keep them in sync.</p>
-				<p>Code Rules is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.code-rules/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p>
+			@faqItem("What is Trail Guide?") {
+				<p>Rulemart uses <a href={ templ.SafeURL(trailGuideURL) }>Trail Guide</a> to add the rules you pick to your project and keep them in sync.</p>
+				<p>Trail Guide is an open-source package manager for engineering rules. Rules are Markdown files that tell agents how to write and review code. A project keeps its rules in a <code>.trailguide/</code> directory committed to version control, so the whole team and every agent work from the same rules.</p>
 				<p>Teams manage this guidance rule by rule, for a single repo or across their organization. They can share one library of rules between repos and still add or exclude rules where a project differs.</p>
 			}
 			@faqItem("How do I use Rulemart?") {
@@ -42,28 +42,28 @@ templ faqPage(c chrome) {
 			}
 			@faqItem("Should I stay in sync with a rule or fork it?") {
 				<p>When you check out, you choose this for each rule in your cart.</p>
-				<p><b>Stay in sync</b> to let Code Rules keep the rule current. When the library publishes a new version, <code>code-rules project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p>
+				<p><b>Stay in sync</b> to let Trail Guide keep the rule current. When the library publishes a new version, <code>trailguide project update</code>, run by hand or in a scheduled CI job, previews the change with the author's summary and applies it once you confirm. To hold one rule back, pin it to its current version with a reason while the rest keep updating.</p>
 				<p><b>Fork</b> to manage the rule yourself. It's copied into your project and credited to the original, and from then on you make any changes to it. Updates never change a forked rule.</p>
 			}
 			@faqItem("How are rules versioned?") {
 				<p>Each rule has its own version, using <a href={ templ.SafeURL(versionsDocs) }>semantic versioning adapted for rules</a>. A major version means code that complied with the previous version could fail the new one. A minor version adds guidance and a patch adds none; code that complied still complies.</p>
-				<p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Code Rules previews every change, with each version's summary, and applies them once you confirm.</p>
+				<p>Libraries publish new versions together in numbered library releases, such as <code>release/4</code>. When you update, Trail Guide previews every change, with each version's summary, and applies them once you confirm.</p>
 			}
 			@faqItem("Who can publish a library?") {
-				<p>Anyone with write access to a public Code Rules library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses { unvettedOptInLabel }. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
+				<p>Anyone with write access to a public Trail Guide library on GitHub can list it, signed in. Rulemart shows a library across the site, in its lists, groups, and search, once it has vetted it; until then, the library's pages show under <a href={ templ.SafeURL(unvettedHref) } rel="nofollow">unvetted libraries</a>, with a warning, and the lists show it, tagged Unvetted, only to a visitor who chooses { unvettedOptInLabel }. Every library shows its owner and repository, so you can judge who stands behind it. Private libraries can't be listed.</p>
 			}
 			@faqItem("Do I need a Rulemart account?") {
 				<p>No. You can browse, read rules, and check out without one.</p>
 				<p>A free account, using GitHub sign-in, adds:</p>
 				<ul>
-					<li><b>Easier checkout</b>, since Rulemart knows which of your GitHub projects use Code Rules</li>
-					<li><b>Project tracking</b>, so you see when rule updates are available for your projects that use Code Rules</li>
+					<li><b>Easier checkout</b>, since Rulemart knows which of your GitHub projects use Trail Guide</li>
+					<li><b>Project tracking</b>, so you see when rule updates are available for your projects that use Trail Guide</li>
 					<li><b>Stars</b> to save rules and help others find good ones</li>
 					<li><b>Library listing</b>, so you can list your own libraries on Rulemart</li>
 				</ul>
 			}
 			@faqItem("How do I give feedback?") {
-				<p>For Rulemart or Code Rules itself, use the <a href={ templ.SafeURL(feedbackHref) }>feedback page</a>. Pick a topic, and it opens an issue on GitHub where we track and reply to it.</p>
+				<p>For Rulemart or Trail Guide itself, use the <a href={ templ.SafeURL(feedbackHref) }>feedback page</a>. Pick a topic, and it opens an issue on GitHub where we track and reply to it.</p>
 				<p>For a specific rule, open an issue in the library's repository, which the rule's page links. It goes to the people who publish the rule, since they maintain it.</p>
 			}
 			<p class="mt-7 mb-2.5 text-[13px] text-muted">Still have a question? <a href={ templ.SafeURL(feedbackHref) }>Ask us</a>.</p>
@@ -88,13 +88,13 @@ templ faqItem(question string) {
 // feedbackPage offers a topic for each kind of feedback, each opening a prefilled issue on GitHub in the repository
 // that owns the topic, and says where feedback about one rule goes.
 templ feedbackPage(c chrome) {
-	@layout(c, head{title: "Feedback · Rulemart", description: "Tell us what to change about Rulemart or Code Rules: pick a topic to open an issue on GitHub."}) {
+	@layout(c, head{title: "Feedback · Rulemart", description: "Tell us what to change about Rulemart or Trail Guide: pick a topic to open an issue on GitHub."}) {
 		<div class="page wrap max-w-[760px]">
 			@label("") {
 				Feedback
 			}
 			<h1 class="title-xl mt-2.5 mb-2.5">Give us feedback</h1>
-			<p class="mb-[26px] text-muted">Rulemart and Code Rules are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>
+			<p class="mb-[26px] text-muted">Rulemart and Trail Guide are young, and we're changing them based on what you tell us. Pick a topic to open an issue on GitHub, where we track and reply to it.</p>
 			for _, group := range feedbackGroups {
 				@labelHeading("mt-[22px] mb-2 first:mt-0") {
 					{ group.name }
@@ -111,7 +111,7 @@ templ feedbackPage(c chrome) {
 						}
 					}
 				}
-				if group.name == "Code Rules" {
+				if group.name == "Trail Guide" {
 					@labelHeading("mt-[22px] mb-2") {
 						A specific rule
 					}

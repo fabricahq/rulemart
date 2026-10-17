@@ -34,9 +34,10 @@ never sign out of ends on its own after 30 days.</p>
 <p><strong>What it looks for in each repository:</strong></p>
 <ul>
 <li>A <code>rule-library.yaml</code> file and <code>release/&lt;number&gt;</code> tags. Together they make a library you could add to Rulemart.</li>
-<li>A <code>.code-rules/generated/provenance.json</code> file, which marks the repository as a project. From it, Rulemart keeps
-which libraries the project imports and under what names, which groups it imports, and which rule versions it holds,
-so it can count the updates waiting for the project.</li>
+<li>A <code>.trailguide/generated/provenance.json</code> file, which marks the repository as a project, or, in a repository without
+<code>.trailguide</code>, <code>.code-rules/generated/provenance.json</code>, from before Code Rules was renamed Trail Guide. From it, Rulemart
+keeps which libraries the project imports and under what names, which groups it imports, and which rule versions it
+holds, so it can count the updates waiting for the project.</li>
 </ul>
 <p>Rulemart keeps nothing else about your repositories, and none of their code.</p>
 <p><strong>Private repositories.</strong> With the app installed, Rulemart collects the same things about the private repositories you

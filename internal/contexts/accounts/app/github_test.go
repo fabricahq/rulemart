@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -103,13 +104,13 @@ func monasGitHub() *githubtest.Fake {
 		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona", Organizations: []githubtest.Membership{{Organization: "octo-org", Role: "member"}}}},
 		Repositories: []githubtest.Repository{
 			{Owner: "mona", Name: "rules", PushedAt: pushed, Files: manifest, Tags: []string{"release/1", "release/12", "release/3", "v1.0"}},
-			{Owner: "mona", Name: "api", PushedAt: pushed.Add(-time.Hour), Files: map[string]string{domain.ProvenancePath: provenance}},
+			{Owner: "mona", Name: "api", PushedAt: pushed.Add(-time.Hour), Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): provenance}},
 			{Owner: "mona", Name: "draft-rules", PushedAt: pushed.Add(-2 * time.Hour), Files: manifest},
-			{Owner: "mona", Name: "broken", PushedAt: pushed.Add(-3 * time.Hour), Files: map[string]string{domain.ProvenancePath: "{not json"}},
+			{Owner: "mona", Name: "broken", PushedAt: pushed.Add(-3 * time.Hour), Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): "{not json"}},
 			{Owner: "mona", Name: "notes", PushedAt: pushed.Add(-4 * time.Hour), Files: map[string]string{"README.md": "notes"}},
 			{Owner: "mona", Name: "empty", PushedAt: pushed.Add(-5 * time.Hour)},
 			{Owner: "octo-org", Name: "Org-Rules", PushedAt: pushed.Add(-6 * time.Hour), Files: manifest, Tags: []string{"release/2"}},
-			{Owner: "mona", Name: "billing", Private: true, PushedAt: pushed.Add(-7 * time.Hour), Files: map[string]string{domain.ProvenancePath: provenance}},
+			{Owner: "mona", Name: "billing", Private: true, PushedAt: pushed.Add(-7 * time.Hour), Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): provenance}},
 		},
 	}
 }
@@ -152,6 +153,40 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 	want := domain.PinnedRule{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 1, Minor: 2}}
 	if source.Library != "fabricahq/public-rules" || source.Release != 2 || len(source.Rules) != 1 || source.Rules[0] != want {
 		t.Errorf("the project's source is %+v", source)
+	}
+}
+
+// A read finds a project's provenance file where Trail Guide reads it: in .trailguide/, or in .code-rules/, as the project
+// kept it before Code Rules was renamed Trail Guide, while it has no .trailguide; never in .code-rules/ beside .trailguide/,
+// or beside a .trailguide that isn't a directory, which Trail Guide wouldn't read. Each project records its directory.
+func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
+	current := githubtest.Provenance(githubtest.ProvenanceSource{Name: "current", Repository: "https://github.com/fabricahq/public-rules.git"})
+	legacy := githubtest.Provenance(githubtest.ProvenanceSource{Name: "legacy", Repository: "https://github.com/fabricahq/public-rules.git"})
+	trailGuideProvenance := domain.ProvenancePath(domain.ProjectDirectory)
+	legacyProvenance := domain.ProvenancePath(domain.LegacyProjectDirectory)
+	repository := func(name string, files map[string]string) githubtest.Repository {
+		return githubtest.Repository{Owner: "mona", Name: name, PushedAt: pushed, Files: files}
+	}
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			repository("renamed", map[string]string{trailGuideProvenance: current}),
+			repository("not-renamed", map[string]string{legacyProvenance: legacy}),
+			repository("both", map[string]string{trailGuideProvenance: current, legacyProvenance: legacy}),
+			repository("trailguide-without-provenance", map[string]string{".trailguide/config.yaml": "version: 2\n", legacyProvenance: legacy}),
+			repository("trailguide-file", map[string]string{".trailguide": "not a directory", legacyProvenance: legacy}),
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	got := map[string]string{}
+	for _, p := range site.snapshot(t).Projects {
+		got[p.Name] = p.Directory + " " + p.Sources[0].Name
+	}
+
+	want := map[string]string{"renamed": ".trailguide current", "not-renamed": ".code-rules legacy", "both": ".trailguide current"}
+	if !maps.Equal(got, want) {
+		t.Errorf("projects by directory and source %v, want %v", got, want)
 	}
 }
 
@@ -963,7 +998,7 @@ func TestAFormerOrganizationOwnerNoLongerReadsItsPrivateRepositories(t *testing.
 			fake.Users[0].Organizations[0].Role = "admin"
 			fake.Repositories = append(fake.Repositories, githubtest.Repository{
 				Owner: "octo-org", Name: "secret", Private: true, PushedAt: pushed.Add(-8 * time.Hour),
-				Files: map[string]string{domain.ProvenancePath: githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
+				Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
 			})
 			fake.Installations = []githubtest.Installation{{ID: 2, Account: "octo-org", AccountID: 100, Organization: true, Repositories: []string{"octo-org/secret"}}}
 			site := newGitHubSite(t, fake, true)
@@ -1002,7 +1037,7 @@ func TestAnInstallationOnARenamedOrganizationIsCheckedByItsCurrentName(t *testin
 	fake.Users[0].Organizations[0].Role = "admin"
 	fake.Repositories = append(fake.Repositories, githubtest.Repository{
 		Owner: "octo-org", Name: "secret", Private: true, PushedAt: pushed.Add(-8 * time.Hour),
-		Files: map[string]string{domain.ProvenancePath: githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
+		Files: map[string]string{domain.ProvenancePath(domain.ProjectDirectory): githubtest.Provenance(githubtest.ProvenanceSource{Name: "fabrica", Repository: "https://github.com/fabricahq/public-rules.git"})},
 	})
 	fake.Installations = []githubtest.Installation{{ID: 2, Account: "octo-org", AccountID: 100, Organization: true, Repositories: []string{"octo-org/secret"}}}
 	site := newGitHubSite(t, fake, true)
