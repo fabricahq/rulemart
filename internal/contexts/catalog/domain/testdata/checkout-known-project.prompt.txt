@@ -12,7 +12,7 @@ Run:
 # From the root of acme/api
 
 # If .trailguide/config.yaml has schemaVersion: 1,
-# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#version-1-configuration
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
 
 # acme/api already imports fabricahq/public-rules as team.
 # In .trailguide/config.yaml, add to sources.team.rules.include:

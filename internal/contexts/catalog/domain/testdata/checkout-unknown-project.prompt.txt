@@ -24,7 +24,7 @@ curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 
 # If the project uses Trail Guide already and its config.yaml has schemaVersion: 1,
-# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#version-1-configuration
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
 
 # Add your rules
 trailguide project add source fabrica-public-rules \

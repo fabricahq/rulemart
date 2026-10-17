@@ -514,7 +514,7 @@ func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 }
 
 // configurationVersion1Docs is Trail Guide's guide to rewriting a version 1 configuration as version 2.
-const configurationVersion1Docs = "https://trailguide.fabricahq.com/reference/configuration/#version-1-configuration"
+const configurationVersion1Docs = "https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility"
 
 // Prompt returns what a visitor gives their coding agent to import the checkout into its target, or "" when there's
 // nothing to import: what to import from each library, a review of each library Rulemart doesn't vet before its
