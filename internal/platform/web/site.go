@@ -27,7 +27,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // maxPageBytes bounds a page Rulemart sends, and a cart's checkout: a Lambda function's response holds at most 6 MB.
@@ -161,7 +161,7 @@ type Catalog interface {
 	// ReleaseComparison and RuleComparison put the older release or version first, and fail with app.ErrNotFound
 	// when there's no such library, rule, release, or version.
 	ReleaseComparison(ctx context.Context, owner, name string, from, to int) (views.ReleaseComparison, error)
-	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error)
+	RuleComparison(ctx context.Context, owner, name, rulePath string, from, to trailguide.RuleVersion) (views.RuleComparison, error)
 	GroupIndex(ctx context.Context, unvetted bool) (views.GroupIndex, error)
 	// GroupPage returns the rules of the group id that choices keep, or fails with app.ErrNotFound when id isn't canonical
 	// and no library holds it. mine are the visitor's libraries, which My libraries keeps.
@@ -734,8 +734,8 @@ func (s *server) libraryGroup(w http.ResponseWriter, r *http.Request) {
 // names no canonical address and asks search engines not to index it.
 func (s *server) ruleComparison(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	from, fromErr := coderules.ParseRuleVersion(query.Get("from"), "from")
-	to, toErr := coderules.ParseRuleVersion(query.Get("to"), "to")
+	from, fromErr := trailguide.ParseRuleVersion(query.Get("from"), "from")
+	to, toErr := trailguide.ParseRuleVersion(query.Get("to"), "to")
 	if fromErr != nil || toErr != nil {
 		s.ruleComparisonNotFound(w, r)
 		return

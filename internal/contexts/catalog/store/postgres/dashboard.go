@@ -11,7 +11,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Dashboard returns the libraries owners publish and the libraries names names, as store.Reader describes, from one
@@ -83,7 +83,7 @@ func importedLibraries(ctx context.Context, q *catalogdb.Queries, vetted []domai
 		ids[i], at[row.ID] = row.ID, i
 		imported[i] = views.ImportedLibrary{
 			Library: libraryRef(row.Owner, row.Name, row.OwnerAvatarUrl), Vetted: row.Vetted,
-			Rules: domain.RuleStates{Current: map[string]coderules.RuleVersion{}, Retired: map[string]bool{}},
+			Rules: domain.RuleStates{Current: map[string]trailguide.RuleVersion{}, Retired: map[string]bool{}},
 		}
 	}
 	states, err := q.ListRuleStates(ctx, ids)
@@ -95,7 +95,7 @@ func importedLibraries(ctx context.Context, q *catalogdb.Queries, vetted []domai
 		if r.Retired {
 			rules.Retired[r.Path] = true
 		} else {
-			rules.Current[r.Path] = coderules.RuleVersion{Major: int(r.Major), Minor: int(r.Minor), Patch: int(r.Patch)}
+			rules.Current[r.Path] = trailguide.RuleVersion{Major: int(r.Major), Minor: int(r.Minor), Patch: int(r.Patch)}
 		}
 	}
 	return imported, nil

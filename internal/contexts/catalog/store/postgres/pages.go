@@ -16,7 +16,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres/generated/catalogdb"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // readOnlySnapshot is how every page reads: all its queries see one committed state of the catalog, so an
@@ -251,7 +251,7 @@ func (s *Store) RulePage(ctx context.Context, vetted []domain.LibraryKey, owner,
 // RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only when
 // both are stored and hold at most maxBytes together. It fails with store.ErrNotFound when there's no such library or
 // rule, or when either isn't a version of the rule.
-func (s *Store) RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error) {
+func (s *Store) RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to trailguide.RuleVersion, maxBytes int64) (views.RuleComparison, error) {
 	comparison := views.RuleComparison{From: from, To: to}
 	err := s.read(ctx, func(q *catalogdb.Queries) error {
 		page, stored, err := rulePage(ctx, q, vetted, owner, name, rulePath)
@@ -335,7 +335,7 @@ func libraryRulePage(ctx context.Context, q *catalogdb.Queries, lib views.Librar
 	for i, v := range versions {
 		page.Versions = append(page.Versions, views.Version{
 			Version: version(v.Major, v.Minor, v.Patch), Release: int(v.Release), PublishedAt: v.PublishedAt.Time,
-			Change: coderules.Change(v.Change), Summaries: v.Summaries,
+			Change: trailguide.Change(v.Change), Summaries: v.Summaries,
 		})
 		stored[i] = storedText{id: v.ID, release: int(v.Release), present: v.HasMarkdown, bytes: int64(v.MarkdownBytes)}
 	}
@@ -554,7 +554,7 @@ func libraryHistory(ctx context.Context, q *catalogdb.Queries, vetted []domain.L
 		r.Title = row.Title.String
 		r.Versions = append(r.Versions, views.Version{
 			Version: version(row.Major, row.Minor, row.Patch), Release: int(row.Release), PublishedAt: row.PublishedAt.Time,
-			Change: coderules.Change(row.Change), Summaries: row.Summaries, Title: row.Title.String,
+			Change: trailguide.Change(row.Change), Summaries: row.Summaries, Title: row.Title.String,
 		})
 		stored[n] = append(stored[n], storedText{id: row.ID, release: int(row.Release), present: row.HasMarkdown, bytes: int64(row.MarkdownBytes)})
 	}
@@ -644,8 +644,8 @@ func releaseLayouts(releases []int32, layouts []string) (domain.ReleaseLayouts, 
 	return result, nil
 }
 
-func version(major, minor, patch int32) coderules.RuleVersion {
-	return coderules.RuleVersion{Major: int(major), Minor: int(minor), Patch: int(patch)}
+func version(major, minor, patch int32) trailguide.RuleVersion {
+	return trailguide.RuleVersion{Major: int(major), Minor: int(minor), Patch: int(patch)}
 }
 
 func libraryRef(owner, name, avatarURL string) views.LibraryRef {

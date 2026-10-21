@@ -18,8 +18,8 @@ import (
 	accounts "github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"github.com/fabricahq/trailguide/trailguide"
 	"golang.org/x/net/html"
 )
 
@@ -38,8 +38,8 @@ type dashboardSite struct {
 // on Rulemart, a private one, a public one of octo-org's that octocat may only read, and two projects, one private, that
 // import example/rules, one behind it.
 func octocatsGitHub() accounts.Snapshot {
-	behind := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 1}}}
-	current := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 2}}}
+	behind := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: trailguide.RuleVersion{Major: 1}}}
+	current := []accounts.PinnedRule{{Path: "techs/go/return-errors", Version: trailguide.RuleVersion{Major: 2}}}
 	return accounts.Snapshot{
 		ReadAt:        time.Now().Add(-3 * time.Minute),
 		Organizations: []string{"octo-org", "example"},
@@ -67,7 +67,7 @@ func octocatsCatalog() catalog {
 		},
 		Imported: []views.ImportedLibrary{{
 			Library: views.LibraryRef{Owner: "example", Name: "rules"}, Vetted: true,
-			Rules: domain.RuleStates{Current: map[string]coderules.RuleVersion{"techs/go/return-errors": {Major: 2}}, Retired: map[string]bool{}},
+			Rules: domain.RuleStates{Current: map[string]trailguide.RuleVersion{"techs/go/return-errors": {Major: 2}}, Retired: map[string]bool{}},
 		}},
 	}
 	return c

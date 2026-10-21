@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // ProjectDirectory is the directory at a repository's root where Trail Guide keeps a project's files.
@@ -46,7 +46,7 @@ type Source struct {
 type PinnedRule struct {
 	// Path is the rule's ID in its library, such as techs/go/return-errors.
 	Path    string
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 }
 
 // provenanceFile is the part of provenance.json a read needs, as Trail Guide's build writes it (internal/build/output.go,
@@ -108,10 +108,10 @@ func ParseProvenance(data []byte) ([]Source, error) {
 			continue
 		}
 		path, ok := strings.CutPrefix(rule.ID, rule.Origin.Source+":")
-		if !ok || coderules.ValidateRuleID(path, "rule") != nil {
+		if !ok || trailguide.ValidateRuleID(path, "rule") != nil {
 			continue
 		}
-		version, err := coderules.ParseRuleVersion(*rule.Origin.Version, "version")
+		version, err := trailguide.ParseRuleVersion(*rule.Origin.Version, "version")
 		if err != nil {
 			continue
 		}

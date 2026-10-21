@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
-var canonicalList = []coderules.CanonicalGroup{
+var canonicalList = []trailguide.CanonicalGroup{
 	{ID: "practices/testing", Name: "Testing", Description: "What to test."},
 	{ID: "techs/go", Name: "Go", Description: "The Go language."},
 }

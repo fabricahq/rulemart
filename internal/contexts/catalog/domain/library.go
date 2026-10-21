@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Library is everything the catalog stores about one library, as its release tags publish it.
@@ -96,10 +96,10 @@ func (r Rule) Current() Version { return r.Versions[len(r.Versions)-1] }
 
 // Version is one version of a rule, as the library release that published it records it.
 type Version struct {
-	Number coderules.RuleVersion
+	Number trailguide.RuleVersion
 	// Release is the number of the library release that published the version.
 	Release   int
-	Change    coderules.Change
+	Change    trailguide.Change
 	Summaries []string
 	// Content is the rule's file as the version's release published it.
 	Content Content

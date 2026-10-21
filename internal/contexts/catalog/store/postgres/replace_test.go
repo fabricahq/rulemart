@@ -11,8 +11,8 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // release returns library release number, tagged on day number.
@@ -22,7 +22,7 @@ func release(number int) domain.Release {
 
 // added returns version 1.0.0 of a rule, new in release number.
 func added(number int) domain.Version {
-	return domain.Version{Number: v(1, 0, 0), Release: number, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}
+	return domain.Version{Number: v(1, 0, 0), Release: number, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}
 }
 
 // goRules returns a library with the techs/go group and its rules, each published in releases.
@@ -70,7 +70,7 @@ func TestReplaceLibraryKeepsTheIDsOfRowsThatSurvive(t *testing.T) {
 	next.Releases = append(slices.Clone(exampleRules.Releases), release(4))
 	next.Rules = slices.Clone(exampleRules.Rules)
 	next.Rules[2].Versions = append(slices.Clone(next.Rules[2].Versions),
-		domain.Version{Number: v(1, 2, 0), Release: 4, Change: coderules.ChangeMinor, Summaries: []string{"Count retries."}})
+		domain.Version{Number: v(1, 2, 0), Release: 4, Change: trailguide.ChangeMinor, Summaries: []string{"Count retries."}})
 	next.Rules = append(next.Rules, withContent(domain.Rule{Path: "techs/go/close-what-you-open", Group: "techs/go",
 		Versions: []domain.Version{added(4)}}, "Close what you open"))
 
@@ -257,7 +257,7 @@ func TestReplaceLibraryKeepsTheIDOfAVersionThatMovesToAnotherRelease(t *testing.
 func TestReplaceLibraryMovesSeveralVersionsOfARuleToLaterReleases(t *testing.T) {
 	s, connString := newStore(t)
 	fix := func(number int) domain.Version {
-		return domain.Version{Number: v(1, 0, 1), Release: number, Change: coderules.ChangePatch, Summaries: []string{"Fix a typo."}}
+		return domain.Version{Number: v(1, 0, 1), Release: number, Change: trailguide.ChangePatch, Summaries: []string{"Fix a typo."}}
 	}
 	replace(t, s, goRules(2, current("techs/go/return-errors", added(1), fix(2))))
 	before := ids(t, connString)

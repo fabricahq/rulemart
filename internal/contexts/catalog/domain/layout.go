@@ -9,7 +9,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Layout is where a library release keeps its files in its repository: the directory that holds them, which the
@@ -25,9 +25,9 @@ const (
 	// TrailGuideLayout keeps a library in .trailguide/: its manifest is the library section of .trailguide/config.yaml,
 	// its groups are in .trailguide/rules/, and its shared assets and change notes in .trailguide/assets/ and
 	// .trailguide/changes/. License and notice files stay at their paths from the repository root.
-	TrailGuideLayout Layout = coderules.Directory
+	TrailGuideLayout Layout = trailguide.Directory
 	// CodeRulesLayout is TrailGuideLayout in the directory's name from before Code Rules was renamed Trail Guide.
-	CodeRulesLayout Layout = coderules.LegacyDirectory
+	CodeRulesLayout Layout = trailguide.LegacyDirectory
 )
 
 // ParseLayout returns the layout whose directory is text, as the catalog stores it.
@@ -43,10 +43,10 @@ func ParseLayout(text string) (Layout, error) {
 // root holds rule-library.yaml, or else the Trail Guide directory the commit has, .trailguide, or before the rename,
 // .code-rules. A commit that has neither is read in RootLayout, the layout every library had before.
 func DetectLayout(files Files) (Layout, error) {
-	if _, err := files.Open(coderules.LegacyManifest); err == nil {
+	if _, err := files.Open(trailguide.LegacyManifest); err == nil {
 		return RootLayout, nil
 	} else if !errors.Is(err, ErrFileMissing) {
-		return "", fmt.Errorf("%s: %v", coderules.LegacyManifest, err)
+		return "", fmt.Errorf("%s: %v", trailguide.LegacyManifest, err)
 	}
 	for _, layout := range []Layout{TrailGuideLayout, CodeRulesLayout} {
 		// One file shows the directory is there; Trail Guide reads a commit's .code-rules/ only while it has no .trailguide/.
@@ -64,9 +64,9 @@ func DetectLayout(files Files) (Layout, error) {
 // ManifestFile returns the repository path of the manifest, the file whose license the library declares.
 func (l Layout) ManifestFile() string {
 	if l == RootLayout {
-		return coderules.LegacyManifest
+		return trailguide.LegacyManifest
 	}
-	return l.RepositoryPath(coderules.Manifest)
+	return l.RepositoryPath(trailguide.Manifest)
 }
 
 // RepositoryPath returns where the library file, or directory, at library path file lives in the repository, such as
@@ -75,8 +75,8 @@ func (l Layout) RepositoryPath(file string) string {
 	if l == RootLayout {
 		return file
 	}
-	repository := coderules.RepositoryPath(file)
-	if inside, found := strings.CutPrefix(repository, coderules.Directory+"/"); found {
+	repository := trailguide.RepositoryPath(file)
+	if inside, found := strings.CutPrefix(repository, trailguide.Directory+"/"); found {
 		return string(l) + "/" + inside
 	}
 	return repository
@@ -90,12 +90,12 @@ func (l Layout) LibraryPath(file string) (string, bool) {
 		return file, true
 	case CodeRulesLayout:
 		if inside, found := strings.CutPrefix(file, string(l)+"/"); found {
-			file = coderules.Directory + "/" + inside
-		} else if file == string(l) || strings.HasPrefix(file, coderules.Directory+"/") {
+			file = trailguide.Directory + "/" + inside
+		} else if file == string(l) || strings.HasPrefix(file, trailguide.Directory+"/") {
 			return "", false
 		}
 	}
-	return coderules.LibraryPath(file)
+	return trailguide.LibraryPath(file)
 }
 
 // ResolveLink returns the repository file that destination, a link or image in the library file at library path

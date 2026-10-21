@@ -19,8 +19,8 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // fakeStars keeps stars in memory, as catalog/app.Stars does in Postgres: only a rule in current can be starred.
@@ -692,10 +692,10 @@ func TestStarredRulesListTheVisitorsRules(t *testing.T) {
 	site := newStarSite(t)
 	site.stars.listed[octocatID] = []views.StarredRule{
 		{Library: views.LibraryRef{Owner: "example", Name: "rules"}, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go",
-			Title: "Return errors with context", Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}, Stars: returnErrorsStars},
+			Title: "Return errors with context", Impact: "HIGH", Version: trailguide.RuleVersion{Major: 2}, Stars: returnErrorsStars},
 			CanonicalGroup: goGroup, StarredAt: day(3)},
 		{Library: views.LibraryRef{Owner: "example", Name: "rules"}, Rule: views.RuleCard{Path: retryRuleID, Group: "practices/testing",
-			Title: "Verify retry limits", Impact: "HIGH", Version: coderules.RuleVersion{Major: 1, Minor: 1}, Stars: 1},
+			Title: "Verify retry limits", Impact: "HIGH", Version: trailguide.RuleVersion{Major: 1, Minor: 1}, Stars: 1},
 			CanonicalGroup: testingGroup, StarredAs: "practices/testing/check-retry-backoff", StarredAt: day(2)},
 	}
 

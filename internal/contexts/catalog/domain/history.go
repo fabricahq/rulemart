@@ -7,7 +7,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // buildHistory returns every rule that records publish, with its history but no group or content, in rule ID
@@ -18,9 +18,9 @@ import (
 // version, a change starts from the rule's previous version, a new rule has none, a retirement retires the rule's
 // current version, every rule the previous record listed is either still listed or retired, and a retired ID never
 // returns. Errors name the release and field that broke the history.
-func buildHistory(records []coderules.ReleaseRecord) ([]Rule, error) {
+func buildHistory(records []trailguide.ReleaseRecord) ([]Rule, error) {
 	histories := map[string]*Rule{}
-	previous := map[string]coderules.RuleVersion{}
+	previous := map[string]trailguide.RuleVersion{}
 	for i, record := range records {
 		tag := ReleaseTag(record.Release)
 		if record.Release != i+1 {
@@ -56,20 +56,20 @@ func buildHistory(records []coderules.ReleaseRecord) ([]Rule, error) {
 
 // followsFrom checks that record follows from the rule versions the previous record listed, given the histories
 // built so far. Trail Guide's parser has already checked that each change leads to the version record lists.
-func followsFrom(record coderules.ReleaseRecord, previous map[string]coderules.RuleVersion, histories map[string]*Rule, tag string) error {
+func followsFrom(record trailguide.ReleaseRecord, previous map[string]trailguide.RuleVersion, histories map[string]*Rule, tag string) error {
 	for _, id := range slices.Sorted(maps.Keys(record.Rules)) {
 		version := record.Rules[id]
 		before, listed := previous[id]
 		change, changed := record.Changes[id]
 		location := tag + ".rules." + id
 		switch {
-		case changed && change.Change == coderules.ChangeNew && listed:
+		case changed && change.Change == trailguide.ChangeNew && listed:
 			return fmt.Errorf("%s: the rule is new, but release/%d already listed it at %s", tag+".changes."+id, record.Release-1, before)
-		case changed && change.Change == coderules.ChangeNew && histories[id] != nil:
+		case changed && change.Change == trailguide.ChangeNew && histories[id] != nil:
 			return fmt.Errorf("%s: the rule is new, but release/%d retired that ID, and retired IDs can't be reused", tag+".changes."+id, histories[id].RetiredIn)
-		case changed && change.Change != coderules.ChangeNew && !listed:
+		case changed && change.Change != trailguide.ChangeNew && !listed:
 			return fmt.Errorf("%s: the rule changes from %s, but release/%d didn't list it", tag+".changes."+id, change.From, record.Release-1)
-		case changed && change.Change != coderules.ChangeNew && *change.From != before:
+		case changed && change.Change != trailguide.ChangeNew && *change.From != before:
 			return fmt.Errorf("%s: the rule changes from %s, but release/%d listed it at %s", tag+".changes."+id, change.From, record.Release-1, before)
 		case !changed && !listed:
 			return fmt.Errorf("%s: the rule appears without a change; a new rule needs a change of new", location)

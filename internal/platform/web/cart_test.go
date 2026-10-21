@@ -14,8 +14,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // fakeCarts answers every checkout with checkout, or err, and keeps the cart and target it was asked for.
@@ -114,7 +114,7 @@ func TestCheckoutAnswersWithTheResolvedCart(t *testing.T) {
 					{
 						Key: "example/rules::techs/go/return-errors", State: views.CartItemReady, Group: goGroup, Title: "Return errors",
 						Item:    domain.CartItem{Owner: "example", Name: "rules", Kind: domain.CartRule, Path: "techs/go/return-errors"},
-						Version: coderules.RuleVersion{Major: 1, Minor: 2}, Fork: true, InGroup: true,
+						Version: trailguide.RuleVersion{Major: 1, Minor: 2}, Fork: true, InGroup: true,
 					},
 					{
 						Key: "group::example/rules::techs/golang", State: views.CartItemReady, Group: views.ResolvedGroup{Path: "techs/golang"},

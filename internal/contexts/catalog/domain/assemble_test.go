@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // files is a release's files, by path, held in memory.
@@ -158,7 +158,7 @@ func group(name string) string {
 func snapshot(t *testing.T, number int, record string, f Files) ReleaseSnapshot {
 	t.Helper()
 	tag := ReleaseTag(number)
-	parsed, err := coderules.ParseReleaseRecord([]byte(record), tag)
+	parsed, err := trailguide.ParseReleaseRecord([]byte(record), tag)
 	if err != nil {
 		t.Fatalf("%s: %v", tag, err)
 	}
@@ -434,11 +434,11 @@ var sharedRule = "---\ntitle: Shared rule\nwhenToRead: When testing budgets.\nim
 // its title, impact description, reading guidance, and tags, and the HTML of its body and reading guidance.
 func sharedRuleBytes(t *testing.T, path string) int64 {
 	t.Helper()
-	parsed, err := coderules.Parse(sharedRule, path, repo.FullName())
+	parsed, err := trailguide.ParseRule(sharedRule, path, repo.FullName())
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := coderules.SplitDocument(sharedRule, path)
+	document, err := trailguide.SplitDocument(sharedRule, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,8 +697,8 @@ libraryFiles: [LICENSE.md, NOTICE.md, practices/testing/_group.yaml]
 	}
 }
 
-// A library section that gives its skills levels, its own and ones it curates from a source, as Trail Guide 0.5.0
-// lets it, still declares the library's license.
+// A library section that gives its skills levels, its own and ones it curates from a source, and lists a skill that
+// installs only as a dependency, as Trail Guide lets it, still declares the library's license.
 func TestAssembleReadsTheLicenseOfALibraryThatGivesItsSkillsLevels(t *testing.T) {
 	release := snapshot(t, 1, `formatVersion: 1
 release: 1
@@ -729,6 +729,7 @@ library:
     required: [anthropic:skills/skill-creator]
     recommended: [skills/ratchet-files]
     offered: [skills/build-feature]
+    dependencies: [skills/shared-setup]
 `,
 		".trailguide/rules/techs/go/_group.yaml":      group("Go"),
 		".trailguide/rules/techs/go/return-errors.md": rule("Return errors", "Return errors instead of panicking."),

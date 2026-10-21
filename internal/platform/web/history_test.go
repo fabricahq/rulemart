@@ -11,13 +11,13 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 var (
-	v100 = coderules.RuleVersion{Major: 1}
-	v110 = coderules.RuleVersion{Major: 1, Minor: 1}
-	v200 = coderules.RuleVersion{Major: 2}
+	v100 = trailguide.RuleVersion{Major: 1}
+	v110 = trailguide.RuleVersion{Major: 1, Minor: 1}
+	v200 = trailguide.RuleVersion{Major: 2}
 )
 
 // Text of two versions of return-errors. The newer one changes a word, and adds a paragraph that holds markup a
@@ -35,13 +35,13 @@ func changes(texts bool) []views.RuleChange {
 	retry := views.RuleRef{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"}
 	result := []views.RuleChange{
 		{Rule: views.RuleRef{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", RetiredIn: 3},
-			Change: coderules.ChangeRetired, From: v100, RetirementSummaries: []string{"Merge it."}, Replacements: []views.RuleRef{retry}},
-		{Rule: retry, Change: coderules.ChangeMinor, From: v100, To: v110,
-			Versions: []views.Version{{Version: v110, Release: 2, PublishedAt: day(2), Change: coderules.ChangeMinor, Summaries: []string{"Count timeouts as attempts."}}}},
-		{Rule: views.RuleRef{Path: "techs/go/close-bodies", Title: "Close bodies"}, Change: coderules.ChangeNew, To: v100,
-			Versions: []views.Version{{Version: v100, Release: 3, PublishedAt: day(3), Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
-		{Rule: views.RuleRef{Path: "techs/go/return-errors", Title: "Return errors with context"}, Change: coderules.ChangeMajor, From: v100, To: v200,
-			Versions: []views.Version{{Version: v200, Release: 3, PublishedAt: day(3), Change: coderules.ChangeMajor, Summaries: []string{"Require context on every error.", "Add an example."}}}},
+			Change: trailguide.ChangeRetired, From: v100, RetirementSummaries: []string{"Merge it."}, Replacements: []views.RuleRef{retry}},
+		{Rule: retry, Change: trailguide.ChangeMinor, From: v100, To: v110,
+			Versions: []views.Version{{Version: v110, Release: 2, PublishedAt: day(2), Change: trailguide.ChangeMinor, Summaries: []string{"Count timeouts as attempts."}}}},
+		{Rule: views.RuleRef{Path: "techs/go/close-bodies", Title: "Close bodies"}, Change: trailguide.ChangeNew, To: v100,
+			Versions: []views.Version{{Version: v100, Release: 3, PublishedAt: day(3), Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}},
+		{Rule: views.RuleRef{Path: "techs/go/return-errors", Title: "Return errors with context"}, Change: trailguide.ChangeMajor, From: v100, To: v200,
+			Versions: []views.Version{{Version: v200, Release: 3, PublishedAt: day(3), Change: trailguide.ChangeMajor, Summaries: []string{"Require context on every error.", "Add an example."}}}},
 	}
 	if texts {
 		result[1].Text = views.ComparedText{State: views.TextTooLarge, OldRelease: 1, NewRelease: 2}
@@ -64,8 +64,8 @@ func historyCatalog() catalog {
 		}},
 		{Release: exampleReleases[1], Changes: []views.RuleChange{all[1]}},
 		{Release: exampleReleases[0], Changes: []views.RuleChange{
-			{Rule: views.RuleRef{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"}, Change: coderules.ChangeNew, To: v100,
-				Versions: []views.Version{{Version: v100, Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
+			{Rule: views.RuleRef{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits"}, Change: trailguide.ChangeNew, To: v100,
+				Versions: []views.Version{{Version: v100, Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}},
 		}},
 	}}
 	c.releaseComparisons["example/rules 1...3"] = views.ReleaseComparison{
@@ -230,8 +230,8 @@ func TestReleasesTabShowsTheLargestReleaseWithinAResponse(t *testing.T) {
 	for i := range 10000 {
 		path := fmt.Sprintf("practices/a-long-group-name/a-long-rule-id-of-sixty-or-so-characters-%05d", i)
 		notes.Changes = append(notes.Changes, views.RuleChange{
-			Rule: views.RuleRef{Path: path, Title: "A rule title of ordinary length for a rule"}, Change: coderules.ChangeNew, To: v100,
-			Versions: []views.Version{{Version: v100, Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}},
+			Rule: views.RuleRef{Path: path, Title: "A rule title of ordinary length for a rule"}, Change: trailguide.ChangeNew, To: v100,
+			Versions: []views.Version{{Version: v100, Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}},
 		})
 		notes.Versions = append(notes.Versions, views.RuleVersionRef{Path: path, Version: v100})
 	}
@@ -253,8 +253,8 @@ func TestReleaseComparisonShowsDiffsWhileTheyFit(t *testing.T) {
 	comparison := views.ReleaseComparison{Library: exampleRules, Releases: exampleReleases, From: 1, To: 3}
 	for i := range 4000 {
 		comparison.Changes = append(comparison.Changes, views.RuleChange{
-			Rule: views.RuleRef{Path: fmt.Sprintf("techs/go/rule-%04d", i), Title: "A rule"}, Change: coderules.ChangeMinor, From: v100, To: v110,
-			Versions: []views.Version{{Version: v110, Release: 3, Change: coderules.ChangeMinor, Summaries: []string{"Add an example."}}},
+			Rule: views.RuleRef{Path: fmt.Sprintf("techs/go/rule-%04d", i), Title: "A rule"}, Change: trailguide.ChangeMinor, From: v100, To: v110,
+			Versions: []views.Version{{Version: v110, Release: 3, Change: trailguide.ChangeMinor, Summaries: []string{"Add an example."}}},
 			Text:     views.ComparedText{Old: "Text.\n", New: "Text, longer.\n", OldRelease: 1, NewRelease: 3},
 		})
 	}
@@ -510,8 +510,8 @@ func TestRetiredRulePageShowsItsRetirementAndVersions(t *testing.T) {
 				}},
 		},
 		Versions: []views.Version{
-			{Version: v110, Release: 2, PublishedAt: day(2), Change: coderules.ChangeMinor, Summaries: []string{"Wait longer."}},
-			{Version: v100, Release: 1, PublishedAt: day(1), Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
+			{Version: v110, Release: 2, PublishedAt: day(2), Change: trailguide.ChangeMinor, Summaries: []string{"Wait longer."}},
+			{Version: v100, Release: 1, PublishedAt: day(1), Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}},
 		},
 	}
 
@@ -602,7 +602,7 @@ func TestReleasesShowARenameAsOneChange(t *testing.T) {
 	renamed := views.RuleChange{
 		Rule: views.RuleRef{Path: "techs/go/name-tests-by-behavior", Title: "Name tests after behavior"}, Change: views.ChangeRenamed,
 		From: v100, To: v100, RenamedFrom: &views.RuleRef{Path: "techs/go/name-tests", Title: "Name tests after behavior", RetiredIn: 3},
-		Versions: []views.Version{{Version: v100, Release: 3, Change: coderules.ChangeNew, Summaries: []string{"Rename it."}}},
+		Versions: []views.Version{{Version: v100, Release: 3, Change: trailguide.ChangeNew, Summaries: []string{"Rename it."}}},
 	}
 	page := c.releases["example/rules"]
 	page.Releases[0].Changes = append(page.Releases[0].Changes, renamed)
@@ -686,7 +686,7 @@ func TestReleasesFoldALongListOfChanges(t *testing.T) {
 	c := newCatalog()
 	notes := views.ReleaseNotes{Release: views.Release{Number: 1, TaggedAt: day(1)}}
 	for i := range 127 {
-		notes.Changes = append(notes.Changes, views.RuleChange{Rule: views.RuleRef{Path: fmt.Sprintf("techs/go/rule-%03d", i), Title: "A rule"}, Change: coderules.ChangeNew, To: v100})
+		notes.Changes = append(notes.Changes, views.RuleChange{Rule: views.RuleRef{Path: fmt.Sprintf("techs/go/rule-%03d", i), Title: "A rule"}, Change: trailguide.ChangeNew, To: v100})
 	}
 	c.releases["example/rules"] = views.ReleasesPage{Library: exampleRules, AllReleases: exampleReleases[:1], Releases: []views.ReleaseNotes{notes}}
 
@@ -751,8 +751,8 @@ func TestDiffFragmentsAreDistinct(t *testing.T) {
 	comparison := c.releaseComparisons["example/rules 1...3"]
 	text := views.ComparedText{Old: "a\n", New: "b\n", OldRelease: 1, NewRelease: 3}
 	comparison.Changes = []views.RuleChange{
-		{Rule: views.RuleRef{Path: "techs/go-a/b", Title: "One"}, Change: coderules.ChangeMinor, From: v100, To: v110, Text: text},
-		{Rule: views.RuleRef{Path: "techs/go/a-b", Title: "Two"}, Change: coderules.ChangeMinor, From: v100, To: v110, Text: text},
+		{Rule: views.RuleRef{Path: "techs/go-a/b", Title: "One"}, Change: trailguide.ChangeMinor, From: v100, To: v110, Text: text},
+		{Rule: views.RuleRef{Path: "techs/go/a-b", Title: "Two"}, Change: trailguide.ChangeMinor, From: v100, To: v110, Text: text},
 	}
 	c.releaseComparisons["example/rules 1...3"] = comparison
 

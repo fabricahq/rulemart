@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // HomePage is the vetted libraries, ordered by owner and name, and their groups.
@@ -89,7 +89,7 @@ type RetiredRuleCard struct {
 	CanonicalGroup *CanonicalGroup
 	// Title and Impact are its last version's, or empty when the catalog doesn't have them yet.
 	Title, Impact string
-	LastVersion   coderules.RuleVersion
+	LastVersion   trailguide.RuleVersion
 	// RetiredIn is the number of the library release that retired the rule.
 	RetiredIn int
 	// ReplacedBy is the ID of the rule that replaced it, or empty when its retirement named none.
@@ -156,7 +156,7 @@ type RuleCard struct {
 	// Path is the rule's ID, and Group its group's path.
 	Path, Group   string
 	Title, Impact string
-	Version       coderules.RuleVersion
+	Version       trailguide.RuleVersion
 	// Stars counts the accounts whose stars count toward the rule: on it, or on a retired rule whose chain of
 	// replacements reaches it. It's 0 in a library that isn't vetted, whose stars stay stored, uncounted.
 	Stars int
@@ -207,7 +207,7 @@ type Rule struct {
 	// Tags are the topics the version's frontmatter lists, in its order; empty when it lists none, or the catalog
 	// doesn't have them yet.
 	Tags    []string
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 	// Release is the number of the library release that published the version, tagged at PublishedAt.
 	Release     int
 	PublishedAt time.Time
@@ -280,11 +280,11 @@ type RuleRef struct {
 
 // Version is one version of a rule.
 type Version struct {
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 	// Release is the number of the library release that published the version, tagged at PublishedAt.
 	Release     int
 	PublishedAt time.Time
-	Change      coderules.Change
+	Change      trailguide.Change
 	Summaries   []string
 	// Title is the rule's title as the version published it, which only a library's history reads; empty elsewhere,
 	// and when the catalog doesn't have the version's content yet.
@@ -294,7 +294,7 @@ type Version struct {
 // RuleComparison is a rule's page with the text of two of its versions, From older than To, to compare.
 type RuleComparison struct {
 	Page     RulePage
-	From, To coderules.RuleVersion
+	From, To trailguide.RuleVersion
 	Text     ComparedText
 }
 
@@ -501,7 +501,7 @@ type ReleaseNotes struct {
 type RuleVersionRef struct {
 	// Path is the rule's ID.
 	Path    string
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 }
 
 // ReleaseComparison is what changed in a library between two of its releases, From before To.
@@ -518,7 +518,7 @@ type ReleaseComparison struct {
 
 // ChangeRenamed is how a rule changed when a release retired it and added it under a new ID, with the same title.
 // Trail Guide records a rename as a retirement and a new rule; pages show the two as one change.
-const ChangeRenamed coderules.Change = "renamed"
+const ChangeRenamed trailguide.Change = "renamed"
 
 // RuleChange is how one rule changed between two library releases.
 type RuleChange struct {
@@ -526,10 +526,10 @@ type RuleChange struct {
 	// Change is the largest change between the releases: new for a rule the later one has and the earlier doesn't,
 	// retired for one the earlier has and the later doesn't, and otherwise the largest of major, minor, and patch
 	// among the versions published between them.
-	Change coderules.Change
+	Change trailguide.Change
 	// From is the rule's version after the earlier release, and zero for a new rule; To is its version after the later
 	// one, and zero for a retired rule.
-	From, To coderules.RuleVersion
+	From, To trailguide.RuleVersion
 	// Versions are the versions published after the earlier release, up to the later one, newest first; none for a
 	// retired rule.
 	Versions []Version
@@ -609,7 +609,7 @@ type CartRule struct {
 	// Title is the newest version's, cut to MaxCartTitleRunes characters with an ellipsis when it's longer, or empty when
 	// the catalog doesn't have it yet.
 	Title   string
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 	// RetiredIn is the number of the library release that retired the rule, or 0 while it's current.
 	RetiredIn int
 }
@@ -668,7 +668,7 @@ type ResolvedItem struct {
 	// Title, Version, and RetiredIn are a rule's, as CartRule's are; they're zero for a group, and for a rule the
 	// library doesn't have.
 	Title     string
-	Version   coderules.RuleVersion
+	Version   trailguide.RuleVersion
 	RetiredIn int
 	// Fork is true for a rule the visitor forks rather than keep in sync, which no unvetted library's rule is. InGroup is
 	// true for a ready rule whose group the cart holds whole, ready too, which brings the rule, so checkout imports it on

@@ -13,20 +13,20 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store/postgres"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // day returns noon UTC on day n of September 2026.
 func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) }
 
-func v(major, minor, patch int) coderules.RuleVersion {
-	return coderules.RuleVersion{Major: major, Minor: minor, Patch: patch}
+func v(major, minor, patch int) trailguide.RuleVersion {
+	return trailguide.RuleVersion{Major: major, Minor: minor, Patch: patch}
 }
 
 // content returns what version of a rule titled title published: a file whose body names the version.
-func content(title string, version coderules.RuleVersion) domain.Content {
+func content(title string, version trailguide.RuleVersion) domain.Content {
 	return domain.Content{
 		Title: title, Impact: "HIGH", ImpactDescription: "Prevents mistakes.", WhenToRead: "When changing " + title + ".",
 		Markdown: "---\ntitle: " + title + "\n---\n\n" + title + ", version " + version.String() + ".\n",
@@ -68,19 +68,19 @@ var exampleRules = domain.Library{
 	},
 	Rules: []domain.Rule{
 		withContent(domain.Rule{Path: "practices/legacy/old-habit", Group: "practices/legacy", RetiredIn: 3, RetirementSummaries: []string{"Drop it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Old habit"),
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Old habit"),
 		withContent(domain.Rule{Path: "practices/testing/check-retry-backoff", Group: "practices/testing", RetiredIn: 3,
 			ReplacedBy: "practices/testing/verify-retry-limits", RetirementSummaries: []string{"Merge it."},
-			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Check retry backoff"),
+			Versions: []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}}, "Check retry backoff"),
 		withContent(domain.Rule{Path: "practices/testing/verify-retry-limits", Group: "practices/testing",
 			Versions: []domain.Version{
-				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
-				{Number: v(1, 1, 0), Release: 2, Change: coderules.ChangeMinor, Summaries: []string{"Count timeouts."}},
+				{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}},
+				{Number: v(1, 1, 0), Release: 2, Change: trailguide.ChangeMinor, Summaries: []string{"Count timeouts."}},
 			}}, "Verify retry limits"),
 		withContent(domain.Rule{Path: "techs/go/return-errors", Group: "techs/go",
 			Versions: []domain.Version{
-				{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}},
-				{Number: v(2, 0, 0), Release: 3, Change: coderules.ChangeMajor, Summaries: []string{"Require context.", "Add an example."}},
+				{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}},
+				{Number: v(2, 0, 0), Release: 3, Change: trailguide.ChangeMajor, Summaries: []string{"Require context.", "Add an example."}},
 			}}, "Return errors"),
 	},
 }
@@ -115,7 +115,7 @@ func rule(path, title, whenToRead, body string) domain.Rule {
 	c.Markdown = "---\ntitle: " + title + "\n---\n\n" + body + "\n"
 	group := path[:strings.LastIndex(path, "/")]
 	return domain.Rule{Path: path, Group: group, HTML: "<p>" + title + ".</p>\n", WhenToReadHTML: "<p>" + whenToRead + "</p>\n", Versions: []domain.Version{
-		{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}, Content: c},
+		{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}, Content: c},
 	}}
 }
 
@@ -148,7 +148,7 @@ var (
 		// Retired: it keeps its group in the catalog, but no page or search shows it.
 		domain.Rule{Path: "practices/testing/retry-forever", Group: "practices/testing", RetiredIn: 1,
 			RetirementSummaries: []string{"Drop it."},
-			Versions:            []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}},
+			Versions:            []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}},
 	)
 	beta = newLibrary("22", "Beta", "rules", []domain.Group{goGroup},
 		rule("techs/go/name-packages-plainly", "Name packages plainly", "When adding a package.", "Avoid a name that needs a retry to read."),
