@@ -1,4 +1,4 @@
-Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.2.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
+Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.4.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
 
 From fabricahq/public-rules:
 - The whole Go group (techs/go), including rules the library adds to it later
@@ -23,17 +23,20 @@ Run:
 curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 
+# If the project uses Trail Guide already and its config.yaml has schemaVersion: 1,
+# rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
+
 # Add your rules
-trailguide project add library fabrica-public-rules \
+trailguide project add source fabrica-public-rules \
   --repository https://github.com/fabricahq/public-rules.git \
-  --groups techs/go \
+  --rules 'techs/go/*' \
   --rules practices/testing/keep-tests-independent
 
-trailguide project add library fabrica-code-rules-test-library \
+trailguide project add source fabrica-code-rules-test-library \
   --repository https://github.com/fabricahq/code-rules-test-library.git \
   --rules techs/go/close-bodies
 
-trailguide project add library stranger \
+trailguide project add source stranger \
   --repository https://github.com/Stranger-HQ/Rules.git \
   --ref 3333333333333333333333333333333333333333 \
   --rules techs/go/use-go

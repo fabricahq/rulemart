@@ -11,9 +11,10 @@ import (
 	"strings"
 )
 
-// minTrailGuideVersion is the oldest Trail Guide whose commands checkout writes: project add library --rules, and
-// project add rule --from.
-const minTrailGuideVersion = "0.2.0"
+// minTrailGuideVersion is the oldest Trail Guide whose commands and configuration checkout writes: project add source
+// --rules, which takes selectors such as techs/go/*, project add rule --from, and a version 2 configuration's
+// rules.include.
+const minTrailGuideVersion = "0.4.0"
 
 // trailGuideInstall is the command Trail Guide's documentation gives to install it.
 const trailGuideInstall = "curl -fsSL https://trailguide.fabricahq.com/install.sh | sh"
@@ -140,7 +141,7 @@ func (s checkoutSource) forkFrom() string {
 	return s.Repository()
 }
 
-// refOption is the option of project add library that pins the library to ref, a release's tag or a commit, which
+// refOption is the option of project add source that pins the library to ref, a release's tag or a commit, which
 // Trail Guide writes to the source's configuration.
 func refOption(ref string) string { return "--ref " + ref }
 
@@ -152,7 +153,7 @@ type ReleasePin struct {
 	Release int
 }
 
-// Option returns the option of the library's add library command that pins it to the release.
+// Option returns the option of the library's add source command that pins it to the release.
 func (p ReleasePin) Option() string { return refOption(ReleaseTag(p.Release)) }
 
 // PinExample returns the release a project could pin the first vetted library the checkout imports from to, rather
@@ -361,14 +362,34 @@ func (c Checkout) agentsInstruction() string {
 }
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
-// says in its own words, as it asks for the review in its own words first.
+// says in its own words, as it asks for the review in its own words first. A project that may use Trail Guide already is
+// told to rewrite a version 1 configuration before any project command runs, since none reads one.
 func (c Checkout) commands() string {
 	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
 	rules := strings.Join(slices.Concat(c.sourceBlocks(), c.syncBlocks(), c.forkBlocks(), []string{c.finalBlock()}), "\n\n")
+	blocks := []string{root}
 	if setup := c.setupBlock(); setup != "" {
-		return strings.Join([]string{root, setup, "# Add your rules\n" + rules}, "\n\n")
+		blocks, rules = append(blocks, setup), "# Add your rules\n"+rules
 	}
-	return root + "\n\n" + rules
+	if note := c.version1Note(); note != "" {
+		blocks = append(blocks, note)
+	}
+	return strings.Join(append(blocks, rules), "\n\n")
+}
+
+// version1Note says, as comments, to rewrite the project's configuration as version 2 when it's version 1, which
+// Trail Guide 0.4.0 no longer reads, or returns "" for a new project, whose configuration init writes as version 2.
+func (c Checkout) version1Note() string {
+	var where string
+	switch c.Target.Mode {
+	case ProjectKnown:
+		where = "# If " + c.Target.directory() + "/config.yaml"
+	case ProjectUnknown:
+		where = "# If the project uses Trail Guide already and its config.yaml"
+	default:
+		return ""
+	}
+	return where + " has schemaVersion: 1,\n# rewrite it as version 2 first: " + configurationVersion1Docs
 }
 
 // setupBlock returns the commands that set Trail Guide up in a new project, or in one that may not use it yet, or ""
@@ -401,20 +422,25 @@ func (c Checkout) sourceBlocks() []string {
 }
 
 // addCommand returns the command that adds the source's library with the groups and rules it selects, pinned to the
-// reviewed commit when Rulemart doesn't vet it.
+// reviewed commit when Rulemart doesn't vet it. Each group is selected by its selector, quoted so the shell doesn't
+// expand its *.
 func (s checkoutSource) addCommand() string {
-	lines := []string{"trailguide project add library " + s.Alias, "--repository " + s.Repository()}
+	lines := []string{"trailguide project add source " + s.Alias, "--repository " + s.Repository()}
 	if !s.Vetted {
 		lines = append(lines, refOption(s.ref()))
 	}
 	for _, g := range s.Groups {
-		lines = append(lines, "--groups "+g.ID)
+		lines = append(lines, "--rules '"+groupSelector(g.ID)+"'")
 	}
 	for _, r := range s.Rules {
 		lines = append(lines, "--rules "+r.ID)
 	}
 	return continued(lines)
 }
+
+// groupSelector returns the selector that includes the group id whole, as Trail Guide's rules.include takes it, such as
+// techs/go/* for techs/go.
+func groupSelector(id string) string { return id + "/*" }
 
 // syncBlocks returns the sync that forks need before them, or none: a fork from a source the project imports needs the
 // source's record, which syncing writes, and the build after the forks doesn't fetch what the new sources select.
@@ -471,26 +497,24 @@ func continued(lines []string) string {
 }
 
 // configurationNote says, as comments, what to add to the known project's source for the library, which it imports
-// already: Trail Guide adds a library once, so its groups and rules go in the configuration.
+// already: Trail Guide adds a source once, so its groups and rules go in the configuration, as selectors in the source's
+// rules.include of a version 2 configuration, which version1Note asks for first.
 func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	lines := []string{
 		"# " + target.Repository + " already imports " + s.FullName() + " as " + s.Alias + ".",
-		"# In " + target.directory() + "/config.yaml, add to sources." + s.Alias + ":",
+		"# In " + target.directory() + "/config.yaml, add to sources." + s.Alias + ".rules.include:",
 	}
-	if len(s.Groups) > 0 {
-		lines = append(lines, "#   groups:")
-		for _, g := range s.Groups {
-			lines = append(lines, "#     - "+g.ID)
-		}
+	for _, g := range s.Groups {
+		lines = append(lines, "#   - "+groupSelector(g.ID))
 	}
-	if len(s.Rules) > 0 {
-		lines = append(lines, "#   rules:")
-		for _, r := range s.Rules {
-			lines = append(lines, "#     - "+r.ID)
-		}
+	for _, r := range s.Rules {
+		lines = append(lines, "#   - "+r.ID)
 	}
 	return strings.Join(lines, "\n")
 }
+
+// configurationVersion1Docs is Trail Guide's guide to rewriting a version 1 configuration as version 2.
+const configurationVersion1Docs = "https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility"
 
 // Prompt returns what a visitor gives their coding agent to import the checkout into its target, or "" when there's
 // nothing to import: what to import from each library, a review of each library Rulemart doesn't vet before its

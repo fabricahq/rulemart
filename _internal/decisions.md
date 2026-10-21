@@ -358,19 +358,24 @@ matters.
   "+N more", and every title the checkout sends is cut to 200 characters, so its answer always fits a Lambda
   function's response.
 - **Checkout is a page that asks a JSON endpoint for the cart's items, each library's latest release, and the
-  texts.** It shows a Prompt tab and a Commands tab, both built from `trailguide project add library`,
+  texts.** It shows a Prompt tab and a Commands tab, both built from `trailguide project add source`,
   `trailguide project add rule --from`, and `trailguide project sync`; each rule can stay in sync or be forked, and
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
   `trailguide project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it: it names rules by ID, not title, a group by its canonical
-  name or ID, and a library by `owner/name`. It says it needs Trail Guide 0.2.0 or later, and it names each unvetted
+  name or ID, and a library by `owner/name`. It says it needs Trail Guide 0.4.0 or later, and it names each unvetted
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
   `trailguide project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
   that AGENTS.md tells agents to read `.trailguide/generated/RULES.md`. A library's alias is its owner lowercased
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
+  A group is selected whole by its selector, such as `--rules 'techs/go/*'`, quoted so the shell doesn't expand it.
+  A known project gets no `add source` for a library it imports already, since Trail Guide adds a source once; a note
+  says which selectors to add to the source's `rules.include` instead, as a version 2 configuration holds them.
+  Trail Guide 0.4.0 reads no version 1 configuration, so the commands for a project that may use Trail Guide already,
+  known or unknown, first say to rewrite one as version 2, linking Trail Guide's guide.
   Every command is checked against the real CLI.
-- **An unvetted library is reviewed outside the project, and its items are pinned, not synced.** Its `add library`
+- **An unvetted library is reviewed outside the project, and its items are pinned, not synced.** Its `add source`
   command carries `--ref <commit>`, and the Commands tab shows two blocks, "1. Fetch and review", which fetches each
   such library at the reviewed commit outside the project, and "2. After you've reviewed, import", so pasting one
   block never imports rules nobody read. Its items say "Pinned to the reviewed commit", and its rules can't be forked
@@ -618,6 +623,15 @@ matters.
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.
+- **Ingestion reads each release in the layout it was published in, so a library that moved keeps its history.**
+  Trail Guide moved a library's files from the repository's root, `rule-library.yaml` and `techs/`, `practices/`,
+  `assets/`, into its Trail Guide directory: the library section of `.trailguide/config.yaml`, `.trailguide/rules/`, and
+  `.trailguide/assets/`, or `.code-rules/` before the rename. A release is in the earlier layout when its root holds
+  `rule-library.yaml`, as Trail Guide decides. Rule IDs, release records, and the asset paths pages use are library paths,
+  the same in every layout, so the catalog stores them unchanged and records each release's layout; ingestion reads
+  each rule version where its release kept it, the license, groups, and shared files where the latest release keeps
+  them, and resolves a rule's links from where its release kept it, and pages link a file on GitHub where its
+  release keeps it. The license's file is stored as its path in the repository, as the manifest declares it.
 - **The web function connects as `rulemart_web`, a login that can only read what the pages show, through its
   membership in `rulemart_catalog_reader`, and sign visitors in and out, through its membership in
   `rulemart_accounts_writer`, which writes only accounts, sessions, what Rulemart read of visitors' GitHub accounts,
