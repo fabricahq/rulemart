@@ -44,8 +44,8 @@ jobs:
       # are pinned; raise both together.
       - name: Check the Trail Guide files
         env:
-          TRAILGUIDE_VERSION: 0.4.0
-          TRAILGUIDE_SHA256: '9682be17e3e7a5ec5d60e2879894221d18d7d79128cd28278554bdbd9f8cc594'
+          TRAILGUIDE_VERSION: 0.5.0
+          TRAILGUIDE_SHA256: '80220a48a3543691ea34848247da339f29811e70300521ee8209a0be94aa3714'
         run: |
           archive="trailguide_${TRAILGUIDE_VERSION}_linux_arm64.tar.gz"
           curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/fabricahq/trailguide/releases/download/v${TRAILGUIDE_VERSION}/$archive"
