@@ -11,10 +11,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
-	github.com/github/go-spdx/v2 v2.7.0
+	github.com/fabricahq/trailguide v0.6.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/jackc/pgx/v5 v5.11.0
-	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
@@ -64,10 +63,10 @@ require (
 	github.com/elastic/go-sysinfo v1.15.5 // indirect
 	github.com/elastic/go-windows v1.0.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fabricahq/trailguide v0.5.2-0.20261021222259-3c4b5f3521a0 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/github/go-spdx/v2 v2.7.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.8.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
@@ -101,6 +100,7 @@ require (
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
+	github.com/nlnwa/whatwg-url v0.6.2 // indirect
 	github.com/paulmach/orb v0.13.0 // indirect
 	github.com/pganalyze/pg_query_go/v6 v6.2.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.29 // indirect
