@@ -11,13 +11,20 @@ applies when it publishes them, so the two can't disagree about what a library r
   from the rule-versioning work, which they were first copied from.
 - **Changes:** the package is renamed `coderules`, files and functions Rulemart doesn't use are left out, and
   imports they needed are removed. The logic is unchanged.
-- **The Trail Guide directory's layout:** `library_manifest.go` is copied from fabricahq/trailguide#126's branch, commit
-  `9d11c960575f49727804da70169c0612e31d3def`: `RepositoryPath`, `LibraryPath`, and their constants from
-  `internal/librarytree/layout.go`, and the library section's parser from `internal/rules/licenses.go`, with that
-  branch's `decode` helpers spelled as this copy names them, and its `termsPath` renamed `libraryTermsPath` beside
-  the earlier layout's. Its `ParseLibraryManifest` reads only the configuration's `schemaVersion` and `library`
-  fields, where Trail Guide parses the whole configuration, whose other fields configure the repository as a project.
-  Its names and messages say Trail Guide and `.trailguide/`, as fabricahq/trailguide#138 renamed them there.
+- **The Trail Guide directory's layout and the library section:** `library_manifest.go` and `skill_levels.go` are
+  copied from fabricahq/trailguide at [v0.5.0](https://github.com/fabricahq/trailguide/tree/v0.5.0), commit
+  `57346a9692e33737d510b77309969a353f0d187f`: `Upgrade`, `RepositoryPath`, `InSnapshotNames`, `LibraryPath`, and their
+  constants from `internal/librarytree/layout.go`; the library section's parser from `internal/rules/licenses.go`,
+  with its `termsPath` renamed `libraryTermsPath` beside the earlier layout's; skill levels from
+  `internal/rules/skill_levels.go` and `validateCuratedSkill` from `internal/rules/curated_skills.go`, with
+  `sourceNamePattern` from `internal/rules/configuration.go`; and, from `internal/skills/skills.go`, the levels,
+  renamed `levelRequired`, `levelRecommended`, `levelOffered`, and `skillLevelNames`, `Directory`, renamed
+  `skillsDirectory`, `ValidName`, renamed `validSkillName`, and `ValidateID`, renamed `validateSkillID`. The `decode`
+  helpers are spelled as this copy names them. Its `ParseLibraryManifest` reads only the configuration's
+  `schemaVersion` field, the names of its `sources`, and its `library` field, where Trail Guide parses the whole
+  configuration, whose other fields configure the repository as a project. So a curated skill must name a declared
+  source, but the source itself isn't validated, and `Library` has no `Curated` field, which needs each source's
+  repository and ref. The skill levels are parsed, and Rulemart ignores them.
 - **License:** MIT, in [LICENSE.md](LICENSE.md).
 
 Replace this copy with Code Rules' public parsing package once it ships, and delete this directory. Until then,
