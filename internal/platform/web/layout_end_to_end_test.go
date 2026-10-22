@@ -15,7 +15,7 @@ func movedLibrary(t *testing.T) *gittest.Library {
 	lib.Group("practices/testing", "Testing")
 	lib.Rule("practices/testing/verify-retry-limits", "Verify retry limits", "Stop after a fixed number of attempts.")
 	lib.Rule("practices/testing/test-changed-behavior", "Test the behavior you changed", "Test it.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {practices/testing/test-changed-behavior: 1.0.0, practices/testing/verify-retry-limits: 1.0.0}
 changes:
@@ -26,7 +26,7 @@ changes:
 	lib.Rule("practices/testing/verify-retry-limits", "Verify retry limits",
 		"Stop after a fixed number of attempts. See [the lifecycle](../../../assets/lifecycle.svg).")
 	lib.Write(".trailguide/assets/lifecycle.svg", loopSVG)
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/test-changed-behavior: 1.0.0, practices/testing/verify-retry-limits: 1.1.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Show the lifecycle.]}}

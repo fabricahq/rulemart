@@ -207,7 +207,7 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 	got := stepsText(checkout.Commands())
 
 	want := "trailguide project add rule techs/go/return-errors \\\n  --from https://github.com/fabricahq/public-rules.git@1.0.0\n\ntrailguide project build\n\n" +
-		"# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md " +
+		"# Then make sure AGENTS.md tells agents to read .trailguide/_managed/generated/RULES.md, or .code-rules/generated/RULES.md " +
 		"if the project keeps its files in .code-rules/"
 	if !strings.HasSuffix(got, want) || strings.Contains(got, "project sync") {
 		t.Errorf("got\n%s\nwant it to end with\n%s\nand never sync", got, want)

@@ -30,4 +30,4 @@ trailguide project add rule techs/go/return-errors \
 
 trailguide project build
 
-Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md. The rules move to newer versions only when someone runs trailguide project update and confirms.
+Then make sure AGENTS.md tells agents to read .trailguide/_managed/generated/RULES.md. The rules move to newer versions only when someone runs trailguide project update and confirms.

@@ -208,7 +208,7 @@ func TestCheckListingRecordsWhatTheRepositoryGotWrong(t *testing.T) {
 		"an invalid release": {
 			func(t *testing.T, l *listing) {
 				lib := gittest.NewLibrary(t)
-				lib.Release(1, "formatVersion: 1\nrelease: 2\n")
+				lib.Release(1, "schemaVersion: 1\nrelease: 2\n")
 				l.hosted.repo = lib.Repository(42)
 			},
 			"release/1: invalid release record", true,
@@ -257,7 +257,7 @@ func TestCheckListingKeepsTheLastReleaseWhenALaterOneFails(t *testing.T) {
 	if _, err := l.check(t, id); err != nil {
 		t.Fatal(err)
 	}
-	lib.Release(2, "formatVersion: 1\nrelease: 3\n")
+	lib.Release(2, "schemaVersion: 1\nrelease: 3\n")
 
 	check, err := l.check(t, id)
 
@@ -272,6 +272,33 @@ func TestCheckListingKeepsTheLastReleaseWhenALaterOneFails(t *testing.T) {
 	}
 	if checks, err := l.ingester.ListingsToCheck(context.Background(), nil); err != nil || !slices.Equal(checks, []int64{id}) {
 		t.Fatalf("the poll checks %v, %v; want %d, every hour", checks, err, id)
+	}
+}
+
+// A listed library whose new release declares a library schema version this Rulemart doesn't read keeps showing the
+// last release it ingested, and its lister sees which version Rulemart reads.
+func TestCheckListingKeepsTheLastReleaseWhenALaterOneUsesANewerLibrarySchema(t *testing.T) {
+	lib := firstRelease(t)
+	l := newListing(t, lib)
+	id := l.list(t)
+	if _, err := l.check(t, id); err != nil {
+		t.Fatal(err)
+	}
+	lib.MoveToTrailGuideDirectory()
+	lib.Write(".trailguide/config.yaml", "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE, notices: []}\n")
+	lib.Release(2, "schemaVersion: 1\nrelease: 2\nrules:\n  "+retryBackoff+": 1.0.0\n  "+retryLimits+": 1.0.0\n  "+returnErrors+": 1.0.0\n")
+
+	check, err := l.check(t, id)
+
+	want := "declares library schema version 2, which Rulemart doesn't read yet: it reads library schema version 1."
+	if err != nil || check.Outcome != app.ListingRefused || !strings.Contains(check.Failure, want) {
+		t.Fatalf("got %+v, %v; want refused for %q", check, err, want)
+	}
+	if state, failure := l.only(t); state != domain.ListingListed || failure != check.Failure {
+		t.Fatalf("the listing is %s, %q; want listed, with the failure", state, failure)
+	}
+	if page, err := l.pages.LibraryPage(context.Background(), "example", "rules"); err != nil || page.Library.LatestRelease != 1 {
+		t.Fatalf("got %+v, %v; want release 1", page.Library, err)
 	}
 }
 

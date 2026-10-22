@@ -466,7 +466,7 @@ var assembled = domain.Repository{Host: domain.GitHub, ID: "42", Owner: "example
 // oneRule returns release/1 of a library whose one rule, techs/go/return-errors, has body.
 func oneRule(t *testing.T, body string) domain.ReleaseSnapshot {
 	t.Helper()
-	const record = `formatVersion: 1
+	const record = `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}

@@ -24,7 +24,7 @@ func TestFetchHoldsADirectoryTheReleasesShareOnce(t *testing.T) {
 	lib.Release(1, firstRecord)
 	for n := 2; n <= releases; n++ {
 		lib.Write("notes.txt", fmt.Sprintf("release %d", n))
-		lib.Release(n, fmt.Sprintf("formatVersion: 1\nrelease: %d\nrules: {techs/go/return-errors: 1.0.0}\n", n))
+		lib.Release(n, fmt.Sprintf("schemaVersion: 1\nrelease: %d\nrules: {techs/go/return-errors: 1.0.0}\n", n))
 	}
 	bounded := limits
 	bounded.Tags = releases

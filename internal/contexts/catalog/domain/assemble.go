@@ -192,6 +192,10 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*trailguide.License
 	}
 	manifestFile := layout.ManifestFile()
 	library, err := trailguide.ParseLibraryManifest(text, a.repo.FullName()+"/"+manifestFile)
+	var schema *trailguide.UnsupportedLibrarySchemaError
+	if errors.As(err, &schema) {
+		return nil, unsupportedSchema(manifestFile, schema)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +203,16 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*trailguide.License
 		return nil, fmt.Errorf("%s has no library section, which makes a repository a Trail Guide library", manifestFile)
 	}
 	return library.License, nil
+}
+
+// unsupportedSchema explains to the library's maintainer or lister that Rulemart can't read the library schema
+// version that manifestFile declares, and what changes that: a newer Rulemart, or a library release in the version it
+// reads. Only this library fails; the catalog keeps the releases it ingested before.
+func unsupportedSchema(manifestFile string, schema *trailguide.UnsupportedLibrarySchemaError) error {
+	if schema.SchemaVersion > schema.Supported {
+		return fmt.Errorf("%s declares library schema version %d, which Rulemart doesn't read yet: it reads library schema version %d. Rulemart will read this release once it supports that version", manifestFile, schema.SchemaVersion, schema.Supported)
+	}
+	return fmt.Errorf("%s declares library schema version %d, which Rulemart no longer reads: it reads library schema version %d. Move the library to that version and publish a library release", manifestFile, schema.SchemaVersion, schema.Supported)
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that

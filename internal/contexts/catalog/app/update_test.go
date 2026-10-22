@@ -271,7 +271,7 @@ func TestUpdateKeepsTheLastIngestedReleaseWhileANewOneIsMalformed(t *testing.T) 
 	}
 	before := read(t, u.pages)
 	lib.Rule(retryLimits, "Verify retry limits", "A change in a malformed release.")
-	lib.Release(2, "formatVersion: 1\nrelease: [2\n")
+	lib.Release(2, "schemaVersion: 1\nrelease: [2\n")
 
 	for attempt := 1; attempt <= 2; attempt++ {
 		_, err := u.update(t)

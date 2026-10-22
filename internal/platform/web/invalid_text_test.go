@@ -31,7 +31,7 @@ func newPostgresSite(t *testing.T) (http.Handler, []*http.Cookie) {
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error. See [the glossary](../../assets/glossary.md).")
 	lib.Write("techs/go/assets/return-errors/notes.md", "Notes.\n")
 	lib.Write("assets/glossary.md", "Terms.\n")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}

@@ -366,7 +366,7 @@ matters.
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
   `trailguide project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
-  that AGENTS.md tells agents to read `.trailguide/generated/RULES.md`. A library's alias is its owner lowercased
+  that AGENTS.md tells agents to read `.trailguide/_managed/generated/RULES.md`. A library's alias is its owner lowercased
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
   A group is selected whole by its selector, such as `--rules 'techs/go/*'`, quoted so the shell doesn't expand it.
   A known project gets no `add source` for a library it imports already, since Trail Guide adds a source once; a note
@@ -621,7 +621,7 @@ matters.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Trail Guide reads them, and parses
   libraries with Trail Guide's own parser, its public `github.com/fabricahq/trailguide/trailguide` package, at the
   release `go.mod` pins, never a copy. Discovery and ingestion read manifests with it alike, and Rulemart updates the
-  pin when the library format changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
+  pin when the library schema version changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.

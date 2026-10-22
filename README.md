@@ -66,9 +66,9 @@ Checkout pins nothing by default: the rules you keep in sync move to newer versi
 `trailguide project update`, which previews each change first. To hold a library at one release instead, the Commands
 tab's footnote says how to add `--ref release/<number>` to its `add source` command.
 
-Your project now has `.trailguide/generated/RULES.md`, the index your agent reads before it works, listing the rules
-you picked. [Trail Guide's guide](https://trailguide.fabricahq.com) covers what comes next: adding your own rules,
-overriding a library's, and updating to newer versions.
+Your project now has `.trailguide/_managed/generated/RULES.md`, the index your agent reads before it works, listing
+the rules you picked. [Trail Guide's guide](https://trailguide.fabricahq.com) covers what comes next: adding your own
+rules, overriding a library's, and updating to newer versions.
 
 ## List your library
 

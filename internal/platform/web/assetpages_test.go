@@ -56,7 +56,7 @@ func assetLibrary(t *testing.T) *gittest.Library {
 	lib.Write("practices/testing/assets/test-changed-behavior/cases.json", "{\"cases\": [1.005]}\n")
 	lib.Write("practices/testing/assets/test-changed-behavior/big.png", strings.Repeat("x", 300<<10))
 	lib.Write("assets/glossary.md", "# Terms\n\nA regression test fails on the old code.\n")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules:
   practices/testing/test-changed-behavior: 1.0.0
@@ -309,7 +309,7 @@ func TestAssetPageRedirectsToItsCanonicalAddress(t *testing.T) {
 		"See [my notes](<assets/test-changed-behavior/my notes 50%.md>) and [our notes](<../../assets/our notes 50%25.md>).")
 	lib.Write("practices/testing/assets/test-changed-behavior/my notes 50%.md", "Mine.\n")
 	lib.Write("assets/our notes 50%.md", "Ours.\n")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {practices/testing/test-changed-behavior: 1.0.0}
 changes: {practices/testing/test-changed-behavior: {change: new, summaries: [Add the rule.]}}
