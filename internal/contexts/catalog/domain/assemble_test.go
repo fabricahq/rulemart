@@ -782,3 +782,30 @@ libraryFiles: [techs/go/_group.yaml]
 		})
 	}
 }
+
+// A library in RootLayout keeps the license paths rule-library.yaml allowed, from the repository root and as written,
+// even where the current layout reserves them, such as rules/ or .trailguide/.
+func TestAssembleReadsALegacyLicenseAtItsDeclaredPath(t *testing.T) {
+	for _, file := range []string{"rules/LICENSE.md", ".trailguide/assets/LICENSE.md"} {
+		t.Run(file, func(t *testing.T) {
+			release := snapshot(t, 1, firstRecord, library(files{
+				"rule-library.yaml":             "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: " + file + "\n  notices: []\n",
+				file:                            "MIT License\n",
+				"practices/testing/_group.yaml": group("Testing"),
+				"techs/go/_group.yaml":          group("Go"),
+				"practices/testing/check-retry-backoff.md": rule("Check retry backoff", "Retries wait longer after each attempt."),
+				"practices/testing/verify-retry-limits.md": rule("Verify retry limits", "Stop after a fixed number of attempts."),
+				"techs/go/return-errors.md":                rule("Return errors", "Return errors instead of panicking."),
+			}))
+
+			lib, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if lib.LicenseExpression != "MIT" || lib.LicenseFile != file {
+				t.Errorf("the license is %q in %q, want MIT in %s", lib.LicenseExpression, lib.LicenseFile, file)
+			}
+		})
+	}
+}

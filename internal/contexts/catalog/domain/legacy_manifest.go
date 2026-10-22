@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v4"
@@ -15,9 +16,11 @@ import (
 )
 
 // parseLegacyLicense returns the license that text, the rule-library.yaml at location, declares, or nil when it
-// declares none. The manifest must have formatVersion 1; its other fields are ignored. Its license has the shape of
-// the library section's license, at library paths, so it is checked as Trail Guide checks that one: Trail Guide
-// itself no longer parses rule-library.yaml, and the trailguide package has no parser for it.
+// declares none. The manifest must have formatVersion 1; its other fields are ignored. Trail Guide no longer parses
+// rule-library.yaml, so this keeps the rules it had: each declared path is a contained path from the repository root,
+// kept as written, outside rules and their asset directories in techs/ and practices/. The current library section
+// places paths in .trailguide/ and reserves others, such as rules/, so it can't check these; it checks only the
+// expression.
 func parseLegacyLicense(text []byte, location string) (*trailguide.LicenseDeclaration, error) {
 	var manifest struct {
 		FormatVersion any       `yaml:"formatVersion"`
@@ -36,31 +39,99 @@ func parseLegacyLicense(text []byte, location string) (*trailguide.LicenseDeclar
 	if err := manifest.License.Decode(&license); err != nil || license == nil {
 		return nil, fmt.Errorf("%s: license: expected an object", location)
 	}
-	if _, ok := license["expression"]; ok {
-		return nil, fmt.Errorf("%s: license.expression: renamed to license.spdxExpression; move the declaration to that field", location)
-	}
-	// Declared paths are library paths, which the library section declares at their repository paths.
-	if file, ok := license["file"].(string); ok {
-		license["file"] = trailguide.RepositoryPath(file)
-	}
-	if notices, ok := license["notices"].([]any); ok {
-		for i, notice := range notices {
-			if path, ok := notice.(string); ok {
-				notices[i] = trailguide.RepositoryPath(path)
-			}
+	for field := range license {
+		if !slices.Contains([]string{"file", "notices", "spdxExpression", "expression"}, field) {
+			return nil, fmt.Errorf("%s: license: unknown field %s", location, field)
 		}
 	}
-	section, err := json.Marshal(map[string]any{"license": license})
-	if err != nil {
-		return nil, fmt.Errorf("%s: license: %v", location, err)
-	}
-	library, err := trailguide.ParseLibrarySection(section, nil, "")
-	var validation *trailguide.ValidationError
-	if errors.As(err, &validation) {
-		return nil, fmt.Errorf("%s: %s: %s", location, strings.TrimPrefix(validation.Location, "."), validation.Problem)
-	}
+	file, err := legacyTermsPath(license["file"], location+": license.file")
 	if err != nil {
 		return nil, err
 	}
-	return library.License, nil
+	notices, ok := license["notices"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("%s: license.notices: expected an array of notice paths", location)
+	}
+	result := trailguide.LicenseDeclaration{Files: []string{file}, AttributionFiles: []string{}}
+	for i, notice := range notices {
+		path, err := legacyTermsPath(notice, fmt.Sprintf("%s: license.notices[%d]", location, i))
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(result.Files, path) && !slices.Contains(result.AttributionFiles, path) {
+			result.AttributionFiles = append(result.AttributionFiles, path)
+		}
+	}
+	if _, ok := license["expression"]; ok {
+		return nil, fmt.Errorf("%s: license.expression: renamed to license.spdxExpression; move the declaration to that field", location)
+	}
+	if expression, ok := license["spdxExpression"]; ok {
+		text, ok := expression.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s: license.spdxExpression: expected text", location)
+		}
+		if err := validateExpression(text); err != nil {
+			return nil, fmt.Errorf("%s: license.spdxExpression: %v", location, err)
+		}
+		result.SPDXExpression = &text
+	}
+	return &result, nil
+}
+
+// legacyTermsPath returns the license or notice path that value declares at location: a contained path from the
+// repository root, outside rules and their asset directories, which belong to a rule's version.
+func legacyTermsPath(value any, location string) (string, error) {
+	path, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%s: expected a path", location)
+	}
+	if !contained(path) {
+		return "", fmt.Errorf("%s: expected a contained relative path, got %q", location, path)
+	}
+	if legacyRuleContent(path) {
+		return "", fmt.Errorf("%s: %q belongs to a rule's version; keep license and notice files outside rules and their asset directories, such as at the library root", location, path)
+	}
+	return path, nil
+}
+
+// contained reports whether path is a relative path with forward slashes and no drive prefix, empty, "." or ".."
+// segments, or control characters.
+func contained(path string) bool {
+	if len(path) >= 2 && path[1] == ':' {
+		return false
+	}
+	if strings.ContainsFunc(path, func(r rune) bool { return r == '\\' || r < 32 || r == 127 }) {
+		return false
+	}
+	return !slices.ContainsFunc(strings.Split(path, "/"), func(part string) bool {
+		return part == "" || part == "." || part == ".."
+	})
+}
+
+// legacyRuleContent reports whether path, at the repository root of a library in RootLayout, is a rule file or a file
+// in an asset directory inside a group. A group's README.md is neither.
+func legacyRuleContent(path string) bool {
+	parts := strings.Split(path, "/")
+	if parts[0] != "techs" && parts[0] != "practices" {
+		return false
+	}
+	if slices.Contains(parts[1:], "assets") {
+		return true
+	}
+	group, err := trailguide.GroupFromPath(path, path)
+	return err == nil && path != group+"/README.md"
+}
+
+// validateExpression checks an SPDX expression the way Trail Guide's library section does.
+func validateExpression(expression string) error {
+	section, err := json.Marshal(map[string]any{"license": map[string]any{"spdxExpression": expression, "file": "LICENSE", "notices": []string{}}})
+	if err != nil {
+		return err
+	}
+	_, err = trailguide.ParseLibrarySection(section, nil, "")
+	var validation *trailguide.ValidationError
+	if errors.As(err, &validation) {
+		return errors.New(validation.Problem)
+	}
+	return err
 }
