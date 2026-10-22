@@ -9,7 +9,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Writer replaces what the catalog stores about a library, and reads back what ingestion needs to decide whether to
@@ -176,7 +176,7 @@ type Reader interface {
 	AssetContent(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath, assetPath string) (views.AssetContent, error)
 	// RuleComparison returns the rule's page, as RulePage does, with the text of its versions from and to, read only
 	// when both are stored and hold at most maxBytes together, or ErrNotFound when either isn't a version of the rule.
-	RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error)
+	RuleComparison(ctx context.Context, vetted []domain.LibraryKey, owner, name, rulePath string, from, to trailguide.RuleVersion, maxBytes int64) (views.RuleComparison, error)
 	// LibraryHistory returns the library owner/name, matched as LibraryPage matches it, with its releases and
 	// every rule's versions, or ErrNotFound.
 	LibraryHistory(ctx context.Context, vetted []domain.LibraryKey, owner, name string) (views.LibraryHistory, error)

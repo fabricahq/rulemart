@@ -17,7 +17,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Carts checks out the carts visitors' browsers keep. catalog/app.Carts implements it.
@@ -403,7 +403,7 @@ func newCheckoutItemJSON(it views.ResolvedItem, libraryHref string, gone bool, i
 		if it.State != views.CartItemMissing && !gone {
 			item.Href = ruleHref(libraryHref, it.Item.Path)
 		}
-		if it.Version != (coderules.RuleVersion{}) {
+		if it.Version != (trailguide.RuleVersion{}) {
 			item.Version = it.Version.String()
 		}
 		if it.RetiredIn > 0 {

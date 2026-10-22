@@ -3,15 +3,15 @@ package domain
 import (
 	"testing"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 func TestUpdatesCountsNewerAndRetiredRulesOnly(t *testing.T) {
-	v := func(major, minor, patch int) coderules.RuleVersion {
-		return coderules.RuleVersion{Major: major, Minor: minor, Patch: patch}
+	v := func(major, minor, patch int) trailguide.RuleVersion {
+		return trailguide.RuleVersion{Major: major, Minor: minor, Patch: patch}
 	}
 	states := RuleStates{
-		Current: map[string]coderules.RuleVersion{"techs/go/a": v(2, 0, 0), "techs/go/b": v(1, 0, 1), "techs/go/c": v(1, 0, 0)},
+		Current: map[string]trailguide.RuleVersion{"techs/go/a": v(2, 0, 0), "techs/go/b": v(1, 0, 1), "techs/go/c": v(1, 0, 0)},
 		Retired: map[string]bool{"techs/go/old": true},
 	}
 	for name, tc := range map[string]struct {

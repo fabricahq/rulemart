@@ -9,7 +9,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // listedRule returns a current rule at path titled title, of impact, that library release first published.
@@ -306,7 +306,7 @@ func TestAGroupListsItsRetiredRulesWhenAsked(t *testing.T) {
 		Library: views.LibraryRef{Owner: "fabricahq", Name: "rules", OwnerAvatarURL: fabricaRules.Repository.OwnerAvatarURL},
 		Vetted:  true,
 		Rule: views.RuleCard{Path: "techs/go/old-errors", Group: "techs/go", Title: "Old errors", Impact: "HIGH",
-			Version: coderules.RuleVersion{Major: 1}},
+			Version: trailguide.RuleVersion{Major: 1}},
 		Retired: true, GroupRules: 1,
 	}
 	if !reflect.DeepEqual(retired, want) {

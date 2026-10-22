@@ -14,8 +14,8 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 var (
@@ -27,13 +27,13 @@ var (
 // wrap-errors, whose group, techs/golang, isn't canonical.
 var (
 	returnErrorsRow = views.RuleRow{Library: exampleRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/return-errors", Group: "techs/go",
-		Title: "Return errors with context", Impact: "HIGH", Version: coderules.RuleVersion{Major: 2}, Stars: 3}, CanonicalGroup: goGroup, GroupRules: 3}
+		Title: "Return errors with context", Impact: "HIGH", Version: trailguide.RuleVersion{Major: 2}, Stars: 3}, CanonicalGroup: goGroup, GroupRules: 3}
 	closeBodiesRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/close-bodies", Group: "techs/go",
-		Title: "Close response bodies", Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}}, CanonicalGroup: goGroup, GroupRules: 3}
+		Title: "Close response bodies", Impact: "MEDIUM", Version: trailguide.RuleVersion{Major: 1}}, CanonicalGroup: goGroup, GroupRules: 3}
 	namePackagesRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/go/name-packages", Group: "techs/go",
-		Title: "Name packages plainly", Impact: "LOW", Version: coderules.RuleVersion{Major: 1, Minor: 2}}, CanonicalGroup: goGroup, GroupRules: 3}
+		Title: "Name packages plainly", Impact: "LOW", Version: trailguide.RuleVersion{Major: 1, Minor: 2}}, CanonicalGroup: goGroup, GroupRules: 3}
 	wrapErrorsRow = views.RuleRow{Library: otherRef, Vetted: true, Rule: views.RuleCard{Path: "techs/golang/wrap-errors", Group: "techs/golang",
-		Title: "Wrap errors", Impact: "MEDIUM", Version: coderules.RuleVersion{Major: 1}}, GroupRules: 1}
+		Title: "Wrap errors", Impact: "MEDIUM", Version: trailguide.RuleVersion{Major: 1}}, GroupRules: 1}
 	// browsingCounts are the libraries of the Go group's rules, as its sidebar counts them.
 	browsingCounts = []views.LibraryCount{{Library: exampleRef, Vetted: true, Rules: 1}, {Library: otherRef, Vetted: true, Rules: 2}}
 )

@@ -13,7 +13,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // histories stands in for the store's reads of library histories and rule comparisons, recording what each asked
@@ -68,7 +68,7 @@ func (h *histories) ReleaseComparison(_ context.Context, _ []domain.LibraryKey, 
 	return h.history, h.texts, nil
 }
 
-func (h *histories) RuleComparison(_ context.Context, _ []domain.LibraryKey, _, _, path string, from, to coderules.RuleVersion, maxBytes int64) (views.RuleComparison, error) {
+func (h *histories) RuleComparison(_ context.Context, _ []domain.LibraryKey, _, _, path string, from, to trailguide.RuleVersion, maxBytes int64) (views.RuleComparison, error) {
 	h.compared, h.maxBytes = append(h.compared, path+" "+from.String()+"..."+to.String()), append(h.maxBytes, maxBytes)
 	return views.RuleComparison{Page: views.RulePage{Rule: views.Rule{Group: "techs/go"}}, From: from, To: to}, nil
 }
@@ -76,8 +76,8 @@ func (h *histories) RuleComparison(_ context.Context, _ []domain.LibraryKey, _, 
 // day returns noon UTC on day n of September 2026.
 func day(n int) time.Time { return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC) }
 
-func version(text string) coderules.RuleVersion {
-	v, err := coderules.ParseRuleVersion(text, "test")
+func version(text string) trailguide.RuleVersion {
+	v, err := trailguide.ParseRuleVersion(text, "test")
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +85,7 @@ func version(text string) coderules.RuleVersion {
 }
 
 // published returns a version published in release n.
-func published(text string, n int, change coderules.Change, summaries ...string) views.Version {
+func published(text string, n int, change trailguide.Change, summaries ...string) views.Version {
 	return views.Version{Version: version(text), Release: n, Change: change, Summaries: summaries}
 }
 
@@ -108,21 +108,21 @@ var fourReleases = views.LibraryHistory{
 	Rules: []views.RuleHistory{
 		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", RetiredIn: 2,
 			ReplacedBy: "practices/testing/verify-retry-limits", RetirementSummaries: []string{"Merge it."},
-			Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew, "Add the rule.")}},
+			Versions: []views.Version{published("1.0.0", 1, trailguide.ChangeNew, "Add the rule.")}},
 		{Path: "practices/testing/short-lived", Title: "Short lived", RetiredIn: 4, RetirementSummaries: []string{"Drop it."},
-			Versions: []views.Version{published("1.0.0", 2, coderules.ChangeNew, "Try it.")}},
+			Versions: []views.Version{published("1.0.0", 2, trailguide.ChangeNew, "Try it.")}},
 		{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits",
 			Versions: []views.Version{
-				published("1.0.0", 1, coderules.ChangeNew, "Add the rule."),
-				published("2.0.0", 2, coderules.ChangeMajor, "Lower the limit."),
+				published("1.0.0", 1, trailguide.ChangeNew, "Add the rule."),
+				published("2.0.0", 2, trailguide.ChangeMajor, "Lower the limit."),
 			}},
 		{Path: "techs/go/name-tests", Title: "Name tests",
-			Versions: []views.Version{published("1.0.0", 4, coderules.ChangeNew, "Add the rule.")}},
+			Versions: []views.Version{published("1.0.0", 4, trailguide.ChangeNew, "Add the rule.")}},
 		{Path: "techs/go/return-errors", Title: "Return errors with context",
 			Versions: []views.Version{
-				titled(published("1.0.0", 1, coderules.ChangeNew, "Add the rule."), "Return errors"),
-				titled(published("1.0.1", 2, coderules.ChangePatch, "Fix a typo."), "Return errors"),
-				titled(published("1.1.0", 4, coderules.ChangeMinor, "Add an example."), "Return errors with context"),
+				titled(published("1.0.0", 1, trailguide.ChangeNew, "Add the rule."), "Return errors"),
+				titled(published("1.0.1", 2, trailguide.ChangePatch, "Fix a typo."), "Return errors"),
+				titled(published("1.1.0", 4, trailguide.ChangeMinor, "Add an example."), "Return errors with context"),
 			}},
 	},
 }
@@ -136,7 +136,7 @@ func describeChanges(changes []views.RuleChange) []string {
 			versions = append(versions, v.Version.String())
 		}
 		line := fmt.Sprintf("%s %q %s %s->%s [%s]", c.Rule.Path, c.Rule.Title, c.Change, c.From, c.To, strings.Join(versions, " "))
-		if c.Change == coderules.ChangeRetired {
+		if c.Change == trailguide.ChangeRetired {
 			line += fmt.Sprintf(" %v", c.RetirementSummaries)
 			for _, r := range c.Replacements {
 				line += fmt.Sprintf(" by %s %q", r.Path, r.Title)
@@ -209,7 +209,7 @@ func manyReleases(releases, rules int) views.LibraryHistory {
 	}
 	for i := range rules {
 		h.Rules = append(h.Rules, views.RuleHistory{Path: fmt.Sprintf("techs/go/rule-%05d", i), Title: "Rule",
-			Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew, "Add the rule.")}})
+			Versions: []views.Version{published("1.0.0", 1, trailguide.ChangeNew, "Add the rule.")}})
 	}
 	return h
 }

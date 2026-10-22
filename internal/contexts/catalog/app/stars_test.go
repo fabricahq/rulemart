@@ -8,7 +8,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Stars stars only a current rule of what the release vets, its library named as owner/name, and refuses any other
@@ -20,7 +20,7 @@ func TestStarsStarOnlyARuleOfAVettedLibraryNamedAsOwnerAndName(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{{ID: "techs/go", Name: "Go"}}, nil)
+	groups, err := domain.NewCanonicalGroups([]trailguide.CanonicalGroup{{ID: "techs/go", Name: "Go"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

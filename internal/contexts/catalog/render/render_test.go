@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // unlimited is an allowance no test body comes near.
@@ -471,7 +471,7 @@ release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `
-	parsed, err := coderules.ParseReleaseRecord([]byte(record), "release/1")
+	parsed, err := trailguide.ParseReleaseRecord([]byte(record), "release/1")
 	if err != nil {
 		t.Fatal(err)
 	}

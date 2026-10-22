@@ -21,8 +21,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/web"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 const (
@@ -255,7 +255,7 @@ func (c catalog) ReleaseComparison(_ context.Context, owner, name string, from, 
 }
 
 // RuleComparison puts the older version first, as app.Pages does.
-func (c catalog) RuleComparison(_ context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error) {
+func (c catalog) RuleComparison(_ context.Context, owner, name, rulePath string, from, to trailguide.RuleVersion) (views.RuleComparison, error) {
 	if from.Compare(to) > 0 {
 		from, to = to, from
 	}
@@ -290,12 +290,12 @@ func newCatalog() catalog {
 		Rule: views.Rule{
 			Path: "techs/go/return-errors", Group: "techs/go", CanonicalGroup: goGroup, Title: "Return errors with context",
 			Impact: "HIGH", WhenToRead: "When changing return errors with context.",
-			HTML: "<p>Wrap every returned error.</p>\n", Version: coderules.RuleVersion{Major: 2}, Release: 3, PublishedAt: day(3),
+			HTML: "<p>Wrap every returned error.</p>\n", Version: trailguide.RuleVersion{Major: 2}, Release: 3, PublishedAt: day(3),
 		},
 		Versions: []views.Version{
-			{Version: coderules.RuleVersion{Major: 2}, Release: 3, PublishedAt: day(3), Change: coderules.ChangeMajor,
+			{Version: trailguide.RuleVersion{Major: 2}, Release: 3, PublishedAt: day(3), Change: trailguide.ChangeMajor,
 				Summaries: []string{"Require context on every error.", "Add an example."}},
-			{Version: coderules.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1), Change: coderules.ChangeNew,
+			{Version: trailguide.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1), Change: trailguide.ChangeNew,
 				Summaries: []string{"Add the rule."}},
 		},
 	}
@@ -304,13 +304,13 @@ func newCatalog() catalog {
 		Rule: views.Rule{
 			Path: "practices/testing/verify-retry-limits", Group: "practices/testing", CanonicalGroup: testingGroup,
 			Title: "Verify retry limits", Impact: "HIGH", WhenToRead: "When changing verify retry limits.",
-			HTML: "<p>Stop after a fixed number of attempts.</p>\n", Version: coderules.RuleVersion{Major: 1, Minor: 1},
+			HTML: "<p>Stop after a fixed number of attempts.</p>\n", Version: trailguide.RuleVersion{Major: 1, Minor: 1},
 			Release: 2, PublishedAt: day(2),
 		},
 		Versions: []views.Version{
-			{Version: coderules.RuleVersion{Major: 1, Minor: 1}, Release: 2, PublishedAt: day(2), Change: coderules.ChangeMinor,
+			{Version: trailguide.RuleVersion{Major: 1, Minor: 1}, Release: 2, PublishedAt: day(2), Change: trailguide.ChangeMinor,
 				Summaries: []string{"Count timeouts as attempts."}},
-			{Version: coderules.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1), Change: coderules.ChangeNew,
+			{Version: trailguide.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1), Change: trailguide.ChangeNew,
 				Summaries: []string{"Add the rule."}},
 		},
 	}
@@ -833,7 +833,7 @@ func newMixedCatalog() catalog {
 	rule := func(path, group string, canonical *views.CanonicalGroup, title string) views.RulePage {
 		return views.RulePage{Library: lib, Rule: views.Rule{
 			Path: path, Group: group, CanonicalGroup: canonical, Title: title, Impact: "HIGH", WhenToRead: "When " + title + ".",
-			Version: coderules.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1),
+			Version: trailguide.RuleVersion{Major: 1}, Release: 1, PublishedAt: day(1),
 		}}
 	}
 	rules := []views.RulePage{

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // MaxComparedBytes is the most rule text one page compares: the two versions of each rule whose changes it shows,
@@ -98,7 +98,7 @@ func (p Pages) ReleaseComparison(ctx context.Context, owner, name string, from, 
 // RuleComparison returns the rule at rulePath in the library owner/name with the text of its versions from and
 // to, the older first whichever way round they're given, within MaxComparedBytes. It fails with ErrNotFound when
 // there's no such library or rule, or when either isn't a version of the rule.
-func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string, from, to coderules.RuleVersion) (views.RuleComparison, error) {
+func (p Pages) RuleComparison(ctx context.Context, owner, name, rulePath string, from, to trailguide.RuleVersion) (views.RuleComparison, error) {
 	if from.Compare(to) > 0 {
 		from, to = to, from
 	}
@@ -135,12 +135,12 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 			continue
 		case !inTo:
 			change.Rule.Title = titleAt(r, old)
-			change.Change, change.From = coderules.ChangeRetired, r.Versions[old].Version
+			change.Change, change.From = trailguide.ChangeRetired, r.Versions[old].Version
 			change.RetirementSummaries, change.Replacements = r.RetirementSummaries, titledAt(history, index, links.replacements(r.Path), to)
 			result = append(result, change)
 			continue
 		case !inFrom:
-			change.Change, old = coderules.ChangeNew, -1
+			change.Change, old = trailguide.ChangeNew, -1
 			if o, ok := renames[i]; ok {
 				before := history.Rules[o]
 				last := len(before.Versions) - 1
@@ -154,8 +154,8 @@ func changes(history views.LibraryHistory, from, to int, texts map[string]views.
 		}
 		for i := new; i > old; i-- {
 			change.Versions = append(change.Versions, r.Versions[i])
-			if change.Change != coderules.ChangeNew && change.Change != views.ChangeRenamed {
-				change.Change = coderules.LargerChange(change.Change, r.Versions[i].Change)
+			if change.Change != trailguide.ChangeNew && change.Change != views.ChangeRenamed {
+				change.Change = trailguide.LargerChange(change.Change, r.Versions[i].Change)
 			}
 		}
 		result = append(result, change)

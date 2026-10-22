@@ -2,18 +2,18 @@
 
 package domain
 
-import "github.com/fabricahq/rulemart/internal/lib/coderules"
+import "github.com/fabricahq/trailguide/trailguide"
 
 // RuleStates is a library's rules as they stand: each current rule's version, and its retired rules, by ID.
 type RuleStates struct {
-	Current map[string]coderules.RuleVersion
+	Current map[string]trailguide.RuleVersion
 	Retired map[string]bool
 }
 
 // PinnedVersion is a library's rule at the version a project holds.
 type PinnedVersion struct {
 	Path    string
-	Version coderules.RuleVersion
+	Version trailguide.RuleVersion
 }
 
 // Updates counts the rules of pinned that trailguide project update would change: each the library has since published

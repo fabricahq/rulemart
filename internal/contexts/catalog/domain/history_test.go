@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // publishA publishes rule a.
@@ -70,9 +70,9 @@ retired: {techs/go/z: {lastVersion: 1.0.0, summaries: [Retire it.]}}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			records := make([]coderules.ReleaseRecord, len(tc.records))
+			records := make([]trailguide.ReleaseRecord, len(tc.records))
 			for i, text := range tc.records {
-				record, err := coderules.ParseReleaseRecord([]byte(text), "release/"+strconv.Itoa(i+1))
+				record, err := trailguide.ParseReleaseRecord([]byte(text), "release/"+strconv.Itoa(i+1))
 				if err != nil {
 					t.Fatalf("record %d: %v", i+1, err)
 				}

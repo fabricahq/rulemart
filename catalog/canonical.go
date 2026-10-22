@@ -13,7 +13,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // canonicalGroupsYAML is canonical-groups.yaml from fabricahq/code-rules at v0.2.0, commit
@@ -29,7 +29,7 @@ var groupIconsYAML []byte
 // CanonicalGroups returns Trail Guide's canonical group list, as the vendored parser reads it, with the icons
 // group-icons.yaml gives its groups.
 func CanonicalGroups() (domain.CanonicalGroups, error) {
-	list, err := coderules.ParseCanonicalGroups(canonicalGroupsYAML, "canonical-groups.yaml")
+	list, err := trailguide.ParseCanonicalGroups(canonicalGroupsYAML, "canonical-groups.yaml")
 	if err != nil {
 		return domain.CanonicalGroups{}, fmt.Errorf("read canonical groups: %v", err)
 	}

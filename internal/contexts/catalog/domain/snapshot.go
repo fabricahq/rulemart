@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // ReleaseSnapshot is one library release as a source fetched it: its annotated release/<number> tag, the record
@@ -17,7 +17,7 @@ type ReleaseSnapshot struct {
 	TaggedAt time.Time
 	// CommitID is the hash of the commit the release tags.
 	CommitID string
-	Record   coderules.ReleaseRecord
+	Record   trailguide.ReleaseRecord
 	// Files reads the tagged commit's files, by their paths in the repository. Assembly reads only the ones it needs.
 	Files Files
 }

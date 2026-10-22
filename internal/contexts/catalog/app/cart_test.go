@@ -11,7 +11,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // cartStore answers CartLibraries with libraries, the catalog as checkout reads it, whichever items it's asked for,
@@ -29,7 +29,7 @@ func (s *cartStore) CartLibraries(_ context.Context, _ []domain.LibraryKey, _ []
 // cartRule returns a current rule at path, titled by its last part, at version 1.2.0.
 func cartRule(path string) views.CartRule {
 	parts := strings.Split(path, "/")
-	return views.CartRule{Path: path, Group: parts[0] + "/" + parts[1], Title: parts[len(parts)-1], Version: coderules.RuleVersion{Major: 1, Minor: 2}}
+	return views.CartRule{Path: path, Group: parts[0] + "/" + parts[1], Title: parts[len(parts)-1], Version: trailguide.RuleVersion{Major: 1, Minor: 2}}
 }
 
 // newCarts returns Carts over a catalog of acme/rules, vetted, with three Go rules, one retired, and two testing
@@ -54,7 +54,7 @@ func newCarts(t *testing.T) (app.Carts, *cartStore) {
 			Rules: []views.CartRule{cartRule("techs/go/use-go"), retiredRust},
 		},
 	}}
-	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{{ID: "techs/go", Name: "Go"}, {ID: "practices/testing", Name: "Testing"}}, nil)
+	groups, err := domain.NewCanonicalGroups([]trailguide.CanonicalGroup{{ID: "techs/go", Name: "Go"}, {ID: "practices/testing", Name: "Testing"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

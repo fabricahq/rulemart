@@ -10,7 +10,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/app"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // replacedTwice is fabricahq/code-rules-test-library's history, in short: release 2 retired check-retry-backoff for
@@ -24,20 +24,20 @@ var replacedTwice = views.LibraryHistory{
 	Rules: []views.RuleHistory{
 		{Path: "practices/testing/check-retry-backoff", Title: "Check retry backoff", RetiredIn: 2,
 			ReplacedBy: "practices/testing/verify-retries", RetirementSummaries: []string{"Covered by verify-retries."},
-			Versions: []views.Version{titled(published("1.0.0", 1, coderules.ChangeNew, "Add the rule."), "Check retry backoff")}},
+			Versions: []views.Version{titled(published("1.0.0", 1, trailguide.ChangeNew, "Add the rule."), "Check retry backoff")}},
 		{Path: "practices/testing/verify-retries", Title: "Verify retries", RetiredIn: 4,
 			ReplacedBy: "practices/testing/verify-retry-limits", RetirementSummaries: []string{"Folded into the limits rule."},
-			Versions: []views.Version{titled(published("1.0.0", 2, coderules.ChangeNew, "Add the rule."), "Verify retries")}},
+			Versions: []views.Version{titled(published("1.0.0", 2, trailguide.ChangeNew, "Add the rule."), "Verify retries")}},
 		{Path: "practices/testing/verify-retry-limits", Title: "Verify retry limits",
 			Versions: []views.Version{
-				titled(published("1.0.0", 1, coderules.ChangeNew, "Add the rule."), "Verify retry limits"),
-				titled(published("2.0.0", 4, coderules.ChangeMajor, "Lower the limit."), "Verify retry limits"),
+				titled(published("1.0.0", 1, trailguide.ChangeNew, "Add the rule."), "Verify retry limits"),
+				titled(published("2.0.0", 4, trailguide.ChangeMajor, "Lower the limit."), "Verify retry limits"),
 			}},
 		{Path: "techs/go/name-tests", Title: "Name tests after behavior", RetiredIn: 4,
 			ReplacedBy: "techs/go/name-tests-by-behavior", RetirementSummaries: []string{"Rename it."},
-			Versions: []views.Version{titled(published("1.0.0", 1, coderules.ChangeNew, "Add the rule."), "Name tests after behavior")}},
+			Versions: []views.Version{titled(published("1.0.0", 1, trailguide.ChangeNew, "Add the rule."), "Name tests after behavior")}},
 		{Path: "techs/go/name-tests-by-behavior", Title: "Name tests after behavior",
-			Versions: []views.Version{titled(published("1.0.0", 4, coderules.ChangeNew, "Rename it."), "Name tests after behavior")}},
+			Versions: []views.Version{titled(published("1.0.0", 4, trailguide.ChangeNew, "Rename it."), "Name tests after behavior")}},
 	},
 }
 
@@ -168,7 +168,7 @@ func TestReplacementsStopAtACycle(t *testing.T) {
 		{Path: "a", RetiredIn: 2, ReplacedBy: "b", FirstRelease: 1},
 		{Path: "b", RetiredIn: 2, ReplacedBy: "a", FirstRelease: 1},
 	}
-	h := views.LibraryHistory{Rules: []views.RuleHistory{{Path: "a", RetiredIn: 2, Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew)}}}}
+	h := views.LibraryHistory{Rules: []views.RuleHistory{{Path: "a", RetiredIn: 2, Versions: []views.Version{published("1.0.0", 1, trailguide.ChangeNew)}}}}
 
 	page, err := app.Pages{Store: &histories{history: h, links: cycle}}.RulePage(context.Background(), "o", "n", "a")
 
@@ -184,11 +184,11 @@ func TestChangesNameAReplacementByItsTitleThen(t *testing.T) {
 		Releases: []views.Release{{Number: 1}, {Number: 2}, {Number: 3}},
 		Rules: []views.RuleHistory{
 			{Path: "a/b/new", Title: "Verify retry limits", Versions: []views.Version{
-				titled(published("1.0.0", 1, coderules.ChangeNew), "Verify retries"),
-				titled(published("1.1.0", 3, coderules.ChangeMinor), "Verify retry limits"),
+				titled(published("1.0.0", 1, trailguide.ChangeNew), "Verify retries"),
+				titled(published("1.1.0", 3, trailguide.ChangeMinor), "Verify retry limits"),
 			}},
 			{Path: "a/b/old", Title: "Old", RetiredIn: 2, ReplacedBy: "a/b/new",
-				Versions: []views.Version{titled(published("1.0.0", 1, coderules.ChangeNew), "Old")}},
+				Versions: []views.Version{titled(published("1.0.0", 1, trailguide.ChangeNew), "Old")}},
 		},
 	}
 
@@ -209,7 +209,7 @@ func TestReplacementsFollowABoundedChain(t *testing.T) {
 	for i := range 300 {
 		links = append(links, views.RuleLink{Path: fmt.Sprintf("r%03d", i), RetiredIn: i + 2, ReplacedBy: fmt.Sprintf("r%03d", i+1), FirstRelease: 1})
 	}
-	h := views.LibraryHistory{Rules: []views.RuleHistory{{Path: "r000", RetiredIn: 2, Versions: []views.Version{published("1.0.0", 1, coderules.ChangeNew)}}}}
+	h := views.LibraryHistory{Rules: []views.RuleHistory{{Path: "r000", RetiredIn: 2, Versions: []views.Version{published("1.0.0", 1, trailguide.ChangeNew)}}}}
 
 	page, err := app.Pages{Store: &histories{history: h, links: links}}.RulePage(context.Background(), "o", "n", "r000")
 

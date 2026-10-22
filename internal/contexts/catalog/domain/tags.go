@@ -7,7 +7,7 @@ import (
 
 	"go.yaml.in/yaml/v4"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // ruleTags returns the topics a rule's file, document, lists under tags in its frontmatter, in its order, each once,
@@ -15,7 +15,7 @@ import (
 // accepted the file, which checks that tags is one or the other; frontmatter this decoder can't read gives none, since
 // tags only lead to search.
 func ruleTags(document string) []string {
-	parts, err := coderules.SplitDocument(document, "")
+	parts, err := trailguide.SplitDocument(document, "")
 	if err != nil {
 		return []string{}
 	}

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Rulemart's own provenance file, as Code Rules 0.2.0 wrote it before Code Rules was renamed Trail Guide, names one source
@@ -27,7 +27,7 @@ func TestParseProvenanceReadsAFileCodeRulesWrote(t *testing.T) {
 	if s.Name != "fabrica" || s.Library != "fabricahq/public-rules" || s.Release != 1 || !slices.Contains(s.Groups, "techs/go") {
 		t.Errorf("the source is %+v", s)
 	}
-	want := PinnedRule{Path: "practices/code-design/express-operations-as-meaningful-steps", Version: coderules.FirstRuleVersion}
+	want := PinnedRule{Path: "practices/code-design/express-operations-as-meaningful-steps", Version: trailguide.FirstRuleVersion}
 	if len(s.Rules) < 10 || !slices.Contains(s.Rules, want) {
 		t.Errorf("the source's rules are %+v", s.Rules)
 	}
