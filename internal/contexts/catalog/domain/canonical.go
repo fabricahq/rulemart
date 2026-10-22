@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // CanonicalGroup is a group on Trail Guide's canonical group list. Every library whose group has its ID shares the
@@ -42,9 +42,9 @@ type CanonicalGroups struct {
 	byID map[string]CanonicalGroup
 }
 
-// NewCanonicalGroups returns the list holding groups, which coderules.ParseCanonicalGroups has validated, with
+// NewCanonicalGroups returns the list holding groups, which trailguide.ParseCanonicalGroups has validated, with
 // icons, keyed by group ID. It rejects an icon for a group that isn't on the list.
-func NewCanonicalGroups(groups []coderules.CanonicalGroup, icons map[string]GroupIcon) (CanonicalGroups, error) {
+func NewCanonicalGroups(groups []trailguide.CanonicalGroup, icons map[string]GroupIcon) (CanonicalGroups, error) {
 	byID := make(map[string]CanonicalGroup, len(groups))
 	for _, g := range groups {
 		byID[g.ID] = CanonicalGroup{ID: g.ID, Name: g.Name, Description: g.Description, Icon: icons[g.ID]}

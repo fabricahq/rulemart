@@ -189,8 +189,7 @@ matters.
 ## Groups
 
 - **Trail Guide owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
-  Trail Guide's file at a pinned release, copied unchanged, and the vendored parser in `internal/lib/coderules` reads
-  it, so Rulemart and Trail Guide can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
+  Trail Guide's file at a pinned release, copied unchanged, and Trail Guide's `trailguide` Go package reads it, so Rulemart and Trail Guide can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
   in its own pull request.
 - **A group is canonical only when its ID is on the list exactly. The list has no aliases**: a library's
   `techs/golang` is a group of its own, never `techs/go`.
@@ -620,8 +619,9 @@ matters.
   the Markdown with goldmark, so the web function still links no Markdown renderer, and the server runs the templates
   at start, refusing to start on a missing value. The FAQ and feedback pages stay templ: their structure is markup.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Trail Guide reads them, and parses
-  release records with Trail Guide's own parser: a copy in `internal/lib/coderules` until Trail Guide publishes a
-  public parsing package. It replaces a library's rows in one transaction, so running it again changes nothing, and
+  libraries with Trail Guide's own parser, its public `github.com/fabricahq/trailguide/trailguide` package, at the
+  release `go.mod` pins, never a copy. Discovery and ingestion read manifests with it alike, and Rulemart updates the
+  pin when the library format changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.

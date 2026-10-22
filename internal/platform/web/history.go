@@ -9,8 +9,8 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/lib/textdiff"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Text Trail Guide's generated release notes use, which a library's releases show the same way.
@@ -29,15 +29,15 @@ const (
 // and the word its count uses. Trail Guide records a rename as a new rule and a retired one; Rulemart lists it once,
 // after the new rules.
 var changeKinds = []struct {
-	change      coderules.Change
+	change      trailguide.Change
 	title, word string
 }{
-	{coderules.ChangeNew, "New rules", "new"},
+	{trailguide.ChangeNew, "New rules", "new"},
 	{views.ChangeRenamed, "Renamed rules", "renamed"},
-	{coderules.ChangeMajor, "Major changes", "major"},
-	{coderules.ChangeMinor, "Minor changes", "minor"},
-	{coderules.ChangePatch, "Patch changes", "patch"},
-	{coderules.ChangeRetired, "Retired rules", "retired"},
+	{trailguide.ChangeMajor, "Major changes", "major"},
+	{trailguide.ChangeMinor, "Minor changes", "minor"},
+	{trailguide.ChangePatch, "Patch changes", "patch"},
+	{trailguide.ChangeRetired, "Retired rules", "retired"},
 }
 
 // diffMode is how a comparison shows changed text: words marked in Markdown blocks, or a unified diff of lines.
@@ -92,7 +92,7 @@ func releaseComparisonHref(lib libraryView, from, to int, mode diffMode) string 
 func ruleHref(library, rulePath string) string { return library + "/" + rulePath }
 
 // ruleComparisonHref is the path of the comparison of a rule's versions from and to.
-func ruleComparisonHref(lib libraryView, rulePath string, from, to coderules.RuleVersion, mode diffMode) string {
+func ruleComparisonHref(lib libraryView, rulePath string, from, to trailguide.RuleVersion, mode diffMode) string {
 	q := url.Values{"tab": {"versions"}, "from": {from.String()}, "to": {to.String()}}
 	if mode == diffLines {
 		q.Set("view", string(mode))
@@ -299,7 +299,7 @@ func newReleaseCards(lib libraryView, page views.ReleasesPage) []releaseCard {
 // hasMajor reports whether any change is major.
 func hasMajor(changes []views.RuleChange) bool {
 	for _, c := range changes {
-		if c.Change == coderules.ChangeMajor {
+		if c.Change == trailguide.ChangeMajor {
 			return true
 		}
 	}
@@ -343,7 +343,7 @@ func joinAnd(parts []string) string {
 func newChangeSections(lib libraryView, changes []views.RuleChange, firstRelease bool, release int) []changeSection {
 	var sections []changeSection
 	for _, kind := range changeKinds {
-		section := changeSection{title: kind.title, warning: kind.change == coderules.ChangeMajor, noun: strings.ToLower(kind.title)}
+		section := changeSection{title: kind.title, warning: kind.change == trailguide.ChangeMajor, noun: strings.ToLower(kind.title)}
 		for _, c := range changes {
 			if c.Change == kind.change {
 				section.items = append(section.items, newChangeItem(lib, c, firstRelease, release))
@@ -368,12 +368,12 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 		item.href += "?tab=versions"
 	}
 	switch c.Change {
-	case coderules.ChangeRetired:
+	case trailguide.ChangeRetired:
 		item.versionsLabel, item.versions = "last version", c.From.String()
 		item.notes = []versionNote{{summaries: shortened(c.RetirementSummaries)}}
 		item.replacedBy = newRuleLinks(lib, c.Replacements)
 		return item
-	case coderules.ChangeNew:
+	case trailguide.ChangeNew:
 		item.versions = c.To.String()
 	case views.ChangeRenamed:
 		from := newRuleLink(lib, *c.RenamedFrom)
@@ -393,7 +393,7 @@ func newChangeItem(lib libraryView, c views.RuleChange, firstRelease bool, relea
 	for _, v := range c.Versions {
 		note := versionNote{summaries: shortened(v.Summaries)}
 		if len(c.Versions) > 1 {
-			note.version, note.major = v.Version.String(), v.Change == coderules.ChangeMajor
+			note.version, note.major = v.Version.String(), v.Change == trailguide.ChangeMajor
 		}
 		item.notes = append(item.notes, note)
 	}
@@ -555,7 +555,7 @@ func newReleaseComparisonView(lib libraryView, comparison views.ReleaseCompariso
 	budget := newDiffBudget()
 	for _, c := range comparison.Changes {
 		switch c.Change {
-		case coderules.ChangeMajor, coderules.ChangeMinor, coderules.ChangePatch, views.ChangeRenamed:
+		case trailguide.ChangeMajor, trailguide.ChangeMinor, trailguide.ChangePatch, views.ChangeRenamed:
 			if !budget.spend(diffPanelMarks) {
 				v.omitted++
 				continue
@@ -609,7 +609,7 @@ func newRuleComparisonView(r ruleView, comparison views.RuleComparison, mode dif
 			fromRelease = version.Release
 		case version.Version.Compare(from) > 0 && version.Version.Compare(to) <= 0:
 			v.notes = append(v.notes, r.versions[i])
-			v.major = v.major || version.Change == coderules.ChangeMajor
+			v.major = v.major || version.Change == trailguide.ChangeMajor
 		}
 		if version.Version == to {
 			toRelease = version.Release
@@ -711,7 +711,7 @@ func (d diffView) renamed() bool { return d.oldPath != d.path }
 // newDiffView compares version from of rule oldPath, which is rulePath unless the rule was renamed, with version to of
 // rule rulePath in lib, whose text is text, as mode says, spending budget on what it renders. A diff that needs more
 // than is left shows as too large.
-func newDiffView(lib libraryView, oldPath, rulePath string, from, to coderules.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
+func newDiffView(lib libraryView, oldPath, rulePath string, from, to trailguide.RuleVersion, text views.ComparedText, mode diffMode, budget *diffBudget) diffView {
 	file, oldFile := domain.RuleFile(rulePath), domain.RuleFile(oldPath)
 	d := diffView{
 		path: file, oldPath: oldFile, href: ruleHref(lib.href, rulePath), anchor: diffAnchor(rulePath),

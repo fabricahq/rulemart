@@ -18,7 +18,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // GitHubReader reads a visitor's GitHub account with their OAuth token, and a private repository with an
@@ -438,7 +438,7 @@ func (g GitHubAccounts) holdsManifest(ctx context.Context, token string, repo do
 func latestRelease(tags []string) int {
 	latest := 0
 	for _, tag := range tags {
-		if n, err := coderules.ParseReleaseTag(tag); err == nil {
+		if n, err := trailguide.ParseReleaseTag(tag); err == nil {
 			latest = max(latest, n)
 		}
 	}

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // files is a release's files, by path, held in memory.
@@ -158,7 +158,7 @@ func group(name string) string {
 func snapshot(t *testing.T, number int, record string, f Files) ReleaseSnapshot {
 	t.Helper()
 	tag := ReleaseTag(number)
-	parsed, err := coderules.ParseReleaseRecord([]byte(record), tag)
+	parsed, err := trailguide.ParseReleaseRecord([]byte(record), tag)
 	if err != nil {
 		t.Fatalf("%s: %v", tag, err)
 	}
@@ -434,11 +434,11 @@ var sharedRule = "---\ntitle: Shared rule\nwhenToRead: When testing budgets.\nim
 // its title, impact description, reading guidance, and tags, and the HTML of its body and reading guidance.
 func sharedRuleBytes(t *testing.T, path string) int64 {
 	t.Helper()
-	parsed, err := coderules.Parse(sharedRule, path, repo.FullName())
+	parsed, err := trailguide.ParseRule(sharedRule, path, repo.FullName())
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, err := coderules.SplitDocument(sharedRule, path)
+	document, err := trailguide.SplitDocument(sharedRule, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -697,6 +697,55 @@ libraryFiles: [LICENSE.md, NOTICE.md, practices/testing/_group.yaml]
 	}
 }
 
+// A library section that gives its skills levels, its own and ones it curates from a source, and lists a skill that
+// installs only as a dependency, as Trail Guide lets it, still declares the library's license.
+func TestAssembleReadsTheLicenseOfALibraryThatGivesItsSkillsLevels(t *testing.T) {
+	release := snapshot(t, 1, `formatVersion: 1
+release: 1
+rules: {techs/go/return-errors: 1.0.0}
+changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
+libraryFiles: [LICENSE.md, techs/go/_group.yaml]
+`, files{
+		".trailguide/config.yaml": `schemaVersion: 2
+sources:
+  anthropic:
+    repository: https://github.com/anthropics/skills.git
+    ref: main
+  dzhng:
+    repository: https://github.com/dzhng/skills.git
+    ref: dc8f546c3adaa615ab86e8328449ae6efe23aca4
+    skills:
+      forks:
+        skills/engineering/ratchet-files:
+          as: skills/ratchet-files
+          basedOn: "dc8f546c3adaa615ab86e8328449ae6efe23aca4"
+          reason: Upstream's frontmatter has an unquoted colon.
+library:
+  license:
+    spdxExpression: MIT
+    file: LICENSE.md
+    notices: []
+  skills:
+    required: [anthropic:skills/skill-creator]
+    recommended: [skills/ratchet-files]
+    offered: [skills/build-feature]
+    dependencies: [skills/shared-setup]
+`,
+		".trailguide/rules/techs/go/_group.yaml":      group("Go"),
+		".trailguide/rules/techs/go/return-errors.md": rule("Return errors", "Return errors instead of panicking."),
+		"LICENSE.md": "MIT License\n",
+	})
+
+	lib, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lib.LicenseExpression != "MIT" || lib.LicenseFile != "LICENSE.md" {
+		t.Errorf("the license is %q in %q, want MIT in LICENSE.md", lib.LicenseExpression, lib.LicenseFile)
+	}
+}
+
 // A release in the Trail Guide directory's layout is a library only when its configuration has a library section.
 func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t *testing.T) {
 	for name, tc := range map[string]struct {
@@ -707,8 +756,8 @@ func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t
 			"release/1: .trailguide/config.yaml has no library section, which makes a repository a Trail Guide library"},
 		"a license file that's missing": {"schemaVersion: 2\nsources: {}\nlibrary:\n  license: {file: COPYING, notices: []}\n",
 			"release/1: .trailguide/config.yaml declares the license file COPYING, which is missing"},
-		"an invalid library section": {"schemaVersion: 2\nsources: {}\nlibrary:\n  skills: {}\n",
-			"release/1: example/rules/.trailguide/config.yaml: library.skills: skill levels aren't supported yet"},
+		"a curated skill from an undeclared source": {"schemaVersion: 2\nsources: {}\nlibrary:\n  skills: {required: [anthropic:skills/skill-creator]}\n",
+			"release/1: example/rules/.trailguide/config.yaml: library.skills.required[0]: anthropic:skills/skill-creator comes from anthropic, which isn't a source in sources"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := files{
@@ -729,6 +778,33 @@ libraryFiles: [techs/go/_group.yaml]
 
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got error %v, want one containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// A library in RootLayout keeps the license paths rule-library.yaml allowed, from the repository root and as written,
+// even where the current layout reserves them, such as rules/ or .trailguide/.
+func TestAssembleReadsALegacyLicenseAtItsDeclaredPath(t *testing.T) {
+	for _, file := range []string{"rules/LICENSE.md", ".trailguide/assets/LICENSE.md"} {
+		t.Run(file, func(t *testing.T) {
+			release := snapshot(t, 1, firstRecord, library(files{
+				"rule-library.yaml":             "formatVersion: 1\nlicense:\n  spdxExpression: MIT\n  file: " + file + "\n  notices: []\n",
+				file:                            "MIT License\n",
+				"practices/testing/_group.yaml": group("Testing"),
+				"techs/go/_group.yaml":          group("Go"),
+				"practices/testing/check-retry-backoff.md": rule("Check retry backoff", "Retries wait longer after each attempt."),
+				"practices/testing/verify-retry-limits.md": rule("Verify retry limits", "Stop after a fixed number of attempts."),
+				"techs/go/return-errors.md":                rule("Return errors", "Return errors instead of panicking."),
+			}))
+
+			lib, err := Assemble(repo, []ReleaseSnapshot{release}, limits, markup{})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if lib.LicenseExpression != "MIT" || lib.LicenseFile != file {
+				t.Errorf("the license is %q in %q, want MIT in %s", lib.LicenseExpression, lib.LicenseFile, file)
 			}
 		})
 	}

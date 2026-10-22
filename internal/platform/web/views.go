@@ -20,7 +20,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // libraryView is what every page about a library shows of it.
@@ -549,7 +549,7 @@ func newRuleView(lib libraryView, page views.RulePage) ruleView {
 			version: version.Version.String(), tag: domain.ReleaseTag(version.Release),
 			date: date(version.PublishedAt), notesURL: domain.ReleaseNotesURL(page.Library.FullName(), version.Release),
 			releaseHref: releaseHref(lib, version.Release),
-			latest:      i == 0 && r.Retirement == nil, major: version.Change == coderules.ChangeMajor, summaries: shortened(version.Summaries),
+			latest:      i == 0 && r.Retirement == nil, major: version.Change == trailguide.ChangeMajor, summaries: shortened(version.Summaries),
 		}
 		if i+1 < len(page.Versions) {
 			previous := page.Versions[i+1].Version

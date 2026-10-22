@@ -22,10 +22,10 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/github/githubtest"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/lib/githubapp/githubapptest"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 const (
@@ -150,7 +150,7 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 		t.Fatalf("projects %+v, want mona/api", got.Projects)
 	}
 	source := got.Projects[0].Sources[0]
-	want := domain.PinnedRule{Path: "techs/go/return-errors", Version: coderules.RuleVersion{Major: 1, Minor: 2}}
+	want := domain.PinnedRule{Path: "techs/go/return-errors", Version: trailguide.RuleVersion{Major: 1, Minor: 2}}
 	if source.Library != "fabricahq/public-rules" || source.Release != 2 || len(source.Rules) != 1 || source.Rules[0] != want {
 		t.Errorf("the project's source is %+v", source)
 	}

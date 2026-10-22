@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Assemble returns the library that releases publish for repo. releases are the library's release snapshots in
@@ -24,7 +24,7 @@ func Assemble(repo Repository, releases []ReleaseSnapshot, limits ContentLimits,
 	if len(releases) == 0 {
 		return Library{}, errors.New("the library has no releases")
 	}
-	records := make([]coderules.ReleaseRecord, len(releases))
+	records := make([]trailguide.ReleaseRecord, len(releases))
 	for i, r := range releases {
 		records[i] = r.Record
 	}
@@ -186,12 +186,12 @@ func (a *assembly) readLicense() (expression, file string, err error) {
 // parseLicense returns the license that text, the manifest of a release in layout, declares, or nil when it declares
 // none: rule-library.yaml's license in RootLayout, and otherwise the license in the library section of the
 // configuration, which must have one.
-func (a *assembly) parseLicense(layout Layout, text []byte) (*coderules.LicenseDeclaration, error) {
+func (a *assembly) parseLicense(layout Layout, text []byte) (*trailguide.LicenseDeclaration, error) {
 	if layout == RootLayout {
-		return coderules.ParseLibraryLicense(text, a.repo.FullName())
+		return parseLegacyLicense(text, a.repo.FullName()+"/"+trailguide.LegacyManifest)
 	}
 	manifestFile := layout.ManifestFile()
-	library, err := coderules.ParseLibraryManifest(text, a.repo.FullName()+"/"+manifestFile)
+	library, err := trailguide.ParseLibraryManifest(text, a.repo.FullName()+"/"+manifestFile)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*coderules.LicenseD
 // and reads its assets.
 func (a *assembly) readRule(history Rule) (Rule, error) {
 	path := RuleFile(history.Path)
-	group, err := coderules.GroupFromPath(path, path)
+	group, err := trailguide.GroupFromPath(path, path)
 	if err != nil {
 		return Rule{}, err
 	}
@@ -241,17 +241,17 @@ func (a *assembly) readRule(history Rule) (Rule, error) {
 // readVersion reads and parses the rule file at path in release r, spending the budget on what the catalog keeps of
 // it: the file, and its title, impact description, and reading guidance, which are decoded into copies of their own.
 // Errors name the file, by its path in the repository.
-func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, error) {
+func (a *assembly) readVersion(r ReleaseSnapshot, path string) (trailguide.Rule, error) {
 	text, err := a.readContent(r, path)
 	if err != nil {
-		return coderules.Rule{}, fmt.Errorf("%s: %v", a.layout(r).RepositoryPath(path), err)
+		return trailguide.Rule{}, fmt.Errorf("%s: %v", a.layout(r).RepositoryPath(path), err)
 	}
-	parsed, err := coderules.Parse(string(text), path, a.repo.FullName())
+	parsed, err := trailguide.ParseRule(string(text), path, a.repo.FullName())
 	if err != nil {
-		return coderules.Rule{}, err
+		return trailguide.Rule{}, err
 	}
 	if err := a.budget.spend(int64(len(parsed.Title) + len(parsed.ImpactDescription) + len(parsed.WhenToRead))); err != nil {
-		return coderules.Rule{}, fmt.Errorf("%s: %v", path, err)
+		return trailguide.Rule{}, fmt.Errorf("%s: %v", path, err)
 	}
 	return parsed, nil
 }
@@ -259,9 +259,9 @@ func (a *assembly) readVersion(r ReleaseSnapshot, path string) (coderules.Rule, 
 // renderRule returns r with its newest version, parsed, the rule's file at release published, rendered for the rule's
 // page: its body, and while the rule is current, its reading guidance, and its assets, which it reads first, so links
 // to them lead to their pages.
-func (a *assembly) renderRule(r Rule, published ReleaseSnapshot, parsed coderules.Rule) (Rule, error) {
+func (a *assembly) renderRule(r Rule, published ReleaseSnapshot, parsed trailguide.Rule) (Rule, error) {
 	file := RuleFile(r.Path)
-	document, err := coderules.SplitDocument(parsed.Document, file)
+	document, err := trailguide.SplitDocument(parsed.Document, file)
 	if err != nil {
 		return Rule{}, err
 	}
@@ -341,7 +341,7 @@ func (a *assembly) readGroup(path string, current bool) (Group, error) {
 		if err != nil {
 			return Group{}, fmt.Errorf("%s: %s: %v", r.Tag, a.layout(r).RepositoryPath(file), err)
 		}
-		meta, err := coderules.ParseGroupMetadataYAML(text, file)
+		meta, err := trailguide.ParseGroupMetadata(text, file)
 		if err != nil {
 			return Group{}, fmt.Errorf("%s: %v", r.Tag, err)
 		}

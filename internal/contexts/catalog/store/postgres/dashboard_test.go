@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // The libraries a visitor and their organizations publish are the vetted and listed ones their logins own, in any
@@ -46,10 +46,10 @@ func TestDashboardReadsTheRulesOfTheImportedLibraries(t *testing.T) {
 		t.Fatalf("imported %+v, want acme/backend alone", got.Imported)
 	}
 	rules := got.Imported[0].Rules
-	if rules.Current[acmeErrors] != (coderules.RuleVersion{Major: 1}) || !rules.Retired["practices/testing/retry-forever"] || len(rules.Current) != 4 {
+	if rules.Current[acmeErrors] != (trailguide.RuleVersion{Major: 1}) || !rules.Retired["practices/testing/retry-forever"] || len(rules.Current) != 4 {
 		t.Errorf("acme/backend's rules are %+v", rules)
 	}
-	if n := rules.Updates([]domain.PinnedVersion{{Path: "practices/testing/retry-forever", Version: coderules.FirstRuleVersion}}); n != 1 {
+	if n := rules.Updates([]domain.PinnedVersion{{Path: "practices/testing/retry-forever", Version: trailguide.FirstRuleVersion}}); n != 1 {
 		t.Errorf("a pinned retired rule counts %d updates, want 1", n)
 	}
 }

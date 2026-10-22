@@ -114,9 +114,9 @@ and of all of them, the number of objects, the size of each file it reads, the c
 library is stored, and the rules' assets it lists and the bytes it keeps of them. It ingests any public library, vetted or not, so use it to backfill one.
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the worker's connection string,
-`/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses records with
-the copy of Trail Guide's parser in [internal/lib/coderules](internal/lib/coderules), so it reads only libraries
-released with a Trail Guide version that writes the same record format.
+`/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses libraries with
+Trail Guide's `github.com/fabricahq/trailguide/trailguide` package at the version `go.mod` pins, so it reads only
+libraries released with a Trail Guide version that writes a format that version reads.
 
 `make worker` runs what the deployed worker does every hour, once: for each library `catalog/vetted.yaml`
 lists, and each listing to check, it lists the release tags without fetching them, and ingests the library when they
@@ -236,8 +236,8 @@ web Lambda -> SQS, one job per new listing
   and the cart's page, its script, and its checkout, `queue` sends to the jobs queue, `secret`
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
-- `internal/lib/coderules` is the vendored copy of Trail Guide's parser, and `internal/lib/textdiff` compares two
-  versions' text for the comparison pages, within bounded work.
+- `internal/lib/textdiff` compares two versions' text for the comparison pages, within bounded work. Rulemart parses
+  libraries with Trail Guide's `github.com/fabricahq/trailguide/trailguide` package, which `go.mod` pins.
 - `db/migrations` holds the schema as numbered SQL files.
 - `.github/ISSUE_TEMPLATE` holds the issue forms that pages link to report a library, ask to vet one, or report a
   problem, by file name and field ID, so renaming either breaks those links.
@@ -318,4 +318,4 @@ publishes.
 
 ## Engineering rules
 
-Agents and people follow the rules in [.code-rules](.code-rules), as [AGENTS.md](AGENTS.md) explains.
+Agents and people follow the rules in [.trailguide](.trailguide), as [AGENTS.md](AGENTS.md) explains.

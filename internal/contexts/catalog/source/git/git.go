@@ -4,6 +4,7 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -20,7 +21,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // errNoReleases reports a repository without library releases.
@@ -93,7 +94,7 @@ func listReleaseTags(ctx context.Context, remote *gogit.Remote, limits domain.Fe
 		if !ref.Name().IsTag() {
 			continue
 		}
-		if number, err := coderules.ParseReleaseTag(ref.Name().Short()); err == nil {
+		if number, err := trailguide.ParseReleaseTag(ref.Name().Short()); err == nil {
 			tags[number] = ref.Hash().String()
 		}
 	}
@@ -120,7 +121,7 @@ func readReleases(ctx context.Context, repo *gogit.Repository, limits domain.Fet
 	listed := &listing{ctx: ctx, entries: limits.ListedEntries, depth: limits.ListDepth}
 	err = refs.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
-		if _, err := coderules.ParseReleaseTag(name); err != nil {
+		if _, err := trailguide.ParseReleaseTag(name); err != nil {
 			return nil
 		}
 		// Parsing a record is the work here, so stop between records once ctx ends.
@@ -161,7 +162,9 @@ func readRelease(repo *gogit.Repository, shared *trees, listed *listing, name st
 	if err != nil {
 		return domain.ReleaseSnapshot{}, err
 	}
-	_, record, err := coderules.ParseReleaseTagObject(name, raw)
+	// A tag object's headers end at its first blank line; ParseReleaseMessage ignores a signature after the message.
+	_, message, _ := bytes.Cut(raw, []byte("\n\n"))
+	_, record, err := trailguide.ParseReleaseMessage(name, message)
 	if err != nil {
 		return domain.ReleaseSnapshot{}, fmt.Errorf("invalid release record: %v", err)
 	}

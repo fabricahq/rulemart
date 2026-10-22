@@ -10,9 +10,9 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/database/databasetest"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // newStore returns a Store on a new migrated database, connected as the web function's role, so a missing grant fails
@@ -314,7 +314,7 @@ func TestSnapshotReadsBackAsSaved(t *testing.T) {
 	if _, found, err := s.Snapshot(ctx, account.ID); err != nil || found {
 		t.Fatalf("before any read: found %v, %v", found, err)
 	}
-	version, err := coderules.ParseRuleVersion("1.2.0", "test")
+	version, err := trailguide.ParseRuleVersion("1.2.0", "test")
 	if err != nil {
 		t.Fatal(err)
 	}

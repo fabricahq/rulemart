@@ -19,7 +19,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store"
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/store/postgres/generated/accountsdb"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // Snapshot returns the account's GitHub snapshot, as store.Store describes.
@@ -302,8 +302,8 @@ type sourceRecord struct {
 }
 
 type ruleRecord struct {
-	Path    string                `json:"path"`
-	Version coderules.RuleVersion `json:"version"`
+	Path    string                 `json:"path"`
+	Version trailguide.RuleVersion `json:"version"`
 }
 
 // decodeSnapshot returns the snapshot data, a github_snapshots row, keeps, and current true, or an empty snapshot and

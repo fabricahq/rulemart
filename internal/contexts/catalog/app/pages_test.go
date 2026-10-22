@@ -12,7 +12,7 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // reads stands in for the store's page reads across libraries, answering with fixed values and recording what each
@@ -59,7 +59,7 @@ func (r *reads) HomePage(context.Context, []domain.LibraryKey) ([]views.LibraryC
 // canonicalList is a canonical group list of Go, Testing, and Accessibility, of which only Go has an icon.
 func canonicalList(t *testing.T) domain.CanonicalGroups {
 	t.Helper()
-	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{
+	groups, err := domain.NewCanonicalGroups([]trailguide.CanonicalGroup{
 		{ID: "practices/accessibility", Name: "Accessibility", Description: "Usable by everyone."},
 		{ID: "practices/testing", Name: "Testing", Description: "What to test."},
 		{ID: "techs/go", Name: "Go", Description: "The Go language."},
@@ -137,7 +137,7 @@ func TestHomePageShowsTheLibrariesAndTheGroupIndex(t *testing.T) {
 
 // Canonical groups sort by the list's name, which needn't follow their IDs.
 func TestGroupIndexOrdersCanonicalGroupsByNameWithoutRegardToCase(t *testing.T) {
-	groups, err := domain.NewCanonicalGroups([]coderules.CanonicalGroup{
+	groups, err := domain.NewCanonicalGroups([]trailguide.CanonicalGroup{
 		{ID: "techs/a-lang", Name: "zeta"},
 		{ID: "techs/b-lang", Name: "Alpha"},
 		{ID: "techs/c-lang", Name: "beta"},

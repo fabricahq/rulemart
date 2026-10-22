@@ -12,8 +12,8 @@ import (
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/domain"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/store"
 	"github.com/fabricahq/rulemart/internal/contexts/catalog/views"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/platform/postgrestest"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 const (
@@ -82,7 +82,7 @@ func chainLibrary(id, owner string, n int) domain.Library {
 	retired := func(path, replacedBy string) domain.Rule {
 		return domain.Rule{Path: path, Group: "techs/go", RetiredIn: 2, ReplacedBy: replacedBy,
 			RetirementSummaries: []string{"Retire it."},
-			Versions:            []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: coderules.ChangeNew, Summaries: []string{"Add the rule."}}}}
+			Versions:            []domain.Version{{Number: v(1, 0, 0), Release: 1, Change: trailguide.ChangeNew, Summaries: []string{"Add the rule."}}}}
 	}
 	rules := []domain.Rule{retired("techs/go/dropped", "")}
 	for i := range n - 1 {

@@ -3,7 +3,7 @@
 # in go.mod, and requires identical ZIP bytes. Fabrica's infrastructure repository deploys the ZIPs by these names.
 runtime = "provided.al2023"
 architecture = "arm64"
-image = "golang:1.26.7-bookworm@sha256:e8c859f5632dcfde7b32d2012b4351728f6437930887c2f6a91ea242459e5514"
+image = "golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61"
 # Each function is a static linux/arm64 bootstrap binary. GOTOOLCHAIN=local fails instead of downloading another Go
 # when go.mod moves past the image's version; update both together.
 build = """
