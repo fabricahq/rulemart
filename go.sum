@@ -138,10 +138,8 @@ github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1m
 github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad/go.mod h1:cXg6YxExXjJnVBQHBLXeUAgxn2UodCpnH306RInaBQk=
 github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1/go.mod h1:KJwIaB5Mv44NWtYuAOFCVOjcI94vtpEz2JU/D2v6IjE=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
-github.com/fabricahq/trailguide v0.6.0 h1:eMlm/hCGV9cjpPDnULT+epeiLnbssDgJ5ceO2ruvbCw=
-github.com/fabricahq/trailguide v0.6.0/go.mod h1:ltjlMLoeKh4O5n9cfvNtb46sJs6Bh4+3azJGI2NZDTA=
-github.com/fabricahq/trailguide v0.6.1-0.20261022021854-8530e0647808 h1:Cc9ufjcFvjfUFnLyuT4YyyllTQsPordTmxgUGa6aVoE=
-github.com/fabricahq/trailguide v0.6.1-0.20261022021854-8530e0647808/go.mod h1:ltjlMLoeKh4O5n9cfvNtb46sJs6Bh4+3azJGI2NZDTA=
+github.com/fabricahq/trailguide v0.7.1-0.20261022185844-f36e2b484373 h1:4D48QfTSMjMhBM6SZdWI+KoRJkDsH/PHHz+ciqxDkW8=
+github.com/fabricahq/trailguide v0.7.1-0.20261022185844-f36e2b484373/go.mod h1:ltjlMLoeKh4O5n9cfvNtb46sJs6Bh4+3azJGI2NZDTA=
 github.com/fatih/color v1.16.0 h1:zmkK9Ngbjj+K0yRhTVONQh1p/HknKYSlNT+vZCzyokM=
 github.com/fatih/color v1.16.0/go.mod h1:fL2Sau1YI5c0pdGEVCbKQbLXB6edEj1ZgiY4NijnWvE=
 github.com/fatih/structtag v1.2.0 h1:/OdNE99OxoI/PqaW/SuSK9uxxT3f/tcSZgon/ssNSx4=

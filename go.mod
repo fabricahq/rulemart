@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.79.0
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
-	github.com/fabricahq/trailguide v0.6.1-0.20261022021854-8530e0647808
+	github.com/fabricahq/trailguide v0.7.1-0.20261022185844-f36e2b484373
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.28.0

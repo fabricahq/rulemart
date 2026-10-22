@@ -71,7 +71,7 @@ func DevFake(installedURL string) *Fake {
 			// keeps its manifest in .trailguide/config.yaml, as Trail Guide lays a library out.
 			{
 				Owner: "fabricahq", Name: "partner-rules", PushedAt: day(8), ReadOnly: true,
-				Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {}\n"}, Tags: []string{"release/2"},
+				Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {schemaVersion: 1}\n"}, Tags: []string{"release/2"},
 			},
 			{Owner: devUser, Name: "team-rules", Private: true, PushedAt: day(5), Files: map[string]string{"rule-library.yaml": manifest}, Tags: []string{"release/2"}},
 			{

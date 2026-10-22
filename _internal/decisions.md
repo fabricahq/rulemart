@@ -621,7 +621,7 @@ matters.
 - **Ingestion reads library repositories with go-git over HTTPS**, the way Trail Guide reads them, and parses
   libraries with Trail Guide's own parser, its public `github.com/fabricahq/trailguide/trailguide` package, at the
   release `go.mod` pins, never a copy. Discovery and ingestion read manifests with it alike, and Rulemart updates the
-  pin when the library format changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
+  pin when the library schema version changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.

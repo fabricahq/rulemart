@@ -602,7 +602,7 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 
 // trailGuideManifest is a configuration whose library section declares an MIT license, as a library in the Trail Guide
 // directory's layout has.
-const trailGuideManifest = "schemaVersion: 2\nsources: {}\nlibrary:\n  formatVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE.md\n    notices: [NOTICE.md]\n"
+const trailGuideManifest = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE.md\n    notices: [NOTICE.md]\n"
 
 // A library that moved its files into .trailguide/ keeps its history: rule IDs and versions don't change, a version
 // published before the move is read where that release kept it, and everything else from where the latest release
@@ -721,7 +721,7 @@ sources:
           basedOn: "dc8f546c3adaa615ab86e8328449ae6efe23aca4"
           reason: Upstream's frontmatter has an unquoted colon.
 library:
-  formatVersion: 1
+  schemaVersion: 1
   license:
     spdxExpression: MIT
     file: LICENSE.md
@@ -748,7 +748,7 @@ library:
 }
 
 // A release in the Trail Guide directory's layout is a library only when its configuration has a library section in a
-// library format Rulemart reads.
+// library schema version Rulemart reads.
 func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t *testing.T) {
 	for name, tc := range map[string]struct {
 		manifest, want string
@@ -756,13 +756,13 @@ func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t
 		"no configuration": {"", "release/1: .trailguide/config.yaml is missing; every Trail Guide library has one"},
 		"no library section": {"schemaVersion: 2\nsources: {}\n",
 			"release/1: .trailguide/config.yaml has no library section, which makes a repository a Trail Guide library"},
-		"a license file that's missing": {"schemaVersion: 2\nsources: {}\nlibrary:\n  formatVersion: 1\n  license: {file: COPYING, notices: []}\n",
+		"a license file that's missing": {"schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license: {file: COPYING, notices: []}\n",
 			"release/1: .trailguide/config.yaml declares the license file COPYING, which is missing"},
-		"no library format": {"schemaVersion: 2\nsources: {}\nlibrary:\n  license: {spdxExpression: MIT, file: LICENSE.md, notices: []}\n",
-			"release/1: example/rules/.trailguide/config.yaml: library.formatVersion: missing; the library doesn't declare"},
-		"a newer library format": {"schemaVersion: 2\nsources: {}\nlibrary:\n  formatVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE.md, notices: []}\n",
-			"release/1: .trailguide/config.yaml declares library format 2, which Rulemart doesn't read yet: it reads library format 1."},
-		"a curated skill from an undeclared source": {"schemaVersion: 2\nsources: {}\nlibrary:\n  formatVersion: 1\n  skills: {required: [anthropic:skills/skill-creator]}\n",
+		"no library schema version": {"schemaVersion: 2\nsources: {}\nlibrary:\n  license: {spdxExpression: MIT, file: LICENSE.md, notices: []}\n",
+			"release/1: example/rules/.trailguide/config.yaml: library.schemaVersion: missing; the library doesn't declare"},
+		"a newer library schema version": {"schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE.md, notices: []}\n",
+			"release/1: .trailguide/config.yaml declares library schema version 2, which Rulemart doesn't read yet: it reads library schema version 1."},
+		"a curated skill from an undeclared source": {"schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  skills: {required: [anthropic:skills/skill-creator]}\n",
 			"release/1: example/rules/.trailguide/config.yaml: library.skills.required[0]: anthropic:skills/skill-creator comes from anthropic, which isn't a source in sources"},
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -275,9 +275,9 @@ func TestCheckListingKeepsTheLastReleaseWhenALaterOneFails(t *testing.T) {
 	}
 }
 
-// A listed library whose new release declares a library format this Rulemart doesn't read keeps showing the last
-// release it ingested, and its lister sees which format Rulemart reads.
-func TestCheckListingKeepsTheLastReleaseWhenALaterOneUsesANewerLibraryFormat(t *testing.T) {
+// A listed library whose new release declares a library schema version this Rulemart doesn't read keeps showing the
+// last release it ingested, and its lister sees which version Rulemart reads.
+func TestCheckListingKeepsTheLastReleaseWhenALaterOneUsesANewerLibrarySchema(t *testing.T) {
 	lib := firstRelease(t)
 	l := newListing(t, lib)
 	id := l.list(t)
@@ -285,12 +285,12 @@ func TestCheckListingKeepsTheLastReleaseWhenALaterOneUsesANewerLibraryFormat(t *
 		t.Fatal(err)
 	}
 	lib.MoveToTrailGuideDirectory()
-	lib.Write(".trailguide/config.yaml", "schemaVersion: 2\nsources: {}\nlibrary:\n  formatVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE, notices: []}\n")
+	lib.Write(".trailguide/config.yaml", "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE, notices: []}\n")
 	lib.Release(2, "formatVersion: 1\nrelease: 2\nrules:\n  "+retryBackoff+": 1.0.0\n  "+retryLimits+": 1.0.0\n  "+returnErrors+": 1.0.0\n")
 
 	check, err := l.check(t, id)
 
-	want := "declares library format 2, which Rulemart doesn't read yet: it reads library format 1."
+	want := "declares library schema version 2, which Rulemart doesn't read yet: it reads library schema version 1."
 	if err != nil || check.Outcome != app.ListingRefused || !strings.Contains(check.Failure, want) {
 		t.Fatalf("got %+v, %v; want refused for %q", check, err, want)
 	}

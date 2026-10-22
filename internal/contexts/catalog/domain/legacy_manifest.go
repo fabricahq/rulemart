@@ -124,7 +124,7 @@ func legacyRuleContent(path string) bool {
 
 // validateExpression checks an SPDX expression the way Trail Guide's library section does.
 func validateExpression(expression string) error {
-	section, err := json.Marshal(map[string]any{"formatVersion": trailguide.LibraryFormat, "license": map[string]any{"spdxExpression": expression, "file": "LICENSE", "notices": []string{}}})
+	section, err := json.Marshal(map[string]any{"schemaVersion": trailguide.LibrarySchemaVersion, "license": map[string]any{"spdxExpression": expression, "file": "LICENSE", "notices": []string{}}})
 	if err != nil {
 		return err
 	}
