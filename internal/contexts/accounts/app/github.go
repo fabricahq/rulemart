@@ -377,9 +377,11 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 }
 
 // inspect returns repo as a library when it holds a library manifest and has a library release tag, and as a project
-// when the provenance file in its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, parses, reading it
-// with token. A provenance file or configuration Rulemart can't parse, or a configuration too large to read, makes no
-// project or library, rather than failing the read. A provenance file too large to read fails it.
+// when its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, holds a lockfile that parses with its
+// configuration, as Trail Guide 0.7 and later write it, or else a provenance file that parses, as earlier versions wrote
+// it, reading them with token. A lockfile, provenance file, or configuration Rulemart can't parse, or a configuration
+// too large to read, makes no project or library, rather than failing the read. A lockfile or provenance file too large
+// to read fails it.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
 	repo := listed.Repository
 	root, err := g.GitHub.RootEntries(ctx, token, repo)
@@ -402,15 +404,46 @@ func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain
 	}
 	var project *domain.Project
 	if root.ProjectDirectory != "" {
-		data, found, err := g.GitHub.File(ctx, token, repo, domain.ProvenancePath(root.ProjectDirectory), domain.MaxProvenanceBytes)
+		sources, err := g.projectSources(ctx, token, repo, root.ProjectDirectory)
 		if err != nil {
 			return nil, nil, err
 		}
-		if sources, err := domain.ParseProvenance(data); found && err == nil {
+		if sources != nil {
 			project = &domain.Project{Repository: repo, Directory: root.ProjectDirectory, Sources: sources}
 		}
 	}
 	return library, project, nil
+}
+
+// projectSources returns the sources of the project whose files are in directory of repo, from its lockfile and
+// configuration when it has a lockfile, or else from its provenance file, or nil when neither parses. Only a lockfile
+// or provenance file too large to read, or a failed request, fails it.
+func (g GitHubAccounts) projectSources(ctx context.Context, token string, repo domain.Repository, directory string) ([]domain.Source, error) {
+	lock, found, err := g.GitHub.File(ctx, token, repo, domain.LockPath(directory), domain.MaxLockBytes)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		config, found, err := g.GitHub.File(ctx, token, repo, domain.ConfigPath(directory), domain.MaxConfigBytes)
+		if errors.Is(err, domain.ErrFileTooLarge) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if sources, err := domain.ParseLock(config, lock); found && err == nil {
+			return sources, nil
+		}
+		return nil, nil
+	}
+	data, found, err := g.GitHub.File(ctx, token, repo, domain.ProvenancePath(directory), domain.MaxProvenanceBytes)
+	if err != nil {
+		return nil, err
+	}
+	if sources, err := domain.ParseProvenance(data); found && err == nil {
+		return sources, nil
+	}
+	return nil, nil
 }
 
 // holdsManifest reports whether repo, whose root holds root, holds a library manifest, as Trail Guide finds it:

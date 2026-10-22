@@ -5,11 +5,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -190,6 +192,48 @@ func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 	}
 }
 
+// A read finds a project from its lockfile and configuration, as Trail Guide 0.7 and later write them, ahead of a
+// provenance file an earlier version left beside them; a lockfile it can't parse makes no project, rather than one
+// from a provenance file Trail Guide no longer writes.
+func TestSnapshotReadsAProjectFromItsLockfile(t *testing.T) {
+	config := "schemaVersion: 2\nsources:\n  fabrica:\n    repository: https://github.com/fabricahq/public-rules.git\n    ref: release/2\n    rules:\n      include: [techs/go/*]\n"
+	one, two := trailguide.RuleVersion{Major: 1}, 2
+	lock, err := trailguide.Lock{Sources: map[string]trailguide.LockedSource{"fabrica": {
+		Kind: trailguide.KindLibrary, Repository: "https://github.com/fabricahq/public-rules.git", Ref: "release/2", Release: 2,
+		Commit: strings.Repeat("2", 40), ReleaseCommits: map[int]string{2: strings.Repeat("2", 40)},
+		Selectors: trailguide.LockSelectors{Groups: json.RawMessage(`["techs/go"]`), Rules: []string{}, Skills: []string{}}, Groups: []string{"techs/go"},
+		Rules: map[string]trailguide.LockedRule{"techs/go/return-errors": {Version: &one, Release: &two}}, RetiredRules: []string{},
+		Skills: map[string]trailguide.LockedSkill{}, AvailableSkills: map[string]trailguide.LockedAvailableSkill{},
+		Files: map[string]string{"config.yaml": strings.Repeat("a", 64)}, Executable: []string{}, Curated: map[string]trailguide.LockedCurated{},
+	}}}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	older := githubtest.Provenance(githubtest.ProvenanceSource{Name: "older", Repository: "https://github.com/fabricahq/public-rules.git"})
+	files := func(lock string) map[string]string {
+		return map[string]string{domain.ConfigPath(domain.ProjectDirectory): config, domain.LockPath(domain.ProjectDirectory): lock, domain.ProvenancePath(domain.ProjectDirectory): older}
+	}
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			{Owner: "mona", Name: "locked", PushedAt: pushed, Files: files(string(lock))},
+			{Owner: "mona", Name: "edited", PushedAt: pushed, Files: files(strings.Replace(string(lock), "release/2", "release/3", 1))},
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	got := site.snapshot(t)
+
+	if len(got.Projects) != 1 || got.Projects[0].Name != "locked" {
+		t.Fatalf("projects %+v, want mona/locked", got.Projects)
+	}
+	want := []domain.Source{{Name: "fabrica", Library: "fabricahq/public-rules", Release: 2, Groups: []string{"techs/go"},
+		Rules: []domain.PinnedRule{{Path: "techs/go/return-errors", Version: one}}}}
+	if sources := got.Projects[0].Sources; !reflect.DeepEqual(sources, want) {
+		t.Errorf("sources %+v, want %+v", sources, want)
+	}
+}
+
 // A read finds a library whose manifest is where Trail Guide reads it: rule-library.yaml at the root, or else a library
 // section in the configuration in the Trail Guide directory, .trailguide, or .code-rules while the repository has no
 // .trailguide, even one that gives its skills levels, of hundreds of kilobytes, or exactly as large as the catalog reads
@@ -249,9 +293,10 @@ func TestAReadAsksForAConfigurationOnlyWhereALibraryCouldDeclareOne(t *testing.T
 
 	site.snapshot(t)
 
-	// Three root listings, mona/root's provenance file, and mona/trailguide's configuration and provenance file.
-	if got := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}"); got != 6 {
-		t.Errorf("asked for contents %d times, want 6", got)
+	// Three root listings, mona/root's lockfile and provenance file, and mona/trailguide's configuration, lockfile,
+	// and provenance file.
+	if got := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}"); got != 8 {
+		t.Errorf("asked for contents %d times, want 8", got)
 	}
 }
 
@@ -300,8 +345,8 @@ func TestAReadLooksIntoAtMostTheMostRecentlyPushedRepositories(t *testing.T) {
 	got := site.snapshot(t)
 
 	// Each repository read costs a listing of its root, and mona/api and mona/broken, which have a Trail Guide directory
-	// and no rule-library.yaml, a configuration and a provenance file too.
-	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 4; inspected != domain.MaxRepositories {
+	// and no rule-library.yaml, a configuration, a lockfile, and a provenance file too.
+	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 6; inspected != domain.MaxRepositories {
 		t.Errorf("looked into %d repositories, want %d", inspected, domain.MaxRepositories)
 	}
 	if !got.Truncated || slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "old-rules" }) {

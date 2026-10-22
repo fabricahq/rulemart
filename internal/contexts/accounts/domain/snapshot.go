@@ -82,7 +82,7 @@ type Snapshot struct {
 	Organizations []string
 	// Libraries are the repositories that publish a Trail Guide library, by full name.
 	Libraries []PublishableRepository
-	// Projects are the repositories whose provenance file names the libraries they import, by full name.
+	// Projects are the repositories whose lockfile, or provenance file, names the libraries they import, by full name.
 	Projects []Project
 	// Truncated is true when the read left repositories out: the visitor and their organizations hold more than
 	// MaxRepositories, so it left the least recently pushed out, or the visitor belongs to more organizations than
@@ -115,7 +115,8 @@ type PublishableRepository struct {
 	Writable bool
 }
 
-// Project is a repository that uses Trail Guide: the provenance file in its project directory names its sources.
+// Project is a repository that uses Trail Guide: the lockfile in its project directory, or the provenance file an
+// earlier Trail Guide wrote there, names its sources.
 type Project struct {
 	Repository
 	// Directory is where it keeps its files: ProjectDirectory, or LegacyProjectDirectory for a project not yet

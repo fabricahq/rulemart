@@ -19,7 +19,7 @@ type PinnedVersion struct {
 // Updates counts the rules of pinned that trailguide project update would change: each the library has since published
 // a newer version of, and each it has retired. A rule the library doesn't hold, such as one it dropped from its
 // history, counts as neither. Rules the library added to a group the project imports aren't counted: the project's
-// configuration may exclude them, which its provenance file doesn't record.
+// configuration may exclude them.
 func (s RuleStates) Updates(pinned []PinnedVersion) int {
 	n := 0
 	for _, p := range pinned {
