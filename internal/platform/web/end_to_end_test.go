@@ -41,7 +41,7 @@ func newIngestedSite(t *testing.T) http.Handler {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.\n\n"+hostileHTML)
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -137,13 +137,13 @@ func TestReleasesAndComparisonsShowAnIngestedLibrary(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.\n\n"+hostileHTML)
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap each returned error.\n\n"+hostileHTML+"\n\n<iframe src=x></iframe>")
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules: {techs/go/return-errors: 1.1.0}
 changes: {techs/go/return-errors: {change: minor, from: 1.0.0, summaries: [Name each error.]}}
@@ -179,7 +179,7 @@ func TestPagesNameIngestedGroupsByTheCanonicalList(t *testing.T) {
 	lib.Group("techs/golang", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
 	lib.Rule("techs/golang/pass-context-first", "Pass context first", "Take a context first.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0, techs/golang/pass-context-first: 1.0.0}
 changes:
@@ -230,7 +230,7 @@ func newTwoLibrarySite(t *testing.T) http.Handler {
 	example.Group("practices/testing", "Testing")
 	example.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
 	example.Rule("practices/testing/verify-retry-limits", "Verify retry limits", "Stop after a fixed number of attempts.")
-	example.Release(1, `formatVersion: 1
+	example.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0, practices/testing/verify-retry-limits: 1.0.0}
 changes:
@@ -240,7 +240,7 @@ changes:
 	acme := gittest.NewLibrary(t)
 	acme.Group("techs/go", "Go")
 	acme.Rule("techs/go/close-bodies", "Close response bodies", "Close every body, even on retry.")
-	acme.Release(1, `formatVersion: 1
+	acme.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/close-bodies: 1.0.0}
 changes: {techs/go/close-bodies: {change: new, summaries: [Add the rule.]}}
@@ -324,13 +324,13 @@ func TestComparisonsShowChangedCodeAndLongLines(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", codeBefore)
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
 `)
 	lib.Rule("techs/go/return-errors", "Return errors", codeAfter)
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules: {techs/go/return-errors: 1.0.1}
 changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Wrap the error in the example.]}}

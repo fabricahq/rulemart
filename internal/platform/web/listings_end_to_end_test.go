@@ -35,7 +35,7 @@ func TestAVisitorListsALibraryThatTheWorkerIngestsAsUnvetted(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error before retrying.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -141,7 +141,7 @@ func TestAnUnvettedLibrarysLinksToAGroupAcrossLibrariesReachItsRules(t *testing.
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/house-style", "House style")
 	lib.Rule("techs/house-style/keep-it-plain", "Keep it plain", "Write the plainest code that works.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/house-style/keep-it-plain: 1.0.0}
 changes: {techs/house-style/keep-it-plain: {change: new, summaries: [Add the rule.]}}

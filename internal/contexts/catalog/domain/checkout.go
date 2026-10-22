@@ -354,11 +354,20 @@ func (c Checkout) reviewStep() string {
 // agentsInstruction returns what a project does once its rules are imported, which both texts end with. An unknown
 // project may still keep its files in .code-rules/, so it is told to point agents at the rules generated there.
 func (c Checkout) agentsInstruction() string {
-	read := "make sure AGENTS.md tells agents to read " + c.Target.directory() + "/generated/RULES.md"
+	read := "make sure AGENTS.md tells agents to read " + rulesIndex(c.Target.directory())
 	if c.Target.Mode == ProjectUnknown && c.Target.Directory == "" {
-		read += ", or " + legacyDirectory + "/generated/RULES.md if the project keeps its files in " + legacyDirectory + "/"
+		read += ", or " + rulesIndex(legacyDirectory) + " if the project keeps its files in " + legacyDirectory + "/"
 	}
 	return read
+}
+
+// rulesIndex returns the RULES.md that Trail Guide generates in directory. Trail Guide 0.8.0 and later keep it under
+// .trailguide/_managed/, and a project in the legacy .code-rules/ layout has it directly under generated/.
+func rulesIndex(directory string) string {
+	if directory == legacyDirectory {
+		return directory + "/generated/RULES.md"
+	}
+	return directory + "/_managed/generated/RULES.md"
 }
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt

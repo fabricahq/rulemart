@@ -366,7 +366,7 @@ matters.
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
   `trailguide project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
-  that AGENTS.md tells agents to read `.trailguide/generated/RULES.md`. A library's alias is its owner lowercased
+  that AGENTS.md tells agents to read `.trailguide/_managed/generated/RULES.md`. A library's alias is its owner lowercased
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
   A group is selected whole by its selector, such as `--rules 'techs/go/*'`, quoted so the shell doesn't expand it.
   A known project gets no `add source` for a library it imports already, since Trail Guide adds a source once; a note

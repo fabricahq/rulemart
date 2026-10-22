@@ -17,7 +17,7 @@ var assetLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, Asset
 var linkLimits = ContentLimits{FileBytes: 1 << 20, ContentBytes: 1 << 30, AssetBytes: 100, RuleAssetBytes: 60, Assets: 100, AssetLinks: 100}
 
 // assetRecord publishes one rule, techs/go/return-errors.
-const assetRecord = `formatVersion: 1
+const assetRecord = `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -164,7 +164,7 @@ func TestAssembleReadsAssetsAtTheReleaseThatHoldsThem(t *testing.T) {
 		"techs/go/assets/return-errors/x.txt": "old",
 		"assets/glossary.md":                  "Old terms.",
 	})
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {techs/go/return-errors: 1.0.0}
 libraryFiles: [assets/glossary.md]

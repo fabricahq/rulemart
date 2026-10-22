@@ -168,7 +168,7 @@ func snapshot(t *testing.T, number int, record string, f Files) ReleaseSnapshot 
 	}
 }
 
-const firstRecord = `formatVersion: 1
+const firstRecord = `schemaVersion: 1
 release: 1
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.0.0, techs/go/return-errors: 1.0.0}
 changes:
@@ -193,7 +193,7 @@ func first(t *testing.T) ReleaseSnapshot {
 // A release records each change and retirement, and a rule's content is its file at the release that published its
 // current version: a later edit that no release recorded must not show.
 func TestAssembleReadsEachRuleAtTheReleaseThatPublishedIt(t *testing.T) {
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes:
@@ -299,7 +299,7 @@ func TestAssembleReadsOnlyTheFilesItNeeds(t *testing.T) {
 // A group stays while any rule belongs to it, so every rule's group exists. One whose rules are all retired keeps
 // the metadata of the last release that had its _group.yaml.
 func TestAssembleKeepsTheMetadataOfAGroupWhoseRulesAreAllRetired(t *testing.T) {
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.0.0}
 retired: {techs/go/return-errors: {lastVersion: 1.0.0, summaries: [Retire it.]}}
@@ -349,7 +349,7 @@ func TestAssembleRefusesALibraryMissingAFileItPublishes(t *testing.T) {
 func TestAssembleRefusesALibraryMissingAnOlderVersionsFile(t *testing.T) {
 	older := first(t)
 	delete(older.Files.(files), "practices/testing/verify-retry-limits.md")
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
@@ -364,7 +364,7 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 
 // An older version's file is held until the library is stored, like the current one's, so it spends the budget.
 func TestAssembleSpendsTheBudgetOnOlderVersions(t *testing.T) {
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
@@ -413,7 +413,7 @@ func TestAssembleRefusesAFileLargerThanItsLimit(t *testing.T) {
 }
 
 func TestAssembleRefusesRecordsThatDontFormOneHistory(t *testing.T) {
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/verify-retry-limits: 1.0.0, techs/go/return-errors: 1.0.0}
 `, first(t).Files)
@@ -479,7 +479,7 @@ func sharedRules(t *testing.T, count int, sharedGroups bool) (release ReleaseSna
 		fmt.Fprintf(&rules, "  %s: 1.0.0\n", path)
 		fmt.Fprintf(&changes, "  %s: {change: new, summaries: [Add the rule.]}\n", path)
 	}
-	record := "formatVersion: 1\nrelease: 1\nrules:\n" + rules.String() + "changes:\n" + changes.String()
+	record := "schemaVersion: 1\nrelease: 1\nrules:\n" + rules.String() + "changes:\n" + changes.String()
 	return snapshot(t, 1, record, f), rulesBytes, groupsBytes
 }
 
@@ -561,7 +561,7 @@ func TestAssembleSpendsTheBudgetOnTheLinksItFinds(t *testing.T) {
 // Each rule is rendered for its page: its file, at the release that published its current version, with the
 // library's latest release for library-wide links, and within what's left of the budget.
 func TestAssembleRendersEachRuleForItsPage(t *testing.T) {
-	second := snapshot(t, 2, `formatVersion: 1
+	second := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/check-retry-backoff: 1.0.0, practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
@@ -608,7 +608,7 @@ const trailGuideManifest = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVer
 // published before the move is read where that release kept it, and everything else from where the latest release
 // keeps it.
 func TestAssembleReadsALibraryThatMovedIntoTheTrailGuideDirectory(t *testing.T) {
-	before := snapshot(t, 1, `formatVersion: 1
+	before := snapshot(t, 1, `schemaVersion: 1
 release: 1
 rules: {practices/testing/verify-retry-limits: 1.0.0, techs/go/return-errors: 1.0.0}
 changes:
@@ -622,7 +622,7 @@ libraryFiles: [LICENSE, assets/lifecycle.svg, practices/testing/_group.yaml, rul
 		"techs/go/return-errors.md":                rule("Return errors", "See [the lifecycle](../../assets/lifecycle.svg)."),
 		"assets/lifecycle.svg":                     "<svg>before</svg>",
 	}))
-	moved := snapshot(t, 2, `formatVersion: 1
+	moved := snapshot(t, 2, `schemaVersion: 1
 release: 2
 rules: {practices/testing/verify-retry-limits: 1.1.0, techs/go/return-errors: 1.0.0}
 changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, summaries: [Count timeouts.]}}
@@ -700,7 +700,7 @@ libraryFiles: [LICENSE.md, NOTICE.md, practices/testing/_group.yaml]
 // A library section that gives its skills levels, its own and ones it curates from a source, and lists a skill that
 // installs only as a dependency, as Trail Guide lets it, still declares the library's license.
 func TestAssembleReadsTheLicenseOfALibraryThatGivesItsSkillsLevels(t *testing.T) {
-	release := snapshot(t, 1, `formatVersion: 1
+	release := snapshot(t, 1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -773,7 +773,7 @@ func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t
 			if tc.manifest != "" {
 				f[".trailguide/config.yaml"] = tc.manifest
 			}
-			release := snapshot(t, 1, `formatVersion: 1
+			release := snapshot(t, 1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}

@@ -30,7 +30,7 @@ func TestVisitorsStarARuleAndDeletingAnAccountRemovesItsStar(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}

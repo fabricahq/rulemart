@@ -21,7 +21,7 @@ func TestIngestStoresALibraryInTheTrailGuideDirectory(t *testing.T) {
 	lib.Write(".trailguide/assets/lifecycle.md", "# Lifecycle\n\nErrors return to the caller.\n")
 	// A project's files beside the library's aren't the library's.
 	lib.Write(".trailguide/generated/RULES.md", "# Rules\n")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -66,7 +66,7 @@ func TestIngestKeepsTheHistoryOfALibraryThatMovedIntoTheTrailGuideDirectory(t *t
 	lib := firstRelease(t)
 	lib.MoveToTrailGuideDirectory()
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, including timeouts.")
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules:
   practices/testing/check-retry-backoff: 1.0.0

@@ -48,7 +48,7 @@ func TestListReleaseTagsSeesARewrittenTag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib.Retag("release/2", "Library release 2, rewritten.\n---\nformatVersion: 1\nrelease: 2\n")
+	lib.Retag("release/2", "Library release 2, rewritten.\n---\nschemaVersion: 1\nrelease: 2\n")
 
 	after, err := git.ListReleaseTags(context.Background(), lib.URL(), limits)
 

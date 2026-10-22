@@ -33,7 +33,7 @@ func TestABrowsersCartChecksOutAgainstTheCatalog(t *testing.T) {
 	lib.Rule("techs/go/return-errors", "Return errors", "Wrap every returned error.")
 	lib.Rule("techs/go/close-bodies", "Close bodies", "Close every response body.")
 	lib.Rule("practices/testing/verify-retries", "Verify retries", "Test each retry.")
-	lib.Release(1, `formatVersion: 1
+	lib.Release(1, `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0, techs/go/close-bodies: 1.0.0, practices/testing/verify-retries: 1.0.0}
 changes:
@@ -72,7 +72,7 @@ changes:
 	}
 	commands := "trailguide project add source example \\\n  --repository https://github.com/example/rules.git \\\n" +
 		"  --rules 'techs/go/*' \\\n  --rules practices/testing/verify-retries\n\ntrailguide project sync\n\n" +
-		"# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md, or .code-rules/generated/RULES.md " +
+		"# Then make sure AGENTS.md tells agents to read .trailguide/_managed/generated/RULES.md, or .code-rules/generated/RULES.md " +
 		"if the project keeps its files in .code-rules/"
 	if got := oneStep(t, answer); !strings.HasSuffix(got, commands) {
 		t.Errorf("the commands end\n%s\nwant\n%s", got, commands)
@@ -119,7 +119,7 @@ func TestACartOfRulesWithVeryLongTitlesChecksOutWithinAResponse(t *testing.T) {
 	lib := gittest.NewLibrary(t)
 	lib.Group("techs/go", "Go")
 	var record, changes strings.Builder
-	record.WriteString("formatVersion: 1\nrelease: 1\nrules:\n")
+	record.WriteString("schemaVersion: 1\nrelease: 1\nrules:\n")
 	var cart []string
 	for i := range rules {
 		id := fmt.Sprintf("techs/go/rule-%02d", i)

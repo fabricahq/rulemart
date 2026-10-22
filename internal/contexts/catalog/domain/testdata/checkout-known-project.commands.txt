@@ -19,4 +19,4 @@ trailguide project add rule techs/go/close-bodies \
 
 trailguide project build
 
-# Then make sure AGENTS.md tells agents to read .trailguide/generated/RULES.md
+# Then make sure AGENTS.md tells agents to read .trailguide/_managed/generated/RULES.md

@@ -38,7 +38,7 @@ func firstRelease(t *testing.T) *gittest.Library {
 }
 
 // firstReleaseRecord is the record of firstRelease's release/1.
-const firstReleaseRecord = `formatVersion: 1
+const firstReleaseRecord = `schemaVersion: 1
 release: 1
 rules:
   practices/testing/check-retry-backoff: 1.0.0
@@ -56,7 +56,7 @@ libraryFiles: [LICENSE, practices/testing/_group.yaml, rule-library.yaml, techs/
 func laterReleases(t *testing.T, lib *gittest.Library) {
 	t.Helper()
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, including timeouts.")
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules:
   practices/testing/check-retry-backoff: 1.0.0
@@ -68,7 +68,7 @@ changes:
 	lib.Rule(retryLimits, "Verify retry limits", "Every retry loop stops after a fixed number of attempts, including timeouts, and says so.")
 	lib.Rule(returnErrors, "Return errors with context", "Wrap every returned error with the operation that failed.")
 	lib.Remove(retryBackoff + ".md")
-	lib.Release(3, `formatVersion: 1
+	lib.Release(3, `schemaVersion: 1
 release: 3
 rules:
   practices/testing/verify-retry-limits: 1.1.1
@@ -86,7 +86,7 @@ retired:
     summaries: [Merge into verify-retry-limits.]
 `)
 	lib.Rule(returnErrors, "Unreleased title", "An edit no library release published.")
-	lib.Release(4, `formatVersion: 1
+	lib.Release(4, `schemaVersion: 1
 release: 4
 rules:
   practices/testing/verify-retry-limits: 1.1.1
@@ -172,14 +172,14 @@ var hugeObject = strings.Repeat("\x00", 40<<20)
 // A refused library writes nothing, whichever step refuses it: fetching the tags, or assembling what they publish.
 func TestIngestWritesNothingWhenItRefusesALibrary(t *testing.T) {
 	for name, release := range map[string]func(lib *gittest.Library){
-		"a record that isn't YAML": func(lib *gittest.Library) { lib.Release(2, "formatVersion: 1\nrelease: [2\n") },
+		"a record that isn't YAML": func(lib *gittest.Library) { lib.Release(2, "schemaVersion: 1\nrelease: [2\n") },
 		"an object too large to fetch": func(lib *gittest.Library) {
 			lib.Write("assets/huge.bin", hugeObject)
-			lib.Release(2, "formatVersion: 1\nrelease: 2\nrules:\n  practices/testing/check-retry-backoff: 1.0.0\n"+
+			lib.Release(2, "schemaVersion: 1\nrelease: 2\nrules:\n  practices/testing/check-retry-backoff: 1.0.0\n"+
 				"  practices/testing/verify-retry-limits: 1.0.0\n  techs/go/return-errors: 1.0.0\n")
 		},
 		"a rule dropped without retiring it": func(lib *gittest.Library) {
-			lib.Release(2, "formatVersion: 1\nrelease: 2\nrules:\n  practices/testing/verify-retry-limits: 1.0.0\n"+
+			lib.Release(2, "schemaVersion: 1\nrelease: 2\nrules:\n  practices/testing/verify-retry-limits: 1.0.0\n"+
 				"  techs/go/return-errors: 1.0.0\n")
 		},
 	} {

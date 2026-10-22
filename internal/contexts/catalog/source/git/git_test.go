@@ -25,7 +25,7 @@ var limits = domain.FetchLimits{
 	ListedEntries: 10_000, ListDepth: 8,
 }
 
-const firstRecord = `formatVersion: 1
+const firstRecord = `schemaVersion: 1
 release: 1
 rules: {techs/go/return-errors: 1.0.0}
 changes: {techs/go/return-errors: {change: new, summaries: [Add the rule.]}}
@@ -39,7 +39,7 @@ func twoReleases(t *testing.T) *gittest.Library {
 	lib.Rule("techs/go/return-errors", "Return errors", "Return errors instead of panicking.")
 	lib.Release(1, firstRecord)
 	lib.Rule("techs/go/return-errors", "Return errors", "Return errors to the caller.")
-	lib.Release(2, `formatVersion: 1
+	lib.Release(2, `schemaVersion: 1
 release: 2
 rules: {techs/go/return-errors: 1.0.1}
 changes: {techs/go/return-errors: {change: patch, from: 1.0.0, summaries: [Fix a typo.]}}
@@ -89,7 +89,7 @@ func TestFetchRefusesATagThatIsntALibraryRelease(t *testing.T) {
 		want string
 	}{
 		"a record that isn't YAML": {
-			tag:  func(lib *gittest.Library) { lib.Release(2, "formatVersion: 1\nrelease: [2\n") },
+			tag:  func(lib *gittest.Library) { lib.Release(2, "schemaVersion: 1\nrelease: [2\n") },
 			want: "read release/2: invalid release record",
 		},
 		"a record for another release": {
