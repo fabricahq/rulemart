@@ -158,9 +158,9 @@ func TestSnapshotReadsTheVisitorsLibrariesAndProjects(t *testing.T) {
 	}
 }
 
-// A read finds a project's provenance file where Trail Guide reads it: in .trailguide/, or in .code-rules/, as the project
-// kept it before Code Rules was renamed Trail Guide, while it has no .trailguide; never in .code-rules/ beside .trailguide/,
-// or beside a .trailguide that isn't a directory, which Trail Guide wouldn't read. Each project records its directory.
+// A read finds a project's provenance file where trailguide reads it: in .trailguide/, or in .code-rules/, as the project
+// kept it before Code Rules was renamed trailguide, while it has no .trailguide; never in .code-rules/ beside .trailguide/,
+// or beside a .trailguide that isn't a directory, which trailguide wouldn't read. Each project records its directory.
 func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 	current := githubtest.Provenance(githubtest.ProvenanceSource{Name: "current", Repository: "https://github.com/fabricahq/public-rules.git"})
 	legacy := githubtest.Provenance(githubtest.ProvenanceSource{Name: "legacy", Repository: "https://github.com/fabricahq/public-rules.git"})
@@ -192,9 +192,9 @@ func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 	}
 }
 
-// A read finds a project from its lockfile and configuration, as Trail Guide 0.7 and later write them, ahead of a
+// A read finds a project from its lockfile and configuration, as trailguide 0.7 and later write them, ahead of a
 // provenance file an earlier version left beside them; a lockfile it can't parse makes no project, rather than one
-// from a provenance file Trail Guide no longer writes.
+// from a provenance file trailguide no longer writes.
 func TestSnapshotReadsAProjectFromItsLockfile(t *testing.T) {
 	config, lock := lockedProject(t)
 	one := trailguide.RuleVersion{Major: 1}
@@ -267,10 +267,10 @@ func lockedProject(t *testing.T) (config, lock string) {
 	return config, string(data)
 }
 
-// A read finds a library whose manifest is where Trail Guide reads it: rule-library.yaml at the root, or else a library
-// section in the configuration in the Trail Guide directory, .trailguide, or .code-rules while the repository has no
+// A read finds a library whose manifest is where trailguide reads it: rule-library.yaml at the root, or else a library
+// section in the configuration in the trailguide directory, .trailguide, or .code-rules while the repository has no
 // .trailguide, even one that gives its skills levels, of hundreds of kilobytes, or exactly as large as the catalog reads
-// of a manifest. A configuration without a library section, one Trail Guide would refuse, one a byte larger than the
+// of a manifest. A configuration without a library section, one trailguide would refuse, one a byte larger than the
 // catalog reads, or one in .code-rules beside .trailguide makes no library, and fails no read.
 func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 	library := "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
@@ -310,7 +310,7 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 	}
 }
 
-// A read asks for a repository's configuration only when its root has a Trail Guide directory and no rule-library.yaml,
+// A read asks for a repository's configuration only when its root has a trailguide directory and no rule-library.yaml,
 // so repositories that can't hold one cost no extra request.
 func TestAReadAsksForAConfigurationOnlyWhereALibraryCouldDeclareOne(t *testing.T) {
 	library := "schemaVersion: 2\nsources: {}\nlibrary: {schemaVersion: 1}\n"
@@ -377,7 +377,7 @@ func TestAReadLooksIntoAtMostTheMostRecentlyPushedRepositories(t *testing.T) {
 
 	got := site.snapshot(t)
 
-	// Each repository read costs a listing of its root, and mona/api and mona/broken, which have a Trail Guide directory
+	// Each repository read costs a listing of its root, and mona/api and mona/broken, which have a trailguide directory
 	// and no rule-library.yaml, a configuration, a lockfile, and a provenance file too.
 	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 6; inspected != domain.MaxRepositories {
 		t.Errorf("looked into %d repositories, want %d", inspected, domain.MaxRepositories)
@@ -417,7 +417,7 @@ func TestAFailedReadKeepsTheLastSnapshotAndSaysSo(t *testing.T) {
 	}
 }
 
-// A snapshot kept before reads found libraries whose manifest is in the Trail Guide directory's config.yaml isn't shown:
+// A snapshot kept before reads found libraries whose manifest is in the trailguide directory's config.yaml isn't shown:
 // the next page that needs one reads GitHub again, where it would show a current snapshot, and finds such a library.
 func TestASnapshotFromBeforeConfigManifestsIsReadAgain(t *testing.T) {
 	fake := monasGitHub()

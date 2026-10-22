@@ -326,7 +326,7 @@ func TestTheCartsPageIsAShellForTheScript(t *testing.T) {
 		}
 	}
 	signedInText := strings.Join(strings.Fields(signedIn), " ")
-	if strings.Contains(signedInText, "Pick from your projects") || !strings.Contains(signedInText, "We didn't find any of your projects using Trail Guide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.</p><b class=\"mb-2.5 block text-[13px] font-semibold\">Enter your project</b>") {
+	if strings.Contains(signedInText, "Pick from your projects") || !strings.Contains(signedInText, "We didn't find any of your projects using trailguide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.</p><b class=\"mb-2.5 block text-[13px] font-semibold\">Enter your project</b>") {
 		t.Error("signed in, the page offers to sign in, or doesn't say it found no projects, what counts as one, and to enter it")
 	}
 }

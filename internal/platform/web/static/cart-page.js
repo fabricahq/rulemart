@@ -244,7 +244,7 @@
     const preview = $('[data-cart-preview]');
     const repo = $('[data-cart-repo]');
     const repoNote = $('[data-cart-repo-note]');
-    // The signed-in visitor's projects, as radios, and the box that names a project that doesn't use Trail Guide yet,
+    // The signed-in visitor's projects, as radios, and the box that names a project that doesn't use trailguide yet,
     // where the repository field is then; neither is there for a visitor Rulemart knows no project of.
     const projects = [...root.querySelectorAll('[data-cart-project]')];
     const newProject = $('[data-cart-new-project]');
@@ -322,7 +322,7 @@
     }
 
     /** Show which of the visitor's projects checkout is for: the one the cart names, or the first, or with the new
-     * project's box open, none, for one that doesn't use Trail Guide yet. */
+     * project's box open, none, for one that doesn't use trailguide yet. */
     function showProject() {
       if (!projects.length) return;
       const { project } = store.state();

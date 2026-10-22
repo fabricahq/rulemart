@@ -1,4 +1,4 @@
-Set up Trail Guide (0.4.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
+Set up trailguide (0.4.0 or later) in this project, which doesn't use it yet, then add these engineering rules.
 
 From fabricahq/public-rules:
 - The whole group techs/golang, including rules the library adds to it later
@@ -9,7 +9,7 @@ From fabricahq/public-rules:
 Run:
 # From the root of your project
 
-# Set up Trail Guide
+# Set up trailguide
 curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 

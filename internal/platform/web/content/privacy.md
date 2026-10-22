@@ -46,7 +46,7 @@ never sign out of ends on its own after 30 days.
   `.trailguide`, or a `rule-library.yaml` file at the repository's root. Rulemart reads the configuration only to see
   whether it has that section, and keeps nothing from it.
 - A `.trailguide/generated/provenance.json` file, which marks the repository as a project, or, in a repository without
-  `.trailguide`, `.code-rules/generated/provenance.json`, from before Code Rules was renamed Trail Guide. From it, Rulemart
+  `.trailguide`, `.code-rules/generated/provenance.json`, from before Code Rules was renamed trailguide. From it, Rulemart
   keeps which libraries the project imports and under what names, which groups it imports, and which rule versions it
   holds, so it can count the updates waiting for the project.
 

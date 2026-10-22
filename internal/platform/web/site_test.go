@@ -806,7 +806,7 @@ func TestPagesLogFailuresAndKeepThemOutOfResponses(t *testing.T) {
 	}
 }
 
-// Hovering an impact label explains what the level means, in Trail Guide's terms: how serious the problem is that
+// Hovering an impact label explains what the level means, in trailguide's terms: how serious the problem is that
 // the rule helps prevent, not how much code applying it changes.
 func TestImpactLabelsExplainTheirLevel(t *testing.T) {
 	handler := newSite(t, newCatalog())

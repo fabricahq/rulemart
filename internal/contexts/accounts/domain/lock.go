@@ -1,6 +1,6 @@
-// Lockfile: what Trail Guide 0.7 and later record in a project, .trailguide/lock.json beside its configuration, which
-// replaces the provenance file. Rulemart reads both through Trail Guide's projectview package, so it reads a project
-// as Trail Guide does.
+// Lockfile: what trailguide 0.7 and later record in a project, .trailguide/lock.json beside its configuration, which
+// replaces the provenance file. Rulemart reads both through trailguide's projectview package, so it reads a project
+// as trailguide does.
 
 package domain
 
@@ -25,8 +25,8 @@ func LockPath(directory string) string { return directory + "/" + trailguide.Loc
 // ParseLock returns the sources a project's configuration and lockfile name, by name, each with the groups it imports
 // and the rules it holds at a published version that trailguide project update could change: the active rules it
 // doesn't pin. An excluded or replaced rule, which agents don't receive, and a pinned rule, which updates keep, are
-// left out, as are a source whose name Trail Guide wouldn't take, and an authored rule, which holds no library's
-// version. It fails for a lockfile larger than MaxLockBytes, a configuration or lockfile Trail Guide would refuse, a
+// left out, as are a source whose name trailguide wouldn't take, and an authored rule, which holds no library's
+// version. It fails for a lockfile larger than MaxLockBytes, a configuration or lockfile trailguide would refuse, a
 // lockfile without an entry for every source the configuration declares, and a project with no sources.
 func ParseLock(config, lock []byte) ([]Source, error) {
 	if len(lock) > MaxLockBytes {

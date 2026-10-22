@@ -1,6 +1,6 @@
 # From the root of your project
 
-# Set up Trail Guide
+# Set up trailguide
 curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 

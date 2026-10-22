@@ -1,4 +1,4 @@
-// Package gittest builds Trail Guide library repositories on disk for tests that fetch and ingest them.
+// Package gittest builds trailguide library repositories on disk for tests that fetch and ingest them.
 package gittest
 
 import (
@@ -21,22 +21,22 @@ import (
 // FirstTagged is when a fixture's first tag is made; each later tag is a day after the one before.
 var FirstTagged = time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 
-// Library is a Trail Guide library's Git repository, built on disk for a test. Its methods fail the test on error.
+// Library is a trailguide library's Git repository, built on disk for a test. Its methods fail the test on error.
 type Library struct {
 	t    *testing.T
 	dir  string
 	repo *git.Repository
 	tags int
-	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the Trail Guide
+	// rules is the directory Group and Rule write in: the repository's root in the earlier layout, or the trailguide
 	// directory's rules/.
 	rules string
 }
 
-// trailGuideConfig is the configuration of a library in the Trail Guide directory, whose library section declares an MIT
+// trailGuideConfig is the configuration of a library in the trailguide directory, whose library section declares an MIT
 // license in LICENSE.
 const trailGuideConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
 
-// NewLibrary returns a repository in the earlier layout, which Trail Guide libraries had before they moved into
+// NewLibrary returns a repository in the earlier layout, which trailguide libraries had before they moved into
 // .trailguide/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
 // file, and Group and Rule write at the root.
 func NewLibrary(t *testing.T) *Library {
@@ -47,7 +47,7 @@ func NewLibrary(t *testing.T) *Library {
 	return l
 }
 
-// NewTrailGuideLibrary returns a repository that keeps its library in the Trail Guide directory: its working tree holds
+// NewTrailGuideLibrary returns a repository that keeps its library in the trailguide directory: its working tree holds
 // only .trailguide/config.yaml, whose library section declares an MIT license, and its LICENSE file at the root, and
 // Group and Rule write in .trailguide/rules/.
 func NewTrailGuideLibrary(t *testing.T) *Library {
@@ -70,7 +70,7 @@ func newRepository(t *testing.T) *Library {
 	return &Library{t: t, dir: dir, repo: repo}
 }
 
-// MoveToTrailGuideDirectory moves a library in the earlier layout into the Trail Guide directory, as its maintainer
+// MoveToTrailGuideDirectory moves a library in the earlier layout into the trailguide directory, as its maintainer
 // would: rule-library.yaml becomes .trailguide/config.yaml's library section, techs/ and practices/ move into
 // .trailguide/rules/, and assets/ and changes/ into .trailguide/. Group and Rule write in .trailguide/rules/ after it.
 func (l *Library) MoveToTrailGuideDirectory() {

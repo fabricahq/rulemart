@@ -85,7 +85,7 @@ func addPage(c chrome, v addView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a Trail Guide library from a GitHub repository you have write access to, from the list below or by its URL. A library is a repository with at least one <span class=\"mono\">release/&lt;number&gt;</span> tag and a library manifest: a <span class=\"mono\">library</span> section in its <span class=\"mono\">.trailguide/config.yaml</span> file or a <span class=\"mono\">rule-library.yaml</span> file.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<h1 class=\"title-xl mt-2.5 mb-1.5\">Add a library</h1><p class=\"mb-5 text-muted\">Add a trailguide library from a GitHub repository you have write access to, from the list below or by its URL. A library is a repository with at least one <span class=\"mono\">release/&lt;number&gt;</span> tag and a library manifest: a <span class=\"mono\">library</span> section in its <span class=\"mono\">.trailguide/config.yaml</span> file or a <span class=\"mono\">rule-library.yaml</span> file.</p><section aria-labelledby=\"your-libraries\"><h2 id=\"your-libraries\" class=\"sr-only\">Your libraries on GitHub</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

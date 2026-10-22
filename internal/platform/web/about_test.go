@@ -14,7 +14,7 @@ import (
 
 // Every page's footer leads to Fabrica, to what Rulemart is, the feedback page, and how Rulemart treats visitors'
 // data, in that order, and, by GitHub's mark, to Rulemart's source. It doesn't repeat the header's sections, and the
-// about page, not the footer, leads to Trail Guide.
+// about page, not the footer, leads to trailguide.
 func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	handler := newSite(t, unvettedCatalog())
 	want := []string{
@@ -43,7 +43,7 @@ func TestEveryPagesFooterLeadsToAboutFeedbackPrivacyAndSource(t *testing.T) {
 	}
 }
 
-// The about page says, in about one screen, why Rulemart exists, what Trail Guide is, and that Rulemart is a visual
+// The about page says, in about one screen, why Rulemart exists, what trailguide is, and that Rulemart is a visual
 // interface over its libraries, and leads to the vetting page for the rest. Its prose is Josh's to edit, so the test
 // checks the page's shape and links, not the words. It has an address of its
 // own for search engines.
@@ -57,8 +57,8 @@ func TestAboutPageSaysWhatRulemartAndTrailGuideAreAndLeadsToVetting(t *testing.T
 	}
 	page := resp.Body.String()
 	assertShows(t, page, "About", "About Rulemart")
-	if got := proseParagraphs(t, page); len(got) < 4 || !strings.Contains(got[0], "agents") || !strings.Contains(strings.Join(got, " "), "Trail Guide") {
-		t.Errorf("the body is\n%s\nwant at least four paragraphs, opening with why agents need rules and naming Trail Guide", strings.Join(got, "\n"))
+	if got := proseParagraphs(t, page); len(got) < 4 || !strings.Contains(got[0], "agents") || !strings.Contains(strings.Join(got, " "), "trailguide") {
+		t.Errorf("the body is\n%s\nwant at least four paragraphs, opening with why agents need rules and naming trailguide", strings.Join(got, "\n"))
 	}
 	if got := canonicalLinks(t, page); !slices.Equal(got, []string{"https://rulemart.example/about"}) {
 		t.Errorf("names %q as canonical", got)
@@ -111,7 +111,7 @@ func TestVettingPageExplainsVettingAndHowToGetALibraryVetted(t *testing.T) {
 	assertShows(t, page, "About", "Library vetting", "Report a problem", "Include unvetted libraries", unvettedWarning,
 		"List it on Rulemart",
 		// Only a repository's maintainers may list it.
-		"Anyone signed in with GitHub who has write access to a public repository that publishes a Trail Guide library can list it.")
+		"Anyone signed in with GitHub who has write access to a public repository that publishes a trailguide library can list it.")
 	for _, id := range []string{"vetting", "unvetted", "get-vetted", "report"} {
 		if !strings.Contains(page, `id="`+id+`"`) {
 			t.Errorf("the page has no %s section for links to land on", id)

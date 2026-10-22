@@ -65,10 +65,10 @@ type GitHubRepository struct {
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
 	// LegacyManifest is true when it holds rule-library.yaml, the manifest of a library in the layout from before
-	// Trail Guide kept a library's files in its directory. Trail Guide reads such a repository as that layout's library,
+	// trailguide kept a library's files in its directory. trailguide reads such a repository as that layout's library,
 	// whatever else it holds.
 	LegacyManifest bool
-	// ProjectDirectory is the directory where a project keeps its files, as Trail Guide chooses it: ProjectDirectory when
+	// ProjectDirectory is the directory where a project keeps its files, as trailguide chooses it: ProjectDirectory when
 	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
 	// ProjectDirectory, or empty when it holds neither.
 	ProjectDirectory string
@@ -80,7 +80,7 @@ type Snapshot struct {
 	ReadAt time.Time
 	// Organizations are the logins of the visitor's organizations, in the order GitHub listed them.
 	Organizations []string
-	// Libraries are the repositories that publish a Trail Guide library, by full name.
+	// Libraries are the repositories that publish a trailguide library, by full name.
 	Libraries []PublishableRepository
 	// Projects are the repositories whose lockfile, or provenance file, names the libraries they import, by full name.
 	Projects []Project
@@ -92,7 +92,7 @@ type Snapshot struct {
 	ReadFailed bool
 }
 
-// ConfigPath returns where a repository whose Trail Guide directory is directory, ProjectDirectory or
+// ConfigPath returns where a repository whose trailguide directory is directory, ProjectDirectory or
 // LegacyProjectDirectory, keeps its configuration, whose library section makes it a library, from its root.
 func ConfigPath(directory string) string { return directory + "/" + trailguide.Manifest }
 
@@ -115,8 +115,8 @@ type PublishableRepository struct {
 	Writable bool
 }
 
-// Project is a repository that uses Trail Guide: the lockfile in its project directory, or the provenance file an
-// earlier Trail Guide wrote there, names its sources.
+// Project is a repository that uses trailguide: the lockfile in its project directory, or the provenance file an
+// earlier trailguide wrote there, names its sources.
 type Project struct {
 	Repository
 	// Directory is where it keeps its files: ProjectDirectory, or LegacyProjectDirectory for a project not yet

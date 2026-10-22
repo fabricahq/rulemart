@@ -1,5 +1,5 @@
 // Read a visitor's GitHub account: their organizations, the repositories of theirs and their organizations' that publish
-// a Trail Guide library, and the projects that import one, kept as the account's snapshot; and the installations of the
+// a trailguide library, and the projects that import one, kept as the account's snapshot; and the installations of the
 // GitHub App that reads their private repositories.
 
 package app
@@ -377,8 +377,8 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 }
 
 // inspect returns repo as a library when it holds a library manifest and has a library release tag, and as a project
-// when its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, holds a lockfile that parses with its
-// configuration, as Trail Guide 0.7 and later write it, or else a provenance file that parses, as earlier versions wrote
+// when its trailguide directory, .trailguide or, before it's renamed, .code-rules, holds a lockfile that parses with its
+// configuration, as trailguide 0.7 and later write it, or else a provenance file that parses, as earlier versions wrote
 // it, reading them with token. A lockfile, provenance file, or configuration Rulemart can't parse, or a configuration
 // too large to read, makes no project or library, rather than failing the read. A lockfile or provenance file too large
 // to read fails it.
@@ -446,9 +446,9 @@ func (g GitHubAccounts) projectSources(ctx context.Context, token string, repo d
 	return nil, nil
 }
 
-// holdsManifest reports whether repo, whose root holds root, holds a library manifest, as Trail Guide finds it:
-// rule-library.yaml at the root, or else a library section in the configuration in its Trail Guide directory. It reads
-// the configuration only for a repository with a Trail Guide directory and no rule-library.yaml, at most
+// holdsManifest reports whether repo, whose root holds root, holds a library manifest, as trailguide finds it:
+// rule-library.yaml at the root, or else a library section in the configuration in its trailguide directory. It reads
+// the configuration only for a repository with a trailguide directory and no rule-library.yaml, at most
 // domain.MaxConfigBytes of it, so a read makes one more request only for those.
 func (g GitHubAccounts) holdsManifest(ctx context.Context, token string, repo domain.Repository, root domain.RootEntries) (bool, error) {
 	if root.LegacyManifest {

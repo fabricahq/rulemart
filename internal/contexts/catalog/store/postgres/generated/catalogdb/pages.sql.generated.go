@@ -738,7 +738,7 @@ type ListRuleHistoriesRow struct {
 }
 
 // ListRuleHistories returns every version of every rule in the library, current or retired: one row per version, by
-// rule path, in code point order as Trail Guide's release notes list rules, and then release, with the rule's retirement, whether the version has its Markdown, which a release that
+// rule path, in code point order as trailguide's release notes list rules, and then release, with the rule's retirement, whether the version has its Markdown, which a release that
 // stored only current versions' content left out, and how many bytes it holds.
 func (q *Queries) ListRuleHistories(ctx context.Context, libraryID int64) ([]ListRuleHistoriesRow, error) {
 	rows, err := q.db.Query(ctx, listRuleHistories, libraryID)

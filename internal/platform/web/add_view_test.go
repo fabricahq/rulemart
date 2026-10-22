@@ -8,7 +8,7 @@ import (
 )
 
 // Once a check is done, its first step names the manifest it found where the latest library release keeps it:
-// .trailguide/config.yaml for a library in Trail Guide's directory, and rule-library.yaml for one at the root.
+// .trailguide/config.yaml for a library in trailguide's directory, and rule-library.yaml for one at the root.
 func TestADoneCheckNamesTheManifestOfTheLatestRelease(t *testing.T) {
 	for _, c := range []struct {
 		layouts domain.ReleaseLayouts

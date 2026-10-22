@@ -40,9 +40,9 @@ jobs:
           go-version-file: go.mod
       # The sqlc queries, templ components, and stylesheet are committed; fail when they don't match their sources.
       - run: make check-generated
-      # The Trail Guide files must match .trailguide/config.yaml and the imported releases. The version and checksum
+      # The trailguide files must match .trailguide/config.yaml and the imported releases. The version and checksum
       # are pinned; raise both together.
-      - name: Check the Trail Guide files
+      - name: Check the trailguide files
         env:
           TRAILGUIDE_VERSION: 0.5.0
           TRAILGUIDE_SHA256: '80220a48a3543691ea34848247da339f29811e70300521ee8209a0be94aa3714'

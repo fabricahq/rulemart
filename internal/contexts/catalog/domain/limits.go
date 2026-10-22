@@ -55,7 +55,7 @@ type ContentLimits struct {
 	AssetLinks int
 }
 
-// DefaultLimits leave room for any library Trail Guide publishes, which holds at most 10,000 files, while keeping an
+// DefaultLimits leave room for any library trailguide publishes, which holds at most 10,000 files, while keeping an
 // ingestion well under a gigabyte.
 var DefaultLimits = Limits{
 	Fetch: FetchLimits{
@@ -64,7 +64,7 @@ var DefaultLimits = Limits{
 		RefsBytes: 16 << 20,
 		// One release tag per library release.
 		Tags: 10_000,
-		// Trail Guide bounds the tags it publishes to 8 MiB, release notes and signature included.
+		// trailguide bounds the tags it publishes to 8 MiB, release notes and signature included.
 		TagBytes: 8 << 20,
 		// The packfile is held while it's checked, before any object is inflated.
 		PackBytes: 128 << 20,
@@ -88,7 +88,7 @@ var DefaultLimits = Limits{
 		// Room for diagrams, examples, and notes, while a page about a rule stays quick to load.
 		AssetBytes:     256 << 10,
 		RuleAssetBytes: 2 << 20,
-		// Trail Guide publishes at most 10,000 files in a library.
+		// trailguide publishes at most 10,000 files in a library.
 		Assets: 10_000,
 		// Room for every asset to be a rule's own, and for thousands of rules each to reach a handful of shared files.
 		AssetLinks: 50_000,

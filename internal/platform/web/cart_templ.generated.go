@@ -2364,7 +2364,7 @@ func checkoutStep(n, title, id string) templ.Component {
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
 // entering one; signed in, the visitor's projects as radios, each saying what it uses, with a way to use a project that
-// doesn't use Trail Guide yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
+// doesn't use trailguide yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
 // field. cart.js keeps the choice and the field, and cart-page.js shows them.
 func projectSection(v projectsView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -2496,7 +2496,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, "\" type=\"button\" data-cart-new-project>+ Or use a project that doesn't use Trail Guide yet</button><div class=\"mt-3 rounded-card border border-border bg-paper px-[18px] py-4\" data-cart-new-box hidden><div class=\"mb-3 flex items-center justify-between gap-3\"><b class=\"text-[13px] font-semibold\">A new project</b> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 188, "\" type=\"button\" data-cart-new-project>+ Or use a project that doesn't use trailguide yet</button><div class=\"mt-3 rounded-card border border-border bg-paper px-[18px] py-4\" data-cart-new-box hidden><div class=\"mb-3 flex items-center justify-between gap-3\"><b class=\"text-[13px] font-semibold\">A new project</b> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2526,7 +2526,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<p class=\"mt-3 text-[13px] text-muted\">The prompt sets up Trail Guide there first.</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "<p class=\"mt-3 text-[13px] text-muted\">The prompt sets up trailguide there first.</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2565,14 +2565,14 @@ func projectSection(v projectsView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if v.gitHub.available && !v.gitHub.private && v.gitHub.privateAvailable {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 196, "We didn't find any of your projects using Trail Guide in your public repos. <a href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 196, "We didn't find any of your projects using trailguide in your public repos. <a href=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var146 templ.SafeURL
 					templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(privateHref))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 452, Col: 117}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `cart.templ`, Line: 452, Col: 116}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 					if templ_7745c5c3_Err != nil {
@@ -2583,7 +2583,7 @@ func projectSection(v projectsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 198, "We didn't find any of your projects using Trail Guide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 198, "We didn't find any of your projects using trailguide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -2660,7 +2660,7 @@ func projectSection(v projectsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, " <p class=\"mt-3.5 text-[13px] text-muted\"><b class=\"font-semibold text-ink\">New to Trail Guide?</b> The prompt sets it up for you.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, " <p class=\"mt-3.5 text-[13px] text-muted\"><b class=\"font-semibold text-ink\">New to trailguide?</b> The prompt sets it up for you.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

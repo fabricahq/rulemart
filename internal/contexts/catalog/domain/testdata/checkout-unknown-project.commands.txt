@@ -10,11 +10,11 @@ d="$(mktemp -d)" && git -C "$d" init -q && git -C "$d" fetch -q --depth 1 https:
 [After you've reviewed, import]
 # From the root of acme/api
 
-# Only if it doesn't use Trail Guide yet
+# Only if it doesn't use trailguide yet
 curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 
-# If the project uses Trail Guide already and its config.yaml has schemaVersion: 1,
+# If the project uses trailguide already and its config.yaml has schemaVersion: 1,
 # rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
 
 # Add your rules

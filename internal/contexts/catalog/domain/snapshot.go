@@ -22,7 +22,7 @@ type ReleaseSnapshot struct {
 	Files Files
 }
 
-// release returns the release, which keeps the library's files in layout, as the catalog stores it. Trail Guide's
+// release returns the release, which keeps the library's files in layout, as the catalog stores it. trailguide's
 // release notes say a release updated shared files for every release after the first that lists library files; a
 // first release lists every file, which it adds rather than updates.
 func (s ReleaseSnapshot) release(layout Layout) Release {

@@ -1,4 +1,4 @@
-// Decide which groups are canonical: those whose IDs are on Trail Guide's canonical group list.
+// Decide which groups are canonical: those whose IDs are on trailguide's canonical group list.
 
 package domain
 
@@ -11,7 +11,7 @@ import (
 	"github.com/fabricahq/trailguide/trailguide"
 )
 
-// CanonicalGroup is a group on Trail Guide's canonical group list. Every library whose group has its ID shares the
+// CanonicalGroup is a group on trailguide's canonical group list. Every library whose group has its ID shares the
 // group, under the list's display name.
 type CanonicalGroup struct {
 	ID, Name string
@@ -36,7 +36,7 @@ type GroupIcon struct {
 	LightTile bool
 }
 
-// CanonicalGroups is Trail Guide's canonical group list, with Rulemart's icons for its groups. Its zero value is an
+// CanonicalGroups is trailguide's canonical group list, with Rulemart's icons for its groups. Its zero value is an
 // empty list, on which no group is canonical.
 type CanonicalGroups struct {
 	byID map[string]CanonicalGroup

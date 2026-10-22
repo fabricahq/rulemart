@@ -23,7 +23,7 @@ var ErrCartTooLarge = errors.New("the cart holds more items than it may")
 type Carts struct {
 	Store  store.Carts
 	Vetted []domain.LibraryKey
-	// Groups is Trail Guide's canonical group list, which names groups in the cart and the texts.
+	// Groups is trailguide's canonical group list, which names groups in the cart and the texts.
 	Groups domain.CanonicalGroups
 }
 

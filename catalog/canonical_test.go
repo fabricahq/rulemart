@@ -10,13 +10,13 @@ import (
 // 6a63c7173bb5ae8b37cf22f30b8a4aede1d6b435. Change it only when copying the file from a newer commit.
 const canonicalGroupsSHA256 = "dfdee35ba92d40a32c973309cf6941579bfdbf9fc2641e302d348aab7d4326f2"
 
-// Trail Guide owns the list, so Rulemart's copy must be its file at the pinned commit, never edited here: an alias or
+// trailguide owns the list, so Rulemart's copy must be its file at the pinned commit, never edited here: an alias or
 // a renamed group added here would make Rulemart disagree with every other tool that reads the list.
 func TestCanonicalGroupListIsTrailGuideFileAtThePinnedCommit(t *testing.T) {
 	digest := sha256.Sum256(canonicalGroupsYAML)
 
 	if got := hex.EncodeToString(digest[:]); got != canonicalGroupsSHA256 {
-		t.Fatalf("canonical-groups.yaml has SHA-256 %s, not Trail Guide's %s: copy the file from the pinned commit "+
+		t.Fatalf("canonical-groups.yaml has SHA-256 %s, not trailguide's %s: copy the file from the pinned commit "+
 			"again, or update the pin with it", got, canonicalGroupsSHA256)
 	}
 }

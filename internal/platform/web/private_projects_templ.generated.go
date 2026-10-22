@@ -67,7 +67,7 @@ func privatePage(c chrome, v privateView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">Optional</span><h1 class=\"title-xl mt-3 mb-2\">Include your private projects?</h1><p class=\"mb-[22px] text-muted\">Rulemart already sees your public repos. To also list private projects that use Trail Guide, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p><div><table class=\"w-full border-collapse text-[13.5px]\"><thead><tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">Optional</span><h1 class=\"title-xl mt-3 mb-2\">Include your private projects?</h1><p class=\"mb-[22px] text-muted\">Rulemart already sees your public repos. To also list private projects that use trailguide, install the Rulemart GitHub App on the repos you choose. GitHub will ask you to approve these permissions:</p><div><table class=\"w-full border-collapse text-[13.5px]\"><thead><tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -177,7 +177,7 @@ func privatePage(c chrome, v privateView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono [overflow-wrap:anywhere]\">.trailguide/generated/provenance.json</span> (or <span class=\"mono [overflow-wrap:anywhere]\">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed Trail Guide), and the library manifest, <span class=\"mono [overflow-wrap:anywhere]\">.trailguide/config.yaml</span> or <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use Trail Guide, which libraries they import, and which repos are libraries.</td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">To read <span class=\"mono [overflow-wrap:anywhere]\">.trailguide/generated/provenance.json</span> (or <span class=\"mono [overflow-wrap:anywhere]\">.code-rules/generated/provenance.json</span> in a project from before Code Rules was renamed trailguide), and the library manifest, <span class=\"mono [overflow-wrap:anywhere]\">.trailguide/config.yaml</span> or <span class=\"mono\">rule-library.yaml</span>, so we can see which of your private projects use trailguide, which libraries they import, and which repos are libraries.</td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

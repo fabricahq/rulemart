@@ -407,7 +407,7 @@ templ checkoutStep(n, title, id string) {
 
 // projectSection is where the checkout's rules go, as the prototype's: signed out, signing in to pick a project, or
 // entering one; signed in, the visitor's projects as radios, each saying what it uses, with a way to use a project that
-// doesn't use Trail Guide yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
+// doesn't use trailguide yet, which opens the repository field; or, when Rulemart found none, that it didn't, and the
 // field. cart.js keeps the choice and the field, and cart-page.js shows them.
 templ projectSection(v projectsView) {
 	if v.signedIn && len(v.projects) > 0 {
@@ -426,14 +426,14 @@ templ projectSection(v projectsView) {
 				</label>
 			}
 		</div>
-		<button class={ cartLinkButton, "mt-3 block" } type="button" data-cart-new-project>+ Or use a project that doesn't use Trail Guide yet</button>
+		<button class={ cartLinkButton, "mt-3 block" } type="button" data-cart-new-project>+ Or use a project that doesn't use trailguide yet</button>
 		<div class="mt-3 rounded-card border border-border bg-paper px-[18px] py-4" data-cart-new-box hidden>
 			<div class="mb-3 flex items-center justify-between gap-3">
 				<b class="text-[13px] font-semibold">A new project</b>
 				<button class={ cartLinkButton } type="button" data-cart-existing>Cancel</button>
 			</div>
 			@repositoryField()
-			<p class="mt-3 text-[13px] text-muted">The prompt sets up Trail Guide there first.</p>
+			<p class="mt-3 text-[13px] text-muted">The prompt sets up trailguide there first.</p>
 		</div>
 		if v.gitHub.signInAgain != "" || v.gitHub.failed {
 			// The projects are what an earlier read found: say so, with the way to read again.
@@ -449,9 +449,9 @@ templ projectSection(v projectsView) {
 		} else if v.signedIn {
 			<p class="-mt-0.5 mb-4 border-b border-border-subtle pb-4 text-[13px] text-muted">
 				if v.gitHub.available && !v.gitHub.private && v.gitHub.privateAvailable {
-					We didn't find any of your projects using Trail Guide in your public repos. <a href={ templ.SafeURL(privateHref) }>Include private projects</a>.
+					We didn't find any of your projects using trailguide in your public repos. <a href={ templ.SafeURL(privateHref) }>Include private projects</a>.
 				} else {
-					We didn't find any of your projects using Trail Guide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.
+					We didn't find any of your projects using trailguide: repositories with <code>.trailguide/generated/provenance.json</code>. Enter the project below, and the prompt names it.
 				}
 			</p>
 			<b class="mb-2.5 block text-[13px] font-semibold">Enter your project</b>
@@ -474,7 +474,7 @@ templ projectSection(v projectsView) {
 			<b class="mb-2.5 block text-[13px] font-semibold">Enter your project</b>
 		}
 		@repositoryField()
-		<p class="mt-3.5 text-[13px] text-muted"><b class="font-semibold text-ink">New to Trail Guide?</b> The prompt sets it up for you.</p>
+		<p class="mt-3.5 text-[13px] text-muted"><b class="font-semibold text-ink">New to trailguide?</b> The prompt sets it up for you.</p>
 	}
 }
 
