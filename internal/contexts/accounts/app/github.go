@@ -378,8 +378,8 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 
 // inspect returns repo as a library when it holds a library manifest and has a library release tag, and as a project
 // when the provenance file in its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, parses, reading it
-// with token. A provenance file or configuration Rulemart can't parse, or one too large to read, makes no project or
-// library, rather than failing the read.
+// with token. A provenance file or configuration Rulemart can't parse, or a configuration too large to read, makes no
+// project or library, rather than failing the read. A provenance file too large to read fails it.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
 	repo := listed.Repository
 	root, err := g.GitHub.RootEntries(ctx, token, repo)

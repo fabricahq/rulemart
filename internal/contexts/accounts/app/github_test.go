@@ -362,6 +362,37 @@ func TestASnapshotFromBeforeConfigManifestsIsReadAgain(t *testing.T) {
 	}
 }
 
+// A snapshot of an earlier format read less than a minute before the deploy can't be replaced until that minute
+// passes, since a read may start at most once a minute: until then a page that needs a snapshot says GitHub is being
+// read, without reading it, and once the minute passes the next page reads it.
+func TestASnapshotOfAnEarlierFormatReadWithinTheMinuteWaitsForItToPass(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	site.snapshot(t)
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "mona", Name: "moved-rules", PushedAt: pushed, Tags: []string{"release/5"},
+		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {}\n"},
+	})
+	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3')`)
+	reads := func() int { return site.fake.Requests("GET /user/orgs") }
+	read := site.now
+
+	site.now = read.Add(domain.RefreshInterval - time.Second)
+	if _, err := site.accounts.Snapshot(ctx, site.account, site.session); !errors.Is(err, ErrGitHubReading) || reads() != 1 {
+		t.Fatalf("within the minute, got %v after %d reads, want ErrGitHubReading and no new read", err, reads())
+	}
+
+	site.now = read.Add(domain.RefreshInterval)
+	got, err := site.accounts.Snapshot(ctx, site.account, site.session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads() != 2 || !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "moved-rules" }) {
+		t.Errorf("once the minute passed, read GitHub %d times, with libraries %+v; want a second read that finds mona/moved-rules", reads(), got.Libraries)
+	}
+}
+
 // When GitHub fails while Rulemart reads it again in place of a snapshot of an earlier format, the snapshot kept says
 // the read failed and holds no libraries, rather than the old ones, which don't say whether the visitor may push to
 // them. The next read once GitHub answers restores them.

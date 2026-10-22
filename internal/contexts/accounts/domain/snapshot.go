@@ -97,7 +97,9 @@ type Snapshot struct {
 func ConfigPath(directory string) string { return directory + "/" + trailguide.Manifest }
 
 // DeclaresLibrary reports whether config, a repository's configuration, has a library section, the manifest that
-// makes the repository a library, as Trail Guide validates it. A configuration Trail Guide would refuse declares none.
+// makes the repository a library, that trailguide.ParseLibraryManifest accepts. That parser checks only what a library
+// publishes, the schema version, the source names, and the library section, not the project's settings, so a
+// configuration the CLI refuses for its project settings may still declare a library. One it refuses declares none.
 func DeclaresLibrary(config []byte) bool {
 	library, err := trailguide.ParseLibraryManifest(config, "config.yaml")
 	return err == nil && library != nil
