@@ -190,6 +190,71 @@ func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 	}
 }
 
+// A read finds a library whose manifest is where Trail Guide reads it: rule-library.yaml at the root, or else a library
+// section in the configuration in the Trail Guide directory, .trailguide, or .code-rules while the repository has no
+// .trailguide, even one that gives its skills levels, of hundreds of kilobytes, or exactly as large as the catalog reads
+// of a manifest. A configuration without a library section, one Trail Guide would refuse, one a byte larger than the
+// catalog reads, or one in .code-rules beside .trailguide makes no library, and fails no read.
+func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
+	library := "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+	skills := "schemaVersion: 2\nsources:\n  anthropic: {repository: https://github.com/anthropics/skills.git, ref: main}\nlibrary:\n" +
+		"  skills:\n    required: [anthropic:skills/skill-creator]\n    offered: [skills/build-feature]\n    dependencies: [skills/shared-setup]\n"
+	project := "schemaVersion: 2\nsources: {}\n"
+	trailGuideConfig := domain.ConfigPath(domain.ProjectDirectory)
+	legacyConfig := domain.ConfigPath(domain.LegacyProjectDirectory)
+	repository := func(name string, files map[string]string) githubtest.Repository {
+		return githubtest.Repository{Owner: "mona", Name: name, PushedAt: pushed, Files: files, Tags: []string{"release/4"}}
+	}
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			repository("root", map[string]string{"rule-library.yaml": "schemaVersion: 1\n"}),
+			repository("trailguide", map[string]string{trailGuideConfig: library}),
+			repository("not-renamed", map[string]string{legacyConfig: library}),
+			repository("project", map[string]string{trailGuideConfig: project}),
+			repository("skills", map[string]string{trailGuideConfig: skills}),
+			repository("refused", map[string]string{trailGuideConfig: "schemaVersion: 2\nsources: {}\nlibrary:\n  skills: {offered: [tools/a]}\n"}),
+			repository("large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", 512<<10) + "\n"}),
+			repository("at-limit", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-3) + "\n"}),
+			repository("too-large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-2) + "\n"}),
+			repository("beside-trailguide", map[string]string{trailGuideConfig: project, legacyConfig: library}),
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	got := site.snapshot(t)
+
+	var names []string
+	for _, l := range got.Libraries {
+		names = append(names, l.Name)
+	}
+	if want := []string{"at-limit", "large", "not-renamed", "root", "skills", "trailguide"}; !slices.Equal(names, want) || got.ReadFailed {
+		t.Errorf("libraries %v (read failed %v), want %v", names, got.ReadFailed, want)
+	}
+}
+
+// A read asks for a repository's configuration only when its root has a Trail Guide directory and no rule-library.yaml,
+// so repositories that can't hold one cost no extra request.
+func TestAReadAsksForAConfigurationOnlyWhereALibraryCouldDeclareOne(t *testing.T) {
+	library := "schemaVersion: 2\nsources: {}\nlibrary: {}\n"
+	fake := &githubtest.Fake{
+		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
+		Repositories: []githubtest.Repository{
+			{Owner: "mona", Name: "root", PushedAt: pushed, Files: map[string]string{"rule-library.yaml": "schemaVersion: 1\n", domain.ConfigPath(domain.ProjectDirectory): library}},
+			{Owner: "mona", Name: "notes", PushedAt: pushed, Files: map[string]string{"README.md": "notes"}},
+			{Owner: "mona", Name: "trailguide", PushedAt: pushed, Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): library}},
+		},
+	}
+	site := newGitHubSite(t, fake, false)
+
+	site.snapshot(t)
+
+	// Three root listings, mona/root's provenance file, and mona/trailguide's configuration and provenance file.
+	if got := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}"); got != 6 {
+		t.Errorf("asked for contents %d times, want 6", got)
+	}
+}
+
 // The snapshot is kept, so pages after the first read nothing from GitHub, and a refresh within a minute keeps it
 // too; a minute later, a refresh reads again.
 func TestASnapshotIsReadOnceAndRefreshedAtMostOnceAMinute(t *testing.T) {
@@ -234,8 +299,9 @@ func TestAReadLooksIntoAtMostTheMostRecentlyPushedRepositories(t *testing.T) {
 
 	got := site.snapshot(t)
 
-	// Each repository read costs a listing of its root, and mona/api and mona/broken a provenance file too.
-	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 2; inspected != domain.MaxRepositories {
+	// Each repository read costs a listing of its root, and mona/api and mona/broken, which have a Trail Guide directory
+	// and no rule-library.yaml, a configuration and a provenance file too.
+	if inspected := site.fake.Requests("GET /repos/{owner}/{repo}/contents/{path...}") - 4; inspected != domain.MaxRepositories {
 		t.Errorf("looked into %d repositories, want %d", inspected, domain.MaxRepositories)
 	}
 	if !got.Truncated || slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "old-rules" }) {
@@ -270,6 +336,60 @@ func TestAFailedReadKeepsTheLastSnapshotAndSaysSo(t *testing.T) {
 	}
 	if _, err := site.accounts.Refresh(ctx, site.account, site.session); err != nil {
 		t.Errorf("a refresh within the minute after the failure: %v", err)
+	}
+}
+
+// A snapshot kept before reads found libraries whose manifest is in the Trail Guide directory's config.yaml isn't shown:
+// the next page that needs one reads GitHub again, where it would show a current snapshot, and finds such a library.
+func TestASnapshotFromBeforeConfigManifestsIsReadAgain(t *testing.T) {
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	site.snapshot(t)
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "mona", Name: "moved-rules", PushedAt: pushed, Tags: []string{"release/5"},
+		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {}\n"},
+	})
+	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3')`)
+	site.now = site.now.Add(domain.RefreshInterval)
+
+	got := site.snapshot(t)
+
+	if reads := site.fake.Requests("GET /user/orgs"); reads != 2 {
+		t.Errorf("read GitHub %d times, want twice", reads)
+	}
+	if !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "moved-rules" && l.Release == 5 }) {
+		t.Errorf("libraries %+v, want mona/moved-rules at release 5", got.Libraries)
+	}
+}
+
+// A snapshot of an earlier format read less than a minute before the deploy can't be replaced until that minute
+// passes, since a read may start at most once a minute: until then a page that needs a snapshot says GitHub is being
+// read, without reading it, and once the minute passes the next page reads it.
+func TestASnapshotOfAnEarlierFormatReadWithinTheMinuteWaitsForItToPass(t *testing.T) {
+	ctx := context.Background()
+	fake := monasGitHub()
+	site := newGitHubSite(t, fake, false)
+	site.snapshot(t)
+	fake.Repositories = append(fake.Repositories, githubtest.Repository{
+		Owner: "mona", Name: "moved-rules", PushedAt: pushed, Tags: []string{"release/5"},
+		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {}\n"},
+	})
+	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3')`)
+	reads := func() int { return site.fake.Requests("GET /user/orgs") }
+	read := site.now
+
+	site.now = read.Add(domain.RefreshInterval - time.Second)
+	if _, err := site.accounts.Snapshot(ctx, site.account, site.session); !errors.Is(err, ErrGitHubReading) || reads() != 1 {
+		t.Fatalf("within the minute, got %v after %d reads, want ErrGitHubReading and no new read", err, reads())
+	}
+
+	site.now = read.Add(domain.RefreshInterval)
+	got, err := site.accounts.Snapshot(ctx, site.account, site.session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reads() != 2 || !slices.ContainsFunc(got.Libraries, func(l domain.PublishableRepository) bool { return l.Name == "moved-rules" }) {
+		t.Errorf("once the minute passed, read GitHub %d times, with libraries %+v; want a second read that finds mona/moved-rules", reads(), got.Libraries)
 	}
 }
 

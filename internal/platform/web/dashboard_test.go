@@ -578,8 +578,8 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 	page := site.get(t, "/me/add")
 
 	assertShows(t, page, "Publish Add a library Add a Trail Guide library from a GitHub repository you have write access to, "+
-		"from the list below or by its URL. A library is a repository with a rule-library.yaml and at least one "+
-		"release/<number> tag.",
+		"from the list below or by its URL. A library is a repository with at least one release/<number> tag and a "+
+		"library manifest: a library section in its .trailguide/config.yaml file or a rule-library.yaml file.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
 		"example/rules on GitHub Public · release/3 · via the example organization ✓ On Rulemart",
 		"octocat/team-rules on GitHub Private · release/1 Private libraries can't be published on Rulemart",
@@ -856,7 +856,7 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	}
 
 	running := site.get(t, "/me/add/run?repo=octocat%2Fnew-rules")
-	assertShows(t, running, "Adding octocat/new-rules", "In progress: Looking for rule-library.yaml in octocat/new-rules",
+	assertShows(t, running, "Adding octocat/new-rules", "In progress: Looking for the library manifest in octocat/new-rules",
 		"Waiting: Watching for new library releases", "This page follows along.")
 	if !strings.Contains(running, "data-polling") || !strings.Contains(running, `<noscript><meta http-equiv="refresh" content="2"></noscript>`) {
 		t.Error("a running check's page doesn't follow it")
@@ -868,7 +868,7 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	// Past the time a queued check takes, the page says what the listings page says, and stops following the check,
 	// which the worker's hourly poll picks up; Refresh status reloads it.
 	slow := site.get(t, "/me/add/run?repo=octocat%2Fslow")
-	assertShows(t, slow, "In progress: Looking for rule-library.yaml in octocat/slow",
+	assertShows(t, slow, "In progress: Looking for the library manifest in octocat/slow",
 		"This is taking longer than usual Rulemart checks it again within the hour. You asked 5 minutes ago. Refresh status")
 	if strings.Contains(slow, "data-polling") || strings.Contains(slow, `http-equiv="refresh"`) {
 		t.Error("a slow check's page keeps following it every two seconds")
@@ -878,7 +878,7 @@ func TestTheRunPageFollowsTheListingsCheck(t *testing.T) {
 	}
 
 	failed := site.get(t, "/me/add/run?repo=octocat%2Fbroken")
-	assertShows(t, failed, "Failed: Looking for rule-library.yaml in octocat/broken The repository has no release/<number> tags.",
+	assertShows(t, failed, "Failed: Looking for the library manifest in octocat/broken The repository has no release/<number> tags.",
 		"Rulemart couldn't add octocat/broken.", "Try again", "Remove", "Back to Dashboard")
 	retry := "/me/listings/retry?listing=4&return=%2Fme%2Fadd%2Frun%3Frepo%3Doctocat%252Fbroken"
 	if strings.Contains(failed, "data-polling") || !slices.Contains(formActions(t, failed), retry) {

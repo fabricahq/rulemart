@@ -18,6 +18,7 @@ import (
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
 	"github.com/fabricahq/rulemart/internal/lib/githubapp"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // APIURL is GitHub's REST API.
@@ -182,7 +183,7 @@ func (a *API) RootEntries(ctx context.Context, token string, repo domain.Reposit
 	var root domain.RootEntries
 	types := map[string]string{}
 	for _, e := range entries {
-		root.Manifest = root.Manifest || (e.Name == "rule-library.yaml" && e.Type == "file")
+		root.LegacyManifest = root.LegacyManifest || (e.Name == trailguide.LegacyManifest && e.Type == "file")
 		types[e.Name] = e.Type
 	}
 	root.ProjectDirectory = projectDirectory(types)
@@ -221,10 +222,14 @@ func (a *API) ReleaseTags(ctx context.Context, token string, repo domain.Reposit
 	return tags, nil
 }
 
-// File returns the file at path in repo's default branch, at most maxBytes of it, or found false when there's none.
+// File returns the file at path in repo's default branch, or found false when there's none. It fails with
+// domain.ErrFileTooLarge for a file larger than maxBytes.
 func (a *API) File(ctx context.Context, token string, repo domain.Repository, path string, maxBytes int) ([]byte, bool, error) {
 	var data []byte
 	found, err := a.get(ctx, token, repositoryPath(repo)+"/contents/"+escapePath(path), "application/vnd.github.raw+json", maxBytes, &data)
+	if errors.Is(err, errTooLarge) {
+		return nil, false, fmt.Errorf("read file=%q in repository=%q: %w", path, repo.FullName(), domain.ErrFileTooLarge)
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("read file=%q in repository=%q: %w", path, repo.FullName(), err)
 	}
@@ -271,8 +276,11 @@ func (a *API) get(ctx context.Context, token, path, accept string, maxBytes int,
 // since only 404 says GitHub doesn't know the installation.
 var errForbidden = errors.New("GitHub answered 403 Forbidden")
 
+// errTooLarge reports a response larger than the most a read asked for, which File reports as domain.ErrFileTooLarge.
+var errTooLarge = errors.New("the response is too large")
+
 // do sends request, and decodes its response as get describes, except that it fails with errForbidden for a 403 that
-// isn't a rate limit's.
+// isn't a rate limit's. It fails with errTooLarge for a response larger than maxBytes.
 func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 	response, err := a.http.Do(request)
 	if err != nil {
@@ -296,7 +304,7 @@ func (a *API) do(request *http.Request, maxBytes int, v any) (bool, error) {
 		return false, fmt.Errorf("read the response: %v", err)
 	}
 	if len(body) > maxBytes {
-		return false, fmt.Errorf("the response is larger than %d bytes", maxBytes)
+		return false, fmt.Errorf("%w: it is larger than %d bytes", errTooLarge, maxBytes)
 	}
 	if data, ok := v.(*[]byte); ok {
 		*data = body

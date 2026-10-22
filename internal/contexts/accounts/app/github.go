@@ -38,7 +38,8 @@ type GitHubReader interface {
 	RootEntries(ctx context.Context, token string, repo domain.Repository) (domain.RootEntries, error)
 	// ReleaseTags returns the names of the repository's tags that start with release/.
 	ReleaseTags(ctx context.Context, token string, repo domain.Repository) ([]string, error)
-	// File returns the file at path in the repository's default branch, at most maxBytes, or found false.
+	// File returns the file at path in the repository's default branch, or found false. It fails with
+	// domain.ErrFileTooLarge for a file larger than maxBytes.
 	File(ctx context.Context, token string, repo domain.Repository, path string, maxBytes int) ([]byte, bool, error)
 	// OrganizationRole returns the token's user's role in org, admin or member, or empty when they aren't a member.
 	OrganizationRole(ctx context.Context, token, org string) (string, error)
@@ -375,18 +376,22 @@ func (g GitHubAccounts) installationRepositories(ctx context.Context, installati
 	return repos, token, more, nil
 }
 
-// inspect returns repo as a library when its root holds rule-library.yaml and it has a library release tag, and as a
-// project when the provenance file in its project directory, .trailguide or, before it's renamed, .code-rules, parses,
-// reading it with token. A provenance file Rulemart can't parse makes no
-// project, rather than failing the read.
+// inspect returns repo as a library when it holds a library manifest and has a library release tag, and as a project
+// when the provenance file in its Trail Guide directory, .trailguide or, before it's renamed, .code-rules, parses, reading it
+// with token. A provenance file or configuration Rulemart can't parse, or a configuration too large to read, makes no
+// project or library, rather than failing the read. A provenance file too large to read fails it.
 func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain.GitHubRepository) (*domain.PublishableRepository, *domain.Project, error) {
 	repo := listed.Repository
 	root, err := g.GitHub.RootEntries(ctx, token, repo)
 	if err != nil {
 		return nil, nil, err
 	}
+	manifest, err := g.holdsManifest(ctx, token, repo, root)
+	if err != nil {
+		return nil, nil, err
+	}
 	var library *domain.PublishableRepository
-	if root.Manifest {
+	if manifest {
 		tags, err := g.GitHub.ReleaseTags(ctx, token, repo)
 		if err != nil {
 			return nil, nil, err
@@ -406,6 +411,27 @@ func (g GitHubAccounts) inspect(ctx context.Context, token string, listed domain
 		}
 	}
 	return library, project, nil
+}
+
+// holdsManifest reports whether repo, whose root holds root, holds a library manifest, as Trail Guide finds it:
+// rule-library.yaml at the root, or else a library section in the configuration in its Trail Guide directory. It reads
+// the configuration only for a repository with a Trail Guide directory and no rule-library.yaml, at most
+// domain.MaxConfigBytes of it, so a read makes one more request only for those.
+func (g GitHubAccounts) holdsManifest(ctx context.Context, token string, repo domain.Repository, root domain.RootEntries) (bool, error) {
+	if root.LegacyManifest {
+		return true, nil
+	}
+	if root.ProjectDirectory == "" {
+		return false, nil
+	}
+	config, found, err := g.GitHub.File(ctx, token, repo, domain.ConfigPath(root.ProjectDirectory), domain.MaxConfigBytes)
+	if errors.Is(err, domain.ErrFileTooLarge) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return found && domain.DeclaresLibrary(config), nil
 }
 
 // latestRelease returns the largest library release number tags name, or 0 when none is a release tag.

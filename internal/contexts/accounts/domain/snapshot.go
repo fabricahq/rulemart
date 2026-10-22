@@ -7,6 +7,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // MaxRepositories is how many repositories one read looks into, the most recently pushed first, so a visitor in many
@@ -21,6 +23,12 @@ const MaxOrganizations = 100
 // rule, so this holds a thousand.
 const MaxProvenanceBytes = 1 << 20
 
+// MaxConfigBytes bounds the configuration a read parses to learn whether a repository is a library: the most the
+// catalog reads of a library's manifest, its ContentLimits.FileBytes, so a library the catalog would take is one the
+// picker finds. The contexts don't import each other, so the web server's tests check the two agree. A larger
+// configuration makes no library, rather than failing the read.
+const MaxConfigBytes = 1 << 20
+
 // RefreshInterval is how often a visitor may read their GitHub account again: a refresh within a minute of the last
 // read keeps it.
 const RefreshInterval = time.Minute
@@ -28,6 +36,9 @@ const RefreshInterval = time.Minute
 // ErrGitHubTokenRefused reports a token GitHub refused, such as one whose user revoked Rulemart's authorization:
 // signing in again gives a new one.
 var ErrGitHubTokenRefused = errors.New("GitHub refused the token")
+
+// ErrFileTooLarge reports a file larger than the most a read asked for.
+var ErrFileTooLarge = errors.New("the file is larger than the read allows")
 
 // Repository is a GitHub repository, as owner/name, and whether it's private.
 type Repository struct {
@@ -53,8 +64,10 @@ type GitHubRepository struct {
 
 // RootEntries is what the root of a repository's default branch holds that a read looks for.
 type RootEntries struct {
-	// Manifest is true when it holds rule-library.yaml, the file that makes a repository a Trail Guide library.
-	Manifest bool
+	// LegacyManifest is true when it holds rule-library.yaml, the manifest of a library in the layout from before
+	// Trail Guide kept a library's files in its directory. Trail Guide reads such a repository as that layout's library,
+	// whatever else it holds.
+	LegacyManifest bool
 	// ProjectDirectory is the directory where a project keeps its files, as Trail Guide chooses it: ProjectDirectory when
 	// the root holds that directory, LegacyProjectDirectory when it holds that directory and nothing named
 	// ProjectDirectory, or empty when it holds neither.
@@ -79,7 +92,21 @@ type Snapshot struct {
 	ReadFailed bool
 }
 
-// PublishableRepository is a repository that holds a rule-library.yaml and a library release tag, release/<n>.
+// ConfigPath returns where a repository whose Trail Guide directory is directory, ProjectDirectory or
+// LegacyProjectDirectory, keeps its configuration, whose library section makes it a library, from its root.
+func ConfigPath(directory string) string { return directory + "/" + trailguide.Manifest }
+
+// DeclaresLibrary reports whether config, a repository's configuration, has a library section, the manifest that
+// makes the repository a library, that trailguide.ParseLibraryManifest accepts. That parser checks only what a library
+// publishes, the schema version, the source names, and the library section, not the project's settings, so a
+// configuration the CLI refuses for its project settings may still declare a library. One it refuses declares none.
+func DeclaresLibrary(config []byte) bool {
+	library, err := trailguide.ParseLibraryManifest(config, "config.yaml")
+	return err == nil && library != nil
+}
+
+// PublishableRepository is a repository that holds a library manifest, rule-library.yaml or a library section in
+// its configuration, and a library release tag, release/<n>.
 type PublishableRepository struct {
 	Repository
 	// Release is the number of its latest library release.
