@@ -17,7 +17,7 @@ matters.
   it's within the limits below; that no listing or visible library has that name; and, by asking GitHub with the
   visitor's own token, that they may push to it. That is the one call it makes to GitHub, never as Rulemart itself,
   whose unauthenticated limit of 60 API requests an hour Lambda functions share. The worker looks the repository up,
-  which catches a missing or private one, and ingests it, which catches one that isn't a Trail Guide library. The web
+  which catches a missing or private one, and ingests it, which catches one that isn't a trailguide library. The web
   function queues the listing's job at once; if that fails, the failure is logged and alarmed, and the hourly poll
   queues it again.
 - **A listed library's failure is the lister's to see, not an alarm.** A job for a listing records why its check
@@ -151,7 +151,7 @@ matters.
   its owner's avatar, and `owner/name`, in the one rule row every list shows: title, impact, library, and stars, and
   the starred list adds the group. A group page's count under its title counts current rules only, and the libraries
   they come from, even while retired ones show.
-- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. A Trail Guide
+- **Libraries are listed by owner and name wherever several appear**, so no library can buy its place. A trailguide
   library declares no display name, so pages name it by its repository, such as `public-rules`, or `owner/name`
   beside rules. The libraries page is titled "Libraries Rulemart has vetted", and "Every library on Rulemart" while
   it includes unvetted ones.
@@ -188,8 +188,8 @@ matters.
 
 ## Groups
 
-- **Trail Guide owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
-  Trail Guide's file at a pinned release, copied unchanged, and Trail Guide's `trailguide` Go package reads it, so Rulemart and Trail Guide can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
+- **trailguide owns the canonical group list; Rulemart pins and reads it.** `catalog/canonical-groups.yaml` is
+  trailguide's file at a pinned release, copied unchanged, and trailguide's `trailguide` Go package reads it, so Rulemart and trailguide can't disagree about which IDs are canonical. Rulemart updates the pin deliberately,
   in its own pull request.
 - **A group is canonical only when its ID is on the list exactly. The list has no aliases**: a library's
   `techs/golang` is a group of its own, never `techs/go`.
@@ -240,7 +240,7 @@ matters.
 
 - **A rule's page** has crumbs that lead its group to the group across libraries, the title, the impact badge, the
   version, and `#tag` links to search; the engage row; Rule and Versions tabs; and About, Assets, and facts panels.
-  The impact label leads to Trail Guide's explanation of the levels, named by what its level means, so touch and
+  The impact label leads to trailguide's explanation of the levels, named by what its level means, so touch and
   keyboard visitors reach it too. A rule's reading guidance can hold inline Markdown, so ingestion renders it with the
   body's renderer, and pages that show text, such as results and descriptions, show its text without the syntax.
 - **Discussion and Discuss launch later**, tracked in [rulemart#27](https://github.com/fabricahq/rulemart/issues/27).
@@ -249,7 +249,7 @@ matters.
   on GitHub, a specific rule's feedback goes to the library's repository, and the FAQ's answers that mention Discuss
   say so.
 - **A retired rule has a page**: its retirement, its chain of replacements to a current rule, its last text, and its
-  versions. A rename, which Trail Guide records as a retirement and a new rule under the same title, shows as one.
+  versions. A rename, which trailguide records as a retirement and a new rule under the same title, shows as one.
   The text's headings sit a level below the section that holds it.
 
 ### Assets
@@ -286,7 +286,7 @@ matters.
   current version keeps the HTML its page shows, and a retired rule's last version keeps its body's HTML in
   `retired_html`. The worker ingests again a library stored before this, so production fills in older versions by
   itself, and a comparison says it doesn't have the text yet until then.
-- **A library's releases are built from their stored release records**, laid out as Trail Guide's generated release
+- **A library's releases are built from their stored release records**, laid out as trailguide's generated release
   notes are, rather than from the tags' Markdown notes, which a library could fill with text Rulemart can't check.
   They're paged, newest first, at most 2,000 rows a page, since each release lists every rule's version again, and a
   release of more than 1,000 rules leaves out its table of every rule's version and links its GitHub Release page.
@@ -362,17 +362,17 @@ matters.
   a group always stays in sync. By default nothing is pinned, so rules move when the project runs
   `trailguide project update`; the Commands tab says how to pin with `ref`. The prompt holds no text a library
   wrote, so no library can write instructions into it: it names rules by ID, not title, a group by its canonical
-  name or ID, and a library by `owner/name`. It says it needs Trail Guide 0.4.0 or later, and it names each unvetted
+  name or ID, and a library by `owner/name`. It says it needs trailguide 0.4.0 or later, and it names each unvetted
   library so the agent reviews its rules first, pinned to the commit reviewed.
 - **The commands run in the order the CLI needs.** The commands add the libraries, sync, fork, then run
   `trailguide project build`, since `add rule --from` refuses until its source is synced, and end with a reminder
   that AGENTS.md tells agents to read `.trailguide/_managed/generated/RULES.md`. A library's alias is its owner lowercased
   without a trailing `hq`, made unique by adding the repository's name, and a known project's own source names win.
   A group is selected whole by its selector, such as `--rules 'techs/go/*'`, quoted so the shell doesn't expand it.
-  A known project gets no `add source` for a library it imports already, since Trail Guide adds a source once; a note
+  A known project gets no `add source` for a library it imports already, since trailguide adds a source once; a note
   says which selectors to add to the source's `rules.include` instead, as a version 2 configuration holds them.
-  Trail Guide 0.4.0 reads no version 1 configuration, so the commands for a project that may use Trail Guide already,
-  known or unknown, first say to rewrite one as version 2, linking Trail Guide's guide.
+  trailguide 0.4.0 reads no version 1 configuration, so the commands for a project that may use trailguide already,
+  known or unknown, first say to rewrite one as version 2, linking trailguide's guide.
   Every command is checked against the real CLI.
 - **An unvetted library is reviewed outside the project, and its items are pinned, not synced.** Its `add source`
   command carries `--ref <commit>`, and the Commands tab shows two blocks, "1. Fetch and review", which fetches each
@@ -388,7 +388,7 @@ matters.
   The content security policy allows `connect-src 'self'` for it.
 - **Signed in, checkout offers the visitor's projects**, the same as the dashboard's Projects tab, so the prompt names
   the repository and says which libraries it already imports. A line says when the projects were read, with a link to
-  include private ones, and "+ Or use a project that doesn't use Trail Guide yet" opens the same box for a new project.
+  include private ones, and "+ Or use a project that doesn't use trailguide yet" opens the same box for a new project.
   Signed out, checkout asks for the repository the visitor writes, so the prompt names it.
 
 ## Accounts and dashboard
@@ -471,7 +471,7 @@ matters.
 - **The dashboard reads the visitor's GitHub account at sign-in's first page and on Refresh, never on every page.**
   A read lists their organizations, the public repositories of theirs and their organizations', and the private ones
   the GitHub App's installations read, the 200 most recently pushed, and finds the ones that publish a library
-  (a manifest, `rule-library.yaml` at the root or a `library` section in the Trail Guide directory's `config.yaml`, and a
+  (a manifest, `rule-library.yaml` at the root or a `library` section in the trailguide directory's `config.yaml`, and a
   `release/<n>` tag) and the projects (`.trailguide/generated/provenance.json`, of which it
   keeps each source and its rules' versions). It's kept per account in `github_snapshots`, refreshed at most once a
   minute, shown with when it was read, and update counts compare it with the catalog as pages read. Only its account
@@ -489,12 +489,12 @@ matters.
 - **A failed read keeps the last snapshot and says so.** GitHub failing, rate limiting, or timing out leaves the
   snapshot that was, with when it was read and Try again, and the next read waits a minute. A token GitHub refuses, a
   session without one, or one sealed under a key since rotated asks the visitor to sign in again, at `/signin?again=1`.
-- **Provenance is parsed by Rulemart, in `accounts/domain`, from the fields Trail Guide writes**, taking each source's
+- **Provenance is parsed by Rulemart, in `accounts/domain`, from the fields trailguide writes**, taking each source's
   name, repository, release, and groups, and each rule's ID, origin, and version, and skipping a local or forked rule.
-  A file it can't parse makes no project rather than failing the read. Replace it with Trail Guide's parser once one
+  A file it can't parse makes no project rather than failing the read. Replace it with trailguide's parser once one
   ships.
-- **A project's files are where Trail Guide reads them: `.trailguide/`, or else `.code-rules/`.** Code Rules was renamed
-  Trail Guide, and Trail Guide still reads a project's `.code-rules/` while its repository has no `.trailguide`, so a read
+- **A project's files are where trailguide reads them: `.trailguide/`, or else `.code-rules/`.** Code Rules was renamed
+  trailguide, and trailguide still reads a project's `.code-rules/` while its repository has no `.trailguide`, so a read
   takes the provenance file from `.trailguide/` when the root holds `.trailguide`, and from `.code-rules/` only when it
   doesn't, and records which. Checkout names that directory for a known project, in its configuration note and the
   reminder about `RULES.md`, and `.trailguide/` otherwise. A snapshot saved before projects recorded it reads them as in
@@ -538,16 +538,16 @@ matters.
 ## Content pages
 
 - **`/about`, `/about/vetting`, and `/privacy` say what Rulemart is, what vetting means, and what it keeps.**
-  Decided (Josh), 2026-10-05: `/about` stays one screen about Rulemart and Trail Guide, and what vetting means, unvetted
+  Decided (Josh), 2026-10-05: `/about` stays one screen about Rulemart and trailguide, and what vetting means, unvetted
   libraries, getting a library vetted, and reporting a problem live on the vetting page. Getting a library vetted is:
-  release it with Trail Guide, list it, then ask on GitHub. About, vetting, privacy, and FAQ share one layout under an
+  release it with trailguide, list it, then ask on GitHub. About, vetting, privacy, and FAQ share one layout under an
   About label. The privacy notice states only what the code and infrastructure do, makes no legal claim, names
   `legal@fabricahq.com` for questions, and changes with them: a change to what Rulemart keeps, logs, or shares updates
   it in the same pull request.
 - **The FAQ's answers describe Rulemart as it is**, naming real rules from fabricahq/public-rules and groups that hold
   rules today. "Still have a question? Ask us." leads to feedback.
 - **Feedback topics open prefilled GitHub issues**: Rulemart topics, and "Anything else", in fabricahq/rulemart, and
-  Trail Guide topics in fabricahq/trailguide, with a title prefix naming the topic and the labels `feedback` and
+  trailguide topics in fabricahq/trailguide, with a title prefix naming the topic and the labels `feedback` and
   `topic:<key>`. "Something broken on Rulemart" leads to the Report a problem issue form.
 - **The sitemap lists what search engines may index, and `robots.txt` keeps them out of the rest.** `/sitemap.xml`
   lists the site's own pages, the page of each group a vetted library holds, canonical or not, each owner's page, and
@@ -618,18 +618,18 @@ matters.
   template actions name the shared links and strings and switch on what the server offers; `make generate` renders
   the Markdown with goldmark, so the web function still links no Markdown renderer, and the server runs the templates
   at start, refusing to start on a missing value. The FAQ and feedback pages stay templ: their structure is markup.
-- **Ingestion reads library repositories with go-git over HTTPS**, the way Trail Guide reads them, and parses
-  libraries with Trail Guide's own parser, its public `github.com/fabricahq/trailguide/trailguide` package, at the
+- **Ingestion reads library repositories with go-git over HTTPS**, the way trailguide reads them, and parses
+  libraries with trailguide's own parser, its public `github.com/fabricahq/trailguide/trailguide` package, at the
   release `go.mod` pins, never a copy. Discovery and ingestion read manifests with it alike, and Rulemart updates the
   pin when the library schema version changes. It replaces a library's rows in one transaction, so running it again changes nothing, and
   it parses every version's file at the release that published it, failing the library, naming the release and file,
   when it can't. The operator's `cmd/ingest` stays for local development and backfills, including libraries not yet
   vetted, and `make worker` runs one poll locally with an in-memory queue through the same handler as on Lambda.
 - **Ingestion reads each release in the layout it was published in, so a library that moved keeps its history.**
-  Trail Guide moved a library's files from the repository's root, `rule-library.yaml` and `techs/`, `practices/`,
-  `assets/`, into its Trail Guide directory: the library section of `.trailguide/config.yaml`, `.trailguide/rules/`, and
+  trailguide moved a library's files from the repository's root, `rule-library.yaml` and `techs/`, `practices/`,
+  `assets/`, into its trailguide directory: the library section of `.trailguide/config.yaml`, `.trailguide/rules/`, and
   `.trailguide/assets/`, or `.code-rules/` before the rename. A release is in the earlier layout when its root holds
-  `rule-library.yaml`, as Trail Guide decides. Rule IDs, release records, and the asset paths pages use are library paths,
+  `rule-library.yaml`, as trailguide decides. Rule IDs, release records, and the asset paths pages use are library paths,
   the same in every layout, so the catalog stores them unchanged and records each release's layout; ingestion reads
   each rule version where its release kept it, the license, groups, and shared files where the latest release keeps
   them, and resolves a rule's links from where its release kept it, and pages link a file on GitHub where its

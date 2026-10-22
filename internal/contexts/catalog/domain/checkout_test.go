@@ -178,8 +178,8 @@ func TestCheckoutForAKnownProjectAddsToItsSources(t *testing.T) {
 	assertCheckout(t, "known-project", checkout)
 }
 
-// A known project that still keeps its files in .code-rules/, from before Code Rules was renamed Trail Guide, which
-// Trail Guide still reads, is told to change its configuration there and to point agents at the rules generated there.
+// A known project that still keeps its files in .code-rules/, from before Code Rules was renamed trailguide, which
+// trailguide still reads, is told to change its configuration there and to point agents at the rules generated there.
 func TestCheckoutForAKnownProjectNamesTheDirectoryItKeepsItsFilesIn(t *testing.T) {
 	target := CheckoutTarget{Mode: ProjectKnown, Repository: "acme/api", Directory: ".code-rules", Sources: map[string]string{
 		"fabricahq/public-rules": "team",
@@ -214,7 +214,7 @@ func TestCheckoutOfForksAloneBuildsWithoutSyncing(t *testing.T) {
 	}
 }
 
-// Trail Guide 0.4.0 reads no version 1 configuration, so a project that may have one, whether Rulemart knows nothing of
+// trailguide 0.4.0 reads no version 1 configuration, so a project that may have one, whether Rulemart knows nothing of
 // it or knows it and only forks, is told to rewrite it before the first project command that reads it; a new
 // project's init writes version 2.
 func TestCheckoutAsksAProjectThatMayUseTrailGuideToRewriteAVersion1ConfigurationFirst(t *testing.T) {
@@ -252,8 +252,8 @@ func TestCheckoutWithNothingToImportWritesNothing(t *testing.T) {
 	}
 }
 
-// Each library gets an alias Trail Guide accepts, its owner's name without a trailing hq, distinct from every other
-// source and from the known project's own: libraries of one owner add their repository's name, and a name Trail Guide
+// Each library gets an alias trailguide accepts, its owner's name without a trailing hq, distinct from every other
+// source and from the known project's own: libraries of one owner add their repository's name, and a name trailguide
 // can't take starts with library-.
 func TestCheckoutNamesEachSourceDistinctly(t *testing.T) {
 	library := func(owner, name string) CheckoutLibrary {
@@ -301,7 +301,7 @@ func TestCheckoutPinExampleIsTheFirstVettedLibraryItImportsFrom(t *testing.T) {
 	}
 }
 
-// A known project's source name reaches the commands as the visitor's GitHub account reported it, so a name Trail Guide
+// A known project's source name reaches the commands as the visitor's GitHub account reported it, so a name trailguide
 // wouldn't take, such as one holding a newline or shell syntax, is never written: the library is added under a name of
 // Rulemart's, and every line the data could reach stays a comment or one command.
 func TestCheckoutNeverWritesASourceNameTrailGuideWouldNotTake(t *testing.T) {

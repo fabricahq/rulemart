@@ -600,7 +600,7 @@ changes: {practices/testing/verify-retry-limits: {change: minor, from: 1.0.0, su
 	}
 }
 
-// trailGuideManifest is a configuration whose library section declares an MIT license, as a library in the Trail Guide
+// trailGuideManifest is a configuration whose library section declares an MIT license, as a library in the trailguide
 // directory's layout has.
 const trailGuideManifest = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE.md\n    notices: [NOTICE.md]\n"
 
@@ -698,7 +698,7 @@ libraryFiles: [LICENSE.md, NOTICE.md, practices/testing/_group.yaml]
 }
 
 // A library section that gives its skills levels, its own and ones it curates from a source, and lists a skill that
-// installs only as a dependency, as Trail Guide lets it, still declares the library's license.
+// installs only as a dependency, as trailguide lets it, still declares the library's license.
 func TestAssembleReadsTheLicenseOfALibraryThatGivesItsSkillsLevels(t *testing.T) {
 	release := snapshot(t, 1, `schemaVersion: 1
 release: 1
@@ -747,15 +747,15 @@ library:
 	}
 }
 
-// A release in the Trail Guide directory's layout is a library only when its configuration has a library section in a
+// A release in the trailguide directory's layout is a library only when its configuration has a library section in a
 // library schema version Rulemart reads.
 func TestAssembleRefusesALatestReleaseInTheTrailGuideDirectoryWithoutAManifest(t *testing.T) {
 	for name, tc := range map[string]struct {
 		manifest, want string
 	}{
-		"no configuration": {"", "release/1: .trailguide/config.yaml is missing; every Trail Guide library has one"},
+		"no configuration": {"", "release/1: .trailguide/config.yaml is missing; every trailguide library has one"},
 		"no library section": {"schemaVersion: 2\nsources: {}\n",
-			"release/1: .trailguide/config.yaml has no library section, which makes a repository a Trail Guide library"},
+			"release/1: .trailguide/config.yaml has no library section, which makes a repository a trailguide library"},
 		"a license file that's missing": {"schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license: {file: COPYING, notices: []}\n",
 			"release/1: .trailguide/config.yaml declares the license file COPYING, which is missing"},
 		"no library schema version": {"schemaVersion: 2\nsources: {}\nlibrary:\n  license: {spdxExpression: MIT, file: LICENSE.md, notices: []}\n",

@@ -1,4 +1,4 @@
-Add these engineering rules to the acme/api repository with the Trail Guide CLI (0.4.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed Trail Guide, install the CLI and run trailguide project init first.
+Add these engineering rules to the acme/api repository with the trailguide CLI (0.4.0 or later). If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed trailguide, install the CLI and run trailguide project init first.
 
 From fabricahq/public-rules:
 - The whole Go group (techs/go), including rules the library adds to it later
@@ -19,11 +19,11 @@ Read each rule I picked from it there, and tell me about any that asks for somet
 Run:
 # From the root of acme/api
 
-# Only if it doesn't use Trail Guide yet
+# Only if it doesn't use trailguide yet
 curl -fsSL https://trailguide.fabricahq.com/install.sh | sh
 trailguide project init
 
-# If the project uses Trail Guide already and its config.yaml has schemaVersion: 1,
+# If the project uses trailguide already and its config.yaml has schemaVersion: 1,
 # rewrite it as version 2 first: https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility
 
 # Add your rules

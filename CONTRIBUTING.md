@@ -99,10 +99,10 @@ which checks the listing, since locally nothing sends its job at once. Or ingest
 a vetting pull request would. To remove an abusive listing, delete its row as the database's owner:
 `DELETE FROM listings WHERE id = <id>`.
 
-Pages name a group whose ID is on Trail Guide's canonical group list,
+Pages name a group whose ID is on trailguide's canonical group list,
 [catalog/canonical-groups.yaml](catalog/canonical-groups.yaml), by the list's name and its icon from
 [catalog/group-icons.yaml](catalog/group-icons.yaml), and flag any other group as not canonical. To update the
-list, copy the file from a newer Trail Guide commit and update the commit and the SHA-256 its test pins. To add an
+list, copy the file from a newer trailguide commit and update the commit and the SHA-256 its test pins. To add an
 icon, follow [the icons' README](internal/platform/web/static/icons/README.md).
 
 `cmd/ingest` reads a library's `release/<number>` tags from GitHub and replaces what the catalog stores about it, in
@@ -115,8 +115,8 @@ library is stored, and the rules' assets it lists and the bytes it keeps of them
 Set `GITHUB_TOKEN` if GitHub's rate limit for anonymous requests gets in the way. Against Neon, set
 `DATABASE_URL_PARAMETER` to the SSM parameter holding the worker's connection string,
 `/rulemart/prod/worker-database-url`, instead of `DATABASE_URL`, as the worker does. Ingestion parses libraries with
-Trail Guide's `github.com/fabricahq/trailguide/trailguide` package at the version `go.mod` pins, so it reads only
-libraries released with a Trail Guide version that writes a format that version reads.
+trailguide's `github.com/fabricahq/trailguide/trailguide` package at the version `go.mod` pins, so it reads only
+libraries released with a trailguide version that writes a format that version reads.
 
 `make worker` runs what the deployed worker does every hour, once: for each library `catalog/vetted.yaml`
 lists, and each listing to check, it lists the release tags without fetching them, and ingests the library when they
@@ -206,7 +206,7 @@ web Lambda -> SQS, one job per new listing
   - `domain` holds the catalog's values and rules, with no I/O: release history, assembling a library from release
     snapshots within the content budget, addresses such as tags and GitHub URLs, where a rule's links and images
     lead, every ingestion limit, and the
-    cart's keys and the Trail Guide commands and prompt its checkout writes, whose golden files are in
+    cart's keys and the trailguide commands and prompt its checkout writes, whose golden files are in
     `domain/testdata`; run `go test ./internal/contexts/catalog/domain -update` after changing them, and review the
     diff.
   - `render` renders rules' and their assets' Markdown, with links where the domain says, and their text files as
@@ -237,7 +237,7 @@ web Lambda -> SQS, one job per new listing
   reads a secret from the environment or SSM, `logging` the JSON logger every command builds from
   `LOG_LEVEL` and `RULEMART_RELEASE`, and `postgrestest` and `database/databasetest` the test databases.
 - `internal/lib/textdiff` compares two versions' text for the comparison pages, within bounded work. Rulemart parses
-  libraries with Trail Guide's `github.com/fabricahq/trailguide/trailguide` package, which `go.mod` pins.
+  libraries with trailguide's `github.com/fabricahq/trailguide/trailguide` package, which `go.mod` pins.
 - `db/migrations` holds the schema as numbered SQL files.
 - `.github/ISSUE_TEMPLATE` holds the issue forms that pages link to report a library, ask to vet one, or report a
   problem, by file name and field ID, so renaming either breaks those links.

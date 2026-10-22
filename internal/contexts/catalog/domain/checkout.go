@@ -1,4 +1,4 @@
-// Checkout: the Trail Guide commands that import what a cart holds into a project, and the prompt that has a coding
+// Checkout: the trailguide commands that import what a cart holds into a project, and the prompt that has a coding
 // agent run them.
 
 package domain
@@ -11,31 +11,31 @@ import (
 	"strings"
 )
 
-// minTrailGuideVersion is the oldest Trail Guide whose commands and configuration checkout writes: project add source
+// minTrailGuideVersion is the oldest trailguide whose commands and configuration checkout writes: project add source
 // --rules, which takes selectors such as techs/go/*, project add rule --from, and a version 2 configuration's
 // rules.include.
 const minTrailGuideVersion = "0.4.0"
 
-// trailGuideInstall is the command Trail Guide's documentation gives to install it.
+// trailGuideInstall is the command trailguide's documentation gives to install it.
 const trailGuideInstall = "curl -fsSL https://trailguide.fabricahq.com/install.sh | sh"
 
-// trailGuideDirectory is where Trail Guide keeps a project's files, from its repository's root.
+// trailGuideDirectory is where trailguide keeps a project's files, from its repository's root.
 const trailGuideDirectory = ".trailguide"
 
-// legacyDirectory is where a project keeps its files from before Code Rules was renamed Trail Guide, which Trail Guide still
+// legacyDirectory is where a project keeps its files from before Code Rules was renamed trailguide, which trailguide still
 // reads.
 const legacyDirectory = ".code-rules"
 
-// forkReason is why a fork replaces the rule the project imports with its group, which Trail Guide asks for.
+// forkReason is why a fork replaces the rule the project imports with its group, which trailguide asks for.
 const forkReason = "We maintain our own version of this rule."
 
 // ProjectMode is what Rulemart knows about the project a checkout is for.
 type ProjectMode string
 
 const (
-	// ProjectKnown is a project of the visitor's that uses Trail Guide, whose sources Rulemart read.
+	// ProjectKnown is a project of the visitor's that uses trailguide, whose sources Rulemart read.
 	ProjectKnown ProjectMode = "known"
-	// ProjectNew is a project the visitor says doesn't use Trail Guide yet, which the commands set up.
+	// ProjectNew is a project the visitor says doesn't use trailguide yet, which the commands set up.
 	ProjectNew ProjectMode = "new"
 	// ProjectUnknown is a project Rulemart knows nothing of, which the commands set up only if it needs it.
 	ProjectUnknown ProjectMode = "unknown"
@@ -52,7 +52,7 @@ type CheckoutTarget struct {
 	// their names.
 	Sources map[string]string
 	// Directory is where a known project keeps its files, which the texts name: .trailguide, or .code-rules for a
-	// project from before Code Rules was renamed Trail Guide, which Trail Guide still reads. Empty means .trailguide.
+	// project from before Code Rules was renamed trailguide, which trailguide still reads. Empty means .trailguide.
 	Directory string
 }
 
@@ -61,7 +61,7 @@ func (t CheckoutTarget) directory() string { return cmp.Or(t.Directory, trailGui
 
 // CheckoutGroup is a group a checkout names.
 type CheckoutGroup struct {
-	// ID is the group's ID, such as techs/go, and Name its name on Trail Guide's canonical group list, such as Go, or
+	// ID is the group's ID, such as techs/go, and Name its name on trailguide's canonical group list, such as Go, or
 	// the ID for a group that isn't on it. The texts name a group by these alone, never by what a library wrote.
 	ID, Name string
 }
@@ -94,7 +94,7 @@ type CheckoutLibrary struct {
 	RestOfGroups bool
 }
 
-// Checkout is what a cart's checkout imports into its target: one Trail Guide source per library.
+// Checkout is what a cart's checkout imports into its target: one trailguide source per library.
 type Checkout struct {
 	Target CheckoutTarget
 	// sources are in the order the cart first holds an item of their libraries.
@@ -121,7 +121,7 @@ type checkoutSource struct {
 // FullName returns the library's repository as owner/name.
 func (s checkoutSource) FullName() string { return s.Owner + "/" + s.Name }
 
-// Repository returns the library's Git address on GitHub, as Trail Guide names a library.
+// Repository returns the library's Git address on GitHub, as trailguide names a library.
 func (s checkoutSource) Repository() string { return RepositoryURL(s.FullName()) + ".git" }
 
 // selects reports whether the source imports any group or rule from its library, rather than only forking.
@@ -142,7 +142,7 @@ func (s checkoutSource) forkFrom() string {
 }
 
 // refOption is the option of project add source that pins the library to ref, a release's tag or a commit, which
-// Trail Guide writes to the source's configuration.
+// trailguide writes to the source's configuration.
 func refOption(ref string) string { return "--ref " + ref }
 
 // ReleasePin is a library's latest release, which a project could pin the library to instead of following its
@@ -167,7 +167,7 @@ func (c Checkout) PinExample() (ReleasePin, bool) {
 	return ReleasePin{}, false
 }
 
-// commitID matches a full Git commit ID, as Trail Guide's ref takes one.
+// commitID matches a full Git commit ID, as trailguide's ref takes one.
 var commitID = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // ref returns what an unvetted library's source is pinned to: the commit its latest release's tag pointed to, or the
@@ -191,8 +191,8 @@ func (s checkoutSource) reviewCommand() string {
 // NewCheckout returns how target imports libraries: a source for each library with anything to import, named as
 // nameSources says. A rule whose group the cart holds whole is left out of the rules the source selects, since the
 // group brings it. An unvetted library's forks are selected as rules instead, pinned to the reviewed commit with the
-// rest of the source: Trail Guide forks the release a tag names, which the library's publisher could move after the
-// review, so forking waits until Rulemart vets the library, or Trail Guide can fork from a commit.
+// rest of the source: trailguide forks the release a tag names, which the library's publisher could move after the
+// review, so forking waits until Rulemart vets the library, or trailguide can fork from a commit.
 func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 	var sources []checkoutSource
 	for _, lib := range libraries {
@@ -232,7 +232,7 @@ func NewCheckout(target CheckoutTarget, libraries []CheckoutLibrary) Checkout {
 var nonAlias = regexp.MustCompile(`[^a-z0-9-]+`)
 
 // ownerAlias returns the alias a library is imported under by default, as the prototype names it: its owner's
-// name, lowercase, without a trailing hq, such as fabrica for fabricahq, and without what Trail Guide's source names
+// name, lowercase, without a trailing hq, such as fabrica for fabricahq, and without what trailguide's source names
 // can't hold.
 func ownerAlias(owner string) string {
 	return strings.Trim(nonAlias.ReplaceAllString(strings.TrimSuffix(strings.ToLower(owner), "hq"), ""), "-")
@@ -247,18 +247,18 @@ func sourceSlug(name string) string {
 	return strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(name), "-"), "-")
 }
 
-// sourceName matches a source name Trail Guide's configuration accepts (internal/rules/configuration.go,
+// sourceName matches a source name trailguide's configuration accepts (internal/rules/configuration.go,
 // sourceNamePattern).
 var sourceName = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
-// validSourceName reports whether Trail Guide takes name as a source's name: it matches sourceName and isn't local,
-// which Trail Guide reserves for a project's own rules. The commands hold a source's name unquoted, so only such a name
+// validSourceName reports whether trailguide takes name as a source's name: it matches sourceName and isn't local,
+// which trailguide reserves for a project's own rules. The commands hold a source's name unquoted, so only such a name
 // may reach them.
 func validSourceName(name string) bool { return sourceName.MatchString(name) && name != "local" }
 
-// nameSources gives each source the name Trail Guide imports it under, distinct from every other and from the known
-// project's: the project's own name for a library it imports already, when Trail Guide would take it; otherwise ownerAlias, with the repository's
-// name added when other sources would share it, or a project's source has it. A name Trail Guide can't take, one that
+// nameSources gives each source the name trailguide imports it under, distinct from every other and from the known
+// project's: the project's own name for a library it imports already, when trailguide would take it; otherwise ownerAlias, with the repository's
+// name added when other sources would share it, or a project's source has it. A name trailguide can't take, one that
 // doesn't start with a letter, or local, which it reserves, starts with library-, and a name still taken gets a
 // number.
 func nameSources(target CheckoutTarget, sources []checkoutSource) {
@@ -310,7 +310,7 @@ const (
 
 // Commands returns the shell commands that import the checkout into its target, or none when there's nothing to
 // import. They're one step, without a heading, when Rulemart vets every library, run from the project's root, each
-// block apart: Trail Guide's setup when the project is new, or may be; for each library, the command that adds it, or for
+// block apart: trailguide's setup when the project is new, or may be; for each library, the command that adds it, or for
 // a library a known project imports already, what to add to its source; then each fork, once its library is synced,
 // the command that builds the project's guidance, and a reminder to point agents at it. Nothing is pinned to a
 // release, except a library Rulemart doesn't vet, which is pinned to the commit reviewed. When the checkout imports
@@ -361,7 +361,7 @@ func (c Checkout) agentsInstruction() string {
 	return read
 }
 
-// rulesIndex returns the RULES.md that Trail Guide generates in directory. Trail Guide 0.8.0 and later keep it under
+// rulesIndex returns the RULES.md that trailguide generates in directory. trailguide 0.8.0 and later keep it under
 // .trailguide/_managed/, and a project in the legacy .code-rules/ layout has it directly under generated/.
 func rulesIndex(directory string) string {
 	if directory == legacyDirectory {
@@ -371,7 +371,7 @@ func rulesIndex(directory string) string {
 }
 
 // commands returns the commands of the step of Commands that imports, without its closing reminder, which the prompt
-// says in its own words, as it asks for the review in its own words first. A project that may use Trail Guide already is
+// says in its own words, as it asks for the review in its own words first. A project that may use trailguide already is
 // told to rewrite a version 1 configuration before any project command runs, since none reads one.
 func (c Checkout) commands() string {
 	root := "# From the root of " + cmp.Or(c.Target.Repository, "your project")
@@ -387,28 +387,28 @@ func (c Checkout) commands() string {
 }
 
 // version1Note says, as comments, to rewrite the project's configuration as version 2 when it's version 1, which
-// Trail Guide 0.4.0 no longer reads, or returns "" for a new project, whose configuration init writes as version 2.
+// trailguide 0.4.0 no longer reads, or returns "" for a new project, whose configuration init writes as version 2.
 func (c Checkout) version1Note() string {
 	var where string
 	switch c.Target.Mode {
 	case ProjectKnown:
 		where = "# If " + c.Target.directory() + "/config.yaml"
 	case ProjectUnknown:
-		where = "# If the project uses Trail Guide already and its config.yaml"
+		where = "# If the project uses trailguide already and its config.yaml"
 	default:
 		return ""
 	}
 	return where + " has schemaVersion: 1,\n# rewrite it as version 2 first: " + configurationVersion1Docs
 }
 
-// setupBlock returns the commands that set Trail Guide up in a new project, or in one that may not use it yet, or ""
+// setupBlock returns the commands that set trailguide up in a new project, or in one that may not use it yet, or ""
 // for a known project.
 func (c Checkout) setupBlock() string {
 	switch c.Target.Mode {
 	case ProjectNew:
-		return "# Set up Trail Guide\n" + trailGuideInstall + "\ntrailguide project init"
+		return "# Set up trailguide\n" + trailGuideInstall + "\ntrailguide project init"
 	case ProjectUnknown:
-		return "# Only if it doesn't use Trail Guide yet\n" + trailGuideInstall + "\ntrailguide project init"
+		return "# Only if it doesn't use trailguide yet\n" + trailGuideInstall + "\ntrailguide project init"
 	}
 	return ""
 }
@@ -447,7 +447,7 @@ func (s checkoutSource) addCommand() string {
 	return continued(lines)
 }
 
-// groupSelector returns the selector that includes the group id whole, as Trail Guide's rules.include takes it, such as
+// groupSelector returns the selector that includes the group id whole, as trailguide's rules.include takes it, such as
 // techs/go/* for techs/go.
 func groupSelector(id string) string { return id + "/*" }
 
@@ -506,7 +506,7 @@ func continued(lines []string) string {
 }
 
 // configurationNote says, as comments, what to add to the known project's source for the library, which it imports
-// already: Trail Guide adds a source once, so its groups and rules go in the configuration, as selectors in the source's
+// already: trailguide adds a source once, so its groups and rules go in the configuration, as selectors in the source's
 // rules.include of a version 2 configuration, which version1Note asks for first.
 func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	lines := []string{
@@ -522,7 +522,7 @@ func (s checkoutSource) configurationNote(target CheckoutTarget) string {
 	return strings.Join(lines, "\n")
 }
 
-// configurationVersion1Docs is Trail Guide's guide to rewriting a version 1 configuration as version 2.
+// configurationVersion1Docs is trailguide's guide to rewriting a version 1 configuration as version 2.
 const configurationVersion1Docs = "https://trailguide.fabricahq.com/reference/configuration/#no-backward-compatibility"
 
 // Prompt returns what a visitor gives their coding agent to import the checkout into its target, or "" when there's
@@ -540,14 +540,14 @@ func (c Checkout) Prompt() string {
 	case c.Target.Repository != "":
 		where = "the " + c.Target.Repository + " repository"
 	}
-	cli := "the Trail Guide CLI (" + minTrailGuideVersion + " or later)"
+	cli := "the trailguide CLI (" + minTrailGuideVersion + " or later)"
 	lines := []string{map[ProjectMode]string{
 		ProjectKnown: "Add these engineering rules to " + where + " with " + cli + ".",
-		ProjectNew: "Set up Trail Guide (" + minTrailGuideVersion + " or later) in " + where +
+		ProjectNew: "Set up trailguide (" + minTrailGuideVersion + " or later) in " + where +
 			", which doesn't use it yet, then add these engineering rules.",
 		ProjectUnknown: "Add these engineering rules to " + where + " with " + cli +
 			". If it has neither a .trailguide/ directory nor a .code-rules/ one, from before Code Rules was renamed " +
-			"Trail Guide, install the CLI and run trailguide project init first.",
+			"trailguide, install the CLI and run trailguide project init first.",
 	}[c.Target.Mode], ""}
 	var unvetted []checkoutSource
 	for _, s := range c.sources {

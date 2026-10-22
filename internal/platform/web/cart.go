@@ -69,7 +69,7 @@ type checkoutResponse struct {
 	// true when the visitor wrote one that names no GitHub repository.
 	Repository        string `json:"repository"`
 	RepositoryInvalid bool   `json:"repositoryInvalid"`
-	// Mode is known for one of the visitor's projects, new for one that doesn't use Trail Guide yet, and unknown for one
+	// Mode is known for one of the visitor's projects, new for one that doesn't use trailguide yet, and unknown for one
 	// Rulemart knows nothing of.
 	Mode string `json:"mode"`
 	// Prompt and Commands import every ready item, and are empty when none is. Commands are steps the Commands tab

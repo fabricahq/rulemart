@@ -37,7 +37,7 @@ sources:
         - "*"
 `
 
-// lockFile returns the lockfile Trail Guide would write for lockConfig.
+// lockFile returns the lockfile trailguide would write for lockConfig.
 func lockFile(t *testing.T) []byte {
 	t.Helper()
 	one, two := 1, 2

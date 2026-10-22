@@ -577,7 +577,7 @@ func TestTheAddPageListsTheVisitorsLibrariesByWhatAddingDoes(t *testing.T) {
 
 	page := site.get(t, "/me/add")
 
-	assertShows(t, page, "Publish Add a library Add a Trail Guide library from a GitHub repository you have write access to, "+
+	assertShows(t, page, "Publish Add a library Add a trailguide library from a GitHub repository you have write access to, "+
 		"from the list below or by its URL. A library is a repository with at least one release/<number> tag and a "+
 		"library manifest: a library section in its .trailguide/config.yaml file or a rule-library.yaml file.",
 		"octocat/new-rules on GitHub Public · release/2 Add this library",
@@ -977,7 +977,7 @@ func TestSkippingPrivateProjectsSaysSo(t *testing.T) {
 }
 
 // Checkout's Where it goes offers a signed-in visitor their projects, each saying what it uses, private ones marked,
-// and a way to use a project that doesn't use Trail Guide yet; and the checkout writes for the project chosen.
+// and a way to use a project that doesn't use trailguide yet; and the checkout writes for the project chosen.
 func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	site := newDashboardSite(t, octocatsGitHub(), octocatsCatalog())
 
@@ -986,7 +986,7 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 	for _, want := range []string{
 		`value="octocat/api" data-cart-project`, "octocat/api</b>", "Uses example/rules", `value="octocat/billing" data-cart-project`,
 		">Private</span>", "Or use a project that doesn", "data-cart-new-box hidden", "A new project",
-		"The prompt sets up Trail Guide there first.",
+		"The prompt sets up trailguide there first.",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the page lacks %q", want)
@@ -1001,7 +1001,7 @@ func TestCheckoutOffersTheVisitorsProjects(t *testing.T) {
 // show, it says why instead, as other pages do: the read failed, with Try again back to the cart; Rulemart is reading,
 // and the page refreshes itself; or the visitor must sign in again. Each still lets them enter a project.
 func TestCheckoutSaysHowItsReadOfGitHubWentWhenItHasNoProjects(t *testing.T) {
-	const noneFound = "We didn't find any of your projects using Trail Guide"
+	const noneFound = "We didn't find any of your projects using trailguide"
 	for name, tc := range map[string]struct {
 		err     error
 		failed  bool

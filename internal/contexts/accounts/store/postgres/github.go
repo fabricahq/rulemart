@@ -255,7 +255,7 @@ func (s *Store) inTransaction(ctx context.Context, work func(*accountsdb.Queries
 // it wrong, even while another read is under way or after a read fails: the format rose to 2 when libraries gained
 // whether the visitor may push to them, which the picker dims a library without, to 3 when ClaimRead began
 // checking it too, since until then a failed read could save a snapshot of an earlier format again as format 2, and
-// to 4 when reads began finding libraries whose manifest is in the Trail Guide directory's config.yaml, which a read of
+// to 4 when reads began finding libraries whose manifest is in the trailguide directory's config.yaml, which a read of
 // an earlier format left out, and to 5 when reads began finding projects from their lockfile, which a read of an
 // earlier format, reading only provenance files, left out or showed at an older release.
 const snapshotFormat = 5

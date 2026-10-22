@@ -172,7 +172,7 @@ const recordTimeout = 5 * time.Second
 // library as Update does, ingesting it when its release tags aren't the ones the catalog stored, and records that the
 // check succeeded. A listing that names a vetted library is skipped, since the library's own job updates it. A failure
 // the repository caused, such as a missing or private repository, a repository another listing names, or one that
-// isn't a Trail Guide library, is recorded on the listing for its lister, and the check succeeds as refused. Any other
+// isn't a trailguide library, is recorded on the listing for its lister, and the check succeeds as refused. Any other
 // failure, such as the database's or the code host's API's, fails the check, so it's tried again.
 func (in Ingester) CheckListing(ctx context.Context, vetted []domain.LibraryKey, id int64) (ListingCheck, error) {
 	check, err := in.checkListing(ctx, vetted, id)

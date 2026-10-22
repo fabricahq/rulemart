@@ -16,7 +16,7 @@ import (
 )
 
 // parseLegacyLicense returns the license that text, the rule-library.yaml at location, declares, or nil when it
-// declares none. The manifest must have formatVersion 1; its other fields are ignored. Trail Guide no longer parses
+// declares none. The manifest must have formatVersion 1; its other fields are ignored. trailguide no longer parses
 // rule-library.yaml, so this keeps the rules it had: each declared path is a contained path from the repository root,
 // kept as written, outside rules and their asset directories in techs/ and practices/. The current library section
 // places paths in .trailguide/ and reserves others, such as rules/, so it can't check these; it checks only the
@@ -122,7 +122,7 @@ func legacyRuleContent(path string) bool {
 	return err == nil && path != group+"/README.md"
 }
 
-// validateExpression checks an SPDX expression the way Trail Guide's library section does.
+// validateExpression checks an SPDX expression the way trailguide's library section does.
 func validateExpression(expression string) error {
 	section, err := json.Marshal(map[string]any{"schemaVersion": trailguide.LibrarySchemaVersion, "license": map[string]any{"spdxExpression": expression, "file": "LICENSE", "notices": []string{}}})
 	if err != nil {

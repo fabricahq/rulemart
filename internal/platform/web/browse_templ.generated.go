@@ -366,7 +366,7 @@ func browsePage(c chrome, v browseView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse Trail Guide rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href(), noindex: v.unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: v.kind.name() + " · Rulemart", description: "Browse trailguide rules by the " + v.kind.noun() + " they cover, across every vetted library.", section: v.kind.href(), noindex: v.unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -590,7 +590,7 @@ func otherGroupsPage(c chrome, v otherGroupsView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layout(c, head{title: "Other " + v.kind.noun() + " groups · Rulemart", description: "The " + v.kind.noun() + " groups vetted libraries declare that aren't on Trail Guide's canonical list, each holding the rules of the libraries that chose its ID.", section: v.kind.href(), noindex: v.unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layout(c, head{title: "Other " + v.kind.noun() + " groups · Rulemart", description: "The " + v.kind.noun() + " groups vetted libraries declare that aren't on trailguide's canonical list, each holding the rules of the libraries that chose its ID.", section: v.kind.href(), noindex: v.unvetted, filters: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

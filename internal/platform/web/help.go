@@ -13,7 +13,7 @@ const (
 	feedbackHref = "/feedback"
 )
 
-// trailGuideRepositoryURL is Trail Guide's public repository, whose issues take feedback about the tool, the rule
+// trailGuideRepositoryURL is trailguide's public repository, whose issues take feedback about the tool, the rule
 // format, and the documentation.
 const trailGuideRepositoryURL = "https://github.com/fabricahq/trailguide"
 
@@ -32,12 +32,12 @@ type feedbackGroup struct {
 }
 
 // feedbackGroups are the feedback page's topics, in its order. Rulemart topics open issues in Rulemart's repository,
-// and Trail Guide topics in Trail Guide's repository.
+// and trailguide topics in trailguide's repository.
 var feedbackGroups = []feedbackGroup{
 	{name: "Rulemart", topics: []feedbackTopic{
 		{key: "hub", label: "Using Rulemart", example: "Finding rules, library and rule pages, checking out, and anything missing.", repository: repositoryURL},
 	}},
-	{name: "Trail Guide", topics: []feedbackTopic{
+	{name: "trailguide", topics: []feedbackTopic{
 		{key: "cli", label: "The tool", example: "The trailguide CLI: commands, syncing, error messages, and config.", repository: trailGuideRepositoryURL},
 		{key: "format", label: "Rule format", example: "Frontmatter fields, groups, impact levels, and how rules are written.", repository: trailGuideRepositoryURL},
 		{key: "docs", label: "Documentation", example: "Anything unclear, wrong, or hard to find.", repository: trailGuideRepositoryURL},

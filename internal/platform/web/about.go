@@ -22,7 +22,7 @@ const (
 	// reportFormsURL lets a visitor choose which report to file, and reportProblemURL opens the Report a problem form.
 	reportFormsURL   = repositoryURL + "/issues/new/choose"
 	reportProblemURL = repositoryURL + "/issues/new?template=report-a-problem.yml"
-	// trailGuideURL is Trail Guide's documentation, and trailGuideLibrariesURL its page on libraries and their releases.
+	// trailGuideURL is trailguide's documentation, and trailGuideLibrariesURL its page on libraries and their releases.
 	trailGuideURL          = "https://trailguide.fabricahq.com"
 	trailGuideLibrariesURL = trailGuideURL + "/concepts/libraries/"
 )
@@ -45,7 +45,7 @@ func reportLibraryURL(fullName string) string {
 // askToVetURL is where a visitor asks Fabrica to vet a library.
 var askToVetURL = issueFormURL("ask-to-vet-a-library.yml", "Vet: ", nil)
 
-// about shows what Rulemart and Trail Guide are, and how Rulemart is meant to be used.
+// about shows what Rulemart and trailguide are, and how Rulemart is meant to be used.
 func (s *server) about(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, http.StatusOK, contentPageView(s.pageChrome(aboutHref), s.content.about))
 }

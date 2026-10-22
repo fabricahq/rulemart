@@ -67,9 +67,9 @@ func TestDetectLayout_FindsWhereTheReleaseKeepsTheLibrary(t *testing.T) {
 		"rule-library.yaml at the root": {library(files{"techs/go/return-errors.md": ""}), RootLayout},
 		// A library in the earlier layout could be a project too, whose files were in .trailguide/.
 		"rule-library.yaml beside a project's files": {library(files{".trailguide/config.yaml": ""}), RootLayout},
-		"the Trail Guide directory":                  {files{".trailguide/config.yaml": "", "LICENSE": ""}, TrailGuideLayout},
+		"the trailguide directory":                  {files{".trailguide/config.yaml": "", "LICENSE": ""}, TrailGuideLayout},
 		"the directory before the rename":            {files{".code-rules/config.yaml": "", "LICENSE": ""}, CodeRulesLayout},
-		// Trail Guide reads .code-rules/ only while there's no .trailguide/.
+		// trailguide reads .code-rules/ only while there's no .trailguide/.
 		"both directories":    {files{".trailguide/rules/techs/go/x.md": "", ".code-rules/config.yaml": ""}, TrailGuideLayout},
 		"no library at all":   {files{"README.md": ""}, RootLayout},
 		"an empty repository": {files{}, RootLayout},
@@ -95,7 +95,7 @@ func TestLayoutResolveLibraryLink_ResolvesFromWhereTheFileLives(t *testing.T) {
 		{RootLayout, "/assets/lifecycle.svg", "assets/lifecycle.svg", true},
 		{RootLayout, "../../LICENSE", "LICENSE", true},
 		// A moved rule sits two folders deeper, so its links to shared files climb one more folder, and to the
-		// repository's root two more; a link that starts with / resolves from the Trail Guide directory.
+		// repository's root two more; a link that starts with / resolves from the trailguide directory.
 		{TrailGuideLayout, "../../../assets/lifecycle.svg", "assets/lifecycle.svg", true},
 		{TrailGuideLayout, "/assets/lifecycle.svg#top", "assets/lifecycle.svg", true},
 		{TrailGuideLayout, "../../../../LICENSE", "LICENSE", true},
