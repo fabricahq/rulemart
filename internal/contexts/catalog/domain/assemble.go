@@ -192,6 +192,10 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*trailguide.License
 	}
 	manifestFile := layout.ManifestFile()
 	library, err := trailguide.ParseLibraryManifest(text, a.repo.FullName()+"/"+manifestFile)
+	var format *trailguide.UnsupportedLibraryFormatError
+	if errors.As(err, &format) {
+		return nil, unsupportedFormat(manifestFile, format)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +203,16 @@ func (a *assembly) parseLicense(layout Layout, text []byte) (*trailguide.License
 		return nil, fmt.Errorf("%s has no library section, which makes a repository a Trail Guide library", manifestFile)
 	}
 	return library.License, nil
+}
+
+// unsupportedFormat explains to the library's maintainer or lister that Rulemart can't read the library format that
+// manifestFile declares, and what changes that: a newer Rulemart, or a library release in the format it reads. Only
+// this library fails; the catalog keeps the releases it ingested before.
+func unsupportedFormat(manifestFile string, format *trailguide.UnsupportedLibraryFormatError) error {
+	if format.FormatVersion > format.Supported {
+		return fmt.Errorf("%s declares library format %d, which Rulemart doesn't read yet: it reads library format %d. Rulemart will read this release once it supports that format", manifestFile, format.FormatVersion, format.Supported)
+	}
+	return fmt.Errorf("%s declares library format %d, which Rulemart no longer reads: it reads library format %d. Move the library to that format and publish a library release", manifestFile, format.FormatVersion, format.Supported)
 }
 
 // readRule returns history's rule in its group, with each version's content: the rule's file at the release that
