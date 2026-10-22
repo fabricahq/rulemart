@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/fabricahq/rulemart/internal/contexts/accounts/domain"
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
 	"github.com/fabricahq/rulemart/internal/lib/githubapp"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // APIURL is GitHub's REST API.
@@ -183,7 +183,7 @@ func (a *API) RootEntries(ctx context.Context, token string, repo domain.Reposit
 	var root domain.RootEntries
 	types := map[string]string{}
 	for _, e := range entries {
-		root.LegacyManifest = root.LegacyManifest || (e.Name == coderules.LegacyManifest && e.Type == "file")
+		root.LegacyManifest = root.LegacyManifest || (e.Name == trailguide.LegacyManifest && e.Type == "file")
 		types[e.Name] = e.Type
 	}
 	root.ProjectDirectory = projectDirectory(types)

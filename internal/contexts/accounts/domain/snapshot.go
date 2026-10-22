@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fabricahq/rulemart/internal/lib/coderules"
+	"github.com/fabricahq/trailguide/trailguide"
 )
 
 // MaxRepositories is how many repositories one read looks into, the most recently pushed first, so a visitor in many
@@ -94,12 +94,12 @@ type Snapshot struct {
 
 // ConfigPath returns where a repository whose Trail Guide directory is directory, ProjectDirectory or
 // LegacyProjectDirectory, keeps its configuration, whose library section makes it a library, from its root.
-func ConfigPath(directory string) string { return directory + "/" + coderules.Manifest }
+func ConfigPath(directory string) string { return directory + "/" + trailguide.Manifest }
 
 // DeclaresLibrary reports whether config, a repository's configuration, has a library section, the manifest that
 // makes the repository a library, as Trail Guide validates it. A configuration Trail Guide would refuse declares none.
 func DeclaresLibrary(config []byte) bool {
-	library, err := coderules.ParseLibraryManifest(config, "config.yaml")
+	library, err := trailguide.ParseLibraryManifest(config, "config.yaml")
 	return err == nil && library != nil
 }
 

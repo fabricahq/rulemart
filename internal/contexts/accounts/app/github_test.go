@@ -192,11 +192,13 @@ func TestSnapshotFindsProjectsInTheDirectoryTrailGuideReads(t *testing.T) {
 
 // A read finds a library whose manifest is where Trail Guide reads it: rule-library.yaml at the root, or else a library
 // section in the configuration in the Trail Guide directory, .trailguide, or .code-rules while the repository has no
-// .trailguide, even one of hundreds of kilobytes, or exactly as large as the catalog reads of a manifest. A configuration
-// without a library section, one Trail Guide would refuse, one a byte larger than the catalog reads, or one in
-// .code-rules beside .trailguide makes no library, and fails no read.
+// .trailguide, even one that gives its skills levels, of hundreds of kilobytes, or exactly as large as the catalog reads
+// of a manifest. A configuration without a library section, one Trail Guide would refuse, one a byte larger than the
+// catalog reads, or one in .code-rules beside .trailguide makes no library, and fails no read.
 func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
-	library := "schemaVersion: 2\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+	library := "schemaVersion: 2\nsources: {}\nlibrary:\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+	skills := "schemaVersion: 2\nsources:\n  anthropic: {repository: https://github.com/anthropics/skills.git, ref: main}\nlibrary:\n" +
+		"  skills:\n    required: [anthropic:skills/skill-creator]\n    offered: [skills/build-feature]\n    dependencies: [skills/shared-setup]\n"
 	project := "schemaVersion: 2\nsources: {}\n"
 	trailGuideConfig := domain.ConfigPath(domain.ProjectDirectory)
 	legacyConfig := domain.ConfigPath(domain.LegacyProjectDirectory)
@@ -210,7 +212,8 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 			repository("trailguide", map[string]string{trailGuideConfig: library}),
 			repository("not-renamed", map[string]string{legacyConfig: library}),
 			repository("project", map[string]string{trailGuideConfig: project}),
-			repository("refused", map[string]string{trailGuideConfig: "schemaVersion: 2\nlibrary:\n  skills: {}\n"}),
+			repository("skills", map[string]string{trailGuideConfig: skills}),
+			repository("refused", map[string]string{trailGuideConfig: "schemaVersion: 2\nsources: {}\nlibrary:\n  skills: {offered: [tools/a]}\n"}),
 			repository("large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", 512<<10) + "\n"}),
 			repository("at-limit", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-3) + "\n"}),
 			repository("too-large", map[string]string{trailGuideConfig: library + "# " + strings.Repeat("x", domain.MaxConfigBytes-len(library)-2) + "\n"}),
@@ -225,7 +228,7 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 	for _, l := range got.Libraries {
 		names = append(names, l.Name)
 	}
-	if want := []string{"at-limit", "large", "not-renamed", "root", "trailguide"}; !slices.Equal(names, want) || got.ReadFailed {
+	if want := []string{"at-limit", "large", "not-renamed", "root", "skills", "trailguide"}; !slices.Equal(names, want) || got.ReadFailed {
 		t.Errorf("libraries %v (read failed %v), want %v", names, got.ReadFailed, want)
 	}
 }
@@ -233,7 +236,7 @@ func TestSnapshotFindsLibrariesWhoseManifestTrailGuideReads(t *testing.T) {
 // A read asks for a repository's configuration only when its root has a Trail Guide directory and no rule-library.yaml,
 // so repositories that can't hold one cost no extra request.
 func TestAReadAsksForAConfigurationOnlyWhereALibraryCouldDeclareOne(t *testing.T) {
-	library := "schemaVersion: 2\nlibrary: {}\n"
+	library := "schemaVersion: 2\nsources: {}\nlibrary: {}\n"
 	fake := &githubtest.Fake{
 		Users: []githubtest.User{{Token: monaToken, ID: monaID, Login: "mona"}},
 		Repositories: []githubtest.Repository{
@@ -344,7 +347,7 @@ func TestASnapshotFromBeforeConfigManifestsIsReadAgain(t *testing.T) {
 	site.snapshot(t)
 	fake.Repositories = append(fake.Repositories, githubtest.Repository{
 		Owner: "mona", Name: "moved-rules", PushedAt: pushed, Tags: []string{"release/5"},
-		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nlibrary: {}\n"},
+		Files: map[string]string{domain.ConfigPath(domain.ProjectDirectory): "schemaVersion: 2\nsources: {}\nlibrary: {}\n"},
 	})
 	postgrestest.Exec(t, site.connString, `UPDATE github_snapshots SET snapshot = jsonb_set(snapshot, '{format}', '3')`)
 	site.now = site.now.Add(domain.RefreshInterval)
