@@ -34,7 +34,7 @@ type Library struct {
 
 // trailGuideConfig is the configuration of a library in the trailguide directory, whose library section declares an MIT
 // license in LICENSE.
-const trailGuideConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 1\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
+const trailGuideConfig = "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 2\n  name: example\n  license:\n    spdxExpression: MIT\n    file: LICENSE\n    notices: []\n"
 
 // NewLibrary returns a repository in the earlier layout, which trailguide libraries had before they moved into
 // .trailguide/: its working tree holds only rule-library.yaml at the root, declaring an MIT license, and its LICENSE
