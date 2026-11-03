@@ -285,12 +285,12 @@ func TestCheckListingKeepsTheLastReleaseWhenALaterOneUsesANewerLibrarySchema(t *
 		t.Fatal(err)
 	}
 	lib.MoveToTrailGuideDirectory()
-	lib.Write(".trailguide/config.yaml", "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 2\n  license: {spdxExpression: MIT, file: LICENSE, notices: []}\n")
+	lib.Write(".trailguide/config.yaml", "schemaVersion: 2\nsources: {}\nlibrary:\n  schemaVersion: 3\n  license: {spdxExpression: MIT, file: LICENSE, notices: []}\n")
 	lib.Release(2, "schemaVersion: 1\nrelease: 2\nrules:\n  "+retryBackoff+": 1.0.0\n  "+retryLimits+": 1.0.0\n  "+returnErrors+": 1.0.0\n")
 
 	check, err := l.check(t, id)
 
-	want := "declares library schema version 2, which Rulemart doesn't read yet: it reads library schema version 1."
+	want := "declares library schema version 3, which Rulemart doesn't read yet: it reads library schema version 2."
 	if err != nil || check.Outcome != app.ListingRefused || !strings.Contains(check.Failure, want) {
 		t.Fatalf("got %+v, %v; want refused for %q", check, err, want)
 	}
