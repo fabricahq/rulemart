@@ -32,7 +32,7 @@ jobs:
   build:
     name: Build and package
     # The Lambdas' own architecture, so the container runs natively.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ fromJSON(vars.CI_RUNNERS_PUBLIC).linux_arm64 }}
     timeout-minutes: 30
     permissions:
       contents: read

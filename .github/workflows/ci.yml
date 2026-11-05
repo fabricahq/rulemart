@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     # Test on the Lambdas' own CPU architecture.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ fromJSON(vars.CI_RUNNERS_PUBLIC).linux_arm64 }}
     timeout-minutes: 20
     # Integration tests create their own databases on this server.
     services:
