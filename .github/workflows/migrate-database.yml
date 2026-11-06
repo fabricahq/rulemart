@@ -30,7 +30,7 @@ permissions:
 jobs:
   migrate:
     name: Apply migrations
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.CI_RUNNERS_PUBLIC).linux }}
     timeout-minutes: 15
     environment: production
     permissions:
